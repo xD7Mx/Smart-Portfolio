@@ -1,0 +1,508 @@
+"""
+Whole-market technical screener dataset (فرز الأسهم — نمط TradingView).
+
+For every company in our own Tadawul directory we precompute a compact
+technical row from 1y of Yahoo daily closes: last price, SMA50, SMA200,
+RSI(14), 52-week high/low, and the derived flags a screener filters on
+(above/below each MA, golden/death cross, oversold/overbought). Sector,
+today's change% and traded value come from the SAME already-computed
+market-movers snapshot — no extra price pass for those.
+
+Computed once daily after the close by the scheduler (this is ~one Yahoo
+history call per symbol, so it is deliberately NOT on-demand), cached, and
+persisted as last-known-good so the screener survives restarts and serves a
+real snapshot instead of an empty screen. The frontend does the actual
+filtering/sorting client-side over this one dataset — fast and flexible.
+"""
+import asyncio
+import logging
+
+from app.services import cache
+
+logger = logging.getLogger(__name__)
+
+SCREENER_CACHE_KEY = "market:screener"
+SCREENER_TTL = 36 * 60 * 60  # comfortably covers a day+ between daily runs
+SCREENER_AT_KEY = "market:screener:at"
+
+
+def screener_age_hours() -> float | None:
+    """عمرُ بيانات الفرز بالساعات، أو None إن كان مجهولاً. يُبنى عليه قرارُ
+    وصف السعر: «الآن» لا تُقال إلا لبياناتٍ من جلسة اليوم."""
+    import time as _t
+    at = cache.get(SCREENER_AT_KEY)
+    if at is None:
+        try:
+            from app.services import lastgood as _lg
+            rec = _lg.load(SCREENER_AT_KEY) or {}
+            at = rec.get("at")
+        except Exception:
+            at = None
+    if not at:
+        return None
+    return max(0.0, (_t.time() - float(at)) / 3600.0)
+_CONCURRENCY = 8  # bounded parallel history fetches — kind to the unofficial Yahoo endpoint
+
+
+def _sma(closes: list[float], n: int) -> float | None:
+    if len(closes) < n:
+        return None
+    return round(sum(closes[-n:]) / n, 3)
+
+
+def _rsi(closes: list[float], period: int = 14) -> float | None:
+    if len(closes) < period + 1:
+        return None
+    gains, losses = 0.0, 0.0
+    # Seed over the first `period` deltas (Wilder), then smooth over the rest.
+    deltas = [closes[i + 1] - closes[i] for i in range(len(closes) - 1)]
+    seed = deltas[:period]
+    avg_gain = sum(d for d in seed if d > 0) / period
+    avg_loss = sum(-d for d in seed if d < 0) / period
+    for d in deltas[period:]:
+        gain = d if d > 0 else 0.0
+        loss = -d if d < 0 else 0.0
+        avg_gain = (avg_gain * (period - 1) + gain) / period
+        avg_loss = (avg_loss * (period - 1) + loss) / period
+    if avg_loss == 0:
+        return 100.0 if avg_gain > 0 else 50.0
+    rs = avg_gain / avg_loss
+    return round(100 - (100 / (1 + rs)), 1)
+
+
+def _ema_series(values: list[float], n: int) -> list[float] | None:
+    """سلسلة المتوسط الأسّي — تهيئة بمتوسط بسيط لأول n قيمة ثم التمهيد المعتاد."""
+    if len(values) < n:
+        return None
+    k = 2 / (n + 1)
+    ema = sum(values[:n]) / n
+    out = [ema]
+    for v in values[n:]:
+        ema = v * k + ema * (1 - k)
+        out.append(ema)
+    return out
+
+
+def _macd(closes: list[float], fast: int = 12, slow: int = 26, sig: int = 9) -> dict:
+    """MACD القياسي (12/26/9): الخط = EMA12 − EMA26، وخط الإشارة = EMA9 للخط.
+    نُرجع الحالة (فوق/تحت الإشارة) و**التقاطع الطازج** إن حدث في آخر شمعة —
+    وهو الإشارة القابلة للتنفيذ التي يبحث عنها المستخدم في الفرز.
+    القيم None عند قصر التاريخ (لا نُصدر حكماً بلا بيانات)."""
+    empty = {"macd": None, "macd_signal": None, "macd_hist": None,
+             "macd_bullish": None, "macd_cross": None}
+    if len(closes) < slow + sig:
+        return empty
+    ef, es = _ema_series(closes, fast), _ema_series(closes, slow)
+    if not ef or not es:
+        return empty
+    # محاذاة السلسلتين على نفس الطول (الأبطأ يبدأ متأخراً).
+    ef = ef[len(ef) - len(es):]
+    macd_line = [f - s for f, s in zip(ef, es)]
+    sig_line = _ema_series(macd_line, sig)
+    if not sig_line or len(sig_line) < 2:
+        return empty
+    macd_al = macd_line[len(macd_line) - len(sig_line):]
+    hist = [m - s for m, s in zip(macd_al, sig_line)]
+    cross = None
+    if len(hist) >= 2:
+        if hist[-2] <= 0 < hist[-1]:
+            cross = "up"        # تقاطع صاعد طازج
+        elif hist[-2] >= 0 > hist[-1]:
+            cross = "down"      # تقاطع هابط طازج
+    return {
+        "macd": round(macd_al[-1], 3),
+        "macd_signal": round(sig_line[-1], 3),
+        "macd_hist": round(hist[-1], 3),
+        "macd_bullish": hist[-1] > 0,
+        "macd_cross": cross,
+    }
+
+
+def _pct(a: float, b: float | None) -> float | None:
+    if not b:
+        return None
+    return round((a - b) / b * 100, 2)
+
+
+def _resample(points: list, unit: str) -> list[float]:
+    """يُجمّع الشموع اليومية إلى أسبوعية/شهرية محليًّا — إغلاق آخر يوم في كل
+    أسبوع/شهر. هكذا نخدم الفواصل الثلاثة بنداءٍ واحد لكل شركة (لا نداء إضافي
+    ولا استهلاك حصّة)."""
+    buckets: dict[str, float] = {}   # dict يحفظ ترتيب الإدراج (Python 3.7+)
+    for p in points:
+        c = p.get("close")
+        d = p.get("date")
+        if c is None or not d:
+            continue
+        if unit == "W":
+            y, w, _ = _date_parts(d)
+            key = f"{y}-W{w:02d}"
+        else:                        # "M"
+            key = d[:7]
+        buckets[key] = c             # آخر إغلاق في الحاوية يغلبها
+    return list(buckets.values())
+
+
+def _date_parts(iso: str):
+    from datetime import date
+    y, m, d = (int(x) for x in iso.split("-")[:3])
+    return date(y, m, d).isocalendar()
+
+
+def _frame_metrics(closes: list[float]) -> dict:
+    """مقاييس فاصلٍ واحد. كل علَم ثلاثي الحالة: True/False حكمٌ حقيقي، و None
+    «غير متاح» (لا يكفي التاريخ لحساب المتوسط). قبلاً كانت تسقط إلى False
+    فتُصنَّف الشركة الحديثة كذباً «تحت م200» و«تقاطع هابط» بلا متوسط أصلاً —
+    مخالفٌ لمبدأ لا اختلاق."""
+    if not closes:
+        return {}
+    price = closes[-1]
+    sma50 = _sma(closes, 50)
+    sma200 = _sma(closes, 200)
+    return {
+        "sma50": sma50,
+        "sma200": sma200,
+        "rsi": _rsi(closes),
+        "dist_sma50": _pct(price, sma50),
+        "dist_sma200": _pct(price, sma200),
+        "above_sma50": (price >= sma50) if sma50 is not None else None,
+        "above_sma200": (price >= sma200) if sma200 is not None else None,
+        "golden_cross": (sma50 >= sma200) if (sma50 is not None and sma200 is not None) else None,
+        **_macd(closes),
+    }
+
+
+async def _row_for(symbol: str, name: str, sector: str | None, sem: asyncio.Semaphore) -> dict | None:
+    from app.services.market_data import market_service
+
+    async with sem:
+        try:
+            # تاريخ عشر سنوات بنداءٍ واحد → يكفي لاشتقاق الفواصل الثلاثة:
+            # يومي (م50/م200)، أسبوعي (م50=سنة، م200≈٤ سنوات)، شهري (م50≈٤ سنوات).
+            # ملاحظة: `_fetch_chart_points` معرّفة على **مُحوّل ياهو** لا على
+            # الواجهة MarketDataService — استدعاؤها من الواجهة كان يرمي
+            # AttributeError يبتلعه الـexcept، فيعود كل صفّ None ويبقى الفرز
+            # فارغاً أبداً. نمرّ عبر `_yahoo()` كما تفعل بقية الدوال.
+            points = await market_service._yahoo()._fetch_chart_points(f"{symbol}.SR", "10y", "1d")
+        except Exception as e:
+            logger.debug(f"Screener: history fetch failed for {symbol}: {e}")
+            points = []
+    points = points or []
+    closes = [p["close"] for p in points if p.get("close") is not None]
+    if len(closes) < 60:
+        return None  # too little history to say anything technical honestly
+
+    price = closes[-1]
+    # قمة/قاع ٥٢ أسبوعاً = آخر ٢٥٢ جلسة تقريباً (لا كامل العشر سنوات).
+    last_year = closes[-252:]
+    daily = _frame_metrics(closes)
+
+    return {
+        "symbol": symbol,
+        "name": name,
+        "sector": sector,
+        "price": price,
+        "high_52w": round(max(last_year), 3),
+        "low_52w": round(min(last_year), 3),
+        # الفاصل اليومي مبسوط في الجذر (توافقاً مع أي مستهلك سابق)…
+        **daily,
+        # …والفواصل الثلاثة مُهيكلة ليختار المستخدم بينها.
+        "frames": {
+            "D": daily,
+            "W": _frame_metrics(_resample(points, "W")),
+            "M": _frame_metrics(_resample(points, "M")),
+        },
+    }
+
+
+async def _governance_score(ysym: str, sector_ar: str | None) -> float | None:
+    """**درجة الحوكمة** من مصدر الحقيقة الواحد — `governance_engine.evaluate_company`
+    نفسه الذي تقرأه صفحة الحوكمة وتقييم الأداء ورأي الذكاء.
+
+    كان الفرز يحسبها بدالة أخرى (`finance_score_from_periods`) فيظهر رقمٌ
+    يعارض الرقم المعروض في صفحة الحوكمة لنفس الشركة — تعارضٌ يفقد الثقة.
+
+    حماية الحصّة: لا نستدعي المحرّك إلا إذا كانت القوائم المالية **مخزَّنة
+    سلفاً** (ذاكرة أو قرص)، فلا يتسبّب الفرز بأي نداء جديد. وإن كانت البيانات
+    غير كافية يُعيد المحرّك evaluable=False فنُعيد None (لا درجة مُختلَقة)."""
+    try:
+        from app.services import cache, lastgood
+        ck = f"stmt:{ysym}"
+        if cache.get(ck) is None and lastgood.load(ck, max_age_seconds=cache.FUNDAMENTALS_TTL) is None:
+            return None                      # لا قوائم مخزَّنة → لا نُشغّل المحرّك
+        from app.services.governance_engine import evaluate_company
+        gov = await evaluate_company(ysym, sector=sector_ar)
+        if not gov or not gov.get("evaluable"):
+            return None
+        return gov.get("overall")
+    except Exception:
+        return None
+
+
+async def _enrich_fundamentals(rows: list[dict]) -> None:
+    """يُطعّم صفوف الفرز ببيانات **أساسية وشرعية وحوكمية** — من الكاش وقاعدة
+    البيانات فقط، **بلا أي نداء إضافي** لأي مزوّد (فلا تُمسّ حصّة ياهو/سهمك).
+    ما لا يتوفّر يبقى None صراحةً («غير متاح») ولا يُختلَق ولا يُفلتَر عليه.
+
+    هذا ما يميّز الفرز عن أي أداة تقنية عامة: يُجيب أسئلة المستثمر الحقيقية
+    (متوافق شرعاً · توزيعات > ٤٪ · درجة مالية > ٧٠) لا أسئلة المضارب فقط."""
+    from app.services import cache
+
+    # ١) الشرعي + الدرجة المالية من قاعدة البيانات (مصدر التطبيق نفسه).
+    db_map: dict[str, dict] = {}
+    try:
+        from sqlalchemy import select
+        from app.core.database import AsyncSessionLocal
+        from app.models.portfolio import Company
+        async with AsyncSessionLocal() as db:
+            res = await db.execute(select(Company.symbol, Company.sharia_status, Company.finance_score))
+            for sym, sharia, score in res.all():
+                db_map[str(sym).replace(".SR", "")] = {
+                    "sharia": getattr(sharia, "value", sharia),
+                    "finance_score": float(score) if score is not None else None,
+                }
+    except Exception as e:
+        logger.warning(f"Screener: fundamentals from DB unavailable: {e}")
+
+    # المخزن المتراكم لعائد التوزيعات (يُبنى من نداءات تمّت أصلاً في مسحة المفكرة).
+    try:
+        from app.services.content_engine import fund_store_load
+        fund_store = fund_store_load()
+    except Exception:
+        fund_store = {}
+
+    # التوافق الشرعي: **من ملفات المقاصد/أرقام المحلّية** (تغطّي ~٩٧٪ من السوق
+    # بصفر نداءات) لا من قاعدة البيانات — قاعدة البيانات لا تحوي إلا شركاتك،
+    # فكان الفلتر الشرعي يُخفي السوق كلّه ويُبقي محفظتك فقط.
+    try:
+        from app.services import maqasid
+    except Exception:
+        maqasid = None
+
+    for r in rows:
+        sym = r["symbol"]
+        ysym = f"{sym}.SR"
+        d = db_map.get(sym) or {}
+        sharia = None
+        if maqasid is not None:
+            try:
+                rating = maqasid.rating(sym)
+                if rating:
+                    sharia = rating.get("status")
+                    r["sharia_source"] = rating.get("source")
+                    r["purification"] = rating.get("purification")
+            except Exception:
+                pass
+        if not sharia:                       # احتياط: قاعدة البيانات لشركاتك
+            sharia = d.get("sharia")
+        r["sharia"] = sharia if sharia and sharia != "UNKNOWN" else None
+        # درجة الحوكمة: من قاعدة البيانات (تُخزَّن هناك من المحرّك نفسه)، وإلا
+        # من المحرّك مباشرةً على القوائم المخزَّنة — رقمٌ واحد لا يعارض صفحة
+        # الحوكمة أبداً.
+        fs = d.get("finance_score")
+        if not fs:
+            fs = await _governance_score(ysym, r.get("sector"))
+        r["finance_score"] = fs if fs else None
+
+        # ٢) حقول التقييم: الكاش أوّلاً (٣٠ يوماً)، فإن انتهى فالمخزن الدائم.
+        #    المخزن يتراكم ولا يُفرَّغ، فتكتمل تغطية السوق وتبقى — بخلاف الكاش
+        #    الذي يُسقط ما لم يُجلب حديثاً فتظهر خانات فارغة بلا سبب.
+        fund = cache.get(f"fund:yahoo:{ysym}") or {}
+        stored = fund_store.get(sym) or {}
+        pick = lambda k: fund.get(k) if fund.get(k) is not None else stored.get(k)
+        r["pe_ratio"] = pick("pe_ratio")
+        r["price_to_book"] = pick("price_to_book")
+        r["roe"] = pick("roe")
+        r["fair_value"] = pick("target_mean_price")
+        r["fair_value_asof"] = stored.get("val_asof")
+        dy = fund.get("dividend_yield")
+
+        # ٣) عائد التوزيعات: إن غاب من الأساسيات نحسبه من **المخزن المتراكم**
+        #    (توزيع السهم لآخر ١٢ شهراً، تُثبّته مسحة المفكرة الدوّارة عند كل
+        #    جلبٍ فعلي) ÷ السعر الحالي. المخزن دائم فتكتمل تغطيته خلال ~١٠ أيام
+        #    وتبقى — بخلاف كاش الـ٢٤ساعة الذي كان يُفرّغ نفسه يومياً.
+        if dy is None:
+            f = fund_store.get(sym) or {}
+            dps = f.get("dps_ttm")
+            if dps and r.get("price"):
+                dy = round(dps / r["price"] * 100, 2)
+        r["dividend_yield"] = dy
+
+    have = sum(1 for r in rows if r.get("sharia") or r.get("dividend_yield") or r.get("finance_score"))
+    logger.info(f"Screener: fundamentals attached for {have}/{len(rows)} rows (cache/DB only).")
+    _attach_relative_valuation(rows)
+
+
+# ── التقييم النسبي للقطاع + الحكم المركّب ─────────────────────────────────
+# حسابٌ داخليّ بحت على صفوف الفرز نفسها: **صفر نداء شبكة**. السؤال الذي يجيب
+# عنه غير سؤال درجة الحوكمة: تلك تقول «أهذه الشركة سليمة؟»، وهذا يقول «أسعرها
+# اليوم رخيصٌ أم غالٍ مقارنةً بأقرانها في قطاعها؟» — وشركةٌ سليمة قد تكون
+# صفقةً رديئة بسعر اليوم، ومتعثّرةٌ قد تكون مُسعّرة لتعثّرها سلفاً.
+#
+# الوسيط لا المتوسّط: مضاعف ربحية شاذّ واحد (٣٠٠ مثلاً لشركةٍ أرباحها تكاد
+# تكون صفراً) يجرّ المتوسّط فيبدو القطاع كلّه رخيصاً. والوسيط لا يتأثّر به.
+_MIN_PEERS = 3          # أقلّ من ثلاثة أقران ليس قطاعاً يُقاس عليه
+_CHEAP = 20.0           # ٪ تحت وسيط القطاع ⇒ مبخّس
+
+
+def _median(vals: list[float]) -> float | None:
+    v = sorted(vals)
+    n = len(v)
+    if not n:
+        return None
+    return v[n // 2] if n % 2 else (v[n // 2 - 1] + v[n // 2]) / 2
+
+
+def _attach_relative_valuation(rows: list[dict]) -> None:
+    by_sector: dict[str, list[dict]] = {}
+    for r in rows:
+        if r.get("sector"):
+            by_sector.setdefault(r["sector"], []).append(r)
+
+    med: dict[str, dict] = {}
+    for sec, group in by_sector.items():
+        # مضاعف سالب = خسارة، ولا معنى لمقارنته: يُستبعد من الوسيط ومن الحكم.
+        pes = [float(x["pe_ratio"]) for x in group if isinstance(x.get("pe_ratio"), (int, float)) and x["pe_ratio"] > 0]
+        pbs = [float(x["price_to_book"]) for x in group if isinstance(x.get("price_to_book"), (int, float)) and x["price_to_book"] > 0]
+        med[sec] = {
+            "pe": _median(pes) if len(pes) >= _MIN_PEERS else None,
+            "pb": _median(pbs) if len(pbs) >= _MIN_PEERS else None,
+            "n": len(group),
+        }
+
+    for r in rows:
+        # ── المقياس الثاني: تقدير المحللين ────────────────────────────────
+        # سؤالٌ آخر غير سؤال القطاع: لا «أرخص من أقرانه؟» بل «كم يبعد سعره عن
+        # القيمة التي يراها المحللون؟». يُعرض مستقلاً ولا يُخلط بالأول، فمصدره
+        # آراء بشر لا مقارنة أرقام — ويُحدَّث شهرياً لا يومياً.
+        fv, px = r.get("fair_value"), r.get("price")
+        r["upside_pct"] = (round((float(fv) - float(px)) / float(px) * 100, 1)
+                           if isinstance(fv, (int, float)) and fv > 0
+                           and isinstance(px, (int, float)) and px > 0 else None)
+
+        m = med.get(r.get("sector") or "", {})
+        gap = basis = None
+        pe, pb = r.get("pe_ratio"), r.get("price_to_book")
+        # شركةٌ خاسرة (مضاعف سالب): لا تُقاس بمكرّر الدفترية فتُصنَّف «رخيصة» —
+        # رُخصها انعكاس الخسارة نفسها، والتصنيف حينها تضليل صريح.
+        losing = isinstance(pe, (int, float)) and pe <= 0
+        if losing:
+            pb = None
+        if m.get("pe") and isinstance(pe, (int, float)) and pe > 0:
+            gap, basis = (m["pe"] - pe) / m["pe"] * 100, "pe"
+        elif m.get("pb") and isinstance(pb, (int, float)) and pb > 0:
+            # مكرّر الدفترية بديلٌ لا مساوٍ: يُعلَن الأساس كي لا يُقرأ الرقمان
+            # كأنهما مقياس واحد.
+            gap, basis = (m["pb"] - pb) / m["pb"] * 100, "pb"
+
+        r["sector_pe"] = round(m["pe"], 2) if m.get("pe") else None
+        r["sector_pb"] = round(m["pb"], 2) if m.get("pb") else None
+        r["value_gap_pct"] = round(gap, 1) if gap is not None else None
+        r["value_basis"] = basis
+
+        # الحكم: لا يُختلق عند نقص البيان — «لا يكفي» حكمٌ صادق، والصمت أفضل
+        # من تصنيفٍ مبنيّ على فراغ.
+        # ثلاث حالات لا سبع: «مبخّس وسليم» و«مبخّس · حوكمة ضعيفة» لم تكونا
+        # حكمين مستقلّين بل حاصل ضرب التقييم في السلامة — وللسلامة فلترها
+        # وشريطها المستقلّان، فتقاطعهما يغني عن تصنيفٍ مركّب يضاعف القائمة.
+        # وتبقى «خاسرة» و«لا يكفي» حالتَي بيانٍ لا خياري بحث.
+        if losing:
+            v = "loss"
+        elif gap is None:
+            v = "insufficient"
+        elif gap >= _CHEAP:
+            v = "cheap"
+        elif gap <= -_CHEAP:
+            v = "expensive"
+        else:
+            v = "fair"
+        r["verdict"] = v
+
+
+async def compute_screener() -> list | None:
+    """Full-market technical scan → cached screener dataset. Enriches each row
+    with today's change% / traded value / sector from the movers snapshot when
+    available (no extra call)."""
+    from app.data.market_universe import MARKET_UNIVERSE
+    from app.services.market_movers import get_cached_market_movers
+
+    # السوق الرئيسي فقط (تاسي) — نستثني نمو (9xxx) كما في مسح المحركين.
+    universe = {s: m for s, m in MARKET_UNIVERSE.items() if not s.startswith("9")}
+    if not universe:
+        logger.warning("Screener: empty market directory — skipping.")
+        return None
+
+    sem = asyncio.Semaphore(_CONCURRENCY)
+    tasks = [
+        _row_for(s, (m.get("name_ar") or m.get("name_en") or s), m.get("sector"), sem)
+        for s, m in universe.items()
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    rows = [r for r in results if isinstance(r, dict)]
+    if not rows:
+        logger.warning("Screener: no technical rows computed — skipping.")
+        return None
+
+    # طُعم اليوم (التغير% والقيمة المتداولة) من مسح المحركين نفسه.
+    movers = get_cached_market_movers() or {}
+    day_change = movers.get("stocks") or {}
+    for r in rows:
+        r["change_pct"] = day_change.get(r["symbol"])
+
+    await _enrich_fundamentals(rows)
+
+    # ══ الجودةُ في قائمة السوق — ليُرتَّب السوقُ ويُصفّى ══ (بأمر المالك)
+    # «جاهزٌ لكل شركات السوق» يعني أن يجد المستثمرُ المرشّحين لا أن يحكم
+    # على واحدةٍ اختارها هو. فتُطعَّم صفوفُ الفرز بما حُفظ في المخزن
+    # العميق عند فتح كل شركة — بلا نداءٍ إضافيّ ولا إعادة حساب — فتُرتَّب
+    # القائمة بالدرجة وتُصفّى بالخطّ الأحمر وبنسبة القيمة إلى السعر.
+    try:
+        from app.services import lastgood as _lg2
+        deep = _lg2.load("governance:deep") or {}
+        if isinstance(deep, dict):
+            for r in rows:
+                d = deep.get(str(r["symbol"]).replace(".SR", ""))
+                if not isinstance(d, dict):
+                    continue
+                r["quality"] = d.get("quality")
+                r["quality_coverage"] = d.get("coverage")
+                r["quality_basis"] = d.get("basis")
+                r["archetype"] = d.get("archetype")
+                r["red_lines"] = d.get("red_lines") or 0
+                r["governance"] = d.get("governance")
+                r["decision"] = (d.get("decision") or {}).get("label") \
+                    if isinstance(d.get("decision"), dict) else d.get("decision")
+                r["value_to_price"] = d.get("value_to_price")
+    except Exception:                                             # noqa: BLE001
+        pass
+
+    rows.sort(key=lambda r: r["symbol"])
+    cache.set(SCREENER_CACHE_KEY, rows, SCREENER_TTL)
+    # ختمُ الزمن: بدونه لا يعرف أحدٌ كم عمر هذه الأسعار. المخزّن يعيش ٣٦ ساعة
+    # ويسقط بعدها إلى «آخر لقطةٍ سليمة» بلا حدٍّ لعمرها — فقد تُقدَّم أسعارُ
+    # أسبوعٍ مضى على أنها سعر اليوم. الختم يجعل ذلك قابلاً للقول لا للإخفاء.
+    import time as _t
+    cache.set(SCREENER_AT_KEY, _t.time(), SCREENER_TTL)
+    try:
+        from app.services import lastgood as _lg
+        _lg.save(SCREENER_AT_KEY, {"at": _t.time()})
+    except Exception:
+        pass
+    try:
+        from app.services import lastgood
+        lastgood.save("market:screener", rows)
+    except Exception:
+        pass
+    logger.info(f"Screener: computed technical rows for {len(rows)}/{len(universe)} companies.")
+    return rows
+
+
+def get_cached_screener() -> list | None:
+    data = cache.get(SCREENER_CACHE_KEY)
+    if data is not None:
+        return data
+    try:
+        from app.services import lastgood
+        return lastgood.load("market:screener")
+    except Exception:
+        return None

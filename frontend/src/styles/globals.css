@@ -1,0 +1,2740 @@
+/* لا خطّ من شبكةٍ خارجية. كان `@import` لخطّ Inter من خوادم جوجل يُطلَب في
+   كل تحميل: طلبٌ لطرفٍ ثالث يحجب الرسم حتى يعود، ويفشل في الشبكات المقيّدة
+   أو بلا إنترنت، ويسرّب عنوان المستخدم لطرفٍ ثالث بلا داعٍ. والخطّ الأساسي
+   (Thmanyah) مستضافٌ معنا أصلاً، وInter لم يكن إلا بديلاً احتياطياً —
+   يقوم مقامه خطّ النظام. قِيس بعد الحذف: طلبٌ خارجيٌّ واحد ← صفر. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Site-wide weight rule: only medium (headings) and light (everything
+   else) may render anywhere — collapses every Tailwind weight utility
+   regardless of which one a component used, so no third weight can sneak
+   in from any file. ─────────────────────────────────────────────────── */
+.font-thin, .font-extralight, .font-light, .font-normal,
+.font-semibold, .font-bold, .font-extrabold, .font-black {
+  font-weight: 300 !important;
+}
+.font-medium { font-weight: 500 !important; }
+h1, h2, h3, h4, h5, h6 { font-weight: 500; }
+
+/* ── Thmanyah Serif Display — the site's only typeface ───── */
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('../assets/fonts/thmanyahserifdisplay-Light.woff2') format('woff2');
+  font-weight: 300; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('../assets/fonts/thmanyahserifdisplay-Regular.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('../assets/fonts/thmanyahserifdisplay-Medium.woff2') format('woff2');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('../assets/fonts/thmanyahserifdisplay-Bold.woff2') format('woff2');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('../assets/fonts/thmanyahserifdisplay-Black.woff2') format('woff2');
+  font-weight: 900; font-style: normal; font-display: swap;
+}
+
+/* ── Base ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Declared on the root, not just .input — Chrome only reliably re-themes
+   native form-control internals (number-input text/caret, spinner buttons,
+   autofill) when color-scheme is set on an ancestor as high as html/:root;
+   scoping it to .input alone left the number fields rendering with the
+   OS's light-mode text color even while our own CSS painted a dark
+   background, making the values unreadable. */
+html { color-scheme: dark; }
+html.light {
+  color-scheme: light; }   /* --fg-strong: مُعرَّف مرّةً واحدة أدنى الملفّ */
+
+/* إصلاح ثغرة الزووم المفرط عند قلب الجهاز على سفاري iOS: بدون هذا يضخّم
+   المتصفح حجم النص تلقائياً عند الدوران من عمودي إلى أفقي فيبدو كتكبير ضخم.
+   تثبيته على 100% يجعل التخطيط يتناسب مع كل وضع مع أطراف متناسقة. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* قفل الدوران — الاحتياطي القسري (CSS). يُفعَّل بفئة html.orient-lock من
+   الإعدادات. يعمل فقط على أجهزة اللمس (pointer: coarse) وعندما يكون الجهاز
+   أفقياً: يُدوّر المحتوى ٩٠° ليبقى العرض عمودياً، فيغطّي المتصفحات التي يفشل
+   فيها الـ Screen Orientation API (خصوصاً iOS Safari). سطح المكتب لا يتأثر. */
+@media screen and (orientation: landscape) and (pointer: coarse) {
+  html.orient-lock body {
+    transform: rotate(-90deg);
+    transform-origin: left top;
+    width: 100vh;
+    height: 100vw;
+    overflow-x: hidden;
+    position: absolute;
+    top: 100%;
+    left: 0;
+  }
+  /* العناصر التي تُقاس بارتفاع الشاشة (app-shell/min-h-screen تعتمد dvh) يجب
+     أن تأخذ البُعد الطويل بعد التدوير، وإلا بقيت بارتفاع الوضع الأفقي القصير
+     فبدا التطبيق «مكسوراً» ولم يملأ الشاشة — وهو سبب عدم عمل القفل بصرياً. */
+  html.orient-lock .app-shell,
+  html.orient-lock .min-h-screen {
+    height: 100vw !important;
+    min-height: 100vw !important;
+  }
+}
+
+body {
+  font-family: 'Thmanyah Serif Display', 'Inter', sans-serif;
+  font-weight: 300;
+  background-color: var(--surface);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface); border-radius: 99px; }
+
+/* ── Card ─────────────────────────────────────────────── */
+.card {
+  background-color: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+/* ── Buttons ──────────────────────────────────────────── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  font-weight: 300;
+  font-size: 0.875rem;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand), var(--brand));
+  box-shadow: 0 4px 15px rgba(59,130,246,.3);
+  transition: all 0.15s;
+}
+.btn-primary:hover { background: linear-gradient(135deg, var(--brand), #4f46e5); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  font-weight: 300;
+  font-size: 0.875rem;
+  border: none;
+  cursor: pointer;
+  background-color: var(--surface);
+  color: var(--ink-muted);
+  transition: all 0.15s;
+}
+.btn-ghost:hover { background-color: var(--surface); color: #fff; }
+
+/* أزرار المكتبة (نبذة اليوم / قراءة) — تباين مضمون في الثيمين */
+.lib-daily-btn { background: linear-gradient(135deg, color-mix(in srgb, var(--warn-ink) 18%, transparent), rgba(59,130,246,.14)); border: 1px solid color-mix(in srgb, var(--warn-ink) 30%, transparent); color: var(--warn-ink); }
+.lib-read-btn  { background: transparent; border: 1px solid color-mix(in srgb, var(--pos-ink) 30%, transparent); color: var(--pos-ink); }
+html.light .lib-daily-btn { background: linear-gradient(135deg, color-mix(in srgb, var(--warn-ink) 16%, transparent), rgba(59,130,246,.10)); border-color: rgba(180,83,9,.55); color: #b45309; }
+html.light .lib-read-btn  { background: transparent; border-color: rgba(22,163,74,.5); color: var(--pos-ink); }
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  font-weight: 300;
+  font-size: 0.875rem;
+  cursor: pointer;
+  background-color: transparent;
+  color: var(--neg-ink);
+  border: 1px solid rgba(239,68,68,.3);
+  transition: all 0.15s;
+}
+.btn-danger:hover { background-color: var(--neg-ink); color: #fff; }
+
+/* ── تفاعل عام للأزرار والأيقونات (كمبيوتر + جوال) ─────────
+   كل زر يستجيب بضغطةٍ محسوسة (scale) وإبرازٍ لوني عند المرور/الضغط،
+   فلا يبدو أي زر «جافًّا صمّاً». يعمل :active على اللمس أيضًا. */
+/* انميشن ضغط موحّد وخفيف لكل الأزرار بلا استثناء (جوال وكمبيوتر). نرفع
+   الأولوية إلى button:not(:disabled) كي يتغلّب على أدوات Tailwind
+   (transition-colors/all) فلا يقفز التحجيم فجأةً بل يتحرّك بسلاسة في كل زر. */
+button:not(:disabled) { transition: transform .13s cubic-bezier(.2,.8,.2,1), box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease, filter .15s ease; }
+button:not(:disabled):active { transform: scale(0.95); }
+.btn-primary:hover { box-shadow: 0 6px 22px rgba(59,130,246,.5); transform: translateY(-1px); }
+.btn-primary:not(:disabled):active { transform: scale(0.94); box-shadow: 0 2px 10px rgba(59,130,246,.45); }
+.btn-ghost:hover { box-shadow: inset 0 0 0 1px rgba(59,130,246,.4); color: #fff; }
+.btn-danger:hover { box-shadow: 0 4px 16px rgba(220,38,38,.4); }
+/* أزرار الأيقونات المجرّدة (بلا صنف btn) — توهّج لوني خفيف عند المرور */
+button.icon-live:hover { color: var(--brand-ink); background-color: transparent; }
+
+/* شخصيات البروفايل الجاهزة — يملأ الـSVG حاويته الدائرية ويتوسّط تمامًا
+   (بلا هذا القياس يظهر بحجمه الأصلي 120 فيُقتطع في الزاوية). */
+.preset-avatar svg { width: 100%; height: 100%; display: block; }
+
+/* ── Profit / Loss ────────────────────────────────────── */
+.profit { color: var(--pos-ink); }
+.loss   { color: var(--neg-ink); }
+
+/* ── Nav ──────────────────────────────────────────────── */
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  /* وزنٌ أساسيّ هنا لا على النصّ الداخلي: كان النصّ في `<span>` بوزنه
+     الخاصّ، والوزنُ **لا يُورَّث فوق وزنٍ مصرَّح** — فقاعدة «المختار يثقل»
+     تصيب الرابط ولا تصل إلى الكلمة التي تُرى. وهذا سبب فقدان الـbold في
+     القائمة الجانبية وحدها رغم سريانه في بقيّة التطبيق. */
+  font-weight: 500;
+  color: var(--ink-muted);
+  text-decoration: none;
+  transition: all 0.15s;
+  cursor: pointer;
+  position: relative;
+}
+.nav-link:hover { color: var(--ink); background-color: var(--surface); }
+
+.nav-active {
+  /* كان هنا `font-weight: 300` — أخفُّ من العادي! فالمختار كان **أرقّ**
+     من غيره، عكس المعيار المقرَّر تماماً. وكانت له أرضيةٌ متدرّجة ملوّنة،
+     وهي من الخلفيات الثقيلة التي أُلغيت: الاختيار يُعلَن بالثقل واللون
+     والعلامة الجانبية، لا برقعةٍ مصبوغة. */
+  color: var(--brand-ink) !important;
+  font-weight: 800;
+  background: transparent !important;
+}
+.nav-active::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20%;
+  height: 60%;
+  width: 3px;
+  background: linear-gradient(180deg, var(--brand), var(--brand));
+  border-radius: 99px;
+}
+
+/* ── Input / Label ────────────────────────────────────── */
+.input {
+  width: 100%;
+  background-color: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 0.75rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s;
+  /* Without this, browsers render number-input chrome (spinner buttons,
+     autofill/native widget backgrounds) using the OS's LIGHT form-control
+     theme by default, which can wash out the light input text on our dark
+     background — the white value became barely legible in "number" fields
+     specifically. Declaring the scheme fixes the native widget colors to
+     match our own dark palette instead of guessing. */
+  color-scheme: dark;
+}
+.input::placeholder { color: var(--ink-muted); }
+.input:focus { border-color: var(--brand); }
+html.light .input { color-scheme: light; }
+
+.label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 300;
+  color: var(--ink-muted);
+  margin-bottom: 0.375rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Tags ─────────────────────────────────────────────── */
+.tag-g { display:inline-flex; align-items:center; gap:0.25rem; font-size:0.75rem; font-weight:300; padding:0.25rem 0.625rem; border-radius:9999px; background:transparent; color:var(--pos-ink); }
+.tag-r { display:inline-flex; align-items:center; gap:0.25rem; font-size:0.75rem; font-weight:300; padding:0.25rem 0.625rem; border-radius:9999px; background:transparent; color:var(--neg-ink); }
+.tag-b { display:inline-flex; align-items:center; gap:0.25rem; font-size:0.75rem; font-weight:300; padding:0.25rem 0.625rem; border-radius:9999px; background:transparent; color:var(--brand-ink); }
+.tag-v { display:inline-flex; align-items:center; gap:0.25rem; font-size:0.75rem; font-weight:300; padding:0.25rem 0.625rem; border-radius:9999px; background:transparent; color:var(--brand-ink); }
+.tag-a { display:inline-flex; align-items:center; gap:0.25rem; font-size:0.75rem; font-weight:300; padding:0.25rem 0.625rem; border-radius:9999px; background:transparent; color:var(--warn-ink); }
+.tag-n { display:inline-flex; align-items:center; gap:0.25rem; font-size:0.75rem; font-weight:300; padding:0.25rem 0.625rem; border-radius:9999px; background:transparent; color:var(--ink-muted); }
+
+/* ── Table ────────────────────────────────────────────── */
+/* المحاذاة من مكانٍ واحد: `text-align: start` يعني اليمين في RTL واليسار في
+   LTR تلقائياً. كانت الجداول تعتمد على `text-start` مرشوشاً في الترميز، فما
+   نُسي منه ورث محاذاةً من المتصفّح لا من اتجاه الصفحة — فتظهر عناوين يميناً
+   وأرقام يساراً في الجدول الواحد. القاعدة هنا تحكم كل جداول التطبيق. */
+.th { font-size:0.75rem; font-weight:300; color:var(--ink-muted); text-transform:uppercase; letter-spacing:0.05em; padding:0.75rem 1rem; text-align:start; }
+.td { font-size:0.875rem; padding:0.75rem 1rem; border-bottom:1px solid rgba(30,41,59,.4); text-align:start; }
+/* الاستثناء الوحيد صريحٌ: خليةٌ تُوسَّط عمداً (خانة تأشير مثلاً). */
+.th.text-center, .td.text-center { text-align:center; }
+
+/* البطاقات ومحتواها تتبع اتجاه الصفحة. أي عنصرٍ يحمل dir="ltr" (رقمٌ أو
+   تاريخ) يبقى قراءةً لاتينية لكن **موضعه** يظل في جهة البداية. */
+.card, .kpi, .stat-row { text-align:start; }
+
+/* ── Modal ────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0,0,0,.7);
+  -webkit-backdrop-filter: blur(4px); /* سفاري iOS/ماك يتطلب البادئة */
+  backdrop-filter: blur(4px);
+}
+.modal-box {
+  background-color: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 32rem;
+  box-shadow: 0 25px 50px rgba(0,0,0,.5);
+  /* المحتوى الطويل (كتحليل شركة) يتمرّر داخل النافذة لا خلفها */
+  max-height: 90vh; max-height: 90dvh;
+  overflow-y: auto;
+}
+/* نافذة عريضة لمحتوى التحليل الكامل — على الكمبيوتر تأخذ عرضاً حقيقياً
+   بدل قالب الجوال الضيّق (32rem) المخصّص لنماذج الإدخال. */
+.modal-box.modal-wide { max-width: min(64rem, 92vw); }
+
+/* ── Skeleton ─────────────────────────────────────────── */
+.skeleton {
+  background-color: var(--surface);
+  border-radius: 0.75rem;
+  animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+/* ── Fade In ──────────────────────────────────────────── */
+.fade-in { animation: fadeIn .25s ease; }
+@keyframes fadeIn {
+  from { opacity:0; transform:translateY(5px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* ════════ v2 Design System (from preview2 mockup) ════════ */
+
+/* ── Wealth Banner — centered layout with a tinted brand gradient. ── */
+.wealth {
+  background: linear-gradient(135deg, rgba(59,130,246,.12), rgba(139,92,246,.08), rgba(6,11,24,.8));
+  border: 1px solid rgba(59,130,246,.2);
+  border-radius: 16px;
+  padding: 22px 28px 20px;
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px;
+  position: relative; overflow: hidden;
+}
+html.light .wealth { background: linear-gradient(135deg, rgba(59,130,246,.13), rgba(139,92,246,.09)), var(--raised); border-color: rgba(59,130,246,.22); }
+.wealth-top { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+/* الأربعة في صفٍّ واحد دائماً — لا التفاف عند أي عرضٍ ولا في أي حاوية.
+   كان `flex-wrap: wrap` يكسرها ٣+١ متى ضاقت الحاوية (الجوّال، أو تصغير
+   بطاقة الباند داخل لوحة التحكم)، فتنزل «السيولة المتاحة» وحدها. والحجم
+   يتقلّص بـ clamp تبعاً لعرض الشاشة بدل أن ينكسر السطر. */
+.wealth-stats {
+  display: flex; justify-content: center; gap: clamp(6px, 3vw, 28px); flex-wrap: nowrap;
+  padding-top: 14px; margin-top: 10px; border-top: 1px solid var(--line); width: 100%;
+}
+.wealth-stats > div { flex: 0 1 auto; min-width: 0; }
+.wealth-stat-lbl { font-size: 11px; color: var(--ink-muted); margin-bottom: 3px; white-space: nowrap; }
+.wealth-stat-val { font-size: 15px; font-weight: 300; color: white; white-space: nowrap; }
+/* على الجوّال يتقلّص الخطّ ويلتصق الباند بحوافّه ليتّسع الصفّ حتى ٣٢٠ بكسل
+   بلا التفافٍ ولا تمدّدٍ أفقي. */
+@media (max-width: 640px) {
+  .wealth { padding-left: 10px !important; padding-right: 10px !important; }
+  .wealth-stats > div { flex: 1 1 0; }
+  .wealth-stat-lbl { font-size: 9.5px; white-space: nowrap; margin-bottom: 2px; }
+  .wealth-stat-val { font-size: 12px; white-space: nowrap; }
+}
+.wealth-stat-val.profit { color: var(--pos-ink); }
+.wealth-lbl { font-size: 12px; color: var(--ink-muted); font-weight: 300; letter-spacing: .5px; text-transform: uppercase; }
+.wealth-val { font-size: 38px; font-weight: 300; color: white; margin: 4px 0; letter-spacing: -1px; }
+.wealth-ch { font-size: 13px; font-weight: 300; color: var(--pos-ink); display: flex; align-items: center; justify-content: center; gap: 5px; }
+.wealth-ch.neg { color: var(--neg-ink); }
+.roi-lbl { font-size: 11px; color: var(--ink-muted); margin-bottom: 4px; }
+.roi-val { font-size: 15px; font-weight: 300; letter-spacing: -1px; color: var(--pos-ink); }
+.roi-val.neg { color: var(--neg-ink); }
+.wealth-badges { display: flex; justify-content: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.wb { font-size: 11px; padding: 3px 10px; border-radius: 99px; font-weight: 300; }
+
+.wb-g { background: transparent; color: var(--pos-ink); }
+.wb-b { background: transparent; color: var(--brand-ink); }
+.wb-v { background: transparent; color: var(--brand-ink); }
+
+/* الثيم الفاتح: نصّ أغمق وخطّ أثقل كي تظهر الشارات بوضوح على خلفية الثروة الفاتحة */
+html.light .wb { font-weight: 600; }
+html.light .wb-g { background: transparent; color: var(--pos-ink); }
+html.light .wb-b { background: transparent; color: var(--brand-ink); }
+html.light .wb-v { background: transparent; color: #6d28d9; }
+
+/* ── Metric Cards ── */
+.mc {
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: 13px;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 5px;
+  transition: border-color .2s;
+}
+.mc:hover { border-color: var(--hairline); }
+.mc-lbl { font-size: 11px; color: var(--ink-muted); font-weight: 300; letter-spacing: .3px; }
+.mc-val { font-size: 19px; font-weight: 300; color: white; letter-spacing: -.5px; }
+.mc-val.g { color: var(--pos-ink); } .mc-val.r { color: var(--neg-ink); } .mc-val.b { color: var(--brand-ink); }
+.mc-sub { font-size: 11px; color: var(--ink-muted); }
+.mc-icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+.ic-g { background: transparent; } .ic-r { background: transparent; }
+.ic-b { background: transparent; } .ic-v { background: transparent; }
+.ic-a { background: transparent; }
+
+/* ── Stat rows ── */
+.stat-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(26,37,64,.5); font-size: 13px; }
+.stat-row:last-child { border-bottom: none; }
+.stat-lbl { color: var(--ink-muted); }
+.stat-val { font-weight: 300; color: white; }
+.stat-val.g { color: var(--pos-ink); } .stat-val.r { color: var(--neg-ink); }
+
+/* ── Ticker cards (Market) ── */
+.ticker-tasi  { background: linear-gradient(135deg, color-mix(in srgb, var(--pos-ink) 10%, transparent), rgba(6,182,212,.06)); border-color: color-mix(in srgb, var(--pos-ink) 20%, transparent) !important; }
+.ticker-brent { background: linear-gradient(135deg, color-mix(in srgb, var(--warn-ink) 10%, transparent), rgba(249,115,22,.06)); border-color: color-mix(in srgb, var(--warn-ink) 20%, transparent) !important; }
+.ticker-gold  { background: linear-gradient(135deg, rgba(250,204,21,.1), color-mix(in srgb, var(--warn-ink) 6%, transparent)); border-color: rgba(250,204,21,.25) !important; }
+.ticker-lbl { font-size: 12px; font-weight: 300; margin-bottom: 8px; }
+.ticker-val { font-size: 28px; font-weight: 300; color: white; }
+.ticker-ch  { font-size: 13px; margin-top: 4px; }
+
+/* ── Notification item ── */
+.notif { padding: 14px; background: var(--surface); border-radius: 12px; display: flex; gap: 12px; align-items: flex-start; border-inline-end: 3px solid; }
+.notif-title { font-size: 13px; font-weight: 300; color: white; }
+/* Unread-count bubble on the bell icon — stays white on its red
+   background regardless of theme (the general .text-white light-mode
+   override doesn't apply here). */
+.notif-count { color: #fff !important; }
+.notif-msg { font-size: 12px; color: var(--ink-muted); margin-top: 3px; }
+.notif-time { font-size: 11px; color: var(--ink); margin-top: 6px; }
+
+/* ── Analysis card ── */
+.analysis-card {
+  background: linear-gradient(135deg, rgba(59,130,246,.1), rgba(139,92,246,.06));
+  border: 1px solid rgba(59,130,246,.2);
+  border-radius: 15px; padding: 20px;
+}
+.kpi { background: transparent; border-radius: 10px; padding: 10px 12px; }
+.kpi-lbl { font-size: 11px; color: var(--ink-muted); margin-bottom: 3px; text-align: right; }
+.kpi-val { font-size: 14px; font-weight: 300; color: white; text-align: right; }
+.reco-badge { font-size: 18px; font-weight: 300; padding: 8px 20px; border-radius: 10px; border: 1px solid; }
+
+/* ── News item (Market) ── */
+.news-item { padding: 12px; background: var(--surface); border-radius: 10px; border-inline-end: 3px solid var(--brand); display: flex; gap: 12px; }
+
+/* ── Toggle switch ── */
+.switch { position: relative; width: 40px; height: 22px; background: var(--surface); border-radius: 99px; cursor: pointer; transition: background .2s; border: none; flex-shrink: 0; }
+.switch.on { background: linear-gradient(135deg, var(--brand), var(--brand)); }
+.switch::after { content: ''; position: absolute; top: 3px; inset-inline-start: 3px; width: 16px; height: 16px; background: white; border-radius: 99px; transition: transform .2s; }
+.switch.on::after { transform: translateX(-18px); }
+html[dir="ltr"] .switch.on::after { transform: translateX(18px); }
+
+/* ════════ Light Theme (v1) ════════ */
+html.light body { background: #eef2f7; color: var(--ink); }
+html.light .card, html.light .mc { background: var(--raised); border-color: var(--hairline); }
+html.light .mc:hover { border-color: #bfdbfe; }
+html.light .text-white, html.light .mc-val, html.light .stat-val,
+html.light .notif-title, html.light .kpi-val, html.light .wealth-val,
+html.light .ticker-val, html.light .co-name, html.light .wealth-stat-val { color: var(--ink); }
+html.light .wealth-stat-val.profit { color: var(--pos-ink); }
+.ai-opinion-text { color: var(--ink); }
+html.light .ai-opinion-text { color: #000000; }
+/* Sector-treemap in-cell labels sit on their own colored data block, not the
+   card surface — must stay pure white in BOTH themes (unlike text-white,
+   which correctly flips dark on the card surface in light mode). */
+/* أبيضُ صريح في المظهرين — لا `--ink`. النصّ يجلس على مربّعٍ ملوّن له
+   لونه الخاصّ لا يتبع المظهر، وتحته سِتارٌ يضمن تباينه (انظر
+   SectorInfographic). وكان يقرأ `--ink` فيخرج **أسودَ** على الورق —
+   شيفرةٌ تنقض تعليقها الذي يقول «يجب أن يبقى أبيضَ دائماً». */
+.sector-cell-label,
+html.light .sector-cell-label { color: #ffffff; text-shadow: 0 1px 3px rgba(0,0,0,.45); }
+/* Governance's ranked-tube percentage labels sit inside their own colored
+   fill, same reasoning as .sector-cell-label above — must stay white in
+   both themes, with a shadow for legibility against lighter fill colors. */
+.tube-pct { color: var(--ink); text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+html.light .tube-pct { color: var(--ink); text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+/* text-slate-100/200 are near-white — meant for dark backgrounds only.
+   Any future use of them (like text-white) must stay legible once the
+   default theme became light, so they get the same dark override. */
+/* Pale accent shades (300-weight) are legible on a dark card but wash out
+   once bg-[#0a1020]-style cards flip to a light background above — darken
+   them a step so they stay readable in light mode too. */
+html.light .input { background: var(--raised); border-color: var(--hairline); color: var(--ink); }
+html.light .input::placeholder { color: var(--ink-muted); }
+html.light .btn-ghost { background: var(--raised); color: var(--ink-muted); }
+html.light .btn-ghost:hover { background: var(--raised); color: var(--ink); }
+html.light .nav-link { color: var(--ink-muted); }
+html.light .nav-link:hover { background: var(--surface); color: var(--ink); }
+html.light .td { border-color: var(--hairline); color: var(--ink); }
+html.light .modal-box { background: var(--raised); border-color: var(--hairline); }
+/* المكتبة (نبذة اليوم + القارئ): في الوضع الفاتح كانت صناديقها الداكنة المثبّتة
+   (bg-[#0b1220]/#111c30/#1a2540) تبقى داكنة داخل غلافٍ أبيض فيحدث «تداخل».
+   نحوّلها إلى فاتحة متّسقة مع الثيم الفاتح (النصّ الأبيض يُقلَب داكنًا أصلاً
+   عبر html.light .text-white فيُقرأ على الخلفية الفاتحة). */
+html.light .lib-surface .border-\[\#1a2540\] { border-color: var(--hairline); }
+html.light .notif, html.light .news-item, html.light .kpi { background: var(--raised); }
+html.light .analysis-card { background: linear-gradient(135deg, rgba(59,130,246,.07), rgba(139,92,246,.04)); border-color: rgba(59,130,246,.15); }
+html.light .skeleton { background: var(--raised); }
+/* ═══ قانون الأسطح: خريطة إلزامية بين رموز المظهر الداكن ومقابلها الفاتح ═══
+   جذر تكرار «الخلفية السوداء في المظهر الفاتح»: الملفات تكتب ألوان الأسطح
+   مباشرةً كأدوات Tailwind (bg-[#0a1020] …)، وهذه لا يعرفها المظهر الفاتح
+   فتبقى داكنة كما كُتبت. كان العلاج سابقاً ترقيع اللون الواحد عند اكتشافه —
+   فيعود العطل من رمزٍ آخر لم يُغطَّ بعد (وهو ما حدث في قائمة المراقبة: نتائج
+   البحث تستخدم #0e1626 ولم يكن مشمولاً).
+
+   الحلّ النهائي: تُترجَم **كل** رموز الأسطح الداكنة المستعملة في المشروع هنا،
+   فأي ملفّ يستخدم رمزاً منها يحصل على مقابله الفاتح تلقائياً بلا تدخّل.
+
+   **قاعدة للمستقبل**: لا يُضاف رمز سطحٍ داكن جديد في أي ملف قبل تسجيله في
+   هذه الخريطة. الطبقات: أرضية الصفحة · سطح مرتفع (بطاقة/قائمة) · سطح مُبرَز
+   (صفّ/تمرير) · حدّ. */
+
+/* حالات التمرير المكتوبة كأدوات — تحتاج تغطية مستقلّة وإلا عادت داكنة عند الـhover. */
+
+/* الحدود الداكنة — نفس المنطق. */
+/* ألوان حالة السوق — صريحة ومقروءة على المظهرين (كانت تبهت في الفاتح) */
+:root {
+  /* لون النصّ القويّ — يُستعمل حيث يجب أن يبقى الرقم مقروءاً بلا إخفات */
+  --fg-strong: #e2e8f0; --st-open: #22c55e; --st-pre: #f59e0b; --st-preclose: #3b82f6; --st-closed: #ef4444; }
+/* رمادي «الخمول» — لمؤشّر السوق المغلق وحده. منفصل عن --st-closed لأن الأخير
+   يخدم أيضاً سهم الفرز التنازلي (أحمر) فلا يصحّ تحويله. */
+/* «مغلق» رمادي بشرطة — ساكنٌ لا يلفت، فالإغلاق حالةٌ طبيعية لا إنذار.
+   المتغيّر منفصل عن --st-closed لأن الأخير يخدم سهم الفرز التنازلي (أحمر)،
+   فيبقى تغيير أحدهما بلا أثر على الآخر. */
+:root { --st-dash: #080f1e; }   /* --st-idle: أدنى الملفّ، بدرجة تباينٍ مقيسة */
+html.light { --st-dash: #ffffff; }
+
+/* وميض هادئ لطور «قبل الافتتاح» — نبضة بطيئة لا تلفت أكثر مما ينبغي. */
+/* سطر العدّاد داخل نافذة الساعة — خلفية خفيفة تفصله عن السطور بلا إطار ثقيل. */
+.clock-cd { background: transparent; }
+html.light .clock-cd { background: var(--raised); }
+
+@keyframes st-blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.st-blink { animation: st-blink 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .st-blink { animation: none; } }
+
+/* توهّج الساعة — مؤشّر حالة السوق بلا أي عنصرٍ إضافي في الشريط.
+   الأرقام نفسها تنتقل إلى لون الطور وتكتسب هالةً تشتدّ ثم تخفت. ولمَ لا نقطة:
+   الشريط ضيّق وفيه ثلاثة عناصر أصلاً، ورابعٌ دائم بجانب رقمٍ متغيّر يزحمه
+   ويُتعب البصر. واللون وحده لا يكفي لمن لا يميّزه، فأُضيفت الحركة معه —
+   والحالة الكاملة تبقى مكتوبةً في نافذة الساعة على كل حال.
+   يُطبَّق في الطورين الانتقاليّين فقط، فيصير ظهوره نفسه هو الخبر. */
+/* ══ توهّج الساعة: يعود إلى حبر الصفحة لا إلى الأبيض ══
+   كان طرفا الدورة `#fff` — صوابٌ يوم كان الشريط داكناً وحده، وعطبٌ منذ
+   صار المظهر الفاتح: الساعة تختفي تماماً على الشريط الأبيض جزءاً من كل
+   ٢٫٤ ثانية، ثم تعود. أمسكه `B-FADED` عند 1.55:1.
+   وهو **متقطّع** فلم تلتقطه جولاتٌ سابقة: التوهّج لا يعمل إلا في طورَي
+   الجلسة الانتقاليّين، فيمرّ الفحص وقت الإغلاق فيراه سليماً. ولهذا يبقى
+   الفحص على كل تسليم لا مرّةً واحدة.
+   و`--ink` تحلّ الأمرين برمزٍ واحد: أبيضُ في الداكن، أسودُ في الفاتح. */
+@keyframes clockGlow {
+  0%, 100% { color: var(--ink); text-shadow: 0 0 0 transparent; }
+  50% { color: var(--gc); text-shadow: 0 0 9px color-mix(in srgb, var(--gc) 70%, transparent); }
+}
+.clock-glow { animation: clockGlow 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  /* بلا حركة: يبقى اللون ثابتاً فلا تُفقد الإشارة أصلاً. */
+  .clock-glow { animation: none; color: var(--gc); }
+}
+/* خيارات القفل التلقائي — تباين مقروء على المظهرين (كان باهتاً في الفاتح) */
+.idle-opt { background: var(--surface); border-color: var(--hairline); color: var(--ink); }
+html.light .idle-opt { background: var(--raised); border-color: var(--hairline); color: var(--ink); }
+html.light .idle-opt:hover { background: var(--raised); color: var(--ink); }
+
+/* الخيار المختار للقفل التلقائي. النصّ الفاتح (amber-300/blue-300) كان يذوب
+   على خلفية بيضاء؛ في المظهر الفاتح نُعمّق النصّ ونُصلّب الحدّ، مع الحفاظ على
+   نفس البساطة: خلفية خفيفة + حدّ + نصّ داكن مقروء. */
+.idle-opt-warn { background: transparent; border-color: color-mix(in srgb, var(--warn-ink) 40%, transparent); color: var(--warn-ink); }
+.idle-opt-on   { background: transparent; border-color: rgba(59,130,246,.40); color: var(--brand-ink); }
+html.light .idle-opt-warn { background: #fef3c7; border-color: #d97706; color: #92400e; }
+html.light .idle-opt-on   { background: #dbeafe; border-color: var(--brand); color: #1e40af; }
+
+html.light { --st-open: #15803d; --st-pre: #b45309; --st-preclose: #1d4ed8; --st-closed: #b91c1c; }
+/* الساعة الرسمية — النافذة المنبثقة تتبع المظهر الفاتح (القرص بلا إطار/خلفية) */
+html.light .clock-pop { background: var(--raised) !important; border-color: var(--hairline) !important; box-shadow: 0 10px 30px rgba(15,23,42,.14); }
+html.light .clock-pop .bg-\[\#1a2540\] { background: var(--raised) !important; }
+html.light .react-grid-item > .react-resizable-handle::after { border-color: var(--ink-muted) !important; }
+
+/* Light theme — icon containers & tags were stuck on dark backgrounds */
+html.light .mc-icon { background: #eef2f7; }
+html.light .ic-b { background: transparent; }
+html.light .ic-g { background: transparent; }
+html.light .ic-r { background: transparent; }
+html.light .ic-v { background: transparent; }
+html.light .ic-a { background: transparent; }
+html.light .tag-n { background: var(--raised); color: var(--ink-muted); }
+html.light .th { color: var(--ink-muted); border-color: var(--hairline); }
+html.light .switch { background: var(--raised); }
+html.light .nav-active { background: transparent; color: var(--brand-ink); font-weight: 800; }
+html.light .stat-lbl, html.light .mc-lbl, html.light .kpi-lbl,
+html.light .ticker-lbl, html.light .notif-time { color: var(--ink-muted); }
+html.light svg { color: inherit; }
+
+/* ═══ حارس دائم: لا أسود فوق سطح ملوّن في المظهر الفاتح ═══
+   جذر العلّة أن `html.light svg { color: inherit }` أعلى ترجيحاً (0,1,2) من
+   أي `.x svg { color:#fff }` (0,1,1)، فكانت أيقونات الأزرار ذات التدرّج
+   اللوني ترث لون النصّ الداكن وتظهر سوداء فوق أزرق/بنفسجي. عولجت مرّة واحدة
+   هنا بترجيح أعلى، لا بترقيع كل زرّ على حدة.
+
+   **قاعدة للمستقبل**: أي عنصر جديد بخلفية ملوّنة (تدرّج أو لون مُشبَع) يأخذ
+   `on-accent` فيُضمن بياض محتواه في المظهرين معاً. */
+html.light .btn-primary, html.light .btn-primary svg,
+html.light .chat-send,   html.light .chat-send svg,
+html.light .chat-fab,    html.light .chat-fab svg,
+html.light .switch.on,   html.light .switch.on svg,
+html.light .on-accent,   html.light .on-accent svg { color: #fff !important; }
+
+/* ═══ Vibrant semantic colours in LIGHT mode ═══
+   Dark-mode palette is tuned for dark grounds; on white it goes pale or gets
+   flattened by the generic .td/.mc-val/.stat-val overrides above. Restore
+   punchy, accessible green/red/amber/blue in light mode for profit, loss,
+   returns, and the Sharia crescents (نقي/مختلط/غير متوافق). */
+html.light .profit,
+html.light .mc-val.g,
+html.light .stat-val.g,
+html.light .roi-val,
+html.light .wealth-ch,
+html.light .text-green-500 { color: var(--pos-ink) !important; }
+
+html.light .loss,
+html.light .mc-val.r,
+html.light .stat-val.r,
+html.light .roi-val.neg,
+html.light .wealth-ch.neg,
+html.light .text-red-500 { color: var(--neg-ink) !important; }
+
+
+html.light .mc-val.b,
+html.light .text-blue-500 { color: var(--brand-ink) !important; }
+
+/* Custom theme — user-picked background & text colors via CSS variables */
+html.custom body { background: var(--sp-bg, var(--surface)); color: var(--sp-text, var(--ink)); }
+html.custom .card, html.custom .mc, html.custom .modal-box {
+  background: color-mix(in srgb, var(--sp-bg, var(--surface)) 88%, var(--sp-text, var(--raised)) 12%);
+  border-color: color-mix(in srgb, var(--sp-bg, var(--hairline)) 72%, var(--sp-text, var(--hairline)) 28%);
+}
+html.custom .text-white, html.custom .mc-val, html.custom .stat-val,
+html.custom .notif-title, html.custom .kpi-val, html.custom .wealth-val,
+html.custom .ticker-val { color: var(--sp-text, var(--ink)); }
+html.custom .mc-lbl, html.custom .stat-lbl, html.custom .kpi-lbl, html.custom .nav-link {
+  color: color-mix(in srgb, var(--sp-text, var(--ink)) 65%, var(--sp-bg, var(--ink)) 35%);
+}
+html.custom .input {
+  background: color-mix(in srgb, var(--sp-bg, var(--surface)) 92%, var(--sp-text, var(--raised)) 8%);
+  border-color: color-mix(in srgb, var(--sp-bg, var(--hairline)) 70%, var(--sp-text, var(--hairline)) 30%);
+  color: var(--sp-text, var(--ink));
+}
+html.custom .btn-ghost {
+  background: color-mix(in srgb, var(--sp-bg, var(--surface)) 82%, var(--sp-text, var(--raised)) 18%);
+  color: var(--sp-text, var(--ink));
+}
+html.custom .td, html.custom .th {
+  border-color: color-mix(in srgb, var(--sp-bg, var(--hairline)) 78%, var(--sp-text, var(--hairline)) 22%);
+}
+
+/* Footer copyright */
+.sp-footer {
+  text-align: center; padding: 14px 0 10px; font-size: 11px;
+  color: var(--ink-muted); letter-spacing: .3px;
+}
+
+/* ── Top news ticker ─────────────────────────────────────────── */
+.news-ticker {
+  position: relative; height: 34px; flex-shrink: 0;
+  background: linear-gradient(90deg, #0a1224, #0d1730);
+  border-bottom: 1px solid var(--hairline); overflow: hidden;
+  animation: newsTickerIn .5s ease-out;
+}
+@keyframes newsTickerIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+html[dir="ltr"] .news-ticker { animation-name: newsTickerInLtr; }
+@keyframes newsTickerInLtr { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: translateX(0); } }
+/* Badge/tab overlapping the strip's start, not sharing its row — headlines
+   scroll the full width and visibly emerge from beneath its edge, instead of
+   sitting beside it as a separate flex column. */
+.news-ticker-label {
+  position: absolute; inset-inline-start: 0; top: 0; height: 100%;
+  display: flex; align-items: center; gap: 6px; padding: 0 14px;
+  font-size: 12px; font-weight: 300; color: #fff; white-space: nowrap;
+  background: linear-gradient(90deg, var(--brand-a), var(--brand-b));
+  /* Sharp inner edge, top and bottom — no rounding on the side the headlines
+     emerge from. */
+  box-shadow: 0 3px 10px rgba(0,0,0,.35);
+  z-index: 2;
+}
+.news-ticker-label svg { color: #fecaca; animation: liveblink 1.4s ease-in-out infinite; }
+@keyframes liveblink { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+/* Loading state — the full phrase "آخر الأخبار" (never clipped by the badge)
+   with three pulsing dots, evoking headlines loading into the strip. */
+.ticker-loading {
+  display: flex; align-items: center; gap: 8px;
+  padding-inline-start: 104px; color: var(--ink-muted); font-size: 12px; white-space: nowrap;
+}
+.ticker-loading .ldots { display: inline-flex; gap: 3px; }
+/* زرّ إعادة المحاولة داخل شريط الأخبار — يظهر فقط عند إخفاق الجلب. */
+.ticker-retry {
+  margin-inline-start: 8px; padding: 1px 7px; border-radius: 6px;
+  font-size: 10.5px; color: var(--accent, #38bdf8);
+  background: transparent; border: 1px solid rgba(56,189,248,.28);
+}
+.ticker-retry:hover { background: transparent; }
+.ticker-loading .ldots i {
+  width: 4px; height: 4px; border-radius: 50%; background: var(--brand);
+  display: inline-block; animation: tickerLoadDot 1s infinite ease-in-out;
+}
+.ticker-loading .ldots i:nth-child(2) { animation-delay: .15s; }
+.ticker-loading .ldots i:nth-child(3) { animation-delay: .30s; }
+@keyframes tickerLoadDot { 0%,60%,100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }
+.news-ticker-viewport { width: 100%; height: 100%; overflow: hidden; position: relative; display: flex; align-items: center; }
+.news-ticker-track {
+  display: inline-flex; align-items: center; white-space: nowrap;
+  will-change: transform; animation-name: tickerscroll; animation-timing-function: linear; animation-iteration-count: infinite;
+  /* animation-duration is set inline per-render, proportional to content width, so
+     speed stays constant (readable) instead of speeding up as more headlines load */
+}
+.news-ticker:hover .news-ticker-track { animation-play-state: paused; }
+/* Starts fully off-screen to the right and travels one complete lap (viewport
+   width + one full content pass) before looping — so every headline visibly
+   enters from the right edge instead of appearing already mid-strip. */
+/* Loops immediately from the first frame — an earlier version started fully
+   off-screen to the right so headlines took many seconds to first appear,
+   which read as an empty ticker on every page load. The container-level
+   newsTickerIn animation above already gives the "enters from the right"
+   polish on mount, so the track itself just needs to loop continuously. */
+@keyframes tickerscroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+/* RTL: the duplicated track content extends LEFTWARD (later flex items go
+   left), so the LTR keyframes above (moving left) drag everything off the
+   left edge with nothing entering from the right — measured blank for ~37%
+   of every loop. Moving RIGHT (+50%) slides the duplicate copy in from the
+   left continuously: never blank, and the +one-pass-width end state lands
+   exactly on the start state so the loop stays seamless. Headlines also
+   enter first-word-first, matching Arabic reading order. */
+html[dir="rtl"] .news-ticker-track { animation-name: tickerscrollRtl; }
+@keyframes tickerscrollRtl { from { transform: translateX(0); } to { transform: translateX(50%); } }
+/* الرابط كان صندوقاً كتليّاً (block)، فيجلس محتواه السطريّ على خطّ الكتابة
+   داخله لا في وسطه — فينزل الخبر ٣px تحت منتصف الشريط بينما وسم «الأخبار»
+   في منتصفه تماماً (كلاهما مقيس). جعلُه حاوية مرنة يحاذي محتواه إلى الوسط. */
+.ticker-link { text-decoration: none; display: inline-flex; align-items: center; height: 100%; }
+.ticker-item { display: inline-flex; align-items: center; gap: 8px; padding: 0 22px; }
+.ticker-dot { width: 5px; height: 5px; border-radius: 999px; background: #38bdf8; box-shadow: 0 0 8px #38bdf8; }
+.ticker-src { font-size: 10px; font-weight: 300; color: var(--brand-ink); }
+/* صندوق السطر يُحاذى لا الحرف: ارتفاع السطر الموروث (١٨٫٧٥px) أوسع من
+   الحرف، والخطّ العربي يجلس منخفضاً في مربّع الحرف — فينزل النصّ ٢٫٦px تحت
+   منتصف الشريط بينما وسم «الأخبار» في منتصفه تماماً. تضييق السطر إلى الحرف
+   نفسه يجعل المحاذاة على الحرف لا على فراغٍ حوله. */
+.ticker-txt { font-size: 12.5px; color: var(--ink); transition: color .15s; line-height: 1; }
+.ticker-src { line-height: 1; }
+.ticker-item { line-height: 1; }
+/* لا تبييضَ عند اللمس: كان `#fff` قيمةً ثابتة وُضعت لخلفيةٍ داكنة، فلمّا
+   صارت الأرضية بيضاء اختفى الخبرُ تحت إصبعك. اللون يبقى ثابتاً كما هو،
+   والاستجابة للّمس يقولها توقّفُ الشريط لا تغيّرُ اللون. */
+.ticker-new-dot {
+  width: 7px; height: 7px; border-radius: 999px; background: var(--neg-ink);
+  box-shadow: 0 0 8px var(--neg-ink); animation: liveblink 1s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+html.light .news-ticker { background: linear-gradient(90deg,#eef2f7,var(--raised)); border-color: var(--hairline); }
+html.light .ticker-txt { color: var(--ink); }
+
+/* ── Mobile drawer animation ─────────────────────────────────── */
+@keyframes drawerIn { from { transform: translateX(var(--drawer-from, -12px)); opacity: .4; } to { transform: translateX(0); opacity: 1; } }
+.drawer-in { animation: drawerIn .18s ease-out; }
+
+/* ── Fluid polish: smoother cards / motion (kwealth-style) ────── */
+.card, .mc { transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease; }
+.card:hover { box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+.fade-in { animation: fadeUp .32s ease-out; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Tables scroll horizontally on small screens instead of breaking the layout */
+@media (max-width: 640px) {
+  /* !important: several call sites set a fixed inline maxWidth (e.g. 620px)
+     for desktop, which — being inline — would otherwise always beat this
+     class rule and overflow a narrow phone viewport regardless of screen size. */
+  .modal-box { max-width: 94vw !important; padding: 16px; }
+  h1.text-2xl { font-size: 1.35rem; }
+}
+
+/* ── Light mode: kill dark hover patches & dark inline cells ──── */
+html.light .hover\:bg-\[\#111c30\]:hover { background: #eef2f7 !important; }
+html.light tr.hover\:bg-\[\#111c30\]:hover,
+html.light .group:hover { background: var(--raised) !important; }
+/* any hardcoded dark inline backgrounds used in dropdowns / popovers */
+html.light [style*="#0a1020"] { background: var(--raised) !important; }
+html.light [style*="#111c30"] { background: var(--raised) !important; }
+html.light [style*="#060b18"], html.light [style*="#080f1e"] { background: var(--raised) !important; }
+/* #1a2540 border/background overrides now live in the single canonical
+   token-driven rule below (search "CANONICAL #1a2540 ADOPTION") — this
+   ad-hoc patch used to only catch border-color, never background, which is
+   exactly why raw `bg-[#1a2540]` progress-tracks (e.g. Governance's tubes)
+   still rendered true near-black in light mode despite this rule existing. */
+/* selected/active workspace widgets & rows */
+html.light .mc.group:hover { background: var(--raised) !important; }
+html.light .news-item { background: var(--raised) !important; border-color: var(--hairline); }
+
+/* صفّ المفكرة — كان بخلفية داكنة ثابتة تُرى كصندوق أسود على المظهر الفاتح. */
+.event-item { background: var(--surface); }
+.event-item:hover { background: var(--surface); }
+html.light .event-item { background: var(--raised); }
+html.light .event-item:hover { background: #eef2f7; }
+/* حالة تحميل الشريط الإخباري على الفاتح — نص أدكن ليُقرأ فوق الخلفية الفاتحة */
+html.light .ticker-loading { color: var(--ink-muted); }
+/* توكن hover الجديد (شرائح الفترات في ودجت نمو العائد): الفاتح يقلبه داكناً */
+html.light .kpi { background: var(--raised) !important; }
+html.light .analysis-card [style*="rgba(10,16,32"] { background: var(--raised) !important; }
+html.light .drag-handle, html.light .react-grid-item { color: var(--ink); }
+
+/* ── Light mode: broaden dark inner-panel overrides (thorough) ── */
+html.light [style*="rgba(10,16,32"],
+html.light [style*="rgba(10, 16, 32"] { background: var(--raised) !important; }
+html.light .analysis-card { background: linear-gradient(135deg, rgba(59,130,246,.06), rgba(139,92,246,.03)) !important; }
+html.light .stat-row { border-color: var(--hairline); }
+html.light .modal-overlay { background: transparent !important; }
+html.light .switch { background: var(--raised) !important; }
+html.light .switch.on { background: var(--brand) !important; }
+html.light table thead tr, html.light .th { border-color: var(--hairline) !important; }
+html.light .ticker-src { color: var(--brand-ink); }
+html.light .reco-badge { color: inherit; }
+/* dashboard workspace widgets in light */
+html.light .react-grid-item > .mc { background: var(--raised) !important; }
+
+/* ═══ THEME TOKENS — single source for panel/line colors (root fix) ═══ */
+:root {
+  --pop: #0a1020;               /* solid popover/tooltip surface */
+  --panel: #111c30;             /* inner panel tint */
+  --line: #1a2540;              /* hairline borders */
+  --tip-text: #e2e8f0;          /* tooltip text */
+  --track: #1e293b;             /* ring/progress track */
+  --card: #0d1526;              /* card surface (matches .card) */
+}
+html.light {
+  --pop: #ffffff;
+  --panel: rgba(15, 23, 42, .05);
+  --line: rgba(15, 23, 42, .12);
+  --tip-text: #0f172a;
+  --track: rgba(15, 23, 42, .08);
+  --card: #ffffff;
+}
+
+/* ═══ CANONICAL #1a2540 ADOPTION ═══
+   Every component still writes the raw hex (`border-[#1a2540]`,
+   `bg-[#1a2540]`, inline style="...#1a2540...") instead of the tokens
+   above — this is the ONE place that reconciles that hex with the tokens,
+   for both themes, so any future component using it is covered
+   automatically without a new patch. Dark mode is a no-op (the literal hex
+   already matches); light mode is where it actually needs to flip. */
+:root [class*="border-[#1a2540]"], :root [style*="#1a2540"] { border-color: var(--line); }
+:root [class*="bg-[#1a2540]"] { background: var(--track); }
+html.light [class*="border-[#1a2540]"],
+html.light [style*="#1a2540"] { border-color: var(--line) !important; }
+html.light [class*="bg-[#1a2540]"] { background: var(--track) !important; }
+html.light [class*="hover:bg-[#111c30]"]:hover { background: transparent !important; }
+html.light [class*="bg-[#080f1e]/95"] { background: rgba(255,255,255,.95) !important; }
+/* Mobile off-canvas menu must always be a fully solid, high-contrast panel —
+   never blended/translucent with whatever sits behind it — regardless of theme. */
+.mobile-drawer { background: var(--surface) !important; opacity: 1 !important; backdrop-filter: none !important; }
+.mobile-drawer .nav-link { color: var(--ink-muted) !important; }
+.mobile-drawer .nav-link:hover { color: var(--ink) !important; background-color: var(--surface) !important; }
+.mobile-drawer .nav-active { color: var(--brand-ink) !important; font-weight: 800 !important; }
+html.light .mobile-drawer { background: var(--raised) !important; }
+html.light .mobile-drawer .nav-link { color: var(--ink-muted) !important; }
+html.light .mobile-drawer .nav-link:hover { color: var(--ink) !important; background-color: var(--surface) !important; }
+html.custom .mobile-drawer { background: var(--sp-bg, var(--surface)) !important; }
+html.custom .mobile-drawer .nav-link { color: var(--sp-text, var(--ink)) !important; }
+
+/* Recharts tooltips: beat inline styles with !important */
+html.light .recharts-default-tooltip,
+html.light .recharts-tooltip-wrapper > div {
+  background: var(--raised) !important;
+  border-color: var(--hairline) !important;
+  color: var(--ink) !important;
+  box-shadow: 0 8px 24px rgba(15,23,42,.12) !important;
+}
+html.light .recharts-tooltip-item { color: var(--ink) !important; }
+
+/* Score-ring tracks (SVG attrs are not rewritten by React) */
+html.light circle[stroke="#1a2540"] { stroke: rgba(15,23,42,.1); }
+
+/* Progress/weight bar tracks */
+
+
+/* بطاقة الدخول — تتبع الثيم: زجاجية داكنة على الداكن، بيضاء نظيفة على الفاتح */
+/* بلا backdrop-filter: على iOS Safari يسبّب اهتزازًا عنيفًا لشاشة القفل أثناء
+   انتقال تسجيل الخروج (إعادة رسم متكرّرة). نكتفي بخلفية شبه معتمة تعطي الإحساس
+   الزجاجي نفسه دون الاهتزاز. */
+.login-card {
+  background: transparent;
+  border: 1px solid var(--hairline);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .45);
+}
+html.light .login-card {
+  background: rgba(255, 255, 255, .96);
+  border-color: var(--hairline);
+  box-shadow: 0 24px 70px rgba(30, 41, 59, .18);
+}
+
+/* ═══ توافق سفاري iOS/آيباد (تعارضات بين أنواع التصفح) ═══ */
+/* 1) h-screen يعتمد 100vh؛ في سفاري الجوال يكون أطول من المساحة المرئية
+   (شريط العنوان) فيُقصّ أسفل الصفحة. dvh هو الارتفاع الديناميكي الصحيح،
+   مع الإبقاء على vh كاحتياط للمتصفحات الأقدم. */
+.app-shell { height: 100vh; height: 100dvh; }
+.min-h-screen { min-height: 100vh; min-height: 100dvh; }
+/* المناطق الآمنة (النوتش/شريط الحالة/مؤشر الهوم) — لأن viewport-fit=cover
+   وblack-translucent يجعلان التطبيق يملأ الشاشة كاملة. الشريط العلوي يُزاح
+   بمقدار المنطقة الآمنة العليا فتُلمَس أزراره، والجوانب تُزاح في الوضع الأفقي
+   بعد الدوران فلا يختفي شيء تحت النوتش. */
+.app-topbar {
+  min-height: calc(3.5rem + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+}
+/* الشريط فوق شريط الأخبار في ترتيب الطبقات — النافذة المنبثقة للساعة تُرسم
+   خارجه فلا تنزلق تحت الشريط الإخباري. */
+.app-topbar { position: relative; z-index: 20; }
+.app-shell {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+/* الدرج الجانبي على الجوال يفتح من أعلى الشاشة — بدون هذه الإزاحة يختفي رأسه
+   (الشعار وزر الإغلاق) تحت شريط الحالة/النوتش على iOS. */
+.drawer-safe { padding-top: env(safe-area-inset-top); }
+/* 2) سفاري iOS يقرّب الصفحة تلقائياً عند التركيز على حقل خطه أصغر من 16px،
+   ويتركها مقرّبة بعد الخروج — نرفع خط الحقول إلى 16px على شاشات اللمس فقط. */
+@media (max-width: 767px) {
+  .input, select, textarea { font-size: 16px; }
+}
+
+
+/* ══ مساعد المحفظة ═══════════════════════════════════════════════════
+   كان اللوح جزيرةً باردة: أبيضٌ نقيّ وفقاعاتٌ زرقاء سلايت فوق خلفية الرمل
+   الدافئة — يبدو نافذةً من تطبيقٍ آخر. الآن كل لونٍ هنا من رموز التطبيق،
+   فيقرأ اللوح كجزءٍ من الصفحة لا كطبقةٍ غريبة عنها. البنفسجي يبقى للزرّين
+   (النداء والإرسال) وللإطار، كما في بقيّة التطبيق. */
+.chat-fab {
+  background: var(--brand); color: #fff;
+  border: 1px solid color-mix(in srgb, var(--brand) 60%, #000);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--brand) 32%, transparent);
+}
+.chat-fab svg { color: #fff; }
+
+.chat-panel {
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--hairline));
+  /* وهجٌ خفيف بلون الهوية يفصل اللوح عن الصفحة بلا خطٍّ صارخ. */
+  box-shadow: 0 -8px 40px color-mix(in srgb, var(--brand) 12%, transparent);
+}
+
+.chat-title { color: var(--fg-strong); }
+
+.chat-tool { color: var(--ink-muted); background: transparent; }
+.chat-tool:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+/* فقاعتك: مملوءة بلون الهوية بخفّة — تُميَّز عن إجابة المساعد بلا لونٍ ثالث. */
+.chat-bubble-user {
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 32%, transparent);
+  color: var(--ink);
+}
+/* إجابة المساعد: الأرقام هنا تُقرأ، فتأخذ أعلى تباينٍ في اللوح. */
+.chat-bubble-ai {
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+  border: 1px solid var(--hairline);
+  color: var(--ink);
+}
+
+.chat-sugg {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
+  color: var(--ink);
+}
+.chat-sugg:hover { background: color-mix(in srgb, var(--brand) 8%, transparent); }
+
+.chat-input {
+  background: var(--bg);
+  border: 1px solid var(--hairline);
+  color: var(--ink);
+}
+.chat-input::placeholder { color: var(--ink-muted); }
+.chat-input:focus { border-color: color-mix(in srgb, var(--brand) 55%, transparent); }
+
+.chat-send { background: var(--brand); }
+.chat-send svg { color: #fff; }
+
+
+/* الرسم البياني: يستحوذ على لمسه فلا تتحرّك الصفحة خلفه (كان سحب الإصبع
+   على الرسم يُمرّر التطبيق كلّه). none تمنع التمرير والتكبير معاً داخله. */
+.chart-lock { touch-action: none; overscroll-behavior: contain; }
+.chart-lock canvas, .chart-lock iframe { touch-action: none; }
+
+
+/* إشعار التحديث — يعمل على المظهرين */
+.update-toast { background: var(--surface); border: 1px solid var(--hairline); }
+.update-toast-title { color: #fff; }
+html.light .update-toast { background: var(--raised); border-color: var(--hairline); box-shadow: 0 10px 30px rgba(15,23,42,.14); }
+html.light .update-toast-title { color: var(--ink); }
+
+/* نجمة المتابعة في ترويسة الشركة — فارغة = غير متابَع، ممتلئة كهرمانية = متابَع.
+   الحالتان تتمايزان بالامتلاء لا باللون وحده، فتُقرأان في المظهرين معاً. */
+.watch-star { color: var(--ink-muted); background: transparent; }
+.watch-star:hover { color: var(--warn-ink); background: transparent; }
+.watch-star.is-on { color: var(--warn-ink); }
+html.light .watch-star { color: var(--ink-muted); }
+html.light .watch-star:hover { color: #b45309; background: #fef3c7; }
+html.light .watch-star.is-on { color: #d97706; }
+
+/* قائمة اختيار مجموعات المراقبة (نجمة صفحة الشركة). */
+.watch-menu { background: var(--surface); border: 1px solid var(--hairline); }
+.watch-menu-row { color: var(--ink); }
+.watch-menu-row:hover { background: var(--surface); color: #fff; }
+html.light .watch-menu { background: var(--raised); border-color: var(--hairline); }
+html.light .watch-menu-row { color: var(--ink); }
+html.light .watch-menu-row:hover { background: var(--raised); color: var(--ink); }
+
+/* ── نافذة الشركة الموحّدة (StockSheet) ── */
+.stock-sheet-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: transparent; backdrop-filter: blur(3px);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+@media (min-width: 640px) { .stock-sheet-overlay { align-items: center; padding: 24px; } }
+.stock-sheet {
+  width: 100%; max-width: 720px; max-height: 92vh;
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 20px 20px 0 0; display: flex; flex-direction: column; overflow: hidden;
+}
+@media (min-width: 640px) { .stock-sheet { border-radius: 20px; max-height: 88vh; } }
+.stock-sheet-body { overflow-y: auto; overscroll-behavior: contain; padding: 16px; }
+html.light .stock-sheet { background: var(--raised); border-color: var(--hairline); }
+html.light .stock-sheet-overlay { background: transparent; }
+
+/* زرّ الإلغاء في زاوية بطاقة الشركة — بلا إطار ولا خلفية. */
+.stock-close { color: var(--ink-muted); background: transparent; border: none; }
+.stock-close:hover { color: #fff; background: transparent; }
+html.light .stock-close { color: var(--ink-muted); }
+html.light .stock-close:hover { color: var(--ink); background: var(--raised); }
+
+/* صفّ الجلسة في شاشة الأمان. */
+.session-row { background: var(--surface); border: 1px solid var(--hairline); }
+html.light .session-row { background: var(--raised); border-color: var(--hairline); }
+
+/* زرّا الأمان — تمييز لوني صريح ومقروء في المظهرين.
+   الكهرماني لفعلٍ يطال كل الأجهزة، والأحمر لفعلٍ يخصّ جهازك وحده. ألوان
+   المظهر الفاتح أعمق درجةً لأن نظائرها الفاتحة تذوب على الأبيض. */
+.btn-warn, .btn-exit {
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .5rem 1rem; border-radius: .75rem;
+  font-weight: 300; font-size: .875rem; cursor: pointer;
+  transition: all .15s;
+}
+.btn-warn { background: transparent; color: var(--warn-ink); border: 1px solid color-mix(in srgb, var(--warn-ink) 35%, transparent); }
+.btn-warn:hover { background: transparent; }
+.btn-warn:disabled { opacity: .55; cursor: not-allowed; }
+.btn-exit { background: transparent; color: var(--neg-ink); border: 1px solid rgba(239,68,68,.35); }
+.btn-exit:hover { background: transparent; }
+
+html.light .btn-warn { background: #fef3c7; color: #92400e; border-color: #d97706; }
+html.light .btn-warn:hover { background: #fde68a; }
+html.light .btn-exit { background: #fee2e2; color: #991b1b; border-color: var(--neg-ink); }
+html.light .btn-exit:hover { background: #fecaca; }
+
+/* سهم التغيّر (▲/▼) — درجةٌ أصغر من الرقم المجاور له.
+   المقاس نسبيّ (em) لا مطلق، فيتبع حجم النصّ في كل موضع تلقائياً: يبقى دائماً
+   أصغر من الرقم بدرجة سواء كان السطر 11px أو 14px. */
+.chg-arrow { font-size: .78em; line-height: 1; vertical-align: baseline; }
+
+/* ── عمود مثبَّت في جدول القوائم المالية ─────────────────────────────────
+   الجدول يُمرَّر أفقياً بالضرورة (مقارنة سنوات جنباً إلى جنب)، وبلا تثبيت
+   يختفي اسم المؤشر عند التمرير فيصير الرقم بلا هوية. الخلفية من --card
+   المحلولة للمظهرين معاً، فلا تمرّ أرقام السنوات من تحت العمود.
+   inset-inline-start يعمل في RTL وLTR بلا استثناء. */
+.fin-stick {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  background: var(--card);
+}
+
+/* ── عنوان البطاقة — مصدرٌ واحد لكل عناوين البطاقات والأقسام ──────────────
+   كانت العناوين تُكتب بثلاثة أنماط متفرّقة لنفس الدور:
+     • text-[13px] font-bold text-white   ← الحيازات · الشركة · الودجات (٢٩)
+     • text-sm font-bold text-white       ← السوق · التقارير · المراقبة (١٥)
+     • text-sm font-bold text-slate-300   ← الذكاء · الإعدادات · التنبيهات (٢٠)
+   فالانتقال بين الصفحات يُغيّر حجم العنوان (13px↔14px) ولونه (أبيض↔رمادي)
+   لعناصرَ دورها واحد — وهو أظهر ما يجعل التطبيق يُقرأ كصفحاتٍ جُمعت لا كنظام.
+   الصنف الآن دلاليّ: يُستعمل حيث المعنى «عنوان بطاقة»، فيستحيل أن تتفرّق
+   الأنماط مرّة أخرى، وأي تغيير في الهوية يجري من موضع واحد. */
+.card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.4;
+}
+html.light .card-title { color: var(--ink); }
+
+/* ── عنوان النافذة — نظير .card-title للنوافذ المنبثقة ───────────────────
+   كان بسبعة أنماط لدورٍ واحد: text-lg · text-base · text-sm sm:text-base ·
+   text-base sm:text-lg · font-bold بلا مقاس … فيتغيّر حجم عنوان النافذة بحسب
+   أيّ نافذةٍ فتحتَ، وهي عناصر متطابقة الدور تُفتح فوق نفس الخلفية.
+   ١٦px قياسٌ واحد: يكفي للتصدّر ولا يطغى في نافذةٍ ضيّقة على الجوال.
+   `truncate` يبقى أداةً منفصلة تُضاف حيث العنوان قد يطول. */
+.modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.35;
+}
+html.light .modal-title { color: var(--ink); }
+
+/* أضيق الشواشي (≤٣٦٠ بكسل): مبلغ الربح ونسبته معاً أعرض من عمودهما بعد أن
+   أخذ إطارُ آخر سعر قلبَ البطاقة — فيتقلّص هذا السطر وحده بنقطة، ويبقى في
+   سطرٍ واحد بلا التفافٍ ولا تمدّدٍ أفقي للبطاقة. */
+@media (max-width: 360px) { .hold-pnl { font-size: 11px; } }
+
+/* ═══════════════════════════════════════════════════════════════════
+   دليل التصميم الموحّد — «رمل ونحاس» (النموذج ب)
+
+   قرار المالك بعد جلسة لجنة التصميم: تُدمج البطاقات في خلفية التطبيق،
+   ويصير الفاتحُ ورقاً رمليّاً دافئاً يقرأه العين بلا وهج.
+
+   ثلاث قواعد تحكم هذا الملف كله:
+     ١) لا بطاقة إلا لسبب — الفصل بالمسافة ثم بخيطٍ شعري، لا بصندوق.
+     ٢) الارتفاع بالصبغة لا بالظلّ — سطحٌ أغمق/أفتح ٤٪ بدل ظلٍّ يُوهم.
+     ٣) اللون لا يحمل معلومةً إلا في الربح والخسارة؛ والنحاسي عنوانٌ لا رقم.
+
+   والداكن **يُبنى مستقلّاً لا بقلب الفاتح**: حبرٌ دافئ شبه أسود ونصٌّ
+   كريميّ — قلبُ الورق الرملي حرفياً يُنتج ما يشبه الصدأ ويُجهد العين ليلاً.
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --bg:        #0d0d0d;   /* خلفية التطبيق — أسودٌ محايد لا دافئ */
+  --surface:   #1a1a1a;   /* سطحٌ مصبوغ: بديل الظلّ */
+  --raised:    #1a1a1a;   /* الطافي فوق الصفحة: قوائم، نوافذ، ألواح */
+  /* حبرُ الهويّة: `--brand` نفسه يسقط تحت أرضية التباين نصّاً في المظهرين
+     معاً (٤٫٤٧:١ على الأبيض و٤٫٣٧:١ على الداكن). يبقى للحدود والملء،
+     ويأخذ النصُّ درجةً تجتاز الأرضية. */
+  --brand-ink: #a5b4fc;
+  --field:     #1a1a1a;   /* الحقول والأزرار الشبحية — تبقى ملموسة */
+  /* ══ الحبر والإطار: محايدان لا دافئان ══
+     كان الحبر ‎#f2ece0 والتسمية ‎#a79c88 والخيط ‎#26211a — درجاتٌ بنّية
+     تختلط بالأرضية الداكنة فتترك «بقايا لونية بنّية» يراها المالك عند
+     الحركة والتمرير. المظهر الداكن يعتمد الأبيض المحايد كما أمر. */
+  /* الخيط أخفّ درجةً: ثمانمئة إطارٍ في التطبيق تقرأ هذا الرمز، فخفضُه
+     يُخفّف الواجهة كلَّها دفعةً واحدة — وهو ما طلبه المالك حين قال إن
+     الإطارات ثقيلةٌ بعكس إطار مربّع البحث. */
+  --hairline:  #242424;   /* خيط الفصل الشعري */
+  --ink:       #ffffff;   /* النصّ والأرقام — أبيض */
+  --ink-muted: #b3b3b3;   /* التسميات فوق الأرقام */
+  --brass:     #ffffff;   /* العناوين والوسوم والأزرار */
+
+  /* ══ ألوان الرسوم البيانية ══
+     السلاسل المتعدّدة (القطاعات، التوزيع) تحتاج ألواناً **متمايزة** لا
+     دلالية: ليس فيها «ربح» و«خسارة» بل «هذا غير ذاك». وكانت مكتوبةً
+     قيماً ثابتة داخل الصفحات، فلا تعرف المظهر ولا تُضبط من مكانٍ واحد.
+     هنا تُعرَّف مرّةً للمظهرين، وتُقرأ رمزاً في كل رسم. */
+  /* ══ عائلةٌ واحدة مرساتُها البنفسجيّ ══
+     كانت سبعةَ ألوانٍ من أطراف عجلة الألوان — أزرقُ سماويّ وأخضرُ نعناع
+     وسماويٌّ صارخ وذهبيّ ووردي — فبدا كل رسمٍ كأنه من تطبيقٍ آخر، ولا
+     يجمعها بهويّة التطبيق شيء.
+     وأمرُ المالك أن يكون التدرّج البنفسجيّ أساسَ البنية. فالعائلة الآن
+     مرتَّبةٌ حوله: البنفسجيّ والنيليّ واللافندر مرساةً، ثمّ ثلاثةُ
+     مجاوراتٍ **مخفوضة الإشباع** (أخضرُ ترابيّ، أزرقُ هادئ، كهرمانٌ
+     طبيعيّ) لتمييز السلاسل، ووردةٌ باهتة سابعةً.
+     ولا واحد منها صارخٌ ولا مُعتِم: الرسم يُقرأ لا يصرخ. */
+  /* ══ اللوحة الأساسية الأولى — رُدَّت بأمر المالك ══
+     هذه هي ألوان الرسوم **قبل التزام 3d96cf1** («إطارٌ لا صِبغة»)، وهو
+     أوّل تغييرٍ مسّها. كانت يومها مكتوبةً قيماً ثابتة في كلّ صفحة على
+     حدة، فجُمعت في رموز ثمّ خُفض إشباعها مرّتين بعد ذلك.
+     ردَّها المالك إلى أصلها: «أرجع ألوان البطاقات والرسومات إلى وضعها
+     القديم الأساسي». فالقيم من التاريخ لا من تخمين، وبقيت في الرموز لا
+     في الصفحات — فردُّ اللون شيء، وإعادة تشتيته في خمسٍ وأربعين ملفاً
+     شيءٌ آخر. وهي متطابقة في المظهرين كما كانت. */
+  /* ══ برتقاليّ التوزيعات ══ (بأمر المالك)
+     أعمدة التوزيعات السنوية في تبويب التوزيعات بصفحة الشركة. كانت تأخذ
+     --warn-ink، وهو حبرُ **تنبيه** لا لونُ بيان: فورثت عتمته حين كان
+     بنّياً طينياً. ودرجةٌ خاصّة بها أصحّ، لأن العمود مساحةٌ لا حرف فعتبته
+     3:1 لا 4.5 — فيتّسع لبرتقاليٍّ صريح لا يتّسع له الحبر.
+     قِيس: 3.56 على الورق · 3.24 على السطح · 5.17 على الداكن. ودرجةٌ
+     واحدة تكفي المظهرين لأنها تعبر فيهما معاً. */
+  /* أفتحُ بأمر المالك. و#ea580c كان أفتحَ **حشوٍ مسطّح** يعبر 3:1 على
+     أفتح أرضياتنا؛ فما فوقه يسقط (‏#f97316 → 2.55 على السطح). فبدل
+     رفض الطلب أو خفض العتبة، انتقل التباين من الحشو إلى **الحافّة**:
+     حشوٌ أفتح وحدٌّ أدكن يرسم شكل العمود. والعين تقرأ الشكل من حدّه،
+     فالعمود يبقى مقروءاً على أيّ أرضية واللون يخفّ كما أراد. */
+  /* سهمُ التعادل: أصفرُ متوسطٌ واحدٌ في المظهرين، وحدُّه ذهبيٌّ داكن
+     يمنحه القراءة على الأرضية البيضاء. */
+  --flat-arrow: #eab308;
+  --flat-edge:  #854d0e;
+  --divs-bar: #f97316;        /* الحشو — أفتح */
+  --divs-bar-edge: #c2410c;   /* الحدّ — 4.72 على السطح */
+  --chart-1: #3b82f6;   /* أزرق */
+  --chart-2: #8b5cf6;   /* بنفسجيّ */
+  --chart-3: #10b981;   /* زمرّديّ */
+  --chart-4: #06b6d4;   /* سماويّ */
+  --chart-5: #f59e0b;   /* كهرمانيّ */
+  --chart-6: #f43f5e;   /* ورديّ */
+  --chart-7: #6366f1;   /* نيليّ */
+  --chart-8: #14b8a6;   /* أخضرُ مزرقّ */
+  --chart-9: #ec4899;   /* قرنفليّ */
+  --chart-10: #eab308;  /* ذهبيّ */
+}
+/* المظهر الفاتح: الأرضية بيضاء بقرار المالك.
+   كان لوح الشركة (الذي يُفتح عند البحث عن شركة) أبيضَ ناصعاً مكتوباً بقيمةٍ
+   ثابتة خارج الرموز، بينما بقيّة التطبيق على ورقٍ رملي #faf6ee — ففارقُ
+   اللمعة بينهما ظاهرٌ للعين، وهو ما لاحظه المالك واختار الأفتح. الآن الأبيض
+   هو الأرضية في كل مكان، واللوح نفسه يقرأ الرمز لا قيمةً ثابتة، فلا يعود
+   لأحدهما لونٌ خاصٌّ به. والأسطح المصبوغة رُفعت معه كي تبقى فاصلةً هادئة
+   لا رقعةً داكنة على بياض. */
+html.light {
+  --bg:        #ffffff;
+  --surface:   #f7f3ec;   /* لوحٌ داخلي: شريط، خبر، إشعار */
+  --raised:    #ffffff;   /* الطافي: لوح الشركة، النوافذ، القوائم */
+  --brand-ink: #4f46e5;   /* ٦٫٢٩:١ على الأبيض */
+  --field:     #f7f3ec;   /* الحقول والأزرار الشبحية */
+  /* ══ الأسود بدل البنّي الثقيل ══
+     الأرضية تبقى بيضاء كما أحبّها المالك، والحبر والإطار يصيران أسودَ
+     محايداً: كان ‎#241f1a و‎#6b6152 و‎#e9e3d8 درجاتٍ بنّيةً دافئة تُقرأ
+     «ثقيلة». الأسود المحايد أوضح وأخفّ بصريّاً في آن. */
+  --hairline:  #e6e6e6;   /* خيط الفصل — أخفّ من #dcdcdc */
+  --ink:       #111111;   /* النصّ والأرقام — أسود */
+  --ink-muted: #4a4a4a;   /* التسميات */
+  /* عناوين البطاقات: أسودُ قريب لا أسودُ خالص. كان ‎#000000 — وهو حدّ
+     الطيف الأقصى (21:1 على الأبيض)، يُقرأ حادّاً على الورق ويُنشئ حافّةً
+     صلبة حول الحرف. والدرجة أدناه تُبقي العنوان أقوى من نصّه وأهدأ من
+     السواد الخالص. */
+  --brass:     #1a1a1a;   /* العناوين — 16.1:1 */
+  --fg-strong: #000000;
+
+  /* ══ الرسوم على البياض: العائلة نفسها، أعمقَ بدرجة ══
+     كانت درجاتٍ جوهريةً شديدة العتمة (#047857 و#0e7490 و#be123c) — عُمّقت
+     يوماً لتجتاز عتبة التباين، فاجتازتها وخرجت **ثقيلةً قاتمة**: قال
+     المالك «غامقة جداً وقبيحة»، وهو محقّ.
+     والخطأ في الفرضية لا في التنفيذ: عتبة ٤٫٥:١ فرضٌ على **النصّ** لا على
+     مساحةٍ ملوّنة. وشرائح الدائرة وأعمدة الرسم لا تُقرأ حرفاً حرفاً بل
+     تُميَّز عن جارتها، ونصوصُ الرسوم تأخذ لونها من `--ink-muted` بقاعدةٍ
+     مستقلّة (`.recharts-text`) فلا تمسّها هذه الدرجات أصلاً.
+     فهذه هي العائلة نفسها التي في الداكن، أعمقَ بقدر ما يلزم للبياض
+     ولا أعمق — طبيعيةٌ لا جوهرية. */
+  /* العائلة نفسها على البياض — وكانت أصلاً واحدةً للمظهرين. */
+  --chart-1: #3b82f6;   /* أزرق */
+  --chart-2: #8b5cf6;   /* بنفسجيّ */
+  --chart-3: #10b981;   /* زمرّديّ */
+  --chart-4: #06b6d4;   /* سماويّ */
+  --chart-5: #f59e0b;   /* كهرمانيّ */
+  --chart-6: #f43f5e;   /* ورديّ */
+  --chart-7: #6366f1;   /* نيليّ */
+  --chart-8: #14b8a6;   /* أخضرُ مزرقّ */
+  --chart-9: #ec4899;   /* قرنفليّ */
+  --chart-10: #eab308;  /* ذهبيّ */
+}
+
+/* ── الأرضية ─────────────────────────────────────────────────────── */
+body, html.light body { background: var(--bg); color: var(--ink); }
+
+/* ── دمج البطاقات: تبقى الحشوة ويسقط الصندوق ─────────────────────── */
+.card, html.light .card,
+.mc, html.light .mc {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 2px;
+  box-shadow: none !important;
+}
+/* الفصل بين قسمٍ وآخر: خيطٌ شعري واحد لا إطار — وأوّل قسمٍ بلا خيط. */
+.card + .card { border-top: 1px solid var(--hairline) !important; padding-top: 18px; }
+
+/* باند الثروة: خلفية التطبيق نفسها بدل التدرّج الأزرق البنفسجي */
+.wealth, html.light .wealth {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--hairline) !important;
+  border-radius: 0;
+}
+.wealth-lbl, .wealth-stat-lbl { color: var(--ink-muted); }
+.wealth-val, .wealth-stat-val,
+html.light .wealth-val, html.light .wealth-stat-val { color: var(--ink); }
+
+/* خانات المؤشرات: فراغٌ وخيط، بلا مربّعاتٍ داكنة */
+.kpi, html.light .kpi { background: transparent; padding: 8px 10px 8px 0; }
+.kpi-lbl { color: var(--ink-muted); }
+.kpi-val, html.light .kpi-val { color: var(--ink); }
+
+/* النافذة (ومنها بطاقة المعاملة) سطحٌ طافٍ فوق حجابٍ معتم: تأخذ `--raised`
+   كلوح الشركة تماماً — أي أرضية التطبيق نفسها في المظهر الفاتح. كانت قد
+   بقيت على السطح المصبوغ فتخلّفت عن تحديث الأرضية البيضاء. */
+.modal-box, html.light .modal-box {
+  background: var(--raised) !important;
+  border-color: var(--hairline) !important;
+}
+.td, html.light .td { border-color: var(--hairline); color: var(--ink); }
+
+/* عناوين الأقسام نحاسية — وسمٌ لا رقم */
+.card-title, html.light .card-title { color: var(--brass); letter-spacing: .3px; }
+
+/* ── المحاذاة: التطبيق كله يبدأ من اليمين ───────────────────────── */
+[dir="rtl"] .card, [dir="rtl"] .kpi, [dir="rtl"] .stat-row { text-align: right; }
+.tabular-nums, .kpi-val, .wealth-stat-val, .stat-val, .mc-val { font-variant-numeric: tabular-nums; }
+/* رقمٌ لاتيني داخل نصٍّ عربي: اتجاهه ltr كي تبقى الإشارة في موضعها،
+   ومحاذاته يمين كبقية المحتوى — وكان يقفز يساراً وحده. */
+[dir="ltr"].kpi-val:not(.text-center),
+[dir="ltr"].tabular-nums:not(.text-center),
+.kpi-val[dir="ltr"]:not(.text-center) { text-align: right; }
+/* ══ التوسيطُ الصريح يغلب القاعدة العامّة ══ (بأمر المالك)
+   القاعدة أعلاه تخدم الرقم اللاتينيّ داخل نصٍّ عربيّ فتُحاذيه يميناً.
+   لكنّ خصوصيّتها (0,2,0) تغلب `text-center` (0,1,0)، فكانت تختطف كلَّ
+   رقمٍ وُسِّط عمداً — وتواريخُ بطاقات القوائم منها. قِيس الانحراف:
+   ‏28px في كل خانة، والرقم تحته على المحور، فيُقرأ العمود مائلاً.
+   والقاعدةُ الآن تنسحب أمام إعلانٍ صريح: من كتب `text-center` قصده. */
+/* إلّا داخل كتلةٍ محاذاةُ نهايتها معلنة (`text-end`): هناك يتبع الرقمُ كتلته
+   لا القاعدة العامّة. القاعدة أعلاه تفرض «يمين» على كل رقمٍ لاتيني، وفي
+   كتلةٍ محاذاتها إلى اليسار (كعمود «منذ آخر تصفية») يقفز الرقم إلى الحافّة
+   المقابلة فيخرج عن إطار كلمته — وهو ما رآه المالك. */
+[dir="rtl"] .text-end [dir="ltr"].tabular-nums,
+[dir="rtl"] .text-end .tabular-nums[dir="ltr"],
+[dir="rtl"] .text-end > [dir="ltr"] { text-align: left !important; }
+
+/* ── الرموز القديمة تُعاد إلى الدليل الواحد ─────────────────────── */
+/* الطافي فوق الصفحة (`--pop`) يعلو بالبياض لا بالقتامة: نافذةٌ بلون الأرضية
+   نفسها تذوب فيها، ولذلك يأخذ `--raised` — وهو في الداكن نفس المصبوغ فلا
+   يتغيّر شيء هناك. */
+:root, html.light { --line: var(--hairline); --panel: var(--surface); --pop: var(--raised); }
+
+/* ── امتداد الدليل إلى الهيكل: الشريط العلوي والقائمة والحقول ──────
+   دمج البطاقات وحده يترك جزراً من التصميم القديم (شريطٌ أزرق رمادي فوق
+   ورقٍ رملي) — والوحدة تعني أن يتبع الهيكلُ الرموزَ نفسها. */
+.app-shell, html.light .app-shell { background: var(--bg) !important; }
+.app-topbar, .app-sidebar, .mobile-drawer,
+html.light .app-topbar, html.light .app-sidebar, html.light .mobile-drawer {
+  background: var(--bg) !important;
+  border-color: var(--hairline) !important;
+}
+/* `#0a1020` هو لون الحقول والقوائم في الشيفرة القديمة — يتبع رمز الحقل. */
+
+/* الحقل يبقى ملموساً على أرضيةٍ بيضاء: لو أخذ لون الأرضية لصار خيطاً
+   شعرياً وحده يفصله عنها، وهو أضعف من أن يُرى. */
+.input, html.light .input {
+  background: var(--field); border-color: var(--hairline); color: var(--ink);
+}
+.input::placeholder, html.light .input::placeholder { color: var(--ink-muted); }
+.btn-ghost, html.light .btn-ghost { background: var(--field); color: var(--ink-muted); border-color: var(--hairline); }
+.btn-ghost:hover, html.light .btn-ghost:hover { color: var(--ink); }
+.nav-link, html.light .nav-link { color: var(--ink-muted); }
+.nav-link:hover, html.light .nav-link:hover { background: var(--surface); color: var(--ink); }
+
+/* الوسوم: حبرٌ بلا حشو — القاعدة الموحَّدة في آخر الملف تحكم العائلة كلّها */
+
+/* نصوص تايلوند الرمادية تُترجم إلى رموز الدليل، فلا تبقى باردةً فوق ورقٍ دافئ */
+
+/* ── إتمام المسح: كل سطحٍ داكن قديم يُترجم إلى رموز الدليل ────────── */
+
+/* الأزرق الأساسي يبقى للأفعال (زرّ رئيسي، تبويب نشط، رابط) لكنه يُدفأ
+   قليلاً كي لا يبدو غريباً فوق ورقٍ رملي — والنحاسي يبقى للعناوين. */
+/* الزرّ الرئيسي يبقى بتدرّج الهويّة (أزرق → بنفسجي): هو علامة التطبيق
+   وليس عنواناً ولا رقماً. */
+.btn-primary, html.light .btn-primary {
+  background: linear-gradient(135deg, var(--brand-a), var(--brand-b)) !important; color: #fff !important;
+}
+.btn-primary svg { color: #fff; }
+
+/* شريط الأخبار العلوي والوسوم النشطة: سطحٌ مصبوغ لا لونٌ صارخ */
+.ticker, html.light .ticker { background: var(--surface) !important; border-color: var(--hairline) !important; }
+
+/* مسارات الأشرطة والرقائق الرمادية: من رماديّ تايلوند البارد إلى رموز الدليل */
+.clock-cd, html.light .clock-cd { background: var(--surface) !important; border-color: var(--hairline) !important; }
+.mc-icon, html.light .mc-icon { background: var(--surface) !important; }
+
+/* شريط الأخبار: سطحٌ من الدليل، ووسمه نحاسي بدل الأزرق الصارخ */
+.news-ticker, html.light .news-ticker { background: var(--surface) !important; border-color: var(--hairline) !important; }
+
+.ticker-link, html.light .ticker-link { color: var(--ink); }
+
+/* ── الحبر بدل النحاس: العناوين والوسوم وكل ما يبدو زرّاً أو تبويباً ──
+   قرار المالك: النحاسي كان لوناً ثالثاً يزاحم دلالة الربح والخسارة. صار
+   الحبر نفسه — أسود على الورق، أبيض على الحبر الداكن — فتبقى الألوان
+   الدلالية وحدها ملوّنة. */
+.card-title, html.light .card-title { color: var(--brass) !important; }
+.tag-b, html.light .tag-b {
+  /* وسمٌ مفرَّغ: هويّة «إطارٌ لا صِبغة» تسري عليه كما على غيره. وبلا
+     إطارٍ يصير حرفاً سائباً لا وسماً، فيأخذ خيطاً من لون حبره. */
+  background: transparent !important;
+  border: 1px solid color-mix(in srgb, var(--brass) 30%, transparent) !important;
+  color: var(--brass) !important;
+}
+/* وسم الأخبار بتدرّج الهويّة نفسه — أزرق إلى بنفسجي. */
+.news-ticker-label, html.light .news-ticker-label {
+  background: linear-gradient(90deg, var(--brand-a), var(--brand-b)) !important; color: #fff !important;
+}
+.news-ticker-label svg { color: #fecaca !important; }
+
+/* التبويب النشط: كان أزرق بأسلوبٍ سطري — يُغلب بـ !important */
+[style*="rgba(59,130,246,.14)"], [style*="rgba(59, 130, 246, 0.14)"] {
+  background: color-mix(in srgb, var(--brass) 12%, transparent) !important;
+  border-color: color-mix(in srgb, var(--brass) 45%, transparent) !important;
+}
+
+/* روابط القائمة النشطة وأزرار التبديل */
+.nav-link.active, .nav-link[aria-current="page"],
+html.light .nav-link.active, html.light .nav-link[aria-current="page"] {
+  /* بلا أرضية: الاختيار يُعلَن بثقل الخطّ ولونه والعلامة الجانبية.
+     قِيس في المتصفّح أنّ رقعةً رمادية ١٢٪ بقيت هنا بعد إزالة التدرّج
+     البنفسجي — تُقرأ كتلةً على الورق الأبيض وتخالف «إطارٌ لا صِبغة». */
+  background: transparent !important;
+  color: var(--brass) !important;
+}
+.switch.on { background: linear-gradient(135deg, var(--brand-a), var(--brand-b)) !important; }
+.switch.on::after { background: #fff !important; }
+
+/* ══ رأس الجدول: سطح التطبيق لا رماديّ مستقلّ ══
+   كان يُصبغ بـ٧٪ من الحبر — رماديّاً باهتاً لا ينتمي إلى أيّ لونٍ في
+   التطبيق، فيبدو شريطاً غريباً فوق كلّ جدول. وسطح التطبيق (‏--surface)
+   موجودٌ أصلاً ويحمل الورق الرملي في الفاتح والداكن في الداكن، فيتوحّد
+   الرأس مع بقيّة الأسطح بدل أن ينفرد بدرجةٍ ثالثة.
+   والقاعدة عامّة على `th` عن قصد: جداول المحفظة والسوق وفرز السوق وفرز
+   القطاعات والتقارير والشركة كلُّها تمرّ بها، فيسري التوحيد على الجميع
+   بموضعٍ واحد. */
+th { background: var(--surface) !important; }
+
+/* أدوات تايلوند الزرقاء المستعملة للحالة النشطة (تبويبات · وسوم · أزرار) */
+
+/* ── بنفسجي الهويّة لونٌ مسموح: للأزرار وللأطراف ────────────────────
+   الحبر يبقى للعناوين والأرقام، والبنفسجي المخلوط يرسم **الحدّ**: إطارُ
+   التبويب المختار، وإطارُ الوسم — فيُعرف المختارُ من شكله لا من لون نصّه. */
+:root, html.light { --brand-a:#4338ca; --brand-b:#6d28d9; --brand:#4f46e5; }
+
+/* التبويب المختار: إطارٌ بنفسجي وصبغةٌ خفيفة منه */
+.bg-blue-500\/15, .bg-blue-500\/10, .bg-blue-600\/20, .bg-blue-500\/20,
+html.light .bg-blue-500\/15, html.light .bg-blue-500\/10,
+[style*="rgba(59,130,246,.14)"], [style*="rgba(59, 130, 246, 0.14)"] {
+  background-color: color-mix(in srgb, var(--brand) 12%, transparent) !important;
+}
+.border-blue-500\/40, .border-blue-500\/30, .border-blue-400\/40,
+html.light .border-blue-500\/40,
+[style*="rgba(59,130,246,.25)"], [style*="rgba(59, 130, 246, 0.25)"] {
+  border-color: var(--brand) !important;
+}
+[style*="rgba(59,130,246,.14)"], [style*="rgba(59, 130, 246, 0.14)"] {
+  border: 1px solid var(--brand) !important;
+}
+
+/* ══ عائلة الوسوم: لغةٌ واحدة ══
+   ستّة وسومٍ لمعنى واحد (حالةٌ في سطر)، وكانت تُرسم بطريقتين: أربعةٌ نصٌّ
+   ملوّن على شفافٍ بلا إطار، واثنان (`tag-b` و`tag-n`) قرصٌ ممتلئ بإطار —
+   بقيّةُ عهد النحاس. قِيس ذلك في المتصفّح لا في الشيفرة: في تبويب تيليجرام
+   ظهرت ثلاثة صفوفٍ متجاورة من طبيعةٍ واحدة، واحدٌ منها قرصٌ رماديّ
+   والآخران نصٌّ مجرَّد — وهو بالضبط ما نهى عنه المالك: «الخلفية اللونية
+   الثقيلة تُلغى تماماً... وهذه هوية التصميم يجب أن تكون موحّدة».
+
+   فالأربعةُ هي الأغلبية وهي الأصل، والاثنان يلحقان بها: شفافٌ بلا إطار،
+   والمعنى في الحبر وحده. */
+.tag-b, html.light .tag-b,
+.tag-n, html.light .tag-n {
+  background: transparent !important;
+  border: 0 !important;
+}
+.tag-b, html.light .tag-b { color: var(--brand-ink) !important; }
+.tag-n, html.light .tag-n { color: var(--ink-muted) !important; }
+
+/* إطار السطح المميّز (صندوق السعر وعائد المحفظة) يبقى دلالياً كما هو. */
+
+/* ═══ نتائج المسح العميق: علاجاتٌ مقيسة لا تجميلية ═══════════════════
+   المسح قاس التباين وحجم الخطّ وأهداف اللمس على ١٠ صفحات × مظهرين ×
+   مقاسين. هذه إصلاحات ما سقط تحت العتبة فعلاً. */
+
+/* ١) رمادي «الخمول» (الساعة · حالة السوق · التذييل) كان ٢.١٨:١ على الورق
+      و٣.٨٨:١ على الحبر — أدنى من عتبة النصّ الصغير. */
+:root { --st-idle: #bdb2a0; }        /* داكن: 9.33:1 */
+html.light { --st-idle: #6b6152; }   /* فاتح: 5.64:1 */
+.sp-footer, html.light .sp-footer { color: var(--ink-muted) !important; }
+.clock-time, .clock-cd, html.light .clock-time { color: var(--ink) !important; }
+
+/* ٢) التسميات في الداكن: رماديٌّ محايد بدل البنّي الفاتح (#bdb2a0) الذي
+      كان يترك أثراً دافئاً على الأرضية الداكنة.
+      والقيمة **في لوح الرموز أعلاه** لا هنا: كان لها تعريفان بالقيمة
+      نفسها، فلم يظهر أثرٌ — لكنّ الفخّ قائم: من يعدّل الأوّل لا يرى شيئاً
+      يتغيّر. (‏S-DUPTOKEN) */
+
+/* ٣) أرضية حجم الخطّ ٩.٥ بكسل (قرار اللجنة): كانت تسميات الباند ٩، ووسوم
+      الحوكمة ٨.٤ — تحت العتبة في الإضاءة الخافتة. */
+@media (max-width: 640px) {
+  .wealth-stat-lbl { font-size: 9.5px; }
+}
+.tag-b, .tag-n { font-size: 9.5px !important; }
+
+/* ٤) أهداف اللمس: أزرار الأيقونات كانت ٣٠×٣٠ و٢٨×٢٨ — الحدّ ٣٢. */
+button.p-1, button.p-1\.5, a.p-1, a.p-1\.5 { min-width: 32px; min-height: 32px; }
+button, [role="button"] { touch-action: manipulation; }
+
+/* ٥) بقايا التسميات عند ٤.٤١:١ فوق السطح المصبوغ — تعميقٌ أخير يرفعها
+      إلى ٥.٧٧:١ على السطح و٦.٢٩:١ على الورق. */
+/* والتسميات في الفاتح: رماديٌّ محايد بدل البنّي (#635a4c) — ٧٫٤:١ على
+   الأبيض و٦٫٨:١ على السطح المصبوغ، فوق الأرضية بمسافةٍ مريحة.
+   والقيمة في لوح `html.light` أعلاه لا هنا — للسبب نفسه. (‏S-DUPTOKEN) */
+
+/* ٦) الدلالات على الورق: الأخضر والأحمر المصمَّمان لخلفيةٍ داكنة كانا
+      ٢.٣٥:١ و٣.٤١:١ فوق الورق الرملي — أي أن **رقم الربح نفسه** كان أضعف
+      عنصرٍ في الشاشة. تُعمَّق في الفاتح وحده، ويبقى الداكن كما هو. */
+html.light {
+/* ══ الدلالات: هادئةٌ لا مشبعة ══
+   وصف المالك الألوان بأنها «مشبعة جداً» وأنها تُنفّر — والقياس يؤيّده:
+   #cf2020 و#047857 و#34d399 درجاتٌ عند أطراف الإشباع، تُستعمل في التطبيق
+   على **مساحات** (بطاقات · شرائح · مربّعات قطاعات) لا في نقطةٍ صغيرة.
+   واللون المشبع على مساحةٍ يصرخ، وعلى حرفٍ يُقرأ.
+   فخُفض الإشباع مع **الإبقاء على التباين كما هو**: هذه ليست مقايضة —
+   الإشباع والتباين محوران مستقلّان، والذي يُقرأ هو الثاني.
+     فاتح: pos 5.44:1 (كان 5.48) · neg 5.39 (كان 5.41) · warn 5.87
+     داكن: pos 9.61 · neg 7.96 (ارتفع عن 6.93) · warn 9.90
+   كلّها فوق عتبة الميثاق، وكلُّها أهدأ للعين. */
+/* ══ درجتا المالك، معتَّمتان للورق ══
+   اختار المالك ‏#22c55e و‎#ff5252 من لسان تاسي واعتمدهما لكامل التطبيق.
+   وهما ممتازتان حيث رآهما — على الأرضية الداكنة: 8.41 و6.01. لكنّهما على
+   الورق الأبيض 2.28 و3.19، أي **دون عتبة النصّ** بمسافةٍ بعيدة: رقمُ
+   الربح نفسه يصير أضعف ما في الشاشة.
+   فأُخذت **درجتاه هو** (‏hue 142° و0°) وعُتّمتا حتى تعبرا — لا لونٌ آخر:
+   الأخضر بإشباعه نفسه تماماً (71٪)، والأحمر عند 68٪ لا 100٪ لأن الإشباع
+   الكامل على الورق يصرخ، وهو ما نفر منه المالك سابقاً بنصّ كلامه.
+   فالعائلة واحدة في المظهرين، والفارق إضاءةٌ يفرضها اختلاف الأرضية. */
+  /* pos/neg للفاتح **ليسا هنا** عن قصد: كان لهما تعريفان في هذا الملفّ،
+     والثاني (أسفلَ بثمانين سطراً) يغلب هذا بالترتيب. فكان تعديلُ هذا
+     الموضع لا يُغيّر شيئاً على الشاشة ويبدو أنه نُفّذ — وهو أخبثُ من
+     عطبٍ ظاهر. فوُحّد التعريف في موضعٍ واحد أدناه. */
+  /* هذان آخرُ بقايا التعتيم، كشفهما مسحٌ عامّ للتطبيق كلّه بعد أن ظنّ
+     المالك — وهو محقّ — أنّ شيئاً منه بقي. وكانا بنّياً طينياً وأزرقَ
+     رماديّاً، لا تنبيهاً ولا معلومة. والقاعدة التي رُفعا بها هي نفسها
+     التي رُفع بها الحبران: **أفتحُ درجةٍ تعبر عتبة الميثاق على أدكن
+     أرضياتنا الثلاث** (الورق · السطح · الجسم)، لا درجة عشوائية.
+     قِيست المرشّحات فسقط #b45309 (‏4.47 على الجسم) و#d97706 (‏2.83)
+     و#3b82f6 (‏3.27)، وبقي هذان: */
+  --warn-ink: #c2410c;  /* 5.18 · 4.72 · 4.61 — كان #8a5a2b (بنّيّ طينيّ) */
+  --info-ink: #2563eb;  /* 5.17 · 4.71 · 4.60 — كان #2c5c93 (أزرقُ رماديّ) */
+}
+html.light .text-green-400, html.light .wealth-stat-val.profit,
+html.light .wealth-ch { color: var(--pos-ink) !important; }
+html.light .text-red-500 { color: var(--neg-ink) !important; }
+
+/* حالة السوق ولمساتها على الورق — التعريف أعلاه (‏--st-open وأخواتها) هو
+   الوحيد. كان هنا تعريفٌ ثانٍ يُعيد اللوحة المعتَّمة القديمة حرفياً
+   (‏#047857 و#b3261e)، وهو **متأخّر** فيغلب الأوّل بالترتيب: فبقي التعتيم
+   حيّاً على أوسمة حالة السوق وأزرارها بعد رفعه عن بقيّة التطبيق. حُذف. */
+
+/* نصّ شريط الأخبار الفارغ */
+.news-ticker-empty, .news-ticker .ticker-link, html.light .news-ticker-empty { color: var(--ink-muted) !important; }
+
+/* ٧) بقايا: نسبة الباند، ورموز الشعارات الدقيقة */
+html.light .roi-val { color: inherit !important; }
+html.light .wealth-ch, html.light .wealth-ch * { color: var(--pos-ink) !important; }
+html.light .wealth-ch.neg, html.light .wealth-ch.neg * { color: var(--neg-ink) !important; }
+.co-logo-text, .logo-fallback { font-size: 9.5px !important; }
+
+/* ٨) آخر ما تحت العتبة: تسميات المؤشرات ونصّ الشريط الفارغ */
+.kpi-lbl, .stat-lbl, .mc-lbl, .wealth-stat-lbl,
+html.light .kpi-lbl, html.light .stat-lbl, html.light .mc-lbl, html.light .wealth-stat-lbl { color: var(--ink-muted) !important; }
+.ticker-loading, .ticker-loading span, html.light .ticker-loading span { color: var(--ink-muted) !important; }
+
+/* ═══ باند الثروة: تدرّج التصميم القديم داخل لغة التصميم الجديدة ═══════
+   طلب المالك: لا نفقد التدرّج الذي عرفه الباند به. وقرار اللجنة أن يعود
+   **بشروط الدليل** لا كما كان:
+     • لوحٌ ممتدّ إلى حافّتَي الشاشة، بلا إطارٍ ولا ظلٍّ ولا استدارة كبيرة —
+       فيُقرأ رأسَ صفحةٍ لا بطاقةً طافية.
+     • التدرّج يبدأ من الأعلى حيث الرقم الكبير وحده (حبرٌ ١٠:١) ويتلاشى قبل
+       صفّ الأرقام الأربعة، فلا يلمس رقماً صغيراً بتباينٍ أقلّ.
+     • حدٌّ سفلي بتدرّج الهويّة نفسه: يقول «هنا ينتهي الرأس ويبدأ المحتوى».
+   ونافارو اشترط تعميق أخضر الربح في الفاتح إلى ‎#065F46‎ لأنه فوق التدرّج
+   كان ٣.٩١:١ — والآن ٥.٤٨:١ فوقه و٧.١٣:١ على الورق. */
+.wealth, html.light .wealth {
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--brand) 16%, transparent) 0%,
+      color-mix(in srgb, var(--brand) 11%, transparent) 38%,
+      transparent 70%) padding-box,
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(135deg, var(--brand), var(--brand)) border-box !important;
+  /* إطارٌ كامل بزوايا ليّنة: الاستثناء الوحيد في التطبيق. و`border-image`
+     لا يقبل الاستدارة (يقصّها المتصفّح)، فيُرسم الإطار المتدرّج بطبقتَي
+     خلفية عبر `border-box`/`padding-box` — استدارةٌ حقيقية بتدرّجٍ حقيقي.
+     ١٤ بكسل: أليَن من زاوية البطاقة القديمة (١٦) وأوضح من زاوية الدليل (٢)،
+     فيبقى مميَّزاً بلا أن يعود «بطاقةً طافية». */
+  border: 2px solid transparent !important;
+  border-image: none !important;
+  border-radius: 14px !important;
+  /* ثلاث طبقات ⇐ ثلاث قيم قصّ: القيمتان فقط كانتا تدوران على الطبقات
+     فيأخذ سطحُ الباند `border-box` ويغطّي الإطار المتدرّج فيختفي. */
+  background-origin: border-box, border-box, border-box !important;
+  background-clip: padding-box, padding-box, border-box !important;
+}
+html.light .wealth {
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--brand) 9%, transparent) 0%,
+      color-mix(in srgb, var(--brand) 6%, transparent) 38%,
+      transparent 68%) padding-box,
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(135deg, var(--brand), var(--brand)) border-box !important;
+}
+/* أخضرٌ وأحمرٌ رسميّان لا كئيبان. كان ‎#065f46 يجتاز التباين بفارقٍ واسع
+   (٧٫٦٨:١) لكنّه داكنٌ حتى يقارب لوناً آخر — «كئيب» بتعبير المالك. الدرجتان
+   هنا أحيا وأوضح وتبقيان فوق الأرضية على **الأرضيات الثلاث** التي تظهران
+   عليها فعلاً — الأبيض، والسطح المصبوغ ‎#f7f3ec، والرقاقة الملوّنة:
+     ‎#047857  →  ٥٫٤٨ · ٤٫٩٦ · ٤٫٩١
+     ‎#cf2020  →  ٥٫٤١ · ٤٫٨٩ · ٤٫٦٥
+   (جرّبتُ ‎#dc2626 أوّلاً فسقط إلى ٤٫٣٧:١ على السطح المصبوغ — قِيس، فرُدّ.)
+   لا نضحّي بالقراءة من أجل الحيويّة، ولا بالحيويّة من أجل مبالغةٍ في الأمان. */
+/* ══ الموضع الواحد لدلالات الفاتح ══ (لا يُعرَّفان في غيره)
+   درجتا المالك كما اختارهما، في المظهرين معاً بلا فرق: ‏#22c55e و‎#ff5252.
+
+   وقد عُتّمتا هنا مرّةً ليعبرا عتبة التباين على الورق، فردَّ المالك ذلك
+   وأمر بإبقائهما كما اختار. وقياسُهما على الأبيض 2.28 و3.19 — دون عتبة
+   النصّ. يُذكر الرقم هنا لا اعتراضاً بل توثيقاً: القرار جرى على علم،
+   وهذا موضعُ تغييره إن أُريد يوماً. */
+/* الدرجتان الأصليتان على الورق — أغمق وأرسم، وهما ما رجع إليه المالك.
+   (‏5.48:1 و6.54:1 على الأبيض.) */
+/* ══ رُفع التعتيم — بأمر المالك ══
+   كانت ‎#047857 و‎#b3261e: أخضرُ حرجيّ وأحمرُ آجرّيّ، غامقان. وهما يغذّيان
+   **كلّ شيء** — الجداول والبطاقات والأشرطة وشمعات المخطّط — فظهر التعتيم
+   في كل قسمٍ من مصدرٍ واحد، وهو ما قاله المالك بالحرف.
+   وهاتان الدرجتان الطبيعيتان: أخضرُ ‎#16a34a وأحمرُ ‎#dc2626 — لا ساطعتان
+   (‏#22c55e/#ef4444 نيونٌ رفضه المالك) ولا معتَّمتان.
+   وتباينهما على الورق 3.30 و4.83 — أقلّ ممّا كان، وهو ثمنُ رفع التعتيم
+   ويُذكر لا يُخفى. والحبرُ على صِبغةٍ من لونه يبقى على الدرجة العميقة
+   (‏--pos-fill) فلا يعود عطب «الحبر الذائب» (D014). */
+html.light { --pos-ink: #16a34a; --neg-ink: #dc2626;
+             --pos-fill: #047857; --neg-fill: #b3261e; }
+
+/* ── زرّا الباند: شكلٌ واحد ورتبةٌ واحدة ──────────────────────────────
+   كانا بلغتين: أحدهما ممتلئ بتدرّج الهويّة والآخر رمادي شبح — فيبدوان
+   فعلين من مستويين وهما متساويان (سيولة · إضافة شركة). صارا مربّعين
+   متطابقين بزاوية ١٢ (نصف زاوية الباند)، بحدٍّ من لون الهويّة وسطحٍ شفّاف
+   يُظهر التدرّج خلفهما، والتمييز بالأيقونة وحدها. */
+.wealth-act {
+  width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 12px; cursor: pointer;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 45%, transparent);
+  transition: background .15s, border-color .15s, transform .12s;
+}
+.wealth-act:hover { background: color-mix(in srgb, var(--brand) 14%, transparent); border-color: var(--brand); }
+.wealth-act:active { transform: scale(.96); }
+.wealth-act svg { color: currentColor; }
+
+/* ── نصوص الباند: طبقةٌ أمام التدرّج لا فوقه ─────────────────────────
+   طلب المالك أن تبرز الأرقام كطبقةٍ أمام العين والتدرّج خلفها. والوسيلة
+   الصحيحة عند اللجنة هي **الوزن والحجم وفصلٌ خفيف**، لا الوهج:
+     • الوزن كان ٣٠٠ (رفيعاً) — وهو أصل الإحساس بأن الرقم «داخل» الخلفية.
+     • فصلٌ خفيف بظلٍّ واحد: بياضٌ رفيع تحت الحرف على الورق (نقشٌ مطبعي)،
+       وسوادٌ خفيف تحته على الحبر — يرفع الحرف بصرياً بلا خفض تباينه. */
+.wealth-val {
+  font-weight: 800 !important; letter-spacing: -1.2px;
+  text-shadow: 0 1px 0 rgba(255,255,255,.45);
+}
+:root .wealth-val { text-shadow: 0 1px 2px rgba(0,0,0,.55); }
+html.light .wealth-val { text-shadow: 0 1px 0 rgba(255,255,255,.6); }
+.wealth-stat-val { font-weight: 700 !important; }
+.wealth-lbl { font-weight: 700; letter-spacing: 1.6px; }
+.wealth-stat-lbl { font-weight: 600; }
+.wealth-ch { font-weight: 700; }
+/* التدرّج خلف النصّ صراحةً: طبقة مستقلّة لا تتفاعل مع ما فوقها */
+.wealth { isolation: isolate; }
+.wealth-top, .wealth-stats { position: relative; z-index: 1; }
+
+/* ═══ الباند — مراجعة ثانية: «بنكٌ جادّ» لا غلاف مجلّة ═══════════════
+   حكم المالك على النسخة السابقة: صاخبة. وتشخيص اللجنة أن الصخب جاء من
+   تراكم أربع إشارات على عنصرٍ واحد: إطارٌ مشبع + تدرّجٌ ظاهر + وزن ٨٠٠ +
+   ظلُّ حروف. والجدّية في المصارف تُصنع بالضدّ: **إشارةٌ واحدة وفراغٌ أكثر**.
+     • الظلّ يُلغى تماماً — النقش المطبعي لغة الألعاب لا الكشوف المالية.
+     • الوزن ينزل من ٨٠٠ إلى ٦٠٠: حضورٌ بلا صراخ (وزنُ كشف الحساب).
+     • الإطار يصير خيطاً محايداً ١px، ولون الهويّة يبقى **لمسةً واحدة**:
+       خيطٌ رفيع أعلى الباند وحده.
+     • التدرّج يهبط إلى همسٍ يُرى ولا يُلاحَظ، ويُقصر على الزاوية العليا. */
+/* ══ الباند يعود إلى تدرّجه الأصلي: أزرقُ الهويّة إلى بنفسجيّها ══
+   خُفّض يوماً إلى همسٍ بنسبة ٧٪ فوق `--surface` طلباً للجدّية، والنتيجة في
+   المظهر الداكن أن **البطاقة تلاشت**: سطحٌ رماديّ بخيطٍ ملوّن، لا يُقرأ
+   جادّاً بل باهتاً — وهو حكم المالك، وهو صحيح.
+   والجدّية لا تعني اختفاء اللون بل انضباطه: التدرّج هنا هو تدرّج الهويّة
+   نفسه (`--brand-a` النيليّ ← `--brand-b` البنفسجيّ) الذي يملأ الأشرطة
+   واللسان — فالباند يصير أظهر تطبيقٍ للهويّة لا استثناءً منها.
+   وبالرموز لا بقيمٍ ثابتة: يوم يتغيّر التدرّج يتغيّر معه الباند. */
+.wealth {
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--brand-a) 30%, transparent) 0%,
+      color-mix(in srgb, var(--brand-b) 22%, transparent) 52%,
+      transparent 100%),
+    var(--surface) !important;
+  border: 1px solid color-mix(in srgb, var(--brand) 36%, transparent) !important;
+  border-top: 2px solid color-mix(in srgb, var(--brand) 78%, transparent) !important;
+  border-radius: 14px !important;
+  background-origin: padding-box !important;
+  background-clip: padding-box !important;
+}
+/* الفاتح كان يعجب المالك، فيبقى أخفَّ: الورق الأبيض يُظهر الصبغة بأقلّ
+   نسبةٍ ممّا يحتاجه السواد. */
+html.light .wealth {
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--brand-a) 15%, transparent) 0%,
+      color-mix(in srgb, var(--brand-b) 11%, transparent) 52%,
+      transparent 100%),
+    var(--raised) !important;
+  border-color: color-mix(in srgb, var(--brand) 26%, transparent) !important;
+}
+
+/* طباعة الكشف المالي: حضورٌ بالوزن والفراغ، بلا ظلٍّ ولا وهج */
+.wealth-val {
+  font-weight: 600 !important; letter-spacing: -.6px !important;
+  text-shadow: none !important;
+}
+:root .wealth-val, html.light .wealth-val { text-shadow: none !important; }
+.wealth-lbl { font-weight: 600; letter-spacing: 2px; font-size: 10px; }
+.wealth-ch { font-weight: 600; }
+.wealth-stat-val { font-weight: 600 !important; }
+.wealth-stat-lbl { font-weight: 500; }
+
+/* الزرّان: خيطٌ محايد وأيقونةٌ هادئة — الفعل لا يزاحم الرقم */
+.wealth-act {
+  width: 34px; height: 34px; border-radius: 10px;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 1px solid var(--hairline);
+}
+.wealth-act:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); border-color: color-mix(in srgb, var(--ink) 28%, transparent); color: var(--ink); }
+
+/* ═══ الباند — المراجعة الثالثة: الإطار يعود، والرقم يرقّ ═══════════
+   تصحيح المالك: العلّة كانت **سماكة رقم الثروة** لا الإطار. فيعود الإطار
+   المتدرّج الكامل بزواياه الليّنة كما اعتُمد، ويعود التدرّج الخلفي إلى قوّته،
+   ويبقى الظلّ ملغى — والرقم ينزل إلى وزن ٤٠٠ (وزن الأرقام في الكشوف
+   المصرفية): حجمٌ أكبر وفراغٌ أوسع بدل السماكة. */
+.wealth, html.light .wealth {
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--brand) 16%, transparent) 0%,
+      color-mix(in srgb, var(--brand) 11%, transparent) 38%,
+      transparent 70%) padding-box,
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(135deg, var(--brand), var(--brand)) border-box !important;
+  border: 2px solid transparent !important;
+  border-radius: 14px !important;
+  background-origin: border-box, border-box, border-box !important;
+  background-clip: padding-box, padding-box, border-box !important;
+}
+html.light .wealth {
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--brand) 9%, transparent) 0%,
+      color-mix(in srgb, var(--brand) 6%, transparent) 38%,
+      transparent 68%) padding-box,
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(135deg, var(--brand), var(--brand)) border-box !important;
+}
+
+/* الرقم: رقيقٌ وكبير — الحضور بالحجم والفراغ لا بالسماكة */
+.wealth-val {
+  font-weight: 400 !important;
+  font-size: clamp(34px, 10vw, 42px) !important;
+  letter-spacing: -.5px !important;
+  text-shadow: none !important;
+  line-height: 1.15;
+}
+.wealth-stat-val { font-weight: 500 !important; }
+.wealth-ch { font-weight: 500; }
+
+/* الزرّان يعودان إلى حدّ الهويّة ليتّسقا مع الإطار */
+.wealth-act {
+  width: 36px; height: 36px; border-radius: 12px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+}
+
+/* ═══ الباند — وهجٌ لوني بدل الحدّ الصريح ══════════════════════════
+   فكرة المالك: يخفّ الإطار من بروزٍ لونيٍّ حادّ إلى **وهجٍ** يحيط بالبطاقة.
+   وشرط اللجنة كي لا يعود «الظلّ الرمادي» المحذوف: الوهج **ملوّن بالهويّة**
+   لا رمادي، وبلا إزاحةٍ رأسية تُوهم بالارتفاع — هالةٌ متمركزة حول الحافّة.
+   ويبقى خيطٌ رفيع جدّاً يرسم الحدّ كي لا تذوب البطاقة عند أدنى سطوع. */
+.wealth, html.light .wealth {
+  border: 1px solid color-mix(in srgb, var(--brand) 26%, transparent) !important;
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--brand) 16%, transparent) 0%,
+      color-mix(in srgb, var(--brand) 11%, transparent) 38%,
+      transparent 70%),
+    var(--surface) !important;
+  background-origin: padding-box !important;
+  background-clip: padding-box !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--brand-ink) 10%, transparent),
+    0 0 18px -2px color-mix(in srgb, var(--brand-ink) 30%, transparent),
+    0 0 34px -6px color-mix(in srgb, var(--brand-ink) 26%, transparent) !important;
+}
+html.light .wealth {
+  border-color: color-mix(in srgb, var(--brand) 22%, transparent) !important;
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--brand) 9%, transparent) 0%,
+      color-mix(in srgb, var(--brand) 6%, transparent) 38%,
+      transparent 68%),
+    var(--surface) !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--brand-ink) 7%, transparent),
+    0 0 16px -3px color-mix(in srgb, var(--brand-ink) 22%, transparent),
+    0 0 30px -8px color-mix(in srgb, var(--brand-ink) 18%, transparent) !important;
+}
+
+/* ═══ زرّا الباند — الصيغة الموحّدة النهائية ═══════════════════════
+   تراكمت عليهما ثلاث محاولات فتباينت خلفياتهما وحدودهما. والاتفاق:
+   **مربّعان متطابقان تماماً**، لا يفترقان إلا في الأيقونة —
+     • القياس ٣٦×٣٦ (عتبة هدف اللمس) والزاوية ١٢ = نصف زاوية الباند.
+     • الخلفية شفّافة تماماً: التدرّج والوهج يمرّان خلفهما فلا يقطعان الباند.
+     • الحدّ من الهويّة بنفس شدّة حدّ الباند (٢٦٪) — أسرةٌ واحدة لا اثنتان.
+     • الأيقونة بلون الحبر، وتشتدّ الخلفية عند اللمس فقط. */
+.wealth-act, html.light .wealth-act {
+  width: 36px !important; height: 36px !important;
+  display: inline-flex !important; align-items: center !important; justify-content: center !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+  border: 1px solid color-mix(in srgb, var(--brand) 26%, transparent) !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  transition: background .15s, border-color .15s, transform .12s;
+}
+.wealth-act:hover, html.light .wealth-act:hover {
+  background: color-mix(in srgb, var(--brand) 12%, transparent) !important;
+  border-color: color-mix(in srgb, var(--brand) 55%, transparent) !important;
+}
+.wealth-act:active { transform: scale(.96); }
+.wealth-act svg { color: currentColor !important; }
+
+/* ═══ الباند — الصيغة المعتمدة نهائياً (بموافقة المالك على اللقطة) ═══
+   الأساس: النسخة الهادئة (خلفيةٌ مصبوغة وهمسُ تدرّج في الزاوية العليا)،
+   وعليها ثلاث ملاحظات: خطٌّ أخفّ قليلاً · إطارٌ وهجٌ لونيّ خفيف بدل الخطّ
+   الملوّن الصريح · والزرّان يبقيان مربّعين ممتلئين كما في اللقطة. */
+.wealth, html.light .wealth {
+  /* ══ عودةُ التدرّج الأصلي: أزرقُ الهويّة إلى بنفسجيّها ══
+     صار الباند لوناً واحداً (`--surface`) بعد أن رفض المالك تدرّجاً قديماً
+     وصفه بـ«إيحاء وساخة». وسببُ ذلك الرفض مفهوم: كان **همساً في الزاوية
+     العليا** (`160deg` ينتهي عند ٤٢٪) فيترك ركناً أفتح من أخيه — ولطخةٌ
+     في ركن ليست إضاءة.
+     والنتيجة أن الباند في المظهر الداكن تلاشى: سطحٌ رماديّ بوهجٍ خفيف،
+     وصفه المالك بالباهت — وهو صحيح.
+     فالعودة ليست إلى الهمس بل إلى **الغسلة الكاملة** التي كانت في المظهر
+     الفاتح الأول: تدرّجٌ قطريّ يعبر البطاقة من طرفٍ إلى طرف بلا حدٍّ
+     يتوقّف عنده، فلا ركنَ أفتح ولا لطخة. ولونُه لون الهويّة نفسه
+     (`--brand-a` ← `--brand-b`) بالرموز لا بقيمٍ ثابتة. */
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--brand-a) 30%, transparent) 0%,
+      color-mix(in srgb, var(--brand-b) 20%, transparent) 55%,
+      color-mix(in srgb, var(--brand-b) 8%, transparent) 100%),
+    var(--surface) !important;
+  background-origin: padding-box !important;
+  background-clip: padding-box !important;
+  border: 1px solid color-mix(in srgb, var(--brand) 34%, transparent) !important;
+  border-radius: 14px !important;
+  /* الوهج يبقى خفيفاً: التدرّج صار هو الحامل، فوهجٌ قويّ فوقه صخب. */
+  box-shadow:
+    0 0 14px -4px color-mix(in srgb, var(--brand-a) 20%, transparent),
+    0 0 26px -10px color-mix(in srgb, var(--brand-b) 16%, transparent) !important;
+}
+/* الفاتح أخفّ: الورق الأبيض يُظهر الصبغة بنصف ما يحتاجه السواد. */
+html.light .wealth {
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--brand-a) 15%, transparent) 0%,
+      color-mix(in srgb, var(--brand-b) 10%, transparent) 55%,
+      color-mix(in srgb, var(--brand-b) 4%, transparent) 100%),
+    var(--raised) !important;
+  border-color: color-mix(in srgb, var(--brand) 24%, transparent) !important;
+  box-shadow:
+    0 0 12px -4px color-mix(in srgb, var(--brand-ink) 14%, transparent),
+    0 0 22px -10px color-mix(in srgb, var(--brand-ink) 12%, transparent) !important;
+}
+
+/* الرقم: أخفّ قليلاً من اللقطة (٦٠٠ ← ٥٠٠) مع بقاء الحجم والفراغ */
+.wealth-val { font-weight: 500 !important; letter-spacing: -.5px !important; text-shadow: none !important; }
+.wealth-stat-val { font-weight: 500 !important; }
+
+/* الزرّان كما في اللقطة: مربّعان ممتلئان بسطحٍ فاتح وحدٍّ خفيف */
+.wealth-act, html.light .wealth-act {
+  width: 36px !important; height: 36px !important; border-radius: 12px !important;
+  background: color-mix(in srgb, var(--bg) 62%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, transparent) !important;
+  color: var(--ink) !important; box-shadow: none !important;
+}
+.wealth-act:hover, html.light .wealth-act:hover {
+  background: color-mix(in srgb, var(--bg) 85%, transparent) !important;
+  border-color: color-mix(in srgb, var(--brand) 45%, transparent) !important;
+}
+
+/* ══ أرضية هدف اللمس (المعيار 13 في ميثاق «نِصاب») ══════════════════════
+   مسح المجلس وجد خمس عائلات أزرار دون 32px: أزرار بطاقة الحيازة (31px)،
+   وسوم الرموز (28px)، شرائح الفترات (27px)، وزرّ الساعة (24px). فرقُ بضعة
+   بكسلات لا يُرى في التصميم لكنه يُخطئ الإصبع على الجوال — وهو أكثر ما
+   يُشعر المستخدم بأن التطبيق «يقاوم» لمسه. أرضيةٌ واحدة تحسم العائلات كلها
+   بدل ملاحقة كل زرّ في مكانه. */
+button, [role="button"] { min-height: 32px; }
+/* الاستثناء الوحيد: زرٌّ داخل نصّ متدفّق (مثل «نسخ» تحت رسالة المساعد)
+   رفعُه إلى 32px يفتح فجوةً في السطر بلا فائدة — هدفه ليس إصبعاً عابراً. */
+.chat-bubble-ai button, .chat-bubble-user button { min-height: 0; }
+
+/* ══ بقايا أصناف تايلوند الدلالية الخام ══════════════════════════════════
+   المسح النهائي وجد أرقاماً دلالية ما زالت على أصناف خام لم يشملها التعميق:
+   text-rose-400 و text-slate-500 على خلفياتٍ ملوّنة خفيفة. تُربط بالرموز
+   كبقيّة التطبيق — لا لونٌ دلاليّ خارج النظام. */
+
+/* رقم داخل شريحة الاتساع: التعبئة حبرٌ دلاليّ عميق في الفاتح وفاتح في الداكن،
+   فالنصّ يعاكسها في كل مظهر. لونٌ أبيض ثابت كان يسقط إلى 1.8:1 في الداكن. */
+/* شريط اتساع السوق: أعدادُ الصاعد والهابط والثابت تجلس **داخل** شرائح
+   ملوّنة مصمتة. فحبرها يتبع الأرضية التي تحتها لا مظهر الصفحة — وهو ما
+   انكسر حين ورث حبر الصفحة فصار أسودَ على رماديّ (٢٫١٣:١، مقيس).
+   لون أرضية الصفحة هنا هو الحبر الصحيح: أبيضُ في الفاتح على الشرائح
+   الداكنة، وأسودُ في الداكن على الشرائح الفاتحة. */
+.breadth-bar, html.light .breadth-bar, :root:not(.light) .breadth-bar { color: var(--bg); }
+
+/* ══ الرموز الدلالية في المظهر الداكن — نقصٌ بنيوي ══════════════════════
+   مسح المجلس كشف أن --pos-ink و--neg-ink و--warn-ink و--info-ink مُعرَّفة
+   تحت html.light **فقط**. في الداكن كانت غير معرَّفة، فكل استعمالٍ بلا قيمة
+   احتياطية يفقد لونه بصمت: شريحة الاتساع صارت شفّافة ورقمها بلون الخلفية
+   (1.00:1 — نصٌّ غير مرئي إطلاقاً). ما نجا إنما نجا بفضل fallback مكتوب
+   يدوياً في موضعه، وهو حظٌّ لا نظام.
+   القيم أدناه هي نفسها المستعملة كاحتياطيات عبر الترميز، فلا يتغيّر مظهر
+   الداكن قيد أنملة — لكن الرمز يصبح موجوداً فعلاً. */
+:root {
+  /* الداكن: درجتا المالك كما اختارهما بلا تعديل — وهذا موضعهما الأصليّ
+     الذي رآهما فيه على لسان تاسي. وتباينهما هنا عالٍ أصلاً (8.41 و6.01)
+     فلا حاجة إلى شيء: تُنقلان كما هما إلى الرسوم والبطاقات وكلّ ما يقرأ
+     هذين الرمزين. */
+  /* ══ رجوعٌ إلى الأصل بأمر المالك ══
+     جُرّبت درجتا لسان تاسي الصريحتان (‏#22c55e / #ff5252) في كامل
+     التطبيق، فرآهما المالك على باند الثروة وقال: «الأخضر والأحمر كان
+     كويس وتعديلنا خرّبه». فهاتان درجتا التطبيق **الأصليتان** قبل ذلك
+     كلّه — أغمق وأرسم.
+     ولسان تاسي وحده يبقى على الصريحتين: أرضيته بنفسجية داكنة لا تتبدّل
+     بالمظهر، وهو موضعٌ مستقلٌّ موثَّق في استثناءات فحص الألوان. */
+  --pos-ink: #34d399;   /* 9.97:1 على الأرضية · 6.79 على باند الثروة */
+  --neg-ink: #f87171;   /* 6.93:1 · 4.72 على الباند */
+  /* ══ الحبر للحرف، والحشو للمساحة ══
+     درجتا المالك صريحتان، وهذا صوابها على **رقم**. أمّا حين تُفرَش على
+     شريطٍ يملأ عرض الشاشة (اتساع السوق · عرض النطاق · قوس المزاج) فهي
+     مساحةٌ لا حرف — واللون المشبع على مساحةٍ يصرخ. رآها المالك في السوق
+     والحوكمة فقال «فضيعة».
+     فهذان حشوان بدرجات التطبيق **الأصلية قبل تغيير التصميم**، مأخوذةً من
+     التاريخ لا من تخمين. والأرقام والنصوص تبقى على درجتَي المالك. */
+  /* الحشو والحبر تطابقا بعد الرجوع — ويبقى الاسمان لأن الدورين
+     مختلفان: الحبر للحرف، والحشو للمساحة وللحرف فوق صِبغةٍ من لونه.
+     فإن عاد الحبر يوماً إلى درجةٍ صريحة، لم يتبعه الحشو. */
+  --pos-fill: #34d399;
+  --neg-fill: #f87171;
+  /* ══ بيجُ عمود «المدفوع» ══ (بأمر المالك)
+     من درجة بيج التطبيق نفسها (‏hue 38°) لا من لونٍ غريب — لكنّها أعمق
+     منه: البيج الأصليّ ‎#f7f3ec يعطي على بطاقةٍ بيضاء **1.11:1**، أي
+     عمودٌ يختفي تماماً. وهاتان الدرجتان تُبقيانه بيجاً ويُرى: ‏1.47:1
+     على الورق، و3.74 بجوار أخضر القيمة السوقية فيتمايز العمودان.
+     (فُتّحت درجةً بأمر المالك بعد أن كانت ‎#ded5c4←#c8b89d.)
+     وهما رمزان لا قيمتان مكتوبتان في الصفحة — فتغييرهما يوماً من موضع. */
+  --paid-a: #e9e3d8;
+  --paid-b: #d3c6b1;
+  --warn-ink: #dfb463;
+  --info-ink: #7dd3fc;
+}
+
+
+/* ══ رؤوس الجداول (اللوحي وسطح المكتب) ══════════════════════════════════
+   الجداول لا تظهر إلا فوق 768px، فغابت عن مسحٍ أُجري على 390px وحدها.
+   رؤوسها كانت #64748b: 3.78:1 على الورق الفاتح و4.12:1 على الداكن — وهي
+   التسميات التي تُقرأ لفهم كل عمودٍ تحتها، فضعفها يُضعف الجدول كلّه. */
+.th { color: var(--ink-muted); }
+
+/* ══ التمرير بالماوس: عودة الأبيض البارد ══════════════════════════════════
+   ملاحظة المالك: تمرير الماوس على البطاقة يُعيد خلفيةً بيضاء «كالسابق».
+   السبب قواعدُ hover كُتبت قبل إعادة التصميم وبقيت بقيمٍ سداسية باردة
+   (#f8fafc · #e2e8f0 · #bfdbfe) مع !important، فتغلب رموز الورق الرملي
+   وتُخرج البطاقة من هوية التطبيق للحظةٍ في كل مرور.
+   البديل: تغميقٌ خفيف **من حبر الصفحة نفسه** — يبقى دافئاً في الفاتح
+   وفاتحاً في الداكن، بقاعدةٍ واحدة لا بلونين. */
+html.light .mc:hover { border-color: color-mix(in srgb, var(--brand) 30%, var(--hairline)); }
+/* الخبر انتقل إلى الأرضية (انظر آخر الملف) — بقي هنا حدُّه وحده. */
+html.light .news-item { border-color: var(--hairline); }
+.card:hover { box-shadow: none; }
+.mc:hover { border-color: color-mix(in srgb, var(--brand) 30%, var(--hairline)); }
+
+/* ══ حقول التاريخ داخل صفحةٍ عربية ══════════════════════════════════════
+   ملاحظة المالك: «تاريخ بداية المشروع — الحروف معكوسة». حقل input[type=date]
+   يرث اتجاه الصفحة RTL، فيقلب المتصفّح ترتيب مقاطعه بصرياً (اليوم/الشهر/السنة)
+   ويصير التاريخ غير مقروء. التاريخ رقمٌ لاتيني بنيويّاً، فاتجاهه LTR دائماً
+   مهما كان اتجاه الصفحة — قاعدةٌ واحدة تشمل كل حقول التاريخ في التطبيق
+   بدل ملاحقتها واحداً واحداً. */
+input[type="date"],
+input[type="datetime-local"],
+input[type="time"],
+input[type="month"] {
+  direction: ltr;
+  text-align: start;
+  /* عرضٌ لا يتجاوز صندوقه أبداً. حقل التاريخ في سفاري/iOS له عرضٌ ذاتيّ
+     أوسع من حاويته، فيدفع اللوح فيميل أفقيّاً — ولم يظهر ذلك في كروميوم
+     عند القياس (تجاوز = ٠ في الأنواع الخمسة وعلى عرض ٣٦٠px)، وهو سلوكٌ
+     معروفٌ لسفاري. هذه القاعدة تحسمه في كل المتصفّحات بلا انتظار:
+     الحدّ الأدنى صفر كي ينكمش داخل حاويةٍ مرنة، والمقاس من الصندوق. */
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+}
+/* واللوح نفسه لا ينزلق أفقيّاً مهما دخله من محتوى. */
+.modal-box { overflow-x: hidden; }
+.modal-box input, .modal-box select, .modal-box textarea { max-width: 100%; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   ملاحظات المالك على المظهر الفاتح — خمسٌ، وجذرها واحد: أسطحٌ بيضاء باردة
+   (#f8fafc · #0a1020 المقلوب) بقيت من قبل الورق الرملي، ومعها !important
+   يغلب الرموز. تُربط كلها بالرموز هنا، آخر الملفّ، فتحسم التعارض.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ١) فقاعة إجابة المساعد ولوحُه: أرضية التطبيق وإطارٌ أثقل — كبقيّة
+      التطبيق تماماً. كانت الفقاعة سطحاً مصبوغاً واللوح كذلك، فتُقرأ الإجابة
+      على بطاقةٍ لها لونها الخاصّ. */
+.chat-bubble-ai,
+html.light .chat-bubble-ai {
+  background: var(--bg) !important;
+  border: 1px solid var(--field-line) !important;
+  color: var(--ink) !important;
+}
+.chat-panel, html.light .chat-panel { background: var(--bg) !important; }
+
+/* ٢) المفكرة: صفوفها كانت بطاقات بيضاء تخالف التصميم الموحَّد. */
+.event-item, html.light .event-item {
+  background: color-mix(in srgb, var(--ink) 4%, transparent) !important;
+  border: 1px solid var(--hairline);
+}
+.event-item:hover, html.light .event-item:hover {
+  background: color-mix(in srgb, var(--brand) 8%, transparent) !important;
+}
+
+/* ٣) «آخر سعر»: تسميته لا صنفَ خاصّاً لها. كانت 9.5px بوزن 600 بينما
+      جاراتها 10px بوزنٍ عاديّ — فارقٌ يجعلها تُقرأ عنواناً لا تسمية. حُذف
+      الصنف، وورثت أصنافَ الصفّ نفسها في الصفحة. */
+/* الرقم يتلوّن بحالته لا بلونٍ ثابت: كان `color: var(--fg-strong) !important`
+   هنا يغلب اللونَ المحسوب في المكوّن نفسه (أخضر/أحمر بحسب تغيّر اليوم)،
+   فيخرج السعر بلونٍ واحد مهما تحرّك السهم. الحكم للمكوّن، ولا وزنَ ثقيل. */
+/* المربّع أصغر درجتين، والرقم والنسبة بخطٍّ واحد: كانت النسبة (٧٠٠) أثقل
+   من الرقم (٤٠٠) فتسبقه إلى العين وهي التابع لا الأصل. */
+/* أصغر درجتين مرّةً أخرى بطلب المالك، والأرقام ثقيلة هذه المرّة: الرقم
+   والنسبة بالوزن نفسه (٧٠٠) فلا يسبق أحدهما الآخر. */
+/* ══ الرقم والنسبة ثقيلان وأكبر ══ (بأمر المالك)
+   والوزن يُكتب هنا لا في الصفحة: قاعدةٌ عامّة أعلى الملفّ تُسطّح **كلّ**
+   أصناف Tailwind للوزن إلى 300 بـ`!important` (سياسة الخطّ الواحد). فوضعُ
+   `font-bold` على العنصر **يُخفّفه** بدل أن يُثقله — وقع ذلك فعلاً وقِيس:
+   الوزن خرج 300 لا 700. فالثِّقل من هنا وحده. */
+/* الوزن عاديّ — أُلغي الثِّقل بأمر المالك. ويبقى الحجم وحده هو الفارق
+   (‏15px للرقم، 10.5 للنسبة)، فالتطبيق كلُّه على خطٍّ واحد بوزنٍ واحد. */
+/* مربّع 48×48 بأمر المالك (صُغّر مرّتين: 76×44 ← 56 ← 48). والخطّ يتبع
+   الضلع لا العكس: قِيس أوسع سعرٍ محتمل وأوسع نسبةٍ مع سهمها داخل الضلع
+   الجديد فلم يفِض شيء. */
+/* الثِّقل عاد بأمر المالك (كان أُلغي بأمره أيضاً). ويُكتب هنا لا في
+   الصفحة: قاعدةٌ عامّة أعلى الملفّ تُسطّح كلّ أصناف Tailwind للوزن إلى
+   300 بـ!important، فوضعُ `font-bold` على العنصر **يُخفّفه** بدل أن
+   يُثقله — قِيس ذلك فعلاً من قبل: خرج 300 لا 700. */
+.hold-price-val { font-size: 11px !important; font-weight: 800 !important; }
+.hold-price-chg { font-size: 8.5px !important; font-weight: 800 !important; }
+
+/* ٤) شعار الشركة: مربّعٌ أبيض حول كل شعار على ورقٍ رمليّ — إطارٌ لم يطلبه
+      أحد. الشعارات شفّافة أصلاً، فتُترك بلا خلفية. */
+.co-logo { background: transparent !important; padding: 0 !important; }
+
+/* ٥) مفتاح التشغيل/الإطفاء — وكان تشويهه من صنعي:
+      أرضية اللمس (min-height:32px) التي أضفتُها للأزرار شملت المفتاح، فمدّدت
+      ارتفاعه من 24 إلى 32 بينما المقبض ثابتٌ عند top:3px وقطره 16 — فصار
+      بيضةً في مسارٍ منتفخ. وقاعدةٌ أقدم كانت تُلوّن التشغيل أزرقَ غريباً عن
+      الهوية بوزنٍ يغلب رمزي.
+      الحلّ: المفتاح خارج أرضية اللمس بمقاسه المرئي، ومنطقة لمسه تُوسَّع
+      بطبقةٍ شفّافة حوله — فيبقى أنيقاً ويبقى الهدف فوق 32px. */
+.switch {
+  position: relative;
+  width: 44px; height: 26px; border-radius: 99px; border: none; cursor: pointer;
+  min-height: 0 !important;
+  background: color-mix(in srgb, var(--ink) 20%, transparent) !important;
+  transition: background .18s ease;
+  flex-shrink: 0;
+}
+html.light .switch { background: color-mix(in srgb, var(--ink) 20%, transparent) !important; }
+.switch.on, html.light .switch.on { background: var(--brand) !important; }
+/* منطقة اللمس الموسَّعة: شفّافة، تحفظ المعيار الثالث عشر بلا تضخيم الشكل. */
+.switch::before {
+  content: ''; position: absolute; inset: -5px; border-radius: 99px;
+}
+.switch::after {
+  content: ''; position: absolute; top: 3px; inset-inline-start: 3px;
+  width: 20px; height: 20px; border-radius: 99px;
+  background: #fff !important; box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  transition: transform .18s ease;
+}
+.switch.on::after { transform: translateX(-18px); }
+html[dir="ltr"] .switch.on::after { transform: translateX(18px); }
+
+/* ══ المؤشرات المالية: خلايا لا بطاقات ══════════════════════════════════
+   ملاحظة المالك: «ادمجها مع خلفية التطبيق بدون بطاقات». كانت كل خانة سطحاً
+   مستقلاً (#f8fafc في الفاتح) داخل بطاقةٍ أصلاً — بطاقةٌ في بطاقة، وهو ما
+   ألغيناه في كل التطبيق. الخانة تصير خليّةً شفّافة يفصلها فاصلٌ شعري وحده،
+   فتُقرأ الشبكة جدولاً هادئاً لا تسع لوحاتٍ صغيرة. */
+.kpi, html.light .kpi {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0;
+  padding: 8px 10px 8px 0;
+  border-inline-start: 1px solid var(--hairline);
+}
+/* أوّل خليّة في كل صفٍّ بلا فاصل — الفاصل يقع بين الخلايا لا على الطرف. */
+.grid > .kpi:nth-child(3n) { border-inline-start: none; }
+
+/* ════════ الحرف العربي موصول ════════
+   العربية خطٌّ متّصل: أي `letter-spacing` موجب يفكّ الوصل بين الحروف فتبدو
+   الكلمة مكسّرةً متقطّعة — وهو بالضبط ما رآه المالك في «إجمالي الثروة»،
+   وكانت عليها ٢px. قِيست الحالات في المتصفّح فكانت ٣١ حالةً على أربعة
+   أصناف. التباعد السالب على الأرقام اللاتينية يبقى: الرقم غير موصولٍ أصلاً.
+   و`text-transform: uppercase` لا معنى له في العربية فيسقط معه. */
+.wealth-lbl, .card-title, .th, .sp-footer,
+html.light .wealth-lbl, html.light .card-title, html.light .th {
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+/* ════════ الحقول والقوائم والصفوف: أرضيةُ التطبيق وإطارٌ أثقل ════════
+   بقرار المالك: لا سطحَ مصبوغاً داخل مربّع البحث ولا تحت الأخبار والمفكرة
+   والتنبيهات — الأرضية واحدة، والفصل يقوم به إطارٌ أثقل من الخيط الشعري.
+   مربّع البحث يتكرّر في أكثر من قسم، وكلّها تمرّ بصنف `.input` وحده،
+   فالتوحيد يتمّ من مكانٍ واحد لا بترقيعٍ في كل صفحة. */
+:root      { --field: var(--bg); --field-line: #8f8f8f; }  /* إطارٌ أبيض/رمادي محايد في الداكن */
+html.light { --field: var(--bg); --field-line: #2f2f2f; }  /* إطارٌ أسود في الفاتح */
+
+/* ══ الأزرار بلا إطار ══ (بأمر المالك)
+   كانت تستعير `--field-line` وهو إطار **الحقول**: أسودُ ‎#2f2f2f في
+   الفاتح. وهو صوابٌ لحقلٍ يُكتب فيه — الإطار يرسم حدود ما يُملأ — وثِقلٌ
+   على زرٍّ لا يُملأ. فيسقط الإطار، ويحلّ محلّه سطحُ التطبيق نفسه: يُبقي
+   الزرَّ ظاهراً بلا خطٍّ يُثقل الشاشة، ويتناسق مع رأس الجدول والبطاقات
+   لأنه الدرجة نفسها. والحقول وحدها تحتفظ بإطارها. */
+.btn-ghost, html.light .btn-ghost {
+  background: var(--surface); border-color: transparent;
+}
+.btn-ghost:hover, html.light .btn-ghost:hover {
+  background: color-mix(in srgb, var(--ink) 8%, var(--surface));
+}
+/* القائمة المنسدلة لنتائج البحث عن الشركات — نفس اللغة تماماً. */
+.sp-menu, html.light .sp-menu {
+  background: var(--bg) !important;
+  border: 1px solid var(--field-line) !important;
+}
+
+/* الأخبار · المفكرة (سوق ومحفظة) · التنبيهات: صفٌّ على الأرضية لا بطاقة
+   ملوّنة. يبقى الخيط الفاصل ليُقرأ الصفُّ صفّاً. */
+.news-item, .notif, .event-item,
+html.light .news-item, html.light .notif, html.light .event-item {
+  background: transparent !important;
+}
+/* الخبر والحدث يفصلهما خيط. أمّا التنبيه فله شريطٌ جانبيّ ملوّن بأولويّته
+   (حرج · عالٍ · متوسط…) يأتي بنمطٍ سطريّ من المكوّن — فلا نلمس لونَ حدّه
+   هنا، وإلّا سوّينا الأولويّات كلَّها بلونٍ واحد وأسقطنا إشارةً تحمل معنى. */
+.news-item, .event-item,
+html.light .news-item, html.light .event-item {
+  border-color: var(--hairline) !important;
+}
+.event-item:hover, html.light .event-item:hover,
+.news-item:hover, html.light .news-item:hover {
+  background: color-mix(in srgb, var(--brand) 7%, transparent) !important;
+}
+
+/* ════════ الأيقونة في مركز مكانها ════════
+   زرٌّ لا يحمل إلا أيقونة كان يُعرض `block`، والـ`svg` عنصرٌ سطريّ يجلس على
+   خطّ الكتابة لا في وسط المربّع — فينزاح بمقدار بكسلين أو ثلاثة أفقياً
+   ورأسياً. قِيست ٢٦ حالة في سبع صفحات على خمسة أنماط. التمركز هنا يُطبّق
+   على البنية لا على كل زرٍّ على حدة: أيقونةٌ وحيدة ⇐ `inline-flex` ومركز.
+   الأزرار التي تحمل أيقونةً **ونصّاً** لا تدخل: مركزها ليس مركز أيقونتها. */
+/* استثناءُ أدوات الإخفاء: الشرط `svg:only-child` يتحقّق حتى مع وجود نصّ،
+   لأن النصّ عقدةٌ لا عنصر — فتصيب هذه القاعدة أزراراً تحمل نصّاً وأيقونة،
+   وتفرض عليها العرض بـ!important فتُبطل إخفاءها. قِيس أثره: زرّ «الفلاتر»
+   المخصَّص للجوّال يظهر على الكمبيوتر بجانب نظيره. والإخفاء نيّةٌ صريحة من
+   الترميز لا يجوز أن يغلبها ضبطُ محاذاة. */
+button:has(> svg:only-child):not(.hidden):not([class*=":hidden"]),
+a:has(> svg:only-child):not(.hidden):not([class*=":hidden"]),
+label:has(> svg:only-child) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* ════════ الفلاتر والاختيارات: تصميمٌ واحد في البنية ════════
+   أزرار الفلاتر والمدد والتبويبات الداخلية مكتوبةٌ بالنمط نفسه في ٧٢ موضعاً
+   (`bg-blue-600/20` للمختار و`border-[#1a2540]` لغيره). تُحكم من هنا مرّةً
+   واحدة لا في ٧٢ ملفاً، فلا يشذّ موضعٌ عن الباقي متى أُضيف موضعٌ جديد:
+   أرضية التطبيق للجميع، وإطارٌ أثقل، **والمختار يُعرف بثقل خطّه** لا
+   بمربّعٍ ملوّن. والوحيد المستثنى هو باند الثروة — سطحه المصبوغ ووهجه. */
+button[class~="bg-blue-600/20"] {
+  border-color: var(--brand) !important;
+  color: var(--brand-ink) !important;
+  font-weight: 800 !important;
+}
+/* **معيارٌ واحد للاختيار في التطبيق كلّه**: أيّاً كان الموضع — قائمة جانبية،
+   تبويبات محفظة، أقسام إعدادات، مجموعات خيارات — المختار يثقل خطّه. تُجمع
+   هنا كل الصيغ التي يُعلَن بها الاختيار في الشيفرة، فلا يشذّ قسمٌ عن قسم.
+   قِيس قبلها: ثلاثة مواضع مختارة بوزن ٣٠٠ في الجوال والكمبيوتر معاً. */
+button[aria-selected="true"], button[aria-pressed="true"],
+a[aria-current="page"], .is-active, .active, .seg-btn.on,
+.nav-link.active, a.active, button.active,
+/* القائمة الجانبية تعلن اختيارها بصنف `nav-active` (من NavLink) لا بـ
+   `active` — فكانت تسقط من القاعدة وهي أظهر موضعٍ للاختيار في التطبيق. */
+.nav-link.nav-active, a.nav-active {
+  font-weight: 800 !important;
+}
+
+/* ════════ مجموعة الاختيار: الصنف الموحَّد ════════
+   لغةٌ واحدة لكل مجموعة خيارات: أرضية التطبيق، إطارٌ أثقل حول المجموعة،
+   والمختار يُعرف **بثقل خطّه** ولونه لا بمربّعٍ مصبوغ. تُكتب هنا مرّةً
+   ليقيس عليها كل ما يُضاف لاحقاً بدل أنماطٍ سطرية تتكاثر وتتناثر. */
+/* بلا `display` هنا: تحديده يغلب أدوات الإخفاء (`hidden`) في الترميز
+   فيظهر عنصرٌ كان مخفيّاً على الجوّال — وهو ما وقع فعلاً فتكرّر المبدّل
+   مرّتين على الشاشة. العرض يُحدَّد في موضع الاستعمال. */
+/* ══ المبدِّل بلغة تبويبات التطبيق ══ (بأمر المالك)
+   كان صندوقاً مؤطَّراً بأرضيةٍ وفواصلَ بين أزراره — لغةٌ لا تشبه بقيّة
+   التطبيق: تبويباتُه بلا إطارٍ ولا أرضية، والمفعَّل يحمل صبغةً من لون
+   الهويّة وحدها. فسقط الإطار والأرضية والفواصل، وتوزّعت الأزرار على
+   العرض بالتساوي (‏flex:1) فتقف الثلاثة يميناً ووسطاً ويساراً. */
+.seg { align-items: center; border-radius: 10px; background: transparent; }
+.seg-btn { flex: 1 1 0; text-align: center; padding: 6px 8px; font-size: 11px;
+           min-height: 32px; background: transparent; border-radius: 10px;
+           color: var(--ink-muted); font-weight: 400; transition: color .15s, background .15s; }
+/* التحويم لا يغلب الاختيار. على شاشة اللمس يبقى `:hover` عالقاً بعد الضغط،
+   وكان يخالف `.on` بنفس الأولويّة ويأتي بعده فيغلبه: يومض الزرّ بلون الهويّة
+   ثمّ ينقلب إلى حبرٍ أسود وهو المختار — وهو «القلتش» الذي وصفه المالك.
+   الاستثناء يحسمها: التحويم لغير المختار وحده. */
+.seg-btn:not(.on):hover { color: var(--ink); }
+.seg-btn.on { color: var(--brand-ink); font-weight: 800;
+              background: color-mix(in srgb, var(--brand) 12%, transparent); }
+
+/* وسمُ «غير محفوظ» واحدٌ في التطبيق كلّه: كان في «إدارة السيولة» نصّاً
+   عارياً بلون كهرماني، وفي «التوزيع النسبي» رقعةً ملوّنة — إشارةٌ واحدة
+   بشكلين. */
+.unsaved-tag {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px;
+  background: color-mix(in srgb, var(--warn-ink) 14%, transparent);
+  color: var(--warn-ink); white-space: nowrap;
+}
+
+/* الجذر يتبع الأرضية. كان `#root` يرث الأزرق الداكن الأصلي (#060b18) من
+   قاعدة `body` القديمة: لا يُرى في الأحوال العادية لأن هيكل التطبيق يغطّيه،
+   لكنه يظهر عند ارتداد التمرير في iOS وفي الهوامش الآمنة — فيومض سطحٌ داكن
+   في تطبيقٍ أرضيّته فاتحة. قِيس: عنصرٌ ٣٩٠×٩٠٠ بلونٍ داكن في الصفحات الثماني
+   كلّها. المستثنى — بأمر المالك — شريط الأخبار وباند الثروة وحدهما. */
+#root, html.light #root { background-color: var(--bg); }
+
+/* ════════ الأسطح الداخلية: إطارٌ بلا حشوٍ ثقيل ════════
+   الصنف القديم `bg-[#111c30]` كان يُترجَم إلى السطح المصبوغ، فتظهر داخل
+   الإعدادات (التخصيص · مصادر البيانات · وغيرهما) مربّعاتٌ ملوّنة ثقيلة على
+   ورقٍ فاتح. لغة التطبيق المعتمدة: أرضيةٌ واحدة، والفصلُ إطار. ٣٨ موضعاً
+   في التطبيق تتبعها من قاعدةٍ واحدة. */
+
+/* ════════ شريط حركة السوق — تحت شريط الأخبار ════════
+   لسانٌ ثابت يحمل رقم تاسي ونسبته (لا كلمة «تاسي»: المكان يحمل معلومةً لا
+   عنواناً)، وبجانبه شركات السوق تمرّ. ارتفاعه ٣٦px — أعلى قليلاً من شريط
+   الأخبار (٣٤) لأنه يحمل سطرين في اللسان. */
+.mk-ticker {
+  position: relative; height: 32px; flex-shrink: 0; display: flex; align-items: stretch;
+  background: var(--bg); border-bottom: 1px solid var(--hairline); overflow: hidden;
+}
+/* سطرٌ واحد: سهم · رقم · نسبة — فيبقى الشريط نحيفاً كشريط القنوات. */
+.mk-tab {
+  flex: 0 0 auto; display: flex; flex-direction: row; align-items: center; justify-content: center;
+  gap: 6px; padding: 0 12px; color: #fff; line-height: 1;
+  position: relative; z-index: 2;
+  /* تدرّج الهويّة نفسه الذي يحمله لسان الأخبار — لسانٌ واحد بلغةٍ واحدة
+     مهما تبدّل ما فيه. */
+  background: linear-gradient(90deg, var(--brand-a), var(--brand-b));
+}
+.mk-tab-slot { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; }
+/* رمز الإغلاق: دائرةٌ بداخلها شرطة — ساكنةٌ تُقرأ «موقوف» بلا كلمة. */
+/* ══════ رمزُ طور الجلسة: أربعُ حالاتٍ بأربعة أشكالٍ وأربعة ألوان ══════
+   ألوانه **مستقلّة** عن حبر الشريط بأمر المالك، وهذا صوابٌ في المعنى قبل
+   أن يكون ذوقاً: الرمز يصف زمن الجلسة لا اتجاه السعر، فلو اقترض الأخضر
+   والأحمر لقُرئ «مفتوح» على أنه «صاعد».
+
+   ولكلّ طورٍ شكلٌ يخصّه أيضاً — دائرةٌ مشروطة · دائرةٌ ممتلئة · هلال —
+   فيُفرَّق بينها بلا لونٍ أصلاً، ومن لا يميّز الألوان يقرؤها كاملة.
+
+   ══ الحجم ══
+   كان القطر ١٢px ورقمُ تاسي خطُّه ١٢px — وارتفاع الرقم المرئيّ نحو ٨٫٦px
+   فقط. فالرمز كان **أطولَ من الرقم الذي يصفه**. صار ٨px. */
+.mk-ph { width: 8px; height: 8px; border-radius: 999px; flex: 0 0 auto; position: relative; }
+
+/* مغلق: دائرةٌ بداخلها شرطة — رمز «موقوف» المتعارَف، أبيضُ ساكن. */
+.mk-ph-closed { border: 1.4px solid #fff; }
+.mk-ph-closed::after {
+  content: ""; position: absolute; inset-inline: 1.2px; top: 50%;
+  height: 1.4px; background: #fff; transform: translateY(-50%);
+}
+
+/* مفتوح: دائرةٌ خضراء ممتلئة تنبض — الحياة تُرى قبل أن تُقرأ. */
+.mk-ph-open { background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,.7);
+              animation: mkPulse 1.8s ease-out infinite; }
+
+/* قبل الافتتاح: برتقاليٌّ صريح — تأهّبٌ لا حركة، فلا ينبض. */
+.mk-ph-pre { background: #fb923c; }
+
+/* قبل الإغلاق: هلالٌ سميك أزرقُ **غامق**. والهلال يُرسم بظلٍّ داخليّ
+   مزاح: دائرةٌ يقضم منها ظلُّها قوساً، فيبقى هلالٌ حادُّ الطرفين بلا
+   صورةٍ ولا مسارٍ متّجه.
+
+   واللون قِيس بالعرض لا بالاسم: عُرضت سبعة زرقاواتٍ على تدرّج اللسان
+   نفسه. الغامق الخالص (#1d4ed8 و#1e40af) يذوب في نيليّ الخلفية — يصير
+   داكناً على داكنٍ قريبِ الصبغة فلا يُرى هلالاً. و#0284c7 غامقٌ بيّن
+   ومائلٌ إلى السماويّ، وميلُه هذا هو ما يفصله عن بنفسجيّ اللسان.
+   والهلال يقع في يمين اللسان — فوق الطرف البنفسجيّ (#6d28d9) لا
+   النيليّ — وعنده يكون الفصل أوضح ما يكون. */
+/* الإزاحة موجبة: الظلّ ينزاح يميناً فيقضم يمين الدائرة — فتكون الجهة
+   المفتوحة يميناً كما طُلب. وهي إزاحةٌ فيزيائية لا منطقية، فلا يقلبها
+   اتجاه الصفحة: تبقى يميناً في العربية والإنجليزية معاً. */
+.mk-ph-close { box-shadow: inset 2.6px 0 0 0 #0284c7; }
+.mk-tab-val { font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* الحبر يأتي من المكوّن برموز الشريط نفسها (`--pos-ink`/`--neg-ink`)،
+   والأبيض هنا احتياطٌ لو غابت الحالة. */
+.mk-tab-pct { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+              color: #fff; }
+/* ══════ حاويةُ تاسي: تجميعٌ بلا زينة ══════
+   جُرّبت هنا وسيلتان لفصل اللون عن الأرضية البنفسجية ورُدَّتا:
+     • حدٌّ حول كلّ حرف (`-webkit-text-stroke`) — يُعيد نحت المِحرف
+       فيُقرأ الرقم مشوّهاً لا بارزاً.
+     • حبّةٌ بطرفٍ أبيض حول المجموعة — سليمةُ الشكل، لكنّ المالك اختار
+       الأرضية السادة عليها.
+   فبقيت الحاوية للتجميع وحده: تُلزم الرقم وسهمه ونسبته بمسافةٍ واحدة
+   ولا تحمل أيّ طرفٍ ولا أرضية. واللون على الرقم نفسه — وهو لون الوسام
+   ذاته (‏#ff5252 / #22c55e) بأمر المالك. */
+.mk-tasi { display: inline-flex; align-items: center; gap: 6px; line-height: 1; }
+.mk-tab-closed { font-size: 9.5px; font-weight: 700; opacity: .85; }
+/* سهم تاسي يحمل ألوان اللسان الثلاثة الصريحة الثابتة — لا رموز الورق:
+   أرضيتُه بنفسجيةٌ لا تتبدّل بالمظهر، فحبره لا يتبدّل معه. */
+.mk-tab .mk-arrow.up { border-bottom-color: #22c55e; }
+.mk-tab .mk-arrow.dn { border-top-color: #ff5252; }
+.mk-tab .mk-arrow.fl { background: #ffffff; }
+
+/* الخبر داخل الشريط نفسه: نقطةٌ تفصله عن الأسعار، ومصدرُه قبل عنوانه. */
+.mk-news { text-decoration: none; }
+.mk-news-dot { width: 5px; height: 5px; border-radius: 999px; background: var(--brand); flex: 0 0 auto; }
+.mk-src { font-size: 10px; font-weight: 700; color: var(--brand-ink); }
+.mk-head { font-size: 11.5px; color: var(--ink); }
+
+.mk-view {
+  flex: 1 1 auto; overflow: hidden; display: flex; align-items: center;
+  /* تلاشٍ عند الحافّة الملاصقة للّسان. القصّ سلوكُ الشريط المتحرّك لا
+     عطبٌ فيه، لكنّ اصطدام الكلمة بكتلةٍ بنفسجية مصمتة يجعلها تُقرأ
+     مبتورةً — قِيس: «أنعام القابضة» يظهر أوّلها مقطوعاً عند اللسان.
+     التلاشي يُذيب الكلمة بدل أن يقطعها، كشرائط القنوات الاقتصادية. */
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 26px);
+  mask-image: linear-gradient(to left, transparent 0, #000 26px);
+}
+html[dir="ltr"] .mk-view {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 26px);
+  mask-image: linear-gradient(to right, transparent 0, #000 26px);
+}
+.mk-track {
+  display: inline-flex; align-items: center; white-space: nowrap; will-change: transform;
+  animation-name: tickerscroll; animation-timing-function: linear; animation-iteration-count: infinite;
+}
+html[dir="rtl"] .mk-track { animation-name: tickerscrollRtl; }
+.mk-ticker:hover .mk-track { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .mk-track { animation: none; } }
+
+.mk-item { display: inline-flex; align-items: center; gap: 7px; padding: 0 18px; height: 100%; }
+.mk-name { font-size: 11.5px; font-weight: 600; color: var(--ink); }
+.mk-price, .mk-pct { font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mk-pct { font-size: 10.5px; }
+/* الاتجاه شكلٌ قبل أن يكون لوناً: مثلّثٌ صاعد، وآخر هابط، وشرطةٌ للتعادل —
+   فيُقرأ لمن لا يميّز الأحمر من الأخضر. */
+.mk-arrow { width: 0; height: 0; border-inline-start: 4px solid transparent; border-inline-end: 4px solid transparent; }
+.mk-arrow.up { border-bottom: 6px solid var(--pos-ink); }
+.mk-arrow.dn { border-top: 6px solid var(--neg-ink); }
+.mk-arrow.fl { width: 8px; height: 2px; background: var(--warn-ink); border: 0; }
+.mk-empty { font-size: 11px; color: var(--ink-muted); padding: 0 14px; }
+
+/* ════════ لسانا الشريطين متوازيان ════════
+   لسان الأخبار يتّسع لنصّه («الأخبار») ولسان السوق لرقم تاسي، فيخرج أحدهما
+   أعرض من الآخر ويُقرأ الطرفان درجاً لا عموداً. عرضٌ واحد يجعلهما عموداً
+   مستقيماً تحت بعضهما — والحافّة الداخلية خطٌّ واحد تخرج من تحته الأخبار
+   والأسعار معاً. */
+:root { --ticker-tab-w: 96px; }
+.news-ticker-label {
+  width: var(--ticker-tab-w);
+  justify-content: center;
+  padding: 0 8px !important;
+}
+/* اللسان يتّسع لسطره (رمز · سهم · رقم · نسبة) — لا عرضَ مفروض. */
+.mk-tab {
+  /* ══ العرض على قدر المحتوى ══
+     كان ١٦٨px مفروضاً كي لا يقفز الشريط عند تبديل المحتوى. والثمن ظهر على
+     الجوّال: ١٦٨ من ٣٩٠ عرضاً هي ٤٣٪ من الشاشة، فيبدأ شريط الأسعار قريباً
+     من منتصفها ويبقى إلى يمينه فراغٌ لا يحمل شيئاً.
+     والحلّ ليس العودة إلى `auto` (فيقفز)، بل **حدٌّ أدنى يمنع القفز وعرضٌ
+     يتبع المحتوى**: `max-content` مع `min-width` بقدر أعرض الحالتين
+     تقريباً. فلا فراغَ زائد ولا اهتزاز عند التبديل. */
+  width: max-content; min-width: 132px; box-sizing: border-box;
+  flex: 0 0 auto; padding: 0 9px; cursor: pointer;
+  border: 0; font: inherit;
+  /* اختصار `transition` هنا كان يمحو انتقال `transform` القادم من قاعدة
+     الضغط العامّة — لأن `.mk-tab` أقوى من `button` وزناً، والاختصارُ
+     يُصفّر ما لم يُذكر فيه. فيُذكر الاثنان معاً صراحةً. */
+  transition: transform .28s cubic-bezier(.22, 1.2, .36, 1),
+              filter    .26s cubic-bezier(.22, 1, .36, 1);
+  /* **أطرافٌ متّصلة بالشريط**: يملأ ارتفاعه كاملاً بلا هامشٍ ولا استدارة،
+     فيبدو امتداداً له لا قطعةً موضوعةً فوقه. والتصميم واحدٌ في الوضعين —
+     ما يتبدّل هو محتوى الشريط لا هيئة لسانه. */
+  height: 100%; align-self: stretch; margin: 0; border-radius: 0;
+  box-shadow: none; -webkit-appearance: none; appearance: none;
+}
+.mk-tab:hover { filter: brightness(1.08); }
+.mk-tab:active { filter: brightness(.94); transition-duration: .11s; }
+.mk-tab:focus-visible { outline: 2px solid #fff; outline-offset: -3px; }
+
+/* `.mk-state` أُسقط: حلّت محلّه `.mk-ph` بأطوارها الأربعة. */
+@keyframes mkPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(34,197,94,.65); }
+  70%  { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+  100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+}
+/* نبضُ أيقونة البثّ في اللسان — في الأطوار الحيّة وحدها. */
+.mk-ph-live { animation: mkPhLive 2s ease-in-out infinite; }
+@keyframes mkPhLive { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .mk-ph-open, .mk-ph-live { animation: none; } }
+/* ولا حشوةَ إزاحةٍ لشريط الأخبار: لسانه محمولٌ فوق النصّ بإزاحةٍ مطلقة
+   بتصميمٍ مقصود — العناوين تخرج من **تحت** حافّته. إضافةُ حشوةٍ تُلغي ذلك
+   وتترك فراغاً ميّتاً. العرض وحده هو ما وُحِّد. */
+
+/* ══════════════════════════════════════════════════════════════════
+   هويّةُ الأسطح: إطارٌ لا صِبغة
+   ══════════════════════════════════════════════════════════════════
+   القاعدة التي أقرّها المالك: **الخلفية اللونية الثقيلة تُلغى تماماً،
+   ويُكتفى بالإطار.** وكانت الصفوف والألواح تُصبَغ بأرضياتٍ ممتلئة
+   (‎bg-[var(--field)]‎ وrgba ملوّنة)، فتتراكم الرقع على الشاشة وتصير
+   كلُّ شاشةٍ لوحةَ ألوان بدل أن تكون ورقةً واحدة.
+
+   وأرضيةٌ واحدة للتطبيق كلّه: ما يفصل الأشياء هو **الخيط** لا اللون.
+   والفائدة ليست جمالاً فقط — الأرضية الواحدة تُبقي تباين النصّ ثابتاً
+   في كل موضع، فلا يهبط عن أرضيته فوق رقعةٍ مصبوغة.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* لوحٌ: صفٌّ أو بطاقةٌ داخلية. شفّافٌ بإطار. */
+.panel {
+  background: transparent;
+  border: 1px solid var(--hairline);
+}
+
+/* وسمٌ مفرَّغ: يحمل معناه بلونِ حبره وإطاره لا بأرضيةٍ ملوّنة.
+   `currentColor` يجعل الإطار يتبع لون الحبر تلقائياً، فلا يُكتب اللون
+   مرّتين ولا ينفصلان حين يتغيّر أحدهما. */
+.pill-o {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, currentColor 38%, transparent);
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+/* الحقول وحدها تبقى ملموسة: مربّع الإدخال يجب أن يُرى أنه يُكتب فيه.
+   هذا ليس استثناءً من القاعدة بل تطبيقٌ لها — الصِبغة هنا **وظيفة**
+   لا زينة. */
+input.panel, select.panel, textarea.panel { background: var(--field); }
+
+/* ══════════════════════════════════════════════════════════════════
+   استجابةُ اللمس: لكل ضغطةٍ أثر
+   ══════════════════════════════════════════════════════════════════
+   طلب المالك حركةً لكل ضغطة — زرّاً كانت أو قائمةً منسدلة أو صفّاً.
+   والغرض ليس الزينة: على الجوّال بين الضغطة وبين تغيّر الشاشة تأخيرٌ
+   محسوس، فإن لم يقع أثرٌ فوريّ ظنّ المالك أن ضغطته لم تُسجَّل فأعادها —
+   فيقع الفعل مرّتين. الأثر الفوريّ إقرارُ استلامٍ قبل أن يصل الجواب.
+
+   يُطبَّق على العناصر التفاعلية كلّها بمحدِّدٍ واحد، فلا يُنسى عنصرٌ
+   يُضاف غداً. والانتقال على `transform` وحده — لا على `all` — كي لا
+   تتأخّر الألوان معه فتبدو الواجهة ثقيلة.
+   ══════════════════════════════════════════════════════════════════ */
+/* ══ منحنيان لا منحنى: الضغطة تنزل غير ما تصعد ══
+   كانت الحركة منحنىً واحداً ومدّةً واحدة (٩٠ مللي) للنزول والعودة معاً.
+   والنتيجة قسوةٌ وصفها المالك: العنصر ينكمش ويرتدّ كأنه صُفع — لأن
+   العودة في تسعين مللي **قفزةٌ لا حركة**، فالعين تراها بدايةً ونهايةً
+   بلا ما بينهما.
+
+   والحركة في العالم لا تتماثل: الأصابع تضغط أسرع ممّا ترتخي، والجسم
+   المضغوط يعود مستقرّاً لا قافزاً. فصار لكلّ اتجاهٍ منحناه:
+
+   • **النزول** (`:active`): ١٢٠ مللي بمنحنىً يبدأ سريعاً ويهدأ — الأثر
+     يقع فوراً فيُقرأ إقرارَ استلام، وهي وظيفته الأولى ولا تُضحّى.
+   • **الصعود** (الحالة الأساسية): ٢٨٠ مللي بمنحنىً متجاوزٍ يهدأ عند
+     النهاية — فيعود العنصر مستقرّاً لا قافزاً.
+
+   وقِيس الأثر بأخذ عيّناتٍ من `transform` إطاراً بإطار: النزول يبلغ
+   قاعه عند ١١٠ مللي، والعودة تستغرق ١٦٠ مللي عبر قيمٍ وسيطة متدرّجة لا
+   قفزة واحدة. وأقولها كما قِيست لا كما أردتُها: التجاوز نفسه مجهريّ —
+   فرقُ الحجم كلُّه ٠٫٠٣٥، فذروة المنحنى لا ترفع الحجم فوق الواحد إلا
+   بـ٠٫٠٠٤٥، وهذا دون ما تراه العين. فالسلاسة المحسوسة مصدرها **تفاوتُ
+   المدّتين** لا الارتداد. */
+button, [role="button"], a.nav-link, .seg-btn, summary,
+select, .press, [role="tab"], [role="option"], label.switch {
+  transition: transform .28s cubic-bezier(.22, 1.2, .36, 1),
+              opacity   .24s cubic-bezier(.22, 1, .36, 1),
+              filter    .24s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;      /* يُلغي تأخير ٣٠٠ مللي على الجوّال */
+  will-change: transform;          /* يُسلّم الحركة لبطاقة الرسم فلا تتقطّع */
+}
+button:active, [role="button"]:active, a.nav-link:active, .seg-btn:active,
+summary:active, select:active, .press:active, [role="tab"]:active,
+[role="option"]:active, label.switch:active {
+  transform: scale(.965);
+  /* النزول أسرع من الصعود، وبلا تجاوز: التجاوز عند النزول يبدو ارتجاجاً. */
+  transition-duration: .12s, .1s, .12s;
+  transition-timing-function: cubic-bezier(.33, .9, .45, 1);
+}
+/* الأزرار الكبيرة تنكمش أقلّ: الانكماش نسبةٌ لا مقدار، فالكبير يبدو
+   قافزاً بنفس النسبة التي تليق بالصغير. */
+.btn-primary:active, .btn-ghost:active, .btn-danger:active { transform: scale(.98); }
+
+/* صفٌّ يُضغط (حيازة · خبر · إعلان): لا ينكمش بل يغمز — الانكماش على
+   عنصرٍ عريضٍ يبدو ارتجاجاً في الصفحة كلّها. */
+.event-item:active, .news-item:active, .hold-row:active, tr.press:active {
+  opacity: .62;
+  transform: none;
+}
+/* والغمزة تعود متمهّلة: الصفّ عريضٌ فعودتُه السريعة ومضةٌ تُتعب العين. */
+.event-item, .news-item, .hold-row, tr.press { transition: opacity .3s ease; }
+.event-item:active, .news-item:active, .hold-row:active, tr.press:active {
+  transition-duration: .1s;
+}
+
+/* موجةٌ خفيفة تنطلق من موضع الإصبع في الأزرار الممتلئة — أثرٌ يُرى على
+   الألوان الداكنة حيث لا يكفي الانكماش وحده. */
+@keyframes sp-ripple { to { box-shadow: 0 0 0 16px transparent; } }
+.btn-primary:active, .mk-tab:active {
+  /* أبطأ وأخفّ من قبل: الموجة السريعة القويّة وميضٌ، والبطيئة الخفيفة
+     انتشار. والمقصود إحساسٌ بالمادّة لا لفتُ النظر. */
+  animation: sp-ripple .55s cubic-bezier(.22, 1, .36, 1);
+  box-shadow: 0 0 0 0 color-mix(in srgb, #fff 32%, transparent);
+}
+
+/* من يطلب تقليل الحركة يُعفى منها كلّها — بند إمكانية الوصول. */
+@media (prefers-reduced-motion: reduce) {
+  button, [role="button"], a.nav-link, .seg-btn, summary, select, .press,
+  [role="tab"], [role="option"], label.switch { transition: none; }
+  button:active, [role="button"]:active, .seg-btn:active,
+  .btn-primary:active, .mk-tab:active { transform: none; animation: none; }
+}
+
+
+/* ══ نصٌّ على أرضيةٍ دلالية: الحبر أبيضُ دائماً ══
+   قِيس في المتصفّح: عدّاد الإشعارات كان أسودَ على أحمر (٢٫١٣:١) وأنبوب
+   النسبة أسودَ على ملوّن (٢٫٦٦:١) — لأن استئصال الألوان الجاهزة جعل
+   نصَّهما يرث حبر الصفحة، وحبرُ الصفحة يتبع المظهر لا الأرضية التي
+   تحته. ما جلس على لونٍ مصمت يأخذ الأبيض في المظهرين. */
+.notif-count, .notif-count *,
+.badge-solid, .badge-solid * { color: #fff !important; }
+/* `.tube-pct` أُزيلت: كانت أرضيةً سوداء تحت نسبة التركّز القطاعي، وُضعت
+   لأن الأبيض داخل الشريط لا يُقرأ (‏1.62:1 عند أفتح طرفٍ في التدرّج).
+   وقد خرج الرقم من الشريط إلى أرضية البطاقة، فسقطت الحاجة إليها. */
+
+/* ══ أرقام الرسوم البيانية ══
+   العطب: الألوان تُمرَّر إلى الرسوم **خاصّيةً في الوسم** (fill="var(--x)")،
+   والمتصفّح لا يقرأ رموز التصميم في خصائص الوسوم — إنما في قواعد CSS
+   وحدها. فالقيمة تسقط إلى الأسود الافتراضي: أرقام المحاور تختفي على
+   الحبر الداكن. قِيس ذلك، وهو ما رآه المالك.
+
+   العلاج قاعدةٌ واحدة: `fill` هنا **خاصّية CSS** فتقرأ الرمز، وتغلب
+   خاصّية الوسم دائماً. فتتبع الأرقام مظهرَها بلا تدخّلٍ في كل رسم. */
+.recharts-text,
+.recharts-cartesian-axis-tick-value,
+.recharts-cartesian-axis-tick text,
+.recharts-label,
+.recharts-legend-item-text { fill: var(--ink-muted) !important; }
+.recharts-cartesian-grid line { stroke: var(--hairline) !important; }
+.recharts-cartesian-axis-line, .recharts-cartesian-axis-tick-line { stroke: var(--hairline) !important; }
+
+/* نصوصُ الرسوم المكتوبة يدوياً (الرسوم الأصلية لا recharts) — نفس المبدأ. */
+svg text.sp-axis, svg .sp-axis text { fill: var(--ink-muted); }
+svg text.sp-val,  svg .sp-val  text { fill: var(--ink); }
+
+
+
+/* قائمةٌ منسدلة داخل إطار المبدّل: تطابق الأزرار ارتفاعاً وحشوةً وخطّاً،
+   فلا تبدو صندوقاً غريباً بين نظيريها. السهم الافتراضي يُزال لأن الإطار
+   الموحَّد يكفي دلالةً — وإبقاؤه يزيد عرضاً غير متناظر. */
+.seg > select.seg-btn {
+  appearance: none; -webkit-appearance: none;
+  padding-inline: 14px; text-align: center; text-align-last: center;
+  border: 0; cursor: pointer; line-height: 1;
+}
+.seg > select.seg-btn:focus { outline: none; }
+
+/* مقاسات الجوّال: نفس البنية بحشوةٍ وخطٍّ أصغر — فيتّسع الصفّ الثلاثيّ
+   على ٣٩٠ بكسل بلا قصٍّ ولا خروجٍ عن الحافّة. البنية واحدة والمقاس يتغيّر،
+   وهذا ما أمر به المالك: «نفس ترتيب الكمبيوتر بمقاسات الجوّال». */
+@media (max-width: 767px) {
+  .seg-btn { padding: 6px 6px; font-size: 10.5px; }
+  .seg > select.seg-btn { padding-inline: 4px; max-width: 92px; }
+  /* اللسان أضيق ورقمُه أصغر على الجوّال: الشريط هو المقصود لا لسانه،
+     فلا يأخذ اللسان ثلث الشاشة. قِيس على ٣٩٠ بكسل. */
+  .mk-tab { min-width: 104px; padding: 0 7px; }
+  .mk-tab-slot { gap: 4px; }
+  .mk-tab-val { font-size: 11px; }
+  .mk-tab-pct { font-size: 10px; }
+}
+
+
+/* ══════ عائلة الإطارات: مرجعُها مربّع البحث ══════
+   قال المالك إن الإطارات «حادة ولونها ثقيل بعكس إطار مربّع البحث». وقِيس
+   ذلك فبان أنه ملاحظتان لا واحدة:
+     • **اللون**: ثمانمئةُ إطارٍ تقرأ `--hairline` — وقد خُفّف في الرموز،
+       فخفّت الواجهة كلُّها معاً.
+     • **الحدّة**: العناصر المؤطَّرة على ١٢px، ومربّع البحث على ١٦px،
+       **وعشرةٌ منها على صفر** — وهي التي تُقرأ حادّة فعلاً.
+   فتوحّدت العائلة على ١٤px: أقرب إلى ليونة مربّع البحث بلا أن تصير
+   البطاقات أقراصاً. ولا يُمسّ ما استدارتُه وظيفة (الدوائر والأقراص
+   والأشرطة الممتلئة)، ولا الجداول التي لا إطار لها أصلاً.
+   وقياسٌ بعد التطبيق: هذه القاعدة **لا تكفي وحدها** — أكثر البطاقات تستدير
+   بـ`rounded-xl` من طبقة utilities، وهي تأتي بعد هذا الملفّ في الترتيب
+   فتغلبه بالتساوي في الأولوية. فصُحّح السلّم نفسه في `tailwind.config.js`
+   (‏xl = 14px)، وبقيت هذه للأصناف الدلالية التي لا تمرّ بـTailwind. */
+.card, .panel, .mc, .notif, .idle-opt,
+.seg, .kpi-box, .modal, .sheet {
+  border-radius: 14px;
+}
+
+
+/* ══ وسمُ نوع الحدث ══ (المفكرة والأخبار)
+   رقعةٌ مستطيلة بلونٍ صلب وحبرٍ أسود — بأمر المالك. ولا يمرّ بـ`pill-o`
+   (الوسم المفرَّغ) لأنها تفرض أرضيةً شفّافة فتُلغي اللون الصلب.
+   والحبر أسودُ ثابتٌ في المظهرين: أرضيةُ الوسم لا تتبدّل بالمظهر، فحبرٌ
+   يتبدّل فوقها يسقط في أحدهما حتماً. */
+.ev-tag {
+  display: inline-block;
+  font-size: 10px; font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;          /* مستطيلٌ بحوافّ لطيفة لا حبّة */
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* ══ رموزُ وسوم الأحداث — مصدرٌ واحد لأربعة أقسام ══
+   المفكرة · الإفصاحات · الأخبار · التنبيهات (بأمر المالك). وكانت الدرجات
+   مكتوبةً قيماً ثابتة في `EventsList` وحده، فأوقفت البوّابة التسليم —
+   بحقّ: لونٌ يخدم أربعة أقسام لا يجوز أن يسكن ملفَّ أحدها.
+   والدرجات فاتحةٌ عمداً: الحبر أسودُ ثابتٌ فوقها في المظهرين (أرضية الوسم
+   لا تتبدّل بالمظهر، فحبرٌ يتبدّل يسقط في أحدهما حتماً)، وقِيس التباين
+   فكان بين 10.53:1 و15.93:1. */
+:root, html.light {
+  --tag-news:      #fde047;   /* إعلان — 15.93:1 */
+  --tag-dividend:  #86efac;   /* توزيع أرباح — 14.96 */
+  --tag-results:   #fcd34d;   /* نتائج مالية — 14.56 */
+  --tag-bonus:     #d8b4fe;   /* أسهم منحة — 11.88 */
+  --tag-agm:       #a5b4fc;   /* جمعية عمومية — 10.53 */
+  --tag-rights:    #7dd3fc;   /* حقوق أولوية — 12.60 */
+  --tag-split:     #fda4af;   /* تجزئة — 11.11 */
+  --tag-merger:    #fdba74;   /* اندماج واستحواذ — 12.45 */
+  --tag-ink:       #000000;   /* الحبر — أسودُ دائماً */
+}
+/* ══ نجمةُ الذكاء — ذهبيّة في كل موضع ══ (بأمر المالك)
+   كانت تُلوَّن بأربعة ألوان مختلفة حسب الصفحة: بنفسجيّ العلامة في
+   المحادثة، وحبرُها في تقييم الأداء، وبرتقاليُّ التحذير في السوق
+   والمكتبة، ولونٌ موروث في مواضع أخرى. فالرمز الواحد بأربعة معانٍ.
+
+   ولا ذهبَ حقيقيّ يعبر عتبة ٣:١ على أرضياتنا الفاتحة — قِيست
+   المرشّحات: ‎#eab308 يقيس 1.92 على البياض، و‎#f59e0b 2.15،
+   و‎#d97706 3.19 لكنه برتقاليٌّ لا ذهب. وأدكنُ ما يعبر (‎#b45309)
+   بنّيٌّ لا ذهب.
+   فبقي الذهب ذهباً وانتقل التباين إلى **الحافّة**: حشوٌ ذهبيّ وحدٌّ
+   ذهبيّ داكن يرسم الشكل، بـ‏paint-order كي لا يقضم الحدُّ الحشوَ من
+   داخله. وهي الحيلة نفسها في سهم التعادل وأعمدة التوزيعات. */
+/* والداكن هو الأصل في هذا الملفّ (‏:root) والفاتح استثناؤه (‏html.light)
+   — كسائر رموزه، لا اصطلاحاً خاصّاً بهذا الرمز. وعلى الأرضية الداكنة
+   يقيس الحشوُ وحده 13.5:1، فالحدُّ هناك تحديدُ شكلٍ لا تباين. */
+:root { --ai-star: #fcd34d; --ai-star-edge: #b45309; }
+html.light { --ai-star: #eab308; --ai-star-edge: #a16207; }
+.ai-star {
+  color: var(--ai-star);
+  fill: var(--ai-star);
+  stroke: var(--ai-star-edge);
+  paint-order: stroke fill;
+}
+
+/* ══ ألوانُ المقاييس — واحدةٌ في المظهرين ══ (بأمر المالك)
+   طلب أن تُلغى التفرقة اللونية بين المظهرين في هذه المقاييس، وأن
+   تُعتمد درجاتُ الداكن التي رضيها: أخضرُ نعناع وأحمرُ مرجان وكهرمان.
+
+   وقِيست على أرضيات الفاتح فسقطت كلُّها دون عتبة ٣:١ للعناصر غير
+   النصّية: ‎#34d399 يقيس 1.92 على البياض، و‎#dfb463 1.94، و‎#f87171
+   2.77. فلو نُقلت كما هي لذابت العلامةُ البيضاء في مسارٍ باهت على
+   صفحةٍ بيضاء — ثلاثةُ بياضاتٍ متجاورة.
+
+   فبقيت الألوانُ كما أرادها، وانتقل التباين إلى **الحافّة**: طوقٌ
+   شعريّ حول المسار وحول العلامة، داكنٌ في الفاتح فاتحٌ في الداكن.
+   وهي الحيلة نفسها في نجمة الذكاء وسهم التعادل وأعمدة التوزيعات —
+   واللونُ وحده هو ما وُحّد، والحافّةُ تتبع الأرضية بالضرورة لأنها
+   ليست لوناً بل فصلٌ عنها. */
+:root {
+  --gauge-pos:  #34d399;
+  --gauge-warn: #dfb463;
+  --gauge-neg:  #f87171;
+  --gauge-edge: rgba(255, 255, 255, 0.22);
+}
+html.light { --gauge-edge: rgba(0, 0, 0, 0.30); }
+
+/* ══ الوسمُ يعود رقعةً صلبة ══ (بأمر المالك)
+   جُعلت الوسومُ حبراً على أرضيةٍ شفّافة، ولم يكن ذلك ما طلبه: شكواه كانت
+   من **تبويب توصيات المحللين** وحده، إذ كانت أرضيّته أحبارَ الحالة الداكنة
+   (‏--pos-ink · --neg-ink) فبدت معتمةً ثقيلة. فأُعيد الشكلُ الصلب إلى كل
+   الوسوم كما كان، وعُولج التبويبُ وحده بأرضياتٍ فاتحةٍ من عائلة الوسوم
+   نفسها. ودرسٌ لي: يُعالَج ما اشتُكي منه لا ما حوله.
+   وأُبقي «موعد الأحقية» نوعاً قائماً بذاته — ذاك تصحيحُ معنًى لا تصميم. */
+:root, html.light {
+  --tag-eligibility: #a7f3d0;   /* موعد أحقية — 16.37:1 */
+  --tag-buy:         #bbf7d0;   /* توصية شراء — 17.33 */
+  --tag-sell:        #fca5a5;   /* توصية بيع — 11.06 */
+  --tag-hold:        #fde68a;   /* توصية احتفاظ — 16.86 */
+}
+
+/* ══ موجاتُ البثّ — تتدرّج ظهوراً واختفاءً والمركزُ ثابت ══ (بأمر المالك)
+   كانت الأيقونة تومض كلُّها بـ`animate-pulse`، فتقول «شيءٌ ينطفئ» لا
+   «بثٌّ مستمرّ». فالمركزُ لا يُمسّ، والقوسان يتتابعان من الداخل إلى
+   الخارج بفارقٍ زمنيّ يصنع إحساس الانتشار. */
+@keyframes bcast-wave {
+  0%   { opacity: 0.15; }
+  35%  { opacity: 1; }
+  70%  { opacity: 0.15; }
+  100% { opacity: 0.15; }
+}
+.bcast .bcast-w1 { animation: bcast-wave 1.8s ease-in-out infinite; }
+.bcast .bcast-w2 { animation: bcast-wave 1.8s ease-in-out infinite 0.45s; }
+/* وميضُ ما قبل الافتتاح: نبضةٌ واحدة لا تنطفئ تماماً — الانطفاءُ الكامل
+   يُقرأ عطباً، والخفوتُ يُقرأ انتظاراً. */
+@keyframes bcast-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.28; }
+}
+.bcast .bcast-blink { animation: bcast-blink 1.15s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .bcast .bcast-w1, .bcast .bcast-w2,
+  .bcast .bcast-blink { animation: none; opacity: 1; }
+}

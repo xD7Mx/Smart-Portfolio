@@ -1,0 +1,1744 @@
+{
+"meta": {
+"source": "أرقام (Argaam)",
+"standards": [
+"الراجحي المالية",
+"البلاد"
+],
+"updated": "2025-08-17 / 2025-12-31",
+"count": 263,
+"note": "طبقة ثانية بعد المقاصد. ✓ لدى أي لجنة = متوافق مع ذكر المصدر؛ بلا ✓ = غير متوافق. لا تشمل نسبة تطهير."
+},
+"ratings": {
+"2150": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4145": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4144": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4084": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"9402": {
+"status": "NON_COMPLIANT",
+"sources": [
+"أرقام"
+]
+},
+"9403": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"9404": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"9405": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"9406": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"9400": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1110": {
+"status": "COMPLIANT",
+"sources": [
+"البلاد"
+]
+},
+"9410": {
+"status": "NON_COMPLIANT",
+"sources": [
+"أرقام"
+]
+},
+"9411": {
+"status": "NON_COMPLIANT",
+"sources": [
+"أرقام"
+]
+},
+"9409": {
+"status": "NON_COMPLIANT",
+"sources": [
+"أرقام"
+]
+},
+"7010": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"7020": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"7030": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"7040": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6017": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4081": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4083": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4082": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1182": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1183": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1111": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4021": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4014": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1324": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1180": {
+"status": "NON_COMPLIANT",
+"sources": [
+"أرقام"
+]
+},
+"1150": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1120": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1140": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1080": {
+"status": "NON_COMPLIANT",
+"sources": [
+"أرقام"
+]
+},
+"1020": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1010": {
+"status": "COMPLIANT",
+"sources": [
+"البلاد"
+]
+},
+"2110": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2170": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2060": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2210": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2010": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2020": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2250": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2290": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2310": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2350": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2001": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2380": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2330": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4200": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2080": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4050": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2222": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2381": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2223": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2382": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"3092": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"3005": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"3010": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"3080": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"3040": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"3030": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"3050": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"3090": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"3020": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"3060": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"3091": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"3004": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"3002": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"3003": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1214": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4240": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4001": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4160": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4180": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4190": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4006": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4163": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4011": {
+"status": "COMPLIANT",
+"sources": [
+"البلاد"
+]
+},
+"4008": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4051": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4191": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4012": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4161": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4192": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4164": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4165": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4193": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4016": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4015": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2230": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2070": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1212": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6018": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1830": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4017": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4013": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4009": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4007": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4018": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4019": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4005": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4004": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4110": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4290": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6019": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4292": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4291": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4162": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6013": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6012": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6004": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2287": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2284": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2283": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"6014": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2281": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2285": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2286": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6016": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2288": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6015": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2282": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6002": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6001": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2270": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2050": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2280": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2100": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6010": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6020": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6040": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6050": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"6060": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"6070": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"6090": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4061": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2120": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2140": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4280": {
+"status": "NON_COMPLIANT",
+"sources": [
+"أرقام"
+]
+},
+"4147": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1832": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2082": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2083": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4146": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2081": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2084": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"5110": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8010": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8190": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8050": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8180": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8230": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8280": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8150": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8210": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8070": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8200": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8120": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8020": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8170": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8060": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8040": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8030": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8100": {
+"status": "NON_COMPLIANT",
+"sources": [
+"أرقام"
+]
+},
+"8260": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8160": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8250": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8240": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8012": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"8300": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1302": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1201": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1301": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1320": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2360": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1213": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2320": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2340": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1210": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2370": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2300": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"2090": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2160": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2040": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2180": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2200": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2220": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2130": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"2240": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4143": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4194": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1321": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4148": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1202": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1304": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4142": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1303": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"3008": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4141": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"1323": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"3007": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1322": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1211": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4337": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4338": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4344": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4339": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4340": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4345": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4342": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4346": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4347": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4348": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4331": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4330": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4334": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4333": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4332": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4321": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4325": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4320": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4327": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4326": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4324": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4322": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4323": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4310": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4220": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4230": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4090": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4300": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4250": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4150": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4020": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4100": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4040": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4205": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4265": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4264": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4262": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4031": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4261": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4071": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"4072": {
+"status": "NON_COMPLIANT",
+"sources": [
+"أرقام"
+]
+},
+"4210": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4270": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4070": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"4170": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1810": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1820": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"7202": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"7200": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"7201": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"7204": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"7211": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"7203": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"8313": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية"
+]
+},
+"7205": {
+"status": "NON_COMPLIANT",
+"sources": [
+"أرقام"
+]
+},
+"1834": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1835": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1833": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"1831": {
+"status": "COMPLIANT",
+"sources": [
+"الراجحي المالية",
+"البلاد"
+]
+},
+"9110": {
+"status": "COMPLIANT",
+"sources": [
+"البلاد"
+]
+}
+}
+}

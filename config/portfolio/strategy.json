@@ -1,0 +1,18 @@
+{
+  "mode": "BUILD",
+  "default_installments": 5,
+  "installment_proximity_alert_pct": 5,
+  "rebalance_deviation_threshold_pct": 2,
+  "max_single_position_pct": 25,
+  "max_single_sector_pct": 40,
+  "min_positions": 5,
+  "preferred_sectors": [],
+  "excluded_sectors": [],
+  "dividend_reinvestment_default": "CASH",
+  "health_score_weights": {
+    "finance_quality": 0.40,
+    "diversification": 0.25,
+    "income_stability": 0.25,
+    "risk_inverse":    0.10
+  }
+}

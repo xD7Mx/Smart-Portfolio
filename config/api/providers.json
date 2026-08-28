@@ -1,0 +1,28 @@
+{
+  "primary": "yahoo_finance",
+  "secondary": "sahmak",
+  "providers": {
+    "yahoo_finance": {
+      "name": "Yahoo Finance",
+      "enabled": true,
+      "daily_limit": 500,
+      "rate_limit_per_minute": 60,
+      "retry_attempts": 3,
+      "timeout_seconds": 10
+    },
+    "sahmak": {
+      "name": "سهمك",
+      "enabled": false,
+      "daily_limit": 1000,
+      "rate_limit_per_minute": 100,
+      "retry_attempts": 3,
+      "timeout_seconds": 10
+    }
+  },
+  "update_intervals": {
+    "prices": 15,
+    "news": 60,
+    "events": 1440,
+    "financials": 10080
+  }
+}

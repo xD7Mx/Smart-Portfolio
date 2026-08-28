@@ -1,0 +1,2053 @@
+{
+"meta": {
+"source": "مكتب المقاصد",
+"report_year": 2024,
+"financials_date": "2024-12-31",
+"published": "2025-08",
+"count": 340,
+"note": "نقية=متوافق نقي (أخضر)، مختلطة=متوافق مختلط بشرط التطهير (برتقالي). مبلغ التطهير لكل سهم. القطاع المالي غير مشمول."
+},
+"ratings": {
+"2222": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.08,
+"source": "المقاصد",
+"note": "راجع المنهجية فقرة 17"
+},
+"2030": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.09,
+"source": "المقاصد"
+},
+"2381": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.38,
+"source": "المقاصد"
+},
+"4030": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.16,
+"source": "المقاصد"
+},
+"4200": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.23,
+"source": "المقاصد"
+},
+"1210": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"1301": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"1321": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.14,
+"source": "المقاصد"
+},
+"1322": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"2001": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"2020": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"2090": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"2150": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.05,
+"source": "المقاصد"
+},
+"2170": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.18,
+"source": "المقاصد"
+},
+"2180": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"2200": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"2210": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"2220": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"2223": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.08,
+"source": "المقاصد"
+},
+"2240": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.6,
+"source": "المقاصد"
+},
+"2250": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"2290": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"2310": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"2330": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"2350": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"2360": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"3002": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"3003": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"3004": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"3005": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"3007": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"3010": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"3020": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"3030": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"3040": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"3080": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"3090": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"1212": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"1214": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"1302": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.19,
+"source": "المقاصد"
+},
+"1303": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"2040": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"2110": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.22,
+"source": "المقاصد"
+},
+"2160": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.05,
+"source": "المقاصد"
+},
+"2320": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.05,
+"source": "المقاصد"
+},
+"2370": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4110": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4140": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4142": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4143": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"4144": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.11,
+"source": "المقاصد"
+},
+"4145": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"1831": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"1832": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"1833": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.14,
+"source": "المقاصد"
+},
+"1834": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"1835": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4031": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4040": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.07,
+"source": "المقاصد"
+},
+"4260": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"4261": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"4262": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4264": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.53,
+"source": "المقاصد"
+},
+"2130": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"2340": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"4011": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"4012": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4180": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"1810": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.12,
+"source": "المقاصد"
+},
+"1820": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"1830": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"4170": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4290": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"4291": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"4292": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"6002": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"6012": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"6013": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"6014": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"6016": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4071": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.13,
+"source": "المقاصد"
+},
+"4008": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4050": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.3,
+"source": "المقاصد"
+},
+"4051": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4190": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4191": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4192": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4193": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4001": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4061": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4160": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.07,
+"source": "المقاصد"
+},
+"4161": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4162": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"4163": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4164": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.14,
+"source": "المقاصد"
+},
+"2100": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"2270": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"2280": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"2281": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.1,
+"source": "المقاصد"
+},
+"2282": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"2285": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"2286": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"2287": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.11,
+"source": "المقاصد"
+},
+"4080": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"6001": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"6010": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"6020": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"6040": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"6070": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"6090": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4165": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"2230": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4004": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.07,
+"source": "المقاصد"
+},
+"4013": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.11,
+"source": "المقاصد"
+},
+"4014": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.06,
+"source": "المقاصد"
+},
+"4016": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"1182": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"1183": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"2120": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.06,
+"source": "المقاصد"
+},
+"4081": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4082": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4083": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"4130": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"7202": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.05,
+"source": "المقاصد"
+},
+"7203": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.06,
+"source": "المقاصد"
+},
+"7204": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"7211": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"7010": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"7020": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"7040": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.08,
+"source": "المقاصد"
+},
+"2080": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.05,
+"source": "المقاصد"
+},
+"2081": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.18,
+"source": "المقاصد"
+},
+"2083": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.33,
+"source": "المقاصد"
+},
+"4330": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"4331": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4333": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4335": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4336": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4337": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4339": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4340": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4342": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4344": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4345": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4346": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4347": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4348": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4349": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4090": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"4100": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.05,
+"source": "المقاصد"
+},
+"4150": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"4230": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"4250": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4300": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.15,
+"source": "المقاصد"
+},
+"4310": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4320": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.06,
+"source": "المقاصد"
+},
+"4321": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.06,
+"source": "المقاصد"
+},
+"4322": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"4323": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.09,
+"source": "المقاصد"
+},
+"4324": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4325": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9513": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9514": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"9539": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9548": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"9552": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9553": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9566": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.05,
+"source": "المقاصد"
+},
+"9575": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9583": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"9588": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9599": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.12,
+"source": "المقاصد"
+},
+"9601": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.08,
+"source": "المقاصد"
+},
+"9607": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.08,
+"source": "المقاصد"
+},
+"9609": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"9623": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.21,
+"source": "المقاصد"
+},
+"9533": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"9547": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9569": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"9578": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.08,
+"source": "المقاصد"
+},
+"9624": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9633": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.08,
+"source": "المقاصد"
+},
+"9540": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9545": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9570": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.14,
+"source": "المقاصد"
+},
+"9581": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"9593": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9597": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"9606": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.12,
+"source": "المقاصد"
+},
+"9608": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.05,
+"source": "المقاصد"
+},
+"9613": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.19,
+"source": "المقاصد"
+},
+"9619": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.07,
+"source": "المقاصد"
+},
+"9621": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.32,
+"source": "المقاصد"
+},
+"9625": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9577": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9584": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9618": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"9541": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9562": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.13,
+"source": "المقاصد"
+},
+"9567": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.06,
+"source": "المقاصد"
+},
+"9590": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9598": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"9603": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9617": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.15,
+"source": "المقاصد"
+},
+"9630": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"9632": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9636": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"9615": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.11,
+"source": "المقاصد"
+},
+"9642": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.45,
+"source": "المقاصد"
+},
+"9522": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.13,
+"source": "المقاصد"
+},
+"9551": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9549": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.07,
+"source": "المقاصد"
+},
+"9592": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9515": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9536": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.15,
+"source": "المقاصد"
+},
+"9555": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"9556": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9559": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.19,
+"source": "المقاصد"
+},
+"9564": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9622": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"9517": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9635": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.16,
+"source": "المقاصد"
+},
+"9518": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9527": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.07,
+"source": "المقاصد"
+},
+"9530": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.23,
+"source": "المقاصد"
+},
+"9572": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9574": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"9587": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"9594": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9604": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.15,
+"source": "المقاصد"
+},
+"9620": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.29,
+"source": "المقاصد"
+},
+"9626": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"9627": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9585": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.12,
+"source": "المقاصد"
+},
+"9586": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.05,
+"source": "المقاصد"
+},
+"9596": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"9602": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"9524": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9538": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.19,
+"source": "المقاصد"
+},
+"9543": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.14,
+"source": "المقاصد"
+},
+"9550": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.16,
+"source": "المقاصد"
+},
+"9557": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.1,
+"source": "المقاصد"
+},
+"9558": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9561": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"9595": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.09,
+"source": "المقاصد"
+},
+"9637": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.05,
+"source": "المقاصد"
+},
+"9300": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9521": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9535": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9591": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.13,
+"source": "المقاصد"
+},
+"9634": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.13,
+"source": "المقاصد"
+},
+"9640": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.14,
+"source": "المقاصد"
+},
+"9641": {
+"status": "COMPLIANT",
+"classification": "نقية",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"2380": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"2382": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"1202": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.46,
+"source": "المقاصد"
+},
+"1211": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.26,
+"source": "المقاصد"
+},
+"1320": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.09,
+"source": "المقاصد"
+},
+"1323": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"2010": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.8,
+"source": "المقاصد"
+},
+"2060": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.26,
+"source": "المقاصد"
+},
+"2300": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"3008": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"3050": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"3060": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"3091": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"3092": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.08,
+"source": "المقاصد"
+},
+"4141": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"6004": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.08,
+"source": "المقاصد"
+},
+"2190": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.07,
+"source": "المقاصد"
+},
+"4263": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.34,
+"source": "المقاصد"
+},
+"6015": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"6018": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4070": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.12,
+"source": "المقاصد"
+},
+"4003": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.09,
+"source": "المقاصد"
+},
+"4240": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"4006": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"2050": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.57,
+"source": "المقاصد"
+},
+"2283": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.15,
+"source": "المقاصد"
+},
+"2284": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.12,
+"source": "المقاصد"
+},
+"2140": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"4002": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.09,
+"source": "المقاصد"
+},
+"4005": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.52,
+"source": "المقاصد"
+},
+"4007": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.06,
+"source": "المقاصد"
+},
+"4009": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4017": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4019": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"2070": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"4015": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.14,
+"source": "المقاصد"
+},
+"1111": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.4,
+"source": "المقاصد"
+},
+"7200": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.41,
+"source": "المقاصد"
+},
+"7201": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"7030": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.05,
+"source": "المقاصد"
+},
+"2084": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.05,
+"source": "المقاصد"
+},
+"5110": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.06,
+"source": "المقاصد"
+},
+"4350": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"4020": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.13,
+"source": "المقاصد"
+},
+"9565": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9576": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.07,
+"source": "المقاصد"
+},
+"9580": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.17,
+"source": "المقاصد"
+},
+"9605": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9631": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.06,
+"source": "المقاصد"
+},
+"9510": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.16,
+"source": "المقاصد"
+},
+"9525": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9528": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"9560": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9611": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.03,
+"source": "المقاصد"
+},
+"9639": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"9571": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.09,
+"source": "المقاصد"
+},
+"9628": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9589": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.17,
+"source": "المقاصد"
+},
+"9532": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9612": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9579": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9546": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.11,
+"source": "المقاصد"
+},
+"9600": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.49,
+"source": "المقاصد"
+},
+"9616": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.16,
+"source": "المقاصد"
+},
+"9614": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9516": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.18,
+"source": "المقاصد"
+},
+"9610": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"1201": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"1304": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"4270": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"1213": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"6017": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.3,
+"source": "المقاصد"
+},
+"6050": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.04,
+"source": "المقاصد"
+},
+"6060": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.36,
+"source": "المقاصد"
+},
+"4018": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"4084": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.83,
+"source": "المقاصد"
+},
+"2082": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.88,
+"source": "المقاصد"
+},
+"4334": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.29,
+"source": "المقاصد"
+},
+"4220": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.02,
+"source": "المقاصد"
+},
+"9523": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.23,
+"source": "المقاصد"
+},
+"9563": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"9568": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.0,
+"source": "المقاصد"
+},
+"9537": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.16,
+"source": "المقاصد"
+},
+"9544": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.01,
+"source": "المقاصد"
+},
+"4072": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.25,
+"source": "المقاصد"
+},
+"4210": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.6,
+"source": "المقاصد"
+},
+"4280": {
+"status": "MIXED",
+"classification": "مختلطة",
+"purification": 0.24,
+"source": "المقاصد"
+}
+}
+}

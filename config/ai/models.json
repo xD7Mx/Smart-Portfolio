@@ -1,0 +1,29 @@
+{
+  "default_provider": "gemini",
+  "providers": {
+    "gemini": {
+      "name": "Google Gemini",
+      "model": "gemini-3.5-flash",
+      "temperature": 0.3,
+      "max_tokens": 4096,
+      "enabled": true
+    },
+    "openai": {
+      "name": "OpenAI GPT",
+      "model": "gpt-4o",
+      "temperature": 0.3,
+      "max_tokens": 4096,
+      "enabled": false
+    },
+    "claude": {
+      "name": "Anthropic Claude",
+      "model": "claude-sonnet-4-6",
+      "temperature": 0.3,
+      "max_tokens": 4096,
+      "enabled": false
+    }
+  },
+  "memory_enabled": true,
+  "analysis_schedule": "daily",
+  "max_concurrent_agents": 8
+}

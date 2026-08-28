@@ -1,0 +1,720 @@
+# ══════════════════════════════════════════════════════════════════════
+# Governance Rule Engine — قواعد قابلة للتعديل بدون لمس أي كود بايثون.
+#
+# كل قاعدة تُقرأ من هنا وتُفسَّر بواسطة app/services/governance_rules.py.
+# لا AI هنا إطلاقاً — قرار كل قاعدة حتمي ومبني على رقم فعلي من القوائم
+# المالية (عبر financial_features.py) أو من بيانات السوق/السعر.
+#
+# بنية كل قاعدة:
+#   id:        معرّف فريد (يُستخدم في السجلات والتفسير)
+#   feature:   اسم المؤشر (من Feature Engine أو من بيانات السوق المُمرَّرة)
+#   op:        gte | lte | gt | lt | eq | neq | between
+#   value:     رقم واحد، أو [min, max] عند استخدام between
+#   category:  quality | valuation | safety | timing
+#   kind:      penalty | bonus
+#   severity:  low | medium | high | critical  (للعقوبات فقط — يحدد وزن الأثر)
+#   points:    مقدار الأثر على الدرجة (يُطبَّق سالباً تلقائياً لو kind=penalty)
+#   message:   نص التفسير (يدعم {value} لإدراج الرقم الفعلي)
+#
+# أي قاعدة تشير إلى مؤشر غير متوفر (None) تُتجاهَل بصمت لهذه الشركة —
+# البيانات الناقصة تُترجَم إلى انخفاض في Confidence Score لاحقاً، وليس إلى
+# عقوبة على درجة الجودة نفسها.
+# ══════════════════════════════════════════════════════════════════════
+
+version: 9   # عتباتُ القرار تُسمّي مئينات بعد أن صارت الدرجةُ رتبةً في القطاع
+# + مسار تقييم الريت: جودة (عائد/انتظار توزيع/رافعة) + بوّابة امتناع أخفّ (لإغلاق ثغرة «لا ينطبق»)
+
+severity_weight:
+  # ══ نُصِّفت بالاشتقاق لا بالتقدير ══
+  # قِيس توزيعُ الدرجات على السوق: N(48.8, 25.3) والمستهدف N(55, 15) —
+  # ‏44٪ تحت 45 (الهدف 18–25٪) و15٪ فوق 75 (الهدف 8–12٪).
+  # وإن كان انحرافُ العقوبات p والمكافآت q فـ√(p²+q²)=25.3، ونصفُ
+  # العقوبات يعطي √(p²/4+q²)=15 ⇒ p=23.5 و q=9.3. فالنصفُ بالضبط هو ما
+  # يبلغ الهدفين معاً بتعديلٍ واحد.
+  # و«الحرج» عند 12 كافٍ لأنه صار **مانعَ شراءٍ صريحاً** في محرّك القرار،
+  # فقيمتُه العددية لم تعد هي الحارس.
+  # ── شدَّةٌ ثانية بالقياس ──
+  # بعد التنصيف قِيس: الانحرافُ ‎22.1 (الهدف 12–16) وتحت ‎45 صارت ‎29٪
+  # (الهدف 18–25٪) وفوق ‎75 صارت ‎13.2٪ (الهدف 8–12٪). فالاتّجاهُ صحيح
+  # والمقدارُ ناقص: ‎22.1 × 0.72 ≈ 16 — فتُضرب العقوباتُ في ثلاثة أرباع
+  # مرّةً أخرى. والحرجُ يبقى ‎9 لأنه مانعُ شراءٍ صريح لا حارسٌ بعدده.
+  low: 2
+  medium: 3
+  high: 6
+  critical: 9
+
+# ── Hard Filters — تُفحص قبل أي احتساب نقاط؛ أي فشل هنا يوقف التقييم فوراً
+hard_filters:
+  - id: negative_equity
+    feature: equity
+    op: lt
+    value: 0
+    message: "حقوق ملكية سالبة — الشركة مثقلة بخسائر متراكمة تتجاوز رأس مالها"
+
+  - id: continuous_operating_losses
+    feature: consecutive_loss_years
+    op: gte
+    value: 3
+    message: "خسائر تشغيلية متتالية 3 سنوات فأكثر"
+
+  # لا تُغذَّى بعد لنفس السبب أعلاه — لا يوفر Yahoo Finance رأي المراجع.
+  - id: qualified_audit_opinion
+    feature: audit_qualified
+    op: eq
+    value: true
+    message: "رأي تحفظي من مراجع الحسابات"
+
+  # مُغذّاة فعلياً من four_scores.hard_filter_flags_from_company() عبر حالة
+  # الشركة (Company.status == DELISTED) — أقرب إشارة حقيقية متتبَّعة في
+  # النظام حالياً لعدم وجود تغذية مباشرة من تداول لحالة "إيقاف التداول".
+  - id: trading_suspended
+    feature: trading_suspended
+    op: eq
+    value: true
+    message: "الشركة موقوفة عن التداول أو مشطوبة من السوق"
+
+  # لا تُغذَّى بعد — لا يوفر Yahoo Finance رأي المراجع أو أي مؤشر إفلاس
+  # مباشر لأسهم تداول. تبقى مُعرَّفة هنا (تُتجاهل بصمت لعدم توفر القيمة)
+  # حتى يتوفر مصدر بيانات حقيقي (تصنيف يدوي، تغذية من تقارير مالية، إلخ)
+  # بدل اختلاق قيمة لا أساس لها.
+  - id: bankruptcy_risk_flag
+    feature: bankruptcy_risk
+    op: eq
+    value: true
+    message: "مؤشرات جدية على مخاطر إفلاس"
+
+# ── Quality Score — جودة الشركة كعمل تجاري، بمعزل تام عن سعر السهم
+quality:
+  - { id: q_roe_excellent,  feature: roe,               op: gte, value: 20, kind: bonus,   points: 8,  message: "عائد ممتاز على حقوق الملكية ({value}%)" }
+  - { id: q_roe_good,       feature: roe,               op: between, value: [12, 20], kind: bonus, points: 4, message: "عائد جيد على حقوق الملكية ({value}%)" }
+  - { id: q_roe_weak,       feature: roe,               op: lt,  value: 5,  kind: penalty, severity: high,   message: "عائد ضعيف على حقوق الملكية ({value}%)" }
+  - { id: q_roic_strong,    feature: roic,              op: gte, value: 15, kind: bonus,   points: 6,  message: "كفاءة عالية في توظيف رأس المال ({value}%)" }
+  - { id: q_roic_weak,      feature: roic,              op: lt,  value: 5,  kind: penalty, severity: medium, message: "كفاءة ضعيفة في توظيف رأس المال ({value}%)" }
+  - { id: q_margin_stable,  feature: margin_stability,  op: lte, value: 10, kind: bonus,   points: 5,  message: "هوامش ربح مستقرة عبر السنوات" }
+  - { id: q_margin_volatile,feature: margin_stability,  op: gt,  value: 30, kind: penalty, severity: medium, message: "تذبذب كبير في هوامش الربح ({value}% تغيّر)" }
+  - { id: q_earnings_stable,feature: earnings_stability,op: lte, value: 15, kind: bonus,   points: 5,  message: "استقرار جيد في صافي الأرباح" }
+  - { id: q_earnings_volatile, feature: earnings_stability, op: gt, value: 40, kind: penalty, severity: high, message: "تقلب حاد في صافي الأرباح ({value}% تغيّر)" }
+  - { id: q_revenue_growth_strong, feature: revenue_cagr_5y, op: gte, value: 10, kind: bonus, points: 6, message: "نمو إيرادات قوي ({value}% مركب)" }
+  - { id: q_revenue_declining, feature: revenue_cagr_5y, op: lt, value: 0, kind: penalty, severity: high, message: "تراجع في الإيرادات على المدى المتوسط ({value}%)" }
+  - { id: q_eps_growth_strong, feature: eps_cagr_5y, op: gte, value: 10, kind: bonus, points: 5, message: "نمو قوي في ربحية السهم ({value}% مركب)" }
+  - { id: q_dilution_penalty, feature: share_dilution, op: gt, value: 8, kind: penalty, severity: medium, message: "تخفيف ملحوظ لملكية المساهمين ({value}%)" }
+  - { id: q_no_dilution, feature: share_dilution, op: lte, value: 0, kind: bonus, points: 4, message: "لا تخفيف لعدد الأسهم القائمة" }
+  - { id: q_accrual_high, feature: accrual_ratio, op: gt, value: 15, kind: penalty, severity: high, message: "نسبة استحقاق مرتفعة — جودة أرباح مشكوك فيها ({value}%)" }
+  - { id: q_cash_conversion_strong, feature: cash_conversion_ratio, op: gte, value: 1.0, kind: bonus, points: 5, message: "تحويل ممتاز للأرباح إلى نقد فعلي ({value}×)" }
+  - { id: q_dividend_growth_bonus, feature: dividend_growth, op: gte, value: 5, kind: bonus, points: 4, message: "نمو مستمر في التوزيعات النقدية ({value}% مركب)" }
+  - { id: q_roic_improving, feature: roic_trend, op: gt, value: 2, kind: bonus, points: 5, message: "تحسّن واضح في كفاءة رأس المال المستثمر (+{value} نقطة)" }
+  # ── ركيزة الجودة (معايير تداول): خندق بافيت التنافسي ──
+  # Warren Buffett — الجودة الدائمة والخندق: عائد مستدام + هامش مرتفع ثابت +
+  # دين محدود + تدفق حر دون تخفيف. الركيزة الأساسية للجودة في السوق السعودي.
+  - { id: q_buffett_strong, feature: buffett_quality_score, op: gte, value: 6, kind: bonus, points: 12, message: "معايير بافيت قوية ({value}/7) — جودة دائمة وخندق تنافسي (وارن بافيت)" }
+  - { id: q_buffett_mid, feature: buffett_quality_score, op: between, value: [4, 5], kind: bonus, points: 5, message: "معايير بافيت متوسطة ({value}/7)" }
+  - { id: q_buffett_weak, feature: buffett_quality_score, op: lte, value: 2, kind: penalty, severity: medium, message: "ضعف في معايير بافيت للجودة الدائمة ({value}/7)" }
+
+# ── Valuation Score — عدالة السعر الحالي فقط، لا علاقة له بجودة الشركة
+valuation:
+  - { id: v_pe_cheap,       feature: pe_ratio,          op: lte, value: 12, kind: bonus,   points: 8,  message: "مضاعف ربحية منخفض نسبياً ({value}×)" }
+  - { id: v_pe_expensive,   feature: pe_ratio,          op: gt,  value: 30, kind: penalty, severity: medium, message: "مضاعف ربحية مرتفع ({value}×)" }
+  - { id: v_peg_attractive, feature: peg_ratio,         op: lte, value: 1.0, kind: bonus,  points: 8,  message: "PEG أقل من 1 — السعر معقول نسبةً للنمو ({value})" }
+  - { id: v_peg_expensive,  feature: peg_ratio,         op: gt,  value: 2.0, kind: penalty, severity: medium, message: "PEG مرتفع — السعر يفوق النمو المتوقع ({value})" }
+  - { id: v_ev_ebitda_cheap, feature: ev_ebitda,        op: lte, value: 8,  kind: bonus,   points: 6,  message: "EV/EBITDA منخفض نسبياً ({value}×)" }
+  - { id: v_ev_ebitda_expensive, feature: ev_ebitda,    op: gt,  value: 16, kind: penalty, severity: medium, message: "EV/EBITDA مرتفع ({value}×)" }
+  - { id: v_pb_cheap,       feature: pb_ratio,          op: lte, value: 1.2, kind: bonus,  points: 5,  message: "يتداول قرب قيمته الدفترية ({value}×)" }
+  - { id: v_pb_expensive,   feature: pb_ratio,          op: gt,  value: 4,  kind: penalty, severity: low, message: "يتداول بعلاوة كبيرة فوق قيمته الدفترية ({value}×)" }
+  - { id: v_pe_below_sector, feature: pe_vs_sector_pct, op: lt,  value: -15, kind: bonus,  points: 6, message: "أرخص من متوسط القطاع بـ{value}%" }
+  - { id: v_pe_above_sector, feature: pe_vs_sector_pct, op: gt,  value: 25, kind: penalty, severity: low, message: "أغلى من متوسط القطاع بـ{value}%" }
+  # ── إجماع المحللين (مصدر حقيقي: ياهو المجمِّع) — السعر أدنى من المستهدف = فرصة ──
+  - { id: v_analyst_upside, feature: analyst_upside_pct, op: gte, value: 15, kind: bonus, points: 7, message: "إجماع المحللين يرى مجال صعود +{value}% للسعر المستهدف" }
+  - { id: v_analyst_downside, feature: analyst_upside_pct, op: lt, value: -10, kind: penalty, severity: low, message: "السعر فوق متوسط السعر المستهدف للمحللين ({value}%)" }
+
+# ── Financial Safety Score — الديون، السيولة، التغطية، جودة/استدامة الأرباح
+safety:
+  - { id: s_interest_coverage_strong, feature: interest_coverage, op: gte, value: 8, kind: bonus, points: 8, message: "تغطية فوائد قوية ({value}×)" }
+  - { id: s_interest_coverage_weak,   feature: interest_coverage, op: lt,  value: 2, kind: penalty, severity: critical, message: "تغطية فوائد ضعيفة جداً ({value}×) — مخاطر خدمة الدين" }
+  - { id: s_current_ratio_healthy,    feature: current_ratio,     op: gte, value: 1.5, kind: bonus, points: 5, message: "سيولة قصيرة الأجل صحية ({value}×)" }
+  - { id: s_current_ratio_weak,       feature: current_ratio,     op: lt,  value: 1.0, kind: penalty, severity: high, message: "نسبة تداول أقل من 1 — التزامات قصيرة الأجل تفوق الأصول المتداولة ({value}×)" }
+  - { id: s_quick_ratio_weak,         feature: quick_ratio,       op: lt,  value: 0.7, kind: penalty, severity: medium, message: "سيولة سريعة ضعيفة ({value}×)" }
+  - { id: s_debt_improving,           feature: debt_trend,        op: lt,  value: -0.03, kind: bonus, points: 6, message: "تراجع واضح في نسبة الدين إلى الأصول" }
+  - { id: s_debt_worsening,           feature: debt_trend,        op: gt,  value: 0.05,  kind: penalty, severity: medium, message: "تصاعد نسبة الدين إلى الأصول" }
+  - { id: s_fcf_stable,               feature: fcf_stability,     op: lte, value: 20, kind: bonus, points: 5, message: "استقرار جيد في التدفق النقدي الحر" }
+  - { id: s_fcf_volatile,             feature: fcf_stability,     op: gt,  value: 50, kind: penalty, severity: medium, message: "تذبذب حاد في التدفق النقدي الحر" }
+  - { id: s_accrual_flag,             feature: accrual_ratio,     op: gt,  value: 20, kind: penalty, severity: high, message: "فجوة كبيرة بين الأرباح الدفترية والنقد الفعلي" }
+  # ── أمان التوزيعات (معيار تداول) — التوزيع المستدام صمّام أمان السهم السعودي ──
+  # نسبة توزيع ≤80% تُبقي فائضاً للنمو والاستمرار؛ >100% توزيعٌ يفوق الربح = غير مستدام.
+  - { id: s_payout_sustainable,   feature: payout_ratio, op: lte, value: 80,  kind: bonus,   points: 6, message: "نسبة توزيع مستدامة ({value}%) — تُبقي فائضاً للنمو" }
+  # ══ ميزانيةُ الأمان تُوازَن ══ (مراجعةٌ خارجية بالاشتقاق)
+  # نسبةُ العقوبة إلى المكافأة كانت: الأمان 2.4:1 · الجودة 0.86 · التقييم
+  # 1.2 · التوقيت 1.03. فالأمانُ وحده شاذّ، وهو يحمل 40٪ من الدرجة
+  # المعروضة — فينفخ الانحرافَ ويرسّب نصفَ السوق.
+  # والمكافآتُ الخمس كانت 30 نقطة، فكل واحدةٍ تساوي عشر درجاتٍ كاملة —
+  # فتتحرّك درجةُ الأمان بقفزاتٍ لا بتدرّج. فصارت تسعاً، فالقفزةُ نحو
+  # 5.6 نقطة مقاربةً لتدريج الجودة.
+  #
+  # ══ تصحيحٌ لاشتقاق المراجع ══
+  # اقترح موازنةَ «نسبة العقوبة إلى المكافأة» عند 0.80 برفع ميزانية
+  # المكافآت. وقِيس فبان أن حجم الميزانية **لا يغيّر الدرجة إطلاقاً**:
+  # الصيغةُ `المكتسب ÷ الممكن × 50` عديمةُ الأثر بالمقياس — ميزانيةٌ 20
+  # وميزانيةٌ 40 تُخرجان 75 بالضبط لمكافأتين من أربع.
+  # فالنافعُ من اقتراحه شطرُه الثاني وحده — **التدرّج** — وقد نُفِّذ.
+  # وأمّا المقدارُ فيُعالَج بتنصيف العقوبات وسقفِ الفئة، وقد نُفِّذا.
+  - { id: s_debt_low, feature: debt_to_equity, op: lt, value: 0.5, kind: bonus, points: 5, message: "الدين إلى حقوق الملكية {value}× — رافعةٌ متحفّظة" }
+  - { id: s_cash_cushion, feature: current_ratio, op: gte, value: 2.0, kind: bonus, points: 5, message: "نسبةُ التداول {value}× — وسادةُ سيولةٍ مريحة" }
+  - { id: s_altman_safe, feature: altman_z, op: gte, value: 3.0, kind: bonus, points: 5, message: "مؤشّرُ ألتمان {value} — بعيدٌ عن منطقة الخطر" }
+  - { id: s_profitable_run, feature: profitable_years, op: gte, value: 5, kind: bonus, points: 5, message: "خمسُ سنواتٍ رابحة متّصلة" }
+  - { id: s_payout_unsustainable, feature: payout_ratio, op: gt,  value: 100, kind: penalty, severity: medium, message: "نسبة توزيع تفوق الأرباح ({value}%) — توزيع غير مستدام" }
+
+  # المرحلة 8 — قراءة واعية بـ CapEx: انخفاض التدفق الحر المفسَّر بتوسع
+  # رأسمالي حقيقي (capex_expansionary من Feature Engine) يُعاقَب بخفة
+  # (low)، أما نفس الانخفاض بلا أي مؤشر توسع فيبقى بعقوبته الكاملة (high).
+  - { id: s_fcf_low_unexplained,      feature: fcf_low_unexplained,        op: lt, value: 3, kind: penalty, severity: high, message: "هامش تدفق نقدي حر منخفض ({value}%) دون أي مؤشر توسع رأسمالي يفسّره" }
+  - { id: s_fcf_low_explained_capex,  feature: fcf_low_explained_by_capex, op: lt, value: 3, kind: penalty, severity: low,  message: "هامش تدفق نقدي حر منخفض ({value}%) لكنه مفسَّر بتوسع رأسمالي حقيقي — عقوبة مخفَّفة" }
+
+# ── Timing Score — فني بحت، لا يؤثر على جودة الشركة إطلاقاً
+timing:
+  - { id: t_uptrend,        feature: trend,             op: eq,  value: "up",   kind: bonus,   points: 10, message: "اتجاه صاعد على المدى المتوسط" }
+  - { id: t_downtrend,      feature: trend,             op: eq,  value: "down", kind: penalty, severity: medium, message: "اتجاه هابط على المدى المتوسط" }
+  - { id: t_rsi_oversold,   feature: rsi,               op: lte, value: 30, kind: bonus,   points: 8,  message: "منطقة تشبع بيعي (RSI {value})" }
+  - { id: t_rsi_overbought, feature: rsi,               op: gte, value: 70, kind: penalty, severity: low, message: "منطقة تشبع شرائي (RSI {value})" }
+  - { id: t_macd_bullish,   feature: macd_signal,       op: eq,  value: "bullish", kind: bonus, points: 6, message: "إشارة MACD إيجابية" }
+  - { id: t_macd_bearish,   feature: macd_signal,       op: eq,  value: "bearish", kind: penalty, severity: low, message: "إشارة MACD سلبية" }
+  - { id: t_above_ma50,     feature: price_vs_ma50_pct, op: gt,  value: 0,  kind: bonus,   points: 4,  message: "السعر أعلى من متوسط 50 يوم" }
+  - { id: t_below_ma200,    feature: price_vs_ma200_pct, op: lt, value: -10, kind: penalty, severity: medium, message: "السعر أدنى بكثير من متوسط 200 يوم ({value}%)" }
+  - { id: t_volume_surge,   feature: volume_vs_avg_pct, op: gte, value: 50, kind: bonus,  points: 3,  message: "ارتفاع ملحوظ في حجم التداول" }
+
+# ── Sector Profiles (المرحلة 7) ──────────────────────────────────────────
+# كل مفتاح هو اسم القطاع الحقيقي كما يُخزَّن في Company.sector/السوق
+# (راجع app/data/company_sectors.py) — ما لم يكن للشركة قطاع مذكور هنا،
+# تُطبَّق القواعد العامة أعلاه دون أي تغيير (إضافي بالكامل، لا كسر رجعي).
+# كل قاعدة override تُطابَق بـ id مع قاعدة عامة فتستبدل حدّها فقط (باقي
+# الحقول تبقى كما في القاعدة العامة)، أو تُضاف كقاعدة قطاعية جديدة كلياً
+# إن لم يوجد id مطابق في القواعد العامة.
+# ── Decision Engine (المرحلة 10) ─────────────────────────────────────────
+# قرار حتمي مبني على تركيبة الدرجات الأربع معاً — وليس مجموعها. تُفحص
+# القواعد بالترتيب المكتوب هنا، وأول قاعدة تتحقق شروطها بالكامل تفوز
+# (فحص مبكر لـ "الجودة الضعيفة تُقصي بصرف النظر عن رخص السعر" ونحوه).
+# كل شرط: {metric: quality|valuation|safety|timing, op, value}. قاعدة بلا
+# "conditions" (أو بقائمة فارغة) هي الحالة الافتراضية الأخيرة (catch-all).
+# ── بوابة الامتناع عن الحكم — نزاهة قبل أي قرار ─────────────────────────
+# المعايير موثوقة، والعيب الوحيد المتبقّي هو نقص البيانات. فبدل إعطاء درجة
+# وهمية لشركة لا تكفي بياناتها لحكم الخبراء، يمتنع النظام صراحةً ويطلب من
+# المستخدم البحث المستقل. القياس مراعٍ للقطاع تلقائياً: نَعُدّ كم خبيراً
+# استطاع فعلاً إصدار حكم (باستثناء «غير منطبق» القطاعي).
+decision_gate:
+  min_years: 2            # أقل عدد سنوات مالية لأي حكم
+  min_experts: 3          # أقل عدد خبراء يجب أن يصدروا حكماً حقيقياً
+
+# استثناءات البوّابة حسب النمط — نماذج بسيطة البيانات بنيوياً (كالريت) لا
+# تحتاج نفس عدد «الخبراء»: الريت يُحكَم بصافي الأصول + عائد التوزيع، وقد يكون
+# حديث الإدراج (سنة واحدة). خفضُ العتبة يُغلق ثغرة «لا ينطبق» الظالمة للريت
+# مع بقاء الحكم مبنياً على مؤشرات حقيقية (لا اختلاق).
+decision_gate_overrides:
+  reit:
+    min_years: 1
+    min_experts: 2
+
+decision_rules:
+  # القرار أساسي بحت — توافق مستثمري القيمة (جراهام/بافيت/…) لا يحكم بالتوقيت
+  # الفني (RSI/MACD)؛ التحليل الفني سياق تداول منفصل لا جزء من حكم الجودة.
+  # بوّابةُ السعر واحدةٌ لا اثنتان: كانت `valuation` (درجةٌ مشتقّة من
+  # مضاعفات القطاع) تحكم مع سقفِ القيمة العادلة — مقياسان للشيء نفسه قد
+  # يتعارضان. وأُبقي السقفُ لأنه مقيسٌ بنموذجٍ لا بدرجة، ويشترط للقويّ
+  # سعراً دون سعر الدخول.
+  # ══ العتباتُ مشتقّةٌ من التوزيع المستهدف ══
+  # المستهدف N(55, 15) بعد تنصيف العقوبات وسقف الفئة. والعتباتُ عند
+  # المئينات 92 و75، مضروبةً في معدّل النجاة من الموانع الأربعة (عقوبةٌ
+  # حرجة · تغطيةٌ دون 60٪ · قيمةٌ غائبة · سعرٌ فوق القيمة) ≈ 0.40 —
+  # فتخرج نحو عشرة أسماء في «شراء قوي» واثنين وثلاثين في «شراء».
+  # وهي أرقامٌ مشتقّةٌ من توزيعٍ **متوقَّع**: إن خرج القياسُ بغير 55/15
+  # أُعيد اشتقاقُها من المئينات نفسها لا من هذه الأرقام.
+  # ══ العتباتُ تُسمّي مئينات، لأن الدرجةَ صارت مئيناً ══
+  #
+  # قِيس على السوق كلِّه: **‎52٪ من الشركات خرجت «تجنّب»**. وليست تلك
+  # نتيجةً بل عطبٌ رياضيّ: الدرجةُ صارت **رتبةَ الشركة بين أقرانها في
+  # نمطها** (‏`peer_distribution`)، ووسيطُ أيّ توزيعٍ مئينيّ ‎50 بالبناء
+  # نفسه. وعتبةُ التجنّب كانت ‎52 — أي «تجنّبْ كلَّ من هو دون وسيط
+  # قطاعه» — فنصفُ السوق يخرج «تجنّب» حتماً مهما كانت جودتُه.
+  #
+  # وكانت العتباتُ صحيحةً حين كانت الدرجةُ **مطلقة** (‎52 تعني «دون
+  # المستوى»)، ثم تغيّر معنى الرقم ولم تتغيّر. وهو عطبٌ من صنفٍ عرفناه:
+  # مقياسٌ يتبدّل معناه وحارسُه يقرأ اسمَه لا مدلولَه.
+  #
+  # فصارت كلُّ عتبةٍ تُسمّي شريحةً معلومة من القطاع:
+  #     ‎85 فأعلى  → العُشر الأعلى من نمطه
+  #     ‎70 فأعلى  → الثلث الأعلى
+  #     ‎25 فأدنى  → الرُبع الأدنى — وهو الرسوب الفعليّ
+  # فيخرج التوزيعُ المتوقَّع: نحو رُبعٍ «تجنب»، ونحو نصفٍ «انتظار»،
+  # والباقي مرشَّحٌ للشراء قبل أن تصفّيه بوّابةُ السعر والخطوطُ الحمراء.
+  #
+  # وركنُ الأمان ما زال من المحرّك القديم بمقياسٍ **مطلق** لا مئينيّ،
+  # فعتباتُه تبقى على أصلها — ودورُه أرضيةٌ لا ترتيب.
+  - id: strong_buy
+    conditions:
+      - { metric: quality,   op: gte, value: 85 }
+      - { metric: safety,    op: gte, value: 60 }
+    decision: "شراء قوي"
+
+  - id: buy
+    conditions:
+      - { metric: quality,   op: gte, value: 70 }
+      - { metric: safety,    op: gte, value: 50 }
+    decision: "شراء"
+
+  # ══ «تجنّب» تعني خللاً لا مرتبةً ══
+  # في نظامٍ نسبيّ **لا بدّ لأحدٍ أن يكون في الرُبع الأدنى** — وقد يكون
+  # سليماً تماماً في قطاعٍ كلُّه جيّد. فحصرُ «تجنّب» في الرُبع الأدنى
+  # يُدين ربعَ السوق على مرتبةٍ لا على عيب. وقُيس: ‎35٪ تجنّب.
+  # فصارت تعني الشريحةَ الدنيا الحقيقية (نحو سُبع القطاع)، ويبقى
+  # الرسوبُ المطلق حيث موضعُه: أرضيةُ الأمان، والخطوطُ الحمراء التي
+  # تُبطِل الحكمَ بوقائعَ لا بمراتب.
+  - id: avoid_weak_quality
+    conditions:
+      - { metric: quality, op: lt, value: 15 }
+    decision: "تجنب"
+
+  - id: avoid_weak_safety
+    conditions:
+      - { metric: safety, op: lt, value: 30 }
+    decision: "تجنب"
+
+  - id: hold_quality_expensive
+    conditions:
+      - { metric: quality,   op: gte, value: 70 }
+      - { metric: valuation, op: lt,  value: 45 }
+    decision: "انتظار"
+
+  - id: hold_decent
+    conditions:
+      - { metric: quality, op: gte, value: 45 }
+      - { metric: safety,  op: gte, value: 45 }
+    decision: "انتظار"
+
+  # وما فوق الشريحة الدنيا: توسّطٌ لا رسوب.
+  - id: neutral_middle
+    conditions:
+      - { metric: quality, op: gte, value: 15 }
+    decision: "انتظار"
+
+  - id: avoid_default
+    conditions: []
+    decision: "تجنب"
+
+
+# ── Sector Archetypes (المرحلة 7 — نموذج شامل لكل السوق) ──────────────────
+# بدل ضبط كل شركة على حدة، نُعرّف بضعة «أنماط بنيوية» تعكس طبيعة نموذج
+# الأعمال، ثم يُربَط كل قطاع في السوق بنمطه عبر sector_archetype أدناه.
+# هكذا يكون المحرك مبدئياً وموثوقاً لكل فرص السوق (~395 شركة) لا لمحفظة
+# بعينها. الطبقات: القواعد العامة ← تجاوزات النمط ← ضبط دقيق للقطاع.
+# disabled:true تُزيل قاعدة نهائياً (مقياس بلا معنى لهذا النموذج).
+# ══ المعيار المعترف به لكل نمط قطاعيّ ══ (بأمر المالك)
+# سأل: ما المعيار المعتمد لدرجة الحوكمة، كما اعتُمد DCF للقيمة العادلة؟
+# والجواب أن التحليل المالي — بخلاف التقييم — ليس له معيارٌ عالميٌّ واحد،
+# بل **إطارٌ لكل نوع نشاط**، لأن البنك لا يُقاس بما يُقاس به مصنع.
+# فهذه أُطر معترف بها، ولكلٍّ ما يُطبَّق منها فعلاً وما يتعذّر — والمتعذّر
+# يُصرَّح به هنا ولا يُتظاهر بتطبيقه.
+archetype_standards:
+  fund:
+    name: "صندوقٌ متداول — لا إطارَ تقييمِ شركات"
+    applied: []
+    unavailable: ["القوائم المالية", "العائد على حقوق الملكية", "التدفّق الحرّ",
+                  "مضاعفا الربحية والدفترية"]
+    note: "الصندوقُ وعاءٌ يتبع مؤشّراً أو أصلاً، لا شركةً تُقاس جودتُها — فلا درجةَ حوكمةٍ له ولا قيمةً عادلة، وسعرُه صافي أصوله. وهذا وصفُه لا نقصٌ في مصدرنا."
+  bank:
+    name: "‏CAMELS / بازل — إطار تقييم البنوك"
+    applied: ["العائد على حقوق الملكية (‏E)", "كفاية تغطية الفوائد",
+              "نموّ الدخل واستقراره", "التقييم بمكرر الربحية والدفترية"]
+    unavailable: ["نسبة كفاية رأس المال (‏CAR)", "رصيدُ القروض المتعثّرة (‏NPL)"]
+    note: "أركانُ الإطار المشتقّة من القوائم تُقاس (الهامش · تكلفة المخاطر · الكفاءة)، والبنودُ الرقابية وحدها تبقى خارج النطاق ولا يُختلق منها شيء."
+  insurance:
+    name: "إطار تقييم شركات التأمين (‏IAIS/Solvency)"
+    applied: ["العائد على حقوق الملكية", "هامش الربح كبديلٍ عن نتيجة الاكتتاب",
+              "نموّ الأقساط", "التقييم بالدفترية"]
+    unavailable: ["النسبة المجمّعة (‏Combined Ratio)", "نسبة الخسائر",
+                  "هامش الملاءة"]
+    note: "النسبة المجمّعة جوهرُ تقييم التأمين ولا يوفّرها المصدر — فالحكم أضيقُ نطاقاً، ويُقال ذلك."
+  financial:
+    name: "إطار تقييم شركات الاستثمار والخدمات المالية"
+    applied: ["العائد على حقوق الملكية", "كفاية تغطية الفوائد",
+              "استقرار الدخل عبر الدورة", "التقييم بالقيمة الدفترية"]
+    unavailable: ["الأصول تحت الإدارة (‏AUM) وصافي تدفّقها",
+                  "نسبة الرسوم المتكرّرة إلى الأداء"]
+    note: "دخلُ هذا النمط دوريٌّ بطبيعته (رسوم أداءٍ وأرباح محافظ)، فيُقاس استقرارُه لا ذروتُه، ونِسبُ السيولة العامّة بلا معنًى فيه."
+  reit:
+    name: "معايير ‏NAREIT للصناديق العقارية"
+    applied: ["السعر إلى صافي الأصول (‏P/NAV)", "عائد التوزيع واستدامته",
+              "الرافعة (‏LTV)", "نموّ التوزيع"]
+    unavailable: ["نسبة الإشغال", "متوسط أعمار العقود (‏WALE)"]
+    note: "الربح المحاسبي مشوَّه بالإهلاك وإعادة التقييم، فيُقاس الصندوق بالأموال من العمليات وصافي الأصول والتوزيع."
+  cyclical:
+    name: "تحليل الشركات الدورية — عبر الدورة"
+    applied: ["العائد على رأس المال المستثمر", "متانة الميزانية عند القاع",
+              "تغطية الفوائد", "التدفّق النقدي الحرّ"]
+    unavailable: ["أرباح منتصف الدورة المعيارية", "تكلفة الإنتاج مقارنةً بالمنافسين"]
+    note: "تُقاس بمتانتها في القاع لا بأرباح القمّة، فربحُ سنةٍ واحدة يخدع في الدوري."
+  inventory_retail:
+    name: "تحليل التجزئة كثيفة المخزون"
+    applied: ["دوران المخزون", "الهامش الإجمالي", "تحويل النقد",
+              "السيولة الجارية والسريعة"]
+    unavailable: ["مبيعات المتاجر المماثلة (‏LFL)", "المبيعات لكل متر مربع"]
+    note: "المخزون هو مركز الخطر: بطءُ دورانه يسبق تراجع الهامش."
+  capital_infra:
+    name: "تحليل المرافق والبنية التحتية"
+    applied: ["هامش ‏EBITDA", "الرافعة وتغطية الفوائد",
+              "استدامة التوزيع", "كثافة الإنفاق الرأسمالي"]
+    unavailable: ["العائد المنظَّم المسموح", "قاعدة الأصول المنظَّمة (‏RAB)"]
+    note: "الدين المرتفع بنيويّ في هذا النمط ولا يُعاقَب عليه كما يُعاقَب المصنع."
+  asset_light:
+    name: "تحليل الشركات خفيفة الأصول (قاعدة الأربعين)"
+    applied: ["قاعدة الأربعين (النموّ + هامش التدفّق الحرّ)", "الهامش الإجمالي",
+              "تحويل الأرباح إلى نقد", "استقرار الإيراد"]
+    unavailable: ["الإيراد المتكرّر ونسبة بقائه (‏NRR)", "تكلفة اكتساب العميل"]
+    note: "الأصول الثابتة ضئيلة فيفقد العائدُ على رأس المال معناه المميِّز، ويُقاس النموُّ بثمنه النقديّ."
+  default:
+    name: "التحليل المالي العامّ"
+    applied: ["الربحية", "الملاءة", "جودة الأرباح", "التقييم"]
+    unavailable: []
+    note: "يُطبَّق على القطاعات التي لا نمط خاصّاً لها."
+
+archetypes:
+
+  # الوساطة المالية (بنوك/تأمين/تمويل/استثمار): نمو دفتر القروض/الأقساط
+  # يظهر كتدفق نقدي تشغيلي سالب (نموّ صحي لا ضعف)؛ ROIC مشوَّه بالودائع؛
+  # نسب السيولة العامة بلا معنى محاسبي. الربحية تُقاس بـ ROE.
+  # ── البنوك — إطار CAMELS/بازل ──
+  # الأركان المتاحة من المصدر: العائد على حقوق الملكية (‏E)، وتغطية
+  # الفوائد، ونموّ الدخل. أمّا كفاية رأس المال والقروض المتعثّرة ونسبة
+  # التكلفة إلى الدخل فلا يوفّرها المصدر — فلا تُقاس ولا يُتظاهر بقياسها.
+  # والعتبات أشدُّ من العامّة لأن البنك يعمل برافعةٍ بنيوية عالية.
+  bank:
+    safety:
+      - { id: s_current_ratio_weak, disabled: true }
+      - { id: s_current_ratio_healthy, disabled: true }
+      - { id: s_quick_ratio_weak, disabled: true }
+      - { id: s_fcf_stable, disabled: true }
+      - { id: s_fcf_volatile, disabled: true }
+      - { id: s_fcf_low_unexplained, disabled: true }
+      - { id: s_fcf_low_explained_capex, disabled: true }
+      - { id: s_accrual_flag, disabled: true }
+      - { id: s_interest_coverage_weak, op: lt, value: 1.3 }
+      # ركنُ جودة الأصول في CAMELS: تكلفةُ المخاطر — مخصّصُ خسائر الائتمان
+      # للسنة منسوباً إلى متوسّط الأصول. تدفّقٌ يُبلَّغ في القوائم، بخلاف
+      # رصيد التعثّر الذي يبقى خارج النطاق.
+      - { id: s_bank_cor_low,  feature: cost_of_risk, op: lte, value: 0.75, kind: bonus, points: 8, message: "تكلفة مخاطر منخفضة ({value}%) — جودة أصولٍ مريحة (‏CAMELS/جودة الأصول)" }
+      - { id: s_bank_cor_high, feature: cost_of_risk, op: gt,  value: 1.5,  kind: penalty, severity: high, message: "تكلفة مخاطر مرتفعة ({value}%) — تدهورٌ في جودة الأصول" }
+    quality:
+      - { id: q_cash_conversion_strong, disabled: true }
+      - { id: q_accrual_high, disabled: true }
+      - { id: q_roic_weak, disabled: true }
+      - { id: q_roic_strong, disabled: true }
+      # قائمة بافيت (هامش إجمالي/تدفق حر/دين) مبنية على نموذج صناعي؛ بافيت
+      # يقيس البنك بالعائد على حقوق الملكية — وهو مُشدَّد أصلاً أدناه.
+      - { id: q_buffett_strong, disabled: true }
+      - { id: q_buffett_mid, disabled: true }
+      - { id: q_buffett_weak, disabled: true }
+      - { id: q_roe_excellent, op: gte, value: 14 }
+      - { id: q_roe_good, op: between, value: [10, 14] }
+      # ── أركانُ CAMELS المشتقّة من القوائم (لا من بياناتٍ رقابية) ──
+      # ركنُ الربحية: هامشُ صافي العمولة يقيس جودة التسعير لا حجم الدفتر —
+      # بنكٌ ينمو بهامشٍ متآكل ينمو نحو الخطر لا نحو الربح.
+      - { id: q_bank_nim_strong, feature: nim, op: gte, value: 3.2, kind: bonus, points: 8, message: "هامش صافي عمولة قويّ ({value}%) — تسعيرٌ جيّد للأصول (‏CAMELS/الربحية)" }
+      - { id: q_bank_nim_weak,   feature: nim, op: lt,  value: 2.0, kind: penalty, severity: medium, message: "هامش صافي العمولة ضعيف ({value}%) — ضغطٌ على قلب الربحية" }
+      # ركنُ الكفاءة: نسبة التكلفة إلى الدخل.
+      - { id: q_bank_cir_strong, feature: cost_income_ratio, op: lte, value: 35, kind: bonus, points: 7, message: "كفاءة تشغيلية عالية — التكلفة إلى الدخل {value}% (‏CAMELS/الكفاءة)" }
+      - { id: q_bank_cir_weak,   feature: cost_income_ratio, op: gt,  value: 55, kind: penalty, severity: medium, message: "التكلفة إلى الدخل مرتفعة ({value}%) — عبءٌ تشغيليّ" }
+    valuation:
+      # تقييم البنوك بمكرر الربحية والقيمة الدفترية.
+      - { id: v_ev_ebitda_cheap, disabled: true }
+      - { id: v_ev_ebitda_expensive, disabled: true }
+
+  # ── التأمين — إطار IAIS/الملاءة ──
+  # جوهرُ تقييم التأمين هو **النسبة المجمّعة** (خسائر + مصاريف ÷ أقساط)،
+  # ولا يوفّرها المصدر. فيُستعاض بهامش الربح مؤشّراً على نتيجة الاكتتاب —
+  # وهو بديلٌ أضعف، ولذلك يبقى الحكم أضيقَ نطاقاً ويُصرَّح بذلك في
+  # `archetype_standards`. ولا يُعاقَب التأمين على التدفّق التشغيليّ
+  # المتقلّب: توقيت المطالبات يُقلّبه بطبيعته.
+  insurance:
+    safety:
+      - { id: s_current_ratio_weak, disabled: true }
+      - { id: s_current_ratio_healthy, disabled: true }
+      - { id: s_quick_ratio_weak, disabled: true }
+      - { id: s_fcf_stable, disabled: true }
+      - { id: s_fcf_volatile, disabled: true }
+      - { id: s_fcf_low_unexplained, disabled: true }
+      - { id: s_fcf_low_explained_capex, disabled: true }
+      - { id: s_accrual_flag, disabled: true }
+      - { id: s_interest_coverage_weak, op: lt, value: 1.3 }
+    quality:
+      - { id: q_cash_conversion_strong, disabled: true }
+      - { id: q_accrual_high, disabled: true }
+      - { id: q_roic_weak, disabled: true }
+      - { id: q_roic_strong, disabled: true }
+      # قائمة بافيت (هامش إجمالي/تدفق حر/دين) مبنية على نموذج صناعي؛ بافيت
+      # يقيس البنك بالعائد على حقوق الملكية — وهو مُشدَّد أصلاً أدناه.
+      - { id: q_buffett_strong, disabled: true }
+      - { id: q_buffett_mid, disabled: true }
+      - { id: q_buffett_weak, disabled: true }
+      - { id: q_roe_excellent, op: gte, value: 15 }
+      - { id: q_roe_good, op: between, value: [10, 15] }
+    valuation:
+      # تقييم البنوك بمكرر الربحية والقيمة الدفترية.
+      - { id: v_ev_ebitda_cheap, disabled: true }
+      - { id: v_ev_ebitda_expensive, disabled: true }
+
+  financial:
+    safety:
+      - { id: s_current_ratio_weak, disabled: true }
+      - { id: s_current_ratio_healthy, disabled: true }
+      - { id: s_quick_ratio_weak, disabled: true }
+      - { id: s_fcf_stable, disabled: true }
+      - { id: s_fcf_volatile, disabled: true }
+      - { id: s_fcf_low_unexplained, disabled: true }
+      - { id: s_fcf_low_explained_capex, disabled: true }
+      - { id: s_accrual_flag, disabled: true }
+      - { id: s_interest_coverage_weak, op: lt, value: 1.3 }
+    quality:
+      - { id: q_cash_conversion_strong, disabled: true }
+      - { id: q_accrual_high, disabled: true }
+      - { id: q_roic_weak, disabled: true }
+      - { id: q_roic_strong, disabled: true }
+      # قائمة بافيت (هامش إجمالي/تدفق حر/دين) مبنية على نموذج صناعي؛ بافيت
+      # يقيس البنك بالعائد على حقوق الملكية — وهو مُشدَّد أصلاً أدناه.
+      - { id: q_buffett_strong, disabled: true }
+      - { id: q_buffett_mid, disabled: true }
+      - { id: q_buffett_weak, disabled: true }
+      - { id: q_roe_excellent, op: gte, value: 15 }
+      - { id: q_roe_good, op: between, value: [10, 15] }
+    valuation:
+      # تقييم البنوك بمكرر الربحية والقيمة الدفترية.
+      - { id: v_ev_ebitda_cheap, disabled: true }
+      - { id: v_ev_ebitda_expensive, disabled: true }
+
+  # الريت (صناديق الاستثمار العقاري المتداولة): وعاء دخل يمرّر ≥90% من دخله
+  # توزيعاً — لا شركة تشغيلية. يُقيَّم بصافي الأصول (P/B ≈ P/NAV، فعقاراته
+  # بقيمة عادلة IFRS) وعائد التوزيع، لا بالربح المحاسبي المشوَّه بإعادة التقييم.
+  # رافعته أعلى بنيوياً (LTV حتى ~50%)، وتوزيعه قد يفوق الربح المحاسبي (صحّي).
+  reit:
+    safety:
+      - { id: s_debt_worsening, op: gt, value: 0.12 }   # رافعة أعلى طبيعية للريت
+      - { id: s_fcf_low_unexplained, disabled: true }
+      - { id: s_fcf_low_explained_capex, disabled: true }
+      - { id: s_fcf_volatile, disabled: true }
+      - { id: s_fcf_stable, disabled: true }
+      # التوزيع المرتفع (حتى ما يفوق الربح المحاسبي) طبيعي للريت — لا يُعاقَب.
+      - { id: s_payout_unsustainable, disabled: true }
+      - { id: s_payout_sustainable, disabled: true }
+    quality:
+      - { id: q_roic_weak, disabled: true }
+      - { id: q_roic_strong, disabled: true }
+      # قائمة بافيت التشغيلية لا تنطبق؛ الريت يُقيَّم بالتوزيع وصافي الأصول.
+      - { id: q_buffett_strong, disabled: true }
+      - { id: q_buffett_mid, disabled: true }
+      - { id: q_buffett_weak, disabled: true }
+      # ROE مشوَّه بإعادة تقييم العقارات — نُلغي عقوبة ضعفه.
+      - { id: q_roe_weak, disabled: true }
+      - { id: q_dividend_growth_bonus, op: gte, value: 2 }
+      # ── جودة الريت الحقيقية (تُرتّب الريتات فيما بينها) ──
+      # عائد التوزيع جوهر دخل الريت. في السوق السعودي النطاق الأمثل ~6.5–7%
+      # (توازن دخلٍ مرتفع مع استدامة)؛ فنجعل 6.5%+ هو التميّز.
+      - { id: q_reit_yield_strong, feature: dividend_yield, op: gte, value: 6.5, kind: bonus, points: 10, message: "عائد توزيع في النطاق الأمثل ({value}%) — قوة دخل الريت" }
+      - { id: q_reit_yield_good,   feature: dividend_yield, op: between, value: [5, 6.5], kind: bonus, points: 5, message: "عائد توزيع جيد ({value}%)" }
+      - { id: q_reit_yield_weak,   feature: dividend_yield, op: lt,  value: 3,  kind: penalty, severity: medium, message: "عائد توزيع ضعيف ({value}%) لريت" }
+      # انتظام التوزيع عبر السنوات — دفاعية الريت وموثوقية دخله.
+      - { id: q_reit_distrib_consistent, feature: dividend_years, op: gte, value: 3, kind: bonus, points: 6, message: "توزيعات منتظمة عبر السنوات — دخل موثوق" }
+      # ── ‏NAREIT: الدخلُ يُقاس بـ FFO لا بالربح المحاسبيّ ──
+      # الإهلاك يخصم من الربح ولا يخصم من النقد، والعقارُ المؤجَّر لا
+      # يتآكل كما تتآكل آلة. فنسبةُ توزيعٍ تفوق الربح قد تكون سليمة تماماً
+      # بينما تفوقُها على FFO إنذارٌ حقيقيّ — وهنا يُقاس الفرق.
+      - { id: q_reit_ffo_payout_sustainable, feature: ffo_payout, op: lte, value: 95, kind: bonus, points: 8, message: "توزيعٌ مغطّى بالأموال من العمليات ({value}% من ‏FFO) — دخلٌ مستدام (‏NAREIT)" }
+      - { id: q_reit_ffo_payout_strained,    feature: ffo_payout, op: gt,  value: 110, kind: penalty, severity: high, message: "التوزيع يفوق الأموال من العمليات ({value}% من ‏FFO) — يُصرَف من غير الدخل" }
+      # خفض الرافعة (تحسّن نسبة الدين) = ريت أكثر أماناً ودفاعية.
+      - { id: q_reit_deleveraging, feature: debt_trend, op: lt, value: 0, kind: bonus, points: 4, message: "تراجع الرافعة عبر السنوات — ريت دفاعي أكثر أماناً" }
+    valuation:
+      # EPS مشوَّه بإعادة التقييم → PEG/مكرر الربحية بلا معنى للريت.
+      - { id: v_peg_attractive, disabled: true }
+      - { id: v_peg_expensive, disabled: true }
+      - { id: v_pe_expensive, disabled: true }
+      # P/B هو بديل P/NAV للريت: أقل من 1 = خصم على صافي الأصول = فرصة قوية.
+      - { id: v_pb_cheap, op: lte, value: 1.0, points: 4, message: "يتداول بخصم على صافي الأصول (P/B {value}×) — فرصة" }
+      - { id: v_pb_expensive, disabled: true }
+      # عائد التوزيع — جوهر عائد الريت.
+      - { id: v_reit_yield_high, feature: dividend_yield, op: gte, value: 6, kind: bonus, points: 7, message: "عائد توزيع مرتفع ({value}%) — جوهر عائد الريت" }
+      # مكرر الربحية مضلّل للريت (الإهلاك يشوّه المقام) — السعر إلى FFO هو
+      # المقابل المعترف به عند NAREIT، ويُقاس هنا متى وصل الإهلاك.
+      - { id: v_reit_p_ffo_cheap,     feature: p_ffo, op: lte, value: 11, kind: bonus, points: 8, message: "السعر إلى الأموال من العمليات منخفض ({value}×) — تقييمٌ جاذب (‏NAREIT)" }
+      - { id: v_reit_p_ffo_expensive, feature: p_ffo, op: gt,  value: 18, kind: penalty, severity: medium, message: "السعر إلى الأموال من العمليات مرتفع ({value}×)" }
+      - { id: v_reit_yield_low,  feature: dividend_yield, op: lt,  value: 3, kind: penalty, severity: low, message: "عائد توزيع منخفض ({value}%) لريت" }
+
+  # الدورية (طاقة/بتروكيماويات/أسمنت/زراعة): أسعار السلع تتأرجح عالمياً،
+  # فتذبذب الإيرادات والأرباح بين قمة وقاع الدورة بنيوي لا تدهور.
+  cyclical:
+    quality:
+      - { id: q_revenue_declining, disabled: true }
+      - { id: q_earnings_volatile, disabled: true }
+      # تذبذب الهامش بنيوي أيضاً (تأرجح أسعار اللقيم/السلع بين قمة وقاع الدورة).
+      - { id: q_margin_volatile, disabled: true }
+
+  # التجزئة/الاستهلاكي كثيف المخزون: المخزون جوهر رأس المال العامل، فنسبة
+  # السيولة السريعة (تستثنيه) تُجحف سيولته؛ والهوامش رقيقة بطبيعتها.
+  inventory_retail:
+    safety:
+      - { id: s_quick_ratio_weak, disabled: true }
+    quality:
+      - { id: q_roe_weak, op: lt, value: 3 }
+
+  # كثيفة رأس المال/بنية تحتية (اتصالات/مرافق/نقل/مقاولات): دين أعلى من
+  # المتوسط طبيعي طالما التغطية قائمة، والنمو أبطأ بنيوياً.
+  capital_infra:
+    safety:
+      - { id: s_debt_worsening, op: gt, value: 0.09 }
+      - { id: s_interest_coverage_weak, op: lt, value: 1.5 }
+
+  # ── خفيفة الأصول (برمجيات · خدمات مهنية · إعلام) ──
+  # كانت تُعامَل «عامّاً» بلا إطارٍ باسم، وهي ٤٤ شركة في السوق. وأصولها
+  # الثابتة ضئيلة، فالعائد على رأس المال المستثمر يخرج مرتفعاً لسببٍ
+  # بنيويّ لا لتميّزٍ تشغيليّ — فيفقد قدرته على التمييز بينها.
+  # والمعيار المتّبع لهذا النمط هو **قاعدة الأربعين**: النموّ وهامش
+  # التدفّق الحرّ معاً ≥ 40 — تنمو بسرعةٍ وتحرق، أو تنمو ببطءٍ وتُدرّ،
+  # أمّا أن تبطئ وتحرق فتلك هي الحالة التي تُعاقَب.
+  asset_light:
+    quality:
+      - { id: q_roic_strong, disabled: true }
+      - { id: q_r40_strong, feature: rule_of_40, op: gte, value: 40, kind: bonus, points: 10, message: "قاعدة الأربعين مُستوفاة ({value}) — نموٌّ مموَّلٌ من نقده" }
+      - { id: q_r40_weak,    feature: rule_of_40, op: lt,  value: 15, kind: penalty, severity: medium, message: "قاعدة الأربعين غير مُستوفاة ({value}) — نموٌّ بطيء وتدفّقٌ ضعيف معاً" }
+
+  # عام: لا إعفاءات بنيوية — القواعد العامة كما هي (تعليم/سياحة/فنادق/
+  # صناعات متنوعة وما لم يُذكر له نمط).
+  general: {}
+
+# ── ربط كل قطاع في السوق بنمطه (أسماء تداول العربية + أسماء Yahoo المترجمة
+# في scores.py، فكلاهما قد يظهر حسب مصدر القطاع). أي قطاع غير مذكور هنا
+# يُعامَل بالقواعد العامة تلقائياً. ─────────────────────────────────────────
+sector_archetype:
+  # الصناديق المتداولة: أوعيةٌ تتبع مؤشّراً أو أصلاً (ذهب · صكوك · أسهم
+  # أمريكية) ولا قوائمَ مالية لها — فلا رأسمالَ عاملاً ولا هامشَ ولا عائداً
+  # على حقوق ملكية. والمحرّك يمتنع عنها بطبيعتها لا لنقصٍ في مصدرنا، وهذا
+  # النمطُ يُصرّح بذلك بدل أن تُقاس بمقاييس شركةٍ تشغيلية فتخرج بأرقامٍ
+  # لا معنى لها. (والريتُ ليس منها: له قوائمُ وصافي أصولٍ وتوزيع.)
+  "صناديق المؤشرات المتداولة": fund
+  # مالي
+  "البنوك": bank
+  "التأمين": insurance
+  "التمويل": bank
+  "الاستثمار": financial
+  "الخدمات المالية": financial
+  # الريت (صناديق متداولة) — نمط خاص بصافي الأصول والتوزيع
+  "ريت": reit
+  # شركات التطوير العقاري شركات تشغيلية (تبني وتبيع) — دورية لا وعاء NAV
+  "العقارات": cyclical
+  # دوري
+  "الطاقة": cyclical
+  "المواد الأساسية": cyclical
+  "الأسمنت": cyclical
+  "الزراعة": cyclical
+  # تجزئة/استهلاكي كثيف المخزون
+  "التجزئة": inventory_retail
+  "الرعاية الصحية": inventory_retail
+  "السلع الكمالية": inventory_retail
+  "الأغذية": inventory_retail
+  "السلع الأساسية": inventory_retail
+  # كثيفة رأس المال/بنية تحتية
+  "الاتصالات": capital_infra
+  "المرافق": capital_infra
+  "المرافق العامة": capital_infra
+  "النقل": capital_infra
+  "المقاولات": capital_infra
+  # عام (صريح للتوثيق — غير المذكور يُعامَل عاماً أصلاً)
+  "التقنية": general
+  "الإعلام": general
+  "الخدمات": general
+  "الخدمات التجارية": general
+  "التعليم": general
+  # سياحة/فنادق/ترفيه: طلب دوري + مشاريع رؤية 2030 حديثة (تشغيل مبكّر
+  # متذبذب) — دورية لا شركات ناضجة مستقرة.
+  "السياحة": cyclical
+  "الفنادق": cyclical
+  "الفنادق والترفيه": cyclical
+  "الترفيه": cyclical
+  # صناعات/سلع رأسمالية: دورة طلب السلع الرأسمالية بنيوية التذبذب — دورية.
+  "الصناعات": cyclical
+  "السلع الرأسمالية": cyclical
+
+  # ── أسماء القطاعات الرسمية (GICS بالعربية) من الدليل الموحّد الجديد ──
+  # نُطابق كل اسم رسمي بنمطه الصحيح حتى لا يسقط أيٌّ منها إلى "general" فيفقد
+  # إعفاءاته البنيوية (وأخطرها الصناديق العقارية التي يجب أن تأخذ نمط reit).
+  "الصناديق العقارية المتداولة": reit
+  "إدارة وتطوير العقارات": cyclical
+  "إنتاج الأغذية": inventory_retail
+  "الأدوية": inventory_retail
+  "المنتجات المنزلية والشخصية": inventory_retail
+  "السلع طويلة الأجل": inventory_retail
+  "تجزئة وتوزيع السلع الكمالية": inventory_retail
+  "تجزئة وتوزيع السلع الاستهلاكية": inventory_retail
+  "الخدمات الاستهلاكية": cyclical
+  # خفيفة الأصول — لا «عامّ»: أصولها الثابتة ضئيلة، فتُقاس بقاعدة الأربعين
+  # (النموّ + هامش التدفّق الحرّ) لا بالعائد على رأس المال المستثمر.
+  "التطبيقات وخدمات التقنية": asset_light
+  "الخدمات التجارية والمهنية": asset_light
+  "الإعلام والترفيه": asset_light
+
+# ── ضبط دقيق لقطاعات بعينها، يُطبَّق فوق نمطها (يفوز على النمط) ─────────────
+sector_overrides:
+  # التأمين: أرباح وهوامش تتأرجح مع دورة الاكتتاب والمطالبات (سنة كوارث) —
+  # تذبذب بنيوي لا تدهور. يبقى على financial (ROE) مع إعفاء التذبذب فقط.
+  "التأمين":
+    quality:
+      - { id: q_earnings_volatile, disabled: true }
+      - { id: q_margin_volatile, disabled: true }
+
+  # الاستثمار (القابضة): أرباح متقطّعة بمكاسب بيع الاستثمارات لمرة واحدة —
+  # تذبذب طبيعي لنموذجها لا ضعف.
+  "الاستثمار":
+    quality:
+      - { id: q_earnings_volatile, disabled: true }
+      - { id: q_margin_volatile, disabled: true }
+
+  # المقاولات: إيرادات وأرباح متقطّعة بإنجاز المشاريع — تراجع/تذبذب بينيّ
+  # ليس تدهوراً.
+  "المقاولات":
+    quality:
+      - { id: q_revenue_declining, op: lt, value: -5 }
+      - { id: q_earnings_volatile, disabled: true }
+
+  # المرافق: نمو بطيء بنيوياً، فحد «نمو قوي» أخفض. (كلا الاسمين: القديم والرسمي)
+  "المرافق":
+    quality:
+      - { id: q_revenue_growth_strong, op: gte, value: 5 }
+  "المرافق العامة":
+    quality:
+      - { id: q_revenue_growth_strong, op: gte, value: 5 }
+
+  # الرعاية الصحية: هوامش أعلى بنيوياً متوقعة من القطاع.
+  "الرعاية الصحية":
+    quality:
+      - { id: q_roe_excellent, op: gte, value: 18 }
+
+  # الأدوية: هوامش وبراءات مرتفعة بنيوياً — عدالةً نرفع سقف «العائد الممتاز»
+  # كالرعاية الصحية بدل عتبة inventory_retail المتساهلة.
+  "الأدوية":
+    quality:
+      - { id: q_roe_excellent, op: gte, value: 18 }
+
+  # السلع طويلة الأجل (نسيج/أثاث/ملابس): طلب دوري — تذبذب الأرباح والهامش
+  # بين قمة وقاع الدورة بنيوي لا تدهور (يبقى على inventory_retail لسيولته).
+  "السلع طويلة الأجل":
+    quality:
+      - { id: q_earnings_volatile, disabled: true }
+      - { id: q_margin_volatile, disabled: true }
+
+  # النقل (طيران/شحن بحري): أرباح دورية بأسعار الوقود والشحن — تذبذب بنيوي؛
+  # يبقى على capital_infra لتساهل الدين مع إعفاء تذبذب الأرباح.
+  "النقل":
+    quality:
+      - { id: q_earnings_volatile, disabled: true }
+
+  # التقنية: هوامش أعلى وعائد أعلى متوقعان، ومضاعفات تقييم أعلى مقبولة نسبةً للنمو.
+  # (الاسم القديم "التقنية" + الاسم الرسمي "التطبيقات وخدمات التقنية")
+  "التقنية": &tech_override
+    quality:
+      - { id: q_roe_excellent, op: gte, value: 25 }
+    valuation:
+      - { id: v_pe_expensive, op: gt, value: 45 }
+      - { id: v_peg_expensive, op: gt, value: 2.5 }
+  "التطبيقات وخدمات التقنية": *tech_override

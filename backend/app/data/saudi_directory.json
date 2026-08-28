@@ -1,0 +1,2038 @@
+{
+ "1010": {
+  "name": "بنك الرياض",
+  "sector": "البنوك",
+  "logo": "https://s3-symbol-logo.tradingview.com/riyad-bank--big.svg"
+ },
+ "1020": {
+  "name": "بنك الجزيرة",
+  "sector": "البنوك",
+  "logo": "https://s3-symbol-logo.tradingview.com/bank-aljazira--big.svg"
+ },
+ "1030": {
+  "name": "البنك السعودي للاستثمار",
+  "sector": "البنوك",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-investment-bank--big.svg"
+ },
+ "1050": {
+  "name": "البنك السعودي الفرنسي",
+  "sector": "البنوك",
+  "logo": "https://s3-symbol-logo.tradingview.com/banque-saudi-fransi--big.svg"
+ },
+ "1060": {
+  "name": "البنك الأول",
+  "sector": "البنوك",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-british-bank--big.svg"
+ },
+ "1080": {
+  "name": "البنك العربي الوطني",
+  "sector": "البنوك",
+  "logo": "https://s3-symbol-logo.tradingview.com/arab-national-bank--big.svg"
+ },
+ "1111": {
+  "name": "مجموعة تداول السعودية",
+  "sector": "الخدمات المالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-tadawul-co--big.svg"
+ },
+ "1120": {
+  "name": "مصرف الراجحي",
+  "sector": "البنوك",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-rajhi-bank--big.svg"
+ },
+ "1140": {
+  "name": "بنك البلاد",
+  "sector": "البنوك",
+  "logo": "https://s3-symbol-logo.tradingview.com/bank-albilad--big.svg"
+ },
+ "1150": {
+  "name": "مصرف الإنماء",
+  "sector": "البنوك",
+  "logo": "https://s3-symbol-logo.tradingview.com/alinma-bank--big.svg"
+ },
+ "1180": {
+  "name": "البنك الأهلي السعودي",
+  "sector": "البنوك",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-national-bank--big.svg"
+ },
+ "1182": {
+  "name": "أملاك العالمية للتمويل",
+  "sector": "الخدمات المالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/amlak-international-for-real-estate-finance-co--big.svg"
+ },
+ "1183": {
+  "name": "سهل للتمويل",
+  "sector": "الخدمات المالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-home-loans-co--big.svg"
+ },
+ "1201": {
+  "name": "تكوين المتطورة للصناعات",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/takween-advanced-industries-co--big.svg"
+ },
+ "1202": {
+  "name": "مبكو",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/middle-east-paper-co--big.svg"
+ },
+ "1210": {
+  "name": "بي سي آي",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/basic-chemical-industries-co--big.svg"
+ },
+ "1211": {
+  "name": "التعدين العربية السعودية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-arabian-mining-co--big.svg"
+ },
+ "1212": {
+  "name": "أسترا الصناعية",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/astra-industrial--big.svg"
+ },
+ "1213": {
+  "name": "نسيج",
+  "sector": "السلع طويلة الأجل",
+  "logo": "https://s3-symbol-logo.tradingview.com/naseej-international-trading-co--big.svg"
+ },
+ "1214": {
+  "name": "الحسن غازي إبراهيم شاكر",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-hassan-ghazi-ibrahim-shaker-co--big.svg"
+ },
+ "1301": {
+  "name": "اتحاد مصانع الأسلاك",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/united-wire-factories-co--big.svg"
+ },
+ "1302": {
+  "name": "بوان",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/bawan-co--big.svg"
+ },
+ "1303": {
+  "name": "الصناعات الكهربائية",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/electrical-industries-co--big.svg"
+ },
+ "1304": {
+  "name": "اليمامة للصناعات الحديدية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-yamamah-steel--big.svg"
+ },
+ "1320": {
+  "name": "الشركة السعودية لأنابيب الصلب",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-steel-pipe-co--big.svg"
+ },
+ "1321": {
+  "name": "أنابيب الشرق",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/east-pipes-integrated-company-for-industry--big.svg"
+ },
+ "1322": {
+  "name": "أماك",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/almasane-alkobra-mining-co--big.svg"
+ },
+ "1323": {
+  "name": "يو سي آي سي",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/united-carton-industries-co--big.svg"
+ },
+ "1324": {
+  "name": "صالح الراشد",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saleh-abdulaziz-al-rashed-and-sons-co--big.svg"
+ },
+ "1810": {
+  "name": "سيرا القابضة",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/seera--big.svg"
+ },
+ "1820": {
+  "name": "بان",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/abdulmohsen-alhokair-for-tourism-and-development--big.svg"
+ },
+ "1830": {
+  "name": "لجام للرياضة",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/leejam-sports-co--big.svg"
+ },
+ "1831": {
+  "name": "مهارة",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/maharah-human-resources-co--big.svg"
+ },
+ "1832": {
+  "name": "صدر",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/sadr-logistics-co--big.svg"
+ },
+ "1833": {
+  "name": "الموارد",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-mawarid-manpower-co--big.svg"
+ },
+ "1834": {
+  "name": "سماسكو",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-manpower-solutions-co--big.svg"
+ },
+ "1835": {
+  "name": "تمكين",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/tamkeen-human-resource-co--big.svg"
+ },
+ "2001": {
+  "name": "كيمانول",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/methanol-chemicals--big.svg"
+ },
+ "2010": {
+  "name": "سابك",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-basic--big.svg"
+ },
+ "2020": {
+  "name": "سابك للمغذيات الزراعية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/sabic-agri-nutrients--big.svg"
+ },
+ "2030": {
+  "name": "شركة المصافي العربية السعودية",
+  "sector": "الطاقة",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-arabia-refineries-co--big.svg"
+ },
+ "2040": {
+  "name": "الخزف السعودي",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-ceramic-co--big.svg"
+ },
+ "2050": {
+  "name": "مجموعة صافولا",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/savola--big.svg"
+ },
+ "2060": {
+  "name": "التصنيع الوطنية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/national-industrialization-co--big.svg"
+ },
+ "2070": {
+  "name": "الدوائية",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-pharmaceutical-industries-and-medical-appliances--big.svg"
+ },
+ "2080": {
+  "name": "الغاز والتصنيع الأهلية",
+  "sector": "المرافق العامة",
+  "logo": "https://s3-symbol-logo.tradingview.com/national-gas-and-industrialization-co--big.svg"
+ },
+ "2081": {
+  "name": "الخريف للمياه والطاقة",
+  "sector": "المرافق العامة",
+  "logo": "https://s3-symbol-logo.tradingview.com/alkhorayef-water-and-power-technologies--big.svg"
+ },
+ "2082": {
+  "name": "أكوا باور",
+  "sector": "المرافق العامة",
+  "logo": "https://s3-symbol-logo.tradingview.com/acwa-power-co--big.svg"
+ },
+ "2083": {
+  "name": "مرافق",
+  "sector": "المرافق العامة",
+  "logo": "https://s3-symbol-logo.tradingview.com/the-power-and-water-utility-company-for-jubail-and-yanbu--big.svg"
+ },
+ "2084": {
+  "name": "مياهنا",
+  "sector": "المرافق العامة",
+  "logo": "https://s3-symbol-logo.tradingview.com/miahona-co--big.svg"
+ },
+ "2090": {
+  "name": "الجبس الأهلية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/national-gypsum--big.svg"
+ },
+ "2100": {
+  "name": "وفرة للصناعة والتنمية",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/wafrah-for-industry-and-development-co--big.svg"
+ },
+ "2110": {
+  "name": "الكابلات السعودية",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-cable-co--big.svg"
+ },
+ "2120": {
+  "name": "الصناعات المتقدمة",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-advanced-industries-co--big.svg"
+ },
+ "2130": {
+  "name": "صدق",
+  "sector": "السلع طويلة الأجل",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-industrial-development--big.svg"
+ },
+ "2140": {
+  "name": "أيان",
+  "sector": "الخدمات المالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/ayyan-investment-co--big.svg"
+ },
+ "2150": {
+  "name": "الصناعات الزجاجية الوطنية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/the-national-company-for-glass-industries--big.svg"
+ },
+ "2160": {
+  "name": "أميانتيت العربية السعودية",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-arabian-amiantit-co--big.svg"
+ },
+ "2170": {
+  "name": "اللجين القابضة",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/alujain--big.svg"
+ },
+ "2180": {
+  "name": "تصنيع مواد التعبئة والتغليف",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/filing-and-packing-materials-manufacturing-co--big.svg"
+ },
+ "2190": {
+  "name": "سيسكو القابضة",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-industrial-services-co--big.svg"
+ },
+ "2200": {
+  "name": "العربية لأنابيب",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabian-pipes-co--big.svg"
+ },
+ "2210": {
+  "name": "نماء للكيماويات",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/nama-chemicals--big.svg"
+ },
+ "2220": {
+  "name": "المعدنية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/national-metal-manufacturing-and-casting-co--big.svg"
+ },
+ "2222": {
+  "name": "أرامكو السعودية",
+  "sector": "الطاقة",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-arabian-oil--big.svg"
+ },
+ "2223": {
+  "name": "لوبريف",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-aramco-base-oil-co--big.svg"
+ },
+ "2230": {
+  "name": "الكيميائية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-chemical-co--big.svg"
+ },
+ "2240": {
+  "name": "الزامل للاستثمار الصناعي",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/zamil-industrial-investment-co--big.svg"
+ },
+ "2250": {
+  "name": "المجموعة السعودية للاستثمار الصناعي",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-industrial-investment--big.svg"
+ },
+ "2270": {
+  "name": "سدافكو",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudia-dairy-and-foodstuff-co--big.svg"
+ },
+ "2280": {
+  "name": "المراعي",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/almarai-co--big.svg"
+ },
+ "2281": {
+  "name": "تنمية",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/tanmiah-food-co--big.svg"
+ },
+ "2282": {
+  "name": "نقي",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/naqi-water-co--big.svg"
+ },
+ "2283": {
+  "name": "المطاحن الأولى",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/first-milling-co--big.svg"
+ },
+ "2284": {
+  "name": "المطاحن الحديثة",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/modern-mills-for-food-products-co--big.svg"
+ },
+ "2285": {
+  "name": "المطاحن العربية",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabian-mills-for-food-products-co--big.svg"
+ },
+ "2286": {
+  "name": "المطاحن الرابعة",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/fourth-milling-co--big.svg"
+ },
+ "2287": {
+  "name": "بيشة الزراعية",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabian-company-for-agricultural-and-industrial-investment--big.svg"
+ },
+ "2288": {
+  "name": "نفوذ",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/nofoth-food-products-co--big.svg"
+ },
+ "2290": {
+  "name": "ينبع الوطنية للبتروكيماويات",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/yanbu-national-petrochemical-co--big.svg"
+ },
+ "2300": {
+  "name": "الشرق الأوسط لصناعة الورق",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-paper-manufacturing-co--big.svg"
+ },
+ "2310": {
+  "name": "سبكيم العالمية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/sahara-international-petrochemical-co--big.svg"
+ },
+ "2320": {
+  "name": "البابطين للطاقة والاتصالات",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-babtain-power-and-telecommunication-co--big.svg"
+ },
+ "2330": {
+  "name": "المتقدمة للبتروكيماويات",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/advanced-petrochemical-co--big.svg"
+ },
+ "2340": {
+  "name": "عبداللطيف الصناعية",
+  "sector": "السلع طويلة الأجل",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-abdullatif-industrial-investment-company--big.svg"
+ },
+ "2350": {
+  "name": "كيان السعودية للبتروكيماويات",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-kayan-petrochemical-co--big.svg"
+ },
+ "2360": {
+  "name": "الفخارية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-vitrified-clay-pipes-co--big.svg"
+ },
+ "2370": {
+  "name": "مسك",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/middle-east-specialized-cables-co--big.svg"
+ },
+ "2380": {
+  "name": "رابغ للتكرير والبتروكيماويات",
+  "sector": "الطاقة",
+  "logo": "https://s3-symbol-logo.tradingview.com/rabigh-refining-and-petrochemical-co--big.svg"
+ },
+ "2381": {
+  "name": "الحفر العربية",
+  "sector": "الطاقة",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabian-drilling-co--big.svg"
+ },
+ "2382": {
+  "name": "أديس القابضة",
+  "sector": "الطاقة",
+  "logo": "https://s3-symbol-logo.tradingview.com/ades-co--big.svg"
+ },
+ "3002": {
+  "name": "أسمنت نجران",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/najran-cement-co--big.svg"
+ },
+ "3003": {
+  "name": "أسمنت المدينة",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/city-cement-co--big.svg"
+ },
+ "3004": {
+  "name": "أسمنت المنطقة الشمالية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/northern-region-cement--big.svg"
+ },
+ "3005": {
+  "name": "أسمنت أم القرى",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/umm-al-qura-cement-co--big.svg"
+ },
+ "3007": {
+  "name": "الواحة",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/zahrat-al-waha-for-trading-co--big.svg"
+ },
+ "3008": {
+  "name": "الكثيري القابضة",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-kathiri-co--big.svg"
+ },
+ "3010": {
+  "name": "أسمنت العربية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabian-cement-co--big.svg"
+ },
+ "3020": {
+  "name": "أسمنت اليمامة",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/yamama-cement-co--big.svg"
+ },
+ "3030": {
+  "name": "الأسمنت السعودية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-cement-co--big.svg"
+ },
+ "3040": {
+  "name": "أسمنت القصيم",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/qassim-cement-co--big.svg"
+ },
+ "3050": {
+  "name": "أسمنت المنطقة الجنوبية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/southern-province-cement-co--big.svg"
+ },
+ "3060": {
+  "name": "أسمنت ينبع",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/yanbu-cement-co--big.svg"
+ },
+ "3080": {
+  "name": "أسمنت المنطقة الشرقية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/eastern-province-cement-co--big.svg"
+ },
+ "3090": {
+  "name": "أسمنت تبوك",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/tabuk-cement-co--big.svg"
+ },
+ "3091": {
+  "name": "أسمنت الجوف",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-jouf-cement-co--big.svg"
+ },
+ "3092": {
+  "name": "أسمنت الرياض",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/riyadh-cement-co--big.svg"
+ },
+ "4001": {
+  "name": "أسواق عبدالله العثيم",
+  "sector": "تجزئة وتوزيع السلع الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/abdullah-al-othaim-markets-co--big.svg"
+ },
+ "4002": {
+  "name": "المواساة للخدمات الطبية",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/mouwasat-medical-services-co--big.svg"
+ },
+ "4003": {
+  "name": "إكسترا",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/united-electronics-co--big.svg"
+ },
+ "4004": {
+  "name": "دلة للخدمات الصحية",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/dallah-healthcare-co--big.svg"
+ },
+ "4005": {
+  "name": "رعاية",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/national-medical-care-co--big.svg"
+ },
+ "4006": {
+  "name": "أسواق المزرعة",
+  "sector": "تجزئة وتوزيع السلع الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-marketing-co--big.svg"
+ },
+ "4007": {
+  "name": "الحمادي للتنمية والاستثمار",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-hammadi-company-for-development-and-investment--big.svg"
+ },
+ "4008": {
+  "name": "ساكو",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-company-for-hardware--big.svg"
+ },
+ "4009": {
+  "name": "السعودي الألماني الصحية",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/middle-east-healthcare-co--big.svg"
+ },
+ "4011": {
+  "name": "لازوردي للمجوهرات",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/lazurde-company-for-jewelry--big.svg"
+ },
+ "4012": {
+  "name": "الأصيل",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/thob-al-aseel-co--big.svg"
+ },
+ "4013": {
+  "name": "د. سليمان الحبيب",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/dr-sulaiman-al-habib-medical-services-group--big.svg"
+ },
+ "4014": {
+  "name": "بيت المعدات العلمية والطبية",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/scientific-and-medical-equipment-house-co--big.svg"
+ },
+ "4015": {
+  "name": "جمجوم فارما",
+  "sector": "الأدوية",
+  "logo": "https://s3-symbol-logo.tradingview.com/jamjoom-pharmaceuticals-factory-co--big.svg"
+ },
+ "4016": {
+  "name": "أفالون فارما",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/middle-east-pharmaceutical-industries-co--big.svg"
+ },
+ "4017": {
+  "name": "فقيه الطبية",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/dr-soliman-abdel-kader-fakeeh-hospital-co--big.svg"
+ },
+ "4018": {
+  "name": "الموسى",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/almoosa-health-co--big.svg"
+ },
+ "4019": {
+  "name": "اس ام سي للرعاية الصحية",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/specialized-medical-co--big.svg"
+ },
+ "4020": {
+  "name": "الشركة العقارية السعودية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-real-estate-co--big.svg"
+ },
+ "4021": {
+  "name": "المركز الكندي الطبي",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/canadian-medical-center-co--big.svg"
+ },
+ "4030": {
+  "name": "الشركة الوطنية السعودية للنقل البحري",
+  "sector": "النقل",
+  "logo": "https://s3-symbol-logo.tradingview.com/national-shipping-company-of-saudi-arabia--big.svg"
+ },
+ "4031": {
+  "name": "الشركة السعودية للخدمات الأرضية",
+  "sector": "النقل",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-ground-services-co--big.svg"
+ },
+ "4040": {
+  "name": "الشركة السعودية للنقل الجماعي",
+  "sector": "النقل",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-public-transport-co--big.svg"
+ },
+ "4050": {
+  "name": "ساسكو",
+  "sector": "الطاقة",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-automotive-services-co--big.svg"
+ },
+ "4051": {
+  "name": "باعظيم",
+  "sector": "تجزئة وتوزيع السلع الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/baazeem-trading-co--big.svg"
+ },
+ "4061": {
+  "name": "أنعام القابضة",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/anaam-international--big.svg"
+ },
+ "4070": {
+  "name": "تهامة للإعلان",
+  "sector": "الإعلام والترفيه",
+  "logo": "https://s3-symbol-logo.tradingview.com/tihama--big.svg"
+ },
+ "4071": {
+  "name": "الشركة العربية للخدمات",
+  "sector": "الإعلام والترفيه",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabian-contracting-services-co--big.svg"
+ },
+ "4072": {
+  "name": "مجموعة إم بي سي",
+  "sector": "الإعلام والترفيه",
+  "logo": "https://s3-symbol-logo.tradingview.com/mbc-co--big.svg"
+ },
+ "4080": {
+  "name": "أسير للتجارة والسياحة والصناعة",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/aseer-trading-tourism--big.svg"
+ },
+ "4081": {
+  "name": "النايفات للتمويل",
+  "sector": "الخدمات المالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/nayifat-finance-co--big.svg"
+ },
+ "4082": {
+  "name": "مرابحة مارينا للتمويل",
+  "sector": "الخدمات المالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/morabaha-marina-financing-co--big.svg"
+ },
+ "4083": {
+  "name": "المتحدة الدولية القابضة",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/united-international-co--big.svg"
+ },
+ "4084": {
+  "name": "دراية المالية",
+  "sector": "الخدمات المالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/derayah-financial-co--big.svg"
+ },
+ "4090": {
+  "name": "طيبة القابضة",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/taiba-investments-co--big.svg"
+ },
+ "4100": {
+  "name": "مكة للإنشاء والتعمير",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/makkah-construction-and-development-co--big.svg"
+ },
+ "4110": {
+  "name": "باتك للاستثمار والأعمال اللوجستية",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/batic-investments-and-logistics-co--big.svg"
+ },
+ "4130": {
+  "name": "الباحة للاستثمار والتطوير",
+  "sector": "الخدمات المالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-baha-investment-and-development-co--big.svg"
+ },
+ "4140": {
+  "name": "الصادرات الصناعية",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-industrial-export-co--big.svg"
+ },
+ "4141": {
+  "name": "العمران",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-omran-industrial--big.svg"
+ },
+ "4142": {
+  "name": "كابلات الرياض",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/riyadh-cables-co--big.svg"
+ },
+ "4143": {
+  "name": "تالكو",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-taiseer-talco-industrial-co--big.svg"
+ },
+ "4144": {
+  "name": "رؤوم للاستثمار",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/raoom-trading-co--big.svg"
+ },
+ "4145": {
+  "name": "زجاج عبيكان",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/obeikan-glass-co--big.svg"
+ },
+ "4146": {
+  "name": "غاز العربية للخدمات",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/gas-arabian-services-co--big.svg"
+ },
+ "4147": {
+  "name": "سي جي إس",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/consolidated-grunenfelder-saady-co--big.svg"
+ },
+ "4148": {
+  "name": "الوسائل الصناعية",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/alwasail-industrial-company--big.svg"
+ },
+ "4150": {
+  "name": "الرياض للتعمير",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/arriyadh-development-co--big.svg"
+ },
+ "4160": {
+  "name": "ثمار",
+  "sector": "تجزئة وتوزيع السلع الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/thimar-development-company--big.svg"
+ },
+ "4161": {
+  "name": "بن داود القابضة",
+  "sector": "تجزئة وتوزيع السلع الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/bindawood-co--big.svg"
+ },
+ "4162": {
+  "name": "المنجم للأغذية",
+  "sector": "تجزئة وتوزيع السلع الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/almunajem-foods-co--big.svg"
+ },
+ "4163": {
+  "name": "الدواء الطبية",
+  "sector": "الأدوية",
+  "logo": "https://s3-symbol-logo.tradingview.com/aldawaa-medical-services-co--big.svg"
+ },
+ "4164": {
+  "name": "النهدي الطبية",
+  "sector": "الأدوية",
+  "logo": "https://s3-symbol-logo.tradingview.com/nahdi-medical-co--big.svg"
+ },
+ "4165": {
+  "name": "الماجد للعود",
+  "sector": "المنتجات المنزلية والشخصية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-majed-oud-co--big.svg"
+ },
+ "4170": {
+  "name": "شمس",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/tourism-enterprise-co--big.svg"
+ },
+ "4180": {
+  "name": "مجموعة فتيحي القابضة",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/fitaihi-holding--big.svg"
+ },
+ "4190": {
+  "name": "جرير للتسويق",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/jarir-marketing-co--big.svg"
+ },
+ "4191": {
+  "name": "أبو معطي",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/abdullah-saad-mohammed-abo-moati-for-bookstores--big.svg"
+ },
+ "4192": {
+  "name": "السيف غاليري",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/alsaif-stores-for-development-and-investment-co--big.svg"
+ },
+ "4193": {
+  "name": "نايس ون",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/nice-one-beauty-digital-marketing-co--big.svg"
+ },
+ "4194": {
+  "name": "محطة البناء",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/marketing-home-for-trading-co--big.svg"
+ },
+ "4200": {
+  "name": "الدريس للخدمات البترولية والنقليات",
+  "sector": "الطاقة",
+  "logo": "https://s3-symbol-logo.tradingview.com/aldrees-petroleum-and-transport-services--big.svg"
+ },
+ "4210": {
+  "name": "المجموعة السعودية للأبحاث والإعلام",
+  "sector": "الإعلام والترفيه",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-research-and-media-group--big.svg"
+ },
+ "4220": {
+  "name": "إعمار المدينة الاقتصادية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/emaar-the-economic-city--big.svg"
+ },
+ "4230": {
+  "name": "البحر الأحمر لخدمات الإسكان",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/red-sea-international-co--big.svg"
+ },
+ "4240": {
+  "name": "سينومي ريتيل",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/fawaz-abdulaziz-alhokair-co--big.svg"
+ },
+ "4250": {
+  "name": "جبل عمر للتطوير",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/jabal-omar-development-company--big.svg"
+ },
+ "4260": {
+  "name": "بدجت السعودية",
+  "sector": "النقل",
+  "logo": "https://s3-symbol-logo.tradingview.com/united-international-transportation-co--big.svg"
+ },
+ "4261": {
+  "name": "ذيب لتأجير السيارات",
+  "sector": "النقل",
+  "logo": "https://s3-symbol-logo.tradingview.com/theeb-rent-a-car-co--big.svg"
+ },
+ "4262": {
+  "name": "لومي لتأجير السيارات",
+  "sector": "النقل",
+  "logo": "https://s3-symbol-logo.tradingview.com/lumi-rental-co--big.svg"
+ },
+ "4263": {
+  "name": "سال السعودية للخدمات اللوجستية",
+  "sector": "النقل",
+  "logo": "https://s3-symbol-logo.tradingview.com/sal-saudi-logistics-services-co--big.svg"
+ },
+ "4264": {
+  "name": "طيران ناس",
+  "sector": "النقل",
+  "logo": "https://s3-symbol-logo.tradingview.com/flynas-co--big.svg"
+ },
+ "4265": {
+  "name": "شري",
+  "sector": "النقل",
+  "logo": "https://s3-symbol-logo.tradingview.com/cherry-trading-co--big.svg"
+ },
+ "4270": {
+  "name": "الشركة السعودية للطباعة والتغليف",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-printing-and-packaging-co--big.svg"
+ },
+ "4280": {
+  "name": "المملكة القابضة",
+  "sector": "الخدمات المالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/kingdom-co--big.svg"
+ },
+ "4290": {
+  "name": "الخليج للتدريب والتعليم",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/alkhaleej-training-and-education-co--big.svg"
+ },
+ "4291": {
+  "name": "الوطنية للتربية والتعليم",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/national-company-for-learning-and-education--big.svg"
+ },
+ "4292": {
+  "name": "عطاء التعليمية",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/ataa-educational-co--big.svg"
+ },
+ "4300": {
+  "name": "دار الأركان للتطوير العقاري",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/dar-alarkan-real-estate-development-co--big.svg"
+ },
+ "4310": {
+  "name": "مدينة المعرفة الاقتصادية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/knowledge-economic-city--big.svg"
+ },
+ "4320": {
+  "name": "الأندلس العقارية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/alandalus-property--big.svg"
+ },
+ "4321": {
+  "name": "سينومي سنترز",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabian-centres-co--big.svg"
+ },
+ "4322": {
+  "name": "رتال للتطوير العمراني",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/retal-urban-development-co--big.svg"
+ },
+ "4323": {
+  "name": "سمو العقارية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/sumou-real-estate-co--big.svg"
+ },
+ "4324": {
+  "name": "بنان العقارية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/banan-real-estate-co--big.svg"
+ },
+ "4325": {
+  "name": "مسار",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/umm-al-qura-for-development-and-con--big.svg"
+ },
+ "4326": {
+  "name": "الماجدية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/dar-al-majed-real-estate-co--big.svg"
+ },
+ "4327": {
+  "name": "الرمز للعقارات",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/alramz-real-estate-co--big.svg"
+ },
+ "4330": {
+  "name": "الرياض ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/riyad-reit-fund--big.svg"
+ },
+ "4331": {
+  "name": "الجزيرة ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/aljazira-reit--big.svg"
+ },
+ "4332": {
+  "name": "جدوى ريت الحرمين",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/jadwa-reit-al-haramain-fund--big.svg"
+ },
+ "4333": {
+  "name": "تعليم ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/taleem-reit-fund--big.svg"
+ },
+ "4334": {
+  "name": "المعذر ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-maather-reit-fund--big.svg"
+ },
+ "4335": {
+  "name": "مشاركة ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/musharaka-reit-fund--big.svg"
+ },
+ "4336": {
+  "name": "ملكية ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/mulkia-gulf-real-estate-reit--big.svg"
+ },
+ "4337": {
+  "name": "العزيزية ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/sico-saudi-reit-fund--big.svg"
+ },
+ "4338": {
+  "name": "الأهلي ريت 1",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/alahli-reit-fund-1--big.svg"
+ },
+ "4339": {
+  "name": "دراية ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/derayah-reit-fund--big.svg"
+ },
+ "4340": {
+  "name": "الراجحي ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-rajhi-reit-fund--big.svg"
+ },
+ "4342": {
+  "name": "جدوى ريت السعودية",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/jadwa-reit-saudi-fund--big.svg"
+ },
+ "4344": {
+  "name": "سدكو كابيتال ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/sedco-capital-reit-fund--big.svg"
+ },
+ "4345": {
+  "name": "الإنماء ريت للتجزئة",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/alinma-retail-reit-fund--big.svg"
+ },
+ "4346": {
+  "name": "ميفك ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/mefic-reit-fund--big.svg"
+ },
+ "4347": {
+  "name": "بنيان ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/bonyan-reit-fund--big.svg"
+ },
+ "4348": {
+  "name": "الخبير ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/alkhabeer-reit--big.svg"
+ },
+ "4349": {
+  "name": "الإنماء ريت الفندقي",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/alinma-hospitality-reit-fund--big.svg"
+ },
+ "4350": {
+  "name": "الاستثمار ريت",
+  "sector": "الصناديق العقارية المتداولة",
+  "logo": "https://s3-symbol-logo.tradingview.com/alistithmar-areic-diversified-reit-fund--big.svg"
+ },
+ "5110": {
+  "name": "الشركة السعودية للكهرباء",
+  "sector": "المرافق العامة",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-electricity-company--big.svg"
+ },
+ "6001": {
+  "name": "حلواني إخوان",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/halwani-bros-co--big.svg"
+ },
+ "6002": {
+  "name": "هرفي للخدمات الغذائية",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/herfy-food-services-co--big.svg"
+ },
+ "6004": {
+  "name": "كاتريون",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-airlines-catering-co--big.svg"
+ },
+ "6010": {
+  "name": "نادك",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/national-agricultural-development-co--big.svg"
+ },
+ "6012": {
+  "name": "ريدان",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/raydan-food-co--big.svg"
+ },
+ "6013": {
+  "name": "التطويرية الغذائية",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/development-works-food-co--big.svg"
+ },
+ "6014": {
+  "name": "الآمار للأغذية",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/alamar-foods-co--big.svg"
+ },
+ "6015": {
+  "name": "أمريكانا",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/americana-restaurants-international-plc--big.svg"
+ },
+ "6016": {
+  "name": "برغرايززر",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/shatirah-house-restaurant-co--big.svg"
+ },
+ "6017": {
+  "name": "جاهز",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/jahez-international-company-for-information-system-technolog--big.svg"
+ },
+ "6018": {
+  "name": "الأندية للرياضة",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/sport-clubs-co--big.svg"
+ },
+ "6019": {
+  "name": "المسار الشامل",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/almasar-alshamil-education-co--big.svg"
+ },
+ "6020": {
+  "name": "جاكو",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-gassim-investment--big.svg"
+ },
+ "6040": {
+  "name": "تبوك الزراعية",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/tabuk-agricultural--big.svg"
+ },
+ "6050": {
+  "name": "الأسماك",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-fisheries-co--big.svg"
+ },
+ "6060": {
+  "name": "الشرقية للتنمية",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/ash-sharqiyah-development-co--big.svg"
+ },
+ "6070": {
+  "name": "الجوف",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-jouf-agricultural-development-co--big.svg"
+ },
+ "6090": {
+  "name": "جازادكو",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/jazan-energy-and-development--big.svg"
+ },
+ "7010": {
+  "name": "الاتصالات السعودية",
+  "sector": "الاتصالات",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-telecom-co--big.svg"
+ },
+ "7020": {
+  "name": "اتحاد اتصالات",
+  "sector": "الاتصالات",
+  "logo": "https://s3-symbol-logo.tradingview.com/etihad-etisalat-co--big.svg"
+ },
+ "7030": {
+  "name": "الاتصالات المتنقلة السعودية",
+  "sector": "الاتصالات",
+  "logo": "https://s3-symbol-logo.tradingview.com/mobile-telecommunication-company-saudi-arabia--big.svg"
+ },
+ "7040": {
+  "name": "اتحاد عذيب للاتصالات",
+  "sector": "الاتصالات",
+  "logo": "https://s3-symbol-logo.tradingview.com/etihad-atheeb-telecommunication-co--big.svg"
+ },
+ "7200": {
+  "name": "ام آي إس",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-moammar-information-systems-co--big.svg"
+ },
+ "7201": {
+  "name": "بحر العرب",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/arab-sea-information-system-co--big.svg"
+ },
+ "7202": {
+  "name": "سلوشنز",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabian-internet-and-communications-services-co--big.svg"
+ },
+ "7203": {
+  "name": "علم",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/elm-co--big.svg"
+ },
+ "7204": {
+  "name": "توبي",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/perfect-presentation-for-commercial-services-co--big.svg"
+ },
+ "7205": {
+  "name": "دي بي إس",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/dar-albalad-for-business-solutions-co--big.svg"
+ },
+ "7211": {
+  "name": "عزم",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-azm-for-communication-and-information-technology-co--big.svg"
+ },
+ "8010": {
+  "name": "التعاونية للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/the-company-for-cooperative-insurance--big.svg"
+ },
+ "8012": {
+  "name": "الجزيرة تكافل",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/aljazira-takaful-taawuni--big.svg"
+ },
+ "8020": {
+  "name": "ملاذ للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/malath-cooperative-insurance-co--big.svg"
+ },
+ "8030": {
+  "name": "ميدغلف للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/the-mediterranean-and-gulf-insurance-and-reinsurance-co--big.svg"
+ },
+ "8040": {
+  "name": "أليانز إس إف",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/allianz-saudi-fransi--big.svg"
+ },
+ "8050": {
+  "name": "سلامة للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/salama-cooperative-insurance-co--big.svg"
+ },
+ "8060": {
+  "name": "ولاء للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/walaa-cooperative-insurance-co--big.svg"
+ },
+ "8070": {
+  "name": "الدرع العربي (أروبيان شيلد)",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabian-shield-cooperative-insurance-co--big.svg"
+ },
+ "8100": {
+  "name": "سايكو",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-arabian-cooperative-insurance-co--big.svg"
+ },
+ "8120": {
+  "name": "اتحاد الخليج الأهلية",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/gulf-union-alahlia-cooperative-insurance-co--big.svg"
+ },
+ "8150": {
+  "name": "أسيج",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/allied-cooperative-insurance--big.svg"
+ },
+ "8160": {
+  "name": "التأمين العربية",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabia-insurance-cooperative-co--big.svg"
+ },
+ "8170": {
+  "name": "الاتحاد التجاري للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-etihad-cooperative-insurance-co--big.svg"
+ },
+ "8180": {
+  "name": "الصقر للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-sagr-cooperative-insurance-co--big.svg"
+ },
+ "8190": {
+  "name": "المتحدة للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/united-cooperative-assurance--big.svg"
+ },
+ "8200": {
+  "name": "الإعادة السعودية",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-reinsurance-co--big.svg"
+ },
+ "8210": {
+  "name": "بوبا العربية للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/bupa-arabia-for-cooperative-insurance-co--big.svg"
+ },
+ "8230": {
+  "name": "تكافل الراجحي",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-rajhi-company-for-cooperative-insurance--big.svg"
+ },
+ "8240": {
+  "name": "تشب العربية للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/chubb--big.svg"
+ },
+ "8250": {
+  "name": "جي آي جي السعودية",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/axa--big.svg"
+ },
+ "8260": {
+  "name": "الخليج العام للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/gulf-general-cooperative-insurance-co--big.svg"
+ },
+ "8280": {
+  "name": "العالمية للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-alamiya-for-cooperative-insurance-co--big.svg"
+ },
+ "8300": {
+  "name": "الوطنية للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/wataniya-insurance-co--big.svg"
+ },
+ "8310": {
+  "name": "أمانة للتأمين",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/amana-cooperative-insurance--big.svg"
+ },
+ "8311": {
+  "name": "عناية السعودية",
+  "sector": "التأمين",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-enaya-cooperative-insurance-co--big.svg"
+ },
+ "8313": {
+  "name": "رسن",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/rasan-information-technology-co--big.svg"
+ },
+ "9300": {
+  "name": "الواحة ريت",
+  "sector": "الصناديق العقارية المتداولة"
+ },
+ "9510": {
+  "name": "الوطنية للبناء والتسويق",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/national-building-and-marketing-co--big.svg"
+ },
+ "9513": {
+  "name": "حديد وطني",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/watani-iron-steel-co--big.svg"
+ },
+ "9514": {
+  "name": "الناقول",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/mohammed-hasan-alnaqool-sons-co--big.svg"
+ },
+ "9515": {
+  "name": "فش فاش",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/fesh-fash-snack-food-production-co--big.svg"
+ },
+ "9516": {
+  "name": "غاز",
+  "sector": "المرافق العامة",
+  "logo": "https://s3-symbol-logo.tradingview.com/natural-gas-distribution-co--big.svg"
+ },
+ "9517": {
+  "name": "موبي للصناعة",
+  "sector": "المنتجات المنزلية والشخصية",
+  "logo": "https://s3-symbol-logo.tradingview.com/national-fertilizer-co--big.svg"
+ },
+ "9521": {
+  "name": "إنمار",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/enma-alrawabi-co--big.svg"
+ },
+ "9522": {
+  "name": "الحاسوب",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/alhasoob-co--big.svg"
+ },
+ "9523": {
+  "name": "جروب فايف",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/five-pipe-saudi-co--big.svg"
+ },
+ "9524": {
+  "name": "آيكتك",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/advance-international-company-for-communication-and-informat--big.svg"
+ },
+ "9527": {
+  "name": "ألف ميم ياء",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/ame-company-for-medical-supplies--big.svg"
+ },
+ "9530": {
+  "name": "الشركة الطبية العربية العالمية القابضة",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabian-international-healthcare-co--big.svg"
+ },
+ "9532": {
+  "name": "مصنع مياه الجوف الصحية",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/aljouf-mineral-water-bottling-co--big.svg"
+ },
+ "9533": {
+  "name": "المركز الآلي",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-parts-center-co--big.svg"
+ },
+ "9535": {
+  "name": "لدن العقارية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/ladun-investment-co--big.svg"
+ },
+ "9536": {
+  "name": "فاديكو",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabian-food-and-dairy-factories-co--big.svg"
+ },
+ "9538": {
+  "name": "نسيج للتقنية",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/naseej-for-technology-co--big.svg"
+ },
+ "9539": {
+  "name": "أقاسيم",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/aqaseem-factory-for-chemicals-and-plastics-co--big.svg"
+ },
+ "9540": {
+  "name": "تدوير",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/national-environmental-recycling-co--big.svg"
+ },
+ "9541": {
+  "name": "أكاديمية التعلم",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/academy-of-learning-co--big.svg"
+ },
+ "9542": {
+  "name": "كير",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/keir-international-co--big.svg"
+ },
+ "9543": {
+  "name": "نت وركرس",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-networkers-services-co--big.svg"
+ },
+ "9544": {
+  "name": "الرعاية المستقبلية",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/future-care-trading-co--big.svg"
+ },
+ "9545": {
+  "name": "الدولية",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/international-human-resources-co--big.svg"
+ },
+ "9546": {
+  "name": "نبع الصحة",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/naba-alsaha-medical-services-co--big.svg"
+ },
+ "9547": {
+  "name": "رواسي",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/rawasi-albina-investment-co--big.svg"
+ },
+ "9548": {
+  "name": "ابيكو",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabian-plastic-industrial-co--big.svg"
+ },
+ "9549": {
+  "name": "البابطين الغذائية",
+  "sector": "تجزئة وتوزيع السلع الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/abdulaziz-and-mansour-ibrahim-albabtin-co--big.svg"
+ },
+ "9550": {
+  "name": "شور",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/sure-global-tech-co--big.svg"
+ },
+ "9551": {
+  "name": "برج المعرفة",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/knowledge-tower-trading-co--big.svg"
+ },
+ "9552": {
+  "name": "قمة السعودية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-top-for-trading-co--big.svg"
+ },
+ "9553": {
+  "name": "ملان",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/molan-steel-co--big.svg"
+ },
+ "9555": {
+  "name": "لين الخير",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/leen-alkhair-trading-co--big.svg"
+ },
+ "9556": {
+  "name": "نفوذ للمنتجات الغذائية",
+  "sector": "إنتاج الأغذية"
+ },
+ "9557": {
+  "name": "إدارات",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/edarat-communication-and-information-technology-co--big.svg"
+ },
+ "9558": {
+  "name": "القمم",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/alqemam-for-computer-systems-co--big.svg"
+ },
+ "9559": {
+  "name": "بلدي",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/balady-poultry-co--big.svg"
+ },
+ "9560": {
+  "name": "وجا",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/waja-co--big.svg"
+ },
+ "9561": {
+  "name": "نولجنت",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/knowledge-net-co--big.svg"
+ },
+ "9562": {
+  "name": "بوابة الأطعمة",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/foods-gate-trading--big.svg"
+ },
+ "9563": {
+  "name": "بناء",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/bena-steel-industries-co--big.svg"
+ },
+ "9564": {
+  "name": "آفاق الغذاء",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/horizon-food-co--big.svg"
+ },
+ "9565": {
+  "name": "معيار",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/meyar-co--big.svg"
+ },
+ "9566": {
+  "name": "الصناعات الجيرية",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/saudi-lime-industries-co--big.svg"
+ },
+ "9567": {
+  "name": "غذاء السلطان",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/ghida-alsultan-for-fast-food-co--big.svg"
+ },
+ "9568": {
+  "name": "ميار",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/mayar-co--big.svg"
+ },
+ "9569": {
+  "name": "آل منيف",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/almuneef-company-for-trade-industry-agriculture-and-contr--big.svg"
+ },
+ "9570": {
+  "name": "تام التنموية",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/tam-development-co--big.svg"
+ },
+ "9571": {
+  "name": "مناولة",
+  "sector": "النقل",
+  "logo": "https://s3-symbol-logo.tradingview.com/munawla-cargo-co--big.svg"
+ },
+ "9572": {
+  "name": "الرازي الطبية",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-razi-medical-co--big.svg"
+ },
+ "9574": {
+  "name": "بروميديكس",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/professional-medical-expertise-co--big.svg"
+ },
+ "9575": {
+  "name": "ماربل ديزاين",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/marble-design-co--big.svg"
+ },
+ "9576": {
+  "name": "منزل الورق",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/paper-home-co--big.svg"
+ },
+ "9577": {
+  "name": "دار المركبة لتأجير السيارات",
+  "sector": "النقل",
+  "logo": "https://s3-symbol-logo.tradingview.com/dar-almarkabah-for-renting-cars-co--big.svg"
+ },
+ "9578": {
+  "name": "مصاعد أطلس",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/atlas-elevators-general-trading-and-contracting-co--big.svg"
+ },
+ "9579": {
+  "name": "رماث",
+  "sector": "المنتجات المنزلية والشخصية",
+  "logo": "https://s3-symbol-logo.tradingview.com/intelligent-oud-company-for-trading--big.svg"
+ },
+ "9580": {
+  "name": "الراشد للصناعة",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-rashid-industrial-co--big.svg"
+ },
+ "9581": {
+  "name": "كلين لايف",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/clean-life-co--big.svg"
+ },
+ "9583": {
+  "name": "المتحدة للتعدين",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/united-mining-industries-co--big.svg"
+ },
+ "9584": {
+  "name": "ريال",
+  "sector": "النقل",
+  "logo": "https://s3-symbol-logo.tradingview.com/riyal-investment-and-development-co--big.svg"
+ },
+ "9585": {
+  "name": "ملكية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/mulkia-investment-co--big.svg"
+ },
+ "9586": {
+  "name": "أصول وبخيت",
+  "sector": "الخدمات المالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/osool-and-bakheet-investment-co--big.svg"
+ },
+ "9587": {
+  "name": "لانا الطبية",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/lana-medical-co--big.svg"
+ },
+ "9588": {
+  "name": "حديد الرياض",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/riyadh-steel-co--big.svg"
+ },
+ "9589": {
+  "name": "فاد",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/fad-international-co--big.svg"
+ },
+ "9590": {
+  "name": "أرماح",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/armah-sports-co--big.svg"
+ },
+ "9591": {
+  "name": "فيو العقارية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/view-united-real-estate-development-co--big.svg"
+ },
+ "9592": {
+  "name": "المجتمع الطبية",
+  "sector": "تجزئة وتوزيع السلع الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/almujtama-alraida-medical-co--big.svg"
+ },
+ "9593": {
+  "name": "عبر الخليج",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/pan-gulf-marketing-co--big.svg"
+ },
+ "9594": {
+  "name": "المداواة",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-modawat-specialized-medical-co--big.svg"
+ },
+ "9595": {
+  "name": "وسم",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/wsm-for-information-technology-co--big.svg"
+ },
+ "9596": {
+  "name": "كوارا",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/quara-finance-co--big.svg"
+ },
+ "9597": {
+  "name": "الليف",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/leaf-global-environmental-services-co--big.svg"
+ },
+ "9598": {
+  "name": "المحافظة للتعليم",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-mohafaza-company-for-education--big.svg"
+ },
+ "9599": {
+  "name": "طاقات",
+  "sector": "الطاقة",
+  "logo": "https://s3-symbol-logo.tradingview.com/taqat-mineral-trading-co--big.svg"
+ },
+ "9600": {
+  "name": "كومل",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/qomel-co--big.svg"
+ },
+ "9601": {
+  "name": "الرشيد",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/mohammed-hadi-al-rasheed-and-partners-co--big.svg"
+ },
+ "9602": {
+  "name": "يقين",
+  "sector": "الخدمات المالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/yaqeen-capital-co--big.svg"
+ },
+ "9603": {
+  "name": "الأفق التعليمية",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/horizon-educational-co--big.svg"
+ },
+ "9604": {
+  "name": "ميرال",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/miral-dental-clinics-co--big.svg"
+ },
+ "9605": {
+  "name": "نفط الشرق",
+  "sector": "الطاقة",
+  "logo": "https://s3-symbol-logo.tradingview.com/neft-alsharq-company-for-chemical-industries--big.svg"
+ },
+ "9606": {
+  "name": "ثروة",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/altharwah-albashariyyah-co--big.svg"
+ },
+ "9607": {
+  "name": "عسق",
+  "sector": "المواد الأساسية",
+  "logo": "https://s3-symbol-logo.tradingview.com/asg-plastic-factory-co--big.svg"
+ },
+ "9608": {
+  "name": "الأشغال الميسرة",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-ashghal-al-moysra-co--big.svg"
+ },
+ "9609": {
+  "name": "بترول ناس",
+  "sector": "الطاقة",
+  "logo": "https://s3-symbol-logo.tradingview.com/naas-petrol-factory-co--big.svg"
+ },
+ "9610": {
+  "name": "الجادة الأولى",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/first-avenue-for-real-estate-development-co--big.svg"
+ },
+ "9611": {
+  "name": "المتحدة للزجاج المسطح",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabian-united-float-glass-co--big.svg"
+ },
+ "9612": {
+  "name": "مياه سما",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/sama-healthy-water-factory-co--big.svg"
+ },
+ "9613": {
+  "name": "شلفا",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/shalfa-facilities-management-co--big.svg"
+ },
+ "9614": {
+  "name": "نقاوة",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/purity-for-information-technology-co--big.svg"
+ },
+ "9615": {
+  "name": "مفيد",
+  "sector": "الإعلام والترفيه",
+  "logo": "https://s3-symbol-logo.tradingview.com/mufeed-co--big.svg"
+ },
+ "9616": {
+  "name": "جنى",
+  "sector": "الرعاية الصحية"
+ },
+ "9617": {
+  "name": "ارابيكا ستار",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/arabica-star-co--big.svg"
+ },
+ "9618": {
+  "name": "الفاخرة",
+  "sector": "السلع طويلة الأجل",
+  "logo": "https://s3-symbol-logo.tradingview.com/alfakhera-for-mens-tailoring-co--big.svg"
+ },
+ "9619": {
+  "name": "الأعمال المتعددة",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/multi-business-co--big.svg"
+ },
+ "9620": {
+  "name": "بلسم الطبية",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/balsm-alofoq-medical-co--big.svg"
+ },
+ "9621": {
+  "name": "دي آر سي",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/digital-research-co--big.svg"
+ },
+ "9622": {
+  "name": "شموع الماضي",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/shmoh-almadi-co--big.svg"
+ },
+ "9623": {
+  "name": "مصنع البتال",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/albattal-factory-for-chemical-industries-co--big.svg"
+ },
+ "9624": {
+  "name": "الشهيلي المعدنية",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/alshehili-company-for-metal-industries--big.svg"
+ },
+ "9625": {
+  "name": "إتمام",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/itmam-consultancy-co--big.svg"
+ },
+ "9626": {
+  "name": "سمايل كير",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/basma-adeem-medical-co--big.svg"
+ },
+ "9627": {
+  "name": "طوارئيات",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/twareat-medical-care-co--big.svg"
+ },
+ "9628": {
+  "name": "لمسات",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/lamasat-co--big.svg"
+ },
+ "9630": {
+  "name": "ريشيو",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/ratio-speciality-company-for-trading--big.svg"
+ },
+ "9631": {
+  "name": "هضاب الخليج",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/hedab-alkhaleej-trading-co--big.svg"
+ },
+ "9632": {
+  "name": "رؤية المستقبل",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/future-vision-for-health-training-co--big.svg"
+ },
+ "9633": {
+  "name": "آلات الصيانة",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/service-equipment-co--big.svg"
+ },
+ "9634": {
+  "name": "أدير العقارية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/adeer-real-estate-co--big.svg"
+ },
+ "9635": {
+  "name": "دخون",
+  "sector": "المنتجات المنزلية والشخصية",
+  "logo": "https://s3-symbol-logo.tradingview.com/dkhoun-national-trading-co--big.svg"
+ },
+ "9636": {
+  "name": "الخزامى",
+  "sector": "الخدمات الاستهلاكية",
+  "logo": "https://s3-symbol-logo.tradingview.com/al-kuzama-trading-co--big.svg"
+ },
+ "9637": {
+  "name": "الحلول المتسارعة",
+  "sector": "التطبيقات وخدمات التقنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/axelerated-solutions-for-information-and-communication-techn--big.svg"
+ },
+ "9639": {
+  "name": "أنماط",
+  "sector": "السلع الرأسمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/anmat-technology-for-trading-co--big.svg"
+ },
+ "9640": {
+  "name": "أساس مكين",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/asas-makeen-real-estate-development-and-investment-co--big.svg"
+ },
+ "9641": {
+  "name": "هوية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/hawyia-auctions-co--big.svg"
+ },
+ "9642": {
+  "name": "تايم",
+  "sector": "الإعلام والترفيه",
+  "logo": "https://s3-symbol-logo.tradingview.com/time-entertainment-co--big.svg"
+ },
+ "9644": {
+  "name": "ناف",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/naf-company-for-feed-for-industry--big.svg"
+ },
+ "9645": {
+  "name": "ساين وورلد",
+  "sector": "الخدمات التجارية والمهنية",
+  "logo": "https://s3-symbol-logo.tradingview.com/national-signage-industria-co--big.svg"
+ },
+ "9647": {
+  "name": "وجد الحياة",
+  "sector": "الرعاية الصحية",
+  "logo": "https://s3-symbol-logo.tradingview.com/wajd-life-trading-co--big.svg"
+ },
+ "9648": {
+  "name": "حمد بن سعيدان العقارية",
+  "sector": "إدارة وتطوير العقارات",
+  "logo": "https://s3-symbol-logo.tradingview.com/hamad-mohammed-bin-saedan-real-estate-co--big.svg"
+ },
+ "9649": {
+  "name": "جمجوم فاشن للتجارة",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/jamjoom-fashion-trading-co--big.svg"
+ },
+ "9650": {
+  "name": "ساحة المجد",
+  "sector": "إنتاج الأغذية",
+  "logo": "https://s3-symbol-logo.tradingview.com/sahat-almajd-trading-co--big.svg"
+ },
+ "9651": {
+  "name": "عبدالعزيز التويجري للتجارة",
+  "sector": "تجزئة وتوزيع السلع الكمالية",
+  "logo": "https://s3-symbol-logo.tradingview.com/abdulaziz-altwijri-trading-co--big.svg"
+ },
+ "9653": {
+  "name": "خالد ظافر وإخوانه",
+  "sector": "النقل",
+  "logo": "https://s3-symbol-logo.tradingview.com/khaled-dhafer-and-bros-for-logistic-services-co--big.svg"
+ },
+ "9655": {
+  "name": "مسقا للاستثمار",
+  "sector": "إدارة وتطوير العقارات"
+ },
+ "9400": {
+  "name": "صندوق يقين 30",
+  "sector": "صناديق المؤشرات المتداولة",
+  "logo": null,
+  "name_en": "YAQEEN 30 ETF"
+ },
+ "9401": {
+  "name": "صندوق يقين للبتروكيماويات",
+  "sector": "صناديق المؤشرات المتداولة",
+  "logo": null,
+  "name_en": "YAQEEN PETROCHEMICAL ETF"
+ },
+ "9402": {
+  "name": "صندوق الأول للاستثمار الكمي المتداول",
+  "sector": "صناديق المؤشرات المتداولة",
+  "logo": null,
+  "name_en": "SABI QUANT ETF"
+ },
+ "9403": {
+  "name": "صندوق البلاد للصكوك السيادية",
+  "sector": "صناديق المؤشرات المتداولة",
+  "logo": null,
+  "name_en": "ALBILAD SOVEREIGN SUKUK ETF"
+ },
+ "9404": {
+  "name": "صندوق الإنماء للصكوك الحكومية",
+  "sector": "صناديق المؤشرات المتداولة",
+  "logo": null,
+  "name_en": "ALINMA GOVERNMENT SUKUK ETF"
+ },
+ "9405": {
+  "name": "صندوق البلاد للذهب",
+  "sector": "صناديق المؤشرات المتداولة",
+  "logo": null,
+  "name_en": "ALBILAD GOLD ETF"
+ },
+ "9406": {
+  "name": "صندوق البلاد الأمريكي",
+  "sector": "صناديق المؤشرات المتداولة",
+  "logo": null,
+  "name_en": "ALBILAD US ETF"
+ },
+ "9407": {
+  "name": "صندوق البلاد التقني الأمريكي",
+  "sector": "صناديق المؤشرات المتداولة",
+  "logo": null,
+  "name_en": "ALBILAD US TECH ETF"
+ },
+ "9408": {
+  "name": "صندوق البلاد للنمو السعودي",
+  "sector": "صناديق المؤشرات المتداولة",
+  "logo": null,
+  "name_en": "ALBILAD SAUDI GROWTH ETF"
+ },
+ "9409": {
+  "name": "صندوق يقين إي إس جي",
+  "sector": "صناديق المؤشرات المتداولة",
+  "logo": null,
+  "name_en": "YAQEEN ESG ETF"
+ }
+}

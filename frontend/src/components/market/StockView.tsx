@@ -1,0 +1,261 @@
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { X, Shield, Sparkles, ShieldCheck } from "lucide-react";
+import { marketApi } from "../../services/api";
+import { lookupCompany } from "../../data/saudiCompanies";
+import { isTasiOpen } from "../../utils/marketHours";
+import FlashPrice from "../common/FlashPrice";
+import CompanyLogo from "../common/CompanyLogo";
+import { ShariaBadge } from "../common/UI";
+import AnalysisPanel from "../analysis/AnalysisPanel";
+import FinancialsTable from "../analysis/FinancialsTable";
+import DividendProfile from "../analysis/DividendProfile";
+import StockOpinion from "../analysis/StockOpinion";
+import StockCalendar from "../analysis/StockCalendar";
+import PriceChart from "../analysis/PriceChart";
+import OwnershipBar from "../analysis/OwnershipBar";
+import clsx from "clsx";
+
+/**
+ * عرض الشركة الموحّد — بطاقة واحدة تخدم كل التطبيق (السوق · الحوكمة · رأي
+ * الذكاء · المراقبة · بحث المحفظة) بلغةٍ تصميمية واحدة، فلا يختلف شكل الشركة
+ * من قسمٍ لآخر. (صفحة الحيازات في «المحفظة» تحتفظ بتخطيطها الخاص.)
+ *
+ * قواعد التخطيط المعتمدة:
+ *  • «إلغاء» زرٌّ بلا إطار في أقصى الزاوية العليا المقابلة للاسم — لا يزاحم
+ *    الهوية ولا يأخذ صفّاً لنفسه.
+ *  • صفّ الهوية الثاني: الرمز · القطاع · درجة الحوكمة — نصٌّ متجاور بلا
+ *    خلفيات ولا أُطر ولا كبسولات. الشارات المتراكمة تُشتّت، والنصّ النظيف
+ *    يُقرأ أسرع.
+ *  • نسبة التغيّر: سهم + رقم، بلا كبسولة دائرية حوله.
+ *  • التبويبات: شبكة عمودين على كل المقاسات (٢·٢·٢) — صفوف متساوية مستقرّة
+ *    بدل التفافٍ عشوائي يتغيّر مع طول الكلمة.
+ */
+
+const govScoreColor = (g: any) => {
+  if (!g?.evaluable || g?.score == null) return "var(--ink-muted)";
+  const v = Number(g.score);
+  return v >= 70 ? "var(--pos-ink)" : v >= 50 ? "var(--warn-ink)" : "var(--neg-ink)";
+};
+
+const fmt = (n: number, d = 2) => (n ?? 0).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const compact = (n: number) => {
+  if (n == null) return "—";
+  const a = Math.abs(n);
+  if (a >= 1e9) return (n / 1e9).toLocaleString("en-US", { maximumFractionDigits: 2 }) + " مليار";
+  if (a >= 1e6) return (n / 1e6).toLocaleString("en-US", { maximumFractionDigits: 2 }) + " مليون";
+  return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+};
+
+const SECTOR_AR: Record<string, string> = {
+  "Energy": "الطاقة", "Basic Materials": "المواد الأساسية", "Materials": "المواد الأساسية",
+  "Industrials": "الصناعات", "Consumer Cyclical": "السلع الكمالية", "Consumer Defensive": "السلع الأساسية",
+  "Financial Services": "الخدمات المالية", "Financials": "الخدمات المالية", "Healthcare": "الرعاية الصحية",
+  "Technology": "التقنية", "Communication Services": "الاتصالات", "Utilities": "المرافق العامة", "Real Estate": "العقارات",
+};
+export function sectorAr(symbol: string, sector?: string | null) {
+  const local = lookupCompany(symbol)?.sector;
+  if (local) return local;
+  if (!sector) return null;
+  return SECTOR_AR[sector] || sector;
+}
+
+function DayRangeRow({ low, high }: { low: number; high: number }) {
+  const open = isTasiOpen();
+  return (
+    <div className="flex items-center gap-2 flex-wrap text-[11px] text-[var(--ink-muted)]">
+      {open ? (
+        <span className="flex items-center gap-1 font-semibold text-[var(--pos-ink)]">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--pos-ink)] animate-pulse" /> مباشر
+        </span>
+      ) : <span className="font-semibold">السوق مغلق</span>}
+      <span>نطاق اليوم:</span>
+      <span className="tabular-nums" dir="ltr">{fmt(low)} — {fmt(high)}</span>
+    </div>
+  );
+}
+
+const TABS = [
+  { id: "overview", label: "نظرة عامة" },
+  { id: "analysis", label: "تقييم الأداء" },
+  { id: "financials", label: "القوائم المالية" },
+  { id: "dividends", label: "التوزيعات" },
+  { id: "calendar", label: "المفكرة" },
+  { id: "opinion", label: "رأي الذكاء", color: true },
+] as const;
+
+export default function StockView({ symbol, onClose }: { symbol: string; onClose?: () => void }) {
+  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("overview");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["analysis", symbol],
+    queryFn: () => marketApi.company(symbol).then(r => r.data.data),
+    enabled: !!symbol,
+    retry: 0,
+  });
+
+  const f = data?.fundamentals || {};
+  const kpis: [string, string][] = ([
+    ["القيمة السوقية", f.market_cap ? compact(f.market_cap) : null],
+    ["الإيرادات", f.revenue ? compact(f.revenue) : null],
+    ["صافي الربح", f.net_income ? compact(f.net_income) : null],
+    ["ربحية السهم EPS", f.eps != null ? fmt(f.eps) : null],
+    ["مكرر الربحية P/E", f.pe_ratio ? fmt(f.pe_ratio) : null],
+    ["عائد التوزيعات", f.dividend_yield != null ? fmt(f.dividend_yield) + "%" : null],
+  ] as [string, string | null][]).filter(([, v]) => v != null) as [string, string][];
+
+  const gov = data?.governance;
+  const sector = sectorAr(symbol, data?.sector);
+  const up = (data?.change_pct ?? 0) >= 0;
+
+  return (
+    <div className="space-y-4">
+      {/* ── الهوية ── */}
+      <div className="relative">
+        {onClose && (
+          <button onClick={onClose} title="إلغاء"
+            className="stock-close absolute top-0 end-0 p-1 rounded-lg z-10">
+            <X size={16} />
+          </button>
+        )}
+        <div className="flex items-center gap-3 pe-8">
+          <CompanyLogo symbol={symbol} size={40} logoUrl={data?.logo_url} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <ShariaBadge status={data?.sharia_status} size={15} />
+              <h2 className="text-lg font-bold text-[var(--ink)] truncate">{lookupCompany(symbol)?.name_ar || data?.name || symbol}</h2>
+            </div>
+            {/* صفٌّ واحد نظيف: الرمز · القطاع · الحوكمة — بلا خلفيات ولا أُطر. */}
+            <div className="flex items-center gap-x-3 gap-y-1 mt-1 flex-wrap text-xs text-[var(--ink-muted)]">
+              <span className="tabular-nums font-semibold text-[var(--ink-muted)]" dir="ltr">{symbol}</span>
+              {sector && <span>{sector}</span>}
+              {gov && (
+                <span className="flex items-center gap-1" title={gov.narrative || "درجة الجودة المالية"}>
+                  <ShieldCheck size={13} style={{ color: govScoreColor(gov) }} className="shrink-0" />
+                  {gov.evaluable && gov.score != null ? (
+                    <span className="font-bold tabular-nums" style={{ color: govScoreColor(gov) }}>
+                      {Math.round(gov.score)}
+                    </span>
+                  ) : (
+                    <span className="font-semibold text-[var(--ink-muted)]">بيانات غير كافية</span>
+                  )}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── التبويبات: عمودان دائماً ── */}
+      <div className="grid grid-cols-2 gap-1.5">
+        {TABS.map(tb => {
+          if ((tb as any).color) {
+            return (
+              <button key={tb.id} onClick={() => setTab(tb.id)}
+                className="p-[1.5px] rounded-xl transition-all"
+                style={{ background: "linear-gradient(90deg, var(--brand-a), var(--brand-b))", opacity: tab === tb.id ? 1 : 0.85 }}>
+                <span className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[12.5px] text-xs font-bold bg-[var(--field)] ai-opinion-text">
+                  <Sparkles size={12} className="ai-star" /> {tb.label}
+                </span>
+              </button>
+            );
+          }
+          return (
+            <button key={tb.id} onClick={() => setTab(tb.id)}
+              className={clsx("px-3 py-1.5 rounded-xl text-xs font-bold transition-all border text-center",
+                tab === tb.id ? " text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)] hover:text-[var(--ink)]")}>
+              {tb.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {tab === "overview" && (
+        isLoading ? <div className="h-40 skeleton" /> : (!data || data.unavailable_reason) ? (
+          /* السببُ يُقال ولا يُنسب إلى الورقة: «لا توجد بيانات لهذا الرمز»
+             تدفع المالك إلى حذف ورقةٍ سليمة، وحصّةُ المصدر إن نفدت فذاك
+             حدُّ أداتنا لا نقصٌ في السهم. */
+          <div className="py-10 text-center text-[var(--ink-muted)] text-sm px-6">
+            {data?.unavailable_reason || "لم تصلنا بياناتُ هذا الرمز من مصدرنا الآن."}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="space-y-3 min-w-0">
+              {data.price != null && (
+                <div className="flex items-baseline gap-3">
+                  <FlashPrice value={data.price} className="text-2xl font-bold text-[var(--ink)] tabular-nums">{fmt(data.price)} ﷼</FlashPrice>
+                  {data.change_pct != null && (
+                    /* سهم + رقم، بلا كبسولة — الاتجاه يُقرأ من الشكل واللون معاً. */
+                    <span className={"text-sm font-bold tabular-nums " + (up ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]")}>
+                      <span className="chg-arrow">{up ? "▲" : "▼"}</span> {(up ? "+" : "") + data.change_pct.toFixed(2)}%
+                    </span>
+                  )}
+                </div>
+              )}
+              {data.day_low != null && data.day_high != null && data.day_high > data.day_low && (
+                <DayRangeRow low={data.day_low} high={data.day_high} />
+              )}
+              {/* ══ سطران لا سطر: قيمةٌ عادلة ومتوسطُ سعر ══ (بأمر المالك)
+                  كان سطرٌ واحد اسمه «السعر العادل» ورقمُه متوسطٌ متحرّك،
+                  فيخالف صفحة الذكاء التي تعرض إجماع أهداف المحللين تحت
+                  الاسم نفسه. الآن القيمة العادلة من المصدر الموحَّد،
+                  والمتوسط المتحرّك يظهر باسمه — رقمان مختلفان لأنهما
+                  مفهومان مختلفان، وكلٌّ يقول ما هو. */}
+              {/* ══ رقمان يظهران هنا كما يظهران في تقييم الأداء ══
+                  (بأمر المالك: «هل أصبح الجميع متطابقين؟»)
+                  كانت صفحةُ الشركة عند البحث تعرض القيمة العادلة وحدها،
+                  وتسمّيها **«إجماع المحللين»** — وقد أُخرج المحللون من
+                  حساب القيمة (‏D047)، فالاسمُ يصف مصدراً لم يعد قائماً.
+                  ودرجةُ الحوكمة كانت غائبةً عن هذه الشاشة رغم أنها في
+                  الاستجابة نفسها. فصار الرقمان هنا بالاسمين نفسيهما
+                  وبالمصدر نفسه — لا رقمَ في شاشةٍ وغيابٌ في أخرى. */}
+              {(data.governance?.score != null || data.financial?.score != null) && (
+                <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                  <span className="text-[var(--ink-muted)]">درجة الجودة المالية</span>
+                  <span className="font-bold tabular-nums text-[var(--ink)]">
+                    {Math.round(data.governance?.score ?? data.financial?.score)}/100
+                  </span>
+                  {data.decision?.label && (
+                    <span className="font-bold" style={{ color: data.decision.color }}>
+                      · {data.decision.label}
+                    </span>
+                  )}
+                </div>
+              )}
+              {data.fair_value != null && (
+                <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                  <span className="text-[var(--ink-muted)]">القيمة العادلة</span>
+                  <span className={"font-bold tabular-nums " + ((data.fair_value_upside_pct ?? 0) > 0 ? "text-[var(--pos-ink)]" : (data.fair_value_upside_pct ?? 0) < 0 ? "text-[var(--neg-ink)]" : "text-[var(--ink-muted)]")}>
+                    {fmt(data.fair_value)} ﷼{data.fair_value_upside_pct != null && ` (${data.fair_value_upside_pct > 0 ? "+" : ""}${data.fair_value_upside_pct}%)`}
+                  </span>
+                </div>
+              )}
+              {/* متوسط السعر المتحرّك أُسقط من هنا بأمر المالك: لا يعنيه،
+                  ووجودُه بجانب القيمة العادلة يُغري بالخلط بينهما. وهو
+                  باقٍ في «التحليل الفني» حيث يخصّ. */}
+            </div>
+            {kpis.length > 0 ? (
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                {kpis.map(([lbl, v]) => (
+                  <div key={lbl} className="kpi"><div className="kpi-lbl">{lbl}</div><div className="kpi-val">{v}</div></div>
+                ))}
+              </div>
+            ) : <p className="text-[11px] text-[var(--ink-muted)] flex items-center gap-1"><Shield size={11} /> لا توجد بيانات مالية تفصيلية حالياً</p>}
+            <PriceChart symbol={symbol} />
+            <OwnershipBar symbol={symbol} />
+          </div>
+        )
+      )}
+
+      {tab === "analysis" && <AnalysisPanel symbol={symbol} name={data?.name} />}
+      {tab === "financials" && <FinancialsTable symbol={symbol} />}
+      {tab === "dividends" && <DividendProfile symbol={symbol} />}
+      {tab === "calendar" && <StockCalendar symbol={symbol} name={data?.name} />}
+      {tab === "opinion" && (
+        <div className="card">
+          <StockOpinion symbol={symbol} name={data?.name} />
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,47 @@
+# ══════════════════════════════════════════════════════════════════════
+# إعداد HTTPS — انسخه فوق docker/nginx.conf بعد إصدار الشهادة.
+#
+# لماذا هو حرج لا تحسيني:
+#   ١) كلمة المرور وتوكن الجلسة يسافران **نصّاً مكشوفاً** على HTTP. أي جهازٍ
+#      على الطريق (شبكة مقهى، مزوّد، وسيط) يقرأهما ويدخل محفظتك.
+#   ٢) **Service Worker لا يُسجَّل إلا على HTTPS** (أو localhost). فعلى HTTP
+#      لا يعمل الـPWA أصلاً: لا تثبيت، ولا عمل بلا شبكة، ولا كاش أصول.
+#      أي أنّ نصف عمل الواجهة معطَّل ما دام الموقع على HTTP.
+#
+# يتطلّب اسم نطاق (لا يصحّ إصدار شهادة موثوقة لعنوان IP).
+# ══════════════════════════════════════════════════════════════════════
+
+# HTTP → تحويل كامل إلى HTTPS، عدا مسار تحدّي Let's Encrypt.
+server {
+    listen 80;
+    server_name YOUR_DOMAIN;
+
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name YOUR_DOMAIN;
+
+    ssl_certificate     /etc/nginx/ssl/live/YOUR_DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/live/YOUR_DOMAIN/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    # HSTS: يمنع الرجوع إلى HTTP بعد أول زيارة ناجحة. لا تفعّله قبل التأكّد
+    # من عمل الشهادة — يعلق المتصفّح على HTTPS لمدّة الـmax-age.
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "same-origin" always;
+
+    client_max_body_size 80M;
+    gzip on;
+    gzip_types text/plain application/json text/css application/javascript;
+
+    # ⬇⬇ انسخ هنا كتل location من docker/nginx.conf كما هي بلا تغيير ⬇⬇
+}
