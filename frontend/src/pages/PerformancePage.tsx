@@ -36,7 +36,7 @@ function Card({ icon: Icon, title, children }: any) {
 
 function Big({ value, color, suffix = "" }: { value: string; color?: string; suffix?: string }) {
   return (
-    <div className="text-3xl font-extrabold tabular-nums" dir="ltr" style={{ color: color || "#e2e8f0" }}>
+    <div className="text-3xl font-extrabold tabular-nums" dir="ltr" style={{ color: color || "var(--fg-strong)" }}>
       {value}<span className="text-lg">{suffix}</span>
     </div>
   );
@@ -82,7 +82,7 @@ export default function PerformancePage({ embedded = false }: { embedded?: boole
             <Target size={15} className="text-emerald-400" />
             <h2 className="card-title">نموّ رأس المال</h2>
             <span className="mr-auto text-lg font-extrabold tabular-nums" dir="ltr"
-              style={{ color: growth >= 0 ? "#10b981" : "#f43f5e" }}>
+              style={{ color: growth >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
               {(growth >= 0 ? "+" : "") + fmt(growth, 2)}%
             </span>
           </div>
@@ -91,7 +91,7 @@ export default function PerformancePage({ embedded = false }: { embedded?: boole
           <div className="h-2.5 rounded-full overflow-hidden" style={{ background: "rgba(148,163,184,.15)" }}>
             <div className="h-full rounded-full transition-all"
               style={{ width: `${Math.min(100, Math.max(0, growth))}%`,
-                       background: "linear-gradient(90deg,#059669,#10b981)" }} />
+                       background: "linear-gradient(90deg,var(--pos-fill),var(--pos-ink))" }} />
           </div>
           <Denom>صافي الربح {fmt(netProfit)} ÷ إجمالي المدفوع {fmt(costBasis)}</Denom>
         </div>
@@ -99,14 +99,14 @@ export default function PerformancePage({ embedded = false }: { embedded?: boole
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Card icon={Coins} title="التوزيعات">
-          <Big value={fmt(dividends)} color="#34d399" />
+          <Big value={fmt(dividends)} color="var(--pos-ink)" />
           <Denom>نقدٌ دخل حسابك من الشركات</Denom>
         </Card>
 
         {/* ربح التصفية وحده لا حصيلتها: الحصيلة تحوي رأس مالك العائد، وعرضها
             هنا يُعيد الخطأ الذي حُذف من أجله DPI. */}
         <Card icon={Scissors} title="التصفية">
-          <Big value={fmt(saleGains)} color={saleGains >= 0 ? "#34d399" : "#f43f5e"} />
+          <Big value={fmt(saleGains)} color={saleGains >= 0 ? "var(--pos-ink)" : "var(--neg-ink)"} />
           <Denom>ربح عمليات البيع — دون رأس المال العائد</Denom>
         </Card>
 
@@ -120,7 +120,7 @@ export default function PerformancePage({ embedded = false }: { embedded?: boole
         {con?.top3_pct != null && (
           <Card icon={PieChart} title="التركّز">
             <Big value={fmt(con.top3_pct, 1)} suffix="%"
-              color={con.top3_pct > 60 ? "#f59e0b" : "#e2e8f0"} />
+              color={con.top3_pct > 60 ? "var(--warn-ink)" : "var(--fg-strong)"} />
             <Denom>
               نصيب أكبر ثلاثة مراكز
               {con.top1_name && <> · الأكبر {con.top1_name} {fmt(con.top1_pct, 1)}%</>}
