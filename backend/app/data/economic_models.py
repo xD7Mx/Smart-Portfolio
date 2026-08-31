@@ -288,6 +288,92 @@ CORE_AXES: dict[str, tuple[str, ...]] = {
 }
 
 
+
+# ══ لكلّ مؤشّرٍ مفهومٌ يقيسه — والتكرارُ ممنوع ══ (المادتان ٥ و٦)
+#
+# المعلومةُ الواحدة تحت اسمين تُحتسب مرّتين فيتضخّم وزنُها بلا إعلان:
+# العائدُ على حقوق الملكية والعائدُ على رأس المال المستثمر يقيسان
+# الرِّبحيّةَ على رأس المال، فوجودُهما معاً في مكوّنٍ واحدٍ يجعل الرِّبحيّة
+# نصفَ الجودة وهي مكتوبةٌ ربعاً.
+#
+# فلكلّ مؤشّرٍ **مفهومٌ** معلَن، ولا يتكرّر مفهومٌ في مكوّنٍ واحد إلّا
+# بإعلانٍ صريح في `ALLOWED_REPEAT`. ويفحصه اختبارُ القبول.
+CONCEPT_OF: dict[str, str] = {
+    # الرِّبحيّة على رأس المال
+    "roe": "PROFITABILITY_ON_CAPITAL",
+    "roic": "PROFITABILITY_ON_CAPITAL",
+    "roic_cycle": "PROFITABILITY_ON_CAPITAL",
+    "roe_trend": "PROFITABILITY_TREND",
+    "roic_trend": "PROFITABILITY_TREND",
+    # هامشُ التشغيل
+    "operating_margin": "MARGIN",
+    # استقرارُ الأرباح
+    "earnings_stability": "EARNINGS_STABILITY",
+    "eps_stability": "EARNINGS_STABILITY",
+    "roe_stability": "EARNINGS_STABILITY",
+    "normalized_eps": "MID_CYCLE_EARNINGS",
+    # المتانةُ المالية
+    "leverage_x": "SOLVENCY",
+    "ltv_pct": "SOLVENCY",
+    "net_debt_ebitda": "SOLVENCY",
+    "worst_leverage": "SOLVENCY",
+    "interest_coverage": "DEBT_SERVICE",
+    # جودةُ النقد
+    "cash_conversion_ratio": "CASHFLOW_QUALITY",
+    "fcf_margin": "CASHFLOW_QUALITY",
+    # كفاءةُ رأس المال
+    "asset_turnover": "CAPITAL_EFFICIENCY",
+    "inventory_intensity": "CAPITAL_EFFICIENCY",
+    # النموّ
+    "revenue_cagr_5y": "GROWTH_REVENUE",
+    "revenue_cagr_3y": "GROWTH_REVENUE",
+    "eps_cagr_5y": "GROWTH_EARNINGS",
+    "eps_cagr_3y": "GROWTH_EARNINGS",
+    "book_value_cagr_5y": "GROWTH_BOOK",
+    "book_value_cagr_3y": "GROWTH_BOOK",
+    "ffo": "GROWTH_FFO",
+    # التوزيعات
+    "payout_ratio": "DIVIDEND_SUSTAINABILITY",
+    "ffo_payout": "DIVIDEND_SUSTAINABILITY",
+    "dividend_growth": "DIVIDEND_GROWTH",
+    "dividend_years": "DIVIDEND_HISTORY",
+    "dividend_yield": "DIVIDEND_YIELD",
+    # التقييم
+    "fv_discount": "VALUE_GAP",
+    "p_e": "VALUATION_EARNINGS",
+    "p_e_normalized": "VALUATION_EARNINGS",
+    "ev_ebitda": "VALUATION_ENTERPRISE",
+    "p_b": "VALUATION_BOOK",
+    "p_ffo": "VALUATION_FFO",
+}
+
+# استثناءٌ واحدٌ معلَن: النموذجُ التشغيليّ يحمل العائدَ على رأس المال
+# المستثمر **وبديلَه** العائدَ على حقوق الملكية معاً، لأن المواصفة تنصّ
+# على أن يُستعمل الثاني حين يتعذّر الأوّل. ووزنُهما مجتمعَين ‎40٪ من
+# الجودة، وهو وزنُ مفهومٍ واحدٍ لا مفهومين.
+ALLOWED_REPEAT: dict[tuple[str, str], str] = {
+    ("OPERATING", "quality"): "PROFITABILITY_ON_CAPITAL",
+}
+
+# ── الأبعادُ التي تقيسها المكوّنات (المادة ٦) ─────────────────────────
+DIMENSIONS = {
+    "quality": ("PROFITABILITY_ON_CAPITAL", "MARGIN", "EARNINGS_STABILITY",
+                "SOLVENCY", "DEBT_SERVICE", "CASHFLOW_QUALITY",
+                "CAPITAL_EFFICIENCY", "MID_CYCLE_EARNINGS",
+                "PROFITABILITY_TREND", "GROWTH_BOOK"),
+    "dividend": ("DIVIDEND_SUSTAINABILITY", "DIVIDEND_GROWTH",
+                 "DIVIDEND_HISTORY", "DIVIDEND_YIELD"),
+    "growth": ("GROWTH_REVENUE", "GROWTH_EARNINGS", "GROWTH_BOOK",
+               "GROWTH_FFO", "PROFITABILITY_TREND"),
+    "valuation": ("VALUE_GAP", "VALUATION_EARNINGS", "VALUATION_ENTERPRISE",
+                  "VALUATION_BOOK", "VALUATION_FFO", "DIVIDEND_YIELD"),
+}
+
+
+def concept_of(key: str) -> str | None:
+    return CONCEPT_OF.get(key)
+
+
 def grade_of(score: float) -> tuple[str, str]:
     for cut, letter, label in GRADES:
         if score >= cut:

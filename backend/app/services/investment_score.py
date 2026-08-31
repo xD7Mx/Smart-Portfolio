@@ -243,8 +243,38 @@ def price_features(info: dict | None, features: dict,
     return out
 
 
+def explain(result: dict, top: int = 3) -> dict:
+    """لماذا هذه الدرجة — ما رفعها وما خفضها، ومن أين جاء كلُّ رقم.
+
+    الأثرُ يُقاس بانحراف المؤشّر عن الوسط (‎50) مضروباً في وزنه داخل
+    مكوّنه ووزنِ المكوّن. فالمؤشّرُ عند ‎50 لا يرفع ولا يخفض مهما ثقُل
+    وزنُه، والذي يرفع فعلاً هو البعيدُ عن الوسط بوزنٍ معتبَر.
+    """
+    W = result.get("weights") or {}
+    contrib: list[dict] = []
+    for name, comp in (result.get("components") or {}).items():
+        if comp.get("score") is None:
+            continue
+        cov = comp.get("coverage") or 1.0
+        for r in comp.get("reads") or []:
+            eff = (r["score"] - 50.0) * r["weight"] * W.get(name, 0.0) / max(cov, 1e-9)
+            contrib.append({"component": name, "key": r["key"],
+                            "label": r["label"], "value": r["value"],
+                            "score": r["score"], "note": r["note"],
+                            "impact": round(eff, 2)})
+    contrib.sort(key=lambda x: -x["impact"])
+    return {
+        "raised_by": [c for c in contrib if c["impact"] > 0][:top],
+        "lowered_by": [c for c in reversed(contrib) if c["impact"] < 0][:top],
+        "measured": len(contrib),
+        "not_measured": sum(len(c.get("missing") or [])
+                            for c in (result.get("components") or {}).values()),
+    }
+
+
 def compute(features: dict, sector: str | None, dist: dict | None,
-            archetype: str | None = None, medians: dict | None = None) -> dict:
+            archetype: str | None = None, medians: dict | None = None,
+            rows: list[dict] | None = None) -> dict:
     """الدرجةُ الاستثمارية بمكوّناتها الأربعة — أو امتناعٌ مُعلَّلٌ.
 
     `archetype` نمطُ عشيرةِ الترتيب في `peer_distribution`. وهو مستقلٌّ
@@ -293,6 +323,13 @@ def compute(features: dict, sector: str | None, dist: dict | None,
             for k in COMPONENT_NAMES), 3)
 
     _span = _val(features, "growth_period_years")
+    # ══ الطبقةُ المطلقة سقفٌ على النسبيّة ══ (المادة ٨)
+    # الترتيبُ في القطاع لا يُخفي ضعفاً مالياً مطلقاً: من سقط في واقعةٍ
+    # لا تحتاج قريناً لا يتجاوز سقفَها مهما علا ترتيبُه. ولا تُرفع
+    # درجةٌ بهذه الطبقة أبداً — السلامةُ لا تُكافأ.
+    from app.services import absolute_quality as _aq
+    out["absolute"] = _aq.evaluate(rows, features, model)
+
     out["growth_period_years"] = _span
     out["growth_horizon"] = (
         "NOT_AVAILABLE" if _span is None else
@@ -322,7 +359,11 @@ def compute(features: dict, sector: str | None, dist: dict | None,
     cov = out["data_completeness"]
     out["raw_score"] = raw
     out["data_coverage"] = cov
-    out["score"] = round(50.0 + cov * (raw - 50.0), 1)
+    relative = round(50.0 + cov * (raw - 50.0), 1)
+    out["relative_score"] = relative
+    capped, note = _aq.apply_ceiling(relative, out["absolute"])
+    out["score"] = capped
+    out["ceiling_note"] = note
     out["weight_basis"] = round(wsum, 2)
     out["grade"], out["grade_label"] = grade_of(out["score"])
     return out

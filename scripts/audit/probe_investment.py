@@ -147,7 +147,8 @@ async def main(argv: list[str]) -> int:
                                  r["inf"].get("current_price"))
         if vr.get("upside_pct") is not None:
             fe["fv_discount"] = vr["upside_pct"]
-        res = inv.compute(fe, sector, dist, arch, medians=med)
+        res = inv.compute(fe, sector, dist, arch, medians=med,
+                          rows=r['crows'])
         ln = red_lines.check(fe, ps, arch)
         gate = risk_gate.evaluate(fe, ps, ln)
         cf, cwhy = inv.confidence_of(res, inv._val(fe, "years_available"))
@@ -160,6 +161,11 @@ async def main(argv: list[str]) -> int:
             "sector": sector or "—", "model": model or "—",
             "score": res["score"], "grade": res["grade"],
             "raw": res.get("raw_score"),
+            "rel": res.get("relative_score"),
+            "cap": res.get("ceiling_note"),
+            "breaches": [b["why"] for b in
+                         (res.get("absolute") or {}).get("breaches", [])],
+            "explain": inv.explain(res),
             "q": (c["quality"] or {}).get("score"),
             "d": (c["dividend"] or {}).get("score"),
             "g": (c["growth"] or {}).get("score"),
@@ -323,6 +329,76 @@ async def main(argv: list[str]) -> int:
                  for m in x["missing"] if isinstance(m, dict))
     for k, v in mw.most_common(15):
         print(f"    {v:>4}  {k}")
+
+    # ══ تقريرُ التحقّق الإحصائيّ ══ (المادتان ١١ و١٧)
+    print("\n" + "═" * 78)
+    print("  تقريرُ التحقّق — أصالحةٌ المعايرة إحصائياً؟")
+    print("═" * 78)
+    sc = sorted(x["score"] for x in rows_out if x["score"] is not None)
+    if sc:
+        import statistics as st
+        q1, q2, q3 = (sc[len(sc)//4], sc[len(sc)//2], sc[len(sc)*3//4])
+        print(f"    عدد الدرجات {len(sc)} · المدى {sc[0]:.1f}–{sc[-1]:.1f}")
+        print(f"    الوسيط {q2:.1f} · الرُّبيعان {q1:.1f} و{q3:.1f} · "
+              f"المدى الرُّبيعيّ {q3-q1:.1f}")
+        print(f"    الانحراف {st.pstdev(sc):.1f}")
+        print("\n    التوزيع في العشرات:")
+        for lo in range(0, 100, 10):
+            c = sum(1 for v in sc if lo <= v < lo + 10)
+            print(f"      {lo:>3}–{lo+9:<3} {c:>4}  {'█' * round(c/len(sc)*46)}")
+        # ── إنذاراتُ التحقّق ──
+        warn = []
+        if q3 - q1 < 15:
+            warn.append(f"تركّزٌ شديد — المدى الرُّبيعيّ {q3-q1:.1f} دون ‎15")
+        hi = sum(1 for v in sc if v >= 75) / len(sc)
+        if hi > 0.35:
+            warn.append(f"‏{hi:.0%} من السوق فوق ‎75 — تضخّمٌ عامّ")
+        lo_share = sum(1 for v in sc if v < 40) / len(sc)
+        if lo_share > 0.40:
+            warn.append(f"‏{lo_share:.0%} دون ‎40 — قسوةٌ عامّة")
+        print("\n    إنذاراتُ التوزيع: "
+              + ("لا شيء ✔" if not warn else ""))
+        for w in warn:
+            print(f"      ✖ {w}")
+
+        # ── أيُعاقَب قطاعٌ بخصائصه؟ ──
+        print("\n    وسيطُ الدرجة لكلّ نموذج (تحيّزٌ منهجيّ إن تباعدت):")
+        bymod: dict = defaultdict(list)
+        for x in rows_out:
+            if x["score"] is not None:
+                bymod[x["model"]].append(x["score"])
+        meds = {}
+        for m in sorted(bymod):
+            v = sorted(bymod[m])
+            meds[m] = v[len(v)//2]
+            print(f"      {m:14} n={len(v):>3}  وسيط {meds[m]:>5.1f}")
+        if len(meds) > 1:
+            spread = max(meds.values()) - min(meds.values())
+            print(f"      الفارقُ بين أعلى نموذجٍ وأدناه {spread:.1f}"
+                  f"  {'✔' if spread <= 15 else '✖ تحيّزٌ محتمل'}")
+
+    capped = [x for x in rows_out if x["cap"]]
+    print(f"\n    قُصَّت بالطبقة المطلقة: {len(capped)} شركة")
+    for x in capped[:8]:
+        print(f"      {x['sym']} {x['name'][:18]:18} {x['cap'][:60]}")
+
+    print("\n" + "═" * 78)
+    print("  لماذا هذه الدرجة — عيّنةُ تفسيرٍ من أعلى وأدنى")
+    print("═" * 78)
+    ranked = sorted((x for x in rows_out if x["score"] is not None),
+                    key=lambda z: -z["score"])
+    for x in (ranked[:3] + ranked[-3:]) if len(ranked) > 6 else ranked:
+        e = x["explain"]
+        print(f"\n  {x['sym']} {x['name'][:24]} — {x['score']}"
+              f" (نسبيّ {x['rel']} · خام {x['raw']} · تغطية {(x['dc'] or 0):.0%})")
+        for c in e["raised_by"]:
+            print(f"      ▲ {c['label']}: {c['value']} — {c['note']}"
+                  f"  (أثر {c['impact']:+.1f})")
+        for c in e["lowered_by"]:
+            print(f"      ▼ {c['label']}: {c['value']} — {c['note']}"
+                  f"  (أثر {c['impact']:+.1f})")
+        if x["breaches"]:
+            print(f"      ⛔ {'، '.join(x['breaches'])}")
 
     print("\n" + "═" * 78)
     print("  انتهى التقرير — لم تُعدَّل قاعدةٌ لتحسين رقم.")

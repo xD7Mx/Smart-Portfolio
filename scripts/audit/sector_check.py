@@ -121,6 +121,55 @@ def main() -> int:
         if not ok:
             fails.append(f"أوزانُ {m} تخالف المواصفة أو لا يبلغ مجموعُها واحداً")
 
+    # ══ ولا معلومةَ تُحتسب مرّتين ══ (المادتان ٥ و٦)
+    # مفهومٌ يتكرّر في مكوّنٍ واحد يضاعف وزنَه بلا إعلان: الرِّبحيّةُ
+    # تُكتب ربعاً وتُحتسب نصفاً. ويُفحص كذلك أن مفهومَ كلّ مؤشّرٍ يقع
+    # في بُعد مكوّنه، فلا يُقاس نموٌّ داخل الجودة تسلّلاً.
+    from app.data.economic_models import (CONCEPT_OF, ALLOWED_REPEAT,
+                                          DIMENSIONS)
+    print("\n" + "═" * 74)
+    print("  لا تكرارَ لمعلومة، ولا مؤشّرَ خارجَ بُعد مكوّنه")
+    print("═" * 74)
+    dup = 0
+    for m, comps in COMPONENTS.items():
+        for cn, metrics in comps.items():
+            seen: dict = {}
+            for k, *_r in metrics:
+                con = CONCEPT_OF.get(k)
+                if con is None:
+                    fails.append(f"«{k}» بلا مفهومٍ معلَن ({m}.{cn})")
+                    continue
+                if con not in DIMENSIONS.get(cn, ()):
+                    fails.append(f"«{k}» مفهومُه {con} خارج بُعد {cn} ({m})")
+                if con in seen and ALLOWED_REPEAT.get((m, cn)) != con:
+                    fails.append(f"{m}.{cn}: «{k}» يكرّر «{seen[con]}» ({con})")
+                    dup += 1
+                seen[con] = k
+    print(f"  مؤشّراتٌ موصوفة {len(CONCEPT_OF)} · تكرارٌ غيرُ معلَن {dup}"
+          f"  {'✔' if not dup else '✖'}")
+
+    # ══ والطبقةُ المطلقة تقصّ ولا ترفع ══ (المادة ٨)
+    from app.services import absolute_quality as aq
+    print("\n" + "═" * 74)
+    print("  الترتيبُ النسبيّ لا يُخفي ضعفاً مالياً مطلقاً")
+    print("═" * 74)
+    bad_rows = [{"total_equity": -100.0, "net_income": -5.0,
+                 "operating_income": 10.0, "interest_expense": 40.0,
+                 "operating_cash_flow": -20.0}]
+    ab = aq.evaluate(bad_rows, {"payout_ratio": 130.0}, "OPERATING")
+    capped, note = aq.apply_ceiling(95.0, ab)
+    print(f"  ضعيفةٌ مطلقاً برتبةٍ ‎95 → {capped}  ({len(ab['breaches'])} واقعة)")
+    if capped is None or capped >= 95.0:
+        fails.append("الطبقةُ المطلقة لم تقصّ درجةً عاليةً على ضعفٍ صريح")
+    good = aq.evaluate([{"total_equity": 100.0, "net_income": 10.0,
+                         "operating_income": 40.0, "interest_expense": 4.0,
+                         "operating_cash_flow": 30.0}],
+                       {"payout_ratio": 50.0}, "OPERATING")
+    kept, _n2 = aq.apply_ceiling(72.0, good)
+    print(f"  سليمةٌ برتبةٍ ‎72        → {kept}  (السلامةُ لا تُكافأ)")
+    if kept != 72.0:
+        fails.append("الطبقةُ المطلقة غيّرت درجةَ شركةٍ سليمة — وهي تقصّ فقط")
+
     # ══ ثالثاً: كلُّ قطاعٍ في السوق له نموذج ══
     live = {m.get("sector") for s, m in MARKET_UNIVERSE.items()
             if not s.startswith("9") and m.get("sector")}
