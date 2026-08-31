@@ -89,7 +89,7 @@ def evaluate(features: dict, periods: list[dict] | None,
 # ربحيتَه. فتُعرض مستقلّةً بجانب الدرجة، ولا تُجمع إليها نقطةً واحدة —
 # ولا تُستعمل لستر ضعفٍ ماليٍّ حقيقيّ.
 
-HIGH, MEDIUM, NORMAL, UNKNOWN = "HIGH", "MEDIUM", "NORMAL", "UNKNOWN"
+HIGH, MEDIUM, LOW, UNKNOWN = "HIGH", "MEDIUM", "LOW", "UNKNOWN"
 
 
 def institutional_resilience(insider_pct: float | None) -> tuple[str, str]:
@@ -106,4 +106,4 @@ def institutional_resilience(insider_pct: float | None) -> tuple[str, str]:
         return HIGH, f"مالكٌ مسيطر {insider_pct:.0f}٪ — إسنادٌ مرجَّحٌ عند الشدّة، وسيولةٌ أقلّ"
     if insider_pct >= 30:
         return MEDIUM, f"ملكيةٌ مؤثّرة {insider_pct:.0f}٪ — مصلحةٌ مشتركة مع المساهم"
-    return NORMAL, f"ملكيةٌ موزَّعة ({insider_pct:.0f}٪ للداخل)"
+    return LOW, f"ملكيةٌ موزَّعة ({insider_pct:.0f}٪ للداخل) — لا مالكَ مرجَّحَ الإسناد"

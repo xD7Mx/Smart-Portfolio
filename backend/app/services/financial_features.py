@@ -157,6 +157,20 @@ def compute_features(periods: list[dict]) -> dict[str, dict]:
     feats["roe"] = Feature(roe_series[-1], "العائد على حقوق الملكية (آخر سنة)")
     feats["roe_avg"] = Feature(_avg(roe_series), "متوسط العائد على حقوق الملكية عبر السنوات المتاحة")
 
+    # ── اتّجاهُ الربحية — تطلبه المواصفة ركناً في نموذج المالية ──
+    # فرقُ آخر عائدٍ عن متوسّط ما قبله: موجبٌ يعني ربحيةً تتحسّن، وسالبٌ
+    # يعني تآكلاً. ولا يقوم بأقلّ من ثلاث سنواتٍ — نقطتان تُنتجان فرقاً
+    # لا اتّجاهاً. ولا بندَ جديداً يُطلب من المصدر: يُشتقّ من السلسلة
+    # المحسوبة أصلاً.
+    _roe_seen = [r for r in roe_series if r is not None]
+    if len(_roe_seen) >= 3:
+        _prior = _roe_seen[:-1]
+        feats["roe_trend"] = Feature(
+            round(_roe_seen[-1] - sum(_prior) / len(_prior), 2),
+            "اتجاه الربحية (آخر عائد ناقص متوسط ما قبله — موجب = تحسّن)")
+    else:
+        feats["roe_trend"] = Feature(None, "بيانات غير كافية (أقل من ثلاث سنوات)")
+
     roa_series = [_ratio(ni, ta) for ni, ta in zip(net_income, total_assets)]
     roa_series = [r * 100 if r is not None else None for r in roa_series]
     feats["roa"] = Feature(roa_series[-1], "العائد على الأصول (آخر سنة)")

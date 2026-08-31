@@ -50,8 +50,14 @@ NOT_APPLICABLE = "NOT_APPLICABLE"
 
 # أقلُّ ما يُبنى عليه مكوّن: دون ثلثِ وزنه لا يُعلَن رقمٌ له.
 MIN_COMPONENT_COVERAGE = 0.34
-# ودرجةٌ لا تقوم على مكوّنَين على الأقلّ ليست درجة.
-MIN_COMPONENTS = 2
+# ══ كلُّ سهمٍ يخرج بدرجة ══ (المادة ١٦)
+# «لا يمكن التقييم» ليست نتيجةً مقبولة لغياب مؤشّرٍ ثانويّ. فمكوّنٌ
+# واحدٌ يكفي لإصدار درجة — على أن يُعلَن ضيقُ الأساس وتنزل الثقة، وألّا
+# تمتلئ قائمةُ الأفضل بشركاتٍ علت لأن ما يخفضها لم يُقَس (شطرُ المادة
+# الثاني). فالعلامةُ `thin_basis` تُحمل مع الدرجة ويفرزها المسبار.
+MIN_COMPONENTS = 1
+# ودون ثلاثةِ مكوّناتٍ يُعدّ الأساسُ ضيّقاً ويُعلَن.
+THIN_BASIS_BELOW = 3
 
 
 def _val(features: dict, key: str):
@@ -73,6 +79,29 @@ def _band_score(v: float, lo: float, hi: float) -> float:
     span = max(hi - lo, 1e-9)
     off = (lo - v) if v < lo else (v - hi)
     return max(0.0, 100.0 - (off / span) * 100.0)
+
+
+def _discount_score(pct: float) -> float:
+    """درجةُ الخصم عن قيمتنا — محافظةٌ مسقوفة (المادة ٩).
+
+    الخطّيّةُ تجعل تقديراً شاذّاً يسيطر على المكوّن: خصمٌ ‎‎+300٪ مصدرُه
+    مقامٌ صغيرٌ في مضاعفٍ ليس فرصةً بثلاثة أضعاف فرصةٍ عند ‎+100٪. فتُخمَد
+    الأطرافُ بجذرٍ فوق الحدّ:
+
+        السعرُ عند القيمة (‎0٪)  → 50
+        خصمُ الثلث   (‎+33٪)     → 70
+        خصمُ النصف   (‎+100٪)    → 88
+        وما فوق ذلك يقترب من المئة ولا يبلغها
+        علاوةُ الثلث (‎−25٪)     → 32
+
+    والسقفُ يمنع القيمةَ العادلة المتطرّفة من تشويه الدرجة، ولا يمنع
+    قراءتَها: الرقمُ يبقى معروضاً في تقرير التقييم كما هو.
+    """
+    from math import sqrt
+    x = max(-90.0, min(400.0, pct))
+    if x >= 0:
+        return round(min(100.0, 50.0 + 40.0 * sqrt(x / 100.0)), 1)
+    return round(max(0.0, 50.0 - 45.0 * sqrt(-x / 100.0)), 1)
 
 
 def _vs_median(v: float, med: float, higher_is_better: bool) -> float:
@@ -100,9 +129,7 @@ def _metric_score(key: str, direction, value: float, arch: str | None,
         return _band_score(value, lo, hi), f"النطاقُ المعتمد {lo:g}–{hi:g}"
 
     if direction == "discount":
-        # خصمُنا عن تقديرنا: صفرٌ عند السعر، ومئةٌ عند نصفه.
-        return (max(0.0, min(100.0, 50.0 + value)),
-                f"{value:+.0f}٪ عن تقديرنا")
+        return _discount_score(value), f"{value:+.0f}٪ عن تقديرنا"
 
     # ── مضاعفُ سعرٍ يُقاس على وسيط قطاعه لا على عشيرة القوائم ──
     med = (medians or {}).get(key)
@@ -239,6 +266,18 @@ def compute(features: dict, sector: str | None, dist: dict | None,
         out["components"][name] = _component(
             features, spec[name], archetype, dist, medians)
 
+    # ══ شركةٌ لا توزّع: واقعةٌ لا نقصُ بيانات ══ (المادة ٣)
+    # «سنواتُ التوزيع = صفر» بندٌ **ورد** وقال إنها لم توزّع، فهذا حكمٌ
+    # لا صمت. والمحفظةُ تستهدف الدخل، فيخرج المكوّنُ منخفضاً لا ممتنعاً:
+    # ‏«لا توزيعَ» ليست شركةً سيّئة، لكنها أقلُّ ملاءمةً لهذا الهدف.
+    _d = out["components"]["dividend"]
+    if _d["score"] is None and _val(features, "dividend_years") == 0 and _d["reads"]:
+        _w = sum(r["weight"] for r in _d["reads"])
+        _d["score"] = round(
+            sum(r["score"] * r["weight"] for r in _d["reads"]) / _w, 1)
+        _d["reason"] = ("لا توزيعَ مُعلَن — واقعةٌ لا نقصُ بيانات، "
+                        "والمحفظةُ تستهدف الدخل")
+
     live = {k: c for k, c in out["components"].items()
             if c["score"] is not None}
     if len(live) < MIN_COMPONENTS:
@@ -258,6 +297,8 @@ def compute(features: dict, sector: str | None, dist: dict | None,
     out["weight_basis"] = round(wsum, 2)
     out["components_missing"] = [k for k in WEIGHTS if k not in live]
     out["growth_period_years"] = _val(features, "growth_period_years")
+    out["thin_basis"] = len(live) < THIN_BASIS_BELOW
+    out["components_used"] = sorted(live)
     out["grade"], out["grade_label"] = grade_of(out["score"])
     return out
 
@@ -294,6 +335,9 @@ def confidence_of(result: dict, years: int | None) -> tuple[str, list[str]]:
     if short:
         why.append(f"النموُّ قِيس على {span:.0f} سنوات لا خمس")
 
+    if result.get("thin_basis"):
+        why.append("الدرجةُ قامت على مكوّنٍ أو مكوّنين فقط")
+        return "منخفضة", why
     if not gone and cov >= 0.75 and (years or 0) >= 5 and not short:
         return "مرتفعة", why
     if len(gone) <= 1 and cov >= 0.55 and (years or 0) >= 3:

@@ -33,7 +33,10 @@ for _p in ("/app", os.path.join(_ROOT, "backend"), _ROOT, _HERE):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-MIN_PEERS = 3          # المادة ٣٩ — دونها لا وسيطَ يُعرض
+MIN_PEERS = 3          # دونها لا وسيطَ يُعرض ولا يُخترع
+# ── شركاتٌ عيّنها المالك للتحقّق من تطبيق النموذج القطاعيّ (المادة ١٨) ──
+WATCH = ("4165", "8012", "4002", "2381", "7202",
+         "3003", "4340", "7203", "1182")
 _MULTIPLES = ("p_e", "p_b", "ev_ebitda", "p_ffo", "p_e_normalized",
               "dividend_yield")
 # والعائدُ على حقوق الملكية وسيطُه لازمٌ لطريقة «الدفتريّ مسنداً بالعائد»
@@ -125,6 +128,7 @@ async def main(argv: list[str]) -> int:
     comp_live: Counter = Counter()
     comp_why: Counter = Counter()
     abstain: Counter = Counter()
+    nolist: dict[str, str] = {}
     scores: list[float] = []
     hist: Counter = Counter()
     vmethods: Counter = Counter()
@@ -159,6 +163,7 @@ async def main(argv: list[str]) -> int:
 
         if res["score"] is None:
             abstain[(res.get("abstain_reason") or "")[:44]] += 1
+            nolist[r["sym"]] = (res.get("abstain_reason") or "امتنعت")[:52]
             continue
         scores.append(res["score"])
         hist[min(int(res["score"] // 10) * 10, 90)] += 1
@@ -178,6 +183,7 @@ async def main(argv: list[str]) -> int:
             "vm": vr.get("valuation_method_label") or "—",
             "fv": vr.get("fair_value"), "px": vr.get("current_price"),
             "up": vr.get("upside_pct"), "vconf": vr.get("valuation_confidence"),
+            "model": model or "—", "thin": bool(res.get("thin_basis")),
         })
         for name, comp in res["components"].items():
             for m in (comp.get("missing") or []):
@@ -238,7 +244,12 @@ async def main(argv: list[str]) -> int:
 
     both = [d for d in detail
             if None not in (d["q"], d["d"], d["g"], d["v"])]
+    thin = [d for d in detail if d["thin"]]
     print(f"\n  المكوّناتُ الأربعةُ معاً: {len(both)} شركة")
+    print(f"  أساسٌ ضيّق (مكوّنان أو أقلّ): {len(thin)} شركة")
+    top20 = sorted(detail, key=lambda x: -(x["score"] or 0))[:20]
+    print(f"  ومن أفضل عشرين: {sum(1 for d in top20 if d['thin'])} "
+          f"قامت على أساسٍ ضيّق")
 
     print("\n" + "═" * 74)
     print("  أفضلُ عشرين بالدرجة")
@@ -258,6 +269,30 @@ async def main(argv: list[str]) -> int:
               f"{_f(d['fv'], 8)}{_f(d['px'], 8)}{up_s:>7}"
               f"  {d['conf']} · {d['vm'][:26]}")
         print(f"        {d['sector']}")
+
+    print("\n" + "═" * 74)
+    print("  الشركاتُ المطلوبة بالاسم — تحقّقُ النموذج القطاعيّ")
+    print("═" * 74)
+    seen = {d["sym"]: d for d in detail}
+    for sym in WATCH:
+        d = seen.get(sym)
+        if d is None:
+            why = (nolist.get(sym) or "لم تُقرأ")
+            print(f"  {sym}  {(name_of(sym) or '')[:24]:24} — {why}")
+            continue
+        def _g(x):
+            return f"{x:.1f}" if isinstance(x, (int, float)) else "—"
+        up = d["up"]
+        print(f"  {sym}  {(name_of(sym) or '')[:24]:24}"
+              f"درجة {_g(d['score']):>5}  {d['grade']}   {d['sector']}")
+        print(f"        نموذج {d['model']:12} جودة {_g(d['q']):>5} · "
+              f"توزيع {_g(d['d']):>5} · نموّ {_g(d['g']):>5} · "
+              f"تقييم {_g(d['v']):>5}")
+        print(f"        قيمة {_g(d['fv']):>7} · سعر {_g(d['px']):>7} · "
+              f"فرق {(f'{up:+.0f}%' if isinstance(up, (int, float)) else '—'):>6}"
+              f" · ثقة {d['conf']} · {d['vm'][:30]}")
+        if d.get("thin"):
+            print("        ⚠ أساسٌ ضيّق — مكوّنان أو أقلّ")
 
     print("\n" + "═" * 74)
     print("  أكثرُ عشرِ سماتٍ إخفاقاً")
