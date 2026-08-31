@@ -156,6 +156,24 @@ async def build(symbols: list[str] | None = None, allow_fetch: bool = False) -> 
     from app.services import governance_pillar
     wanted |= set(governance_pillar.METRIC_KEYS)
 
+    # ══ ومفاتيحُ النماذج الاقتصادية ══ (كشفه المسبار — D134)
+    # كانت المفاتيحُ تُجمع من المواصفة القديمة وحدها، والنماذجُ الخمسة
+    # تطلب غيرَها: العائدُ على حقوق الملكية · نموُّ الإيراد والربحية
+    # والدفتريّ · اتّجاهُ الربحية · سنواتُ التوزيع · دورانُ الأصول.
+    # فكانت تُحسب ثم **لا تجد مسطرةً تُقاس عليها** فتُعدّ مفقودة — وهو
+    # عطبُ تركيبٍ لا شحُّ بيانات. وظهر أثرُه في تناقضٍ كشفه المالك:
+    # ‏228 شركةً لها أفقُ نموّ و‎179 بلا درجة نموّ. الأفقُ موجودٌ لأن
+    # الحسابَ نجح، والدرجةُ غائبةٌ لأن المقارنةَ سقطت.
+    from app.data.economic_models import COMPONENTS
+    # ومؤشّراتُ السعر لا تُرتَّب هنا: مصدرُها وسيطُ القطاع لا القوائم.
+    _PRICE_BASED = {"p_e", "p_b", "ev_ebitda", "p_ffo", "p_e_normalized",
+                    "dividend_yield", "fv_discount"}
+    for _model in COMPONENTS.values():
+        for _comp in _model.values():
+            for k, *_rest in _comp:
+                if k not in _PRICE_BASED:
+                    wanted.add(k)
+
     pools: dict[str, dict[str, list[float]]] = {}
     raws: dict[str, list[dict]] = {}      # السماتُ محفوظةٌ لحساب الخلاصة
     seen = 0

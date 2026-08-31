@@ -72,18 +72,37 @@ async def main(argv: list[str]) -> int:
 
     # ══ المرّةُ الأولى: المضاعفاتُ ووسيطُ كلّ قطاع ══
     rows: list[dict] = []
+    # ══ من لم يُقرأ يُسمّى ويُعلَّل ══ (المادة ١)
+    # «غير متاح» ليست نتيجة: لكلّ شركةٍ لم تدخل التحليلَ سببٌ تقنيّ
+    # واحدٌ محدَّد — أسقطها الرمز، أم لم يردّ المصدر، أم ردّ بلا قوائم،
+    # أم بقوائمَ دون سنتين، أم سقط البناءُ باستثناء.
+    unread: list[dict] = []
     by_sector: dict[str, dict[str, list[float]]] = defaultdict(
         lambda: defaultdict(list))
     for sym, meta in MARKET_UNIVERSE.items():
         if sym.startswith("9"):
+            unread.append({"sym": sym, "why": "NOMU_EXCLUDED",
+                           "detail": "السوقُ الموازية — مستبعَدةٌ عمداً"})
             continue
         try:
             data = await market_service.get_financials(f"{sym}.SR",
                                                        allow_supplement=False)
-        except Exception:                                         # noqa: BLE001
+        except Exception as e:                                    # noqa: BLE001
+            unread.append({"sym": sym, "why": "API_ERROR",
+                           "detail": f"{type(e).__name__}: {str(e)[:60]}"})
+            continue
+        if not data:
+            unread.append({"sym": sym, "why": "EMPTY_RESPONSE",
+                           "detail": "المصدرُ ردّ بلا محتوى"})
             continue
         ps = (data or {}).get("periods") or []
+        if not ps:
+            unread.append({"sym": sym, "why": "NO_PERIODS",
+                           "detail": "ردٌّ بلا قوائمَ مالية"})
+            continue
         if len(ps) < 2:
+            unread.append({"sym": sym, "why": "TOO_FEW_PERIODS",
+                           "detail": f"فترةٌ واحدة فقط ({len(ps)})"})
             continue
         sector = meta.get("sector")
         # ══ السعرُ يُطلب صراحةً ══ (كشفه المسبار — التقييمُ 0 من 268)
@@ -115,7 +134,9 @@ async def main(argv: list[str]) -> int:
                     fe[k] = dv[k]
                 else:
                     fe.pop(k, None)
-        except Exception:                                         # noqa: BLE001
+        except Exception as e:                                    # noqa: BLE001
+            unread.append({"sym": sym, "why": "FEATURE_BUILD_ERROR",
+                           "detail": f"{type(e).__name__}: {str(e)[:60]}"})
             continue
         for k in _MULTIPLES:
             if isinstance(px.get(k), (int, float)):
@@ -331,6 +352,23 @@ async def main(argv: list[str]) -> int:
         print(f"    {v:>4}  {k}")
 
     # ══ تقريرُ التحقّق الإحصائيّ ══ (المادتان ١١ و١٧)
+    # ══ من لم يُقرأ — بالاسم والسبب ══
+    print("\n" + "═" * 78)
+    print("  الشركاتُ التي لم تدخل التحليل — بالاسم والسبب التقنيّ")
+    print("═" * 78)
+    print(f"    الكونُ الكامل {len(MARKET_UNIVERSE)} · قُرئت {len(rows)}"
+          f" · لم تُقرأ {len(unread)}")
+    byw: dict = defaultdict(list)
+    for u in unread:
+        byw[u["why"]].append(u)
+    for w in sorted(byw, key=lambda k: -len(byw[k])):
+        print(f"\n    {w} — {len(byw[w])} شركة")
+        for u in byw[w][:40]:
+            print(f"      {u['sym']:>6}  {(name_of(u['sym']) or '')[:26]:26}"
+                  f"  {u['detail']}")
+        if len(byw[w]) > 40:
+            print(f"      … و{len(byw[w]) - 40} أخرى بالسبب نفسه")
+
     print("\n" + "═" * 78)
     print("  تقريرُ التحقّق — أصالحةٌ المعايرة إحصائياً؟")
     print("═" * 78)

@@ -121,6 +121,47 @@ def main() -> int:
         if not ok:
             fails.append(f"أوزانُ {m} تخالف المواصفة أو لا يبلغ مجموعُها واحداً")
 
+    # ══ كلُّ مؤشّرٍ يُرتَّب له مسطرةٌ تُبنى ══ (D134)
+    # المؤشّرُ يُحسب ثم يُقاس على عشيرته. فإن لم يُجمع مفتاحُه في
+    # `peer_distribution` لم يجد مسطرةً فيُعدّ مفقوداً — وهو عطبُ تركيبٍ
+    # يظهر «شحَّ بيانات». قِيس أثرُه: تسعةٌ من تسعةَ عشرَ مؤشّراً بلا
+    # مسطرة، فسقط النموُّ لـ‎179 شركةً ولها أفقُ نموٍّ محسوب.
+    print("\n" + "═" * 74)
+    print("  لكلّ مؤشّرٍ يُرتَّب مسطرةٌ تُبنى له")
+    print("═" * 74)
+    import inspect
+    from app.services import peer_distribution as _pdm
+    from app.data.archetype_spec import SCORECARDS as _SC
+    from app.services import governance_pillar as _gp
+    _src = inspect.getsource(_pdm.build)
+    collected = set()
+    for card in _SC.values():
+        if not card.get("abstain"):
+            for k, *_r in card["metrics"]:
+                collected.add(k)
+    collected |= set(_gp.METRIC_KEYS)
+    price_based = {"p_e", "p_b", "ev_ebitda", "p_ffo", "p_e_normalized",
+                   "dividend_yield", "fv_discount"}
+    if "COMPONENTS" in _src:
+        for _m in COMPONENTS.values():
+            for _c in _m.values():
+                for k, *_r in _c:
+                    if k not in price_based:
+                        collected.add(k)
+    need = set()
+    for m, comps in COMPONENTS.items():
+        for cn, ms in comps.items():
+            for k, _l, _w, d in ms:
+                if k not in price_based and d != "discount":
+                    need.add(k)
+    orphan = sorted(need - collected)
+    print(f"  مؤشّراتٌ تُرتَّب {len(need)} · لها مسطرة {len(need & collected)}"
+          f" · بلا مسطرة {len(orphan)}  {'✔' if not orphan else '✖'}")
+    for k in orphan:
+        print(f"      ✖ {k}")
+    if orphan:
+        fails.append(f"{len(orphan)} مؤشّراً يُرتَّب بلا توزيعٍ يُبنى له: {orphan}")
+
     # ══ ولا معلومةَ تُحتسب مرّتين ══ (المادتان ٥ و٦)
     # مفهومٌ يتكرّر في مكوّنٍ واحد يضاعف وزنَه بلا إعلان: الرِّبحيّةُ
     # تُكتب ربعاً وتُحتسب نصفاً. ويُفحص كذلك أن مفهومَ كلّ مؤشّرٍ يقع

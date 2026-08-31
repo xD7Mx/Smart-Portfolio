@@ -35,6 +35,9 @@ from __future__ import annotations
 from app.data.economic_models import (CYCLICAL, FINANCIAL, OPERATING,
                                       REAL_ESTATE, REIT)
 
+# أقلُّ وسيطِ عائدٍ يصلح مقاماً في `PB_ROE` — شرطُ صلاحيةٍ لا حكمُ جودة.
+MIN_MEDIAN_ROE = 5.0
+
 AVAILABLE = "AVAILABLE"
 UNAVAILABLE = "UNAVAILABLE"
 NOT_APPLICABLE = "NOT_APPLICABLE"
@@ -110,10 +113,23 @@ def _try(method: str, features: dict, periods: list[dict] | None,
         roe = need("العائد على حقوق الملكية", _n(features, "roe"))
         m_pb = need("وسيط الدفتريّ", medians.get("p_b"))
         m_roe = need("وسيط العائد", medians.get("roe"))
-        if None in (bvps, roe, m_pb, m_roe) or m_roe <= 0 or roe <= 0:
+        if None in (bvps, roe, m_pb, m_roe) or roe <= 0:
             return None, have, gone
-        # مضاعفٌ عادلٌ يتناسب مع تفوّق العائد — ومقصوصٌ عند ثلاثة أضعاف
-        # الوسيط: تناسبٌ بلا حدٍّ يجعل عائداً شاذّاً يُنتج قيمةً خيالية.
+        # ══ مقامٌ يقارب الصفر ليس مرجعاً ══ (كشفه المالك — D135)
+        # النسبةُ `roe ÷ وسيط القطاع` تنفجر حين يكون الوسيطُ ضئيلاً:
+        # قطاعُ التأمين وسيطُ عائده ‎1.0٪، فشركةٌ عائدُها ‎10.5٪ تُعطي
+        # نسبةَ ‎10.5 يقصّها الحدُّ إلى ‎3.0 — فيصير **القصُّ** هو ما
+        # يحدّد القيمة لا البيانات، وتخرج الشركاتُ كلُّها عند السقف
+        # نفسه فلا تفرّق الطريقةُ بينها.
+        #
+        # فيُشترط للطريقة مقامٌ ذو معنى: وسيطُ عائدٍ يبلغ ‎5٪ على الأقلّ
+        # — وهو ليس حكماً على جودة القطاع بل **شرطُ صلاحيةِ القسمة**.
+        # ودونه تسقط الطريقةُ وتُجرَّب التي تليها في النموذج، ويُعلَن
+        # السببُ بدل أن يُنشر رقمٌ مصدرُه حدُّ القصّ.
+        if m_roe < MIN_MEDIAN_ROE:
+            gone.append(f"وسيطُ عائد القطاع {m_roe:.1f}٪ دون "
+                        f"{MIN_MEDIAN_ROE:.0f}٪ — مقامٌ لا يصلح مرجعاً")
+            return None, have, gone
         ratio = min(max(roe / m_roe, 0.25), 3.0)
         return round(bvps * m_pb * ratio, 2), have, gone
 
