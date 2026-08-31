@@ -59,6 +59,7 @@ async def main(argv: list[str]) -> int:
     from app.services import spec_score, red_lines, risk_gate
     from app.services import model_valuation as mv
     from app.services import investment_readiness as rdy
+    from app.services import canonical as cn
     from app.data.saudi_directory import name_of
     from app.services.four_scores import build_company_features
     from app.services.market_data import market_service
@@ -102,6 +103,18 @@ async def main(argv: list[str]) -> int:
             merged = dict(inf or {})
             merged.update(info)
             px = inv.price_features(merged, fe, ps)
+            # ══ الطبقةُ المعياريّة هي المرجع ══ (المادة ٨)
+            # القوائمُ تُوحَّد أسماؤها وتُدقَّق إشاراتُها مرّةً، ثم يُبنى
+            # التوزيعُ من طبقته: نصيبُ السهم المعلَن أوّلاً، ثم المدفوعُ
+            # على عدد الأسهم. وما تعذّر يبقى غيرَ متاحٍ ولا يصير صفراً.
+            crows, csrc = cn.normalize(ps)
+            dv = cn.dividends(crows, merged, merged.get("current_price"))
+            for k in ("dividend_yield", "dividend_years",
+                      "dividend_growth", "payout_ratio"):
+                if dv.get(k) is not None:
+                    fe[k] = dv[k]
+                else:
+                    fe.pop(k, None)
         except Exception:                                         # noqa: BLE001
             continue
         for k in _MULTIPLES:
@@ -111,8 +124,9 @@ async def main(argv: list[str]) -> int:
             v = inv._val(fe, k)
             if v is not None:
                 by_sector[sector or ""][k].append(v)
-        rows.append({"sym": sym, "sector": sector, "ps": ps,
-                     "fe": fe, "inf": merged, "px": px})
+        rows.append({"sym": sym, "sector": sector, "ps": ps, "crows": crows,
+                     "fe": fe, "inf": merged, "px": px, "dv": dv,
+                     "csrc": csrc})
 
     medians = {s: {k: _median(v) for k, v in ks.items()
                    if len(v) >= MIN_PEERS}
@@ -145,6 +159,7 @@ async def main(argv: list[str]) -> int:
             "sym": r["sym"], "name": name_of(r["sym"]) or "",
             "sector": sector or "—", "model": model or "—",
             "score": res["score"], "grade": res["grade"],
+            "raw": res.get("raw_score"),
             "q": (c["quality"] or {}).get("score"),
             "d": (c["dividend"] or {}).get("score"),
             "g": (c["growth"] or {}).get("score"),
@@ -170,7 +185,7 @@ async def main(argv: list[str]) -> int:
     print("  ١ · ٢ · ٣ · ٤ · ٥ — تعدادُ السوق والجاهزية")
     print("═" * 78)
     print(f"    الشركاتُ المقروءة            {n}")
-    for k in ("READY", "WATCH", "INSUFFICIENT_DATA", "EXCLUDED"):
+    for k in ("INVESTMENT_READY", "WATCH", "NOT_READY"):
         v = R.get(k, 0)
         print(f"    {k:22} {v:>4}  {v / max(n,1):>5.0%}  "
               f"{'█' * round(v / max(n,1) * 40)}")
@@ -218,7 +233,7 @@ async def main(argv: list[str]) -> int:
     print("  ٩ · ١٠ · ١١ — لا بدائلَ كاذبة ولا جاهزيةٌ ببيانٍ ناقص")
     print("═" * 78)
     bad_ready = [x for x in rows_out
-                 if x["readiness"] == "READY" and
+                 if x["readiness"] == "INVESTMENT_READY" and
                  (x["comps_live"] < 4 or (x["dc"] or 0) < 0.80
                   or x["conf"] == "منخفضة" or not x["vm"])]
     print(f"    شركاتٌ READY بمحورٍ ناقصٍ أو ثقةٍ منخفضة: {len(bad_ready)}"
@@ -238,17 +253,20 @@ async def main(argv: list[str]) -> int:
     bys: dict = defaultdict(list)
     for x in rows_out:
         bys[x["sector"]].append(x)
-    print(f"  {'القطاع':30}{'النموذج':13}{'عدد':>4}{'READY':>7}"
-          f"{'وسيط':>7}{'اكتمال':>8}")
+    print(f"  {'القطاع':28}{'النموذج':12}{'عدد':>4}{'جاهز':>6}"
+          f"{'مراقبة':>7}{'غير جاهز':>9}{'تغطية':>8}{'الثقة الغالبة':>14}")
     print("─" * 78)
+    _CR = {"مرتفعة": 2, "متوسطة": 1, "منخفضة": 0}
     for sec in sorted(bys, key=lambda k: -len(bys[k])):
         g = bys[sec]
-        sc = sorted(x["score"] for x in g if x["score"] is not None)
         dd = [x["dc"] for x in g if isinstance(x["dc"], (int, float))]
-        print(f"  {sec[:30]:30}{g[0]['model']:13}{len(g):>4}"
-              f"{sum(1 for x in g if x['readiness'] == 'READY'):>7}"
-              f"{(f'{sc[len(sc)//2]:.1f}' if sc else '—'):>7}"
-              f"{(f'{sum(dd)/len(dd):.0%}' if dd else '—'):>8}")
+        cmode = Counter(x["conf"] for x in g).most_common(1)[0][0]
+        print(f"  {sec[:28]:28}{g[0]['model']:12}{len(g):>4}"
+              f"{sum(1 for x in g if x['readiness'] == 'INVESTMENT_READY'):>6}"
+              f"{sum(1 for x in g if x['readiness'] == 'WATCH'):>7}"
+              f"{sum(1 for x in g if x['readiness'] == 'NOT_READY'):>9}"
+              f"{(f'{sum(dd)/len(dd):.0%}' if dd else '—'):>8}"
+              f"{cmode:>14}")
 
     print("\n" + "═" * 78)
     print("  ١٤ — الشركاتُ التي كانت مُضلِّلة، بالاسم")
@@ -280,18 +298,23 @@ async def main(argv: list[str]) -> int:
     print("\n" + "═" * 78)
     print("  المرشّحون — READY مرتّبين بالدرجة")
     print("═" * 78)
-    cand = sorted((x for x in rows_out if x["readiness"] == "READY"),
+    cand = sorted((x for x in rows_out
+                   if x["readiness"] == "INVESTMENT_READY"),
                   key=lambda z: -(z["score"] or 0))
     if not cand:
         print("    لا مرشّحَ اجتاز البوّابة.")
-    print(f"  {'رمز':>5} {'الشركة':24}{'درجة':>6}{'ص':>3}{'جودة':>6}"
-          f"{'توزيع':>6}{'نموّ':>6}{'تقييم':>6}{'اكتمال':>8} الثقة · القرار")
-    for x in cand[:25]:
+    print(f"  {'رمز':>5} {'الشركة':22}{'درجة':>6}{'خام':>6}{'جودة':>6}"
+          f"{'توزيع':>6}{'نموّ':>6}{'تقييم':>6}{'تغطية':>7}"
+          f"{'الثقة':>8}  الطريقة · الحالة")
+    print("─" * 78)
+    for x in cand[:20]:
         _f = lambda z, w=6: (f"{z:>{w}.1f}" if isinstance(z, (int, float))
                              else f"{'—':>{w}}")
-        print(f"  {x['sym']:>5} {x['name'][:24]:24}{_f(x['score'])}"
-              f"{x['grade']:>3}{_f(x['q'])}{_f(x['d'])}{_f(x['g'])}"
-              f"{_f(x['v'])}{(x['dc'] or 0)*100:>7.0f}٪ {x['conf']} · {x['decision']}")
+        print(f"  {x['sym']:>5} {x['name'][:22]:22}{_f(x['score'])}"
+              f"{_f(x['raw'])}{_f(x['q'])}{_f(x['d'])}{_f(x['g'])}"
+              f"{_f(x['v'])}{(x['dc'] or 0)*100:>6.0f}٪{x['conf']:>8}"
+              f"  {x['vm'] or '—'} · {x['readiness']}")
+        print(f"        {x['sector']}")
 
     print("\n" + "═" * 78)
     print("  أكثرُ السماتِ إخفاقاً")

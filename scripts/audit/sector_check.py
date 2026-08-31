@@ -61,6 +61,20 @@ def _info_px(arch: str, periods: list) -> dict:
 
 
 
+def company_feats(q: float):
+    """سماتُ شركةٍ بجودة `q` في نمط `asset_light` — تُستعمل في الحراسة."""
+    from rank_check import company
+    from app.services.four_scores import build_company_features
+    from app.services import investment_score as inv
+    ps = company(q, "asset_light")
+    nfo = _info_px("asset_light", ps)
+    fe, _i, _q = build_company_features(ps, info=nfo,
+                                        sector="التطبيقات وخدمات التقنية")
+    fe.update(inv.price_features(nfo, fe, ps,
+                                 fair_value=nfo["current_price"] * 1.5))
+    return fe
+
+
 def main() -> int:
     from rank_check import company, _info
     from app.services.four_scores import build_company_features
@@ -248,9 +262,30 @@ def main() -> int:
     print(f"  ممتازةٌ بلا نموٍّ ولا تقييم → درجة {r['score']} · "
           f"{r['grade']} · اكتمال {(r['data_completeness'] or 0):.0%}")
     print(f"     جاهزية {verdict['readiness']} — {verdict['why'][:2]}")
-    if verdict["readiness"] != rdy.INSUFFICIENT_DATA:
+    if verdict["readiness"] != rdy.NOT_READY:
         fails.append(f"أساسٌ ضيّقٌ خرج بـ{verdict['readiness']} — "
-                     f"والمادة ٨ توجب INSUFFICIENT_DATA")
+                     f"والمادة ١٢ توجب NOT_READY")
+    # ── والدرجةُ لا تتضخّم بالبيانات المفقودة (المادة ١١) ──
+    rw, fin, cv = r.get("raw_score"), r.get("score"), r.get("data_coverage")
+    print(f"     خام {rw} · تغطية {(cv or 0):.0%} · نهائية {fin}")
+    if rw is not None and cv is not None and rw > 50 and not (fin < rw):
+        fails.append(f"الدرجةُ لم تنكمش مع نقص التغطية: خام {rw} نهائية {fin}")
+    # وتناظرُ المبدأ: الضعيفةُ ناقصةُ البيانات ترتفع نحو الوسط لا تُعاقَب
+    weak = inv.compute(
+        {k: v for k, v in company_feats(0.05).items()
+         if k not in ("revenue_cagr_5y", "eps_cagr_5y", "roic_trend",
+                      "p_e", "ev_ebitda", "fv_discount")},
+        sector, dist, arch, medians=_MEDIANS)
+    if (weak.get("raw_score") is not None and weak["raw_score"] < 50
+            and not weak["score"] > weak["raw_score"]):
+        fails.append("المبدأُ غيرُ متناظر — فهو عقوبةٌ لا ترجيحُ مصداقية")
+    print(f"     وضعيفةٌ ناقصة: خام {weak.get('raw_score')} → "
+          f"نهائية {weak.get('score')}  (ترتفع نحو الوسط)")
+
+    # ── ثلاثُ حالاتٍ لا رابع ──
+    states = {rdy.INVESTMENT_READY, rdy.WATCH, rdy.NOT_READY}
+    if len(states) != 3:
+        fails.append("حالاتُ الجاهزية ليست ثلاثاً")
 
     # وكاملةُ البيانات تعبر، وإلّا فالبوّابةُ تمنع الجميع
     full = inv.compute(fe, sector, dist, arch, medians=_MEDIANS)

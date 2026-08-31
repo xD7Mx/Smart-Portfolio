@@ -29,10 +29,18 @@ from __future__ import annotations
 
 from app.data.economic_models import CORE_AXES, COMPONENT_NAMES
 
-READY = "READY"
+# ══ ثلاثُ حالاتٍ لا رابع ══ (المادة ١٢)
+# وكانت أربعاً، فصار «مستبعَدٌ لمخاطر» و«ناقصُ بيانات» حالتين متجاورتين
+# والقرارُ فيهما واحد: لا ترشيح. فدُمجتا في `NOT_READY` ويبقى السببُ
+# مذكوراً برمزه — والحالاتُ للقرار والأسبابُ للفهم.
+INVESTMENT_READY = "INVESTMENT_READY"
 WATCH = "WATCH"
-INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
-EXCLUDED = "EXCLUDED"
+NOT_READY = "NOT_READY"
+
+# أسماءٌ قديمةٌ يُبقى عليها كي لا ينكسر نداءٌ قائم
+READY = INVESTMENT_READY
+INSUFFICIENT_DATA = NOT_READY
+EXCLUDED = NOT_READY
 
 # اكتمالٌ دون هذا الحدّ لا يكفي قراراً مسؤولاً (المادة ٧ · الشرط ٧).
 MIN_COMPLETENESS = 0.80
@@ -63,7 +71,7 @@ def evaluate(result: dict, gate_status: str, confidence: str,
             if (comps.get(k) or {}).get("score") is not None}
 
     if gate_status == "EXCLUDED":
-        return {"readiness": EXCLUDED, "codes": ["RISK_GATE"],
+        return {"readiness": NOT_READY, "codes": ["RISK_GATE"],
                 "decision": "ممنوعُ الترشيح",
                 "why": ["بوّابةُ المخاطر مغلقة"]}
 
@@ -74,7 +82,7 @@ def evaluate(result: dict, gate_status: str, confidence: str,
     if model is None:
         codes.append("NO_MODEL")
         why.append("لا نموذجَ اقتصاديّاً لهذا القطاع")
-        return {"readiness": INSUFFICIENT_DATA, "codes": codes,
+        return {"readiness": NOT_READY, "codes": codes,
                 "decision": "ممنوعُ الترشيح", "why": why}
 
     # ٣ · ٤ · ٥ · ٦ · ٨ — المحاورُ الجوهريةُ لهذا النموذج
@@ -102,7 +110,7 @@ def evaluate(result: dict, gate_status: str, confidence: str,
 
     if not why:
         score = result.get("score") or 0.0
-        return {"readiness": READY, "why": [], "codes": [],
+        return {"readiness": INVESTMENT_READY, "why": [], "codes": [],
                 "decision": ("مرشّحٌ عالي القناعة" if score >= HIGH_CONVICTION
                              else "مرشّح" if score >= CANDIDATE
                              else "قائمةُ مراقبة" if score >= WATCHLIST
@@ -114,7 +122,7 @@ def evaluate(result: dict, gate_status: str, confidence: str,
     # متابعةٍ لا حالُ عجز.
     blocking = {"CORE_AXIS_MISSING", "NO_SECTOR", "NO_VALUATION_METHOD"}
     if blocking & set(codes):
-        return {"readiness": INSUFFICIENT_DATA, "codes": codes,
+        return {"readiness": NOT_READY, "codes": codes,
                 "decision": "ممنوعُ الترشيح", "why": why}
     return {"readiness": WATCH, "codes": codes,
             "decision": "لا ترشيحَ مباشر", "why": why}
@@ -140,9 +148,9 @@ def thesis(result: dict, ready: dict, upside: float | None) -> tuple[str, str]:
     weak = [n for n, x in (("الجودة", q), ("التوزيع", d),
                            ("النموّ", g)) if isinstance(x, (int, float)) and x < 40]
 
-    if ready["readiness"] == EXCLUDED:
+    if "RISK_GATE" in (ready.get("codes") or []):
         head = "بوّابةُ المخاطر مغلقة — لا تدخل نطاقَ الترشيح"
-    elif ready["readiness"] == INSUFFICIENT_DATA:
+    elif ready["readiness"] == NOT_READY:
         head = "بياناتُها لا تكفي قراراً — الدرجةُ وصفٌ لما قِيس لا حكمٌ عليها"
     else:
         head = (("، و".join(strong) + " مقيسة") if strong
