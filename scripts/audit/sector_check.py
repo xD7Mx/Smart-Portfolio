@@ -121,6 +121,48 @@ def main() -> int:
         if not ok:
             fails.append(f"أوزانُ {m} تخالف المواصفة أو لا يبلغ مجموعُها واحداً")
 
+    # ══ الكونُ: السوقُ الرئيسة وحدها ══ (D136)
+    # الاستبعادُ المتأخّر ليس استبعاداً: كان الكونُ يمرّ كاملاً إلى بناء
+    # التوزيع ثم تُطرح «نمو» في حلقة التسجيل، فتدخل شركاتُها كلَّ عشيرةٍ
+    # ووسيطٍ ومئين. فيُفحص هنا أن الحسمَ يقع **في المصدر**.
+    from app.data import universe as _uni
+    print("\n" + "═" * 74)
+    print("  الكونُ — السوقُ الرئيسة وحدها، والحسمُ في المصدر")
+    print("═" * 74)
+    cen = _uni.census()
+    print(f"  الكون {cen['total']} · رئيسيّ {cen['main']} · "
+          f"موازية {cen['nomu']} · مجهول {cen['unknown']}")
+    print(f"  مصدرُ التصنيف: {cen['source']}")
+    if cen["unknown"]:
+        fails.append(f"{cen['unknown']} رمزاً لا يُعرف سوقُه: "
+                     f"{cen['unknown_symbols']}")
+
+    leaked = [s for s in _uni.main_market() if _uni.is_nomu(s)]
+    print(f"  رموزُ «نمو» داخل الكون المعتمَد: {len(leaked)}"
+          f"  {'✔' if not leaked else '✖'}")
+    if leaked:
+        fails.append(f"تسرّبت «نمو» إلى الكون المعتمَد: {leaked[:10]}")
+
+    # والحسمُ يقع في `peer_distribution` نفسه لا في مَن يستدعيه
+    import inspect
+    from app.services import peer_distribution as _pdm2
+    _bsrc = inspect.getsource(_pdm2.build)
+    at_source = "is_main" in _bsrc
+    print(f"  الترشيحُ داخل بناء التوزيع: "
+          f"{'✔ نعم' if at_source else '✖ لا — الاستبعادُ متأخّر'}")
+    if not at_source:
+        fails.append("‏`peer_distribution.build` لا يرشّح السوقَ الموازية "
+                     "عند المصدر — فتتلوّث العشيراتُ ثم تُستبعد بعد الحساب")
+
+    # وحالاتُ حدّيّة في التصنيف
+    for sym, want in (("9500", "NOMU"), ("2222", "MAIN"), ("1120", "MAIN"),
+                      ("9999", "NOMU"), ("2222.SR", "MAIN"),
+                      ("abc", None), ("", None), ("222", None)):
+        got = _uni.market_of(sym)
+        if got != want:
+            fails.append(f"تصنيفُ «{sym}» خرج {got} والمتوقَّع {want}")
+    print(f"  حالاتٌ حدّيّة في التصنيف: فُحصت ٨")
+
     # ══ كلُّ مؤشّرٍ يُرتَّب له مسطرةٌ تُبنى ══ (D134)
     # المؤشّرُ يُحسب ثم يُقاس على عشيرته. فإن لم يُجمع مفتاحُه في
     # `peer_distribution` لم يجد مسطرةً فيُعدّ مفقوداً — وهو عطبُ تركيبٍ

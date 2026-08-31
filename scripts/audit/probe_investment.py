@@ -53,6 +53,7 @@ def _median(vals: list[float]) -> float | None:
 
 async def main(argv: list[str]) -> int:
     from app.data.market_universe import MARKET_UNIVERSE
+    from app.data import universe as uni
     from app.data.economic_models import model_of
     from app.services import peer_distribution as pd
     from app.services import investment_score as inv
@@ -79,11 +80,8 @@ async def main(argv: list[str]) -> int:
     unread: list[dict] = []
     by_sector: dict[str, dict[str, list[float]]] = defaultdict(
         lambda: defaultdict(list))
-    for sym, meta in MARKET_UNIVERSE.items():
-        if sym.startswith("9"):
-            unread.append({"sym": sym, "why": "NOMU_EXCLUDED",
-                           "detail": "السوقُ الموازية — مستبعَدةٌ عمداً"})
-            continue
+    MAIN = uni.main_market(MARKET_UNIVERSE)
+    for sym, meta in MAIN.items():
         try:
             data = await market_service.get_financials(f"{sym}.SR",
                                                        allow_supplement=False)

@@ -95,6 +95,7 @@ def _shrink(dist: dict, keep: set[str]) -> dict:
 
 async def main(argv: list[str]) -> int:
     from app.data.market_universe import MARKET_UNIVERSE
+    from app.data import universe as uni
     from app.data.economic_models import (COMPONENTS, CONCEPT_OF, model_of)
     from app.services import peer_distribution as pd
     from app.services import investment_score as inv
@@ -108,8 +109,14 @@ async def main(argv: list[str]) -> int:
     from app.services.market_data import market_service
 
     print("═" * 80)
-    print("  تقريرُ التحقّق — بعد إصلاح المسطرة الغائبة (D134)")
+    print("  تقريرُ التحقّق — السوقُ الرئيسة وحدها")
     print("═" * 80)
+    cen = uni.census(MARKET_UNIVERSE)
+    print(f"  الكونُ الكامل            {cen['total']}")
+    print(f"  السوقُ الرئيسة (المعتمَد) {cen['main']}")
+    print(f"  الموازية «نمو» مستبعَدة  {cen['nomu']}")
+    print(f"  رموزٌ مجهولةُ السوق       {cen['unknown']}")
+    print(f"  مصدرُ التصنيف: {cen['source']}")
 
     dist_new = await pd.build()
     dist_old = _shrink(dist_new, _legacy_keys())
@@ -145,10 +152,8 @@ async def main(argv: list[str]) -> int:
     # ══ حصادُ السوق مرّةً واحدة ══
     rows: list[dict] = []
     unread: Counter = Counter()
-    for sym, meta in MARKET_UNIVERSE.items():
-        if sym.startswith("9"):
-            unread["NOMU_EXCLUDED"] += 1
-            continue
+    MAIN = uni.main_market(MARKET_UNIVERSE)
+    for sym, meta in MAIN.items():
         try:
             data = await market_service.get_financials(f"{sym}.SR",
                                                        allow_supplement=False)
@@ -469,9 +474,26 @@ async def main(argv: list[str]) -> int:
     big = sum(1 for d, _b, _x in deltas if abs(d) >= 10)
     print(f"\n  تغيّرَت بعشر نقاطٍ فأكثر: {big} من {len(deltas)}")
 
+    # ══ الإجابةُ الصريحة ══
+    print("\n" + "═" * 80)
+    print("  هل كلُّ شركةٍ دخلت التسجيلَ من السوق الرئيسة؟")
+    print("═" * 80)
+    strays = [x["sym"] for x in after if not uni.is_main(x["sym"])]
+    in_dist = int(dist_new.get("companies") or 0)
+    print(f"    دخلت التسجيلَ            {len(after)}")
+    print(f"    منها من غير الرئيسة      {len(strays)}"
+          f"   {'✔' if not strays else '✖ ' + str(strays[:10])}")
+    print(f"    دخلت توزيعَ الأقران      {in_dist}")
+    print(f"    وسقفُها (الرئيسة كلُّها) {cen['main']}"
+          f"   {'✔' if in_dist <= cen['main'] else '✖ تجاوزَ الكونَ المعتمَد'}")
+    ok = (not strays) and in_dist <= cen["main"]
+    print(f"\n    الجواب: {'نعم — الرئيسةُ وحدها' if ok else 'لا'}")
+    if not ok:
+        print("    والتشغيلُ لا يُعتبر ناجحاً.")
+
     print("\n" + "═" * 80)
     print("  انتهى — لم يُغيَّر وزنٌ ولا عتبةٌ ولا بوّابة في هذا التشغيل.")
-    return 0
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":

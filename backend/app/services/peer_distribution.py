@@ -145,7 +145,14 @@ async def build(symbols: list[str] | None = None, allow_fetch: bool = False) -> 
     from app.services.spec_score import resolve_archetype_ex
     from datetime import date
 
-    syms = symbols or list(MARKET_UNIVERSE.keys())
+    # ══ السوقُ الرئيسة وحدها — قبل أيّ حساب ══ (D136)
+    # كان الكونُ يمرّ كاملاً (‏409 شركة) فتدخل شركاتُ «نمو» كلَّ عشيرةٍ
+    # وكلَّ وسيطٍ وكلَّ مئين، ثم تُستبعد في حلقة التسجيل وحدها — فيظهر
+    # الاستبعادُ في العدّ ولا يقع في الحساب. وسوقُ «نمو» رقيقةُ التداول
+    # محدودةُ الإفصاح، فمن قِيس عليها قِيس بمسطرةٍ ليست مسطرتَه.
+    from app.data.universe import is_main
+    syms = [s for s in (symbols or list(MARKET_UNIVERSE.keys()))
+            if is_main(s)]
     # كلُّ مفتاحٍ تطلبه أيُّ بطاقة — لا نجمع ما لا يُستعمل.
     wanted: set[str] = set()
     for card in SCORECARDS.values():
