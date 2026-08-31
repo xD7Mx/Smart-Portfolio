@@ -77,16 +77,30 @@ async def main(argv: list[str]) -> int:
         if len(ps) < 2:
             continue
         sector = meta.get("sector")
+        # ══ السعرُ يُطلب صراحةً ══ (كشفه المسبار — التقييمُ 0 من 268)
+        # السعرُ لا يمرّ في خطّ السمات: `build_company_features` يعيد
+        # (‏eps · book_value · roe) فقط، و`price_features` يبحث عن
+        # `current_price` فلا يجده فيعيد فراغاً. فكان مكوّنُ التقييم
+        # صفراً **بالتركيب لا بشحّ البيانات**.
+        info: dict = {}
         try:
-            fe, inf, _ = build_company_features(ps, info=None, sector=sector)
-            px = inv.price_features(inf, fe, ps)
+            ci = await market_service.get_company_info(f"{sym}.SR")
+            if isinstance(ci, dict):
+                info = dict(ci)
+        except Exception:                                         # noqa: BLE001
+            pass
+        try:
+            fe, inf, _ = build_company_features(ps, info=info, sector=sector)
+            merged = dict(inf or {})
+            merged.update(info)
+            px = inv.price_features(merged, fe, ps)
         except Exception:                                         # noqa: BLE001
             continue
         for k in _MULTIPLES:
             if isinstance(px.get(k), (int, float)):
                 by_sector[sector or ""][k].append(float(px[k]))
         rows.append({"sym": sym, "sector": sector, "ps": ps,
-                     "fe": fe, "inf": inf, "px": px})
+                     "fe": fe, "inf": merged, "px": px})
 
     medians = {s: {k: _median(v) for k, v in ks.items()
                    if len(v) >= MIN_PEERS}
