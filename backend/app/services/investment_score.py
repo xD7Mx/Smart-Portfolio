@@ -39,6 +39,15 @@ from __future__ import annotations
 from app.data.economic_models import (COMPONENTS, WEIGHTS, grade_of, model_of)
 from app.services import peer_distribution as _pd
 
+# ══ لكلّ سمةٍ حالةٌ صريحة ══ (المادة ٥)
+# ولا رابعَ لها. و«لا تنطبق» ليست «غير متاحة»: الأولى تعني أن المؤشّرَ
+# لا معنى له في بنية هذه القائمة (تدفّقٌ حرٌّ صناعيٌّ لمصرف)، والثانية
+# تعني أن الرقمَ لم يصل. وخلطُهما يجعل نقصَ البيانات يبدو خصوصيةً
+# قطاعية، وهو ما يستر عجزَ الأنبوب.
+AVAILABLE = "AVAILABLE"
+UNAVAILABLE = "UNAVAILABLE"
+NOT_APPLICABLE = "NOT_APPLICABLE"
+
 # أقلُّ ما يُبنى عليه مكوّن: دون ثلثِ وزنه لا يُعلَن رقمٌ له.
 MIN_COMPONENT_COVERAGE = 0.34
 # ودرجةٌ لا تقوم على مكوّنَين على الأقلّ ليست درجة.
@@ -123,17 +132,22 @@ def _component(features: dict, metrics: tuple, arch: str | None,
         total += weight
         v = _val(features, key)
         if v is None:
-            missing.append(label)
+            missing.append({"key": key, "label": label,
+                            "status": UNAVAILABLE,
+                            "why": "البندُ لم يصل من المصدر"})
             continue
         scored = _metric_score(key, direction, v, arch, dist, medians)
         if scored is None:
-            missing.append(label)
+            missing.append({"key": key, "label": label,
+                            "status": UNAVAILABLE,
+                            "why": "لا مرجعَ يُقاس عليه — عشيرةٌ أو وسيطٌ دون الحدّ"})
             continue
         s, note = scored
         got += weight
         acc += s * weight
         reads.append({"key": key, "label": label, "value": round(v, 2),
-                      "score": round(s, 1), "weight": weight, "note": note})
+                      "score": round(s, 1), "weight": weight,
+                      "status": AVAILABLE, "note": note})
     cov = (got / total) if total else 0.0
     if got <= 0 or cov < MIN_COMPONENT_COVERAGE:
         return {"score": None, "coverage": round(cov, 2), "reads": reads,
@@ -243,6 +257,7 @@ def compute(features: dict, sector: str | None, dist: dict | None,
         sum(c["score"] * WEIGHTS[k] for k, c in live.items()) / wsum, 1)
     out["weight_basis"] = round(wsum, 2)
     out["components_missing"] = [k for k in WEIGHTS if k not in live]
+    out["growth_period_years"] = _val(features, "growth_period_years")
     out["grade"], out["grade_label"] = grade_of(out["score"])
     return out
 
@@ -270,7 +285,16 @@ def confidence_of(result: dict, years: int | None) -> tuple[str, list[str]]:
     if isinstance(years, int) and years < 5:
         why.append(f"{years} قوائمَ متاحة فقط")
 
-    if not gone and cov >= 0.75 and (years or 0) >= 5:
+    # ══ نافذةُ النموّ القصيرة تخفض الثقة ══ (المادة ١)
+    # النموُّ يُقاس على أطول نافذةٍ صالحة، وقد تكون سنتين. ونموُّ سنتين
+    # ليس كنموّ خمس: الأولى قد تكون تعافياً من قاعٍ والثانية اتّجاهاً.
+    # فالدرجةُ تقيس ما قِيس، والثقةُ تقول على كم سنةٍ قِيس.
+    span = result.get("growth_period_years")
+    short = isinstance(span, (int, float)) and span < 5
+    if short:
+        why.append(f"النموُّ قِيس على {span:.0f} سنوات لا خمس")
+
+    if not gone and cov >= 0.75 and (years or 0) >= 5 and not short:
         return "مرتفعة", why
     if len(gone) <= 1 and cov >= 0.55 and (years or 0) >= 3:
         return "متوسطة", why

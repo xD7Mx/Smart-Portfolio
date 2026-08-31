@@ -190,6 +190,28 @@ def main() -> int:
     elif qb < qa - 25:
         fails.append(f"الناقصُ عاقَب: الجودة {qa} ← {qb}")
 
+    # ══ سابعاً: العدُّ على سلسلةٍ لم تصل يمتنع ولا يُصفّر ══ (D128)
+    # `sum()` على قائمةٍ كلُّها `None` يعيد صفراً، فتُقرأ الشركةُ
+    # «صفرَ سنواتِ توزيع» ثم تُرتَّب في القاع — فيجتمع الممنوعان:
+    # الناقصُ صار صفراً ثم صار عقوبة.
+    print("\n" + "═" * 74)
+    print("  ما لم يصل يمتنع ولا يُصفَّر")
+    print("═" * 74)
+    for line, feat in (("dividends_paid", "dividend_years"),
+                       ("net_income", "profitable_years")):
+        ps = [{k: v for k, v in p.items() if k != line}
+              for p in company(0.6, "consumer_defensive")]
+        try:
+            fe, _i, _q = build_company_features(
+                ps, info=_info("consumer_defensive"), sector="إنتاج الأغذية")
+            got = inv._val(fe, feat)
+        except Exception as e:                                # noqa: BLE001
+            got = f"سقط: {type(e).__name__}"
+        ok = got is None
+        print(f"  بلا «{line}» → {feat} = {got}  {'✔' if ok else '✖'}")
+        if not ok:
+            fails.append(f"«{feat}» أعطى {got} وسلسلتُه لم تصل — الناقصُ صار رقماً")
+
     print("\n" + "═" * 74)
     if fails:
         print(f"  ✖ أخفق {len(fails)}:")

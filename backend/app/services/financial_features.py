@@ -100,17 +100,56 @@ def compute_features(periods: list[dict]) -> dict[str, dict]:
         yrs = min(n, n_years - 1)
         return periods[-1 - yrs], periods[-1], yrs
 
-    # ── Growth (CAGR) ──────────────────────────────────────────────
+    # ══ النموّ يُقاس على أطول نافذةٍ صالحة، وتُسجَّل ══
+    #
+    # كان يأخذ الطرفين وحدهما: الفترةَ الأولى في النافذة والأخيرة. فإن
+    # غاب البندُ في إحداهما — أو كانت السنةُ الأولى خسارةً فالأساسُ غيرُ
+    # موجب — سقط الحسابُ كلُّه ولو صحّت السنواتُ الوسطى. وقِيس أثرُه على
+    # السوق: مكوّنُ النموّ قام لسبع عشرةَ شركةً من ‎268.
+    #
+    # فصار يُجرَّب من الأطول إلى الأقصر (‎5 ← ‎4 ← ‎3 ← ‎2 سنوات) ويُؤخذ
+    # أوّلُ ما صحّ، **ويُسجَّل عددُ سنواته** في `growth_period_years`
+    # فتنزل الثقةُ حين تقصر النافذة. ونافذةٌ دون سنتين لا تُنتج نموّاً:
+    # نقطتان لا تصنعان اتّجاهاً.
+    def _cagr_best(key: str, want: int) -> tuple:
+        """(القيمة، سنواتُ النافذة) لأطول نافذةٍ صالحة — أو (None, None).
+
+        والطرفُ الأخير يُثبَّت على آخر فترةٍ ورد فيها البند: تحريكُه
+        يغيّر معنى «الأحدث»، وتحريكُ الأساس وحده يبحث عن أطول مدىً
+        يصلح للقياس.
+        """
+        idx = [i for i, p in enumerate(periods)
+               if isinstance(p.get(key), (int, float))]
+        if len(idx) < 2:
+            return None, None
+        end = idx[-1]
+        for start in idx:
+            yrs = end - start
+            if yrs < 2 or yrs > want:
+                continue
+            v = _cagr(periods[start].get(key), periods[end].get(key), yrs)
+            if v is not None:
+                return v, yrs
+        return None, None
+
+    _spans: list[int] = []
     for n, tag in ((3, "3y"), (5, "5y")):
-        sp = span(n)
-        if sp:
-            first, last, yrs = sp
-            feats[f"revenue_cagr_{tag}"] = Feature(_cagr(first.get("revenue"), last.get("revenue"), yrs), f"نمو الإيرادات المركب ({yrs} سنة فعلية)")
-            feats[f"eps_cagr_{tag}"] = Feature(_cagr(first.get("eps"), last.get("eps"), yrs), f"نمو ربحية السهم المركب ({yrs} سنة فعلية)")
-            feats[f"book_value_cagr_{tag}"] = Feature(_cagr(first.get("equity"), last.get("equity"), yrs), f"نمو القيمة الدفترية المركب ({yrs} سنة فعلية)")
-        else:
-            for key in ("revenue_cagr", "eps_cagr", "book_value_cagr"):
-                feats[f"{key}_{tag}"] = Feature(None, "بيانات غير كافية (أقل من سنتين)")
+        for feat_key, line, label in (
+                ("revenue_cagr", "revenue", "نمو الإيرادات المركب"),
+                ("eps_cagr", "eps", "نمو ربحية السهم المركب"),
+                ("book_value_cagr", "equity", "نمو القيمة الدفترية المركب")):
+            v, yrs = _cagr_best(line, n)
+            if v is None:
+                feats[f"{feat_key}_{tag}"] = Feature(
+                    None, f"لا نافذةَ صالحة ({n_years} فترة متاحة)")
+            else:
+                feats[f"{feat_key}_{tag}"] = Feature(
+                    v, f"{label} ({yrs} سنة فعلية)")
+                if tag == "5y":
+                    _spans.append(yrs)
+    feats["growth_period_years"] = Feature(
+        max(_spans) if _spans else None,
+        "طولُ النافذة التي قِيس عليها النموّ فعلاً — أقصرُ من خمسٍ تخفض الثقة")
 
     # ── Profitability / returns ────────────────────────────────────
     roe_series = [_ratio(ni, eq) for ni, eq in zip(net_income, equity)]
@@ -258,8 +297,24 @@ def compute_features(periods: list[dict]) -> dict[str, dict]:
     feats["roe_stability"] = Feature(_stability_pct(roe_series), "استقرار العائد على حقوق الملكية عبر السنوات (أقل = أكثر استقراراً)")
     feats["fcf_stability"] = Feature(_stability_pct(fcf), "استقرار التدفق النقدي الحر عبر السنوات (أقل = أكثر استقراراً)")
     feats["years_available"] = Feature(n_years, "عدد السنوات المتاحة في القوائم المالية")
-    feats["profitable_years"] = Feature(sum(1 for ni in net_income if ni is not None and ni > 0), "عدد سنوات الربحية من أصل السنوات المتاحة")
-    feats["dividend_years"] = Feature(sum(1 for d in dividends_paid if d is not None and d != 0), "عدد سنوات دفع التوزيعات من أصل السنوات المتاحة")
+    # ══ العدُّ على سلسلةٍ لم تصل يُخرج صفراً لا امتناعاً ══
+    #
+    # كان `sum(...)` يمرّ على قائمةٍ كلُّها `None` فيعيد **صفراً**، فشركةٌ
+    # لم يرد عنها بندُ التوزيع تُسجَّل «صفرُ سنواتِ توزيع» — رقمٌ يُقرأ
+    # متاحاً ثم يُرتَّب في قاع القطاع. فاجتمع الممنوعان: الناقصُ صار
+    # صفراً، ثم صار عقوبة. وكشفه المالك من تناقضٍ في التدقيق: سنواتُ
+    # التوزيع متاحةٌ لـ‎268 شركة، وبندُ التوزيع غائبٌ عن ‎74 منها.
+    #
+    # والفرقُ الذي يجب حفظُه: بندٌ ورد بقيمة صفرٍ يعني **لم توزّع**،
+    # وبندٌ لم يرد يعني **لا نعلم**. والأوّلُ حكمٌ والثاني صمت.
+    _ni_seen = [ni for ni in net_income if ni is not None]
+    feats["profitable_years"] = Feature(
+        sum(1 for ni in _ni_seen if ni > 0) if _ni_seen else None,
+        "عدد سنوات الربحية من أصل السنوات المتاحة")
+    _dv_seen = [d for d in dividends_paid if d is not None]
+    feats["dividend_years"] = Feature(
+        sum(1 for d in _dv_seen if d != 0) if _dv_seen else None,
+        "عدد سنوات دفع التوزيعات من أصل السنوات المتاحة")
 
     # ═══════════════════════════════════════════════════════════════════
     # معايير رواد الاستثمار (Expert frameworks) — تحكيم مُثبَّت أكاديمياً
@@ -398,7 +453,10 @@ def compute_features(periods: list[dict]) -> dict[str, dict]:
         _cv_to_subscore(feats["margin_stability"].value),
         _cv_to_subscore(feats["margin_stability_gross"].value),
     ]
-    profitable_ratio = (feats["profitable_years"].value / n_years * 100) if n_years else None
+    # وسنواتُ الربحية قد تكون غيرَ متاحة (لم يصل صافي الربح لسنةٍ واحدة)،
+    # فالنسبةُ عندها غيرُ متاحةٍ كذلك — ولا تُحسب صفراً.
+    _py = feats["profitable_years"].value
+    profitable_ratio = (_py / n_years * 100) if (n_years and _py is not None) else None
     available = [s for s in sub_scores if s is not None]
     if available:
         stability_component = sum(available) / len(available)

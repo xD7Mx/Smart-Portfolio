@@ -36,6 +36,8 @@ for _p in ("/app", os.path.join(_ROOT, "backend"), _ROOT, _HERE):
 MIN_PEERS = 3          # المادة ٣٩ — دونها لا وسيطَ يُعرض
 _MULTIPLES = ("p_e", "p_b", "ev_ebitda", "p_ffo", "p_e_normalized",
               "dividend_yield")
+# والعائدُ على حقوق الملكية وسيطُه لازمٌ لطريقة «الدفتريّ مسنداً بالعائد»
+_FROM_FEATURES = ("roe",)
 
 
 def _median(vals: list[float]) -> float | None:
@@ -52,6 +54,8 @@ async def main(argv: list[str]) -> int:
     from app.services import peer_distribution as pd
     from app.services import investment_score as inv
     from app.services import spec_score, red_lines, risk_gate
+    from app.services import model_valuation as mv
+    from app.data.saudi_directory import name_of
     from app.services.four_scores import build_company_features
     from app.services.market_data import market_service
 
@@ -99,6 +103,10 @@ async def main(argv: list[str]) -> int:
         for k in _MULTIPLES:
             if isinstance(px.get(k), (int, float)):
                 by_sector[sector or ""][k].append(float(px[k]))
+        for k in _FROM_FEATURES:
+            v = inv._val(fe, k)
+            if v is not None:
+                by_sector[sector or ""][k].append(v)
         rows.append({"sym": sym, "sector": sector, "ps": ps,
                      "fe": fe, "inf": merged, "px": px})
 
@@ -119,6 +127,9 @@ async def main(argv: list[str]) -> int:
     abstain: Counter = Counter()
     scores: list[float] = []
     hist: Counter = Counter()
+    vmethods: Counter = Counter()
+    miss_why: Counter = Counter()
+    detail: list[dict] = []
 
     for r in rows:
         sector, fe, ps = r["sector"], r["fe"], r["ps"]
@@ -127,8 +138,15 @@ async def main(argv: list[str]) -> int:
         arch = spec_score.resolve_archetype_ex(sector, {})[0]
         fe = dict(fe)
         fe.update(r["px"])
-        res = inv.compute(fe, sector, dist, arch,
-                          medians=medians.get(sector or "", {}))
+        med = medians.get(sector or "", {})
+        # ══ القيمةُ العادلة من نموذج القطاع، ثم تدخل التقييم ══
+        # التسلسلُ الذي أمرت به المواصفة: خامٌ → نموذجٌ → قيمةٌ عادلة →
+        # سعرٌ مقابلها → درجة. فتُحسب أوّلاً ثم يُشتقّ منها الخصم.
+        vr = mv.valuation_report(model, fe, ps, med,
+                                 r["inf"].get("current_price"))
+        if vr.get("upside_pct") is not None:
+            fe["fv_discount"] = vr["upside_pct"]
+        res = inv.compute(fe, sector, dist, arch, medians=med)
         ln = red_lines.check(fe, ps, arch)
         g = risk_gate.evaluate(fe, ps, ln)
         gates[g["status"]] += 1
@@ -147,8 +165,24 @@ async def main(argv: list[str]) -> int:
         label = ("EXCLUDED" if g["status"] == risk_gate.EXCLUDED
                  else res["grade"])
         grades[label] += 1
-        c, _why = inv.confidence_of(res, fe.get("years_available"))
+        c, _why = inv.confidence_of(res, inv._val(fe, "years_available"))
         conf[c] += 1
+        vmethods[vr.get("valuation_method") or "— لا طريقة"] += 1
+        detail.append({
+            "sym": r["sym"], "sector": sector, "score": res["score"],
+            "grade": res["grade"], "conf": c, "gate": g["status"],
+            "q": (res["components"]["quality"] or {}).get("score"),
+            "d": (res["components"]["dividend"] or {}).get("score"),
+            "g": (res["components"]["growth"] or {}).get("score"),
+            "v": (res["components"]["valuation"] or {}).get("score"),
+            "vm": vr.get("valuation_method_label") or "—",
+            "fv": vr.get("fair_value"), "px": vr.get("current_price"),
+            "up": vr.get("upside_pct"), "vconf": vr.get("valuation_confidence"),
+        })
+        for name, comp in res["components"].items():
+            for m in (comp.get("missing") or []):
+                if isinstance(m, dict):
+                    miss_why[f"{m['key']} — {m['why']}"] += 1
 
     print("═" * 74)
     print("  النموذجُ الاقتصاديّ")
@@ -195,6 +229,41 @@ async def main(argv: list[str]) -> int:
         print("\n  امتناعٌ عن الدرجة:")
         for k, v in abstain.most_common(6):
             print(f"    {k:46} {v:>4}")
+
+    print("\n" + "═" * 74)
+    print("  طريقةُ التقييم المستعمَلة")
+    print("═" * 74)
+    for k, v in vmethods.most_common():
+        print(f"    {k:34} {v:>4}")
+
+    both = [d for d in detail
+            if None not in (d["q"], d["d"], d["g"], d["v"])]
+    print(f"\n  المكوّناتُ الأربعةُ معاً: {len(both)} شركة")
+
+    print("\n" + "═" * 74)
+    print("  أفضلُ عشرين بالدرجة")
+    print("═" * 74)
+    print(f"  {'رمز':>5} {'الشركة':22}{'درجة':>6}{'ص':>3}"
+          f"{'جودة':>6}{'توزيع':>6}{'نموّ':>6}{'تقييم':>6}"
+          f"{'قيمة':>8}{'سعر':>8}{'فرق':>7}  الثقة · الطريقة")
+    print("─" * 74)
+    for d in sorted(detail, key=lambda x: -(x["score"] or 0))[:20]:
+        def _f(x, w=6):
+            return f"{x:>{w}.1f}" if isinstance(x, (int, float)) else f"{'—':>{w}}"
+        up = d["up"]
+        up_s = f"{up:+.0f}%" if isinstance(up, (int, float)) else "—"
+        nm = (name_of(d["sym"]) or "")[:22]
+        print(f"  {d['sym']:>5} {nm:22}{_f(d['score'])}{d['grade']:>3}"
+              f"{_f(d['q'])}{_f(d['d'])}{_f(d['g'])}{_f(d['v'])}"
+              f"{_f(d['fv'], 8)}{_f(d['px'], 8)}{up_s:>7}"
+              f"  {d['conf']} · {d['vm'][:26]}")
+        print(f"        {d['sector']}")
+
+    print("\n" + "═" * 74)
+    print("  أكثرُ عشرِ سماتٍ إخفاقاً")
+    print("═" * 74)
+    for k, v in miss_why.most_common(10):
+        print(f"    {v:>4}  {k}")
 
     print("\n" + "═" * 74)
     print("  اقرأ التوزيعَ قبل أن تُضبَط شريحة. ")
