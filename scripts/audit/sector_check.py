@@ -66,8 +66,10 @@ def main() -> int:
     from app.services.four_scores import build_company_features
     from app.services import investment_score as inv
     from app.services import spec_score, risk_gate, red_lines
-    from app.data.economic_models import (COMPONENTS, FORBIDDEN,
-                                          MODEL_OF_SECTOR, WEIGHTS, model_of)
+    from app.data.economic_models import (COMPONENTS, CORE_AXES, FORBIDDEN,
+                                          MODEL_OF_SECTOR, WEIGHTS_OF_MODEL,
+                                          model_of)
+    from app.services import investment_readiness as rdy
     from app.data.market_universe import MARKET_UNIVERSE
 
     fails: list[str] = []
@@ -86,12 +88,24 @@ def main() -> int:
         if hit:
             fails.append(f"‏{model} يستعمل ما لا يناسبه: {hit}")
 
-    # ══ ثانياً: الأوزان مثبَّتة ══
-    if WEIGHTS != {"quality": 0.40, "dividend": 0.25,
-                   "growth": 0.20, "valuation": 0.15}:
-        fails.append("الأوزانُ غُيّرت — والمواصفةُ تمنع تغييرها")
-    print(f"\n  الأوزان {WEIGHTS} "
-          f"{'✔' if not fails or 'الأوزان' not in fails[-1] else '✖'}")
+    # ══ ثانياً: أوزانُ كلّ نموذجٍ كما نصّت المواصفة ومجموعُها واحد ══
+    WANT = {
+        "FINANCIAL":   {"quality": .35, "dividend": .20, "growth": .15, "valuation": .30},
+        "REIT":        {"quality": .30, "dividend": .30, "growth": .15, "valuation": .25},
+        "CYCLICAL":    {"quality": .30, "dividend": .15, "growth": .25, "valuation": .30},
+        "OPERATING":   {"quality": .30, "dividend": .20, "growth": .25, "valuation": .25},
+        "REAL_ESTATE": {"quality": .30, "dividend": .15, "growth": .20, "valuation": .35},
+    }
+    print("\n" + "═" * 74)
+    print("  أوزانُ كلّ نموذج")
+    print("═" * 74)
+    for m, want in WANT.items():
+        got = WEIGHTS_OF_MODEL.get(m, {})
+        tot = sum(got.values())
+        ok = got == want and abs(tot - 1.0) < 1e-9
+        print(f"  {m:14} {got}  مجموع {tot:.2f}  {'✔' if ok else '✖'}")
+        if not ok:
+            fails.append(f"أوزانُ {m} تخالف المواصفة أو لا يبلغ مجموعُها واحداً")
 
     # ══ ثالثاً: كلُّ قطاعٍ في السوق له نموذج ══
     live = {m.get("sector") for s, m in MARKET_UNIVERSE.items()
@@ -211,6 +225,42 @@ def main() -> int:
         print(f"  بلا «{line}» → {feat} = {got}  {'✔' if ok else '✖'}")
         if not ok:
             fails.append(f"«{feat}» أعطى {got} وسلسلتُه لم تصل — الناقصُ صار رقماً")
+
+    # ══ ثامناً: الجاهزيةُ تمنع الأساسَ الضيّق من العبور ══ (المادة ٨)
+    # كشفه المالك: «الماجد للعود» ‎89.6 · A والنموُّ والتقييمُ لم يُقاسا.
+    # فدرجةٌ عاليةٌ بمحورٍ جوهريٍّ غائبٍ يجب ألّا تعبر بوّابةَ الترشيح.
+    print("\n" + "═" * 74)
+    print("  الجاهزيةُ منفصلةٌ عن الدرجة — والأساسُ الضيّق لا يعبر")
+    print("═" * 74)
+    arch, sector = "asset_light", "التطبيقات وخدمات التقنية"
+    cohort = [company(i / (COHORT - 1), arch) for i in range(COHORT)]
+    dist = _dist_from(cohort, sector, arch)
+    ps = company(0.95, arch)
+    nfo = _info_px(arch, ps)
+    fe, _i, _q = build_company_features(ps, info=nfo, sector=sector)
+    fe.update(inv.price_features(nfo, fe, ps, fair_value=nfo["current_price"] * 1.5))
+    thinf = {k: v for k, v in fe.items()
+             if k not in ("revenue_cagr_5y", "eps_cagr_5y", "roic_trend",
+                          "p_e", "ev_ebitda", "fv_discount")}
+    r = inv.compute(thinf, sector, dist, arch, medians=_MEDIANS)
+    cf, _w = inv.confidence_of(r, inv._val(thinf, "years_available"))
+    verdict = rdy.evaluate(r, "PASS", cf, None)
+    print(f"  ممتازةٌ بلا نموٍّ ولا تقييم → درجة {r['score']} · "
+          f"{r['grade']} · اكتمال {(r['data_completeness'] or 0):.0%}")
+    print(f"     جاهزية {verdict['readiness']} — {verdict['why'][:2]}")
+    if verdict["readiness"] != rdy.INSUFFICIENT_DATA:
+        fails.append(f"أساسٌ ضيّقٌ خرج بـ{verdict['readiness']} — "
+                     f"والمادة ٨ توجب INSUFFICIENT_DATA")
+
+    # وكاملةُ البيانات تعبر، وإلّا فالبوّابةُ تمنع الجميع
+    full = inv.compute(fe, sector, dist, arch, medians=_MEDIANS)
+    cf2, _w2 = inv.confidence_of(full, inv._val(fe, "years_available"))
+    v2 = rdy.evaluate(full, "PASS", cf2, "PE_MEDIAN")
+    print(f"  كاملةُ المحاور            → درجة {full['score']} · "
+          f"اكتمال {(full['data_completeness'] or 0):.0%} · "
+          f"جاهزية {v2['readiness']}")
+    if v2["readiness"] not in (rdy.READY, rdy.WATCH):
+        fails.append(f"كاملةُ المحاور لم تعبر: {v2['why']}")
 
     print("\n" + "═" * 74)
     if fails:

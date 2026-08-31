@@ -246,9 +246,46 @@ GRADES = (
     (0,  "E", "غيرُ مناسبٍ حالياً"),
 )
 
-# الأوزانُ مثبَّتةٌ بأمر المواصفة — ولا تُغيَّر اجتهاداً.
-WEIGHTS = {"quality": 0.40, "dividend": 0.25,
-           "growth": 0.20, "valuation": 0.15}
+# ══ الأوزانُ تتبع النموذج لا السوقَ كلَّه ══
+#
+# وزنٌ واحدٌ لكلّ القطاعات يُسوّي بين ما لا يستوي: التقييمُ عند مصرفٍ
+# يُقاس على الدفتريّ يستحقّ ثقلاً أكبرَ منه عند شركةٍ تشغيلية يُقاس
+# نموُّها أوّلاً؛ والصندوقُ العقاريّ كِيانُ توزيعٍ بالنظام، فتوزيعُه
+# ثلاثون بالمئة لا خمسَ عشرة.
+#
+# ولكلّ نموذجٍ مجموعُه واحدٌ صحيح — يفحصه اختبارُ القبول فيفشل إن اختلّ.
+WEIGHTS_OF_MODEL: dict[str, dict[str, float]] = {
+    FINANCIAL:   {"quality": 0.35, "dividend": 0.20,
+                  "growth": 0.15, "valuation": 0.30},
+    REIT:        {"quality": 0.30, "dividend": 0.30,
+                  "growth": 0.15, "valuation": 0.25},
+    CYCLICAL:    {"quality": 0.30, "dividend": 0.15,
+                  "growth": 0.25, "valuation": 0.30},
+    OPERATING:   {"quality": 0.30, "dividend": 0.20,
+                  "growth": 0.25, "valuation": 0.25},
+    REAL_ESTATE: {"quality": 0.30, "dividend": 0.15,
+                  "growth": 0.20, "valuation": 0.35},
+}
+
+COMPONENT_NAMES = ("quality", "dividend", "growth", "valuation")
+
+
+def weights_of(model: str | None) -> dict[str, float]:
+    """أوزانُ النموذج — ولا وزنَ افتراضيّ لنموذجٍ مجهول."""
+    return dict(WEIGHTS_OF_MODEL.get(model or "", {}))
+
+
+# ── المحورُ الجوهريّ لكلّ نموذج ──────────────────────────────────────
+# محورٌ لا يقوم عليه القرارُ في هذا القطاع فلا جاهزيةَ بدونه، مهما علت
+# الدرجة. فالمصرفُ لا يُرشَّح بلا تقييمٍ دفتريّ، والصندوقُ لا يُرشَّح
+# بلا توزيعٍ مقيس — وهو نصُّ المادتين ٧ و٨.
+CORE_AXES: dict[str, tuple[str, ...]] = {
+    FINANCIAL:   ("quality", "valuation"),
+    REIT:        ("quality", "dividend", "valuation"),
+    CYCLICAL:    ("quality", "growth", "valuation"),
+    OPERATING:   ("quality", "growth", "valuation"),
+    REAL_ESTATE: ("quality", "valuation"),
+}
 
 
 def grade_of(score: float) -> tuple[str, str]:

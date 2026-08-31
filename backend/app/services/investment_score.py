@@ -36,7 +36,8 @@
 
 from __future__ import annotations
 
-from app.data.economic_models import (COMPONENTS, WEIGHTS, grade_of, model_of)
+from app.data.economic_models import (COMPONENTS, COMPONENT_NAMES,
+                                      grade_of, model_of, weights_of)
 from app.services import peer_distribution as _pd
 
 # ══ لكلّ سمةٍ حالةٌ صريحة ══ (المادة ٥)
@@ -262,14 +263,14 @@ def compute(features: dict, sector: str | None, dist: dict | None,
         return out
 
     spec = COMPONENTS[model]
-    for name in ("quality", "dividend", "growth", "valuation"):
+    W = weights_of(model)
+    for name in COMPONENT_NAMES:
         out["components"][name] = _component(
             features, spec[name], archetype, dist, medians)
 
-    # ══ شركةٌ لا توزّع: واقعةٌ لا نقصُ بيانات ══ (المادة ٣)
+    # ══ شركةٌ لا توزّع: واقعةٌ لا نقصُ بيانات ══
     # «سنواتُ التوزيع = صفر» بندٌ **ورد** وقال إنها لم توزّع، فهذا حكمٌ
-    # لا صمت. والمحفظةُ تستهدف الدخل، فيخرج المكوّنُ منخفضاً لا ممتنعاً:
-    # ‏«لا توزيعَ» ليست شركةً سيّئة، لكنها أقلُّ ملاءمةً لهذا الهدف.
+    # لا صمت. والمحفظةُ تستهدف الدخل، فيخرج المكوّنُ منخفضاً لا ممتنعاً.
     _d = out["components"]["dividend"]
     if _d["score"] is None and _val(features, "dividend_years") == 0 and _d["reads"]:
         _w = sum(r["weight"] for r in _d["reads"])
@@ -280,25 +281,32 @@ def compute(features: dict, sector: str | None, dist: dict | None,
 
     live = {k: c for k, c in out["components"].items()
             if c["score"] is not None}
-    if len(live) < MIN_COMPONENTS:
-        have = "، ".join(live) or "لا شيء"
-        out["abstain_reason"] = (
-            f"قام مكوّنٌ واحدٌ فقط ({have}) — والدرجةُ لا تُبنى على أقلّ "
-            f"من {MIN_COMPONENTS}")
+    out["components_used"] = sorted(live)
+    out["components_missing"] = [k for k in COMPONENT_NAMES if k not in live]
+    out["weights"] = W
+
+    # ══ اكتمالُ البيانات: وزنُ ما قِيس فعلاً من وزن النموذج كلِّه ══
+    # لا عددُ السمات: سمةٌ وزنُها ‎35٪ ليست كسمةٍ وزنُها ‎5٪. فتُجمع
+    # تغطيةُ كلّ مكوّنٍ مضروبةً في وزنه — وهو ما تحتكم إليه الجاهزية.
+    out["data_completeness"] = round(
+        sum(W[k] * (out["components"][k]["coverage"] or 0.0)
+            for k in COMPONENT_NAMES), 3)
+
+    _span = _val(features, "growth_period_years")
+    out["growth_period_years"] = _span
+    out["growth_horizon"] = (
+        "NOT_AVAILABLE" if _span is None else
+        "5Y" if _span >= 5 else "3Y" if _span >= 3 else "LIMITED")
+
+    if not live:
+        out["abstain_reason"] = "لم يقم مكوّنٌ واحد — لا بياناتٍ تُبنى عليها درجة"
         return out
 
-    # ══ الوزنُ يُقسَم على ما وصل ══
-    # الأوزانُ مثبَّتة، والمكوّنُ الغائب لا يصير صفراً (فيُدان بنقصٍ في
-    # مصدرنا) ولا يُخترَع. فتُعاد القسمةُ على ما قام — وهو قياسُ ما
-    # نعرفه، وما غاب يُعلَن باسمه وتنزل به الثقة.
-    wsum = sum(WEIGHTS[k] for k in live)
+    # الوزنُ يُقسَم على ما قام: الغائبُ لا يصير صفراً ولا يُخترَع.
+    wsum = sum(W[k] for k in live)
     out["score"] = round(
-        sum(c["score"] * WEIGHTS[k] for k, c in live.items()) / wsum, 1)
+        sum(c["score"] * W[k] for k, c in live.items()) / wsum, 1)
     out["weight_basis"] = round(wsum, 2)
-    out["components_missing"] = [k for k in WEIGHTS if k not in live]
-    out["growth_period_years"] = _val(features, "growth_period_years")
-    out["thin_basis"] = len(live) < THIN_BASIS_BELOW
-    out["components_used"] = sorted(live)
     out["grade"], out["grade_label"] = grade_of(out["score"])
     return out
 

@@ -58,6 +58,7 @@ async def main(argv: list[str]) -> int:
     from app.services import investment_score as inv
     from app.services import spec_score, red_lines, risk_gate
     from app.services import model_valuation as mv
+    from app.services import investment_readiness as rdy
     from app.data.saudi_directory import name_of
     from app.services.four_scores import build_company_features
     from app.services.market_data import market_service
@@ -120,188 +121,188 @@ async def main(argv: list[str]) -> int:
     print(f"  {len(rows)} شركةً قُرئت · {told} وسيطاً قطاعياً بُني "
           f"(بحدٍّ أدنى {MIN_PEERS} أقران)\n")
 
-    # ══ المرّةُ الثانية: الدرجة ══
-    grades: Counter = Counter()
-    models: Counter = Counter()
-    gates: Counter = Counter()
-    conf: Counter = Counter()
-    comp_live: Counter = Counter()
-    comp_why: Counter = Counter()
-    abstain: Counter = Counter()
-    nolist: dict[str, str] = {}
-    scores: list[float] = []
-    hist: Counter = Counter()
-    vmethods: Counter = Counter()
-    miss_why: Counter = Counter()
-    detail: list[dict] = []
-
+    # ══ المرّةُ الثانية: الدرجةُ والجاهزية ══
+    rows_out: list[dict] = []
     for r in rows:
-        sector, fe, ps = r["sector"], r["fe"], r["ps"]
+        sector, ps = r["sector"], r["ps"]
         model = model_of(sector)
-        models[model or "بلا نموذج"] += 1
         arch = spec_score.resolve_archetype_ex(sector, {})[0]
-        fe = dict(fe)
-        fe.update(r["px"])
+        fe = dict(r["fe"]); fe.update(r["px"])
         med = medians.get(sector or "", {})
-        # ══ القيمةُ العادلة من نموذج القطاع، ثم تدخل التقييم ══
-        # التسلسلُ الذي أمرت به المواصفة: خامٌ → نموذجٌ → قيمةٌ عادلة →
-        # سعرٌ مقابلها → درجة. فتُحسب أوّلاً ثم يُشتقّ منها الخصم.
         vr = mv.valuation_report(model, fe, ps, med,
                                  r["inf"].get("current_price"))
         if vr.get("upside_pct") is not None:
             fe["fv_discount"] = vr["upside_pct"]
         res = inv.compute(fe, sector, dist, arch, medians=med)
         ln = red_lines.check(fe, ps, arch)
-        g = risk_gate.evaluate(fe, ps, ln)
-        gates[g["status"]] += 1
-
-        for name, c in res["components"].items():
-            if c["score"] is not None:
-                comp_live[name] += 1
-            else:
-                comp_why[f"{name}: {(c.get('reason') or '')[:26]}"] += 1
-
-        if res["score"] is None:
-            abstain[(res.get("abstain_reason") or "")[:44]] += 1
-            nolist[r["sym"]] = (res.get("abstain_reason") or "امتنعت")[:52]
-            continue
-        scores.append(res["score"])
-        hist[min(int(res["score"] // 10) * 10, 90)] += 1
-        label = ("EXCLUDED" if g["status"] == risk_gate.EXCLUDED
-                 else res["grade"])
-        grades[label] += 1
-        c, _why = inv.confidence_of(res, inv._val(fe, "years_available"))
-        conf[c] += 1
-        vmethods[vr.get("valuation_method") or "— لا طريقة"] += 1
-        detail.append({
-            "sym": r["sym"], "sector": sector, "score": res["score"],
-            "grade": res["grade"], "conf": c, "gate": g["status"],
-            "q": (res["components"]["quality"] or {}).get("score"),
-            "d": (res["components"]["dividend"] or {}).get("score"),
-            "g": (res["components"]["growth"] or {}).get("score"),
-            "v": (res["components"]["valuation"] or {}).get("score"),
-            "vm": vr.get("valuation_method_label") or "—",
+        gate = risk_gate.evaluate(fe, ps, ln)
+        cf, cwhy = inv.confidence_of(res, inv._val(fe, "years_available"))
+        ready = rdy.evaluate(res, gate["status"], cf,
+                             vr.get("valuation_method"))
+        th, risk = rdy.thesis(res, ready, vr.get("upside_pct"))
+        c = res["components"]
+        rows_out.append({
+            "sym": r["sym"], "name": name_of(r["sym"]) or "",
+            "sector": sector or "—", "model": model or "—",
+            "score": res["score"], "grade": res["grade"],
+            "q": (c["quality"] or {}).get("score"),
+            "d": (c["dividend"] or {}).get("score"),
+            "g": (c["growth"] or {}).get("score"),
+            "v": (c["valuation"] or {}).get("score"),
+            "dc": res.get("data_completeness"), "conf": cf,
+            "horizon": res.get("growth_horizon"),
+            "vm": vr.get("valuation_method"),
+            "vm_label": vr.get("valuation_method_label") or "—",
             "fv": vr.get("fair_value"), "px": vr.get("current_price"),
-            "up": vr.get("upside_pct"), "vconf": vr.get("valuation_confidence"),
-            "model": model or "—", "thin": bool(res.get("thin_basis")),
+            "up": vr.get("upside_pct"),
+            "gate": gate["status"], "readiness": ready["readiness"],
+            "decision": ready["decision"], "why": ready["why"],
+            "codes": ready.get("codes") or [],
+            "thesis": th, "risk": risk,
+            "missing": [m for comp in c.values()
+                        for m in (comp.get("missing") or [])],
+            "comps_live": len(res.get("components_used") or []),
         })
-        for name, comp in res["components"].items():
-            for m in (comp.get("missing") or []):
-                if isinstance(m, dict):
-                    miss_why[f"{m['key']} — {m['why']}"] += 1
 
-    print("═" * 74)
-    print("  النموذجُ الاقتصاديّ")
-    print("═" * 74)
-    for k, v in models.most_common():
+    n = len(rows_out)
+    R = Counter(x["readiness"] for x in rows_out)
+    print("═" * 78)
+    print("  ١ · ٢ · ٣ · ٤ · ٥ — تعدادُ السوق والجاهزية")
+    print("═" * 78)
+    print(f"    الشركاتُ المقروءة            {n}")
+    for k in ("READY", "WATCH", "INSUFFICIENT_DATA", "EXCLUDED"):
+        v = R.get(k, 0)
+        print(f"    {k:22} {v:>4}  {v / max(n,1):>5.0%}  "
+              f"{'█' * round(v / max(n,1) * 40)}")
+
+    dcs = [x["dc"] for x in rows_out if isinstance(x["dc"], (int, float))]
+    print("\n" + "═" * 78)
+    print("  ٦ — اكتمالُ البيانات")
+    print("═" * 78)
+    if dcs:
+        ds = sorted(dcs)
+        print(f"    الوسيط {ds[len(ds)//2]:.0%} · "
+              f"الرُّبيع الأدنى {ds[len(ds)//4]:.0%} · "
+              f"الأعلى {ds[len(ds)*3//4]:.0%}")
+        for lo in (0, 20, 40, 60, 80):
+            hi = lo + 20
+            cnt = sum(1 for d in ds if lo <= d * 100 < hi or (hi == 100 and d >= 1))
+            print(f"    {lo:>3}–{hi:<3}٪ {cnt:>4}  {'█' * round(cnt/len(ds)*40)}")
+    print("\n    المحاورُ القائمة لكلّ شركة:")
+    for k, v in sorted(Counter(x["comps_live"] for x in rows_out).items()):
+        print(f"      {k} من 4 → {v} شركة")
+
+    print("\n" + "═" * 78)
+    print("  ٧ — طريقةُ التقييم لكلّ شركة")
+    print("═" * 78)
+    for k, v in Counter(x["vm"] or "— لا طريقة" for x in rows_out).most_common():
         print(f"    {k:16} {v:>4}")
+    print("\n    ولكلّ نموذجٍ طرقُه:")
+    bym: dict = defaultdict(Counter)
+    for x in rows_out:
+        bym[x["model"]][x["vm"] or "—"] += 1
+    for m in sorted(bym):
+        print(f"      {m:14} {dict(bym[m])}")
 
-    print("\n" + "═" * 74)
-    print("  التصنيفُ النهائيّ")
-    print("═" * 74)
-    tot = sum(grades.values()) or 1
-    for k in ("A", "B", "C", "D", "E", "EXCLUDED"):
-        v = grades.get(k, 0)
-        print(f"    {k:10} {v:>4}   {v / tot:>5.0%}  {'█' * round(v / tot * 44)}")
+    print("\n" + "═" * 78)
+    print("  ٨ — أسبابُ عدم الجاهزية")
+    print("═" * 78)
+    cc = Counter(c for x in rows_out for c in x["codes"])
+    for k, v in cc.most_common():
+        print(f"    {k:24} {v:>4}")
+    print("\n    وبالنصّ:")
+    for k, v in Counter(w for x in rows_out for w in x["why"]).most_common(10):
+        print(f"      {v:>4}  {k}")
 
-    if scores:
-        s = sorted(scores)
-        print(f"\n  الدرجة — وسيط {s[len(s) // 2]:.1f} · "
-              f"رُبيعٌ أدنى {s[len(s) // 4]:.1f} · "
-              f"أعلى {s[len(s) * 3 // 4]:.1f} · "
-              f"مدى {s[0]:.1f}–{s[-1]:.1f}")
-        print("\n  توزيعُ الدرجة (كم شركةً في كل عَشْر):")
-        for lo in range(0, 100, 10):
-            v = hist.get(lo, 0)
-            print(f"    {lo:>3}–{lo + 9:<3} {v:>4}  "
-                  f"{'█' * round(v / max(len(s), 1) * 56)}")
+    print("\n" + "═" * 78)
+    print("  ٩ · ١٠ · ١١ — لا بدائلَ كاذبة ولا جاهزيةٌ ببيانٍ ناقص")
+    print("═" * 78)
+    bad_ready = [x for x in rows_out
+                 if x["readiness"] == "READY" and
+                 (x["comps_live"] < 4 or (x["dc"] or 0) < 0.80
+                  or x["conf"] == "منخفضة" or not x["vm"])]
+    print(f"    شركاتٌ READY بمحورٍ ناقصٍ أو ثقةٍ منخفضة: {len(bad_ready)}"
+          f"  {'✔' if not bad_ready else '✖'}")
+    for x in bad_ready[:10]:
+        print(f"      ✖ {x['sym']} {x['name'][:20]} محاور {x['comps_live']}/4 "
+              f"اكتمال {(x['dc'] or 0):.0%} ثقة {x['conf']} طريقة {x['vm']}")
+    ghost = [x for x in rows_out if x["v"] is not None and not x["vm"]]
+    print(f"    درجةُ تقييمٍ بلا طريقةٍ معلَنة: {len(ghost)}"
+          f"  {'✔' if not ghost else '✖'}")
+    hz = Counter(x["horizon"] for x in rows_out)
+    print(f"    أفقُ النموّ: {dict(hz)}")
 
-    print("\n" + "═" * 74)
-    print("  البوّابة · الثقة · المكوّنات")
-    print("═" * 74)
-    for k, v in gates.most_common():
-        print(f"    بوّابة {k:12} {v:>4}")
-    print()
-    for k, v in conf.most_common():
-        print(f"    ثقة {k:14} {v:>4}")
-    print()
-    for k in ("quality", "dividend", "growth", "valuation"):
-        print(f"    قام {k:12} {comp_live.get(k, 0):>4} من {len(rows)}")
-    if comp_why:
-        print("\n  لماذا لم يقم مكوّن:")
-        for k, v in comp_why.most_common(8):
-            print(f"    {k:46} {v:>4}")
-    if abstain:
-        print("\n  امتناعٌ عن الدرجة:")
-        for k, v in abstain.most_common(6):
-            print(f"    {k:46} {v:>4}")
+    print("\n" + "═" * 78)
+    print("  ١٢ · ١٣ — كلُّ نموذجٍ وكلُّ قطاع")
+    print("═" * 78)
+    bys: dict = defaultdict(list)
+    for x in rows_out:
+        bys[x["sector"]].append(x)
+    print(f"  {'القطاع':30}{'النموذج':13}{'عدد':>4}{'READY':>7}"
+          f"{'وسيط':>7}{'اكتمال':>8}")
+    print("─" * 78)
+    for sec in sorted(bys, key=lambda k: -len(bys[k])):
+        g = bys[sec]
+        sc = sorted(x["score"] for x in g if x["score"] is not None)
+        dd = [x["dc"] for x in g if isinstance(x["dc"], (int, float))]
+        print(f"  {sec[:30]:30}{g[0]['model']:13}{len(g):>4}"
+              f"{sum(1 for x in g if x['readiness'] == 'READY'):>7}"
+              f"{(f'{sc[len(sc)//2]:.1f}' if sc else '—'):>7}"
+              f"{(f'{sum(dd)/len(dd):.0%}' if dd else '—'):>8}")
 
-    print("\n" + "═" * 74)
-    print("  طريقةُ التقييم المستعمَلة")
-    print("═" * 74)
-    for k, v in vmethods.most_common():
-        print(f"    {k:34} {v:>4}")
-
-    both = [d for d in detail
-            if None not in (d["q"], d["d"], d["g"], d["v"])]
-    thin = [d for d in detail if d["thin"]]
-    print(f"\n  المكوّناتُ الأربعةُ معاً: {len(both)} شركة")
-    print(f"  أساسٌ ضيّق (مكوّنان أو أقلّ): {len(thin)} شركة")
-    top20 = sorted(detail, key=lambda x: -(x["score"] or 0))[:20]
-    print(f"  ومن أفضل عشرين: {sum(1 for d in top20 if d['thin'])} "
-          f"قامت على أساسٍ ضيّق")
-
-    print("\n" + "═" * 74)
-    print("  أفضلُ عشرين بالدرجة")
-    print("═" * 74)
-    print(f"  {'رمز':>5} {'الشركة':22}{'درجة':>6}{'ص':>3}"
-          f"{'جودة':>6}{'توزيع':>6}{'نموّ':>6}{'تقييم':>6}"
-          f"{'قيمة':>8}{'سعر':>8}{'فرق':>7}  الثقة · الطريقة")
-    print("─" * 74)
-    for d in sorted(detail, key=lambda x: -(x["score"] or 0))[:20]:
-        def _f(x, w=6):
-            return f"{x:>{w}.1f}" if isinstance(x, (int, float)) else f"{'—':>{w}}"
-        up = d["up"]
-        up_s = f"{up:+.0f}%" if isinstance(up, (int, float)) else "—"
-        nm = (name_of(d["sym"]) or "")[:22]
-        print(f"  {d['sym']:>5} {nm:22}{_f(d['score'])}{d['grade']:>3}"
-              f"{_f(d['q'])}{_f(d['d'])}{_f(d['g'])}{_f(d['v'])}"
-              f"{_f(d['fv'], 8)}{_f(d['px'], 8)}{up_s:>7}"
-              f"  {d['conf']} · {d['vm'][:26]}")
-        print(f"        {d['sector']}")
-
-    print("\n" + "═" * 74)
-    print("  الشركاتُ المطلوبة بالاسم — تحقّقُ النموذج القطاعيّ")
-    print("═" * 74)
-    seen = {d["sym"]: d for d in detail}
+    print("\n" + "═" * 78)
+    print("  ١٤ — الشركاتُ التي كانت مُضلِّلة، بالاسم")
+    print("═" * 78)
+    seen = {x["sym"]: x for x in rows_out}
     for sym in WATCH:
-        d = seen.get(sym)
-        if d is None:
-            why = (nolist.get(sym) or "لم تُقرأ")
-            print(f"  {sym}  {(name_of(sym) or '')[:24]:24} — {why}")
+        x = seen.get(sym)
+        if x is None:
+            print(f"  {sym}  {(name_of(sym) or '')[:26]:26} — لم تُقرأ")
             continue
-        def _g(x):
-            return f"{x:.1f}" if isinstance(x, (int, float)) else "—"
-        up = d["up"]
-        print(f"  {sym}  {(name_of(sym) or '')[:24]:24}"
-              f"درجة {_g(d['score']):>5}  {d['grade']}   {d['sector']}")
-        print(f"        نموذج {d['model']:12} جودة {_g(d['q']):>5} · "
-              f"توزيع {_g(d['d']):>5} · نموّ {_g(d['g']):>5} · "
-              f"تقييم {_g(d['v']):>5}")
-        print(f"        قيمة {_g(d['fv']):>7} · سعر {_g(d['px']):>7} · "
-              f"فرق {(f'{up:+.0f}%' if isinstance(up, (int, float)) else '—'):>6}"
-              f" · ثقة {d['conf']} · {d['vm'][:30]}")
-        if d.get("thin"):
-            print("        ⚠ أساسٌ ضيّق — مكوّنان أو أقلّ")
+        _f = lambda z, w=5: (f"{z:>{w}.1f}" if isinstance(z, (int, float))
+                             else f"{'—':>{w}}")
+        print(f"\n  {x['sym']} · {x['name'][:30]}")
+        print(f"      القطاع {x['sector']}  ·  النموذج {x['model']}")
+        print(f"      الدرجة {_f(x['score'])} · {x['grade']}   "
+              f"جودة {_f(x['q'])} · توزيع {_f(x['d'])} · "
+              f"نموّ {_f(x['g'])} · تقييم {_f(x['v'])}")
+        print(f"      اكتمال {(x['dc'] or 0):.0%} · ثقة {x['conf']} · "
+              f"أفق {x['horizon']} · طريقة {x['vm'] or '—'}")
+        _up = (f"{x['up']:+.0f}%" if isinstance(x["up"], (int, float)) else "—")
+        print(f"      قيمة {_f(x['fv'],7)} · سعر {_f(x['px'],7)} · "
+              f"فرق {_up}")
+        print(f"      الجاهزية {x['readiness']} — {x['decision']}")
+        print(f"      الأطروحة: {x['thesis']}")
+        print(f"      الخطر: {x['risk']}")
+        if x["why"]:
+            print(f"      النقص: {' · '.join(x['why'])}")
 
-    print("\n" + "═" * 74)
-    print("  أكثرُ عشرِ سماتٍ إخفاقاً")
-    print("═" * 74)
-    for k, v in miss_why.most_common(10):
+    print("\n" + "═" * 78)
+    print("  المرشّحون — READY مرتّبين بالدرجة")
+    print("═" * 78)
+    cand = sorted((x for x in rows_out if x["readiness"] == "READY"),
+                  key=lambda z: -(z["score"] or 0))
+    if not cand:
+        print("    لا مرشّحَ اجتاز البوّابة.")
+    print(f"  {'رمز':>5} {'الشركة':24}{'درجة':>6}{'ص':>3}{'جودة':>6}"
+          f"{'توزيع':>6}{'نموّ':>6}{'تقييم':>6}{'اكتمال':>8} الثقة · القرار")
+    for x in cand[:25]:
+        _f = lambda z, w=6: (f"{z:>{w}.1f}" if isinstance(z, (int, float))
+                             else f"{'—':>{w}}")
+        print(f"  {x['sym']:>5} {x['name'][:24]:24}{_f(x['score'])}"
+              f"{x['grade']:>3}{_f(x['q'])}{_f(x['d'])}{_f(x['g'])}"
+              f"{_f(x['v'])}{(x['dc'] or 0)*100:>7.0f}٪ {x['conf']} · {x['decision']}")
+
+    print("\n" + "═" * 78)
+    print("  أكثرُ السماتِ إخفاقاً")
+    print("═" * 78)
+    mw = Counter(f"{m['key']} — {m['why']}" for x in rows_out
+                 for m in x["missing"] if isinstance(m, dict))
+    for k, v in mw.most_common(15):
         print(f"    {v:>4}  {k}")
 
-    print("\n" + "═" * 74)
-    print("  اقرأ التوزيعَ قبل أن تُضبَط شريحة. ")
+    print("\n" + "═" * 78)
+    print("  انتهى التقرير — لم تُعدَّل قاعدةٌ لتحسين رقم.")
     return 0
 
 

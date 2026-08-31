@@ -62,22 +62,35 @@ def _per_share(periods: list[dict] | None, line: str) -> float | None:
 # ── ترتيبُ الطرق لكلّ نموذج ─────────────────────────────────────────
 # أوّلُ طريقةٍ تكتمل مدخلاتُها هي المستعمَلة، والباقي يُسجَّل مُتاحاً أو
 # غير متاح — فيرى المدقّقُ لماذا اختيرت هذه لا تلك.
+# ══ لكلّ طريقةٍ اسمٌ صريحٌ يُعرض ══ (المادة ٦)
+# البديلُ لا يلبس اسمَ الأصل: إن تعذّرت الأرباحُ قبل الإهلاك فالتقييمُ
+# يُسمّى `PB_MEDIAN` لا `EV_EBITDA` محسوباً على مقامٍ آخر. فيرى القارئ
+# **بماذا** قُيّمت الشركة، ولا يُقارَن تقييمٌ دفتريّ بآخرَ ربحيّ وكأنهما
+# طريقةٌ واحدة.
+PB_ROE = "PB_ROE"
+PE_MEDIAN = "PE_MEDIAN"
+PE_MID_CYCLE = "PE_MID_CYCLE"
+P_FFO = "P_FFO"
+NAV_PROXY = "NAV_PROXY"
+EV_EBITDA = "EV_EBITDA"
+PB_MEDIAN = "PB_MEDIAN"
+
 METHODS: dict[str, tuple[str, ...]] = {
-    FINANCIAL:   ("pb_roe", "pe_median"),
-    REIT:        ("p_ffo", "pb_nav_proxy"),
-    CYCLICAL:    ("normalized_pe", "ev_ebitda", "pb_median"),
-    OPERATING:   ("pe_median", "ev_ebitda"),
-    REAL_ESTATE: ("pb_nav_proxy", "pe_median"),
+    FINANCIAL:   (PB_ROE, PE_MEDIAN),
+    REIT:        (P_FFO, NAV_PROXY),
+    CYCLICAL:    (PE_MID_CYCLE, EV_EBITDA, PB_MEDIAN),
+    OPERATING:   (PE_MEDIAN, EV_EBITDA),
+    REAL_ESTATE: (NAV_PROXY, PE_MEDIAN),
 }
 
 _LABEL = {
-    "pb_roe": "الدفتريُّ مسنداً بالعائد على حقوق الملكية",
-    "pe_median": "المضاعفُ الربحيّ على وسيط القطاع",
-    "p_ffo": "السعرُ إلى الأموال من العمليات",
-    "pb_nav_proxy": "الدفتريُّ تقريباً لصافي الأصول",
-    "normalized_pe": "الأرباحُ المعيارية على وسيط القطاع",
-    "ev_ebitda": "قيمةُ المنشأة إلى الأرباح التشغيلية",
-    "pb_median": "الدفتريُّ على وسيط القطاع",
+    PB_ROE: "الدفتريُّ مسنداً بالعائد على حقوق الملكية",
+    PE_MEDIAN: "المضاعفُ الربحيّ على وسيط القطاع",
+    P_FFO: "السعرُ إلى الأموال من العمليات",
+    NAV_PROXY: "تقريبُ صافي الأصول (دفتريٌّ — وليس صافيَ أصولٍ مقوَّماً)",
+    PE_MID_CYCLE: "المضاعفُ على أرباحٍ معياريةٍ عبر الدورة",
+    EV_EBITDA: "قيمةُ المنشأة إلى الأرباح قبل الإهلاك",
+    PB_MEDIAN: "الدفتريُّ على وسيط القطاع",
 }
 
 
@@ -91,7 +104,7 @@ def _try(method: str, features: dict, periods: list[dict] | None,
         (have if v is not None else gone).append(name)
         return v
 
-    if method == "pb_roe":
+    if method == PB_ROE:
         bvps = need("القيمة الدفترية للسهم", _per_share(periods, "total_equity")
                     or _per_share(periods, "equity"))
         roe = need("العائد على حقوق الملكية", _n(features, "roe"))
@@ -104,7 +117,7 @@ def _try(method: str, features: dict, periods: list[dict] | None,
         ratio = min(max(roe / m_roe, 0.25), 3.0)
         return round(bvps * m_pb * ratio, 2), have, gone
 
-    if method == "pe_median":
+    if method == PE_MEDIAN:
         last = (periods or [{}])[-1] if periods else {}
         eps = need("ربحية السهم", _n(last, "eps")
                    or _per_share(periods, "net_income"))
@@ -113,21 +126,21 @@ def _try(method: str, features: dict, periods: list[dict] | None,
             return None, have, gone
         return round(eps * m_pe, 2), have, gone
 
-    if method == "normalized_pe":
+    if method == PE_MID_CYCLE:
         neps = need("الربحية المعيارية", _n(features, "normalized_eps"))
         m_pe = need("وسيط المضاعف الربحيّ", medians.get("p_e"))
         if neps is None or m_pe is None or neps <= 0:
             return None, have, gone
         return round(neps * m_pe, 2), have, gone
 
-    if method == "p_ffo":
+    if method == P_FFO:
         ffo_ps = need("الأموال من العمليات للسهم", _per_share(periods, "_ffo"))
         m = need("وسيط السعر إلى الأموال", medians.get("p_ffo"))
         if ffo_ps is None or m is None or ffo_ps <= 0:
             return None, have, gone
         return round(ffo_ps * m, 2), have, gone
 
-    if method in ("pb_nav_proxy", "pb_median"):
+    if method in (NAV_PROXY, PB_MEDIAN):
         bvps = need("القيمة الدفترية للسهم", _per_share(periods, "total_equity")
                     or _per_share(periods, "equity"))
         m_pb = need("وسيط الدفتريّ", medians.get("p_b"))
@@ -135,7 +148,7 @@ def _try(method: str, features: dict, periods: list[dict] | None,
             return None, have, gone
         return round(bvps * m_pb, 2), have, gone
 
-    if method == "ev_ebitda":
+    if method == EV_EBITDA:
         last = (periods or [{}])[-1] if periods else {}
         eb = _n(last, "ebitda")
         if eb is None:
