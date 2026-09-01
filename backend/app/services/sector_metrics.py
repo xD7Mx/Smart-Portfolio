@@ -44,9 +44,25 @@
 from __future__ import annotations
 
 
+# ══ اسمُ البند يُقرأ بمرادفاته ══ (كشفه `decide.py` — D137)
+# مصدرُنا يُخرج حقوقَ الملكية باسم `equity`، وهذا الملفّ كان يقرأ
+# `total_equity` — وهو **غيرُ موجودٍ في البيانات الحقيقية أصلاً**. فلم
+# تُحسب الرافعةُ (‏`leverage_x`) لشركةٍ واحدةٍ في السوق قطّ، ولم يُبنَ
+# لها توزيعُ أقران، فسقط مؤشّرٌ وزنُه ‎20٪ من جودة النموذج المالي.
+# وأخفته العيّنةُ الاصطناعية لأنها تضع المفتاحين معاً — والدرسُ نفسُه
+# المتكرّر: العيّنةُ تشبه المصدرَ أو لا تقيسه.
+_ALIASES = {
+    "total_equity": ("total_equity", "equity", "stockholders_equity"),
+    "cash": ("ending_cash", "cash", "cash_and_equivalents"),
+}
+
+
 def _n(d: dict, k: str) -> float | None:
-    v = (d or {}).get(k)
-    return float(v) if isinstance(v, (int, float)) else None
+    for name in _ALIASES.get(k, (k,)):
+        v = (d or {}).get(name)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return float(v)
+    return None
 
 
 def _avg(a: float | None, b: float | None) -> float | None:

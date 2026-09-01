@@ -197,8 +197,37 @@ def main() -> int:
                 if k not in price_based and d != "discount":
                     need.add(k)
     orphan = sorted(need - collected)
-    print(f"  مؤشّراتٌ تُرتَّب {len(need)} · لها مسطرة {len(need & collected)}"
-          f" · بلا مسطرة {len(orphan)}  {'✔' if not orphan else '✖'}")
+    print(f"  مؤشّراتٌ تُرتَّب {len(need)} · مجموعةٌ في المفاتيح "
+          f"{len(need & collected)} · غيرُ مجموعة {len(orphan)}"
+          f"  {'✔' if not orphan else '✖'}")
+    # ══ وهذا يحرس الحرفَ لا المعنى ══ (D137)
+    # جمعُ المفتاح شرطٌ لازمٌ لا كافٍ: التوزيعُ لا يُبنى إلّا إن بلغت
+    # العشيرةُ حدَّها، والقيمةُ لا تصل العشيرةَ إلّا إن حُسبت من بنودٍ
+    # بأسمائها الحقيقية. فقال هذا الفحصُ «19/19» بينما بنى الخادمُ ‎17
+    # توزيعاً فقط — وكلاهما صادقٌ في شيءٍ مختلف.
+    #
+    # ولا يُقاس البناءُ الفعليّ هنا: يحتاج سوقاً. فيُقاس في `decide.py`
+    # (الاختبار ٣) ويفرّق هناك بين عطبِ تركيبٍ وشحٍّ حقيقيّ.
+    print("  ملاحظة: هذا يفحص جمعَ المفاتيح. وبناءَ التوزيع فعلياً")
+    print("          يفحصه `decide.py` — الاختبار ٣ — على السوق.")
+
+    # ── وأسماءُ البنود تُقرأ كما يُخرجها المصدر ──
+    # كان `sector_metrics` يقرأ `total_equity` والمصدرُ يُخرج `equity`،
+    # فلم تُحسب الرافعةُ لشركةٍ واحدةٍ قطّ. والعيّنةُ تضع المفتاحين معاً
+    # فأخفته. فيُفحص هنا بفترةٍ **بمفاتيح المصدر وحدها**.
+    from app.services import sector_metrics as _sm
+    _real = {"year": 2025, "equity": 1000.0, "total_assets": 5000.0,
+             "total_debt": 1500.0, "ending_cash": 300.0,
+             "operating_income": 400.0, "depreciation": 100.0,
+             "revenue": 3000.0, "net_income": 250.0, "inventory": 200.0}
+    _f = (_sm.compute("commodity", [_real, _real], None, None)
+          .get("features") or {})
+    for _k in ("leverage_x", "net_debt_ebitda", "ltv_pct"):
+        _ok = _f.get(_k) is not None
+        print(f"  بمفاتيح المصدر الحقيقية · {_k:18} "
+              f"{_f.get(_k)}  {'✔' if _ok else '✖'}")
+        if not _ok:
+            fails.append(f"«{_k}» لا يُحسب بأسماء بنود المصدر الحقيقية")
     for k in orphan:
         print(f"      ✖ {k}")
     if orphan:

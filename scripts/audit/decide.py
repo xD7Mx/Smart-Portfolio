@@ -111,9 +111,9 @@ async def main(argv: list[str]) -> int:
     archs = sorted(dist.get("archetypes") or {})
     no_dist = [k for k in ranked
                if not any(k in dist["archetypes"].get(a, {}) for a in archs)]
-    check("٣ لا مؤشّرَ يُرتَّب بلا توزيع", not no_dist,
-          f"{len(ranked) - len(no_dist)}/{len(ranked)}"
-          + (f" · بلا توزيع: {no_dist}" if no_dist else ""))
+    # يُؤجَّل الحكمُ حتى تُقرأ الشركات: العشيرةُ تُعدّ فيُعرف أهو عطبُ
+    # تركيبٍ (القيمُ موجودةٌ ولم يُبنَ توزيع) أم شحٌّ حقيقيّ (لا تبلغ
+    # عشيرةٌ الحدَّ). والأوّلُ إخفاقٌ والثاني حالُ بيانات.
     thin = [(a, k) for a in archs for k, v in dist["archetypes"][a].items()
             if v.get("n", 0) < pd.MIN_COHORT]
     check("٣ب لا عشيرةَ دون الحدّ", not thin,
@@ -229,6 +229,23 @@ async def main(argv: list[str]) -> int:
             "BlockingCodes": ",".join(ready.get("codes") or []),
         })
 
+    # ══ الاختبار ٣ — بعد إحصاء العشيرات الفعليّة ══
+    avail: dict = defaultdict(Counter)
+    for r in rows:
+        a = spec_score.resolve_archetype_ex(r["sector"], {})[0] or "?"
+        for k in ranked:
+            if _finite(inv._val(r["fe"], k)):
+                avail[k][a] += 1
+    wiring, scarce = [], []
+    for k in no_dist:
+        best = max(avail[k].values(), default=0)
+        (wiring if best >= pd.MIN_COHORT else scarce).append(f"{k}(أكبر عشيرة {best})")
+    check("٣ لا مؤشّرَ يُرتَّب بلا توزيعٍ مع وجود عشيرةٍ صالحة",
+          not wiring,
+          f"{len(ranked) - len(no_dist)}/{len(ranked)} لها توزيع"
+          + (f" · عطبُ تركيب: {wiring}" if wiring else "")
+          + (f" · شحٌّ حقيقيّ (دون {pd.MIN_COHORT}): {scarce}" if scarce else ""))
+
     check("٦ لا NaN/Inf يدخل الدرجة", nan_hits == 0, f"مخالفات {nan_hits}")
     check("٧ البوّابةُ سقفٌ لا خصم", gate_hits == 0,
           f"‏Final = min(Relative, Ceiling) · مخالفات {gate_hits}")
@@ -247,13 +264,43 @@ async def main(argv: list[str]) -> int:
     check("٤ب لا رمزَ من غير الرئيسة في التسجيل", not strays,
           f"{len(strays)}" + (f" · {strays[:6]}" if strays else ""))
 
-    # ٥ — الوحدات: العائدُ والوسيطُ من السلسلة نفسها ونطاقٍ معقول
-    roes = [v for r in rows if _finite(v := inv._val(r["fe"], "roe"))]
-    unit_ok = bool(roes) and all(-200.0 <= v <= 300.0 for v in roes)
-    check("٥ وحدةُ العائد نسبةٌ مئوية والوسيطُ من سلسلتها",
-          unit_ok,
-          f"n={len(roes)} · المدى "
-          f"{(min(roes) if roes else 0):.1f}–{(max(roes) if roes else 0):.1f}٪")
+    # ══ ٥ — صحّةُ الحساب والوحدة، لا نطاقٌ تجميليّ ══
+    #
+    # ‏«ليس NaN» لا يعني «صالحٌ اقتصادياً». فيُفصل الأمران:
+    #   (أ) صحّةُ الحساب — يُعاد اشتقاقُ العائد من البنود الخام ويُقارن
+    #       بالمحفوظ. فإن طابق فالصيغةُ والوحدةُ سليمتان مهما تطرّف الرقم.
+    #   (ب) صلاحيةُ المقام — لا عائدَ على حقوق ملكيةٍ غيرِ موجبة، لأن
+    #       الإشارةَ تنقلب فيُقرأ الخاسرُ رابحاً.
+    #   (ج) القابليةُ للمقارنة — تُعدّ الملاحظاتُ المتطرّفة وتُعرض بحقوق
+    #       ملكيتها، ولا تُعدّ إخفاقاً: هي وقائعُ سوقٍ لا أخطاءَ حساب.
+    mism, inverted, extreme = [], [], []
+    for r in rows:
+        last = (r["ps"] or [{}])[-1]
+        ni = last.get("net_income")
+        eq = last.get("equity") if last.get("equity") is not None \
+            else last.get("total_equity")
+        got = inv._val(r["fe"], "roe")
+        if isinstance(ni, (int, float)) and isinstance(eq, (int, float)) and eq > 0:
+            want = ni / eq * 100.0
+            if got is None or abs(got - want) > 0.05:
+                mism.append(f"{r['sym']}({got}≠{want:.1f})")
+            elif abs(got) > 100.0:
+                extreme.append((r["sym"], got, eq))
+        elif isinstance(eq, (int, float)) and eq <= 0 and got is not None:
+            inverted.append(f"{r['sym']}(حقوق {eq:.0f} → {got:.0f}٪)")
+    check("٥أ صحّةُ حساب العائد ووحدته", not mism,
+          f"طوبق على {len(rows)} شركة · اختلاف {len(mism)}"
+          + (f" · {mism[:5]}" if mism else ""))
+    check("٥ب لا عائدَ على حقوقٍ غير موجبة", not inverted,
+          f"مقلوباتُ الإشارة {len(inverted)}"
+          + (f" · {inverted[:5]}" if inverted else ""))
+    if extreme:
+        extreme.sort(key=lambda t: abs(t[1]), reverse=True)
+        print("\n  ملاحظاتٌ متطرّفةٌ صحيحةُ الحساب (حقوقٌ ضئيلةٌ موجبة):")
+        for sym, v, eq in extreme[:8]:
+            print(f"    {sym}  ROE {v:+.1f}٪  ·  حقوق الملكية {eq:,.0f}")
+        print(f"    المجموع {len(extreme)} — تُعرض ولا تُقصّ، "
+              f"والترتيبُ بالرتب فلا يفسده طرف.")
 
     # ٨ — لا NOT_READY يظهر جاهزاً
     contradiction = [x["Ticker"] for x in out
