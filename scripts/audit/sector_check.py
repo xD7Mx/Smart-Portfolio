@@ -458,6 +458,76 @@ def main() -> int:
     if v2["readiness"] not in (rdy.READY, rdy.WATCH):
         fails.append(f"كاملةُ المحاور لم تعبر: {v2['why']}")
 
+    # ══ اختبارُ الانحدار النهائيّ ══ (البند ٦ — بعد إغلاق الحوكمة)
+    # سبعُ ضماناتٍ لا يُسمح بانكسار واحدةٍ منها بعد اليوم. وما يحتاج
+    # سوقاً حيّاً منها يُفحص في `decide.py`؛ وما يُفحص هنا يُفحص ببناءٍ
+    # متعمَّدٍ للخطأ لا بقراءة نصّ.
+    print("\n" + "═" * 74)
+    print("  اختبارُ الانحدار — سبعُ ضمانات")
+    print("═" * 74)
+    from app.services import model_valuation as _mv
+
+    # ١ — «نمو» لا تدخل الكون
+    _leak = [x for x in ("9500", "9999") if _uni.is_main(x)]
+    print(f"  ١ «نمو» خارج الكون                 {'✔' if not _leak else '✖'}")
+    if _leak:
+        fails.append(f"«نمو» دخلت الكون: {_leak}")
+
+    # ٢ — الترشيحُ داخل بناء التوزيع (يُقرأ من المصدر لا يُفترض)
+    print(f"  ٢ الترشيحُ في مصدر التوزيع          "
+          f"{'✔' if at_source else '✖'}")
+
+    # ٣ — شركةٌ مستبعَدةٌ لا تظهر جاهزة
+    _res = {"model": "OPERATING", "sector": "التقنية",
+            "components": {k: {"score": 70.0} for k in
+                           ("quality", "dividend", "growth", "valuation")},
+            "data_completeness": 0.95, "score": 88.0}
+    _v = rdy.evaluate(_res, "EXCLUDED", "مرتفعة", "PE_MEDIAN")
+    ok3 = _v["readiness"] == rdy.NOT_READY
+    print(f"  ٣ المستبعَدةُ لا تظهر جاهزة          {'✔' if ok3 else '✖'}"
+          f"  ({_v['readiness']})")
+    if not ok3:
+        fails.append("شركةٌ ببوّابةٍ مغلقة خرجت جاهزة")
+
+    # ٤ — الأوزانُ والعتباتُ مطابقة
+    _WANT_C = {"negative_equity": 25.0, "loss_last_year": 45.0,
+               "interest_below_one": 35.0, "payout_over_earnings": 60.0,
+               "negative_ocf": 50.0}
+    _drift = [k for k, v in _WANT_C.items()
+              if abs((aq.CEILINGS.get(k) or (None,))[0] or -1) != v]
+    _drift += [m for m, w in WANT.items()
+               if {k: round(x, 4) for k, x in
+                   WEIGHTS_OF_MODEL.get(m, {}).items()} != w]
+    print(f"  ٤ لا انحرافَ في الأوزان والسقوف     "
+          f"{'✔' if not _drift else '✖'}")
+    if _drift:
+        fails.append(f"انحرافٌ في ثوابت: {_drift}")
+
+    # ٥ — لا NaN/Inf يخرج من الدرجة
+    import math as _math
+    _bad = [k for k, v in {"nan": float("nan"), "inf": float("inf")}.items()
+            if inv._val({"x": v}, "x") is not None]
+    print(f"  ٥ NaN/Inf لا تمرّ من قارئ القيمة    "
+          f"{'✔' if not _bad else '✖'}")
+    if _bad:
+        fails.append(f"قيمٌ غيرُ منتهيةٍ تمرّ: {_bad}")
+
+    # ٦ — طريقةُ تقييمٍ غيرُ مسجَّلة لا تُنتج قيمة
+    _known = {m for ms in _mv.METHODS.values() for m in ms}
+    _fake, _h, _g = _mv._try("NO_SUCH_METHOD", {}, [{}], {})
+    ok6 = _fake is None and "NO_SUCH_METHOD" not in _known
+    print(f"  ٦ طريقةٌ غيرُ مسجَّلة لا تُنتج قيمة   {'✔' if ok6 else '✖'}")
+    if not ok6:
+        fails.append("طريقةُ تقييمٍ مجهولة أنتجت قيمة")
+
+    # ٧ — مؤشّرٌ بلا توزيعٍ لا يُرتَّب (ولا يُعطى مئيناً مصطنعاً)
+    _sc = inv._metric_score("roe", "higher", 12.0, "commodity",
+                            {"archetypes": {"commodity": {}}}, None)
+    ok7 = _sc is None
+    print(f"  ٧ بلا توزيعٍ لا مئينَ مصطنعاً        {'✔' if ok7 else '✖'}")
+    if not ok7:
+        fails.append(f"مؤشّرٌ بلا توزيعٍ أُعطي مئيناً: {_sc}")
+
     print("\n" + "═" * 74)
     if fails:
         print(f"  ✖ أخفق {len(fails)}:")

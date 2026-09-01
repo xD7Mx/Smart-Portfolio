@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import json
 import math
 import os
 import sys
@@ -40,6 +41,7 @@ for _p in ("/app", os.path.join(_ROOT, "backend"), _ROOT, _HERE):
         sys.path.insert(0, _p)
 
 OUT_CSV = os.environ.get("SP_DECISION_CSV", "/tmp/decision_table.csv")
+OUT_JSON = os.environ.get("SP_DECISION_JSON", "/tmp/decision_payload.json")
 MIN_PEERS = 3
 PRICE_BASED = {"p_e", "p_b", "ev_ebitda", "p_ffo", "p_e_normalized",
                "dividend_yield", "fv_discount"}
@@ -121,16 +123,25 @@ async def main(argv: list[str]) -> int:
 
     # ══ ٢ — تشغيلُ البيانات ══
     rows, unread = [], Counter()
+    # ══ من لا قوائمَ له يُدرَج ولا يُستبعد صمتاً ══ (البند الخامس)
+    # الاستبعادُ الصامتُ يجعل المجموعَ ‎268 وكأنّ السوقَ ‎268، والكونُ
+    # ‎273. فتُدرَج بحالتها وسببها، فيُطابق المجموعُ الكونَ دائماً.
+    unreadable: list[dict] = []
     for sym, meta in MAIN.items():
         try:
             data = await market_service.get_financials(f"{sym}.SR",
                                                        allow_supplement=False)
         except Exception as e:                                    # noqa: BLE001
             unread[f"API_ERROR:{type(e).__name__}"] += 1
+            unreadable.append({"sym": sym, "sector": meta.get("sector"),
+                               "code": "API_ERROR"})
             continue
         ps = (data or {}).get("periods") or []
         if len(ps) < 2:
-            unread["TOO_FEW_PERIODS" if ps else "NO_PERIODS"] += 1
+            _w = "TOO_FEW_PERIODS" if ps else "NO_PERIODS"
+            unread[_w] += 1
+            unreadable.append({"sym": sym, "sector": meta.get("sector"),
+                               "code": _w})
             continue
         info = {}
         try:
@@ -154,6 +165,8 @@ async def main(argv: list[str]) -> int:
                     fe.pop(k, None)
         except Exception as e:                                    # noqa: BLE001
             unread[f"FEATURE_BUILD_ERROR:{type(e).__name__}"] += 1
+            unreadable.append({"sym": sym, "sector": meta.get("sector"),
+                               "code": "FEATURE_BUILD_ERROR"})
             continue
         rows.append({"sym": sym, "sector": meta.get("sector"), "ps": ps,
                      "crows": crows, "fe": fe, "inf": merged})
@@ -209,8 +222,16 @@ async def main(argv: list[str]) -> int:
             if set(CORE_AXES.get(model or "", ())) - live:
                 axis_ignored += 1
 
+        ex = inv.explain(res)
         out.append({
             "Ticker": r["sym"], "Company": name_of(r["sym"]) or "",
+            "TopPositive": " | ".join(
+                f"{c['label']}: {c['value']} ({c['note']})"
+                for c in ex["raised_by"][:3]),
+            "TopNegative": " | ".join(
+                f"{c['label']}: {c['value']} ({c['note']})"
+                for c in ex["lowered_by"][:3]),
+            "_explain": ex,
             "Sector": sector or "", "Archetype": arch or "",
             "Model": model or "", "FinalScore": res.get("score"),
             "RelativeScore": rel, "RawScore": res.get("raw_score"),
@@ -335,12 +356,26 @@ async def main(argv: list[str]) -> int:
     check("١٢ لا انحرافَ في الأوزان والعتبات", not drift,
           "مطابقةٌ حرفية" if not drift else str(drift))
 
+    for u in unreadable:
+        out.append({
+            "Ticker": u["sym"], "Company": name_of(u["sym"]) or "",
+            "Sector": u["sector"] or "", "Archetype": "", "Model": "",
+            "FinalScore": None, "RelativeScore": None, "RawScore": None,
+            "Quality": None, "Distribution": None, "Growth": None,
+            "Valuation": None, "Completeness": None, "Confidence": "منخفضة",
+            "RiskGate": "", "Readiness": rdy.NOT_READY, "ValuationMethod": "",
+            "FairValue": None, "Price": None, "Upside": None,
+            "AbsoluteCeiling": None, "TopPositive": "", "TopNegative": "",
+            "BlockingReason": "لم تصل قوائمُ مالية كافية من المصدر",
+            "BlockingCodes": u["code"], "_explain": None})
+
     # ══ ٧ — جدولُ القرار إلى ملفّ ══
     cols = ["Ticker", "Company", "Sector", "Archetype", "Model", "FinalScore",
             "RelativeScore", "RawScore", "Quality", "Distribution", "Growth",
             "Valuation", "Completeness", "Confidence", "RiskGate", "Readiness",
             "ValuationMethod", "FairValue", "Price", "Upside",
-            "AbsoluteCeiling", "BlockingReason", "BlockingCodes"]
+            "AbsoluteCeiling", "TopPositive", "TopNegative",
+            "BlockingReason", "BlockingCodes"]
     try:
         with open(OUT_CSV, "w", newline="", encoding="utf-8-sig") as fh:
             w = csv.DictWriter(fh, fieldnames=cols)
@@ -350,6 +385,57 @@ async def main(argv: list[str]) -> int:
         csv_note = f"{OUT_CSV} — {len(out)} صفّاً"
     except Exception as e:                                        # noqa: BLE001
         csv_note = f"تعذّرت الكتابة: {type(e).__name__}"
+
+    # ══ طبقةُ القرار — ترتيبٌ داخل كلّ حالة، لا خلطَ بينها ══
+    #
+    # الدرجةُ تقيس جودةَ الورقة المالية، والجاهزيةُ تقرّر أتصلح للقرار.
+    # فالترتيبُ **داخل** كلّ حالةٍ لا عبرها: شركةٌ درجتُها ‎88 وهي
+    # `NOT_READY` لا تسبق شركةً درجتُها ‎74 وهي `INVESTMENT_READY`، لأن
+    # الأولى لم تُقَس أركانُها كلُّها. ولا يعني الترتيبُ الأعلى «اشترِ»:
+    # يعني «الأعلى جودةً بمقياسنا داخل حالته».
+    ORDER = {rdy.INVESTMENT_READY: 0, rdy.WATCH: 1, rdy.NOT_READY: 2}
+    for x in out:
+        x["_ord"] = ORDER.get(x["Readiness"], 3)
+    ranked_rows = sorted(out, key=lambda z: (z["_ord"], -(z["FinalScore"] or -1)))
+    _seen: Counter = Counter()
+    for x in ranked_rows:
+        _seen[x["Readiness"]] += 1
+        x["RankInClass"] = _seen[x["Readiness"]]
+
+    payload = {
+        "metadata": {
+            "universe": "MAIN_MARKET_TASI",
+            "universe_source": cen["source"],
+            "main_market_count": cen["main"],
+            "excluded_nomu_count": cen["nomu"],
+            "unknown_symbol_count": cen["unknown"],
+            "analyzed_count": len(rows),
+            "no_periods_count": unread.get("NO_PERIODS", 0),
+            "too_few_periods_count": unread.get("TOO_FEW_PERIODS", 0),
+            "rows_emitted": len(out),
+            "integrity_tests_total": len(tests),
+            "integrity_tests_passed": sum(1 for _n, ok, _d in tests if ok),
+            "verdict": ("DECISION_READY" if all(ok for _n, ok, _d in tests)
+                        else "NOT_DECISION_READY"),
+            "readiness_counts": dict(Counter(x["Readiness"] for x in out)),
+            "weights": {m: dict(w) for m, w in WEIGHTS_OF_MODEL.items()},
+            "absolute_ceilings": {k: v[0] for k, v in aq.CEILINGS.items()},
+            "min_completeness": rdy.MIN_COMPLETENESS,
+            "min_cohort": pd.MIN_COHORT,
+            "score_meaning": ("جودةُ الورقة المالية بمنهج الحوكمة — "
+                              "ليست توصيةَ شراءٍ ولا بيع"),
+        },
+        "integrity": [{"test": n, "status": "PASS" if ok else "FAIL",
+                       "detail": d} for n, ok, d in tests],
+        "companies": [{k: v for k, v in x.items()
+                       if not k.startswith("_")} for x in ranked_rows],
+    }
+    try:
+        with open(OUT_JSON, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, ensure_ascii=False, indent=1)
+        json_note = f"{OUT_JSON} — {len(ranked_rows)} شركة"
+    except Exception as e:                                        # noqa: BLE001
+        json_note = f"تعذّرت الكتابة: {type(e).__name__}"
 
     # ══ ١٠ — الملخّصُ التنفيذيّ ══
     R = Counter(x["Readiness"] for x in out)
@@ -390,6 +476,18 @@ async def main(argv: list[str]) -> int:
         print(f"  {'PASS' if ok else 'FAIL'}  {name:38} {detail}")
 
     print(f"\n  جدولُ القرار: {csv_note}")
+    print(f"  حمولةُ الواجهة: {json_note}")
+    print(f"\nRANKING (ترتيبٌ داخل كلّ حالة — لا يعني «اشترِ»)")
+    for st, lbl in ((rdy.INVESTMENT_READY, "أ) مؤهّلةٌ لإصدار قرار"),
+                    (rdy.WATCH, "ب) مراقبة"),
+                    (rdy.NOT_READY, "ج) غيرُ جاهزة")):
+        grp = [x for x in ranked_rows if x["Readiness"] == st]
+        print(f"  {lbl}: {len(grp)}")
+        for x in grp[:5]:
+            sc = x["FinalScore"]
+            sc_s = f"{sc:.1f}" if isinstance(sc, (int, float)) else "—"
+            print(f"      {x['RankInClass']:>3}. {x['Ticker']:>5} "
+                  f"{x['Company'][:24]:24} {sc_s:>6}")
 
     all_pass = all(ok for _n, ok, _d in tests)
     print("\n" + "═" * 72)
