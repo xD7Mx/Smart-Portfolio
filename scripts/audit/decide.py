@@ -126,7 +126,7 @@ async def main(argv: list[str]) -> int:
     from app.data.market_universe import MARKET_UNIVERSE
     from app.data import universe as uni
     from app.data.economic_models import (COMPONENTS, CORE_AXES, WEIGHTS_OF_MODEL,
-                                          model_of)
+                                          grade_of, model_of)
     from app.services import peer_distribution as pd
     from app.services import investment_score as inv
     from app.services import spec_score, red_lines, risk_gate
@@ -233,9 +233,18 @@ async def main(argv: list[str]) -> int:
     # ══ ٣ · ٤ · ٥ — المؤشّرات والأبعادُ والجاهزية ══
     out: list[dict] = []
     nan_hits, gate_hits, method_bad, axis_ignored = 0, 0, 0, 0
+    pending: list[dict] = []
     for r in rows:
         sector, ps = r["sector"], r["ps"]
         model = model_of(sector)
+        # ══ بلا نموذجٍ لا تدخل التسجيل ══ (المادة ٨)
+        # قطاعٌ مجهولٌ يعني أنه لا مسطرةَ لهذه الورقة ولا عشيرةَ تُقارن
+        # بها. فتُسجَّل **بانتظار التصنيف** ولا تُمنح درجةً مصطنعة، وتبقى
+        # داخل كون السوق الرئيسة فيطابق المجموعُ الكونَ.
+        if model is None:
+            pending.append({"sym": r["sym"], "sector": sector,
+                            "code": "PENDING_CLASSIFICATION"})
+            continue
         arch = spec_score.resolve_archetype_ex(sector, {})[0]
         fe = dict(r["fe"])
         med = medians.get(sector or "", {})
@@ -284,10 +293,15 @@ async def main(argv: list[str]) -> int:
             "Sector": sector or "", "Archetype": arch or "",
             "Model": model or "", "FinalScore": res.get("score"),
             "RelativeScore": rel, "RawScore": res.get("raw_score"),
-            "Quality": (c["quality"] or {}).get("score"),
-            "Distribution": (c["dividend"] or {}).get("score"),
-            "Growth": (c["growth"] or {}).get("score"),
-            "Valuation": (c["valuation"] or {}).get("score"),
+            # ══ المكوّنُ يُقرأ بـ`get` لا بالفهرسة ══ (D141)
+            # حين لا نموذجَ للقطاع تعود `components` فارغةً، فكانت
+            # الفهرسةُ ترفع KeyError وتُسقط التشغيلَ كلَّه. وقد سترَه
+            # أنّ الشركات الثلاث بلا قطاعٍ لم تصلنا قوائمُها بعد؛ فأوّلُ
+            # يومٍ تصل فيه يسقط الحسم. والغيابُ يُقرأ عدماً لا انهياراً.
+            "Quality": (c.get("quality") or {}).get("score"),
+            "Distribution": (c.get("dividend") or {}).get("score"),
+            "Growth": (c.get("growth") or {}).get("score"),
+            "Valuation": (c.get("valuation") or {}).get("score"),
             "Completeness": res.get("data_completeness"),
             "Confidence": cf, "RiskGate": gate["status"],
             "Readiness": ready["readiness"],
@@ -405,6 +419,19 @@ async def main(argv: list[str]) -> int:
     check("١٢ لا انحرافَ في الأوزان والعتبات", not drift,
           "مطابقةٌ حرفية" if not drift else str(drift))
 
+    for u in pending:
+        out.append({
+            "Ticker": u["sym"], "Company": name_of(u["sym"]) or "",
+            "Sector": u["sector"] or "", "Archetype": "", "Model": "",
+            "FinalScore": None, "RelativeScore": None, "RawScore": None,
+            "Quality": None, "Distribution": None, "Growth": None,
+            "Valuation": None, "Completeness": None, "Confidence": "منخفضة",
+            "RiskGate": "", "Readiness": rdy.NOT_READY, "ValuationMethod": "",
+            "FairValue": None, "Price": None, "Upside": None,
+            "AbsoluteCeiling": None, "TopPositive": "", "TopNegative": "",
+            "BlockingReason": "القطاعُ غيرُ مصنَّف — لا نموذجَ ولا عشيرةَ أقران",
+            "BlockingCodes": u["code"], "_explain": None})
+
     for u in unreadable:
         out.append({
             "Ticker": u["sym"], "Company": name_of(u["sym"]) or "",
@@ -499,6 +526,9 @@ async def main(argv: list[str]) -> int:
     print(f"  Main Market companies      {cen['main']}")
     print(f"  NOMU داخل التحليل           0  (مستبعَدة {cen['nomu']})")
     print(f"  قُرئت فعلاً                  {len(out)}")
+    if pending:
+        print(f"  بانتظار التصنيف             {len(pending)} · "
+              + " · ".join(u["sym"] for u in pending))
     if unread:
         print(f"  لم تُقرأ                    {sum(unread.values())}")
         for k, v in unread.most_common():
@@ -519,6 +549,31 @@ async def main(argv: list[str]) -> int:
                                   x["BlockingCodes"] else [])).most_common(8):
         print(f"  {k:28} {v}")
 
+    # ── إثباتُ استقلال الدرجة عن القيمة العادلة (المادة ٥) ──
+    # على شركاتٍ حقيقيةٍ من هذا التشغيل لا على عيّنةٍ مصنوعة: تُزحزَح
+    # القيمةُ العادلة وحدها وتُثبَّت المدخلاتُ الأخرى، ويُقاس الفرق.
+    # ويُسلَك مسارُ التسجيل نفسُه حرفاً بحرف — التوزيعُ والنمطُ ووسائطُ
+    # القطاع والصفوف — وإلّا أثبت الاختبارُ ثباتَ مسارٍ لا يُستعمل.
+    _fvmax, _fvn = 0.0, 0
+    for r in rows[:25]:
+        _sec = r["sector"]
+        _arch = spec_score.resolve_archetype_ex(_sec, {})[0]
+        _med_r = medians.get(_sec or "", {})
+        fe0 = dict(r["fe"])
+        fe0.pop("fv_discount", None)
+        base_sc = inv.compute(fe0, _sec, dist, _arch,
+                              medians=_med_r, rows=r["crows"])["score"]
+        if not isinstance(base_sc, (int, float)):
+            continue
+        _fvn += 1
+        for disc in (-80.0, -10.0, 140.0, 700.0):
+            sc = inv.compute({**fe0, "fv_discount": disc}, _sec, dist, _arch,
+                             medians=_med_r, rows=r["crows"])["score"]
+            if isinstance(sc, (int, float)):
+                _fvmax = max(_fvmax, abs(sc - base_sc))
+    tests.append(("٥ الدرجةُ لا تتأثّر بالقيمة العادلة", _fvmax == 0.0,
+                  f"أقصى فرقٍ {_fvmax:.6f} على {_fvn} شركةً حقيقية"))
+
     print(f"\nINTEGRITY")
     for name, ok, detail in tests:
         print(f"  {'PASS' if ok else 'FAIL'}  {name:38} {detail}")
@@ -536,6 +591,39 @@ async def main(argv: list[str]) -> int:
             sc_s = f"{sc:.1f}" if isinstance(sc, (int, float)) else "—"
             print(f"      {x['RankInClass']:>3}. {x['Ticker']:>5} "
                   f"{x['Company'][:24]:24} {sc_s:>6}")
+
+    # ── أعلى عشرٍ بالدرجة (المادة ٦) ──
+    # على السوق كلِّها لا داخل حالةٍ واحدة، ومعها حالةُ الجاهزية كي لا
+    # تُقرأ الصدارةُ توصيةً: الدرجةُ سلامةُ ورقة، والجاهزيةُ حكمٌ آخر.
+    scored = [x for x in ranked_rows
+              if isinstance(x.get("FinalScore"), (int, float))]
+    print(f"\nTOP 10 GOVERNANCE (سلامةُ الورقة — ليست توصيةَ شراء)")
+    for i, x in enumerate(sorted(scored, key=lambda r: -r["FinalScore"])[:10],
+                          1):
+        print(f"  {i:>2}. {x['Ticker']:>5} {x['Company'][:26]:26} "
+              f"{x['FinalScore']:>5.1f}  {grade_of(x['FinalScore'])[0]:>2}  "
+              f"{x['Readiness']}")
+
+    # ── التوزيعُ على القطاعات (المادة ٧) ──
+    print(f"\nBY SECTOR (العدد · الوسيط · الأدنى · الأعلى · جاهزون)")
+    by_sec: dict[str, list] = defaultdict(list)
+    for x in scored:
+        by_sec[x.get("Sector") or "—"].append(x)
+    for sec, grp in sorted(by_sec.items(), key=lambda kv: -len(kv[1])):
+        ss = sorted(g["FinalScore"] for g in grp)
+        nrdy = sum(1 for g in grp
+                   if g["Readiness"] == rdy.INVESTMENT_READY)
+        print(f"  {sec[:30]:30} {len(grp):>3}  {_med(ss):>5.1f}  "
+              f"{ss[0]:>5.1f}  {ss[-1]:>5.1f}  {nrdy:>3}")
+    _unscored = [x["Ticker"] for x in ranked_rows
+                 if not isinstance(x.get("FinalScore"), (int, float))]
+    if _unscored:
+        print(f"  بلا درجة: {len(_unscored)} · {_unscored[:8]}")
+
+    print(f"\nFAIR VALUE INVARIANCE (المدخلاتُ ثابتة · القيمةُ العادلة تتحرّك)")
+    print(f"  شركاتٌ مختبَرة {_fvn} · أقصى فرقٍ في الدرجة {_fvmax:.6f}")
+    print(f"  {'PASS' if _fvmax == 0.0 else 'FAIL'}  "
+          f"Fair Value weight = 0٪ · Governance invariant")
 
     all_pass = all(ok for _n, ok, _d in tests)
     print("\n" + "═" * 72)

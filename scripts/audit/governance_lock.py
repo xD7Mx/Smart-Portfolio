@@ -84,6 +84,41 @@ def main(argv: list[str]) -> int:
       f"مصنَّفةٌ بلا نموذج {len(bad_known)} · مجهولةٌ قيست {len(leaked)}"
       + (f" · {(bad_known + leaked)[:6]}" if (bad_known or leaked) else ""))
 
+    # ══ ٢ب — المؤشّرُ الأساسيّ للقطاع هو المحورُ الأكبر ══
+    # خريطةُ المادة ٢ حرفاً بحرف: القطاعُ ← مؤشّرُه الأساسيّ. ويُشترط
+    # أن يحمل هذا المؤشّرُ **أكبرَ وزنٍ منفرداً** في مكوّن الجودة —
+    # فتعادلُه مع غيره يعني أنه ليس محوراً، وغيابُه يعني قطاعاً يُقاس
+    # بغير أساسه.
+    PRIMARY = {
+        "البنوك": "roe", "التأمين": "roe", "الخدمات المالية": "roe",
+        "الطاقة": "roic", "المواد الأساسية": "roic",
+        "السلع الرأسمالية": "roic", "الخدمات التجارية والمهنية": "roic",
+        "النقل": "roic", "السلع طويلة الأجل": "roic",
+        "الخدمات الاستهلاكية": "roic", "الإعلام والترفيه": "roic",
+        "تجزئة وتوزيع السلع الكمالية": "roic",
+        "تجزئة وتوزيع السلع الاستهلاكية": "roic",
+        "إنتاج الأغذية": "roic", "الرعاية الصحية": "roic",
+        "الأدوية": "roic", "الاتصالات": "roic", "المرافق العامة": "roic",
+        "التطبيقات وخدمات التقنية": "roic",
+        "الخدمات الاستهلاكية الدورية": "roic",
+        "إدارة وتطوير العقارات": "roe",
+        "الصناديق العقارية المتداولة": "ltv_pct",
+    }
+    off = []
+    for sec, prim in PRIMARY.items():
+        mdl = model_of(sec)
+        if mdl is None:
+            off.append(f"{sec}: بلا نموذج")
+            continue
+        w = {k: wt for k, _l, wt, _d in COMPONENTS[mdl]["quality"]}
+        top = [k for k, v in w.items() if v == max(w.values())]
+        if prim not in w:
+            off.append(f"{sec}: {prim} غائب")
+        elif top != [prim]:
+            off.append(f"{sec}: الأكبرُ {top} لا {prim}")
+    t("٢ب المؤشّرُ الأساسيّ هو المحورُ الأكبر", not off,
+      f"{len(PRIMARY)} قطاعاً مطابقاً" if not off else " · ".join(off[:4]))
+
     # ٣ — لكلّ نموذجٍ مؤشّراتُه معرَّفة
     bad_model = [m for m in WEIGHTS_OF_MODEL
                  if not all(COMPONENTS.get(m, {}).get(c)
