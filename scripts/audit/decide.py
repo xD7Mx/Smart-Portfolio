@@ -73,6 +73,55 @@ def _finite(x) -> bool:
         and math.isfinite(x)
 
 
+
+def _decision_object(x: dict) -> dict:
+    """كائنُ القرار بالأسماء التي تستهلكها الواجهة.
+
+    ولا يُختلق حقل: ما لم يُقَس يخرج `null` صريحاً، والقوائمُ الفارغة
+    تبقى فارغة. فالواجهةُ تعرض «غير متاح» ولا تعرض صفراً.
+    """
+    ex = x.get("_explain") or {}
+    codes = [c for c in (x.get("BlockingCodes") or "").split(",") if c]
+    reason = x.get("BlockingReason") or ""
+    if x["Readiness"] == "INVESTMENT_READY":
+        reason = ("المحاورُ الجوهريةُ مقيسة، وطريقةُ التقييم معلَنة، "
+                  "والاكتمالُ والثقةُ فوق الحدّ، ولا بوّابةَ مخاطر مغلقة")
+    return {
+        "ticker": x["Ticker"],
+        "company_name": x["Company"],
+        "market": "MAIN_MARKET",
+        "sector": x["Sector"] or None,
+        "archetype": x["Archetype"] or None,
+        "model": x["Model"] or None,
+        "final_score": x["FinalScore"],
+        "relative_score": x["RelativeScore"],
+        "decision_status": x["Readiness"],
+        "rank_in_class": x.get("RankInClass"),
+        "quality_score": x["Quality"],
+        "growth_score": x["Growth"],
+        "distribution_score": x["Distribution"],
+        "valuation_score": x["Valuation"],
+        "completeness": x["Completeness"],
+        "confidence": x["Confidence"],
+        "valuation_method": x["ValuationMethod"] or None,
+        "fair_value": x["FairValue"],
+        "price": x["Price"],
+        "upside_pct": x["Upside"],
+        "risk_gate": x["RiskGate"] or None,
+        "absolute_ceiling": x["AbsoluteCeiling"],
+        "positive_drivers": [
+            {"metric": c["key"], "label": c["label"], "value": c["value"],
+             "note": c["note"], "impact": c["impact"]}
+            for c in (ex.get("raised_by") or [])[:3]],
+        "negative_drivers": [
+            {"metric": c["key"], "label": c["label"], "value": c["value"],
+             "note": c["note"], "impact": c["impact"]}
+            for c in (ex.get("lowered_by") or [])[:3]],
+        "blockers": codes,
+        "decision_reason": reason,
+    }
+
+
 async def main(argv: list[str]) -> int:
     from app.data.market_universe import MARKET_UNIVERSE
     from app.data import universe as uni
@@ -427,8 +476,7 @@ async def main(argv: list[str]) -> int:
         },
         "integrity": [{"test": n, "status": "PASS" if ok else "FAIL",
                        "detail": d} for n, ok, d in tests],
-        "companies": [{k: v for k, v in x.items()
-                       if not k.startswith("_")} for x in ranked_rows],
+        "companies": [_decision_object(x) for x in ranked_rows],
     }
     try:
         with open(OUT_JSON, "w", encoding="utf-8") as fh:
