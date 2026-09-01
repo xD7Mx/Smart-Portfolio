@@ -129,9 +129,39 @@ def main(argv: list[str]) -> int:
       "مضاعفاتٌ على وسيط القطاع في كلّ نموذج")
     t("٦ب لا قيمةَ عادلة داخل درجة الحوكمة",
       not any(fv_w.values()),
-      ("لا وزنَ لها" if not any(fv_w.values())
+      ("لا وزنَ لها في أيّ نموذج"
+       if not any(fv_w.values())
        else "وزنُها من الدرجة: "
             + " · ".join(f"{m} {v:.0%}" for m, v in fv_share.items() if v)))
+
+    # ══ ٦ج — الدرجةُ لا تتحرّك بتحرّك القيمة العادلة ══
+    # حارسٌ سلوكيّ لا بنيويّ: يُثبَّت كلُّ مدخلٍ ماليّ ويُزحزَح تقديرُ
+    # القيمة العادلة وحده. فإن تحرّكت الدرجةُ رجعت القيمةُ العادلة إلى
+    # الحوكمة من بابٍ خلفيّ — ولو لم يظهر لها وزنٌ في `COMPONENTS`.
+    base_fe = {
+        "roic": 14.0, "roe": 16.0, "operating_margin": 18.0,
+        "cash_conversion_ratio": 1.1, "earnings_stability": 22.0,
+        "payout_ratio": 45.0, "dividend_growth": 6.0, "dividend_years": 7,
+        "dividend_yield": 4.0, "revenue_cagr_5y": 8.0,
+        "eps_cagr_5y": 9.0, "roic_trend": 1.5,
+        "p_e": 14.0, "ev_ebitda": 9.0,
+    }
+    SEC = "الاتصالات"
+    med = {"p_e": 16.0, "ev_ebitda": 10.0}
+    moved, seen = [], []
+    for fv in (None, 10.0, 45.0, 120.0, 400.0):
+        fe = dict(base_fe)
+        # المسارُ نفسُه الذي يسلكه التشغيل: `price_features` تشتقّ الخصم
+        fe.update(inv.price_features({"current_price": 50.0}, fe, [],
+                                     fair_value=fv))
+        r = inv.compute(fe, SEC, med, None)
+        seen.append((fv, r["score"], fe.get("fv_discount")))
+    base = seen[0][1]
+    moved = [x for x in seen if x[1] != base]
+    t("٦ج الدرجةُ ثابتةٌ عند تحرّك القيمة العادلة", not moved,
+      "خصمٌ من ‎" + " إلى ".join(str(x[2]) for x in (seen[1], seen[-1]))
+      + f" · الدرجة {base} في الحالات {len(seen)} كلِّها"
+      + (f" · تحرّكت: {moved}" if moved else ""))
 
     # ٧ — الدرجةُ بين صفرٍ ومئة بالبناء
     lo = inv._discount_score(-400.0), inv._band_score(-1e9, 20, 80)
