@@ -1,22 +1,28 @@
-"""القيمةُ العادلة مصدرٌ واحد — حارسُ D147.
+"""السعرُ العادل مصدرٌ واحد في التطبيق كلِّه — حارسُ D147.
 
-كان في التطبيق رقمان يحملان اسمَ «القيمة العادلة»: قيمتُنا المحسوبة من
-قوائم الشركة، و`target_mean_price` — متوسّطُ أهداف المحلّلين، تنبّؤُ
-سعرٍ لسنة ورأيُ بشر. فاختلفت صفحةُ الشركة عن صفحة السوق وعن نصّ الذكاء
-في رقمٍ يبني عليه المالك قرارَه.
+## القاعدة المعتمدة
 
-والعلاجُ لم يكن تغييرَ الاسم — بل وضعَ الرقم الصحيح في كلّ موضع، وإبقاءَ
-هدف المحلّلين حقلاً مستقلّاً بوصفه الصحيح.
+**السعرُ العادل = متوسّطُ تقديرات بيوت الخبرة** (`target_mean_price`)،
+بهذا الاسم وفي كلّ قسم: صفحةُ الشركة · تحليلُ الذكاء · الفرز · وسائرُ
+الأقسام. وتقديرُنا المحسوب يبقى تفصيلاً داخل `fair_value_detail` ولا
+يُعرض رقماً منافساً.
+
+والعطبُ الذي يمنعه هذا الحارس: أن يعرض قسمان رقمين مختلفين تحت اسمٍ
+واحدٍ يبني عليه المالك قراره — وقد وقع فعلاً بين صفحة الشركة وصفحة
+السوق ونصِّ الذكاء.
+
+والفحصُ **سلوكيّ**: يُشغَّل مسارُ التحليل كاملاً بمسبارٍ يقوم مقام
+السوق، ويُقارَن المخرَجُ بالمدخل — لا تُقرأ الأسماء.
 
     python scripts/audit/fv_single_source.py
 """
 
 from __future__ import annotations
 
-import inspect
+import asyncio
 import os
-import re
 import sys
+import types
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(_HERE))
@@ -24,15 +30,37 @@ for _p in ("/app", os.path.join(_ROOT, "backend"), _ROOT, _HERE):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-_SRC = os.path.join(_ROOT, "backend", "app")
+TARGET = 88.5
+PRICE = 60.0
 
 
-def _read(rel: str) -> str:
-    for base in (_SRC, "/app/app"):
-        p = os.path.join(base, rel)
-        if os.path.exists(p):
-            return open(p, encoding="utf-8").read()
-    return ""
+def _stub() -> None:
+    """مصدرٌ صناعيّ: هدفُ محلّلين معلومٌ وسعرٌ معلوم."""
+    mod = types.ModuleType("app.services.market_data")
+    per = [{"year": 2019 + k, "revenue": 9e9, "net_income": 1e9,
+            "equity": 1e10, "eps": 3.0, "operating_cash_flow": 1.2e9,
+            "capex": -2e8, "depreciation": 2e8, "total_debt": 1e9,
+            "ending_cash": 5e8, "shares_outstanding": 3.3e8,
+            "operating_income": 1.3e9, "total_assets": 1.4e10,
+            "dividends_paid": -3e8} for k in range(5)]
+
+    class MS:
+        async def get_financials(self, t, allow_supplement=False):
+            return {"periods": per}
+
+        async def get_company_info(self, t):
+            return {"name": "شركةُ فحص", "sector": "الاتصالات",
+                    "target_mean_price": TARGET, "beta": 1.0,
+                    "current_price": PRICE}
+
+        async def get_price(self, t):
+            return {"price": PRICE, "change_pct": 0.0}
+
+        async def get_history(self, *a, **k):
+            return []
+
+    mod.market_service = MS()
+    sys.modules["app.services.market_data"] = mod
 
 
 def main() -> int:
@@ -41,59 +69,55 @@ def main() -> int:
     def t(n, ok, d=""):
         T.append((n, bool(ok), d))
 
-    # ١ — لا يُسنَد هدفُ المحلّلين إلى حقل القيمة العادلة
-    bad = []
-    for rel in ("services/market_screener.py", "services/analysis.py",
-                "services/governance.py", "api/v1/endpoints/ai.py",
-                "api/v1/endpoints/market.py"):
-        src = _read(rel)
-        for m in re.finditer(r'\[["\']fair_value["\']\]\s*=\s*([^\n]+)', src):
-            if "target_mean_price" in m.group(1):
-                bad.append(f"{rel}: {m.group(1).strip()[:50]}")
-    t("١ لا هدفَ محلّلين في حقل القيمة العادلة", not bad,
-      "لا إسناد" if not bad else " · ".join(bad))
+    _stub()
+    from app.services.analysis import analyze_company
+    from app.services import cache
+    cache.clear()
+    res = asyncio.run(analyze_company("9999.SR", "شركةُ فحص")) or {}
 
-    # ٢ — لا يُسمّى هدفُ المحلّلين «القيمة العادلة» في نصٍّ يُعرض
-    mislabel = []
-    for rel in ("services/ai_content.py", "services/market_screener.py"):
-        for line in _read(rel).splitlines():
-            ls = line.strip()
-            if ls.startswith("#"):
-                continue
-            if "target_mean_price" in ls and "القيمة العادلة" in ls:
-                mislabel.append(f"{rel}: {ls[:60]}")
-    t("٢ هدفُ المحلّلين يُسمّى باسمه", not mislabel,
-      "لا تسميةَ خاطئة" if not mislabel else " · ".join(mislabel))
+    got = res.get("fair_value")
+    t("١ السعرُ العادل = تقديرُ بيوت الخبرة", got == TARGET,
+      f"المُدخَل {TARGET} · المخرَج {got}")
 
-    # ٣ — الفرزُ ينادي المحرّكَ الموحّد نفسه
-    from app.services import market_screener as ms
-    fsrc = inspect.getsource(ms._fair_value)
-    t("٣ الفرزُ ينادي المحرّكَ الموحّد",
-      "fair_value as _fvmod" in fsrc and "_fvmod.compute(" in fsrc,
-      "services/fair_value.compute — نفسُ صفحة الشركة")
+    up = res.get("fair_value_upside_pct")
+    want = round((TARGET - PRICE) / PRICE * 100, 1)
+    t("٢ الفجوةُ محسوبةٌ من الرقم نفسِه", up == want,
+      f"المتوقَّع {want}% · المخرَج {up}%")
 
-    # ٤ — بلا قوائمَ مخزَّنة: لا رقمَ ولا نداء
-    import asyncio
-    got = asyncio.run(ms._fair_value("0000.SR", 50.0, "الاتصالات"))
-    t("٤ بلا قوائمَ لا قيمةَ مختلَقة", got == (None, None, None),
-      f"بلا قوائم → {got}")
+    det = res.get("fair_value_detail") or {}
+    t("٣ تقديرُنا يبقى تفصيلاً لا رقماً منافساً",
+      isinstance(det, dict) and det.get("value") != got,
+      f"المعروض {got} · تفصيلُنا {det.get('value')}")
 
-    # ٥ — حقلُ هدف المحلّلين قائمٌ ومستقلّ
-    ssrc = _read("services/market_screener.py")
-    t("٥ هدفُ المحلّلين حقلٌ مستقلّ",
-      '"analyst_target"' in ssrc and '"analyst_upside_pct"' in ssrc,
-      "analyst_target · analyst_upside_pct")
+    # ٤ — نصُّ الذكاء يُغذّى الرقمَ المعروضَ نفسَه
+    from app.services import ai_content
+    import inspect
+    src = inspect.getsource(ai_content)
+    t("٤ نصُّ الذكاء يقرأ الرقمَ المعروض",
+      "السعر العادل (متوسط تقديرات بيوت الخبرة)" in src
+      and "analysis.get('fair_value')" in src,
+      "يُقرأ من analysis لا من fundamentals")
 
-    print("═" * 62)
-    print("  القيمةُ العادلة — مصدرٌ واحد")
-    print("═" * 62)
+    # ٥ — الفرزُ على المصدر نفسِه
+    ssrc = open(os.path.join(_ROOT, "backend", "app", "services",
+                             "market_screener.py"), encoding="utf-8").read() \
+        if os.path.exists(os.path.join(_ROOT, "backend", "app", "services",
+                                       "market_screener.py")) else \
+        open("/app/app/services/market_screener.py", encoding="utf-8").read()
+    t("٥ الفرزُ على المصدر نفسِه",
+      'r["fair_value"] = _fv' in ssrc and 'pick("target_mean_price")' in ssrc,
+      "target_mean_price")
+
+    print("═" * 60)
+    print("  السعرُ العادل — مصدرٌ واحد")
+    print("═" * 60)
     for n, ok, d in T:
-        print(f"  {'PASS' if ok else 'FAIL'}  {n:38} {d}")
-    bad_n = [n for n, ok, _ in T if not ok]
-    print("═" * 62)
-    print("  ✔ رقمٌ واحدٌ باسمٍ واحد." if not bad_n
-          else f"  ✖ أخفق {len(bad_n)}")
-    return 0 if not bad_n else 1
+        print(f"  {'PASS' if ok else 'FAIL'}  {n:36} {d}")
+    bad = [n for n, ok, _ in T if not ok]
+    print("═" * 60)
+    print("  ✔ رقمٌ واحدٌ باسمٍ واحد في كلّ قسم." if not bad
+          else f"  ✖ أخفق {len(bad)}")
+    return 0 if not bad else 1
 
 
 if __name__ == "__main__":

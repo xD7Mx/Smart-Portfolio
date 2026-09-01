@@ -343,6 +343,17 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
     strengths = fin["strengths"][:6] or ["بيانات مالية متاحة للتحليل"]
     weaknesses = fin["weaknesses"][:6]
 
+    # ══ السعرُ العادل = متوسّطُ تقديرات بيوت الخبرة ══ (بأمر المالك)
+    # ويُشتقّ هنا مرّةً واحدة فيقرؤه كلُّ قسمٍ من مصدرٍ واحد. وما لا يصل
+    # فيه تقديرٌ يبقى «غير متاح» ولا يُستبدَل بحسابٍ آخر.
+    _analyst_fv = (info or {}).get("target_mean_price")
+    if not isinstance(_analyst_fv, (int, float)) or _analyst_fv <= 0:
+        _analyst_fv = None
+    _px_now = (price or {}).get("price") if isinstance(price, dict) else price
+    _analyst_up = (round((_analyst_fv - _px_now) / _px_now * 100, 1)
+                   if _analyst_fv and isinstance(_px_now, (int, float))
+                   and _px_now > 0 else None)
+
     result = {
         "symbol": symbol,
         "name": name or info.get("name") or symbol,
@@ -384,8 +395,14 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
             "عمق الفحص": "كامل" if allow_supplement else "سريع",
         },
         "fair_value_detail": _fv,
-        "fair_value": _fv.get("value"),
-        "fair_value_upside_pct": _fv.get("upside_pct"),
+        # ══ السعرُ العادل = متوسّطُ تقديرات بيوت الخبرة ══ (بأمر المالك)
+        # قرارُ المالك بعد عرض البديلين: يُعتمد `target_mean_price` — متوسّطُ
+        # أهداف المحلّلين — سعراً عادلاً في التطبيق كلِّه، وباسمٍ واحد في
+        # صفحة الشركة وتحليل الذكاء وسائر الأقسام. وتقديرُنا المحسوب يبقى
+        # في `fair_value_detail` بمساراته لمن أراد تفصيلَه، ولا يُعرض رقماً
+        # منافساً. ورقمٌ واحدٌ باسمٍ واحد هو المقصود.
+        "fair_value": _analyst_fv,
+        "fair_value_upside_pct": _analyst_up,
         "strengths": strengths,
         "weaknesses": weaknesses,
         "valuation": valuation,
