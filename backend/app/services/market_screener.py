@@ -239,6 +239,49 @@ async def _governance_score(ysym: str, sector_ar: str | None) -> float | None:
         return None
 
 
+async def _fair_value(ysym: str, price: float | None,
+                      sector_ar: str | None,
+                      sec_pe: float | None = None,
+                      sec_pb: float | None = None) -> tuple:
+    """**القيمة العادلة** من المحرّك الموحّد — `services/fair_value.py` نفسه
+    الذي تقرأه صفحة الشركة.
+
+    كان الفرز يضع `target_mean_price` في حقل `fair_value`: ذاك **متوسّط
+    أهداف المحلّلين**، تنبّؤٌ بالسعر لاثني عشر شهراً ورأيُ بشر، لا قيمةٌ
+    جوهرية. فظهر للمالك رقمان باسمٍ واحد يختلفان بين صفحتين، وعليهما
+    يبني قراره. والعلاجُ وضعُ الرقم الصحيح لا تغييرُ الاسم. (D147)
+
+    حمايةُ الحصّة كما في `_governance_score` حرفاً بحرف: لا يُشغَّل
+    المحرّك إلّا إذا كانت القوائم **مخزَّنةً سلفاً**، فلا يُحدث الفرزُ
+    نداءً واحداً. وما لا يُحسب يبقى `None` صريحاً — «غير متاح» ولا
+    يُستبدَل بهدف المحلّلين ولا بغيره.
+    """
+    try:
+        from app.services import cache, lastgood
+        ck = f"stmt:{ysym}"
+        periods = cache.get(ck) or lastgood.load(
+            ck, max_age_seconds=cache.FUNDAMENTALS_TTL)
+        if not periods:
+            return None, None, None
+        if isinstance(periods, dict):
+            periods = periods.get("periods") or []
+        if not periods:
+            return None, None, None
+        from app.services import fair_value as _fvmod
+        from app.services import spec_score as _spec
+        info = cache.get(f"fund:yahoo:{ysym}") or {}
+        out = _fvmod.compute(info, price, sec_pe, sec_pb,
+                             periods=periods,
+                             archetype=_spec.resolve_archetype_ex(
+                                 sector_ar, {})[0],
+                             symbol=ysym)
+        if not isinstance(out, dict):
+            return None, None, None
+        return out.get("value"), out.get("upside_pct"), out.get("asof")
+    except Exception:                                             # noqa: BLE001
+        return None, None, None
+
+
 async def _enrich_fundamentals(rows: list[dict]) -> None:
     """يُطعّم صفوف الفرز ببيانات **أساسية وشرعية وحوكمية** — من الكاش وقاعدة
     البيانات فقط، **بلا أي نداء إضافي** لأي مزوّد (فلا تُمسّ حصّة ياهو/سهمك).
@@ -313,8 +356,14 @@ async def _enrich_fundamentals(rows: list[dict]) -> None:
         r["pe_ratio"] = pick("pe_ratio")
         r["price_to_book"] = pick("price_to_book")
         r["roe"] = pick("roe")
-        r["fair_value"] = pick("target_mean_price")
-        r["fair_value_asof"] = stored.get("val_asof")
+        # ══ القيمةُ العادلة من محرّكنا، وهدفُ المحلّلين حقلٌ مستقلّ ══
+        # رقمان مختلفان بسؤالين مختلفين: «كم تساوي» و«إلى أين يتوقّعون
+        # سعرَها». وقد كانا اسماً واحداً. (D147)
+        _fv, _up, _asof = await _fair_value(ysym, r.get("price"),
+                                            r.get("sector"))
+        r["fair_value"] = _fv
+        r["fair_value_asof"] = _asof or stored.get("val_asof")
+        r["analyst_target"] = pick("target_mean_price")
         dy = fund.get("dividend_yield")
 
         # ٣) عائد التوزيعات: إن غاب من الأساسيات نحسبه من **المخزن المتراكم**
@@ -376,9 +425,17 @@ def _attach_relative_valuation(rows: list[dict]) -> None:
         # القيمة التي يراها المحللون؟». يُعرض مستقلاً ولا يُخلط بالأول، فمصدره
         # آراء بشر لا مقارنة أرقام — ويُحدَّث شهرياً لا يومياً.
         fv, px = r.get("fair_value"), r.get("price")
-        r["upside_pct"] = (round((float(fv) - float(px)) / float(px) * 100, 1)
-                           if isinstance(fv, (int, float)) and fv > 0
-                           and isinstance(px, (int, float)) and px > 0 else None)
+        r["upside_pct"] = (_up if _up is not None else
+                           (round((float(fv) - float(px)) / float(px) * 100, 1)
+                            if isinstance(fv, (int, float)) and fv > 0
+                            and isinstance(px, (int, float)) and px > 0
+                            else None))
+        # فجوةُ هدف المحلّلين — تُحسب وتُعرض باسمها، ولا تُخلط بالأولى.
+        _at = r.get("analyst_target")
+        r["analyst_upside_pct"] = (
+            round((float(_at) - float(px)) / float(px) * 100, 1)
+            if isinstance(_at, (int, float)) and _at > 0
+            and isinstance(px, (int, float)) and px > 0 else None)
 
         m = med.get(r.get("sector") or "", {})
         gap = basis = None
