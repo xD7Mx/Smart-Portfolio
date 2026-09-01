@@ -105,29 +105,17 @@ async def _financial_from_statements(
         _own = None
     gov_pillar = _gp.build(features, periods, _own)
 
-    from app.services.four_scores import CategoryScore
-    engine = "قديم"
-    if spec is not None and spec.score is not None:
-        four.quality = CategoryScore(
-            score=spec.score,
-            # الشواهدُ القديمة تبقى معروضة: هي التي يقرأ منها المجلسُ
-            # «ما خفض الدرجة»، وحذفُها يترك الرقمَ بلا تفسير.
-            hits=list(four.quality.hits),
-            coverage=spec.coverage,
-        )
-        engine = "المواصفة"
-    elif spec is not None and spec.abstain_reason:
-        # ══ امتناعُ المواصفة يُحترم ولا يلتفّ عليه المحرّكُ القديم ══
-        # كان ركنُ الجودة يبقى على درجة المحرّك القديم حين تمتنع
-        # المواصفة، فتخرج الشركةُ بحكمٍ من مسطرةٍ عامّة بعد أن أعلنّا أن
-        # مسطرتَها الخاصّة لا تكفيها بياناتُها. فتتناقض الشاشةُ مع نفسها:
-        # سببُ امتناعٍ معروض، وحكمٌ مبنيٌّ على غير ما امتنع عنه — ومنه
-        # خمسةٌ وعشرون مؤمِّناً امتنعت مواصفتُهم ثم حكم فيهم القديم.
-        # والامتناعُ إن صحّ سببُه صحّ أثرُه.
-        four.quality = CategoryScore(score=None,
-                                     hits=list(four.quality.hits),
-                                     coverage=spec.coverage)
-        engine = "امتناع المواصفة"
+    # ══ منطقُ بطاقة السلامة هو المنطقُ العامّ ══ (بأمر المالك)
+    # كان ركنُ الجودة يُستبدَل هنا بدرجة «المواصفة» بعد حسابه، وبطاقةُ
+    # الحوكمة (‏`governance_engine`) لا تفعل ذلك. فخرجت الشركةُ الواحدة
+    # برقمين: البطاقةُ ‎67 وصفحةُ الشركة ‎74 — مقيسٌ على الشركة نفسها
+    # بقوائمها نفسِها. وقال المالك إن نهج البطاقة هو ما يريده في التطبيق
+    # كلِّه، فأُزيل الاستبدال وبقيت الأركانُ الأربعة كما يحسبها
+    # `compute_four_scores` — وهو عينُ ما تقرؤه البطاقة. (D149)
+    #
+    # ودرجةُ المواصفة تبقى معروضةً بياناً للمعيار القطاعيّ المطبَّق، ولا
+    # تغيّر الحكم.
+    engine = "بطاقة السلامة"
 
     decision = evaluate_decision(four, features, sector)  # gated: abstains on thin data
     explanation = explain(four, decision)
@@ -140,7 +128,11 @@ async def _financial_from_statements(
 
     return {
         # No fabricated grade when the data can't support one.
-        "score": (score if score is not None else 50) if evaluable else None,
+        # ══ لا خمسينَ مختلَقة ══ (D149)
+        # كانت الدرجةُ تُستبدَل بـ‎50 حين يتعذّر حسابُها والبياناتُ كافيةٌ
+        # للحكم — رقمٌ لم يُقَس يُعرض كأنه قياس. والبطاقةُ تعيد العدمَ في
+        # هذه الحال، فيُقال «غير متاحة» ولا يُخترع وسط.
+        "score": score if evaluable else None,
         "evaluable": evaluable,
         # An analytical sentence about the statements, not a buy/avoid label
         # (the decision lives at the score). Rule-based here — the Gemini

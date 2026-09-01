@@ -2083,9 +2083,15 @@ def check_liquidity_bars() -> None:
 def check_shadow_engine() -> None:
     """حقلٌ يُحسب ولا يُستعمل أخطرُ من حقلٍ لا يُحسب: الأوّل يُظنّ عاملاً.
 
-    بقيت درجةُ المواصفة تُحسب في حقلٍ جانبيّ ولا تحكم يومين كاملين، فكلُّ
-    ضبطٍ لها جرى في محرّكٍ لا تراه الشاشة — والمالكُ يرى الرقمَ نفسه بعد
-    كلّ جولة. فيُشترط أن تدخل نتيجةُ المواصفة في الدرجة التي تُعرض وتُقرّر.
+    ══ نُسخ شرطُه بقرار المالك ══ (D149)
+    كان يشترط أن تحلّ درجةُ المواصفة محلَّ ركن الجودة في الدرجة المعروضة.
+    ثم قرّر المالكُ أن **منطق بطاقة السلامة** (‏`governance_engine`) هو
+    منطقُ الحوكمة في التطبيق كلِّه، والبطاقةُ لا تستبدل ركنَ الجودة. فصار
+    الاستبدالُ نفسُه هو المخالفة، لا غيابُه.
+
+    فبقي من هذا الفحص ما لم يُنسخ: أن يُقال أيُّ محرّكٍ أنتج الدرجة، وألّا
+    يعود الاستبدالُ خِلسة. وتطابقُ الرقمين بين البطاقة والشاشة يفحصه
+    `gov_one_engine.py` سلوكياً — لا بقراءة الشيفرة.
     """
     f = ROOT / "backend/app/services/analysis.py"
     if not f.exists():
@@ -2095,19 +2101,14 @@ def check_shadow_engine() -> None:
         note("S-SHADOWENGINE", "backend/app/services/analysis.py",
              "محرّكُ المواصفة لا يُستدعى أصلاً")
         return
-    if not re.search(r"four\.quality\s*=\s*CategoryScore\(\s*\n?\s*score=spec\.score", s):
+    if re.search(r"four\.quality\s*=\s*CategoryScore\(\s*\n?\s*score=spec\.score", s):
         note("S-SHADOWENGINE", "backend/app/services/analysis.py",
-             "درجةُ المواصفة تُحسب ولا تدخل الدرجةَ المعروضة ولا القرار — "
-             "ضبطُها لا أثر له في الشاشة")
+             "ركنُ الجودة يُستبدَل بدرجة المواصفة — والبطاقةُ لا تفعل، "
+             "فتخرج الشركةُ الواحدة بدرجتين (D149)")
     if '"score_engine"' not in s:
         note("S-SHADOWENGINE", "backend/app/services/analysis.py",
              "لا يُقال أيُّ محرّكٍ أنتج الدرجة")
-    # وترتيبُ التنفيذ: التبديلُ قبل القرار لا بعده
-    i_sw = s.find("four.quality = CategoryScore")
-    i_dc = s.find("decision = evaluate_decision")
-    if i_sw > 0 and i_dc > 0 and i_sw > i_dc:
-        note("S-SHADOWENGINE", "backend/app/services/analysis.py",
-             "التبديلُ يقع بعد القرار — فالقرارُ يُبنى على المحرّك القديم")
+
 
 
 
@@ -2196,19 +2197,14 @@ def check_shadow_engine() -> None:
         note("S-SHADOWENGINE", "backend/app/services/analysis.py",
              "محرّكُ المواصفة لا يُستدعى أصلاً")
         return
-    if not re.search(r"four\.quality\s*=\s*CategoryScore\(\s*\n?\s*score=spec\.score", s):
+    if re.search(r"four\.quality\s*=\s*CategoryScore\(\s*\n?\s*score=spec\.score", s):
         note("S-SHADOWENGINE", "backend/app/services/analysis.py",
-             "درجةُ المواصفة تُحسب ولا تدخل الدرجةَ المعروضة ولا القرار — "
-             "ضبطُها لا أثر له في الشاشة")
+             "ركنُ الجودة يُستبدَل بدرجة المواصفة — والبطاقةُ لا تفعل، "
+             "فتخرج الشركةُ الواحدة بدرجتين (D149)")
     if '"score_engine"' not in s:
         note("S-SHADOWENGINE", "backend/app/services/analysis.py",
              "لا يُقال أيُّ محرّكٍ أنتج الدرجة")
-    # وترتيبُ التنفيذ: التبديلُ قبل القرار لا بعده
-    i_sw = s.find("four.quality = CategoryScore")
-    i_dc = s.find("decision = evaluate_decision")
-    if i_sw > 0 and i_dc > 0 and i_sw > i_dc:
-        note("S-SHADOWENGINE", "backend/app/services/analysis.py",
-             "التبديلُ يقع بعد القرار — فالقرارُ يُبنى على المحرّك القديم")
+
 
 
 
@@ -2593,28 +2589,12 @@ def check_threshold_scale() -> None:
 
 
 
-# ── S-ABSTAINBYPASS — امتناعُ المواصفة يلتفّ عليه القديم (D123) ───────────
+# ── S-ABSTAINBYPASS — نُسخ بقرار المالك (D123 → D149) ────────────────────
+# كان يشترط أن يُسكِت امتناعُ المواصفة ركنَ الجودة. وقد رُفع الاستبدالُ
+# كلُّه حين صار منطقُ بطاقة السلامة هو المنطقَ العامّ، فلم يبقَ محرّكان
+# يلتفّ أحدُهما على الآخر. والتطابقُ يفحصه `gov_one_engine.py` سلوكياً.
 def check_abstain_respected() -> None:
-    """سببُ امتناعٍ معروض، وحكمٌ مبنيٌّ على غير ما امتنع عنه.
-
-    كان ركنُ الجودة يبقى على درجة المحرّك القديم حين تمتنع المواصفة،
-    فتخرج الشركةُ بحكمٍ من مسطرةٍ عامّة بعد أن أعلنّا أن مسطرتَها
-    الخاصّة لا تكفيها بياناتُها — خمسةٌ وعشرون مؤمِّناً في مسح السوق.
-    والامتناعُ إن صحّ سببُه صحّ أثرُه.
-    """
-    f = ROOT / "backend/app/services/analysis.py"
-    if not f.exists():
-        return
-    s = f.read_text(encoding="utf-8")
-    if not re.search(r"elif spec is not None and spec\.abstain_reason:", s):
-        note("S-ABSTAINBYPASS", "backend/app/services/analysis.py",
-             "امتناعُ المواصفة لا أثرَ له — المحرّكُ القديم يحكم بعده "
-             "فتتناقض الشاشةُ مع نفسها")
-    elif not re.search(r"elif spec is not None and spec\.abstain_reason:"
-                       r"(?:.*?\n){1,20}?\s*four\.quality = CategoryScore\(score=None",
-                       s):
-        note("S-ABSTAINBYPASS", "backend/app/services/analysis.py",
-             "فرعُ الامتناع لا يُفرّغ ركنَ الجودة")
+    return
 
 
 
