@@ -416,6 +416,11 @@ async def main(argv: list[str]) -> int:
         drift.append("عتبةُ PB_ROE")
     if abs(inv.MIN_COMPONENT_COVERAGE - EXPECTED_MIN_COMPONENT_COVERAGE) > 1e-9:
         drift.append("حدُّ تغطية المكوّن")
+    check("١٣ العدُّ يطابق الكون",
+          len(out) + 0 == cen["main"]
+          and len(out) == (len(out) - len(pending) - len(unreadable))
+          + len(pending) + len(unreadable),
+          f"صفوف {len(out)} · كون {cen['main']}")
     check("١٢ لا انحرافَ في الأوزان والعتبات", not drift,
           "مطابقةٌ حرفية" if not drift else str(drift))
 
@@ -525,7 +530,13 @@ async def main(argv: list[str]) -> int:
     print(f"\nUNIVERSE")
     print(f"  Main Market companies      {cen['main']}")
     print(f"  NOMU داخل التحليل           0  (مستبعَدة {cen['nomu']})")
-    print(f"  قُرئت فعلاً                  {len(out)}")
+    # ══ العدُّ يطابق الكونَ ولا يزيد ══
+    # كان يُطبع `len(out)` تحت عنوان «قُرئت فعلاً»، و`out` يضمّ الصفوفَ
+    # كلَّها — المحسوبةَ وغيرَ المقروءة ومن ينتظر التصنيف. فظهر ‎273
+    # مقروءةً و‎5 غيرَ مقروءة، ومجموعُهما يتجاوز الكون. والعنوانُ الكاذب
+    # أخطرُ من الرقم الناقص.
+    _scored = len(out) - len(pending) - len(unreadable)
+    print(f"  حُسبت لها درجة             {_scored}")
     if pending:
         print(f"  بانتظار التصنيف             {len(pending)} · "
               + " · ".join(u["sym"] for u in pending))
@@ -533,6 +544,10 @@ async def main(argv: list[str]) -> int:
         print(f"  لم تُقرأ                    {sum(unread.values())}")
         for k, v in unread.most_common():
             print(f"      {k:34} {v}")
+    print(f"  المجموع                    "
+          f"{_scored} + {len(pending)} + {len(unreadable)} = {len(out)}"
+          f"  (الكون {cen['main']})")
+
     print(f"\nDATA")
     print(f"  Fully analyzed (≥80٪)      {full}")
     print(f"  Partial (40–80٪)           {part}")
