@@ -416,11 +416,6 @@ async def main(argv: list[str]) -> int:
         drift.append("عتبةُ PB_ROE")
     if abs(inv.MIN_COMPONENT_COVERAGE - EXPECTED_MIN_COMPONENT_COVERAGE) > 1e-9:
         drift.append("حدُّ تغطية المكوّن")
-    check("١٣ العدُّ يطابق الكون",
-          len(out) + 0 == cen["main"]
-          and len(out) == (len(out) - len(pending) - len(unreadable))
-          + len(pending) + len(unreadable),
-          f"صفوف {len(out)} · كون {cen['main']}")
     check("١٢ لا انحرافَ في الأوزان والعتبات", not drift,
           "مطابقةٌ حرفية" if not drift else str(drift))
 
@@ -449,6 +444,16 @@ async def main(argv: list[str]) -> int:
             "AbsoluteCeiling": None, "TopPositive": "", "TopNegative": "",
             "BlockingReason": "لم تصل قوائمُ مالية كافية من المصدر",
             "BlockingCodes": u["code"], "_explain": None})
+
+    # ══ ١٣ — العدُّ يطابق الكون ══
+    # **بعد** ضمّ غير المقروءة ومن ينتظر التصنيف، لا قبله. فقد وُضع
+    # أوّلَ مرّةٍ قبل الضمّ فقرأ ‎268 والجدولُ النهائيُّ ‎273، فأسقط حكماً
+    # صحيحاً. والحارسُ الذي يقيس في اللحظة الخطأ يكذب كما يكذب الحارسُ
+    # الغائب.
+    _scored_n = len(out) - len(pending) - len(unreadable)
+    check("١٣ العدُّ يطابق الكون", len(out) == cen["main"],
+          f"محسوبة {_scored_n} + بانتظار التصنيف {len(pending)}"
+          f" + بلا قوائم {len(unreadable)} = {len(out)} · كون {cen['main']}")
 
     # ══ ٧ — جدولُ القرار إلى ملفّ ══
     cols = ["Ticker", "Company", "Sector", "Archetype", "Model", "FinalScore",
