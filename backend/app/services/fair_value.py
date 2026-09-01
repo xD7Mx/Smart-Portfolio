@@ -99,6 +99,30 @@ BETA_FLOOR, BETA_CAP = 0.85, 2.0   # بيتا 0.16 انحيازٌ نزوليّ �
 MIN_EQUITY_PREMIUM = 0.040   # أدنى r يصير ‎9.25٪ ببيتا الأرضية، فأرضيةٌ أعلى تلغي الإصلاح   # لا سهمَ سعوديّ يُحمل بعلاوة 3.5٪ فوق سياديّ
 
 
+def _eq_of(row: dict | None) -> float | None:
+    """حقوقُ الملكية بأسمائها الثلاثة في المصدر.
+
+    ══ اسمٌ لا وجودَ له في البيانات ══ (D148)
+    كان يُقرأ `total_equity` وحدَه، وهو **غيرُ موجودٍ** فيما يصلنا: ياهو
+    يرسل `equity` و`stockholders_equity`. فكان `roic` لا يُحسب أبداً في
+    التشغيل الحقيقيّ، ويسقط قيدُ إعادة الاستثمار إلى العائد على حقوق
+    الملكية — وهو عينُ ما حذّر منه التعليقُ فوقه: يجعل القيدَ سخيّاً
+    للشركات المرفوعة تحديداً، وهي أحوجُها إليه. وكذلك سلسلةُ العائد في
+    مسار الدخل المتبقّي كانت تنقطع من أوّل سنة.
+
+    وهو توأمُ D137 حرفاً بحرف: اسمُ حقلٍ لم يوجد قطُّ في المصدر، سترته
+    عيّناتُ اختبارٍ تكتب الاسمين معاً. ولهذا يُقرأ هنا من خريطة الأسماء
+    المعتمدة في `canonical` لا من اسمٍ مكتوبٍ باليد.
+    """
+    if not isinstance(row, dict):
+        return None
+    for name in ("total_equity", "equity", "stockholders_equity"):
+        v = row.get(name)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return float(v)
+    return None
+
+
 def _required_return(beta: float | None) -> float:
     """معدّل العائد المطلوب (‏CAPM) ببيتا معدَّلةٍ وأرضيةٍ لا يُخترق.
 
@@ -285,7 +309,7 @@ def _dcf(periods: list[dict], info: dict, price: float | None,
         # ‎67٪ لا ‎40٪. وقياسُها بحقوق الملكية يجعل أحدَ قيودنا «المتحفّظة»
         # سخيّاً للشركات المرفوعة تحديداً — وهي أحوجُها إلى التحفّظ.
         roic = None
-        eq_last = last.get("total_equity") if isinstance(last, dict) else None
+        eq_last = _eq_of(last)
         if (isinstance(eq_last, (int, float)) and eq_last > 0
                 and isinstance(debt_last, (int, float)) and debt_last >= 0):
             cap_emp = eq_last + debt_last
@@ -616,7 +640,7 @@ def compute(info: dict, price: float | None,
         roe0 = roe / 100.0
         streak = 0
         for p_ in reversed(periods or []):
-            ni, eq = p_.get("net_income"), p_.get("total_equity")
+            ni, eq = p_.get("net_income"), _eq_of(p_)
             if not (isinstance(ni, (int, float)) and isinstance(eq, (int, float)) and eq > 0):
                 break
             if ni / eq >= r + 0.05:
