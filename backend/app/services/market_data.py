@@ -75,6 +75,18 @@ def _needs_supplement(periods: list[dict]) -> bool:
     return not periods or len(periods) < 3
 
 
+def _investing_rows(symbol: str) -> list[dict]:
+    """صفوفُ الملفّ الذي صدّره المالكُ من حسابه — قراءةُ قرصٍ لا شبكة.
+
+    وغيابُ الملفّ حالةٌ عادية: يُعاد فراغٌ ويعمل التطبيقُ كما كان.
+    """
+    try:
+        from app.services import investing_store
+        return investing_store.financial_periods(symbol)
+    except Exception:                                             # noqa: BLE001
+        return []
+
+
 def _merge_supplement(target: list[dict], extra: list[dict]) -> None:
     """Field-level merge of a supplement source (Sahmak) into `target`
     (Yahoo) IN PLACE — Phase B. Two effects:
@@ -964,6 +976,11 @@ class YahooFinanceAdapter:
             if len(deep_periods) >= 2:
                 for p in deep_periods:
                     p.setdefault("source", "yahoo")
+                # ══ المستورَدُ أوّلاً: مجّانيٌّ ومحلّيٌّ ولا يمسّ حصّة ══
+                # ويُعاد تقديرُ الحاجة بعده، فلا يُنفَق نداءُ «سهمك» على
+                # فجوةٍ سدّها ملفُّ المالك. وياهو يبقى المزوّد: الدمجُ
+                # يملأ الفراغَ ولا يستبدل رقماً (‏_merge_supplement).
+                _merge_supplement(deep_periods, _investing_rows(symbol))
                 if allow_supplement and _needs_supplement(deep_periods):
                     try:
                         from app.services import sahmak_library
@@ -1078,6 +1095,7 @@ class YahooFinanceAdapter:
 
             # Supplement from Sahmak (Phase B) — only when allowed and Yahoo
             # left a gap worth a scarce call (see _needs_supplement).
+            _merge_supplement(periods, _investing_rows(symbol))
             if allow_supplement and _needs_supplement(periods):
                 try:
                     from app.services import sahmak_library
