@@ -81,7 +81,15 @@ async def evaluate_company(symbol: str, db=None, company_status: Optional[str] =
     from app.services.four_scores import composite_finance_score
     from app.services.financial_narrative import rule_based_narrative
     from app.services.expert_panel import build_expert_panel
-    finance = composite_finance_score(scores)  # the FINANCE verdict (Quality+Safety)
+    # ══ الدرجةُ من المحرّك الأصليّ ══ (بأمر المالك)
+    # ستُّ إشاراتٍ كلٌّ منها سطرٌ يراه المستثمر في جدول القوائم نفسِه:
+    # نموُّ الإيراد · جودةُ الأرباح · العائدُ على حقوق الملكية · هامشُ
+    # التدفّق الحرّ · اتّجاهُ المديونية · تغطيةُ الفوائد. والبنوكُ والتأمين
+    # تُعفى من ثلاثٍ منها، ويُستدَلّ عليها **من البيانات لا من اسم
+    # القطاع**. وكانت الدرجةُ تأتي من `composite_finance_score` فانفصل
+    # الرقمُ عن الجدول الذي تحته. (D151)
+    from app.services.scores import _finance_score_from_periods
+    finance = _finance_score_from_periods(periods)
     narrative = rule_based_narrative(scores, explanation)
     panel = build_expert_panel(features, resolved_sector, scores)  # the expert consensus
 

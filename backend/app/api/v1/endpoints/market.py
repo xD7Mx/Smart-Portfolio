@@ -216,25 +216,18 @@ async def get_company_financials(symbol: str, period: str = "annual"):
             return None
         return round((a - b) / abs(b) * 100, 1)
 
-    from app.services.scores import is_investment_phase
-    from app.services.four_scores import build_features, compute_four_scores, composite_finance_score
-    from app.services.decision_engine import decide
-    from app.services.explainability import explain
-    from app.services.financial_narrative import financial_narrative
-
-    features = build_features(periods)
-    four = compute_four_scores(features)
-    explanation = explain(four, decide(four))
-    # An analytical SENTENCE about the statements — not a buy/avoid label
-    # (that lives at the score/تقييم الأداء and repeating it here is noise).
-    verdict = await financial_narrative(_normalize_symbol(symbol), four, explanation)
-    # Tone reflects the financial-health read (composite), so a strong
-    # company's analytical note shows green even though the sentence itself
-    # never says "buy".
-    health = composite_finance_score(four)
-    verdict_tone = ("green" if health is not None and health >= 70
-                    else "red" if health is not None and health < 40
-                    else "yellow")
+    # ══ الحكمُ واللونُ والدرجة من المحرّك الأصليّ ══ (بأمر المالك · D151)
+    # هذا الجدولُ عينُه هو ما بُنيت عليه القواعد: نموُّ الإيراد وجودةُ
+    # الأرباح والمديونيةُ والتغطية. فالحكمُ يُشتقّ منه بقاعدةٍ حتمية،
+    # واللونُ من الحكم نفسِه لا من رقمٍ آخر — فلا يخضرّ شريطٌ فوق جملةٍ
+    # تحذّر. وكان اللونُ يأتي من `composite_finance_score` والجملةُ من
+    # سردٍ آخر، فانفصل ثلاثتُها عن الجدول الذي تحتها.
+    from app.services.scores import (is_investment_phase, financial_verdict,
+                                     verdict_tone as _tone,
+                                     _finance_score_from_periods)
+    verdict = financial_verdict(periods)
+    verdict_tone = _tone(verdict)
+    health = _finance_score_from_periods(periods)
     return success_response(data={
         "symbol": symbol,
         "years": [p["year"] for p in periods],
@@ -245,6 +238,9 @@ async def get_company_financials(symbol: str, period: str = "annual"):
         )},
         "verdict": verdict,
         "verdict_tone": verdict_tone,
+        # الدرجةُ تُعرض مع الجدول الذي بُنيت عليه — نفسُ رقم صفحة الشركة
+        # وقسم السوق وبطاقة الحوكمة.
+        "finance_score": health,
         "investment_phase": is_investment_phase(periods),
     })
 

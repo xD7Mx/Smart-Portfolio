@@ -2,9 +2,12 @@
 
 ## القاعدة المعتمدة
 
-منطقُ **بطاقة سلامة الشركة** (‏`governance_engine.evaluate_company`) هو
-منطقُ الحوكمة في كلّ قسم: صفحةُ الشركة · تحليلُ الذكاء · الفرز · تقييمُ
-الأداء. فدرجةُ الشركة الواحدة لا تختلف باختلاف الشاشة.
+**المحرّكُ الأصليّ** (‏`scores._finance_score_from_periods`) هو مصدرُ درجة
+الحوكمة في كلّ قسم: بطاقةُ الحوكمة · صفحةُ الشركة · قسمُ السوق · جدولُ
+القوائم. فدرجةُ الشركة الواحدة لا تختلف باختلاف الشاشة.
+
+وستُّ إشاراتِه كلٌّ منها **سطرٌ يراه المستثمر في الجدول نفسِه**، فالرقمُ
+مفسَّرٌ بما تحته لا مستقلٌّ عنه.
 
 ## العطب الذي يمنعه
 
@@ -80,6 +83,8 @@ def main() -> int:
 
     rows, bad = [], []
 
+    from app.services.scores import _finance_score_from_periods
+
     async def run():
         for sym in CASES:
             cache.clear()
@@ -88,22 +93,26 @@ def main() -> int:
             page = await analyze_company(sym, "شركةُ فحص")
             c = (card or {}).get("overall")
             a = ((page or {}).get("financial") or {}).get("score")
-            rows.append((sym, c, a))
-            if c != a:
+            # المصدرُ الأصليُّ مباشرةً — هو ما يقرؤه قسمُ السوق وجدولُ
+            # القوائم عبر `/financials`. فتُقارَن الثلاثةُ بأصلها لا
+            # بعضُها ببعض: تطابقٌ على رقمٍ خاطئ تطابقٌ أيضاً.
+            src = _finance_score_from_periods(CASES[sym]) if CASES[sym] else None
+            rows.append((sym, c, a, src))
+            if not (c == a == src):
                 bad.append(sym)
 
     asyncio.run(run())
 
     print("═" * 60)
-    print("  محرّكُ حوكمةٍ واحد — البطاقةُ وصفحةُ الشركة")
+    print("  محرّكٌ واحد — البطاقةُ · صفحةُ الشركة · قسمُ السوق")
     print("═" * 60)
-    print(f"  {'الرمز':12} {'البطاقة':>9} {'الصفحة':>9}")
-    for sym, c, a in rows:
-        print(f"  {sym:12} {str(c):>9} {str(a):>9}   "
-              f"{'✔' if c == a else '✖ مختلفتان'}")
+    print(f"  {'الرمز':10} {'البطاقة':>8} {'الصفحة':>8} {'السوق':>8}")
+    for sym, c, a, src in rows:
+        print(f"  {sym:10} {str(c):>8} {str(a):>8} {str(src):>8}   "
+              f"{'✔' if c == a == src else '✖ مختلفة'}")
 
     # ولا خمسينَ مختلَقة: الشركةُ بلا قوائم تُعاد عدماً لا وسطاً
-    empty = [a for s, _c, a in rows if s == "9004.SR"]
+    empty = [a for s, _c, a, _s in rows if s == "9004.SR"]
     no_fake = empty and empty[0] is None
     print(f"\n  بلا قوائم → {empty[0] if empty else '—'} "
           f"({'عدمٌ معلَن' if no_fake else 'رقمٌ مختلَق'})")
