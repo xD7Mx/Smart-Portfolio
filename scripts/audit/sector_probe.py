@@ -102,10 +102,22 @@ def main() -> int:
             s1 = sc(stripped)
             if s1 is not None:
                 no_fcf.append(s1 - s0)
-            # وماذا لو قِيس عائدُها عبر الدورة (كالدوريّة)؟
-            s2 = sc(periods, "الطاقة")
-            if s2 is not None:
-                cyc.append(s2 - s0)
+            # وماذا لو قِيس عائدُها عبر الدورة؟
+            # ══ الفرضيةُ تُحسب هنا لا تُطلب من المحرّك ══
+            # كان يُنادى `sc(periods, "الطاقة")` أيام كان المحرّكُ يقبل
+            # قطاعاً. وقد أُلغي ذلك (‏D155)، فبقي النداءُ يسقط. والمسبارُ
+            # أداةُ **قياسٍ لا تعديل**: يبني الفرضيةَ بيده — يستبدل ربحَ
+            # آخر سنةٍ بمتوسّط الدورة ويُعيد الحساب — فيبقى قادراً على
+            # كشف عطبٍ يستحقّ التعديل دون أن يشترط وجودَه في المحرّك.
+            nis = [p["net_income"] for p in periods
+                   if p.get("net_income") is not None]
+            if len(nis) >= 3:
+                avg = sum(nis) / len(nis)
+                alt = [dict(p) for p in periods]
+                alt[-1] = dict(alt[-1], net_income=avg)
+                s2 = sc(alt)
+                if s2 is not None:
+                    cyc.append(s2 - s0)
         return {"n": len(rows), "allneg": alln, "fcf_med": _med(fcfm),
                 "cv": _med(cv), "score": _med(cur),
                 "d_fcf": _med(no_fcf), "d_cyc": _med(cyc)}
