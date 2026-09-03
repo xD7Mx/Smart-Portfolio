@@ -89,7 +89,7 @@ async def evaluate_company(symbol: str, db=None, company_status: Optional[str] =
     # القطاع**. وكانت الدرجةُ تأتي من `composite_finance_score` فانفصل
     # الرقمُ عن الجدول الذي تحته. (D151)
     from app.services.scores import _finance_score_from_periods
-    finance = _finance_score_from_periods(periods, resolved_sector)
+    finance = _finance_score_from_periods(periods)
     narrative = rule_based_narrative(scores, explanation)
     panel = build_expert_panel(features, resolved_sector, scores)  # the expert consensus
 

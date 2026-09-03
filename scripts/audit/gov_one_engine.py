@@ -96,7 +96,7 @@ def main() -> int:
             # المصدرُ الأصليُّ مباشرةً — هو ما يقرؤه قسمُ السوق وجدولُ
             # القوائم عبر `/financials`. فتُقارَن الثلاثةُ بأصلها لا
             # بعضُها ببعض: تطابقٌ على رقمٍ خاطئ تطابقٌ أيضاً.
-            src = (_finance_score_from_periods(CASES[sym], SECTOR)
+            src = (_finance_score_from_periods(CASES[sym])
                    if CASES[sym] else None)
             rows.append((sym, c, a, src))
             if not (c == a == src):

@@ -34,16 +34,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.portfolio import Company
 
 
-# ══ قطاعاتٌ تُقاس بغير المسطرة العامّة ══
-# الأصلُ في هذا المحرّك أن يستدلّ من **البيانات** لا من اسم القطاع —
-# وذاك التحفّظُ كان في محلّه حين كان الاسمُ يأتي من ياهو بالإنجليزية
-# فلا يُطابق شيئاً. أمّا هذه فأسماءٌ من دليل السوق المعتمَد عندنا،
-# قاطعةٌ لا تُخمَّن. والاسمُ الغائبُ يعني «المسطرة العامّة» لا خطأً:
-# فالمحرّكُ بدون قطاعٍ يعمل كما كان قبل هذا التحسين حرفاً بحرف.
+# ══ لا استثناءَ قطاعيّ — والقياسُ هو الذي حكم ══ (D154 · D155)
+# جُرِّب استثناءان: إعفاءُ الصناديق العقارية من هامش التدفّق الحرّ،
+# وقياسُ عائد الدوريّة عبر الدورة. وقِيسا على ‎268 شركةً حقيقية:
 #
-# ولا يُضاف بها مؤشّرٌ ولا عتبة: تُسقَط إشارةٌ لا تناسب النموذج فيُعاد
-# توزيعُ وزنها على الباقي، أو يُستبدَل **مدخلُها** لا حدُّها.
-_CYCLICAL_SECTORS = frozenset({"الطاقة", "المواد الأساسية"})
+#   · الإعفاءُ يحسم من الصناديق سبعَ نقاطٍ — تدفّقُها الحرُّ موجبٌ
+#     بوسيطٍ ‎+67.9٪، ولا واحدةَ من التسعَ عشرةَ سالبةٌ في كلّ سنواتها.
+#   · وقياسُ الدورة أثرُه ‎+1.0 و‎0.0 — دون عتبةِ الخمسِ نقاطٍ التي
+#     اشترطناها لأيّ تعديل.
+#
+# وكلاهما بُني على عيّنةٍ صنعناها بأيدينا فأكّدت فرضيتَها بدل أن
+# تختبرها. فأُلغيا معاً: **الشرطُ واحدٌ ولا استثناءَ لتعديلٍ أعجبنا**.
+#
+# والقطاعُ ما يزال مؤثّراً حيث يثبته الدليل: البنوكُ والتأمين تُعفى من
+# ثلاثِ إشاراتٍ — لكن **باستدلالٍ من البيانات** (لا مصروفَ فوائدَ عبر
+# السلسلة مع مديونيةٍ عالية) لا باسمِ قطاعٍ مكتوب.
+#
+# والبابُ مفتوح: `sector_probe.py` يقيس، فإن بلغ عطبٌ خمسَ نقاطٍ
+# وكان سببُه بنيوياً، عاد التعديلُ بدليله.
 
 
 def _clamp(v, lo=0, hi=100):
@@ -76,8 +84,7 @@ def is_investment_phase(periods: list) -> bool | None:
     return capex_ratio >= INVESTMENT_CAPEX_RATIO and revenue_holding
 
 
-def _finance_score_from_periods(periods: list,
-                                sector: str | None = None) -> int | None:
+def _finance_score_from_periods(periods: list) -> int | None:
     """Weighs six real, multi-year signals — every one traceable back to a
     row the investor sees in the financial statements table:
 
@@ -126,20 +133,6 @@ def _finance_score_from_periods(periods: list,
         latest.get("debt_ratio") is not None and latest["debt_ratio"] > 0.75
         and all(p.get("interest_coverage") is None for p in periods)
     )
-    _sec = (sector or "").strip()
-    # ══ إعفاءُ الصناديق العقارية أُلغي — نقضه القياس ══ (D154)
-    # افتُرض أنّ تدفّقَها الحرَّ سالبٌ بنيةً (تشتري عقاراتٍ وتوزّع أغلبَ
-    # دخلها)، فأُعفيت منه. ثمّ قِيست تسعَ عشرةَ شركةً على بيانات السوق
-    # الحقيقية: **لا واحدةَ** تدفّقُها سالبٌ في كلّ سنواتها، ووسيطُ هامش
-    # الحرّ ‎+67.9٪، والإعفاءُ يحسم منها **سبعَ نقاط**. فالافتراضُ جاء من
-    # عيّنةٍ صنعتُها بيدي ولا تشبه المصدر — وهو ثامنُ وقوعٍ من صنفه.
-    # والقاعدةُ التي أثبتها هذا: لا تعديلَ قطاعيٌّ قبل قياسٍ على بياناتٍ
-    # حقيقية، لا على فرضيةٍ مهما بدت معقولة.
-    # والدوريّةُ تُقاس عبر الدورة: سنةُ القاع تُظهر العائدَ 2.5٪ وعبر
-    # الدورة 23٪ — ثمانُ نقاطٍ سببُها اختيارُ السنة لا حالُ الشركة.
-    # فيُستبدَل **مدخلُ** العائد بمتوسّط الدورة، وحدُّه كما هو.
-    is_cyclical = _sec in _CYCLICAL_SECTORS
-
     # ══ الجذرُ الكسريُّ لعددٍ سالبٍ عددٌ مركّب ══ (D153)
     # كان الشرطُ يفحص أوّلَ إيرادٍ موجباً ولا يفحص آخرَه. وشركةٌ إيرادُها
     # الأخير سالب (تصحيحاتٌ تفوق الإيراد — يقع في التأمين والمقاولات)
@@ -176,13 +169,7 @@ def _finance_score_from_periods(periods: list,
             signals.append((_clamp(round(50 + avg_margin * 2.5)), 0.15))
 
     if latest.get("net_income") is not None and latest.get("equity"):
-        _ni = latest["net_income"]
-        if is_cyclical:
-            _series = [p["net_income"] for p in periods
-                       if p.get("net_income") is not None]
-            if len(_series) >= 3:
-                _ni = sum(_series) / len(_series)
-        roe_pct = _ni / latest["equity"] * 100
+        roe_pct = latest["net_income"] / latest["equity"] * 100
         signals.append((_clamp(round(40 + roe_pct * 2)), 0.20))
 
     if latest.get("debt_ratio") is not None and not looks_like_financial_institution:
@@ -212,7 +199,7 @@ def _finance_score_from_periods(periods: list,
 finance_score_from_periods = _finance_score_from_periods
 
 
-def financial_verdict(periods: list, sector: str | None = None) -> str:
+def financial_verdict(periods: list) -> str:
     """Deterministic, rule-based executive verdict — computed from the exact
     same real signals as finance_score_from_periods, not a free-text AI
     guess. Chosen deliberately: an investor's decision sentence must be as
