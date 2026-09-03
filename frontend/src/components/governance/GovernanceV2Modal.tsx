@@ -47,9 +47,14 @@ export default function GovernanceV2Modal({ symbol, name, onClose }: { symbol: s
           <>
             {/* الخلاصةُ أوّلاً: القرارُ ودرجةُ السلامة قبل تفصيلهما — كانا
                 يقعان أسفلَ إحدى عشرةَ قراءةً فيُقرآن حاشيةً لا خلاصة. */}
-            {data.evaluable !== false && data.decision?.decision && (
+            {data.evaluable !== false && data.decision?.decision && (() => {
+              /* اللونُ يتبع الحكمَ الخام لا مفردةَ العرض: مفردةُ النشر قد
+                 تصف الحكمَ بكلماتٍ أخرى، فيسقط اللونُ إلى الرمادي. */
+              const raw = data.decision.raw || data.decision.decision;
+              const col = DECISION_COLOR[raw] || "var(--ink-muted)";
+              return (
               <div className="flex items-center justify-between p-2.5 rounded-xl mb-3"
-                   style={{ background: `${DECISION_COLOR[data.decision.decision] || "var(--ink-muted)"}14`, border: `1px solid ${DECISION_COLOR[data.decision.decision] || "var(--ink-muted)"}33` }}>
+                   style={{ background: `${col}14`, border: `1px solid ${col}33` }}>
                 <div className="flex items-baseline gap-2">
                   <span className="text-[11px] text-[var(--ink-muted)]">خلاصة المجلس</span>
                   <span className="text-[10px] text-[var(--ink-muted)] tabular-nums">ثقة {data.confidence?.score}%</span>
@@ -58,9 +63,13 @@ export default function GovernanceV2Modal({ symbol, name, onClose }: { symbol: s
                   {typeof data.finance_score === "number" && (
                     <span className="text-[11px] text-[var(--ink-muted)] tabular-nums">درجة السلامة {data.finance_score}/100</span>
                   )}
-                  <span className="text-sm font-bold" style={{ color: DECISION_COLOR[data.decision.decision] || "var(--ink-muted)" }}>{data.decision.decision}</span>
+                  <span className="text-sm font-bold" style={{ color: col }}>{data.decision.decision}</span>
                 </div>
               </div>
+              ); })()}
+
+            {data.decision?.reason && data.evaluable !== false && (
+              <p className="text-[11px] text-[var(--ink-muted)] leading-relaxed mb-3">{data.decision.reason}</p>
             )}
 
             {data.confidence?.warning && (

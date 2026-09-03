@@ -19,9 +19,13 @@ from app.services import cache
 GOVERNANCE_V2_TTL = 24 * 60 * 60
 
 
-async def evaluate_company(symbol: str, db=None, company_status: Optional[str] = None, sector: Optional[str] = None) -> Optional[dict]:
+async def evaluate_company(symbol: str, db=None, company_status: Optional[str] = None,
+                           sector: Optional[str] = None,
+                           with_decision: bool = True) -> Optional[dict]:
+    """`with_decision=False` يُسقط نداءَ مُنتِج القرار الواحد ويكتفي بدرجة
+    السلامة — لجدولةِ الدرجات التي لا تقرأ القرارَ أصلاً، فلا تثقُل."""
     from app.services.governance_rules import rules_version
-    ck = f"governance_v2:{symbol}:{sector or ''}:{rules_version()}"  # auto-busts on any rules edit
+    ck = f"governance_v2:{symbol}:{sector or ''}:{rules_version()}:{int(with_decision)}"  # auto-busts on any rules edit
     cached = cache.get(ck)
     if cached is not None:
         return cached
@@ -102,6 +106,46 @@ async def evaluate_company(symbol: str, db=None, company_status: Optional[str] =
     # the user to research, rather than showing a fabricated score.
     evaluable = decision.matched_rule_id != "insufficient_data"
 
+    # ══ مُنتِجٌ واحدٌ للقرار — والبطاقةُ تعرضه ولا تصنعه ══ (D166)
+    # كان هذا المحرّكُ يُخرج `decision` خاماً من محرّك القواعد مباشرةً،
+    # بينما `analysis.py` يمرّره على ستِّ بوّاباتِ أمان: خطٌّ أحمر ⇐ تجنّب،
+    # ولا قيمةَ عادلة ⇐ امتناع، وتغطيةٌ دون ‎٦٠٪ ⇐ انتظار، ومسارٌ واحد أو
+    # تقديرٌ شاذّ أو سوقٌ موازية ⇐ انتظار. فاختلف الحكمُ في ‎١٦ من ‎٣٠
+    # شركةً حقيقيةً قِست على الخادم: البطاقةُ تقول «شراء قوي» لشركةٍ قرّر
+    # التطبيقُ نفسُه «انتظار»، وتُصدر حكماً على أربعٍ امتنع عن الحكم عليها.
+    #
+    # والعلاجُ ليس نسخَ البوّابات هنا — النسخُ هو الذي أحدث الانحراف. بل
+    # مُنتِجٌ واحد: `analyze_company` يصنع القرار، وهذه البطاقةُ تقرؤه.
+    # فالتطابقُ بالبناء لا بالانضباط، ولا يمكن لأحدهما أن يسبق الآخر.
+    if with_decision:
+        try:
+            from app.services.analysis import analyze_company
+            _a = await analyze_company(symbol, info.get("name") or symbol,
+                                       db=db, allow_supplement=False)
+            _d = (_a or {}).get("decision") or {}
+            if _d.get("raw"):
+                decision_view = {
+                    "decision": _d.get("label") or _d["raw"],
+                    "raw": _d["raw"],
+                    "rule_id": _d.get("rule_id") or decision.matched_rule_id,
+                    "reason": _d.get("reason") or decision.reason,
+                }
+            else:
+                decision_view = None
+        except Exception as e:                                    # noqa: BLE001
+            from loguru import logger
+            logger.warning(f"one-decision lookup failed for {symbol}: {e}")
+            decision_view = None
+    else:
+        decision_view = None
+
+    # الاحتياطُ الصريح: إن تعذّر مُنتِجُ القرار فلا يُعرض حكمٌ خامٌّ لم يمرّ
+    # على البوّابات — الامتناعُ أصدقُ من «شراء» ألغاه التطبيقُ في شاشةٍ أخرى.
+    if decision_view is None:
+        decision_view = {"decision": ABSTAIN, "raw": ABSTAIN,
+                         "rule_id": "decision_unavailable",
+                         "reason": "تعذّر إصدارُ القرار الموحَّد لهذه الورقة الآن."}
+
     result = {
         "symbol": symbol,
         "sector": resolved_sector,
@@ -112,11 +156,7 @@ async def evaluate_company(symbol: str, db=None, company_status: Optional[str] =
         "expert_panel": panel,          # per-legend readings → the consensus
         "enriched_fields": (features.get("_enriched_fields") or {}).get("value"),
         "scores": scores.to_dict(),
-        "decision": {
-            "decision": decision.decision,
-            "rule_id": decision.matched_rule_id,
-            "reason": decision.reason,
-        },
+        "decision": decision_view,
         "explanation": {
             "summary": explanation.summary,
             "strengths": explanation.strengths,

@@ -88,6 +88,14 @@ python3 scripts/audit/decision_check.py || fail=1
 echo
 python3 scripts/audit/score_scale.py || fail=1
 
+# D166: القرارُ يخرج من مُنتِجٍ واحد، والشاشاتُ الثلاثُ تعرضه. كانت
+# البطاقةُ تُخرج حكماً خاماً لم يمرّ على بوّابات الأمان الستّ فاختلفت عن
+# تبويب الأداء في ١٦ من ٣٠ شركةً حقيقية، ورأيُ الذكاء يجتهد بلا علمٍ
+# بالقرار. والطبقةُ الحيّة على الخادم:
+#   docker exec sp_backend python /app/scripts/audit/one_decision.py --live
+echo
+python3 scripts/audit/one_decision.py || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then

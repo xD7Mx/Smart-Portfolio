@@ -332,6 +332,7 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
     from app.services.decision_engine import public_label, is_public_mode
     decision = {"label": public_label(gov.decision),
                 "raw": gov.decision,
+                "rule_id": gov.matched_rule_id,
                 "color": decision_color(gov.decision), "reason": gov.reason,
                 "public_mode": is_public_mode()}
 

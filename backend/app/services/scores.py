@@ -449,7 +449,8 @@ async def refresh_company_scores(db: AsyncSession) -> int:
             # computation that could drift from the live governance page/panel.
             from app.services.governance_engine import evaluate_company
             status_value = c.status.value if hasattr(c.status, "value") else c.status
-            gov = await evaluate_company(sym, db=db, company_status=status_value, sector=c.sector)
+            gov = await evaluate_company(sym, db=db, company_status=status_value,
+                                         sector=c.sector, with_decision=False)
             finance = (gov or {}).get("finance_score")
             if finance is not None:
                 c.finance_score = finance
