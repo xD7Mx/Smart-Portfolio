@@ -24,6 +24,17 @@ import os
 import sys
 import types
 
+# ══ فحصٌ لا يكتب في بيانات المالك ══
+# هذا السكربتُ يشغّل مسارَ التحليل كاملاً، وهو يحفظ ما يقرؤه في
+# `lastgood` و`storage` — فكان يلوّث ملفَّ تشغيلٍ متتبَّعاً في المستودع
+# ويمنع بناءَ الحزمة. وسكربتُ فحصٍ يغيّر حالةً ليس فحصاً.
+# فيُوجَّه إلى مجلّدٍ مؤقّت **قبل أيّ استيراد** — لأنّ الوحداتِ تقرأ
+# المسارَ عند تحميلها لا عند استعمالها.
+import tempfile as _tf
+_SANDBOX = _tf.mkdtemp(prefix="sp-audit-")
+os.environ["LASTGOOD_PATH"] = os.path.join(_SANDBOX, "lastgood.json")
+os.environ["SP_STATE_DIR"] = _SANDBOX
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(_HERE))
 for _p in ("/app", os.path.join(_ROOT, "backend"), _ROOT, _HERE):
