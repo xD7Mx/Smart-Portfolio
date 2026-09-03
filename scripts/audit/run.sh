@@ -109,6 +109,14 @@ python3 scripts/audit/sort_none.py || fail=1
 echo
 python3 scripts/audit/lastgood_write.py || fail=1
 
+# D160 (عودة): لا فحصَ في اللجنة يكتب في بيانات المالك المتتبَّعة. عولج
+# في أربعة سكربتاتٍ وتخلّف `rank_check` فعاد يلوّث lastgood.json ويمنع
+# بناءَ الحزمة. فالحارسُ يقرأ قائمةَ اللجنة من run.sh نفسِه ويشترط تحويلَ
+# مخزن الحالة **قبل** استيراد المحرّك — والمسابرُ اليدويةُ على الخادم
+# خارج النطاق، فهي تقرأ المخزنَ الحقيقيَّ عن قصد.
+echo
+python3 scripts/audit/audit_sandbox.py || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then

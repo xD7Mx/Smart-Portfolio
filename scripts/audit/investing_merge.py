@@ -11,6 +11,16 @@
 
 from __future__ import annotations
 
+# ══ فحصٌ لا يكتب في بيانات المالك ══ (D160)
+# الوحداتُ تقرأ مسارَ المخزن عند **تحميلها**، فيُحوَّل في رأس الوحدة قبل
+# أيّ استيرادٍ من `app` — بما فيها الاستيراداتُ المؤجَّلة داخل الدوالّ.
+# وسكربتُ فحصٍ يغيّر حالةً ليس فحصاً.
+import os as _os, tempfile as _tf
+_SANDBOX = _tf.mkdtemp(prefix="sp-audit-")
+_os.environ["LASTGOOD_PATH"] = _os.path.join(_SANDBOX, "lastgood.json")
+_os.environ["SP_STATE_DIR"] = _SANDBOX
+
+
 import json
 import os
 import sys
