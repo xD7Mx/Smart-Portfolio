@@ -55,6 +55,10 @@ python3 scripts/audit/gov_one_engine.py || fail=1
 # بلا قطاعٍ تعطي الرقمَ نفسَه الذي كانت تعطيه قبله.
 python3 scripts/audit/sector_tuning.py || fail=1
 
+# D157: اتّجاهُ قراءة المؤشّر يوافق وصفَه في المصدر — ثلاثةُ مقاييسِ
+# تذبذّبٍ كانت تُقرأ صاعدةً فتُعدّ الشركةُ الأكثرُ تذبذباً أفضلَها.
+python3 scripts/audit/panel_direction.py || fail=1
+
 # D150: ياهو المزوّد، والمستورَدُ من «إنفستنغ» يملأ الفراغَ ولا يستبدل
 # رقماً منه. وغيابُ الملفّ حالةٌ عادية لا انقطاع.
 python3 scripts/audit/investing_merge.py || fail=1
