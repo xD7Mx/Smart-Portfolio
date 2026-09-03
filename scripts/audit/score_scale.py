@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 
 # ══ فحصٌ لا يكتب في بيانات المالك ══ (D160)
 # الوحداتُ تقرأ مسارَ المخزن عند **تحميلها**، فيُحوَّل في رأس الوحدة قبل
@@ -8,7 +9,6 @@ _SANDBOX = _tf.mkdtemp(prefix="sp-audit-")
 _os.environ["LASTGOOD_PATH"] = _os.path.join(_SANDBOX, "lastgood.json")
 _os.environ["SP_STATE_DIR"] = _SANDBOX
 
-#!/usr/bin/env python3
 # ─────────────────────────────────────────────────────────────────────────
 # D162 — مقياسُ درجة السلامة يبلغ سقفَه بشركةٍ ممكنةِ الوجود.
 #
