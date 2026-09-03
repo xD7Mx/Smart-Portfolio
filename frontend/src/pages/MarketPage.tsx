@@ -319,7 +319,7 @@ const VerdictTag = ({ v, small = false }: { v?: string; small?: boolean }) => {
 };
 
 const SORT_OPTS: [string, string][] = [
-  ["upside_pct", "الفرق عن القيمة العادلة"],
+  ["upside_pct", "الفرق عن السعر العادل"],
   ["value_gap_pct", "الفجوة عن القطاع"],
   ["dividend_yield", "عائد التوزيعات"],
   ["change_pct", "التغيّر اليومي"],
@@ -837,7 +837,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                   <input value={minGap} onChange={e => setMinGap(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-16 border border-[var(--hairline)] rounded-lg px-2 py-1 text-[12px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]"
                     style={{ background: "var(--field)" }} />
-                  <span className="text-[10px] text-[var(--ink-muted)]">تحت القيمة العادلة ≥</span>
+                  <span className="text-[10px] text-[var(--ink-muted)]">تحت السعر العادل ≥</span>
                   <input value={minUpside} onChange={e => setMinUpside(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-16 border border-[var(--hairline)] rounded-lg px-2 py-1 text-[12px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]"
                     style={{ background: "var(--field)" }} />
@@ -1050,7 +1050,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                     {/* الفرق عن تقدير المحللين — مقياسٌ آخر لا امتداد للأول:
                         مصدره آراء بشر لا مقارنة أرقام، فيُعرض مستقلاً. */}
                     <td className="px-2 py-2 tabular-nums" dir="ltr"
-                      title={r.fair_value ? `القيمة العادلة ${r.fair_value}${r.fair_value_asof ? " · " + r.fair_value_asof : ""}` : ""}
+                      title={r.fair_value ? `السعر العادل ${r.fair_value}${r.fair_value_asof ? " · " + r.fair_value_asof : ""}` : ""}
                       style={{ color: r.upside_pct == null ? "var(--ink-muted)" : r.upside_pct >= 15 ? "var(--pos-ink)" : r.upside_pct <= -15 ? "var(--neg-ink)" : "var(--ink-muted)" }}>
                       {r.upside_pct == null ? "—" : `${r.upside_pct > 0 ? "+" : ""}${Math.round(r.upside_pct)}%`}
                     </td>
@@ -1144,7 +1144,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                   <input value={minGap} onChange={e => setMinGap(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-20 bg-[var(--field)] border border-[var(--hairline)] rounded-lg px-2 py-1.5 text-[13px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]" />
                 </SheetRow>
-                <SheetRow label="تحت القيمة العادلة ≥">
+                <SheetRow label="تحت السعر العادل ≥">
                   <input value={minUpside} onChange={e => setMinUpside(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-20 bg-[var(--field)] border border-[var(--hairline)] rounded-lg px-2 py-1.5 text-[13px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]" />
                 </SheetRow>

@@ -135,7 +135,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
           </div>
 
           <div className="rounded-xl px-3 py-2.5" style={{ background: "color-mix(in srgb, var(--brand) 7%, transparent)" }}>
-            <div className="text-[10px] text-[var(--ink-muted)] mb-1">القيمة العادلة</div>
+            <div className="text-[10px] text-[var(--ink-muted)] mb-1">السعر العادل</div>
             {data.fair_value != null ? (
               <>
                 <div className="flex items-baseline gap-1.5">
@@ -307,77 +307,59 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
           </div>
         )}
 
-        {/* مجلس الخبراء */}
+        {/* ══ مجلسُ الخبراء ══ (بأمر المالك: ترتيبٌ نظيف)
+            كانت أسطراً بلا عنوانٍ ولا فواصل، ثلاثُ معلوماتٍ متلاصقةٍ في
+            سطرٍ يقطعه `truncate` من منتصفه. فصارت **ثلاثةَ أعمدةٍ ثابتة**:
+            الاسمُ يمينَ الوسم، والقراءةُ في الوسط، والحكمُ في الطرف —
+            فتُقرأ الأحكامُ عمودياً بنظرةٍ واحدة. وخطٌّ خفيفٌ بين الصفوف
+            بدل الفراغ: يفصل ولا يزيد ضجيجاً. */}
         {Array.isArray(data.expert_panel) && data.expert_panel.length > 0 && (
-          <div className="space-y-1.5 mb-3">
-            {data.expert_panel.map((e: any, i: number) => (
-              <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: TONE_COLOR[e.tone] || "var(--ink-muted)" }} />
-                  <span className="text-[var(--ink)] shrink-0">{e.expert}</span>
-                  <span className="text-[var(--ink-muted)] truncate">· {e.metric} {e.reading}</span>
+          <div className="mt-1 mb-3">
+            <p className="card-title mb-2">مجلس الخبراء</p>
+            <div className="divide-y divide-[var(--hairline)]">
+              {data.expert_panel.map((e: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 py-1.5 text-[11px]">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ background: TONE_COLOR[e.tone] || "var(--ink-muted)" }} />
+                  <span className="text-[var(--ink)] font-medium shrink-0 w-[68px] truncate">
+                    {e.expert}
+                  </span>
+                  <span className="text-[var(--ink-muted)] truncate flex-1 min-w-0">
+                    {e.metric} {e.reading}
+                  </span>
+                  <span className="shrink-0 font-bold"
+                    style={{ color: TONE_COLOR[e.tone] || "var(--ink-muted)" }}>
+                    {e.verdict}
+                  </span>
                 </div>
-                <span className="shrink-0 font-medium" style={{ color: TONE_COLOR[e.tone] || "var(--ink-muted)" }}>{e.verdict}</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
       </div>
 
-      {/* ══ القيمة العادلة ══ (خطٌّ أحمر للمالك)
-          يتّخذها أداةً لقرارٍ استثماريّ، فلا تُعرض رقماً مجرّداً: معه
-          نطاقُه ودرجةُ ثقته و**كلُّ مسارٍ بمدخلاته**، فيراجعه بنفسه.
-          ولو غابت البيانات قيل ذلك ولم يُعرض بديلٌ في مكانه. */}
-      {data.fair_value_detail && (
+      {/* ══ السعرُ العادل = إجماعُ أهداف المحلّلين ══ (بأمر المالك)
+          وكان هذا الموضعُ يعرض الرقمَ من مصدرٍ ويشرحه بمساراتِ محرّكنا
+          (خصمُ تدفّقٍ · مضاعفُ ربحية · دخلٌ متبقٍّ) — رقمٌ من مصدرٍ
+          وتفسيرٌ من آخر، وهو عينُ ما نهى عنه المالك. فبقيَ الرقمُ بمصدره
+          وحدَه، وحُذف الشرحُ الذي لا يخصّه. والمدى محذوفٌ للسبب نفسِه:
+          كان مدى محرّكنا لا مدى المحلّلين. */}
+      {data.fair_value != null && (
         <div className="card">
           <p className="card-title mb-3 flex items-center gap-1.5">
-            <TrendingUp size={14} className="text-[var(--brand-ink)]" /> القيمة العادلة
+            <TrendingUp size={14} className="text-[var(--brand-ink)]" /> السعر العادل
           </p>
-          {data.fair_value == null ? (
-            <>
-              {/* تضاربُ المسارات: المدى يبقى معروضاً والنقطةُ تُمتنع —
-                  فيرى المالك ما تعرفه الأداة وما لا تعرفه معاً. */}
-              {fv.low != null && fv.high != null && (
-                <div className="text-base tabular-nums text-[var(--ink-muted)] mb-1" dir="ltr">
-                  {fmt(fv.low)} – {fmt(fv.high)}
-                </div>
-              )}
-              <p className="text-[11px] text-[var(--ink-muted)] leading-relaxed">
-                {data.fair_value_detail.unavailable_reason}
-              </p>
-            </>
-          ) : (
-            <>
-              <div className="flex items-baseline justify-between flex-wrap gap-2 mb-2">
-                <span className="flex items-baseline gap-2">
-                  <span className="text-2xl font-extrabold tabular-nums text-[var(--ink)]">{fmt(data.fair_value)}</span>
-                  <span className="text-[11px] text-[var(--ink-muted)] tabular-nums" dir="ltr">
-                    {fmt(data.fair_value_detail.low)} – {fmt(data.fair_value_detail.high)}
-                  </span>
-                </span>
-              </div>
-              {/* المقياسُ نفسه المستعمل في الذكاء وفرز السوق — لا نسخةٌ
-                  ثانية: القيمة العادلة في المنتصف، والعلامة تميل إلى
-                  الطرف الذي يقع فيه السهم. */}
-              <div className="mb-3">
-                <FairValueBar upside={data.fair_value_upside_pct ?? null} width="100%"
-                  ctx={{ price: data.price, entry: fv.entry_price, value: data.fair_value }} />
-              </div>
-              <div className="space-y-1">
-                {(data.fair_value_detail.methods || []).map((m: any, i: number) => {
-                  return (
-                    <div key={i} className="flex items-start justify-between gap-2 text-[11px]">
-                      <span className="min-w-0">
-                        <span className="text-[var(--ink)]">{m.name}</span>
-                      </span>
-                      <span className="tabular-nums font-bold text-[var(--ink)] shrink-0">{fmt(m.value)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
+          <div className="flex items-baseline gap-2 mb-2 flex-wrap">
+            <span className="text-2xl font-extrabold tabular-nums text-[var(--ink)]">
+              {fmt(data.fair_value)}
+            </span>
+            <span className="text-[10.5px] text-[var(--ink-muted)]">
+              إجماع أهداف المحلّلين
+            </span>
+          </div>
+          <FairValueBar upside={data.fair_value_upside_pct ?? null} width="100%"
+            ctx={{ price: data.price, entry: null, value: data.fair_value }} />
         </div>
       )}
 

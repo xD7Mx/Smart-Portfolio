@@ -27,7 +27,7 @@ function PortfolioInsight() {
           <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm min-w-[640px]">
               <thead><tr className="border-b border-[var(--hairline)]">
-                {["الشركة", "السعر", "القيمة العادلة", "الفرصة", "التقييم", "درجة السلامة"].map(h => <th key={h} className="th text-start">{h}</th>)}
+                {["الشركة", "السعر", "السعر العادل", "الفرصة", "التقييم", "درجة السلامة"].map(h => <th key={h} className="th text-start">{h}</th>)}
               </tr></thead>
               <tbody>
                 {companies.map((c: any) => (
@@ -38,21 +38,29 @@ function PortfolioInsight() {
                     <td className="td">{c.upside_pct != null ? <span style={{ color: c.upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }} className="text-xs font-bold">{c.upside_pct >= 0 ? "+" : ""}{c.upside_pct}%</span> : "—"}</td>
                     <td className="td"><FairValueBar upside={c.upside_pct} /></td>
                     <td className="td">
-                      <div className="flex items-center gap-1.5">
-                        {/* نفس نقطة الوميض المخفّفة عند طرف التعبئة (كالجوال) */}
-                        <div className="relative h-1.5 rounded-full bg-[var(--surface)]" style={{ width: 46 }}>
-                          <div className="h-1.5 rounded-full" style={{ width: `${c.safety_score}%`, background: safeColor(c.safety_score) }} />
-                          <div className="absolute rounded-full animate-pulse" style={{
-                            top: "50%", width: 14, height: 14, right: `${c.safety_score}%`,
-                            transform: "translate(50%, -50%)", background: safeColor(c.safety_score), filter: "blur(2px)", opacity: 0.45,
-                          }} />
-                          <div className="absolute rounded-full" style={{
-                            top: "50%", width: 11, height: 11, right: `${c.safety_score}%`,
-                            transform: "translate(50%, -50%)", background: "#fff", border: `2px solid ${safeColor(c.safety_score)}`,
-                          }} />
+                      {/* ══ الدرجةُ غائبةٌ حقّاً أحياناً ══
+                          كانت تُستبدَل بـ50 فلم يقع الغياب. ولمّا صارت
+                          تُعاد عدماً، خرج `width: "null%"` — شريطٌ ممتلئٌ
+                          بلا معنى فوق كلمة «غير متاحة». فيُفحص الغيابُ
+                          صراحةً ولا يُرسَم شريطٌ لِما لم يُقَس.
+                          وحُذف معه بريقٌ ضبابيٌّ نابضٌ ونقطةٌ بيضاء: زينةٌ
+                          على رقمٍ من مئة، والشريطُ وحده يقوله. */}
+                      {c.safety_score == null ? (
+                        <span className="text-xs text-[var(--ink-muted)]">غير متاحة</span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 rounded-full bg-[var(--surface)] overflow-hidden" style={{ width: 46 }}>
+                            <div className="h-full rounded-full" style={{
+                              width: `${Math.max(0, Math.min(100, c.safety_score))}%`,
+                              background: safeColor(c.safety_score),
+                            }} />
+                          </div>
+                          <span className="text-xs font-bold tabular-nums" style={{ color: safeColor(c.safety_score) }} dir="ltr">
+                            {c.safety_score}
+                          </span>
+                          <span className="text-[10.5px] text-[var(--ink-muted)]">{c.safety_label}</span>
                         </div>
-                        <span className="text-xs" style={{ color: safeColor(c.safety_score) }}>{c.safety_label}</span>
-                      </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -71,12 +79,12 @@ function PortfolioInsight() {
                 </div>
                 <div className="grid grid-cols-3 gap-1 text-center">
                   <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">السعر</div><div className="text-[var(--ink)] font-semibold tabular-nums text-xs">{c.price != null ? c.price.toFixed(2) : "—"}</div></div>
-                  <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">القيمة العادلة</div><div className="text-[var(--ink)] font-semibold tabular-nums text-xs">{c.fair_value != null ? c.fair_value.toFixed(2) : "—"}</div></div>
+                  <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">السعر العادل</div><div className="text-[var(--ink)] font-semibold tabular-nums text-xs">{c.fair_value != null ? c.fair_value.toFixed(2) : "—"}</div></div>
                   <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">الفرصة</div><div className="font-bold text-xs" style={{ color: c.upside_pct == null ? "var(--ink-muted)" : c.upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>{c.upside_pct != null ? `${c.upside_pct >= 0 ? "+" : ""}${c.upside_pct}%` : "—"}</div></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 pt-1 border-t border-[var(--hairline)]">
                   <div className="space-y-1.5">
-                    <div className="text-[10px] text-[var(--ink-muted)]">تقييم القيمة العادلة</div>
+                    <div className="text-[10px] text-[var(--ink-muted)]">التقييم مقابل السعر العادل</div>
                     <div className="flex items-center gap-2">
                       <FairValueBar upside={c.upside_pct} hideLabel width={64} />
                       <span className="text-[11px] font-semibold" style={{ color: fairValueTier(c.upside_pct).color }}>{fairValueTier(c.upside_pct).label}</span>
@@ -91,22 +99,24 @@ function PortfolioInsight() {
                       <div className="text-[10px] text-[var(--ink-muted)] text-center whitespace-nowrap" style={{ width: 64 }}>درجة السلامة</div>
                       <span className="text-[11px] font-semibold invisible" aria-hidden="true">{c.safety_label}</span>
                     </div>
+                    {/* الغيابُ يُعلَن ولا يُرسَم له شريط — كما في الجدول. */}
                     <div className="flex items-center gap-2 justify-end">
-                      {/* الشريط بأصله (التعبئة من اليمين، RTL)، مع نقطة وميض
-                          مخفّفة عند طرف التعبئة (يسارها) عبر right — توازنٌ بصري
-                          مع شريط القيمة دون قلب اتجاه الشريط. */}
-                      <div className="relative h-1.5 rounded-full bg-[var(--surface)]" style={{ width: 64 }}>
-                        <div className="h-1.5 rounded-full" style={{ width: `${c.safety_score}%`, background: safeColor(c.safety_score) }} />
-                        <div className="absolute rounded-full animate-pulse" style={{
-                          top: "50%", width: 16, height: 16, right: `${c.safety_score}%`,
-                          transform: "translate(50%, -50%)", background: safeColor(c.safety_score), filter: "blur(2px)", opacity: 0.45,
-                        }} />
-                        <div className="absolute rounded-full" style={{
-                          top: "50%", width: 12, height: 12, right: `${c.safety_score}%`,
-                          transform: "translate(50%, -50%)", background: "#fff", border: `2.5px solid ${safeColor(c.safety_score)}`,
-                        }} />
-                      </div>
-                      <span className="text-[11px] font-semibold" style={{ color: safeColor(c.safety_score) }}>{c.safety_label}</span>
+                      {c.safety_score == null ? (
+                        <span className="text-[11px] text-[var(--ink-muted)]">غير متاحة</span>
+                      ) : (
+                        <>
+                          <div className="h-1.5 rounded-full bg-[var(--surface)] overflow-hidden" style={{ width: 64 }}>
+                            <div className="h-full rounded-full" style={{
+                              width: `${Math.max(0, Math.min(100, c.safety_score))}%`,
+                              background: safeColor(c.safety_score),
+                            }} />
+                          </div>
+                          <span className="text-[11px] font-bold tabular-nums" style={{ color: safeColor(c.safety_score) }} dir="ltr">
+                            {c.safety_score}
+                          </span>
+                          <span className="text-[10px] text-[var(--ink-muted)]">{c.safety_label}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

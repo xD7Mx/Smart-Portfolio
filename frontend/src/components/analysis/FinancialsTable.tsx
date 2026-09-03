@@ -46,32 +46,21 @@ function Light({ change, invert = false }: { change: number | null; invert?: boo
  * Fully auto-filled from the source; no manual entry.
  */
 export default function FinancialsTable({ symbol }: { symbol: string }) {
-  /* ══ سنويّ وربعيّ ══ (بأمر المالك)
-     تردّدان لجدولٍ واحد. والربعيّ يُطلب عند اختياره وحده، فمن لا يفتحه لا
-     يدفع ثمن نداءٍ لا يراه. والمُبدِّل بلغة تبويبات التطبيق نفسها. */
-  const [period, setPeriod] = React.useState<"annual" | "quarterly">("annual");
+  /* ══ السنويُّ وحده ══ (بأمر المالك)
+     كان مُبدِّلٌ بين السنويّ والربعيّ، والربعيُّ يخرج فارغاً لأكثر رموز
+     السوق — فمُبدِّلٌ يقود إلى فراغٍ أسوأُ من غيابه. والمحرّكُ يقرأ
+     السنويَّ أصلاً، فالجدولُ يعرض ما يُحكَم به لا ما يزيّن. */
   const { data, isLoading } = useQuery({
-    queryKey: ["financials", symbol, period],
-    queryFn: () => marketApi.financials(symbol, period).then(r => r.data.data),
+    queryKey: ["financials", symbol, "annual"],
+    queryFn: () => marketApi.financials(symbol, "annual").then(r => r.data.data),
     enabled: !!symbol,
     retry: 0,
   });
 
-  const switcher = (
-    <div className="seg flex mb-3" role="tablist" aria-label="تردّد القوائم المالية">
-      <button role="tab" aria-selected={period === "annual"}
-        className={"seg-btn" + (period === "annual" ? " on" : "")}
-        onClick={() => setPeriod("annual")}>سنوي</button>
-      <button role="tab" aria-selected={period === "quarterly"}
-        className={"seg-btn" + (period === "quarterly" ? " on" : "")}
-        onClick={() => setPeriod("quarterly")}>ربع سنوي</button>
-    </div>
-  );
-
-  if (isLoading) return <div className="card">{switcher}<div className="h-40 skeleton" /></div>;
+  if (isLoading) return <div className="card"><div className="h-40 skeleton" /></div>;
   if (!data || !data.periods) return (
-    <div className="card">{switcher}<div className="py-10 text-center text-[var(--ink-muted)] text-sm">
-      {period === "quarterly" ? "لا توجد قوائم ربعية متاحة لهذا الرمز" : "لا توجد قوائم مالية متاحة لهذا الرمز"}
+    <div className="card"><div className="py-10 text-center text-[var(--ink-muted)] text-sm">
+      لا توجد قوائم مالية متاحة لهذا الرمز
     </div></div>
   );
 
@@ -80,11 +69,6 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
   const years: number[] = [...data.years].reverse();
   const periodsDesc = [...data.periods].reverse();
   const ch = data.changes || {};
-  /* نسبةٌ واحدة للربعيّ: **عن المماثل**. المتتالي يبقى محسوباً في الخادم
-     (‏changes_qoq) ولا يُعرض — فالمالك يقرأ الأرباع الثلاثة أمامه ويرى
-     الفرق المتتالي بالنظر متى شاء، وعمودٌ ثانٍ للنسب يُثقل الجدول. */
-  const isQ = data.frequency === "quarterly";
-  const yoy = data.changes_yoy || {};
   const P = (field: string) => periodsDesc.map((p: any) => p[field]);
 
   const sections: { title: string; rows: { label: string; field: string; invert?: boolean; ratio?: boolean }[] }[] = [
@@ -119,7 +103,6 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
        أيضاً. الحلّ: التمرير على غلافٍ للجدول وحده، والعمود الأول مثبَّت
        (sticky) بخلفية البطاقة فلا تمرّ الأرقام من تحته. */
     <div className="card">
-      {switcher}
     {/* ══ الجوّال بطاقات · اللوحيّ فما فوق جدول ══ (بأمر المالك)
         الجدولُ يحتاج 520px عرضاً، وشاشةُ الجوّال 390. فكان يُقرأ بتمريرٍ
         أفقيّ: رقمٌ واحد ظاهر، وبقيّةُ السنوات خارج الشاشة — وهو نقيضُ
@@ -152,7 +135,7 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
                   <div className="relative flex items-center justify-center mb-1.5">
                     <span className="text-[11px] text-[var(--ink)] text-center">{row.label}</span>
                     <span className="absolute inset-inline-start-0" style={{ insetInlineStart: 0 }}>
-                      <Light change={(isQ ? yoy[row.field] : ch[row.field]) ?? null} invert={row.invert} />
+                      <Light change={ch[row.field] ?? null} invert={row.invert} />
                     </span>
                   </div>
                   <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${years.length}, minmax(0,1fr))` }}>
@@ -160,13 +143,10 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
                       /* السنويُّ سطرٌ واحد: كان «2024» عنواناً و«12/2024»
                          تحته — والسنةُ مكرّرةٌ مرّتين بلا فائدة. فصار
                          تاريخَ الإقفال كاملاً (‏31/12/2024): يقول السنة
-                         ومتى أُقفلت معاً. والربعيُّ يبقى سطرين لأنهما
-                         معلومتان مختلفتان: الدورُ (الحالي/السابق/المماثل)
-                         والتاريخُ الذي يُثبته. */
+                         ومتى أُقفلت معاً. */
                       const a = periodsDesc[i]?.as_of;
                       const full = closeDate(a);
-                      const head = isQ ? (i === 0 ? "الحالي" : i === 1 ? "السابق" : "المماثل")
-                                       : (full || String(years[i]));
+                      const head = full || String(years[i]);
                       return (
                         <div key={i} className="text-center">
                           {/* التوسيط يُكتب صراحةً هنا: `dir="ltr"` على العنصر
@@ -174,9 +154,8 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
                               إلى اليمين فتغلب الوراثة من الأب المُوسَّط.
                               قِيس الانحراف قبلها: ‏28px في كل خانة —
                               والرقم تحته على المحور، فيبدو العمود مائلاً. */}
-                          <div className={"text-center text-[var(--ink-muted)] leading-tight tabular-nums " + (isQ ? "text-[9.5px]" : "text-[9px]")}
-                            dir={isQ ? undefined : "ltr"}>{head}</div>
-                          {isQ && full && <div className="text-center text-[9px] text-[var(--ink-muted)] tabular-nums leading-tight" dir="ltr">{full}</div>}
+                          <div className="text-center text-[9px] text-[var(--ink-muted)] leading-tight tabular-nums"
+                            dir="ltr">{head}</div>
                           <div className="text-center text-[12px] tabular-nums text-[var(--ink)] leading-tight mt-0.5">
                             {v == null ? "—" : row.ratio ? v.toFixed(2) : brief(v)}
                           </div>
@@ -217,16 +196,8 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
                      المالية** فعلاً (‏12/2025 عند أكثر شركات تداول)، ولا
                      يُفترض ديسمبر — فبعض الشركات تُقفل في شهرٍ آخر، وسنةٌ
                      مجرّدة تُخفي ذلك. ويُقرأ من المصدر لا يُلفَّق. */
-                  return isQ ? (
-                    <>
-                      <span className="block">{i === 0 ? "الحالي" : i === 1 ? "السابق" : "المماثل"}</span>
-                      {mmyy && <span className="block text-[9.5px] font-normal text-[var(--ink-muted)] tabular-nums" dir="ltr">{mmyy}</span>}
-                    </>
-                  ) : (
-                    /* السنويُّ سطرٌ واحد هنا أيضاً: تاريخُ الإقفال كاملاً
-                       بدل سنةٍ فوق شهرِها. */
-                    <span className="block tabular-nums" dir="ltr">{mmyy || y}</span>
-                  );
+                  /* سطرٌ واحد: تاريخُ الإقفال كاملاً بدل سنةٍ فوق شهرِها. */
+                  return <span className="block tabular-nums" dir="ltr">{mmyy || y}</span>;
                 })()}
               </th>
             ))}
@@ -235,7 +206,7 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
                 الموسمية: ربعٌ قويٌّ موسمياً يرتفع عن سابقه بلا أن تنمو
                 الشركة، والمقارنة بمماثله وحدها تكشف ذلك. والمتتالي كان
                 عموداً ثانياً يُثقل الجدول ويُقاس بالنظر متى لزم. */}
-            <th className="th text-center align-middle">{isQ ? "عن المماثل %" : "التغير %"}</th>
+            <th className="th text-center align-middle">التغير %</th>
           </tr>
         </thead>
         <tbody>
@@ -253,7 +224,7 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
                       </td>
                     ))}
                     <td className="td text-center">
-                      <Light change={(isQ ? yoy[row.field] : ch[row.field]) ?? null} invert={row.invert} />
+                      <Light change={ch[row.field] ?? null} invert={row.invert} />
                     </td>
                   </tr>
                 );
@@ -263,33 +234,42 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
         </tbody>
       </table>
     </div>
-      {/* ══ خلاصةُ القوائم ══ (بأمر المالك: إعادة هيكلة وصياغة)
-          كان أسفل الجدول ثلاثُ فقرات: حكمٌ ملوَّن، وجملةٌ طويلة عن
-          «المرحلة الاستثمارية» بأيقونةٍ وشرحٍ لِما قد يعنيه الدين، وفقرةٌ
-          تعتذر عن قِصَر التغطية التاريخية. اثنتان منها شرحٌ وتبرير — وهو
-          ما نهى عنه المالك — والثالثة نصٌّ سائبٌ بلا بنية.
-          فصارت **صفَّ خلاصةٍ واحداً**: الحكم وسماً صلباً كأوسمة التطبيق،
-          والحالة وسماً بجانبه، وعددُ الفترات رقماً. لا جملةَ تشرح، ولا
-          أيقونةَ زينة، ولا اعتذار — الحقيقة معروضة والقارئ يحكم. */}
-      <div className="mt-3 pt-3 border-t border-[var(--hairline)] flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {data.verdict && (
-            <span className="ev-tag" style={{
-              color: "var(--tag-ink)",
-              background: data.verdict_tone === "green" ? "var(--tag-buy)"
-                : data.verdict_tone === "red" ? "var(--tag-sell)"
-                : data.verdict_tone === "yellow" ? "var(--tag-hold)"
-                : "var(--tag-agm)" }}>{data.verdict}</span>
-          )}
+      {/* ══ خلاصةُ القوائم — شريطٌ بعرض الجدول ══ (بأمر المالك)
+          كان وسماً صغيراً يسبح في سطرٍ فارغ فيبدو هامشاً لا خلاصة. وهو
+          في الحقيقة **حكمُ الجدول الذي فوقه**: أسطرُه الثمانيةُ نفسُها هي
+          مدخلاتُه. فصار شريطاً كامل العرض، ومعه الدرجةُ المشتقّةُ من تلك
+          الأسطر عينها — فيُقرأ الرقمُ وسببُه في موضعٍ واحد.
+          وألوانُه من أوسمة التطبيق (‏tag-buy/sell/hold مع tag-ink) لا من
+          ألوانٍ جديدة: تباينُها مصمَّمٌ ومُقاس، ولون النصّ يجيء معها. */}
+      <div className="mt-4 rounded-xl px-3 py-2.5 flex items-center justify-between gap-3"
+           style={{
+             color: "var(--tag-ink)",
+             background: data.verdict_tone === "green" ? "var(--tag-buy)"
+               : data.verdict_tone === "red" ? "var(--tag-sell)"
+               : data.verdict_tone === "yellow" ? "var(--tag-hold)"
+               : "var(--tag-agm)",
+           }}>
+        <div className="min-w-0 flex items-center gap-2">
+          <span className="text-[12.5px] font-bold leading-snug">
+            {data.verdict || "بيانات متاحة"}
+          </span>
           {data.investment_phase === true && (
-            <span className="ev-tag" style={{ background: "var(--tag-bonus)", color: "var(--tag-ink)" }}>
+            <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                  style={{ background: "rgb(0 0 0 / .18)" }}>
               مرحلة توسّع
             </span>
           )}
         </div>
-        <span className="text-[10.5px] text-[var(--ink-muted)] tabular-nums">
-          {period === "quarterly" ? `${years.length} أرباع` : `${years.length} سنوات مالية`}
-        </span>
+        <div className="shrink-0 flex items-baseline gap-2.5">
+          {data.finance_score != null && (
+            <span className="text-[15px] font-extrabold tabular-nums" dir="ltr">
+              {data.finance_score}<span className="text-[10px] font-bold opacity-70">/100</span>
+            </span>
+          )}
+          <span className="text-[10px] tabular-nums whitespace-nowrap opacity-80">
+            {years.length} سنوات
+          </span>
+        </div>
       </div>
     </div>
   );

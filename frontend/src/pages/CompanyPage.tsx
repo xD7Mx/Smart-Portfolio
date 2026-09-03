@@ -24,14 +24,18 @@ import clsx from "clsx";
 const fmt  = (n: number, dec = 2) => (n ?? 0).toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 const fmt0 = (n: number) => (n ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
+/* ══ صفٌّ واحدٌ لا ينكسر ولا يُمرَّر ══
+   كانت `flex-wrap` تكسر السبعةَ سطرين على الجوّال. والتمريرُ الأفقيّ
+   عيبٌ تصميميّ بنصّ المالك، فلا يُستبدَل به. فالحلُّ اسمٌ قصيرٌ للشاشة
+   الضيّقة واسمٌ كاملٌ لما اتّسع — والمعنى محفوظٌ في الحالين. */
 const TABS = [
-  { id: "overview",  label: "نظرة عامة" },
-  { id: "analysis",  label: "تقييم الأداء" },
-  { id: "financials", label: "القوائم المالية" },
-  { id: "txs",       label: "سجل العمليات" },
-  { id: "divs",      label: "التوزيعات" },
-  { id: "calendar",  label: "المفكرة" },
-  { id: "opinion",   label: "رأي الذكاء", color: "var(--chart-3)" },
+  { id: "overview",  label: "نظرة عامة",     short: "نظرة" },
+  { id: "analysis",  label: "تقييم الأداء",  short: "الأداء" },
+  { id: "financials", label: "القوائم المالية", short: "القوائم" },
+  { id: "txs",       label: "سجل العمليات",  short: "العمليات" },
+  { id: "divs",      label: "التوزيعات",     short: "التوزيعات" },
+  { id: "calendar",  label: "المفكرة",       short: "المفكرة" },
+  { id: "opinion",   label: "رأي الذكاء",    short: "الذكاء", color: "var(--chart-3)" },
 ] as const;
 
 // 4 simple rules, no exceptions: توزيع نقدي وبيع يزيدان السيولة دائمًا، شراء
@@ -972,36 +976,32 @@ export default function CompanyPage() {
         <Stat label="عدد الأسهم" value={fmt0(holding?.quantity)} sub={`أسهم مجانية: ${fmt(freeShares, 2)}`} icon={Layers} ic="ic-a" color="var(--warn-ink)" />
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1.5 flex-wrap">
+      {/* ══ التبويبات: صفٌّ واحدٌ بلا إطار ══
+          الحدُّ حول كلّ زرٍّ كان يصنع سبعةَ صناديقَ متجاورة فتبدو الشاشةُ
+          مزدحمة. فالفاصلُ خطٌّ واحدٌ تحت الصفّ، والنشِطُ يُعلَّم بخطٍّ
+          تحته ولونٍ — وهو العرفُ المهنيّ في التبويبات، وأخفُّ بصرياً. */}
+      <div className="flex items-stretch gap-0.5 sm:gap-1 border-b border-[var(--hairline)]"
+           role="tablist" aria-label="أقسام الشركة">
         {TABS.map(t => {
-          const isAi = (t as any).color;
-          if (isAi) {
-            return (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                className="p-[1.5px] rounded-xl transition-all"
-                style={{ background: "linear-gradient(90deg, var(--brand-a), var(--brand-b))", opacity: tab === t.id ? 1 : 0.85 }}>
-                {/* ══ استدارةُ الداخل = استدارةُ الخارج − الحشوة ══
-                    هذا الزرّ إطارٌ متدرّج مصنوعٌ بطبقتين: خارجٌ ملوّن بحشوة
-                    1.5px، وداخلٌ يغطّيه فلا يبقى منه إلا حلقة. وشرط استواء
-                    الحلقة أن يكون الداخل ‏14 − 1.5 = 12.5px.
-                    وكان مكتوباً 10px — صحيحاً يوم كان الخارج 12px بفارقٍ
-                    قريب، فاختلّ لمّا رُفع سلّم `rounded-xl` إلى 14px: صارت
-                    الفجوة 2.5px فبدت الحلقة سميكةً عند الزوايا رفيعةً في
-                    الأضلاع. وهو تشوّهٌ أحدثه تعديلُ الاستدارة العامّ ولم
-                    يمسكه فحصُ الإطارات لأنه ليس عيباً في إطارٍ بل تنافراً
-                    بين طبقتين. */}
-                <span className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-[12.5px] text-xs font-bold bg-[var(--field)] ai-opinion-text">
-                  <Sparkles size={12} className="ai-star" /> {t.label}
-                </span>
-              </button>
-            );
-          }
+          const on = tab === t.id;
+          const isAi = Boolean((t as any).color);
           return (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={clsx("px-4 py-1.5 rounded-xl text-xs font-bold transition-all border",
-                tab === t.id ? " text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)] hover:text-[var(--ink)]")}>
-              {t.label}
+              role="tab" aria-selected={on}
+              /* min-w-0 يسمح للنصّ بالانكماش داخل flex بدل أن يدفع الصفَّ
+                 إلى التمرير — بدونه يتجاوز العنصرُ عرضَ أبيه. */
+              className={clsx(
+                "flex-1 min-w-0 flex items-center justify-center gap-1",
+                "px-0.5 sm:px-2 py-2 text-[10.5px] sm:text-xs font-bold",
+                "border-b-2 -mb-px transition-colors whitespace-nowrap",
+                on ? "border-[var(--brand)]" : "border-transparent",
+                on ? (isAi ? "" : "text-[var(--brand-ink)]")
+                   : "text-[var(--ink-muted)] hover:text-[var(--ink)]")}>
+              {isAi && <Sparkles size={11} className={on ? "ai-star" : ""} />}
+              <span className={clsx("truncate", isAi && on && "ai-opinion-text")}>
+                <span className="sm:hidden">{t.short}</span>
+                <span className="hidden sm:inline">{t.label}</span>
+              </span>
             </button>
           );
         })}
@@ -1024,7 +1024,7 @@ export default function CompanyPage() {
             الأداء، بلا حساب ثانٍ ولا اسمٍ ثانٍ. */}
         {analysis?.fair_value != null && (
           <div className="card flex items-center justify-between gap-2 flex-wrap">
-            <span className="card-title">القيمة العادلة</span>
+            <span className="card-title">السعر العادل</span>
             <span className="flex items-baseline gap-2">
               {analysis.fair_value_detail?.entry_price != null && (
                 <span className="text-[11px] text-[var(--ink-muted)]">
