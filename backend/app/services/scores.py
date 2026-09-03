@@ -58,6 +58,49 @@ def _clamp(v, lo=0, hi=100):
     return max(lo, min(hi, v))
 
 
+# ══ المقياسُ يُعايَر على عتباتٍ مهنية لا على خطٍّ مستقيم ══ (D162)
+# كانت الإشاراتُ الستُّ كلُّها من صيغة `50 + قيمة × معامل`: الصفرُ خمسون،
+# ثمّ ارتفاعٌ خطّيّ. فكان السقفُ يستلزم — في الشركة الواحدة معاً — نموّاً
+# ‎٢٠٪ سنوياً، وتحويلَ كلِّ ريال ربحٍ إلى **ريالَي** نقد، ومديونيةً ‎١٠٪،
+# وتغطيةَ فوائدَ ‎١٢٫٥ ضعفاً. ولا شركةَ قياديةٌ في السوق تجمعها، فتكدّست
+# الشركاتُ القويّة عند السبعين وصار «الممتاز» يُقرأ «متوسّطاً».
+#
+# فصار لكلِّ إشارةٍ منحنىً بعُقَدٍ مأخوذةٍ من عتباتِ التحليل المالي
+# المعروفة لا من خطٍّ مخترَع: عائدُ حقوقِ الملكية ‎١٥٪ عتبةُ الجودة،
+# وتغطيةُ الفوائدِ ‎٥ أضعافٍ عتبةُ الأمان، والتدفّقُ التشغيليُّ المساوي
+# للربح تغطيةٌ كاملة. من بلغ العتبةَ نال درجةَ العتبة — لا خمسين.
+#
+# والمعايرةُ مطلقةٌ لكلّ الشركات: عتباتٌ ماليةٌ عامّة، لا نِسَبٌ مئينيّةٌ
+# مُفصَّلةٌ على محفظةٍ بعينها ولا استثناءَ لرمزٍ أو قطاع.
+
+
+def _curve(value: float, anchors: list[tuple[float, float]]) -> int:
+    """Piecewise-linear map from a real financial ratio to a 0–100 score.
+    `anchors` is an ascending list of (ratio, score) knots; anything below
+    the first or above the last knot flattens onto it."""
+    if value <= anchors[0][0]:
+        return anchors[0][1]
+    for (x0, y0), (x1, y1) in zip(anchors, anchors[1:]):
+        if value <= x1:
+            return round(y0 + (value - x0) / (x1 - x0) * (y1 - y0))
+    return anchors[-1][1]
+
+
+# النموُّ السنويُّ المركَّب للإيراد ‎٪ — الثباتُ عند الصفر ليس فشلاً،
+# والتضخّمُ الاسميُّ ‎٦٪ بدايةُ النموِّ الحقيقي.
+_CURVE_REVENUE_CAGR = [(-20, 0), (-10, 20), (0, 45), (3, 60), (6, 72), (10, 82), (15, 90), (25, 97), (40, 100)]
+# التدفّقُ التشغيليُّ ÷ صافي الربح — الواحدُ الصحيحُ تغطيةٌ كاملةٌ للربح بالنقد.
+_CURVE_EARNINGS_QUALITY = [(0, 0), (0.4, 25), (0.7, 45), (0.9, 62), (1.0, 75), (1.2, 88), (1.5, 95), (2.0, 100)]
+# هامشُ التدفّقِ النقديِّ الحرِّ ‎٪ من الإيراد.
+_CURVE_FCF_MARGIN = [(-15, 0), (-5, 25), (0, 45), (3, 60), (7, 73), (12, 85), (18, 93), (30, 100)]
+# العائدُ على حقوق الملكية ‎٪ — ‎١٥٪ عتبةُ الجودة و‎٢٠٪ التميّز.
+_CURVE_ROE = [(-5, 0), (0, 25), (5, 45), (10, 62), (15, 76), (20, 87), (25, 93), (35, 100)]
+# نسبةُ الدين إلى الأصول — خلوُّ الميزانيةِ من الدين ليس كمالاً مطلقاً.
+_CURVE_DEBT_RATIO = [(0, 95), (0.15, 92), (0.30, 85), (0.45, 72), (0.60, 55), (0.75, 35), (0.90, 12), (1.0, 0)]
+# تغطيةُ الفوائد أضعافاً — ‎٢ حدُّ الخطر و‎٥ عتبةُ الأمان و‎٨ قوّةٌ ظاهرة.
+_CURVE_INTEREST_COVERAGE = [(0, 0), (1, 20), (2, 40), (3, 55), (5, 72), (8, 85), (12, 93), (20, 100)]
+
+
 # Heavy reinvestment threshold: capex at or above 8% of revenue is a
 # capital-intensive spend, not routine maintenance — a reasonable general
 # heuristic, not an industry-specific benchmark.
@@ -144,20 +187,25 @@ def _finance_score_from_periods(periods: list) -> int | None:
             and first["revenue"] > 0 and latest["revenue"] > 0):
         n = len(periods) - 1
         cagr_pct = ((latest["revenue"] / first["revenue"]) ** (1 / n) - 1) * 100
-        signals.append((_clamp(round(50 + cagr_pct * 2)), 0.20))
+        signals.append((_curve(cagr_pct, _CURVE_REVENUE_CAGR), 0.20))
     elif prev and prev.get("revenue") and latest.get("revenue") is not None:
         growth_pct = (latest["revenue"] - prev["revenue"]) / abs(prev["revenue"]) * 100
-        signals.append((_clamp(round(50 + growth_pct * 2)), 0.20))
+        signals.append((_curve(growth_pct, _CURVE_REVENUE_CAGR), 0.20))
 
     if not looks_like_financial_institution:
         quality_ratios = [
             p["operating_cash_flow"] / p["net_income"]
             for p in periods
-            if p.get("net_income") and p.get("operating_cash_flow") is not None and p["net_income"] != 0
+            # ══ نسبةُ سالبٍ إلى سالبٍ موجبة ══ (D163)
+            # سنةٌ خسارتُها ‎−٢٠٠ وتدفّقُها ‎−٢٥٠ تُخرج ‎١٫٢٥ — فتُقرأ «تغطيةً
+            # ممتازةً للربح بالنقد» وهي خسارةٌ نازفةٌ نقداً. والنسبةُ لا
+            # معنى لها إلّا فوق ربحٍ موجب؛ والسنةُ الخاسرةُ يحكم عليها
+            # العائدُ على حقوق الملكية وهامشُ التدفّق الحرّ، لا هذه.
+            if p.get("net_income") and p["net_income"] > 0 and p.get("operating_cash_flow") is not None
         ]
         if quality_ratios:
             avg_ratio = sum(quality_ratios) / len(quality_ratios)
-            signals.append((_clamp(round(50 + (avg_ratio - 1) * 40)), 0.20))
+            signals.append((_curve(avg_ratio, _CURVE_EARNINGS_QUALITY), 0.20))
 
         fcf_margins = [
             p["free_cash_flow"] / p["revenue"] * 100
@@ -166,14 +214,14 @@ def _finance_score_from_periods(periods: list) -> int | None:
         ]
         if fcf_margins:
             avg_margin = sum(fcf_margins) / len(fcf_margins)
-            signals.append((_clamp(round(50 + avg_margin * 2.5)), 0.15))
+            signals.append((_curve(avg_margin, _CURVE_FCF_MARGIN), 0.15))
 
     if latest.get("net_income") is not None and latest.get("equity"):
         roe_pct = latest["net_income"] / latest["equity"] * 100
-        signals.append((_clamp(round(40 + roe_pct * 2)), 0.20))
+        signals.append((_curve(roe_pct, _CURVE_ROE), 0.20))
 
     if latest.get("debt_ratio") is not None and not looks_like_financial_institution:
-        debt_score = _clamp(round(100 - latest["debt_ratio"] * 100))
+        debt_score = _curve(latest["debt_ratio"], _CURVE_DEBT_RATIO)
         if prev and prev.get("debt_ratio") is not None:
             delta = latest["debt_ratio"] - prev["debt_ratio"]
             # Debt-funded expansion (heavy capex, revenue still holding) is a
@@ -185,7 +233,7 @@ def _finance_score_from_periods(periods: list) -> int | None:
         signals.append((debt_score, 0.15))
 
     if latest.get("interest_coverage") is not None:
-        signals.append((_clamp(round(40 + latest["interest_coverage"] * 4)), 0.10))
+        signals.append((_curve(latest["interest_coverage"], _CURVE_INTEREST_COVERAGE), 0.10))
 
     if not signals:
         return None

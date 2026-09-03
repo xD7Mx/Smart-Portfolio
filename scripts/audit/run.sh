@@ -82,6 +82,12 @@ python3 scripts/audit/value_check.py || fail=1
 echo
 python3 scripts/audit/decision_check.py || fail=1
 
+# D162 · D163: مقياسُ درجة السلامة يبلغ طرفيه بشركةٍ ممكنةِ الوجود،
+# ولا تُقرأ خسارةٌ نازفةٌ نقداً «تغطيةً ممتازة». فحصٌ سلوكيّ: يبني
+# شركاتٍ بأرقامٍ واقعيةٍ ويطالب الدرجةَ بأن توافق وصفَها.
+echo
+python3 scripts/audit/score_scale.py || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then
