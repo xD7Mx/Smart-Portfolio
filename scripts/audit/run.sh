@@ -51,6 +51,10 @@ python3 scripts/audit/fv_inputs.py || fail=1
 # (‏67 في البطاقة و74 في صفحة الشركة).
 python3 scripts/audit/gov_one_engine.py || fail=1
 
+# D152: التحسينُ القطاعيّ لا يتسرّب إلى غير أهله — والمسطرةُ العامّة
+# بلا قطاعٍ تعطي الرقمَ نفسَه الذي كانت تعطيه قبله.
+python3 scripts/audit/sector_tuning.py || fail=1
+
 # D150: ياهو المزوّد، والمستورَدُ من «إنفستنغ» يملأ الفراغَ ولا يستبدل
 # رقماً منه. وغيابُ الملفّ حالةٌ عادية لا انقطاع.
 python3 scripts/audit/investing_merge.py || fail=1

@@ -225,9 +225,12 @@ async def get_company_financials(symbol: str, period: str = "annual"):
     from app.services.scores import (is_investment_phase, financial_verdict,
                                      verdict_tone as _tone,
                                      _finance_score_from_periods)
-    verdict = financial_verdict(periods)
+    # القطاعُ من دليل السوق المعتمَد — لا من وصف ياهو الإنجليزيّ.
+    from app.data.company_sectors import SYMBOL_TO_SECTOR_AR
+    _sec = SYMBOL_TO_SECTOR_AR.get(sym.replace(".SR", ""))
+    verdict = financial_verdict(periods, _sec)
     verdict_tone = _tone(verdict)
-    health = _finance_score_from_periods(periods)
+    health = _finance_score_from_periods(periods, _sec)
     return success_response(data={
         "symbol": symbol,
         "years": [p["year"] for p in periods],

@@ -122,7 +122,7 @@ async def _financial_from_statements(
     # الدرجةُ من المحرّك الأصليّ — نفسُها التي تعرضها بطاقةُ الحوكمة
     # وقسمُ السوق. رقمٌ واحدٌ لا يختلف باختلاف الشاشة. (D151)
     from app.services.scores import _finance_score_from_periods
-    score = _finance_score_from_periods(periods)
+    score = _finance_score_from_periods(periods, sector)
     evaluable = decision.matched_rule_id != "insufficient_data"
     # The SAME governance outputs the panel shows — so تقييم الأداء renders the
     # identical expert consensus, four scores and confidence, never a variant.

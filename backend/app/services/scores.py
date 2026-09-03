@@ -34,6 +34,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.portfolio import Company
 
 
+# ══ قطاعاتٌ تُقاس بغير المسطرة العامّة ══
+# الأصلُ في هذا المحرّك أن يستدلّ من **البيانات** لا من اسم القطاع —
+# وذاك التحفّظُ كان في محلّه حين كان الاسمُ يأتي من ياهو بالإنجليزية
+# فلا يُطابق شيئاً. أمّا هذه فأسماءٌ من دليل السوق المعتمَد عندنا،
+# قاطعةٌ لا تُخمَّن. والاسمُ الغائبُ يعني «المسطرة العامّة» لا خطأً:
+# فالمحرّكُ بدون قطاعٍ يعمل كما كان قبل هذا التحسين حرفاً بحرف.
+#
+# ولا يُضاف بها مؤشّرٌ ولا عتبة: تُسقَط إشارةٌ لا تناسب النموذج فيُعاد
+# توزيعُ وزنها على الباقي، أو يُستبدَل **مدخلُها** لا حدُّها.
+_REIT_SECTORS = frozenset({"الصناديق العقارية المتداولة"})
+_CYCLICAL_SECTORS = frozenset({"الطاقة", "المواد الأساسية"})
+
+
 def _clamp(v, lo=0, hi=100):
     return max(lo, min(hi, v))
 
@@ -64,7 +77,8 @@ def is_investment_phase(periods: list) -> bool | None:
     return capex_ratio >= INVESTMENT_CAPEX_RATIO and revenue_holding
 
 
-def _finance_score_from_periods(periods: list) -> int | None:
+def _finance_score_from_periods(periods: list,
+                                sector: str | None = None) -> int | None:
     """Weighs six real, multi-year signals — every one traceable back to a
     row the investor sees in the financial statements table:
 
@@ -113,6 +127,15 @@ def _finance_score_from_periods(periods: list) -> int | None:
         latest.get("debt_ratio") is not None and latest["debt_ratio"] > 0.75
         and all(p.get("interest_coverage") is None for p in periods)
     )
+    _sec = (sector or "").strip()
+    # الصندوقُ العقاريّ يشتري عقاراتٍ ويوزّع أغلبَ دخله نظاماً، فتدفّقُه
+    # الحرُّ سالبٌ **بنيةً لا ضعفاً**. وقياسُه به يحسم تسعَ نقاطٍ مقيسةً
+    # على صندوقٍ سليم — عقوبةٌ على نموذج العمل لا على الأداء.
+    is_reit = _sec in _REIT_SECTORS
+    # والدوريّةُ تُقاس عبر الدورة: سنةُ القاع تُظهر العائدَ 2.5٪ وعبر
+    # الدورة 23٪ — ثمانُ نقاطٍ سببُها اختيارُ السنة لا حالُ الشركة.
+    # فيُستبدَل **مدخلُ** العائد بمتوسّط الدورة، وحدُّه كما هو.
+    is_cyclical = _sec in _CYCLICAL_SECTORS
 
     if len(periods) >= 3 and first.get("revenue") and latest.get("revenue") and first["revenue"] > 0:
         n = len(periods) - 1
@@ -132,7 +155,7 @@ def _finance_score_from_periods(periods: list) -> int | None:
             avg_ratio = sum(quality_ratios) / len(quality_ratios)
             signals.append((_clamp(round(50 + (avg_ratio - 1) * 40)), 0.20))
 
-        fcf_margins = [
+        fcf_margins = [] if is_reit else [
             p["free_cash_flow"] / p["revenue"] * 100
             for p in periods
             if p.get("revenue") and p["revenue"] > 0 and p.get("free_cash_flow") is not None
@@ -142,7 +165,13 @@ def _finance_score_from_periods(periods: list) -> int | None:
             signals.append((_clamp(round(50 + avg_margin * 2.5)), 0.15))
 
     if latest.get("net_income") is not None and latest.get("equity"):
-        roe_pct = latest["net_income"] / latest["equity"] * 100
+        _ni = latest["net_income"]
+        if is_cyclical:
+            _series = [p["net_income"] for p in periods
+                       if p.get("net_income") is not None]
+            if len(_series) >= 3:
+                _ni = sum(_series) / len(_series)
+        roe_pct = _ni / latest["equity"] * 100
         signals.append((_clamp(round(40 + roe_pct * 2)), 0.20))
 
     if latest.get("debt_ratio") is not None and not looks_like_financial_institution:
@@ -172,7 +201,7 @@ def _finance_score_from_periods(periods: list) -> int | None:
 finance_score_from_periods = _finance_score_from_periods
 
 
-def financial_verdict(periods: list) -> str:
+def financial_verdict(periods: list, sector: str | None = None) -> str:
     """Deterministic, rule-based executive verdict — computed from the exact
     same real signals as finance_score_from_periods, not a free-text AI
     guess. Chosen deliberately: an investor's decision sentence must be as
@@ -214,7 +243,11 @@ def financial_verdict(periods: list) -> str:
     quality_ok = True if is_financial_institution else (
         ocf is not None and ni and ni != 0 and (ocf / ni) >= 0.8
     )
-    fcf_ok = True if is_financial_institution else (fcf is not None and fcf > 0)
+    # والحكمُ يتبع الدرجةَ في إعفاء الصندوق العقاريّ من التدفّق الحرّ —
+    # وإلّا خرج رقمٌ يرفعه وجملةٌ تدينه على الشيء نفسِه.
+    _is_reit = (sector or "").strip() in _REIT_SECTORS
+    fcf_ok = True if (is_financial_institution or _is_reit) else (
+        fcf is not None and fcf > 0)
     debt_rising = (
         not is_financial_institution
         and prev and latest.get("debt_ratio") is not None and prev.get("debt_ratio") is not None
