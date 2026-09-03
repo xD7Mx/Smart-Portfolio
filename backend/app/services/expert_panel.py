@@ -113,7 +113,15 @@ _ARCH_PILLARS: dict[str, list[tuple]] = {
     ],
     "inventory_retail": [
         ("gross_margin", "الهامش الإجمالي", "%", "higher", 25, 15),
-        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "%", "higher", 80, 50),
+        # ══ نسبةٌ لا نسبةٌ مئوية ══ (D158)
+        # `cash_conversion_ratio` تدفّقٌ تشغيليٌّ ÷ صافي ربح — رقمٌ حول
+        # الواحد، موثَّقٌ بنصّه «كلما اقترب من 1 أو زاد». وكانت تُقارَن
+        # بـ‎80 و‎85 و‎90 بوحدة «٪» في سبعة مواضع، فلا شركةَ تجتازها أبداً:
+        # وسيطُ السوق ‎1.2 والعتبةُ ‎80. فكلُّ شركةٍ في ستّةٍ من ثلاثةَ عشرَ
+        # نمطاً تُدان في جودة أرباحها بلا استثناء.
+        # والعتباتُ لم تكن مخترَعةً بل مكتوبةً بالمئة: قُسمت على مئةٍ
+        # فحُفظ قصدُ كاتبها حرفاً بحرف (‏80٪ ⇒ 0.80)، ولا عتبةَ تُخترع.
+        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "×", "higher", 0.80, 0.50),
         # تذبذّبٌ أيضاً — التحويلُ نفسُه. (D157)
         ("margin_stability_gross", "استقرار الهامش", "%", "lower", 15, 30),
     ],
@@ -124,34 +132,34 @@ _ARCH_PILLARS: dict[str, list[tuple]] = {
     ],
     "asset_light": [
         ("rule_of_40", "قاعدة الأربعين", "", "higher", 40, 20),
-        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "%", "higher", 90, 50),
+        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "×", "higher", 0.90, 0.50),
         ("roic", "العائد على رأس المال المستثمر", "%", "higher", 20, 10),
     ],
     "commodity": [
         ("roic_cycle", "العائد على رأس المال عبر الدورة", "%", "higher", 11, 5),
         ("worst_leverage", "أسوأ رافعة في الدورة", "×", "lower", 3.0, 5.0),
-        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "%", "higher", 80, 30),
+        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "×", "higher", 0.80, 0.30),
     ],
     "re_developer": [
-        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "%", "higher", 60, 0),
+        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "×", "higher", 0.60, 0.00),
         ("inventory_intensity", "كثافة المخزون", "%", "lower", 45, 70),
         ("net_debt_ebitda", "صافي الدين إلى الأرباح التشغيلية", "×", "lower", 3.0, 6.0),
     ],
     "contracting": [
         ("current_ratio", "نسبة التداول", "×", "higher", 1.30, 1.00),
-        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "%", "higher", 70, 10),
+        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "×", "higher", 0.70, 0.10),
         ("operating_margin", "الهامش التشغيليّ", "%", "higher", 8, 2),
     ],
     "consumer_defensive": [
         ("roic", "العائد على رأس المال", "%", "higher", 14, 7),
         # تذبذّبٌ أيضاً: درجةُ 85 ⇒ تذبذّب 7.5 · ودرجةُ 60 ⇒ تذبذّب 20.
         ("margin_stability", "استقرار الهامش", "%", "lower", 7.5, 20),
-        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "%", "higher", 85, 40),
+        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "×", "higher", 0.85, 0.40),
     ],
     "general": [
         ("roic", "العائد على رأس المال المستثمر", "%", "higher", 15, 8),
         ("net_debt_ebitda", "صافي الدين إلى الأرباح التشغيلية", "×", "lower", 2.0, 4.0),
-        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "%", "higher", 80, 50),
+        ("cash_conversion_ratio", "تحويل الربح إلى نقد", "×", "higher", 0.80, 0.50),
     ],
 }
 

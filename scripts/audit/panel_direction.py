@@ -1,4 +1,4 @@
-"""اتّجاهُ قراءة المؤشّر يوافق معناه — حارسُ D157.
+"""قراءةُ المؤشّر توافق معناه ووحدتَه — حارسا D157 و D158.
 
 ## العطب
 
@@ -49,9 +49,29 @@ def _feature_docs() -> dict[str, str]:
             for k, v in (compute_features(per) or {}).items()}
 
 
+def _healthy_features() -> dict:
+    """سماتُ شركةٍ سليمةٍ صريحة — مرجعٌ لمقارنة **مدى** كلّ مؤشّر بعتبتيه."""
+    from app.services.four_scores import build_company_features
+    per = [{"year": 2019 + k, "revenue": 9e9 + k * 4e8, "net_income": 1.2e9,
+            "equity": 8e9, "eps": 3.6, "operating_cash_flow": 1.5e9,
+            "capex": -3e8, "depreciation": 3e8, "total_debt": 2e9,
+            "ending_cash": 1e9, "shares_outstanding": 3.3e8,
+            "operating_income": 1.7e9, "total_assets": 1.5e10,
+            "gross_profit": 3.2e9, "total_liabilities": 7e9,
+            "interest_expense": 1e8, "dividends_paid": -4e8}
+           for k in range(5)]
+    try:
+        feats, _i, _q = build_company_features(per)
+    except Exception:                                             # noqa: BLE001
+        return {}
+    from app.services.expert_panel import _val
+    return {k: _val(feats, k) for k in feats}
+
+
 def main() -> int:
-    from app.services.expert_panel import _ARCH_PILLARS
+    from app.services.expert_panel import _ARCH_PILLARS, _val
     docs = _feature_docs()
+    probe = _healthy_features()
     if not docs:
         print("✖ تعذّر بناءُ أوصاف الميزات — لا يُحكم بلا مرجع.")
         return 2
@@ -70,8 +90,26 @@ def main() -> int:
                     wrong.append(f"{arch}/{key}: «{direction}» ووصفُها "
                                  f"«أقل = أكثر استقراراً»")
 
+    # ══ ٢ — العتبةُ في وحدة المؤشّر لا في وحدةٍ أخرى ══ (D158)
+    # `cash_conversion_ratio` نسبةٌ حول الواحد، وكانت تُقارَن بـ‎80 و‎90.
+    # فلا شركةَ تجتازها. والفحصُ عامٌّ لا يخصّها: يُشغَّل المحرّكُ على
+    # شركةٍ سليمةٍ صريحة، ويُشترط أن تكون قيمةُ كلّ مؤشّرٍ في **مدى**
+    # عتبتيه — قيمةٌ أبعدَ من العتبتين بعشرة أضعافٍ تعني اختلافَ وحدة.
+    scale = []
+    for arch, rows in _ARCH_PILLARS.items():
+        for row in rows:
+            key, _l, _u, _d, good, weak = row[:6]
+            v = probe.get(key)
+            if not isinstance(v, (int, float)) or v == 0:
+                continue
+            hi = max(abs(good), abs(weak)) or 1.0
+            lo = min(abs(good), abs(weak))
+            # القيمةُ أصغرَ من أدنى عتبةٍ بعشرين ضعفاً، أو أكبرَ من
+            # أعلاها بعشرين — فرقُ وحدةٍ لا فرقُ أداء.
+            if abs(v) * 20 < hi or (lo and abs(v) > hi * 20):
+                scale.append(f"{arch}/{key}: قيمة {v:g} · عتبتان {good}/{weak}")
     print("═" * 62)
-    print("  اتّجاهُ القراءة يوافق معنى الميزة")
+    print("  قراءةُ المؤشّر توافق معناه ووحدتَه")
     print("═" * 62)
     print(f"  أنماطٌ مفحوصة {len(_ARCH_PILLARS)} · "
           f"ميزاتٌ «الأقلُّ أفضل» {checked} · "
@@ -83,10 +121,15 @@ def main() -> int:
         print("\n  ✖ اتّجاهٌ مقلوب:")
         for w in wrong:
             print(f"    · {w}")
+    if scale:
+        print("\n  ✖ عتبةٌ في وحدةٍ غير وحدة مؤشّرها:")
+        for x in scale:
+            print(f"    · {x}")
     print("═" * 62)
-    print("  ✔ لا مؤشّرَ يُقرأ عكسَ معناه." if not wrong
-          else f"  ✖ أخفق {len(wrong)}")
-    return 0 if not wrong else 1
+    bad = len(wrong) + len(scale)
+    print("  ✔ لا مؤشّرَ يُقرأ عكسَ معناه ولا بوحدةٍ سواه." if not bad
+          else f"  ✖ أخفق {bad}")
+    return 0 if not bad else 1
 
 
 if __name__ == "__main__":
