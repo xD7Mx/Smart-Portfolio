@@ -28,8 +28,9 @@ import clsx from "clsx";
  *    خلفيات ولا أُطر ولا كبسولات. الشارات المتراكمة تُشتّت، والنصّ النظيف
  *    يُقرأ أسرع.
  *  • نسبة التغيّر: سهم + رقم، بلا كبسولة دائرية حوله.
- *  • التبويبات: شبكة عمودين على كل المقاسات (٢·٢·٢) — صفوف متساوية مستقرّة
- *    بدل التفافٍ عشوائي يتغيّر مع طول الكلمة.
+ *  • التبويبات: صفٌّ واحدٌ بلا إطار، فاصلُه خطٌّ سفليٌّ واحد والنشِطُ يُعلَّم
+ *    بخطٍّ تحته — النمطُ نفسُه في صفحة الشركة، فلا يختلف شكلُ التبويب
+ *    باختلاف الشاشة التي فُتح منها السهم.
  */
 
 const govScoreColor = (g: any) => {
@@ -75,13 +76,18 @@ function DayRangeRow({ low, high }: { low: number; high: number }) {
   );
 }
 
+/* ══ التبويبات: النمطُ نفسُه في كلّ مكانٍ يُعرض فيه سهم ══
+   كانت هذه الورقةُ عمودين مؤطَّرين وصفحةُ الشركة صفّاً واحداً بلا إطار،
+   والمكوّنان يعرضان الشيءَ نفسَه — فيرى المالكُ شكلين لشاشةٍ واحدة.
+   فوُحّدا على نمط `CompanyPage`: صفٌّ واحدٌ بفاصلٍ سفليٍّ واحد، واسمٌ
+   قصيرٌ للجوّال وكاملٌ لما اتّسع — بلا تمريرٍ أفقيّ ولا التفافِ سطر. */
 const TABS = [
-  { id: "overview", label: "نظرة عامة" },
-  { id: "analysis", label: "تقييم الأداء" },
-  { id: "financials", label: "القوائم المالية" },
-  { id: "dividends", label: "التوزيعات" },
-  { id: "calendar", label: "المفكرة" },
-  { id: "opinion", label: "رأي الذكاء", color: true },
+  { id: "overview", label: "نظرة عامة", short: "نظرة" },
+  { id: "analysis", label: "تقييم الأداء", short: "الأداء" },
+  { id: "financials", label: "القوائم المالية", short: "القوائم" },
+  { id: "dividends", label: "التوزيعات", short: "التوزيعات" },
+  { id: "calendar", label: "المفكرة", short: "المفكرة" },
+  { id: "opinion", label: "رأي الذكاء", short: "الذكاء", color: true },
 ] as const;
 
 export default function StockView({ symbol, onClose }: { symbol: string; onClose?: () => void }) {
@@ -146,25 +152,27 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
         </div>
       </div>
 
-      {/* ── التبويبات: عمودان دائماً ── */}
-      <div className="grid grid-cols-2 gap-1.5">
+      {/* ── التبويبات: صفٌّ واحدٌ بلا إطار — نمطُ صفحة الشركة نفسُه ── */}
+      <div className="flex items-stretch gap-0.5 sm:gap-1 border-b border-[var(--hairline)]"
+           role="tablist" aria-label="أقسام الورقة">
         {TABS.map(tb => {
-          if ((tb as any).color) {
-            return (
-              <button key={tb.id} onClick={() => setTab(tb.id)}
-                className="p-[1.5px] rounded-xl transition-all"
-                style={{ background: "linear-gradient(90deg, var(--brand-a), var(--brand-b))", opacity: tab === tb.id ? 1 : 0.85 }}>
-                <span className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[12.5px] text-xs font-bold bg-[var(--field)] ai-opinion-text">
-                  <Sparkles size={12} className="ai-star" /> {tb.label}
-                </span>
-              </button>
-            );
-          }
+          const on = tab === tb.id;
+          const isAi = Boolean((tb as any).color);
           return (
             <button key={tb.id} onClick={() => setTab(tb.id)}
-              className={clsx("px-3 py-1.5 rounded-xl text-xs font-bold transition-all border text-center",
-                tab === tb.id ? " text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)] hover:text-[var(--ink)]")}>
-              {tb.label}
+              role="tab" aria-selected={on}
+              className={clsx(
+                "flex-1 min-w-0 flex items-center justify-center gap-1",
+                "px-0.5 sm:px-2 py-2 text-[10.5px] sm:text-xs font-bold",
+                "border-b-2 -mb-px transition-colors whitespace-nowrap",
+                on ? "border-[var(--brand)]" : "border-transparent",
+                on ? (isAi ? "" : "text-[var(--brand-ink)]")
+                   : "text-[var(--ink-muted)] hover:text-[var(--ink)]")}>
+              {isAi && <Sparkles size={11} className={on ? "ai-star" : ""} />}
+              <span className={clsx("truncate", isAi && on && "ai-opinion-text")}>
+                <span className="sm:hidden">{tb.short}</span>
+                <span className="hidden sm:inline">{tb.label}</span>
+              </span>
             </button>
           );
         })}
