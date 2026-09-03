@@ -2242,27 +2242,12 @@ def check_one_archetype_resolver() -> None:
              "محلِّلُ المواصفة لا يُستعمل في تغذية مقاييس القطاع")
 
 
-# ── S-ATTAINABLE — انكماشٌ إلى كمالٍ لا يُبلغ (D093) ─────────────────────
-def check_attainable_ceiling() -> None:
-    """خصمٌ متساوٍ على الجميع لا يضيف معلومةً — بل يسحق المدى.
-
-    الانكماشُ كان يقيس التغطيةَ منسوبةً إلى واحدٍ صحيح، فاستحال بلوغُ
-    «ممتاز» على أحد: صفرُ شركةٍ فوق ‎75 من ‎386.
-    """
-    f = ROOT / "backend/app/services/spec_score.py"
-    if f.exists():
-        s = f.read_text(encoding="utf-8")
-        if "ATTAINABLE" not in s or "eff_cov" not in s:
-            note("S-ATTAINABLE", "backend/app/services/spec_score.py",
-                 "الانكماشُ يُنسب إلى كمالٍ نظريّ لا إلى ما يمكن بلوغه — "
-                 "يُخصم من الجميع بالقدر نفسه فيُمحى التمييز")
-    g = ROOT / "backend/app/data/archetype_spec.py"
-    if g.exists() and "ATTAINABLE" not in g.read_text(encoding="utf-8"):
-        note("S-ATTAINABLE", "backend/app/data/archetype_spec.py",
-             "سقفُ التغطية غيرُ معرَّف")
-    if not (ROOT / "scripts/audit/attainable.py").exists():
-        note("S-ATTAINABLE", "scripts/audit/attainable.py",
-             "لا سبيلَ لإعادة قياس السقف — رقمٌ في ملفٍّ يشيخ بصمت")
+# ── S-ATTAINABLE — أُزيل مع ما كان يحرسه ────────────────────────────────
+# كان يشترط وجودَ `ATTAINABLE` وسكربتَ إعادة قياسها. وقد تبيّن أنّ
+# الجدولَ لم يقرأه أحدٌ قطُّ: `spec_score` يحسب التغطيةَ من الأوزان
+# مباشرةً. وتبيّن أنّ هذا الفحصَ نفسَه **لم يُسجَّل** في جدول الفحوص،
+# فلم يعمل يوماً — واحدٌ من اثنين وسبعين، والباقي مسجَّلٌ كلُّه.
+# فحُذف الثلاثة معاً: جدولٌ لا يُقرأ، وسكربتٌ يقيسه، وفحصٌ يحرسه.
 
 
 
