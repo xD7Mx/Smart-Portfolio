@@ -1,4 +1,4 @@
-"""ثباتُ الحصّة والذاكرة عبر الإقلاع — حارسُ D146.
+"""ثباتُ الحصّة والذاكرة — حارسا D146 و D161.
 
 يُشغّل عمليتين منفصلتين: الأولى تعدّ وتخزّن، والثانية تقرأ. والعمليةُ
 الثانية هي الحاويةُ بعد إعادتها. فإن عاد العدّادُ صفراً أو ضاعت مكتبةُ
@@ -48,6 +48,55 @@ def _run(code: str, state: str) -> str:
     return (r.stdout or "").strip().splitlines()[-1] if r.stdout else r.stderr
 
 
+def _plan_block_check() -> tuple[str, bool, str]:
+    """يُشغَّل في عمليةٍ منفصلة: يزيّف مصدراً يردّ ‎403 دائماً، ويعدّ
+    النداءاتِ الفعلية لخمسٍ وعشرين شركة. الصوابُ نداءٌ واحد."""
+    import json as _j
+    code = """
+import sys, os, asyncio, tempfile, json
+sb = tempfile.mkdtemp()
+os.environ["SP_STATE_DIR"] = sb
+os.environ["LASTGOOD_PATH"] = os.path.join(sb, "lg.json")
+sys.path.insert(0, %r)
+from app.core.config import settings
+settings.SAHMAK_API_KEY = "TEST"
+from app.services import sahmak_library as s, usage_tracker as ut
+n = {"c": 0}
+class R:
+    status_code = 403
+    headers = {"content-type": "application/json"}
+    text = '{"error":{"code":"PLAN_LIMIT"}}'
+class C:
+    async def __aenter__(self): return self
+    async def __aexit__(self, *a): return False
+    async def get(self, *a, **k):
+        n["c"] += 1
+        return R()
+s.httpx.AsyncClient = lambda *a, **k: C()
+async def m():
+    for i in range(25):
+        await s.fundamentals(str(1000 + i))
+    before = n["c"]
+    await s.company_profile("2222")
+    print(json.dumps({"calls": n["c"] - 1, "quota": ut.usage("sahmak")["daily_used"],
+                      "other_family": n["c"] - before}))
+asyncio.run(m())
+""" % _BE
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    try:
+        got = _j.loads((r.stdout or "").strip().splitlines()[-1])
+    except Exception:                                             # noqa: BLE001
+        return ("٦ الخطّةُ الرافضة لا تُنادى ثانيةً", False,
+                f"تعذّر القياس: {(r.stderr or '')[-90:]}")
+    # الشرطُ على **عائلة القوائم** وحدها: نداءٌ واحدٌ لخمسٍ وعشرين
+    # شركة. والحصّةُ الكلّية ‎2 لأنّ الاختبار ينادي عائلةً ثانيةً عمداً،
+    # ليثبت أنّ الحبسَ لا يتعدّى عائلتَه.
+    ok = got["calls"] == 1 and got["other_family"] == 1
+    return ("٦ الخطّةُ الرافضة لا تُنادى ثانيةً", ok,
+            f"‏25 شركة → نداءٌ {got['calls']} · وعائلةٌ أخرى تُنادى "
+            f"{got['other_family']}")
+
+
 def main() -> int:
     T: list[tuple[str, bool, str]] = []
     with tempfile.TemporaryDirectory() as state:
@@ -74,8 +123,14 @@ def main() -> int:
         T.append(("٥ ملفٌّ تالف لا يُسقط التطبيق", bad["count"] == 0,
                   "يُبدأ من الصفر بلا انهيار"))
 
+    # ══ ٦ — نقطةٌ ترفضها الخطّةُ لا تُنادى ثانيةً ══ (D161)
+    # الحصّةُ تُحجز قبل الطلب، فردُّ ‎403 يستهلك خانةً بلا عائد. ونقطةٌ
+    # ترفضها الخطّةُ ترفضها لكلّ شركة — فمحاولتُها لكلٍّ منها تحرق اليومَ
+    # كلَّه. قِيس ذلك: العدّادُ ‎90/90 وصفرُ ملفٍّ مخزَّن.
+    T.append(_plan_block_check())
+
     print("═" * 58)
-    print("  ثباتُ الحصّة والذاكرة عبر الإقلاع")
+    print("  ثباتُ الحصّة والذاكرة")
     print("═" * 58)
     for n, ok, d in T:
         print(f"  {'PASS' if ok else 'FAIL'}  {n:34} {d}")

@@ -42,6 +42,21 @@ async def _get(path: str, params: dict | None = None):
     if not settings.SAHMAK_API_KEY:
         LAST[path] = {"سبب": "لا مفتاح مضبوط"}
         return None
+    # ══ نقطةٌ ترفضها الخطّةُ لا تُنادى ثانيةً ══ (D161)
+    # الحصّةُ تُحجز **قبل** الطلب، فردُّ ‎403 يستهلك خانةً كاملة بلا
+    # عائد. ونقطةُ القوائم مرفوضةٌ للخطّة المجّانية **دائماً** — فكلُّ
+    # شركةٍ تُحاوَل تحرق خانة، وتسعون محاولةً تلتهم اليومَ كلَّه فلا يبقى
+    # نداءٌ لنقطةٍ أخرى مسموحة. وقياسُ ذلك ظاهر: العدّادُ ‎90/90 وصفرُ
+    # ملفٍّ شخصيٍّ مخزَّن.
+    #
+    # فيُحفظ الرفضُ يوماً كاملاً لعائلة المسار (‏`/financials/`) لا
+    # للرمز: الخطّةُ ترفض النقطةَ لا الشركة. ويُقرأ من ذاكرةٍ تعبر
+    # الإقلاع، وإلّا عاد النزفُ مع كلّ إعادة تشغيل.
+    fam = "/" + path.strip("/").split("/")[0] + "/"
+    bk = f"sahmak:plan_blocked:{fam}"
+    if cache.get(bk):
+        LAST[path] = {"سبب": f"الخطّةُ لا تشمل {fam} — لم يقع نداء"}
+        return None
     from app.services.usage_tracker import can_call, record
     if not can_call("sahmak"):
         LAST[path] = {"سبب": "نفدت الحصّة اليومية — لم يقع نداء"}
@@ -56,7 +71,12 @@ async def _get(path: str, params: dict | None = None):
             if r.status_code == 200 and "json" in r.headers.get("content-type", ""):
                 return r.json()
             if r.status_code == 403:
-                logger.info(f"Sahmak {path}: plan does not include this endpoint (403).")
+                # يوماً واحداً لا أكثر: ترقيةُ الخطّة يجب أن تُلتقط غداً
+                # بلا تدخّل، فلا يُحبس المصدرُ عن نفسه إلى الأبد.
+                cache.set(bk, True, 24 * 60 * 60)
+                logger.warning(
+                    f"Sahmak {fam}: الخطّةُ لا تشمل هذه النقطة — "
+                    f"تُوقَف نداءاتُها يوماً حفظاً للحصّة.")
     except Exception as e:
         LAST[path] = {"سبب": f"خطأ اتصال: {str(e)[:120]}"}
         logger.debug(f"Sahmak {path} failed: {e}")
