@@ -8,7 +8,9 @@ export function ShariaBadge({ status, size = 13 }: { status?: string | null; siz
     return <span className="shrink-0 inline-flex" title="نقية — متوافقة شرعياً"><MoonStar size={size} className="text-[var(--pos-ink)]" /></span>;
   }
   if (status === "MIXED") {
-    return <span className="shrink-0 inline-flex" title="مختلطة — متوافقة بشرط التطهير"><MoonStar size={size} className="text-[var(--warn-ink)]" /></span>;
+    /* الرمزُ نفسُه الذي تستعمله البطاقةُ الكبرى — فلا يختلف لونُ الحكم
+       الشرعيّ باختلاف موضعه في التطبيق. */
+    return <span className="shrink-0 inline-flex" title="مختلطة — متوافقة بشرط التطهير"><MoonStar size={size} className="text-[var(--sharia-mixed)]" /></span>;
   }
   if (status === "NON_COMPLIANT") {
     return <span className="shrink-0 inline-flex" title="غير متوافقة شرعياً"><MoonStar size={size} className="text-[var(--neg-ink)]" /></span>;
@@ -19,9 +21,14 @@ export function ShariaBadge({ status, size = 13 }: { status?: string | null; siz
 // ── Sharia indicator — green (نقية) / orange (مختلطة) / red (non) / gray (unknown) ──
 export function ShariaStatusIndicator({ status, loading, purification, source }:
   { status?: string | null; loading?: boolean; purification?: number | null; source?: string | null }) {
+  /* ══ ثلاثةُ ألوانٍ لثلاث حالات ══ (بأمر المالك)
+     شرعيٌّ أخضر · مختلطٌ برتقاليّ · غيرُ شرعيٍّ أحمر. والألوانُ رموزٌ
+     من `globals.css` تُعرَّف في المظهرين معاً، فلا قيمةَ مكتوبةً هنا.
+     و«مختلط» كان بلا نصّ — أيقونةٌ ملوّنةٌ بلا كلمة، فيُقرأ اللونُ ولا
+     يُعرف معناه. فصار له اسمُه كأختَيه. */
   const map: Record<string, { icon: any; color: string; bg: string; label: string }> = {
     COMPLIANT:     { icon: MoonStar, color: "var(--pos-ink)", bg: "transparent", label: "متوافق شرعياً (نقي)" },
-    MIXED:         { icon: MoonStar, color: "var(--warn-ink)", bg: "transparent",  label: "" },
+    MIXED:         { icon: MoonStar, color: "var(--sharia-mixed)", bg: "transparent", label: "مختلط" },
     NON_COMPLIANT: { icon: MoonStar, color: "var(--neg-ink)", bg: "transparent",  label: "غير متوافق شرعياً" },
   };
   const s = status && map[status] ? map[status]
