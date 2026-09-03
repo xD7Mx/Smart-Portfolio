@@ -49,7 +49,12 @@ async def main() -> int:
     for sym in symbols:
         y = sym if sym.endswith(".SR") else f"{sym}.SR"
         try:
-            periods = await market_service.get_financials(y)
+            # ══ الغلافُ ليس القائمة ══ (D165)
+            # `get_financials` يردّ قاموساً غلافُه فيه `periods`؛ وتمريرُه
+            # كما هو يُخرج `KeyError: -1` — والمحرّكُ سليمٌ والمسبارُ هو
+            # المخطئ. سقط أوّلَ تشغيلةٍ على الخادم.
+            data = await market_service.get_financials(y)
+            periods = (data or {}).get("periods") or []
         except Exception:
             periods = None
         s = finance_score_from_periods(periods) if periods else None
