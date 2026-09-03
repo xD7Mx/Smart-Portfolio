@@ -43,7 +43,6 @@ from app.models.portfolio import Company
 #
 # ولا يُضاف بها مؤشّرٌ ولا عتبة: تُسقَط إشارةٌ لا تناسب النموذج فيُعاد
 # توزيعُ وزنها على الباقي، أو يُستبدَل **مدخلُها** لا حدُّها.
-_REIT_SECTORS = frozenset({"الصناديق العقارية المتداولة"})
 _CYCLICAL_SECTORS = frozenset({"الطاقة", "المواد الأساسية"})
 
 
@@ -128,16 +127,28 @@ def _finance_score_from_periods(periods: list,
         and all(p.get("interest_coverage") is None for p in periods)
     )
     _sec = (sector or "").strip()
-    # الصندوقُ العقاريّ يشتري عقاراتٍ ويوزّع أغلبَ دخله نظاماً، فتدفّقُه
-    # الحرُّ سالبٌ **بنيةً لا ضعفاً**. وقياسُه به يحسم تسعَ نقاطٍ مقيسةً
-    # على صندوقٍ سليم — عقوبةٌ على نموذج العمل لا على الأداء.
-    is_reit = _sec in _REIT_SECTORS
+    # ══ إعفاءُ الصناديق العقارية أُلغي — نقضه القياس ══ (D154)
+    # افتُرض أنّ تدفّقَها الحرَّ سالبٌ بنيةً (تشتري عقاراتٍ وتوزّع أغلبَ
+    # دخلها)، فأُعفيت منه. ثمّ قِيست تسعَ عشرةَ شركةً على بيانات السوق
+    # الحقيقية: **لا واحدةَ** تدفّقُها سالبٌ في كلّ سنواتها، ووسيطُ هامش
+    # الحرّ ‎+67.9٪، والإعفاءُ يحسم منها **سبعَ نقاط**. فالافتراضُ جاء من
+    # عيّنةٍ صنعتُها بيدي ولا تشبه المصدر — وهو ثامنُ وقوعٍ من صنفه.
+    # والقاعدةُ التي أثبتها هذا: لا تعديلَ قطاعيٌّ قبل قياسٍ على بياناتٍ
+    # حقيقية، لا على فرضيةٍ مهما بدت معقولة.
     # والدوريّةُ تُقاس عبر الدورة: سنةُ القاع تُظهر العائدَ 2.5٪ وعبر
     # الدورة 23٪ — ثمانُ نقاطٍ سببُها اختيارُ السنة لا حالُ الشركة.
     # فيُستبدَل **مدخلُ** العائد بمتوسّط الدورة، وحدُّه كما هو.
     is_cyclical = _sec in _CYCLICAL_SECTORS
 
-    if len(periods) >= 3 and first.get("revenue") and latest.get("revenue") and first["revenue"] > 0:
+    # ══ الجذرُ الكسريُّ لعددٍ سالبٍ عددٌ مركّب ══ (D153)
+    # كان الشرطُ يفحص أوّلَ إيرادٍ موجباً ولا يفحص آخرَه. وشركةٌ إيرادُها
+    # الأخير سالب (تصحيحاتٌ تفوق الإيراد — يقع في التأمين والمقاولات)
+    # تُخرج `(-0.5) ** (1/3)` عدداً مركّباً، فيسقط `round` بـTypeError
+    # وتسقط معه درجةُ الشركة كلُّها. والانهيارُ أسوأُ من درجةٍ منخفضة.
+    # فيُشترط الطرفان موجبَين، وإلّا انتقل الحسابُ إلى فرع التغيّر
+    # السنويّ أدناه — وهو يقسم على القيمة المطلقة فيحتمل السالب.
+    if (len(periods) >= 3 and first.get("revenue") and latest.get("revenue")
+            and first["revenue"] > 0 and latest["revenue"] > 0):
         n = len(periods) - 1
         cagr_pct = ((latest["revenue"] / first["revenue"]) ** (1 / n) - 1) * 100
         signals.append((_clamp(round(50 + cagr_pct * 2)), 0.20))
@@ -155,7 +166,7 @@ def _finance_score_from_periods(periods: list,
             avg_ratio = sum(quality_ratios) / len(quality_ratios)
             signals.append((_clamp(round(50 + (avg_ratio - 1) * 40)), 0.20))
 
-        fcf_margins = [] if is_reit else [
+        fcf_margins = [
             p["free_cash_flow"] / p["revenue"] * 100
             for p in periods
             if p.get("revenue") and p["revenue"] > 0 and p.get("free_cash_flow") is not None
@@ -243,11 +254,7 @@ def financial_verdict(periods: list, sector: str | None = None) -> str:
     quality_ok = True if is_financial_institution else (
         ocf is not None and ni and ni != 0 and (ocf / ni) >= 0.8
     )
-    # والحكمُ يتبع الدرجةَ في إعفاء الصندوق العقاريّ من التدفّق الحرّ —
-    # وإلّا خرج رقمٌ يرفعه وجملةٌ تدينه على الشيء نفسِه.
-    _is_reit = (sector or "").strip() in _REIT_SECTORS
-    fcf_ok = True if (is_financial_institution or _is_reit) else (
-        fcf is not None and fcf > 0)
+    fcf_ok = True if is_financial_institution else (fcf is not None and fcf > 0)
     debt_rising = (
         not is_financial_institution
         and prev and latest.get("debt_ratio") is not None and prev.get("debt_ratio") is not None
