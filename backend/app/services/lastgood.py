@@ -11,10 +11,11 @@ captured — real data with an honest timestamp, never a blank screen and
 never an invented number.
 """
 
+import atexit
 import json
 import os
 import time
-from threading import Lock
+from threading import Event, Lock, Thread
 
 _lock = Lock()
 _PATH = os.environ.get("LASTGOOD_PATH") or (
@@ -35,20 +36,75 @@ def _load() -> dict:
     return _mem
 
 
+# ══ الكتابةُ تتجمّع ولا تتكرّر مع كلّ نقطة ══ (D168)
+# كانت كلُّ حفظةٍ تُسلسل المخزنَ **كلَّه** إلى القرص. وقد بلغ الملفُّ على
+# الخادم ‎7.8 ميجابايت و‎1077 مفتاحاً، فقِيست الحفظةُ الواحدة **1.277
+# ثانية** — ومسحُ السوق يحفظ نحو أربعِ مئةِ مرّة، أي ‎~٩ دقائق كتابةً
+# على القرص. وكلفةٌ تربيعية: كلّما امتلأ المخزنُ بطُؤ حفظُه.
+#
+# والأسوأُ أنّ `save` تُستدعى من شيفرةٍ لا متزامنة: ثانيةٌ وربعٌ من
+# دخلٍ/خرجٍ حاجبٍ داخل حلقة الأحداث تُجمّد **كلَّ** طلبٍ آخر معها. فهذا
+# هو بطءُ فتح الصفحات مقيساً، لا مظنوناً.
+#
+# فصارت الحفظةُ تُحدِّث الذاكرةَ فوراً — وهي التي تخدم القراءةَ أصلاً —
+# وتَسِمُ المخزنَ متّسخاً، ويكتب خيطٌ خلفيٌّ مرّةً كلَّ خمسِ ثوانٍ مهما
+# كثُرت الحفظات. فأربعُ مئةِ حفظةٍ تصير كتابةً أو كتابتين.
+#
+# والمقايضةُ مقصودةٌ ومحدودة: انهيارٌ مفاجئ يفقد خمسَ ثوانٍ من مخزنٍ
+# **احتياطيّ** يُعاد بناؤه من المزوّد. ولا يُفقد شيءٌ عند الإغلاق
+# المنتظم — `atexit` يُفرِغ ما تبقّى.
+_FLUSH_INTERVAL = 5.0
+_dirty = False
+_wake = Event()
+_flusher_started = False
+
+
+def flush() -> None:
+    """يكتب ما تراكم إن كان ثمّة تراكم. آمنٌ للنداء في أيّ وقت."""
+    global _dirty
+    with _lock:
+        if not _dirty:
+            return
+        store = dict(_load())
+        _dirty = False
+    try:
+        tmp = f"{_PATH}.tmp.{os.getpid()}"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(store, f, ensure_ascii=False)
+        os.replace(tmp, _PATH)
+    except Exception:
+        # النسخةُ في الذاكرة ما تزال تخدم عمرَ هذه العملية، وتُعاد
+        # المحاولةُ في الدورة التالية — فلا يضيع شيءٌ بصمت.
+        with _lock:
+            _dirty = True
+
+
+def _flush_loop() -> None:
+    while True:
+        _wake.wait(_FLUSH_INTERVAL)
+        _wake.clear()
+        flush()
+
+
+def _ensure_flusher() -> None:
+    global _flusher_started
+    if _flusher_started:
+        return
+    _flusher_started = True
+    Thread(target=_flush_loop, daemon=True, name="lastgood-flush").start()
+    atexit.register(flush)
+
+
 def save(key: str, data) -> None:
     """Persist a successful payload (no-op on falsy data)."""
     if not data:
         return
+    global _dirty
     with _lock:
         store = _load()
         store[key] = {"data": data, "saved_at": time.time()}
-        try:
-            tmp = _PATH + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(store, f, ensure_ascii=False)
-            os.replace(tmp, _PATH)
-        except Exception:
-            pass  # memory copy still serves this process's lifetime
+        _dirty = True
+    _ensure_flusher()
 
 
 def load(key: str, max_age_seconds: int | None = None):

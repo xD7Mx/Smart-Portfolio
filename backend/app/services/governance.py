@@ -44,7 +44,10 @@ def _rule_governance_narrative(overall_score, label, rows, sectors, sharia_count
     Leads with the state + strongest holdings; adds compliance if it applies.
     Always available, no API, no quota."""
     scored = [r for r in rows if r["finance_score"] is not None]
-    leaders = sorted([r for r in scored if r["finance_score"] >= 70], key=lambda r: -r["finance_score"])[:2]
+    # المفتاحُ يحمل حارسَه ولو كان المصدرُ مُرشَّحاً أعلاه: الأمانُ الذي
+    # يعتمد على سطرٍ بعيد يسقط أوّلَ ما يُعاد ترتيبُ السطرين. (D167)
+    leaders = sorted([r for r in scored if (r["finance_score"] or 0) >= 70],
+                     key=lambda r: -(r["finance_score"] or 0))[:2]
     line = f"محفظتك {label} بدرجة {overall_score}/100"
     if leaders:
         line += "، بقيادة " + " و".join(r["name"] for r in leaders)
@@ -409,7 +412,16 @@ async def get_market_governance(db, compute: bool = True) -> dict | None:
 
     results = await asyncio.gather(*(_score_one(sym, meta) for sym, meta in candidates))
     rows = [r for r in results if r is not None]
-    rows.sort(key=lambda r: r["finance_score"], reverse=True)
+    # ══ الصفُّ بلا درجةٍ يُفرَز آخِراً ولا يُسقط الفرزَ كلَّه ══ (D167)
+    # قُضي أعلاه — بأمر المالك — أن تبقى الشركةُ في الخريطة ولو تعذّرت
+    # درجتُها، لأنّ غيابَها لا يُفسَّر. لكنّ الفرزَ بقي يقارن الدرجةَ خاماً،
+    # و`None < None` يرفع TypeError. فمتى تعذّرت الدرجةُ على شركتين
+    # **سقط تبويبُ السوق كلُّه** — مقيسٌ على الخادم: مسارٌ لا يردّ شيئاً.
+    # والمفتاحُ الثنائيّ يُبقي المُدرَجَ أوّلاً تنازلياً ويدفع المتعذَّرَ إلى
+    # الذيل، وهو النمطُ المستعمَل أصلاً في هذا الملفّ (سطرا ‎176 و‎269) —
+    # فالعطبُ أنّ موضعاً واحداً تخلّف عنه.
+    rows.sort(key=lambda r: (r.get("finance_score") is not None,
+                             r.get("finance_score") or 0), reverse=True)
 
     result = {
         "has_data": bool(rows),

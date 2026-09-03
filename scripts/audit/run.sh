@@ -96,6 +96,19 @@ python3 scripts/audit/score_scale.py || fail=1
 echo
 python3 scripts/audit/one_decision.py || fail=1
 
+# D167: صفٌّ بلا درجةٍ يُفرَز آخِراً ولا يُسقط تبويبَ السوق كلَّه.
+# `None < None` ترفع TypeError، فمتى تعذّرت الدرجةُ على شركتين انهار
+# المسارُ كلُّه — مقيسٌ على الخادم.
+echo
+python3 scripts/audit/sort_none.py || fail=1
+
+# D168: الحفظةُ لا تُسلسل المخزنَ كلَّه ولا تحجب حلقةَ الأحداث. قِيست
+# على الخادم ١٫٢٧٧ ثانيةً للحفظة الواحدة على ملفٍّ ٧٫٨ ميجابايت، ومسحُ
+# السوق يحفظ أربعَ مئةِ مرّة. فحصٌ بالزمن: يبني مخزناً ضخماً ويقيس مئةَ
+# حفظة — السلوكُ القديم ٩٠٫٦ ms للحفظة، والجديدُ دونَ ٠٫٠٢ ms.
+echo
+python3 scripts/audit/lastgood_write.py || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then
