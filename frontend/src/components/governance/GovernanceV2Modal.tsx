@@ -18,6 +18,10 @@ export default function GovernanceV2Modal({ symbol, name, onClose }: { symbol: s
     queryFn: () => portfolioApi.governanceV2(symbol).then(r => r.data.data),
   });
 
+  const panel: any[] = Array.isArray(data?.expert_panel) ? data.expert_panel : [];
+  const drivers = panel.filter(e => e?.role === "driver");
+  const readings = panel.filter(e => e?.role !== "driver");
+
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-box fade-in" style={{ maxWidth: 520 }}>
@@ -41,30 +45,69 @@ export default function GovernanceV2Modal({ symbol, name, onClose }: { symbol: s
           <div className="py-10 text-center text-[var(--ink-muted)] text-sm">لا تتوفر قوائم مالية كافية لهذه الشركة بعد</div>
         ) : (
           <>
+            {/* الخلاصةُ أوّلاً: القرارُ ودرجةُ السلامة قبل تفصيلهما — كانا
+                يقعان أسفلَ إحدى عشرةَ قراءةً فيُقرآن حاشيةً لا خلاصة. */}
+            {data.evaluable !== false && data.decision?.decision && (
+              <div className="flex items-center justify-between p-2.5 rounded-xl mb-3"
+                   style={{ background: `${DECISION_COLOR[data.decision.decision] || "var(--ink-muted)"}14`, border: `1px solid ${DECISION_COLOR[data.decision.decision] || "var(--ink-muted)"}33` }}>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[11px] text-[var(--ink-muted)]">خلاصة المجلس</span>
+                  <span className="text-[10px] text-[var(--ink-muted)] tabular-nums">ثقة {data.confidence?.score}%</span>
+                </div>
+                <div className="flex items-baseline gap-3">
+                  {typeof data.finance_score === "number" && (
+                    <span className="text-[11px] text-[var(--ink-muted)] tabular-nums">درجة السلامة {data.finance_score}/100</span>
+                  )}
+                  <span className="text-sm font-bold" style={{ color: DECISION_COLOR[data.decision.decision] || "var(--ink-muted)" }}>{data.decision.decision}</span>
+                </div>
+              </div>
+            )}
+
             {data.confidence?.warning && (
               <div className="mb-3 p-2 rounded-lg text-[11px]" style={{ background: "transparent", color: "var(--warn-ink)" }}>
                 ⚠ {data.confidence.warning}
               </div>
             )}
 
-            {Array.isArray(data.expert_panel) && data.expert_panel.length > 0 && (
-              <div className="mb-3.5">
-                <div className="space-y-1.5">
-                  {data.expert_panel.map((e: any, i: number) => (
-                    <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: TONE_COLOR[e.tone] || "var(--ink-muted)" }} />
-                        <span className="text-[var(--ink)] shrink-0">{e.expert}</span>
-                        <span className="text-[var(--ink-muted)] truncate">· {e.metric} {e.reading}</span>
-                      </div>
-                      <span className="shrink-0 font-medium" style={{ color: TONE_COLOR[e.tone] || "var(--ink-muted)" }}>{e.verdict}</span>
-                    </div>
+            {/* ══ صفَّان لا صفٌّ واحد ══
+                كان المجلسُ قائمةً واحدةً مسطَّحة تخلط نوعين مختلفين: قراءةَ
+                مؤشّرٍ (اسمٌ · رقمٌ · حكمٌ قصير) وعقوبةً اشتعلت (جملةٌ طويلة
+                تشرح سبباً). فتتمزّق الأعمدةُ بين سطرٍ وسطر ويُقرأ الكلُّ
+                فوضى. فصارا قسمين: القراءاتُ في شبكةٍ ثلاثيةِ الأعمدة
+                محاذاةً واحدة، والعقوباتُ جُملاً كاملةَ العرض تحتها. */}
+            {readings.length > 0 && (
+              <div className="mb-3">
+                <p className="text-[10px] text-[var(--ink-muted)] mb-1.5">قراءات المعايير</p>
+                <div className="grid gap-x-3 gap-y-1.5 items-center text-[11px]"
+                     style={{ gridTemplateColumns: "auto minmax(0,1fr) auto auto" }}>
+                  {readings.map((e: any, i: number) => (
+                    <React.Fragment key={i}>
+                      <span className="inline-block w-2 h-2 rounded-full" style={{ background: TONE_COLOR[e.tone] || "var(--ink-muted)" }} />
+                      <span className="text-[var(--ink)] truncate">{e.metric}</span>
+                      <span className="text-[var(--ink-muted)] tabular-nums whitespace-nowrap">{e.reading}</span>
+                      <span className="font-medium whitespace-nowrap" style={{ color: TONE_COLOR[e.tone] || "var(--ink-muted)" }}>{e.verdict}</span>
+                    </React.Fragment>
                   ))}
                 </div>
-                {Array.isArray(data.enriched_fields) && data.enriched_fields.length > 0 && (
-                  <p className="text-[10px] text-[var(--ink-muted)] mt-2">ℹ︎ حقول مُكمَّلة اشتقاقاً (تقدير): {data.enriched_fields.join("، ")}</p>
-                )}
               </div>
+            )}
+
+            {drivers.length > 0 && (
+              <div className="mb-3">
+                <p className="text-[10px] text-[var(--ink-muted)] mb-1.5">ما خفض الدرجة</p>
+                <ul className="space-y-1">
+                  {drivers.map((e: any, i: number) => (
+                    <li key={i} className="flex items-start gap-2 text-[11px] leading-relaxed">
+                      <span className="inline-block w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ background: TONE_COLOR[e.tone] || "var(--ink-muted)" }} />
+                      <span style={{ color: TONE_COLOR[e.tone] || "var(--ink-muted)" }}>{e.verdict}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {Array.isArray(data.enriched_fields) && data.enriched_fields.length > 0 && (
+              <p className="text-[10px] text-[var(--ink-muted)] mb-3">حقول مُكمَّلة اشتقاقاً: {data.enriched_fields.join("، ")}</p>
             )}
 
             {data.evaluable === false ? (
@@ -77,19 +120,7 @@ export default function GovernanceV2Modal({ symbol, name, onClose }: { symbol: s
                 </div>
                 <p className="text-[11px] text-[var(--ink-muted)] leading-relaxed mt-2">{data.decision?.reason || "البيانات المتاحة لا تكفي لحكم موثوق بمعايير الخبراء."}</p>
               </div>
-            ) : (
-              <>
-                {/* القرار — خلاصة توافق المجلس (أساسي بحت). */}
-                {data.decision?.decision && (
-                  <div className="flex items-center justify-between p-2.5 rounded-xl"
-                       style={{ background: `${DECISION_COLOR[data.decision.decision] || "var(--ink-muted)"}14`, border: `1px solid ${DECISION_COLOR[data.decision.decision] || "var(--ink-muted)"}33` }}>
-                    <span className="text-[11px] text-[var(--ink-muted)]">خلاصة المجلس · ثقة {data.confidence?.score}%</span>
-                    <span className="text-sm font-bold" style={{ color: DECISION_COLOR[data.decision.decision] || "var(--ink-muted)" }}>{data.decision.decision}</span>
-                  </div>
-                )}
-              </>
-            )}
-
+            ) : null}
           </>
         )}
       </div>
