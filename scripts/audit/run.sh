@@ -129,6 +129,12 @@ python3 scripts/audit/main_market.py || fail=1
 echo
 node scripts/audit/one_board.mjs || fail=1
 
+# D172: نصُّ المالك عربيٌّ رسميّ. كان يُعرض «القاعدة 'hold_decent' تحققت:
+# quality=59، safety=63» — معرّفُ قاعدةٍ وأسماءُ متغيّراتٍ داخلية في شاشةٍ
+# يقرؤها المالك. فحصٌ سلوكيّ: يشغّل المحرّكَ ويفتّش النصَّ الخارج.
+echo
+python3 scripts/audit/owner_text.py || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then

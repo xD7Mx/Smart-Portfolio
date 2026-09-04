@@ -97,14 +97,16 @@ async def evaluate_company(symbol: str, db=None, company_status: Optional[str] =
     narrative = rule_based_narrative(scores, explanation)
     panel = build_expert_panel(features, resolved_sector, scores)  # the expert consensus
 
-    # The score is PURELY fundamental — the technical/timing read never
-    # enters the verdict (a board of value legends doesn't judge by RSI/MACD).
-    overall = finance
-
     # When the panel couldn't be adequately informed, the system abstained —
     # the UI must then withhold the (untrustworthy) numeric grade and tell
     # the user to research, rather than showing a fabricated score.
     evaluable = decision.matched_rule_id != "insufficient_data"
+    scores_view = scores.to_dict()
+    confidence_view = {
+        "score": confidence.score, "warning": confidence.warning,
+        "years_available": confidence.years_available,
+        "completeness_pct": confidence.completeness_pct,
+    }
 
     # ══ مُنتِجٌ واحدٌ للقرار — والبطاقةُ تعرضه ولا تصنعه ══ (D166)
     # كان هذا المحرّكُ يُخرج `decision` خاماً من محرّك القواعد مباشرةً،
@@ -123,6 +125,27 @@ async def evaluate_company(symbol: str, db=None, company_status: Optional[str] =
             _a = await analyze_company(symbol, info.get("name") or symbol,
                                        db=db, allow_supplement=False)
             _d = (_a or {}).get("decision") or {}
+            # ══ ولا القرارُ وحدَه ══ (D173)
+            # وُحِّد القرارُ في D166 وبقي كلُّ ما حوله من مسارٍ ثانٍ: هذا
+            # المحرّكُ يبني سماتِه وأركانَه ومجلسَه بنفسه، فخرجت الشركةُ
+            # الواحدة بمجلسٍ من قراءةٍ واحدة في النافذة وأربعٍ في تبويب
+            # التقييم، وبـ«بانتظار القوائم» هنا و‎74/100 هناك. والمالكُ
+            # يقرأ الشاشتين عن الورقة نفسِها في الدقيقة نفسِها.
+            #
+            # فما ينشره المنتِجُ الواحد يُقرأ منه: المجلسُ والأركانُ
+            # والثقةُ وأهليّةُ الحكم. وما لا ينشره — كالسرد ومعيار القطاع —
+            # يبقى محسوباً هنا.
+            if _a:
+                if _a.get("expert_panel"):
+                    panel = _a["expert_panel"]
+                if _a.get("scores"):
+                    scores_view = _a["scores"]
+                if _a.get("confidence"):
+                    confidence_view = _a["confidence"]
+                if _a.get("evaluable") is not None:
+                    evaluable = bool(_a["evaluable"])
+                if _a.get("score") is not None:
+                    finance = _a["score"]
             if _d.get("raw"):
                 decision_view = {
                     "decision": _d.get("label") or _d["raw"],
@@ -146,6 +169,11 @@ async def evaluate_company(symbol: str, db=None, company_status: Optional[str] =
                          "rule_id": "decision_unavailable",
                          "reason": "تعذّر إصدارُ القرار الموحَّد لهذه الورقة الآن."}
 
+    # الدرجةُ العامّة أساسيةٌ بحتة — والتوقيتُ الفنّيُّ لا يدخل الحكم.
+    # وتُقرأ **بعد** المنتِج الواحد لا قبله: كانت تُثبَّت في الأعلى ثمّ
+    # تُحدَّث `finance` فيبقى `overall` على القيمة القديمة.
+    overall = finance
+
     result = {
         "symbol": symbol,
         "sector": resolved_sector,
@@ -155,7 +183,7 @@ async def evaluate_company(symbol: str, db=None, company_status: Optional[str] =
         "narrative": narrative,         # the finance verdict sentence
         "expert_panel": panel,          # per-legend readings → the consensus
         "enriched_fields": (features.get("_enriched_fields") or {}).get("value"),
-        "scores": scores.to_dict(),
+        "scores": scores_view,
         "decision": decision_view,
         "explanation": {
             "summary": explanation.summary,
@@ -163,12 +191,7 @@ async def evaluate_company(symbol: str, db=None, company_status: Optional[str] =
             "weaknesses": explanation.weaknesses,
             "improve": explanation.improve,
         },
-        "confidence": {
-            "score": confidence.score,
-            "warning": confidence.warning,
-            "years_available": confidence.years_available,
-            "completeness_pct": confidence.completeness_pct,
-        },
+        "confidence": confidence_view,
     }
     cache.set(ck, result, GOVERNANCE_V2_TTL)
     return result

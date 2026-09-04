@@ -147,11 +147,24 @@ async def live() -> None:
             seen += 1
             if gd != ad:
                 diff.append((s, gd, ad))
+            # ══ ولا القرارُ وحدَه ══ (D173)
+            # كان المجلسُ والدرجةُ وأهليّةُ الحكم تُبنى في المسارين، فخرجت
+            # الشركةُ الواحدة بقراءةٍ في النافذة وأربعٍ في التبويب.
+            gp = len((g or {}).get("expert_panel") or [])
+            ap = len((a or {}).get("expert_panel") or [])
+            if gp != ap:
+                diff.append((s, f"مجلس {gp}", f"مجلس {ap}"))
+            gs, as_ = (g or {}).get("finance_score"), (a or {}).get("score")
+            if gs != as_:
+                diff.append((s, f"درجة {gs}", f"درجة {as_}"))
+            ge_, ae = (g or {}).get("evaluable"), (a or {}).get("evaluable")
+            if ge_ != ae:
+                diff.append((s, f"أهلية {ge_}", f"أهلية {ae}"))
 
     for s, gd, ad in diff:
         print(f"     {s}: بطاقة={gd}  أداء={ad}")
-    say(not diff, "٢ القرارُ واحدٌ في البطاقة وتبويب الأداء",
-        f"اختلفا في {len(diff)} من {seen}")
+    say(not diff, "٢ البطاقةُ والتبويبُ متطابقان: قراراً ومجلساً ودرجةً وأهليّة",
+        f"{len(diff)} اختلافاً في {seen} شركة")
 
 
 async def prompt_carries_decision() -> None:

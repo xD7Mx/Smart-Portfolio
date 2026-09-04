@@ -31,6 +31,15 @@ class Decision:
     reason: str
 
 
+# أسماءُ الأركان كما تُقرأ في الشاشة — لا كما تُسمّى في الشيفرة.
+_ARKAN_AR = {
+    "quality": "الجودة",
+    "safety": "السلامة",
+    "valuation": "التسعير",
+    "timing": "التوقيت",
+}
+
+
 def _metric_value(scores: FourScores, metric: str) -> Optional[float]:
     return getattr(scores, metric).score
 
@@ -371,8 +380,15 @@ def decide(scores: FourScores, config: dict | None = None) -> Decision:
             if coverage is not None and coverage < 0.60:
                 continue
         if _conditions_met(rule.get("conditions", []), scores):
-            parts = [f"{c['metric']}={_metric_value(scores, c['metric'])}" for c in rule.get("conditions", [])]
-            reason = f"القاعدة '{rule['id']}' تحققت: " + "، ".join(parts) if parts else "لا توجد قاعدة أكثر تحديداً تنطبق"
+            # ══ السببُ نصٌّ للمالك لا سطرُ تشخيص ══ (D172)
+            # كان يُعرض حرفياً: «القاعدة 'hold_decent' تحققت: quality=59،
+            # safety=63» — معرّفُ قاعدةٍ بالإنجليزية وأسماءُ متغيّراتٍ
+            # داخلية في شاشةٍ يقرأها المالك. فصار أرقاماً وعناوينَ عربية،
+            # ومعرّفُ القاعدة يبقى في `matched_rule_id` للتشخيص وحدَه.
+            parts = [f"{_ARKAN_AR.get(c['metric'], c['metric'])} "
+                     f"{_metric_value(scores, c['metric'])}"
+                     for c in rule.get("conditions", [])]
+            reason = " · ".join(parts) if parts else "لا قاعدةَ أكثرُ تحديداً تنطبق"
             return Decision(decision=rule["decision"], matched_rule_id=rule["id"], reason=reason)
 
     # Should never happen if governance_rules.yaml keeps its catch-all rule,
