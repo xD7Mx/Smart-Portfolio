@@ -996,11 +996,14 @@ def compute(info: dict, price: float | None,
         out["margin_of_safety_pct"] = round(mos * 100)
         out["entry_price"] = round(out["value"] * (1 - mos), 2)
         out["entry_gap_pct"] = round((out["entry_price"] / price - 1) * 100, 1)
-        # حكمٌ في كلمتين لا جملةٌ تشرح نفسها (بأمر المالك).
+        # حكمٌ في كلمتين لا جملةٌ تشرح نفسها (بأمر المالك). ويُسمّي
+        # الرقمَ الذي يقيس عليه: **تقديرُنا** لا «القيمة العادلة» —
+        # فتلك اسمُ هدف المحلّلين المعروض في البطاقة، وقد يكون غائباً
+        # بينما هذا الوسمُ ظاهر. (D174)
         out["entry_verdict"] = (
             "دون سعر الدخول" if price <= out["entry_price"] else
             "بلا هامش أمان" if price < out["value"] else
-            "فوق القيمة العادلة")
+            "فوق تقديرنا")
     out["dropped_paths"] = _DROPPED["n"]
     _log_run(symbol, out, price, r, g)
     return out

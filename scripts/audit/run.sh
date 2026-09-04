@@ -135,6 +135,12 @@ node scripts/audit/one_board.mjs || fail=1
 echo
 python3 scripts/audit/owner_text.py || fail=1
 
+# D174: رقمان لا يحملان اسماً واحداً. «السعر العادل» المعروض هدفُ
+# المحلّلين، وبوّابةُ القرار تحكم بتقديرنا المحسوب — فكانت الشاشةُ تقول
+# «غير متوفّرة» ويقول القرارُ تحتها «فوق القيمة العادلة».
+echo
+python3 scripts/audit/two_values.py || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then

@@ -209,7 +209,18 @@ def apply_fair_value_ceiling(decision: "Decision", price, fair_value,
                              coverage=None, nomu: bool = False,
                              red_lines: list | None = None,
                              implausible: bool = False) -> "Decision":
-    """سقفٌ يمنع «شراء» فوق قيمتنا العادلة نفسها.
+    """سقفٌ يمنع «شراء» فوق تقديرنا الداخليّ للقيمة.
+
+    ══ رقمان لا يحملان اسماً واحداً ══ (D174)
+    «السعر العادل» المعروض في الشاشة هو **متوسّطُ أهداف بيوت الخبرة**
+    (بأمر المالك)، وهذه البوّابةُ تحكم بـ**تقديرنا المحسوب** — وهما رقمان
+    مختلفان. فكانت الشاشةُ تقول «السعر العادل: غير متوفّرة» ويقول القرارُ
+    تحتها «فوق القيمة العادلة ⇐ انتظار»: نفيٌ وإثباتٌ في شاشةٍ واحدة،
+    رآهما المالك في «الراجحي ريت».
+    فبقيت البوّابةُ على رقمها — لأنّ الحكمَ بهدف المحلّلين وحدَه يُسكِت
+    التطبيقَ عن نحو ‎١٢٤ شركةً من ‎٢٧٣ لنقصٍ في مزوّدٍ خارجيّ لا لعيبٍ
+    فيها — لكنّها **لم تعد تسمّيه باسم الرقم المعروض**: صار «تقديرنا
+    الداخليّ» صراحةً في كلّ نصٍّ يخرج منها.
 
     ══ عطبٌ رآه المالك في «التعاونية للتأمين» ══
     درجةُ حوكمةٍ ٨٤، وقيمةٌ عادلة ١٠٤٫٨٧، وسعرٌ ١٤١٫٤٠ — أي أعلى من قيمته
@@ -255,7 +266,7 @@ def apply_fair_value_ceiling(decision: "Decision", price, fair_value,
             return Decision(
                 decision=ABSTAIN,
                 matched_rule_id=f"{decision.matched_rule_id}+بلا_قيمة_عادلة",
-                reason=("تعذّر احتسابُ قيمةٍ عادلة لهذه الورقة، فلا يصحّ "
+                reason=("تعذّر احتسابُ تقديرٍ داخليٍّ لهذه الورقة، فلا يصحّ "
                         "إصدارُ حكمٍ عليها — العجزُ عن التقييم ليس رسوباً "
                         f"فيها. {decision.reason}"),
             )
@@ -319,7 +330,7 @@ def apply_fair_value_ceiling(decision: "Decision", price, fair_value,
         return Decision(
             decision="انتظار",
             matched_rule_id=f"{decision.matched_rule_id}+سقف_القيمة_العادلة",
-            reason=(f"السعر {price:,.2f} أعلى من قيمتنا العادلة "
+            reason=(f"السعر {price:,.2f} أعلى من تقديرنا الداخليّ "
                     f"{fair_value:,.2f} بـ{gap:.0f}٪ — "
                     f"{decision.reason}"),
         )
@@ -328,7 +339,7 @@ def apply_fair_value_ceiling(decision: "Decision", price, fair_value,
         return Decision(
             decision="شراء",
             matched_rule_id=f"{decision.matched_rule_id}+هامش_الأمان",
-            reason=(f"السعر {price:,.2f} دون القيمة العادلة "
+            reason=(f"السعر {price:,.2f} دون تقديرنا الداخليّ "
                     f"{fair_value:,.2f} وفوق سعر الدخول "
                     f"{entry_price:,.2f} — {decision.reason}"),
         )
