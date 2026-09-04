@@ -306,10 +306,17 @@ async def get_market_governance(db, compute: bool = True) -> dict | None:
         .where(Holding.quantity > 0)
     )).scalars().all())
 
-    # Scanning ~395 companies' financial statements is real work even with
-    # concurrency — cached for 2h so switching the toggle back and forth
-    # doesn't repeat it, without going as stale as the 24h per-symbol
-    # analysis cache underneath it.
+    # مسحُ ‎٣٩٥ شركةً عملٌ حقيقيّ ولو بالتوازي، فيُخزَّن **أربعاً وعشرين
+    # ساعة** (انظر `cache.set` في ذيل الدالّة). وكان التعليقُ يقول
+    # «ساعتين» وهو وصفٌ متخلّفٌ عن الشيفرة — والوصفُ الكاذب أسوأُ من
+    # غيابه، لأنّه يوجّه البحثَ عن البطء إلى موضعٍ سليم.
+    #
+    # وما يُنفق الحصّةَ ليس قِصَرُ الخزن بل **إبطالُه**: المفتاحُ يحمل
+    # `rules_version` ورموزَ ما يُملَك، فكلُّ تركيبِ حزمةٍ تمسّ قواعدَ
+    # الحوكمة — وكلُّ تغييرٍ في الحيازات — يُبطل المسحَ كلَّه فيُعاد من
+    # الصفر: نحو ‎٤٠٠ نداءِ سعرٍ و‎٤٠٠ تاريخٍ و‎٤٠٠ ملكيّة. وهذا مقصودٌ
+    # ولا يُطال: تعديلُ القواعد يجب أن يظهر فوراً، وإلّا عُرضت درجاتٌ
+    # قديمةٌ تحت محرّكٍ جديد.
     # Include the governance-rules version so ANY rules edit (e.g. the REIT
     # scoring change) busts this whole-market cache immediately — otherwise
     # the market REITs/companies keep serving pre-change scores for up to the

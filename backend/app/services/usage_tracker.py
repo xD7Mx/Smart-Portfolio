@@ -75,7 +75,7 @@ _day, _counts = _load()
 def _limits() -> dict:
     """Daily limits, overridable from settings/.env."""
     return {
-        "yahoo":  getattr(cfg, "YAHOO_DAILY_LIMIT", 500),
+        "yahoo":  getattr(cfg, "YAHOO_DAILY_LIMIT", 5_000),
         "sahmak": getattr(cfg, "SAHMAK_DAILY_LIMIT", 100),
         "gemini": getattr(cfg, "GEMINI_DAILY_LIMIT", 1500),
     }

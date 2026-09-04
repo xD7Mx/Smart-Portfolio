@@ -61,7 +61,10 @@ class Settings(BaseSettings):
     # instead managed by keeping the market-wide movers scan at an hourly
     # cadence during trading hours (see scheduler.py) rather than a tight
     # 15-min interval, which would risk that block for the whole site.
-    YAHOO_DAILY_LIMIT: int = 100_000
+    # ‎100,000 كان سقفاً اسمياً لا يحدّ شيئاً — وياهو ردّ ‎429 فعلاً قبل
+    # بلوغه بكثير. و‎5000 بأمر المالك: يتّسع لمسحٍ كاملٍ للسوق مرّاتٍ في
+    # اليوم ويبقى حدّاً يُبلَغ فيُنبَّه، لا رقماً زخرفياً.
+    YAHOO_DAILY_LIMIT: int = 5_000
     SAHMAK_DAILY_LIMIT: int = 90     # free plan is 100/day — 10 kept as safety buffer
     GEMINI_DAILY_LIMIT: int = 1450  # free tier is 1500/day — 50 kept as safety buffer
     MARKET_UPDATE_INTERVAL_MINUTES: int = 15
