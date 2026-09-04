@@ -51,7 +51,8 @@ async def compute_sector_analysis() -> list | None:
     from app.services.market_data import market_service
     from app.services.content_engine import fund_store_load
 
-    universe = {s: m for s, m in MARKET_UNIVERSE.items() if not s.startswith("9")}
+    from app.data.universe import main_market
+    universe = main_market(MARKET_UNIVERSE)
     if not universe:
         return None
 

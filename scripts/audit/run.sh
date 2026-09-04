@@ -117,6 +117,12 @@ python3 scripts/audit/lastgood_write.py || fail=1
 echo
 python3 scripts/audit/audit_sandbox.py || fail=1
 
+# D170: «نمو» لا تُعرض — الكونُ المعروض ٢٧٣ لا ٤٠٩. وتعريفُ السوق في
+# `universe.py` وحدَه: كان الشرطُ منسوخاً نصّاً في ثلاثةِ مواضعَ وغائباً
+# عن خمسة بينما `main_market` موجودةٌ ولا تُستعمل.
+echo
+python3 scripts/audit/main_market.py || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then

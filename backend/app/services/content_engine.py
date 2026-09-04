@@ -435,8 +435,9 @@ _CAL_UNDATED_DAYS = 30       # عمر بقاء الإعلان مجهول الم�
 def _universe_pairs() -> list[tuple[str, str]]:
     """Full Tadawul universe as (symbol, arabic_name), stable order."""
     from app.data.market_universe import MARKET_UNIVERSE
+    from app.data.universe import main_market
     return [(sym, u.get("name_ar") or u.get("name_en") or sym)
-            for sym, u in MARKET_UNIVERSE.items()]
+            for sym, u in main_market(MARKET_UNIVERSE).items()]
 
 
 def _cal_load_store() -> dict[str, dict]:

@@ -914,7 +914,8 @@ def compute(info: dict, price: float | None,
     # فيُخصم ثلاثون بالمئة من التقدير، ولا يُبنى عليه قرارُ شراء بحال —
     # لأن الخصم يعالج السعرَ ولا يعالج تعذّرَ الخروج.
     _base = (symbol or "").replace(".SR", "")
-    if _base.isdigit() and _base.startswith("9"):
+    from app.data.universe import is_nomu
+    if is_nomu(_base):
         out["nomu"] = True
         if out.get("value"):
             out["value"] = round(out["value"] * 0.70, 2)

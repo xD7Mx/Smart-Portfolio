@@ -103,11 +103,12 @@ async def compute_market_movers(db=None) -> dict | None:
     # market_data.get_financials); it's intentionally not called here so the
     # site keeps working identically if Sahmak is ever dropped entirely.
     from app.data.market_universe import MARKET_UNIVERSE
+    from app.data.universe import main_market
     # السوق الرئيسي فقط (تاسي): رموز نمو الموازية (9xxx) تُستثنى من إحصاءات
     # السوق — النِّسب والتوزيع والسيولة والمزاج — كما تفعل تطبيقات البنوك
     # الحقيقية؛ إدراجها كان يحرف الأرقام عن السوق الفعلي.
     names = {s: (m.get("name_ar") or m.get("name_en") or s)
-             for s, m in MARKET_UNIVERSE.items() if not s.startswith("9")}
+             for s, m in main_market(MARKET_UNIVERSE).items()}
     # ══ الصناديقُ تُسعَّر ولا تُحسب في إحصاء السوق ══
     # صناديقُ المؤشرات المتداولة (‏9400–9409) أوراقٌ حقيقية بأسعارٍ حقيقية
     # (أثبتها المالك بصورة `9407.SR` على ياهو: 25.50 ريالاً بإغلاقٍ متأخّر)،

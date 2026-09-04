@@ -435,7 +435,8 @@ async def compute_screener() -> list | None:
     from app.services.market_movers import get_cached_market_movers
 
     # السوق الرئيسي فقط (تاسي) — نستثني نمو (9xxx) كما في مسح المحركين.
-    universe = {s: m for s, m in MARKET_UNIVERSE.items() if not s.startswith("9")}
+    from app.data.universe import main_market
+    universe = main_market(MARKET_UNIVERSE)
     if not universe:
         logger.warning("Screener: empty market directory — skipping.")
         return None

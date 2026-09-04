@@ -1375,8 +1375,9 @@ async def fair_value_coverage(scope: str = "portfolio", limit: int = 400,
     if scope == "market":
         from app.data.market_universe import MARKET_UNIVERSE
         from app.api.v1.endpoints.holdings import yahoo_symbol
+        from app.data.universe import main_market
         pairs = [(yahoo_symbol(sym), meta.get("name_ar") or sym)
-                 for sym, meta in list(MARKET_UNIVERSE.items())[:limit]]
+                 for sym, meta in list(main_market(MARKET_UNIVERSE).items())[:limit]]
     else:
         pairs = (await db.execute(
             select(Company.symbol, Company.company_name)

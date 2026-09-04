@@ -1977,7 +1977,11 @@ def check_nomu_discount() -> None:
     f = ROOT / "backend/app/services/fair_value.py"
     if f.exists():
         s = f.read_text(encoding="utf-8")
-        if 'startswith("9")' not in s or "liquidity_discount_pct" not in s:
+        # يُقبل الشرطُ بأيّ صورةٍ صحيحة: مكتوباً بيدٍ أو — وهو الأصحّ —
+        # مستدعىً من مصنّف السوق الواحد `universe.is_nomu` (D170). وكان
+        # الفحصُ يشترط الحرفَ فأسقط علاجاً أفضلَ منه.
+        detects_nomu = 'startswith("9")' in s or "is_nomu" in s
+        if not detects_nomu or "liquidity_discount_pct" not in s:
             note("S-NOMU", "backend/app/services/fair_value.py",
                  "لا خصمَ سيولةٍ لرموز «نمو» (9xxx)")
     d = ROOT / "backend/app/services/decision_engine.py"

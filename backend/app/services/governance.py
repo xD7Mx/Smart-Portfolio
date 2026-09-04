@@ -332,7 +332,14 @@ async def get_market_governance(db, compute: bool = True) -> dict | None:
     if not compute:
         return None
 
-    candidates = [(sym, meta) for sym, meta in MARKET_UNIVERSE.items() if sym not in held_symbols]
+    # ══ السوقُ الرئيسة وحدها ══ (D170 · بأمر المالك)
+    # كان الكونُ يمرّ كاملاً (‏409) فتصدّرت شركاتُ «نمو» قائمةَ الفرص:
+    # الإشاراتُ الستُّ تكافئ النموَّ السريعَ وقلّةَ الدين، وذاك طبعُ
+    # الصغيرة لا العملاق. و«نمو» رقيقةُ التداول محدودةُ الإفصاح، فلا
+    # تُعرض في قائمةِ فرصٍ يُبنى عليها قرار.
+    from app.data.universe import main_market
+    candidates = [(sym, meta) for sym, meta in main_market(MARKET_UNIVERSE).items()
+                  if sym not in held_symbols]
 
     sem = asyncio.Semaphore(15)
 
