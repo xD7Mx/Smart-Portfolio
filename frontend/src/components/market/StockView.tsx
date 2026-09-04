@@ -217,19 +217,10 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
                   ودرجةُ الحوكمة كانت غائبةً عن هذه الشاشة رغم أنها في
                   الاستجابة نفسها. فصار الرقمان هنا بالاسمين نفسيهما
                   وبالمصدر نفسه — لا رقمَ في شاشةٍ وغيابٌ في أخرى. */}
-              {(data.governance?.score != null || data.financial?.score != null) && (
-                <div className="flex items-center gap-2 flex-wrap text-[11px]">
-                  <span className="text-[var(--ink-muted)]">درجة الجودة المالية</span>
-                  <span className="font-bold tabular-nums text-[var(--ink)]">
-                    {Math.round(data.governance?.score ?? data.financial?.score)}/100
-                  </span>
-                  {data.decision?.label && (
-                    <span className="font-bold" style={{ color: data.decision.color }}>
-                      · {data.decision.label}
-                    </span>
-                  )}
-                </div>
-              )}
+              {/* ══ الدرجةُ والقرارُ لا يُكرَّران في «نظرة عامة» ══
+                  (بأمر المالك) — موضعُهما تبويبُ «تقييم الأداء» والنجمة،
+                  وهما هناك بالمجلس الذي يفسّرهما. وتكرارُهما هنا مجرَّدين
+                  من مجلسهما يزاحم صفَّ السعر ولا يضيف قراراً. */}
               {data.fair_value != null && (
                 <div className="flex items-center gap-2 flex-wrap text-[11px]">
                   <span className="text-[var(--ink-muted)]">السعر العادل</span>
