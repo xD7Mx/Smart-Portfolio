@@ -6,6 +6,7 @@ import {
 import { marketApi } from "../../services/api";
 import { lookupCompany } from "../../data/saudiCompanies";
 import { FairValueBar, TrendBar } from "../common/ValueBars";
+import ExpertPanelBoard from "../governance/ExpertPanelBoard";
 
 const TONE_COLOR: Record<string, string> = { green: "var(--pos-ink)", yellow: "var(--warn-ink)", red: "var(--neg-ink)", na: "var(--ink-muted)" };
 const DECISION_COLOR: Record<string, string> = { "شراء قوي": "var(--pos-ink)", "شراء": "var(--pos-ink)", "انتظار": "var(--warn-ink)", "تجنب": "var(--neg-ink)" };
@@ -67,7 +68,6 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
 
   const fv = data.fair_value_detail || {};
   // بطاقةُ النمط وركنُ الحوكمة — يصلان في جذر التحليل أو داخل المالية.
-  const spec = data.spec || data.financial?.spec || null;
   const gov = data.governance || data.financial?.governance || null;
 
   const kpis: [string, string | null][] = [
@@ -176,12 +176,9 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
         </div>
       </div>
 
-      {/* ══ ما حكم في هذه الشركة ══ (بأمر المالك)
-          دورُ المستثمر: يفتح الشركة، يرى درجةً، يقرّر. فالشاشةُ تقول
-          ثلاثةَ أشياء بهذا الترتيب: خطٌّ أحمر إن وُجد (فهو يُبطِل كلَّ ما
-          بعده)، ثم المؤشّراتُ التي رجّحت الحكمَ برتبتها في القطاع، ثم ما
-          لا نراه صريحاً. والمستثمرُ يقرّر على شيئين أو ثلاثة لا على ستّة
-          أرقامٍ متساوية الحجم. */}
+      {/* ══ أرقامٌ وعناوين — لا شرحَ ولا تبرير ══ (بأمر المالك)
+         حُذفت بطاقةُ «ما حكم في هذه الشركة» والحواشي التفسيرية أسفل
+         البطاقات. الخطُّ الأحمر واقعةٌ لا تبرير، فيبقى بنصّه. */}
       {Array.isArray(data.red_lines) && data.red_lines.length > 0 && (
         <div className="card" style={{ borderInlineStart: "3px solid var(--neg-ink)" }}>
           <p className="card-title mb-2" style={{ color: "var(--neg-ink)" }}>خطوطٌ حمراء</p>
@@ -190,64 +187,12 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
               <p key={i} className="text-[12.5px] text-[var(--ink)]">{r.message}</p>
             ))}
           </div>
-          <p className="text-[11px] text-[var(--ink-muted)] mt-2">
-            وقائعُ مطلقة لا تُوزن مع غيرها — الورقةُ مستبعَدة ولا تُرتَّب.
-          </p>
-        </div>
-      )}
-
-      {Array.isArray(spec?.metrics) && spec.metrics.length > 0 && (
-        <div className="card">
-          <div className="flex items-baseline justify-between flex-wrap gap-1.5 mb-3">
-            <p className="card-title">ما حكم في هذه الشركة</p>
-            <span className="text-[10.5px] text-[var(--ink-muted)]">
-              {spec.score == null
-                ? `قِيس ${spec.metrics.length} أركان — دون الحدّ`
-                : `${spec.basis || ""} · قِيس ${spec.metrics.length} أركان`}
-            </span>
-          </div>
-          <div className="space-y-2">
-            {[...spec.metrics]
-              /* ما رجّح الحكمَ لا كلُّ ما قيس: الأبعدُ عن الوسط أوّلاً،
-                 مرجَّحاً بوزنه في البطاقة. */
-              .sort((a: any, b: any) =>
-                Math.abs(b.score - 50) * b.weight - Math.abs(a.score - 50) * a.weight)
-              .slice(0, 3)
-              .map((m: any) => (
-                <div key={m.key} className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="inline-block w-2 h-2 rounded-full shrink-0"
-                      style={{ background: TONE_COLOR[m.tone] || "var(--ink-muted)" }} />
-                    <span className="text-[12.5px] text-[var(--ink)] truncate">{m.label}</span>
-                  </div>
-                  <span className="flex items-baseline gap-2 shrink-0">
-                    <span className="text-[13px] tabular-nums text-[var(--ink)]"
-                      style={{ fontWeight: 700 }} dir="ltr">
-                      {Number(m.value).toLocaleString("en-US", { maximumFractionDigits: 2 })}
-                    </span>
-                    {/* الرتبةُ هي المعنى: «أعلى من ٧٨٪ من قطاعه» يُقرأ،
-                        و«٧٨ من ١٠٠» لا يُقرأ. */}
-                    <span className="text-[11px] text-[var(--ink-muted)]">
-                      {m.basis === "rank"
-                        ? `أعلى من ${Math.round(m.score)}٪ من قطاعه`
-                        : "بعتبةٍ معلَنة"}
-                    </span>
-                  </span>
-                </div>
-              ))}
-          </div>
-          {(spec.abstain_reason || (spec.missing || []).length > 0) && (
-            <p className="text-[11px] text-[var(--ink-muted)] mt-3 pt-2"
-              style={{ borderTop: "1px solid var(--field-line)" }}>
-              {spec.abstain_reason || `لم يصل: ${(spec.missing || []).join(" · ")}`}
-            </p>
-          )}
         </div>
       )}
 
       {gov && Array.isArray(gov.reads) && gov.reads.length > 0 && (
         <div className="card">
-          <p className="card-title mb-3">الحوكمة — ما يمسّ حصّتك</p>
+          <p className="card-title mb-3">مؤشّرات الحوكمة</p>
           <div className="space-y-2">
             {gov.reads.map((r: any) => (
               <div key={r.key} className="flex items-start justify-between gap-3">
@@ -256,7 +201,6 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                     style={{ background: TONE_COLOR[r.tone] || "var(--ink-muted)" }} />
                   <div className="min-w-0">
                     <span className="text-[12.5px] text-[var(--ink)]">{r.label}</span>
-                    <p className="text-[11px] text-[var(--ink-muted)] leading-snug">{r.verdict}</p>
                   </div>
                 </div>
                 <span className="text-[13px] tabular-nums text-[var(--ink)] shrink-0"
@@ -266,12 +210,6 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
               </div>
             ))}
           </div>
-          {Array.isArray(gov.blind) && gov.blind.length > 0 && (
-            <p className="text-[11px] text-[var(--ink-muted)] mt-3 pt-2"
-              style={{ borderTop: "1px solid var(--field-line)" }}>
-              لا نراه: {gov.blind.join(" · ")}
-            </p>
-          )}
         </div>
       )}
 
@@ -307,35 +245,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
           </div>
         )}
 
-        {/* ══ مجلسُ الخبراء ══ (بأمر المالك: ترتيبٌ نظيف)
-            كانت أسطراً بلا عنوانٍ ولا فواصل، ثلاثُ معلوماتٍ متلاصقةٍ في
-            سطرٍ يقطعه `truncate` من منتصفه. فصارت **ثلاثةَ أعمدةٍ ثابتة**:
-            الاسمُ يمينَ الوسم، والقراءةُ في الوسط، والحكمُ في الطرف —
-            فتُقرأ الأحكامُ عمودياً بنظرةٍ واحدة. وخطٌّ خفيفٌ بين الصفوف
-            بدل الفراغ: يفصل ولا يزيد ضجيجاً. */}
-        {Array.isArray(data.expert_panel) && data.expert_panel.length > 0 && (
-          <div className="mt-1 mb-3">
-            <p className="card-title mb-2">مجلس الخبراء</p>
-            <div className="divide-y divide-[var(--hairline)]">
-              {data.expert_panel.map((e: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 py-1.5 text-[11px]">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ background: TONE_COLOR[e.tone] || "var(--ink-muted)" }} />
-                  <span className="text-[var(--ink)] font-medium shrink-0 w-[68px] truncate">
-                    {e.expert}
-                  </span>
-                  <span className="text-[var(--ink-muted)] truncate flex-1 min-w-0">
-                    {e.metric} {e.reading}
-                  </span>
-                  <span className="shrink-0 font-bold"
-                    style={{ color: TONE_COLOR[e.tone] || "var(--ink-muted)" }}>
-                    {e.verdict}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <ExpertPanelBoard panel={data.expert_panel} />
 
       </div>
 

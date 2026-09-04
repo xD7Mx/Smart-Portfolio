@@ -123,6 +123,12 @@ python3 scripts/audit/audit_sandbox.py || fail=1
 echo
 python3 scripts/audit/main_market.py || fail=1
 
+# D171: ميزانُ خبراء الحوكمة مكوّنٌ واحدٌ لا نسختان. كان يُرسَم مرّتين —
+# نافذةُ قسم الحوكمة وتبويبُ التقييم — فأُعيد تصميمُ إحداهما وبقيت
+# الأخرى، فرأى المالكُ بطاقتين لِميزانٍ واحد.
+echo
+node scripts/audit/one_board.mjs || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then
