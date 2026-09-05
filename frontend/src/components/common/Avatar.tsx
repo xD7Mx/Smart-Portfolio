@@ -31,7 +31,12 @@ export function AvatarImg({ refreshKey = 0, className = "", iconSize = 30 }: {
   }, [refreshKey]);
 
   if (url && !failed) {
-    return <img src={url} alt="" className={"w-full h-full object-cover " + className} />;
+    // ══ التدويرُ على الصورة نفسِها لا على حاويتها وحدَها ══ (D178)
+    // كلُّ الحاويات `rounded-full`، ومع ذلك رآها المالكُ مربّعة. وقصُّ
+    // الحاوية يسقط بأسبابٍ لا تظهر في الشيفرة (تحويلٌ على الابن · طبقةٌ
+    // مركَّبة · محرّكُ عرضٍ لا يقصّ عبر `overflow`). فالتدويرُ يُوضع على
+    // الصورة أيضاً: لا يضرّ حيث الحاويةُ تعمل، ويكفي حيث لا تعمل.
+    return <img src={url} alt="" className={"w-full h-full object-cover rounded-full " + className} />;
   }
   return <Briefcase size={iconSize} className="text-[var(--brand)]" />;
 }

@@ -49,6 +49,19 @@ export default function StockLookup({ initialSymbol, onActiveChange }: { initial
     onSuccess: () => invalidateWatchlist(qc),
   });
 
+  // ══ الورقةُ تحلّ محلَّ المربّع لا تحته ══ (D179 · بأمر المالك)
+  // كانا يظهران معاً: المربّعُ فوق والورقةُ تحته — فيبقى صفُّ بحثٍ فارغٌ
+  // يعلو بطاقةً كاملةً بلا وظيفة، ويُزاحمها في أعلى الشاشة حيث تُقرأ
+  // الهويةُ والسعر. فالمربّعُ يختفي متى فُتحت ورقة، ويعود مكانَه عند
+  // الإلغاء — موضعٌ واحدٌ لحالتين متعاقبتين لا متجاورتين.
+  if (symbol) {
+    return (
+      <div className="card">
+        <StockView symbol={symbol} onClose={() => setSymbol(null)} />
+      </div>
+    );
+  }
+
   return (
     <div className="card space-y-4">
       <div className="relative max-w-xl">
@@ -84,8 +97,6 @@ export default function StockLookup({ initialSymbol, onActiveChange }: { initial
           </div>
         )}
       </div>
-
-      {symbol && <StockView symbol={symbol} onClose={() => setSymbol(null)} />}
     </div>
   );
 }

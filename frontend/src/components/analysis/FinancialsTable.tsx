@@ -71,7 +71,7 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
   const ch = data.changes || {};
   const P = (field: string) => periodsDesc.map((p: any) => p[field]);
 
-  const sections: { title: string; rows: { label: string; field: string; invert?: boolean; ratio?: boolean }[] }[] = [
+  const sectionsAll: { title: string; rows: { label: string; field: string; invert?: boolean; ratio?: boolean }[] }[] = [
     { title: "النمو", rows: [
       { label: "الإيرادات", field: "revenue" },
       { label: "ربحية السهم", field: "eps", ratio: true },
@@ -94,6 +94,20 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
       { label: "النقد نهاية الفترة", field: "ending_cash" },
     ]},
   ];
+
+  // ══ صفٌّ لا رقمَ فيه لا يُعرض ══ (D177 · بأمر المالك)
+  // قال: «إن استطعتَ إظهارَ الأرقام فتبقى القيمة الدفترية، وإن لم تستطع
+  // ملأها لجميع السنوات فحذفُها أفضل». والحذفُ الثابت يعاقب الشركاتِ
+  // التي تصل بياناتُها، والإبقاءُ الثابت يُبقي صفّاً من الشرطات.
+  // فالقرارُ لكلّ شركةٍ على حدة: يُعرض الصفُّ متى حمل رقماً واحداً على
+  // الأقلّ، ويُطوى متى خلا من كلّ سنة — فلا شرطاتٌ ولا حذفُ ما يُملأ.
+  // (وعددُ أسهم السنة يُشتقّ من قائمتها نفسِها في الخادم — انظر
+  //  `_set_book_value`، فامتلأ الصفُّ حيث كان فارغاً.)
+  const hasAny = (field: string) =>
+    P(field).some((v: any) => v !== null && v !== undefined && v !== "");
+  const sections = sectionsAll.map(sec => ({
+    ...sec, rows: sec.rows.filter(r => hasAny(r.field)),
+  })).filter(sec => sec.rows.length > 0);
 
   return (
     /* التمرير الأفقي مقصود هنا ولا بديل عنه: مقارنة السنوات جنباً إلى جنب هي

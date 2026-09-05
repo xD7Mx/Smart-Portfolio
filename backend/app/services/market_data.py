@@ -60,6 +60,22 @@ def _set_book_value(p: dict) -> None:
     if p.get("book_value") is not None:
         return  # سطرٌ مُبلَّغ من المصدر — لا يُداس باشتقاق
     eq, sh = p.get("equity"), p.get("shares_outstanding")
+
+    # ══ عددُ الأسهم يُشتقّ من سنته لا من اليوم ══ (D177)
+    # كان الصفُّ يبقى فارغاً في أكثر السنوات لأنّ ياهو لا يُبلّغ متوسّطَ
+    # الأسهم لكلّ سنة. وعددُ أسهم السنة موجودٌ ضمنياً في قائمتها نفسِها:
+    #     صافي الربح ÷ ربحية السهم = عددُ الأسهم
+    # وكلا الطرفين من **السنة نفسِها**، فلا يقع الخطأ الذي حُذّر منه أعلاه
+    # (قياسُ سنةٍ قديمة بمقامٍ من اليوم).
+    # ويُشترط ربحٌ موجبٌ وربحيةٌ موجبة: القسمةُ عند الخسارة تُخرج عدداً
+    # سالباً، والقسمةُ على ربحيةٍ قاربت الصفر تُضخّم العددَ بلا معنى.
+    if not sh and eq is not None:
+        ni, eps = p.get("net_income"), p.get("eps")
+        if (isinstance(ni, (int, float)) and isinstance(eps, (int, float))
+                and ni > 0 and eps > 0.01):
+            sh = ni / eps
+            p["shares_derived"] = True
+
     p["book_value"] = round(eq / sh, 2) if eq is not None and sh else None
 
 

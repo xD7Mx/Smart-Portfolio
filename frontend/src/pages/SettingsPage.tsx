@@ -204,7 +204,7 @@ export default function SettingsPage() {
                   <div className="w-20 h-20 rounded-full overflow-hidden panel border border-[var(--hairline)] flex items-center justify-center"
                     style={pending ? { boxShadow: "0 0 0 2px var(--chart-1)" } : undefined}>
                     {pending
-                      ? <img src={pending.url} alt="" className="w-full h-full object-cover" />
+                      ? <img src={pending.url} alt="" className="w-full h-full object-cover rounded-full" />
                       : hasAvatar
                         ? <AvatarImg refreshKey={avatarVer} iconSize={30} />
                         : <Briefcase size={30} className="text-[var(--ink-muted)]" />}
@@ -260,7 +260,7 @@ export default function SettingsPage() {
                         return (
                           <button key={p.id} onClick={() => pickPreset(p.url, p.id)} title={p.label}
                             className={"w-14 h-14 rounded-full overflow-hidden hover:scale-105 transition-all shrink-0 " + (sel ? "border-2 border-[var(--brand)]" : "border border-[var(--hairline)] hover:border-[var(--brand)]")}>
-                            <img src={p.url} alt={p.label} className="w-full h-full object-cover" />
+                            <img src={p.url} alt={p.label} className="w-full h-full object-cover rounded-full" />
                           </button>
                         );
                       })}
