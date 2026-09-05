@@ -141,6 +141,12 @@ python3 scripts/audit/owner_text.py || fail=1
 echo
 python3 scripts/audit/two_values.py || fail=1
 
+# D181: هلالُ الشرعية أسودُ في المظهر الفاتح رغم صحّة ألوانه في المكوّن —
+# `html.light svg { color: inherit }` ترجيحُها أعلى من صنف اللون فابتلعته.
+# قِيس: ‎#111 للأحكام الثلاثة في الفاتح، وصحيحٌ في الداكن.
+echo
+python3 scripts/audit/sharia_ink.py || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then

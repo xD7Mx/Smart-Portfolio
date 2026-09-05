@@ -583,7 +583,12 @@ html.light .switch { background: var(--raised); }
 html.light .nav-active { background: transparent; color: var(--brand-ink); font-weight: 800; }
 html.light .stat-lbl, html.light .mc-lbl, html.light .kpi-lbl,
 html.light .ticker-lbl, html.light .notif-time { color: var(--ink-muted); }
-html.light svg { color: inherit; }
+/* ══ التوريثُ لا يبتلع لوناً قُصد قصداً ══ (D181)
+   القاعدةُ تُلحق الأيقونةَ بحبر سياقها — وهذا صوابٌ للأيقونات المحايدة.
+   لكنّ ترجيحها (0,1,1) يعلو صنفَ اللون (0,1,0)، فابتلعت في الفاتح **كلَّ**
+   أيقونةٍ لُوّنت بصنف: هلالُ الشرعية الثلاثيّ صار أسودَ اللونِ في حالاته
+   الثلاث. فاستُثني ما حمل لوناً صريحاً. */
+html.light svg:not([class*="text-["]):not([style*="color"]) { color: inherit; }
 
 /* ═══ حارس دائم: لا أسود فوق سطح ملوّن في المظهر الفاتح ═══
    جذر العلّة أن `html.light svg { color: inherit }` أعلى ترجيحاً (0,1,2) من

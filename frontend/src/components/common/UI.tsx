@@ -3,19 +3,26 @@ import clsx from "clsx";
 import { TrendingUp, TrendingDown, Minus, MoonStar, Circle } from "lucide-react";
 
 // ── Sharia badge — green (pure) / orange (mixed) / red (non-compliant) crescent ──
+/* ══ اللونُ من النمط المباشر لا من صنفٍ عامّ ══ (D181)
+   كان لونُ الهلال يوضع بصنف `text-[var(--…)]` — ترجيحُه (0,1,0)، وفي
+   المظهر الفاتح قاعدةٌ عامّةٌ أعلى منه: `html.light svg { color: inherit }`
+   ترجيحُها (0,1,1). فيرث الهلالُ حبرَ العنوان الأسودَ وتُمحى الدلالةُ
+   الثلاثية في الفاتح وحدَه — قِيس: ‎#111 للحالات الثلاث في الفاتح،
+   والألوانُ صحيحةٌ في الداكن. والنمطُ المباشر لا يغلبه انتقاء. */
+const SHARIA_TONE: Record<string, { color: string; title: string }> = {
+  COMPLIANT:     { color: "var(--pos-ink)",      title: "نقية — متوافقة شرعياً" },
+  MIXED:         { color: "var(--sharia-mixed)", title: "مختلطة — متوافقة بشرط التطهير" },
+  NON_COMPLIANT: { color: "var(--neg-ink)",      title: "غير متوافقة شرعياً" },
+};
+
 export function ShariaBadge({ status, size = 13 }: { status?: string | null; size?: number }) {
-  if (status === "COMPLIANT") {
-    return <span className="shrink-0 inline-flex" title="نقية — متوافقة شرعياً"><MoonStar size={size} className="text-[var(--pos-ink)]" /></span>;
-  }
-  if (status === "MIXED") {
-    /* الرمزُ نفسُه الذي تستعمله البطاقةُ الكبرى — فلا يختلف لونُ الحكم
-       الشرعيّ باختلاف موضعه في التطبيق. */
-    return <span className="shrink-0 inline-flex" title="مختلطة — متوافقة بشرط التطهير"><MoonStar size={size} className="text-[var(--sharia-mixed)]" /></span>;
-  }
-  if (status === "NON_COMPLIANT") {
-    return <span className="shrink-0 inline-flex" title="غير متوافقة شرعياً"><MoonStar size={size} className="text-[var(--neg-ink)]" /></span>;
-  }
-  return null;
+  const tone = status ? SHARIA_TONE[status] : undefined;
+  if (!tone) return null;
+  return (
+    <span className="shrink-0 inline-flex" title={tone.title}>
+      <MoonStar size={size} style={{ color: tone.color }} />
+    </span>
+  );
 }
 
 // ── Sharia indicator — green (نقية) / orange (مختلطة) / red (non) / gray (unknown) ──
