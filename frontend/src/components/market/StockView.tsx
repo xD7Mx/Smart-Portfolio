@@ -223,7 +223,7 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
                   من مجلسهما يزاحم صفَّ السعر ولا يضيف قراراً. */}
               {data.fair_value != null && (
                 <div className="flex items-center gap-2 flex-wrap text-[11px]">
-                  <span className="text-[var(--ink-muted)]">السعر العادل</span>
+                  <span className="text-[var(--ink-muted)]">هدف المحللين</span>
                   <span className={"font-bold tabular-nums " + ((data.fair_value_upside_pct ?? 0) > 0 ? "text-[var(--pos-ink)]" : (data.fair_value_upside_pct ?? 0) < 0 ? "text-[var(--neg-ink)]" : "text-[var(--ink-muted)]")}>
                     {fmt(data.fair_value)} ﷼{data.fair_value_upside_pct != null && ` (${data.fair_value_upside_pct > 0 ? "+" : ""}${data.fair_value_upside_pct}%)`}
                   </span>

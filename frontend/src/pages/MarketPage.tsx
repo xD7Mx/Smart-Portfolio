@@ -319,7 +319,7 @@ const VerdictTag = ({ v, small = false }: { v?: string; small?: boolean }) => {
 };
 
 const SORT_OPTS: [string, string][] = [
-  ["upside_pct", "الفرق عن السعر العادل"],
+  ["upside_pct", "الفرق عن هدف المحللين"],
   ["value_gap_pct", "الفجوة عن القطاع"],
   ["dividend_yield", "عائد التوزيعات"],
   ["change_pct", "التغيّر اليومي"],
@@ -837,7 +837,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                   <input value={minGap} onChange={e => setMinGap(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-16 border border-[var(--hairline)] rounded-lg px-2 py-1 text-[12px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]"
                     style={{ background: "var(--field)" }} />
-                  <span className="text-[10px] text-[var(--ink-muted)]">تحت السعر العادل ≥</span>
+                  <span className="text-[10px] text-[var(--ink-muted)]">تحت هدف المحللين ≥</span>
                   <input value={minUpside} onChange={e => setMinUpside(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-16 border border-[var(--hairline)] rounded-lg px-2 py-1 text-[12px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]"
                     style={{ background: "var(--field)" }} />
@@ -923,7 +923,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                     رأسياً بالنظر بين بطاقةٍ وأخرى.
                     والحكم شريطٌ تحتها لأنه خلاصةُ الثلاثة لا رابعُها. */}
                 {/* صفّ الذكاء — ثلاث قوائم بلغة بطاقة «رؤية الذكاء» على الجوال:
-                    التقييم يميناً · السعر العادل رقماً في المنتصف · درجة
+                    التقييم يميناً · هدف المحللين رقماً في المنتصف · درجة
                     السلامة يساراً. والعناوين في سطرٍ واحد فوق، والقيم في سطرٍ
                     واحد تحت، فتُقارَن الشركات رأسياً بين بطاقةٍ وأخرى. */}
                 {(r.upside_pct != null || r.fair_value != null || r.finance_score != null) && (
@@ -942,7 +942,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                       </div>
                     </div>
                     <div className="space-y-1.5 text-center">
-                      <div className="text-[9.5px] text-[var(--ink-muted)]">السعر العادل</div>
+                      <div className="text-[9.5px] text-[var(--ink-muted)]">هدف المحللين</div>
                       <div className="text-[12px] font-bold tabular-nums text-[var(--ink)]" dir="ltr">
                         {r.fair_value == null ? "—" : Number(r.fair_value).toFixed(2)}
                       </div>
@@ -1050,7 +1050,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                     {/* الفرق عن تقدير المحللين — مقياسٌ آخر لا امتداد للأول:
                         مصدره آراء بشر لا مقارنة أرقام، فيُعرض مستقلاً. */}
                     <td className="px-2 py-2 tabular-nums" dir="ltr"
-                      title={r.fair_value ? `السعر العادل ${r.fair_value}${r.fair_value_asof ? " · " + r.fair_value_asof : ""}` : ""}
+                      title={r.fair_value ? `هدف المحللين ${r.fair_value}${r.fair_value_asof ? " · " + r.fair_value_asof : ""}` : ""}
                       style={{ color: r.upside_pct == null ? "var(--ink-muted)" : r.upside_pct >= 15 ? "var(--pos-ink)" : r.upside_pct <= -15 ? "var(--neg-ink)" : "var(--ink-muted)" }}>
                       {r.upside_pct == null ? "—" : `${r.upside_pct > 0 ? "+" : ""}${Math.round(r.upside_pct)}%`}
                     </td>
@@ -1144,7 +1144,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                   <input value={minGap} onChange={e => setMinGap(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-20 bg-[var(--field)] border border-[var(--hairline)] rounded-lg px-2 py-1.5 text-[13px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]" />
                 </SheetRow>
-                <SheetRow label="تحت السعر العادل ≥">
+                <SheetRow label="تحت هدف المحللين ≥">
                   <input value={minUpside} onChange={e => setMinUpside(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-20 bg-[var(--field)] border border-[var(--hairline)] rounded-lg px-2 py-1.5 text-[13px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]" />
                 </SheetRow>

@@ -1024,7 +1024,7 @@ export default function CompanyPage() {
             الأداء، بلا حساب ثانٍ ولا اسمٍ ثانٍ. */}
         {analysis?.fair_value != null && (
           <div className="card flex items-center justify-between gap-2 flex-wrap">
-            <span className="card-title">السعر العادل</span>
+            <span className="card-title">هدف المحللين</span>
             <span className="flex items-baseline gap-2">
               {analysis.fair_value_detail?.entry_price != null && (
                 <span className="text-[11px] text-[var(--ink-muted)]">

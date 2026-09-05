@@ -209,7 +209,15 @@ def apply_fair_value_ceiling(decision: "Decision", price, fair_value,
                              coverage=None, nomu: bool = False,
                              red_lines: list | None = None,
                              implausible: bool = False) -> "Decision":
-    """سقفٌ يمنع «شراء» فوق القيمة العادلة نفسها.
+    """سقفٌ يمنع «شراء» فوق هدف المحلّلين المعروض.
+
+    ══ الاسمان يُفصلان ══ (D176 · بأمر المالك)
+    كان متوسّطُ أهداف بيوت الخبرة يُعرض ويُحكم به باسم «السعر العادل» —
+    وهما مفهومان لا يجتمعان في اسم: الهدفُ **رأيُ محلّلين** عن سعرٍ
+    متوقَّعٍ خلال أفقٍ قصير، والقيمةُ العادلة **تقديرٌ جوهريّ** يُحسب من
+    القوائم. فصار المعروضُ والمحكومُ به «هدف المحللين» باسمه الصريح،
+    و«القيمة العادلة» اسمٌ محجوزٌ لتقدير المحرّك في `fair_value_detail`
+    وحدَه — وهو لا يُعرض سعراً ولا يحكم بقرار (D175).
 
     ══ رقمٌ واحدٌ لا رقمان ══ (D174)
     كانت الشاشةُ تقول «السعر العادل: غير متوفّرة» ويقول القرارُ تحتها
@@ -264,7 +272,7 @@ def apply_fair_value_ceiling(decision: "Decision", price, fair_value,
             return Decision(
                 decision=ABSTAIN,
                 matched_rule_id=f"{decision.matched_rule_id}+بلا_قيمة_عادلة",
-                reason=("تعذّر احتسابُ قيمةٍ عادلة لهذه الورقة، فلا يصحّ "
+                reason=("لا يصلنا هدفُ محلّلين لهذه الورقة، فلا يصحّ "
                         "إصدارُ حكمٍ عليها — العجزُ عن التقييم ليس رسوباً "
                         f"فيها. {decision.reason}"),
             )
@@ -328,7 +336,7 @@ def apply_fair_value_ceiling(decision: "Decision", price, fair_value,
         return Decision(
             decision="انتظار",
             matched_rule_id=f"{decision.matched_rule_id}+سقف_القيمة_العادلة",
-            reason=(f"السعر {price:,.2f} أعلى من القيمة العادلة "
+            reason=(f"السعر {price:,.2f} أعلى من هدف المحللين "
                     f"{fair_value:,.2f} بـ{gap:.0f}٪ — "
                     f"{decision.reason}"),
         )
@@ -337,7 +345,7 @@ def apply_fair_value_ceiling(decision: "Decision", price, fair_value,
         return Decision(
             decision="شراء",
             matched_rule_id=f"{decision.matched_rule_id}+هامش_الأمان",
-            reason=(f"السعر {price:,.2f} دون القيمة العادلة "
+            reason=(f"السعر {price:,.2f} دون هدف المحللين "
                     f"{fair_value:,.2f} وفوق سعر الدخول "
                     f"{entry_price:,.2f} — {decision.reason}"),
         )

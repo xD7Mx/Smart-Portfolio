@@ -135,7 +135,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
           </div>
 
           <div className="rounded-xl px-3 py-2.5" style={{ background: "color-mix(in srgb, var(--brand) 7%, transparent)" }}>
-            <div className="text-[10px] text-[var(--ink-muted)] mb-1">السعر العادل</div>
+            <div className="text-[10px] text-[var(--ink-muted)] mb-1">هدف المحللين</div>
             {data.fair_value != null ? (
               <>
                 <div className="flex items-baseline gap-1.5">
@@ -258,7 +258,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
       {data.fair_value != null && (
         <div className="card">
           <p className="card-title mb-3 flex items-center gap-1.5">
-            <TrendingUp size={14} className="text-[var(--brand-ink)]" /> السعر العادل
+            <TrendingUp size={14} className="text-[var(--brand-ink)]" /> هدف المحللين
           </p>
           <div className="flex items-baseline gap-2 mb-2 flex-wrap">
             <span className="text-2xl font-extrabold tabular-nums text-[var(--ink)]">

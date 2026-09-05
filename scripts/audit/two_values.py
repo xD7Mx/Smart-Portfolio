@@ -15,6 +15,7 @@
 # بوّابةَ أمان.
 # ─────────────────────────────────────────────────────────────────────────
 import pathlib
+import re
 import sys
 
 import os as _os
@@ -48,11 +49,40 @@ def pick(analyst, fv):
     return (a, "أهداف بيوت الخبرة") if a is not None else (None, None)
 
 
+# ── ٠ · الاسمان مفصولان ══ (D176)
+# «هدف المحللين» رأيُ محلّلين عن سعرٍ متوقَّعٍ في أفقٍ قصير، و«القيمة
+# العادلة» تقديرٌ جوهريٌّ يُحسب من القوائم. كان الأوّلُ يُعرض ويُحكم به
+# باسم الثاني في تسع شاشات — فرآهما المالكُ اسماً واحداً لمفهومين.
+FRONT = ROOT / "frontend" / "src"
+
+
+def _strip_comments(text: str) -> str:
+    """يُزيل تعليقاتِ الكتلة والسطر قبل الفحص.
+
+    كان الفحصُ يقرأ سطراً سطراً ويستثني ما يبدأ بـ`*` — فتمرّ أسطرُ
+    الاستمرار داخل تعليقٍ متعدّد الأسطر وتُعَدّ نصّاً معروضاً. والتعليقُ
+    يشرح العطبَ التاريخيَّ بلفظه، فيصير الشرحُ نفسُه مخالفة.
+    فتُحذف الكتلُ أوّلاً ثمّ يُفحص ما بقي — مع إبقاء الأسطر ليصحّ الترقيم.
+    """
+    text = re.sub(r"/\*.*?\*/", lambda m: "\n" * m.group(0).count("\n"), text, flags=re.S)
+    return re.sub(r"//[^\n]*", "", text)
+
+
+_bad = []
+for _f in FRONT.rglob("*.tsx"):
+    for _i, _ln in enumerate(_strip_comments(_f.read_text(encoding="utf-8")).splitlines(), 1):
+        if "السعر العادل" in _ln or "القيمة العادلة" in _ln:
+            _bad.append((_f.name, _i, _ln.strip()[:70]))
+for _n, _i, _t in _bad[:8]:
+    print(f"     {_n}:{_i}  {_t}")
+say(not _bad, "٠ لا شاشةَ تسمّي هدفَ المحلّلين «سعراً عادلاً»",
+    f"{len(_bad)} موضعاً")
+
 OK = {"value": 88.0, "confidence": "مرتفعة"}
 say(pick(104.87, OK) == (104.87, "أهداف بيوت الخبرة"),
-    "١ السعرُ العادل هدفُ بيوت الخبرة")
+    "١ الرقمُ المعروض هدفُ بيوت الخبرة")
 say(pick(None, OK) == (None, None),
-    "٢ ولا يسنده تقديرُ التطبيق ولو وثِق بنفسه — سقط بالقياس مرّتين (D175)")
+    "٢ ولا تسنده القيمةُ العادلة المحسوبة ولو وثِقت بنفسها (D175)")
 say(pick(None, {"value": 0.07, "implausible": True}) == (None, None),
     "٣ ولا الشاذُّ من بابٍ أولى")
 say(pick(None, None) == (None, None), "٤ وإن غاب الهدفُ فلا رقمَ يُخترع")
@@ -69,7 +99,12 @@ say(getattr(_fvm, "BOOK_FLOOR_RATIO", None) == 0.50,
 src = (ROOT / "backend/app/services/analysis.py").read_text(encoding="utf-8")
 say('"fair_value_source"' in src, "٧ المصدرُ يُنشَر مع الرقم")
 say('"تقدير التطبيق"' not in src,
-    "٨ لا مصدرَ اسمُه «تقدير التطبيق» يُعرض سعراً عادلاً")
+    "٨ لا مصدرَ اسمُه «تقدير التطبيق» يُعرض رقماً")
+# ونصُّ القرار يسمّي ما يحكم به: الهدفَ لا «القيمة العادلة».
+_de = (ROOT / "backend/app/services/decision_engine.py").read_text(encoding="utf-8")
+_reasons = [l for l in _de.splitlines() if "reason=(f" in l]
+say(all("القيمة العادلة" not in l for l in _reasons),
+    "٨ب نصُّ القرار يسمّي هدفَ المحلّلين باسمه", f"{len(_reasons)} نصّاً")
 # **نداءُ** البوّابة لا استيرادُها: يُؤخَذ آخرُ ذكرٍ للاسم — وهو موضعُ
 # النداء — ويُقرأ ما يليه من وسائط.
 _call = src[src.rindex("apply_fair_value_ceiling("):][:420]

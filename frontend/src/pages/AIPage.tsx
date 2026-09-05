@@ -27,7 +27,7 @@ function PortfolioInsight() {
           <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm min-w-[640px]">
               <thead><tr className="border-b border-[var(--hairline)]">
-                {["الشركة", "السعر", "السعر العادل", "الفرصة", "التقييم", "درجة السلامة"].map(h => <th key={h} className="th text-start">{h}</th>)}
+                {["الشركة", "السعر", "هدف المحللين", "الفرصة", "التقييم", "درجة السلامة"].map(h => <th key={h} className="th text-start">{h}</th>)}
               </tr></thead>
               <tbody>
                 {companies.map((c: any) => (
@@ -79,12 +79,12 @@ function PortfolioInsight() {
                 </div>
                 <div className="grid grid-cols-3 gap-1 text-center">
                   <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">السعر</div><div className="text-[var(--ink)] font-semibold tabular-nums text-xs">{c.price != null ? c.price.toFixed(2) : "—"}</div></div>
-                  <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">السعر العادل</div><div className="text-[var(--ink)] font-semibold tabular-nums text-xs">{c.fair_value != null ? c.fair_value.toFixed(2) : "—"}</div></div>
+                  <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">هدف المحللين</div><div className="text-[var(--ink)] font-semibold tabular-nums text-xs">{c.fair_value != null ? c.fair_value.toFixed(2) : "—"}</div></div>
                   <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">الفرصة</div><div className="font-bold text-xs" style={{ color: c.upside_pct == null ? "var(--ink-muted)" : c.upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>{c.upside_pct != null ? `${c.upside_pct >= 0 ? "+" : ""}${c.upside_pct}%` : "—"}</div></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 pt-1 border-t border-[var(--hairline)]">
                   <div className="space-y-1.5">
-                    <div className="text-[10px] text-[var(--ink-muted)]">التقييم مقابل السعر العادل</div>
+                    <div className="text-[10px] text-[var(--ink-muted)]">التقييم مقابل هدف المحللين</div>
                     <div className="flex items-center gap-2">
                       <FairValueBar upside={c.upside_pct} hideLabel width={64} />
                       <span className="text-[11px] font-semibold" style={{ color: fairValueTier(c.upside_pct).color }}>{fairValueTier(c.upside_pct).label}</span>
