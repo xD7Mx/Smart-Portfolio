@@ -1,6 +1,15 @@
 """Synthetic-fixture tests. These verify the arithmetic and the guards.
 They do NOT and cannot verify that Yahoo returns usable data for .SR tickers."""
 from __future__ import annotations
+
+# ══ فحصٌ لا يكتب في بيانات المالك ══ (D160)
+# يُحوَّل مخزنُ الحالة قبل أيّ استيرادٍ من `app` — الوحداتُ تقرأ مسارَه عند
+# تحميلها.
+import os as _os, tempfile as _tf
+_SANDBOX = _tf.mkdtemp(prefix="sp-audit-")
+_os.environ["LASTGOOD_PATH"] = _os.path.join(_SANDBOX, "lastgood.json")
+_os.environ["SP_STATE_DIR"] = _SANDBOX
+
 import sys, datetime as dt
 from pathlib import Path
 import pandas as pd
