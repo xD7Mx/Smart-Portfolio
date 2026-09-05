@@ -45,39 +45,31 @@ def say(ok, label, detail=""):
 # الأسطرُ نفسُها على مدخلاتٍ ثلاثة.
 def pick(analyst, fv):
     a = analyst if isinstance(analyst, (int, float)) and analyst > 0 else None
-    o = None
-    if isinstance(fv, dict):
-        v = fv.get("value")
-        trusted = not (fv.get("implausible") or fv.get("single_path")
-                       or fv.get("confidence") == "منخفضة")
-        if isinstance(v, (int, float)) and v > 0 and trusted:
-            o = v
-    if a is not None:
-        return a, "أهداف بيوت الخبرة"
-    if o is not None:
-        return o, "تقدير التطبيق"
-    return None, None
+    return (a, "أهداف بيوت الخبرة") if a is not None else (None, None)
 
 
 OK = {"value": 88.0, "confidence": "مرتفعة"}
 say(pick(104.87, OK) == (104.87, "أهداف بيوت الخبرة"),
-    "١ هدفُ بيوت الخبرة يتقدّم متى وُجد")
-say(pick(None, OK) == (88.0, "تقدير التطبيق"),
-    "٢ وتقديرٌ موثوقٌ يسند متى غاب الهدف")
+    "١ السعرُ العادل هدفُ بيوت الخبرة")
+say(pick(None, OK) == (None, None),
+    "٢ ولا يسنده تقديرُ التطبيق ولو وثِق بنفسه — سقط بالقياس مرّتين (D175)")
 say(pick(None, {"value": 0.07, "implausible": True}) == (None, None),
-    "٣ ولا يسند تقديرٌ وسَمَ نفسَه شاذّاً — ٠٫٠٧ لا تُعرض قيمةً عادلة")
-say(pick(None, {"value": 40.0, "single_path": True}) == (None, None),
-    "٤ ولا مسارٌ واحدٌ بلا شاهد")
-say(pick(None, {"value": 40.0, "confidence": "منخفضة"}) == (None, None),
-    "٥ ولا منخفضُ الثقة")
-say(pick(None, None) == (None, None), "٦ وإن غابا فلا رقمَ يُخترع")
+    "٣ ولا الشاذُّ من بابٍ أولى")
+say(pick(None, None) == (None, None), "٤ وإن غاب الهدفُ فلا رقمَ يُخترع")
+say(pick(0, OK) == (None, None), "٥ الصفرُ ليس هدفاً")
+
+# وأرضيةُ الدفترية تبقى في المحرّك — عالجت انهيار ٤٥ شركةً إلى الصفر.
+from app.services import fair_value as _fvm                        # noqa: E402
+say(getattr(_fvm, "BOOK_FLOOR_RATIO", None) == 0.50,
+    "٦ أرضيةُ الدفترية باقيةٌ في محرّك القيمة",
+    f"نصفُ الدفترية = {getattr(_fvm, 'BOOK_FLOOR_RATIO', None)}")
 
 # وقاعدةُ الاختيار في المصدر هي هذه بعينها — يُتحقَّق أنّ الحقلَ يُنشَر
 # ومعه مصدرُه، فرقمٌ بلا مصدرٍ معلَن يعيد الالتباسَ من بابٍ آخر.
 src = (ROOT / "backend/app/services/analysis.py").read_text(encoding="utf-8")
 say('"fair_value_source"' in src, "٧ المصدرُ يُنشَر مع الرقم")
-say('_trusted' in src and 'implausible' in src,
-    "٨ الإسنادُ يقرأ تحفّظَ المحرّك لا رقمَه وحدَه")
+say('"تقدير التطبيق"' not in src,
+    "٨ لا مصدرَ اسمُه «تقدير التطبيق» يُعرض سعراً عادلاً")
 # **نداءُ** البوّابة لا استيرادُها: يُؤخَذ آخرُ ذكرٍ للاسم — وهو موضعُ
 # النداء — ويُقرأ ما يليه من وسائط.
 _call = src[src.rindex("apply_fair_value_ceiling("):][:420]
