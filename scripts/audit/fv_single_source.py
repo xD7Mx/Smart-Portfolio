@@ -104,9 +104,12 @@ def main() -> int:
     from app.services import ai_content
     import inspect
     src = inspect.getsource(ai_content)
+    # المقصودُ **مصدرُ** الرقم لا تسميتُه: كان الشرطُ يطابق نصَّ التسمية
+    # حرفياً فسقط حين فُصل الاسمان (D176) — والمصدرُ لم يتغيّر. وحارسٌ
+    # يحرس اللفظَ يسقط بتحرير اللفظ ويسكت عن تحرير المعنى.
     t("٤ نصُّ الذكاء يقرأ الرقمَ المعروض",
-      "السعر العادل (متوسط تقديرات بيوت الخبرة)" in src
-      and "analysis.get('fair_value')" in src,
+      "analysis.get('fair_value')" in src
+      and "متوسط تقديرات بيوت الخبرة" in src,
       "يُقرأ من analysis لا من fundamentals")
 
     # ٥ — الفرزُ على المصدر نفسِه
