@@ -147,6 +147,14 @@ python3 scripts/audit/two_values.py || fail=1
 echo
 python3 scripts/audit/sharia_ink.py || fail=1
 
+# محرّكُ القيمة العادلة — وحدةٌ خلف مفتاحٍ مغلقٍ لا تُعرض في شاشة. فحصُها
+# تركيبيّ: يثبت أن الرياضيات والحُرّاس تعمل (سقفُ النموّ · قيدُ إعادة
+# الاستثمار · الامتناعُ عند نقص البنود · أرضيةُ الدفترية · وسمُ الشاذّ).
+# ولا يثبت شيئاً عن كفاية بيانات ياهو — ذاك قياسٌ حيٌّ على الخادم:
+#   docker exec sp_backend python /app/scripts/audit/fair_value_acceptance.py
+echo
+python3 scripts/audit/fv_synthetic.py || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then
