@@ -265,7 +265,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
               {fmt(data.fair_value)}
             </span>
             <span className="text-[10.5px] text-[var(--ink-muted)]">
-              إجماع أهداف المحلّلين
+              {data.fair_value_source || "أهداف بيوت الخبرة"}
             </span>
           </div>
           <FairValueBar upside={data.fair_value_upside_pct ?? null} width="100%"

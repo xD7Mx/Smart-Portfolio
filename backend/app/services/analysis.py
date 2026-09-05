@@ -280,6 +280,34 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
                          archetype=_std.get("archetype"),
                          symbol=symbol)
 
+    _analyst_fv = (info or {}).get("target_mean_price")
+    if not isinstance(_analyst_fv, (int, float)) or _analyst_fv <= 0:
+        _analyst_fv = None
+
+    # ══ رقمٌ واحدٌ بمصدرين مرتَّبين ══ (D174 · بأمر المالك)
+    # «السعر العادل» هدفُ بيوت الخبرة أوّلاً — وهذا أمرُ المالك القائم.
+    # لكنّ ياهو لا يغطّي إلّا ‎١٤٩ شركةً من ‎٢٧٣ (مقيسٌ على الخادم)، فكان
+    # نصفُ السوق بلا رقم، **بينما بوّابةُ القرار تحكم بتقدير التطبيق**
+    # فتقول «فوق القيمة العادلة» تحت شاشةٍ تقول «غير متوفّرة».
+    #
+    # فصار للرقم مصدران مرتَّبان: هدفُ المحلّلين إن وُجد، وإلّا تقديرُ
+    # التطبيق — سانداً لا منافساً. والمصدرُ **يُعلَن مع الرقم** فلا
+    # يلتبس أحدُهما بالآخر، والبوّابةُ تحكم بالرقم المعروض نفسِه.
+    _fv_own = _fv.get("value") if isinstance(_fv, dict) else None
+    if not isinstance(_fv_own, (int, float)) or _fv_own <= 0:
+        _fv_own = None
+    if _analyst_fv is not None:
+        _shown_fv, _fv_source = _analyst_fv, "أهداف بيوت الخبرة"
+    elif _fv_own is not None:
+        _shown_fv, _fv_source = _fv_own, "تقدير التطبيق"
+    else:
+        _shown_fv, _fv_source = None, None
+
+    _px_now = (price or {}).get("price") if isinstance(price, dict) else price
+    _analyst_up = (round((_shown_fv - _px_now) / _px_now * 100, 1)
+                   if _shown_fv and isinstance(_px_now, (int, float))
+                   and _px_now > 0 else None)
+
     from app.services.four_scores import technical_to_timing_snapshot, valuation_to_snapshot, resolve_sector
     # Canonical Arabic sector drives archetype exemptions; Yahoo's English
     # sector never matches the map, so resolve it (DB sector via symbol lookup,
@@ -316,9 +344,10 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         _cov = (sum(_cs) / len(_cs)) if _cs else None
     except Exception:                                             # noqa: BLE001
         _cov = None
+    # البوّابةُ تحكم بالرقم المعروض نفسِه — لا برقمٍ ثانٍ لا تراه الشاشة.
     gov = apply_fair_value_ceiling(fin["decision"],
                                    (price or {}).get("price"),
-                                   _fv.get("value"),
+                                   _shown_fv,
                                    _fv.get("entry_price"),
                                    single_path=bool(_fv.get("single_path")),
                                    coverage=_cov,
@@ -342,13 +371,6 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
     # ══ السعرُ العادل = متوسّطُ تقديرات بيوت الخبرة ══ (بأمر المالك)
     # ويُشتقّ هنا مرّةً واحدة فيقرؤه كلُّ قسمٍ من مصدرٍ واحد. وما لا يصل
     # فيه تقديرٌ يبقى «غير متاح» ولا يُستبدَل بحسابٍ آخر.
-    _analyst_fv = (info or {}).get("target_mean_price")
-    if not isinstance(_analyst_fv, (int, float)) or _analyst_fv <= 0:
-        _analyst_fv = None
-    _px_now = (price or {}).get("price") if isinstance(price, dict) else price
-    _analyst_up = (round((_analyst_fv - _px_now) / _px_now * 100, 1)
-                   if _analyst_fv and isinstance(_px_now, (int, float))
-                   and _px_now > 0 else None)
 
     result = {
         "symbol": symbol,
@@ -397,7 +419,8 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         # صفحة الشركة وتحليل الذكاء وسائر الأقسام. وتقديرُنا المحسوب يبقى
         # في `fair_value_detail` بمساراته لمن أراد تفصيلَه، ولا يُعرض رقماً
         # منافساً. ورقمٌ واحدٌ باسمٍ واحد هو المقصود.
-        "fair_value": _analyst_fv,
+        "fair_value": _shown_fv,
+        "fair_value_source": _fv_source,
         "fair_value_upside_pct": _analyst_up,
         "strengths": strengths,
         "weaknesses": weaknesses,

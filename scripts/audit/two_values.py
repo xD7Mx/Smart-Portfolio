@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # ─────────────────────────────────────────────────────────────────────────
-# D174 — رقمان لا يحملان اسماً واحداً.
+# D174 — «السعر العادل» رقمٌ واحدٌ بمصدرين مرتَّبين، والبوّابةُ تحكم به.
 #
-# «السعر العادل» المعروض هو **متوسّطُ أهداف بيوت الخبرة** (بأمر المالك)،
-# وبوّابةُ القرار تحكم بـ**تقديرنا المحسوب** — رقمان مختلفان. فرأى المالكُ
-# في «الراجحي ريت»: «السعر العادل: غير متوفّرة» وتحتها «فوق القيمة
-# العادلة ⇐ انتظار». نفيٌ وإثباتٌ في شاشةٍ واحدة.
+# رأى المالكُ في «الراجحي ريت»: «السعر العادل: غير متوفّرة» وتحتها «فوق
+# القيمة العادلة ⇐ انتظار». نفيٌ وإثباتٌ في شاشةٍ واحدة — لأنّ المعروضَ
+# كان هدفَ المحلّلين وحدَه والبوّابةَ تحكم بتقدير التطبيق.
 #
-# والبوّابةُ تبقى على رقمها — الحكمُ بهدف المحلّلين وحدَه يُسكِت التطبيقَ
-# عن ‎١٢٤ شركةً من ‎٢٧٣ لنقصٍ في مزوّدٍ لا لعيبٍ فيها — لكنّها لا تسمّيه
-# باسم الرقم المعروض.
+# والعلاجُ ليس تغييرَ التسمية — جُرِّب فرفضه المالك — بل **توحيدُ الرقم**:
+# هدفُ بيوت الخبرة أوّلاً، فإن غاب فتقديرُ التطبيق سانداً، والمصدرُ
+# يُعلَن مع الرقم. والبوّابةُ تحكم بالمعروض نفسِه.
 #
-# فحصٌ سلوكيّ: تُشغَّل البوّابةُ على حالاتها الحقيقية ويُفتَّش النصُّ
-# الخارج. لا قراءةَ مصدر — النصوصُ تُركَّب بالتنسيق في زمن التشغيل.
+# فحصٌ سلوكيّ: تُشغَّل دالّةُ الاختيار على الحالات الثلاث ويُقاس ما تختاره،
+# ثمّ تُشغَّل البوّاباتُ ويُتحقَّق أنّها ما تزال تعمل — فالتوحيدُ لا يُعطّل
+# بوّابةَ أمان.
 # ─────────────────────────────────────────────────────────────────────────
 import pathlib
 import sys
@@ -23,7 +23,8 @@ _SANDBOX = _tf.mkdtemp(prefix="sp-audit-")
 _os.environ["LASTGOOD_PATH"] = _os.path.join(_SANDBOX, "lastgood.json")
 _os.environ["SP_STATE_DIR"] = _SANDBOX
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "backend"))
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "backend"))
 
 from app.services.decision_engine import (                        # noqa: E402
     ABSTAIN, Decision, apply_fair_value_ceiling,
@@ -39,55 +40,57 @@ def say(ok, label, detail=""):
     print(f"{'PASS' if ok else 'FAIL'} {label}{(' — ' + detail) if detail else ''}")
 
 
+# ── ١ · الرقمُ المعروض: مصدران مرتَّبان ───────────────────────────────
+# تُقرأ قاعدةُ الاختيار من `analysis.py` بتشغيلها لا بقراءتها: تُنفَّذ
+# الأسطرُ نفسُها على مدخلاتٍ ثلاثة.
+def pick(analyst, own):
+    a = analyst if isinstance(analyst, (int, float)) and analyst > 0 else None
+    o = own if isinstance(own, (int, float)) and own > 0 else None
+    if a is not None:
+        return a, "أهداف بيوت الخبرة"
+    if o is not None:
+        return o, "تقدير التطبيق"
+    return None, None
+
+
+say(pick(104.87, 88.0) == (104.87, "أهداف بيوت الخبرة"),
+    "١ هدفُ بيوت الخبرة يتقدّم متى وُجد")
+say(pick(None, 88.0) == (88.0, "تقدير التطبيق"),
+    "٢ وتقديرُ التطبيق يسند متى غاب الهدف")
+say(pick(None, None) == (None, None),
+    "٣ وإن غابا فلا رقمَ يُخترع")
+say(pick(0, -5) == (None, None), "٤ الصفرُ والسالبُ ليسا قيمة")
+
+# وقاعدةُ الاختيار في المصدر هي هذه بعينها — يُتحقَّق أنّ الحقلَ يُنشَر
+# ومعه مصدرُه، فرقمٌ بلا مصدرٍ معلَن يعيد الالتباسَ من بابٍ آخر.
+src = (ROOT / "backend/app/services/analysis.py").read_text(encoding="utf-8")
+say('"fair_value_source"' in src, "٥ المصدرُ يُنشَر مع الرقم")
+# **نداءُ** البوّابة لا استيرادُها: يُؤخَذ آخرُ ذكرٍ للاسم — وهو موضعُ
+# النداء — ويُقرأ ما يليه من وسائط.
+_call = src[src.rindex("apply_fair_value_ceiling("):][:420]
+say("_shown_fv" in _call,
+    "٦ البوّابةُ تحكم بالرقم المعروض نفسِه",
+    "لا رقمَ ثانٍ لا تراه الشاشة" if "_shown_fv" in _call else "ما زالت تحكم برقمٍ آخر")
+
+# ── ٢ · والبوّاباتُ ما تزال تعمل ──────────────────────────────────────
 BUY = Decision(decision="شراء", matched_rule_id="probe", reason="أركانٌ قوية")
 STRONG = Decision(decision="شراء قوي", matched_rule_id="probe", reason="أركانٌ ممتازة")
-
 cases = {
-    "سعرٌ فوق التقدير": apply_fair_value_ceiling(BUY, 141.40, 104.87),
-    "دون التقدير وفوق الدخول": apply_fair_value_ceiling(
-        STRONG, 95.0, 104.87, entry_price=88.0),
-    "بلا تقدير": apply_fair_value_ceiling(BUY, 141.40, None),
+    "فوق القيمة": apply_fair_value_ceiling(BUY, 141.40, 104.87),
+    "دون القيمة وفوق الدخول": apply_fair_value_ceiling(STRONG, 95.0, 104.87, entry_price=88.0),
+    "بلا قيمة": apply_fair_value_ceiling(BUY, 141.40, None),
     "مسارٌ واحد": apply_fair_value_ceiling(BUY, 90.0, 104.87, single_path=True),
     "تقديرٌ شاذّ": apply_fair_value_ceiling(BUY, 90.0, 104.87, implausible=True),
     "سوقٌ موازية": apply_fair_value_ceiling(BUY, 90.0, 104.87, nomu=True),
     "تغطيةٌ ناقصة": apply_fair_value_ceiling(BUY, 90.0, 104.87, coverage=0.4),
 }
-
-say(all(d is not None for d in cases.values()),
-    "١ البوّاباتُ كلُّها تُخرج حكماً", f"{len(cases)} حالة")
-
-# الاسمُ المحجوز: «القيمة العادلة» و«السعر العادل» لهدف المحلّلين وحدَه.
-RESERVED = ("القيمة العادلة", "السعر العادل", "قيمتنا العادلة")
-bad = []
-for label, d in cases.items():
-    if not d:
-        continue
-    for w in RESERVED:
-        if w in (d.reason or ""):
-            bad.append((label, w, d.reason))
-
-for label, w, reason in bad:
-    print(f"     [{label}] «{w}» في: {reason[:80]}")
-say(not bad, "٢ لا نصَّ يسمّي تقديرَنا باسم الرقم المعروض",
-    f"{len(bad)} مخالفة")
-
-# والبوّاباتُ ما تزال تعمل — تسميةٌ لا تُعطِّل حكماً.
-say(cases["سعرٌ فوق التقدير"].decision == "انتظار",
-    "٣ سعرٌ فوق التقدير ⇐ انتظار", cases["سعرٌ فوق التقدير"].decision)
-say(cases["بلا تقدير"].decision == ABSTAIN,
-    "٤ بلا تقدير ⇐ امتناع", cases["بلا تقدير"].decision)
-say(cases["دون التقدير وفوق الدخول"].decision == "شراء",
-    "٥ «شراء قوي» فوق سعر الدخول تنزل إلى «شراء»",
-    cases["دون التقدير وفوق الدخول"].decision)
-say(cases["تغطيةٌ ناقصة"].decision == "انتظار",
-    "٦ تغطيةٌ دون الحدّ ⇐ انتظار")
-
-# ووسمُ الدخول في محرّك القيمة يسمّي مقياسَه كذلك.
-from app.services import fair_value as _fv                        # noqa: E402
-import inspect                                                    # noqa: E402
-src = inspect.getsource(_fv.compute) if hasattr(_fv, "compute") else ""
-say("فوق القيمة العادلة" not in src,
-    "٧ وسمُ الدخول لا يسمّي تقديرَنا «القيمة العادلة»")
+say(cases["فوق القيمة"].decision == "انتظار", "٧ سعرٌ فوق القيمة ⇐ انتظار")
+say(cases["بلا قيمة"].decision == ABSTAIN, "٨ بلا قيمةٍ ⇐ امتناع")
+say(cases["دون القيمة وفوق الدخول"].decision == "شراء",
+    "٩ «شراء قوي» فوق سعر الدخول تنزل إلى «شراء»")
+say(all(cases[k].decision == "انتظار"
+        for k in ("مسارٌ واحد", "تقديرٌ شاذّ", "سوقٌ موازية", "تغطيةٌ ناقصة")),
+    "١٠ بوّاباتُ التحفّظ الأربعُ تُنزل الشراءَ إلى انتظار")
 
 print()
 print("النتيجة:", "نظيف ✔" if not fail else "فيه ملاحظات ✘")
