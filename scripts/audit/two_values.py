@@ -45,31 +45,29 @@ def say(ok, label, detail=""):
 # الأسطرُ نفسُها على مدخلاتٍ ثلاثة.
 def pick(analyst, own):
     a = analyst if isinstance(analyst, (int, float)) and analyst > 0 else None
-    o = own if isinstance(own, (int, float)) and own > 0 else None
-    if a is not None:
-        return a, "أهداف بيوت الخبرة"
-    if o is not None:
-        return o, "تقدير التطبيق"
-    return None, None
+    return (a, "أهداف بيوت الخبرة") if a is not None else (None, None)
 
 
 say(pick(104.87, 88.0) == (104.87, "أهداف بيوت الخبرة"),
-    "١ هدفُ بيوت الخبرة يتقدّم متى وُجد")
-say(pick(None, 88.0) == (88.0, "تقدير التطبيق"),
-    "٢ وتقديرُ التطبيق يسند متى غاب الهدف")
+    "١ السعرُ العادل هدفُ بيوت الخبرة")
+say(pick(None, 88.0) == (None, None),
+    "٢ ولا يسنده تقديرُ التطبيق — سقط بالقياس (D175)")
 say(pick(None, None) == (None, None),
-    "٣ وإن غابا فلا رقمَ يُخترع")
+    "٣ وإن غاب الهدفُ فلا رقمَ يُخترع")
 say(pick(0, -5) == (None, None), "٤ الصفرُ والسالبُ ليسا قيمة")
 
 # وقاعدةُ الاختيار في المصدر هي هذه بعينها — يُتحقَّق أنّ الحقلَ يُنشَر
 # ومعه مصدرُه، فرقمٌ بلا مصدرٍ معلَن يعيد الالتباسَ من بابٍ آخر.
 src = (ROOT / "backend/app/services/analysis.py").read_text(encoding="utf-8")
 say('"fair_value_source"' in src, "٥ المصدرُ يُنشَر مع الرقم")
+say('"تقدير التطبيق"' not in src.split("def analyze_company")[-1].split("result = {")[0]
+    or '_fv_own' not in src,
+    "٦ تقديرُ التطبيق لا يُعرض سعراً عادلاً")
 # **نداءُ** البوّابة لا استيرادُها: يُؤخَذ آخرُ ذكرٍ للاسم — وهو موضعُ
 # النداء — ويُقرأ ما يليه من وسائط.
 _call = src[src.rindex("apply_fair_value_ceiling("):][:420]
 say("_shown_fv" in _call,
-    "٦ البوّابةُ تحكم بالرقم المعروض نفسِه",
+    "٧ البوّابةُ تحكم بالرقم المعروض نفسِه",
     "لا رقمَ ثانٍ لا تراه الشاشة" if "_shown_fv" in _call else "ما زالت تحكم برقمٍ آخر")
 
 # ── ٢ · والبوّاباتُ ما تزال تعمل ──────────────────────────────────────
@@ -84,13 +82,13 @@ cases = {
     "سوقٌ موازية": apply_fair_value_ceiling(BUY, 90.0, 104.87, nomu=True),
     "تغطيةٌ ناقصة": apply_fair_value_ceiling(BUY, 90.0, 104.87, coverage=0.4),
 }
-say(cases["فوق القيمة"].decision == "انتظار", "٧ سعرٌ فوق القيمة ⇐ انتظار")
-say(cases["بلا قيمة"].decision == ABSTAIN, "٨ بلا قيمةٍ ⇐ امتناع")
+say(cases["فوق القيمة"].decision == "انتظار", "٨ سعرٌ فوق القيمة ⇐ انتظار")
+say(cases["بلا قيمة"].decision == ABSTAIN, "٩ بلا قيمةٍ ⇐ امتناع")
 say(cases["دون القيمة وفوق الدخول"].decision == "شراء",
-    "٩ «شراء قوي» فوق سعر الدخول تنزل إلى «شراء»")
+    "١٠ «شراء قوي» فوق سعر الدخول تنزل إلى «شراء»")
 say(all(cases[k].decision == "انتظار"
         for k in ("مسارٌ واحد", "تقديرٌ شاذّ", "سوقٌ موازية", "تغطيةٌ ناقصة")),
-    "١٠ بوّاباتُ التحفّظ الأربعُ تُنزل الشراءَ إلى انتظار")
+    "١١ بوّاباتُ التحفّظ الأربعُ تُنزل الشراءَ إلى انتظار")
 
 print()
 print("النتيجة:", "نظيف ✔" if not fail else "فيه ملاحظات ✘")
