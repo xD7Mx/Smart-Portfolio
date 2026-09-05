@@ -43,31 +43,46 @@ def say(ok, label, detail=""):
 # ── ١ · الرقمُ المعروض: مصدران مرتَّبان ───────────────────────────────
 # تُقرأ قاعدةُ الاختيار من `analysis.py` بتشغيلها لا بقراءتها: تُنفَّذ
 # الأسطرُ نفسُها على مدخلاتٍ ثلاثة.
-def pick(analyst, own):
+def pick(analyst, fv):
     a = analyst if isinstance(analyst, (int, float)) and analyst > 0 else None
-    return (a, "أهداف بيوت الخبرة") if a is not None else (None, None)
+    o = None
+    if isinstance(fv, dict):
+        v = fv.get("value")
+        trusted = not (fv.get("implausible") or fv.get("single_path")
+                       or fv.get("confidence") == "منخفضة")
+        if isinstance(v, (int, float)) and v > 0 and trusted:
+            o = v
+    if a is not None:
+        return a, "أهداف بيوت الخبرة"
+    if o is not None:
+        return o, "تقدير التطبيق"
+    return None, None
 
 
-say(pick(104.87, 88.0) == (104.87, "أهداف بيوت الخبرة"),
-    "١ السعرُ العادل هدفُ بيوت الخبرة")
-say(pick(None, 88.0) == (None, None),
-    "٢ ولا يسنده تقديرُ التطبيق — سقط بالقياس (D175)")
-say(pick(None, None) == (None, None),
-    "٣ وإن غاب الهدفُ فلا رقمَ يُخترع")
-say(pick(0, -5) == (None, None), "٤ الصفرُ والسالبُ ليسا قيمة")
+OK = {"value": 88.0, "confidence": "مرتفعة"}
+say(pick(104.87, OK) == (104.87, "أهداف بيوت الخبرة"),
+    "١ هدفُ بيوت الخبرة يتقدّم متى وُجد")
+say(pick(None, OK) == (88.0, "تقدير التطبيق"),
+    "٢ وتقديرٌ موثوقٌ يسند متى غاب الهدف")
+say(pick(None, {"value": 0.07, "implausible": True}) == (None, None),
+    "٣ ولا يسند تقديرٌ وسَمَ نفسَه شاذّاً — ٠٫٠٧ لا تُعرض قيمةً عادلة")
+say(pick(None, {"value": 40.0, "single_path": True}) == (None, None),
+    "٤ ولا مسارٌ واحدٌ بلا شاهد")
+say(pick(None, {"value": 40.0, "confidence": "منخفضة"}) == (None, None),
+    "٥ ولا منخفضُ الثقة")
+say(pick(None, None) == (None, None), "٦ وإن غابا فلا رقمَ يُخترع")
 
 # وقاعدةُ الاختيار في المصدر هي هذه بعينها — يُتحقَّق أنّ الحقلَ يُنشَر
 # ومعه مصدرُه، فرقمٌ بلا مصدرٍ معلَن يعيد الالتباسَ من بابٍ آخر.
 src = (ROOT / "backend/app/services/analysis.py").read_text(encoding="utf-8")
-say('"fair_value_source"' in src, "٥ المصدرُ يُنشَر مع الرقم")
-say('"تقدير التطبيق"' not in src.split("def analyze_company")[-1].split("result = {")[0]
-    or '_fv_own' not in src,
-    "٦ تقديرُ التطبيق لا يُعرض سعراً عادلاً")
+say('"fair_value_source"' in src, "٧ المصدرُ يُنشَر مع الرقم")
+say('_trusted' in src and 'implausible' in src,
+    "٨ الإسنادُ يقرأ تحفّظَ المحرّك لا رقمَه وحدَه")
 # **نداءُ** البوّابة لا استيرادُها: يُؤخَذ آخرُ ذكرٍ للاسم — وهو موضعُ
 # النداء — ويُقرأ ما يليه من وسائط.
 _call = src[src.rindex("apply_fair_value_ceiling("):][:420]
 say("_shown_fv" in _call,
-    "٧ البوّابةُ تحكم بالرقم المعروض نفسِه",
+    "٩ البوّابةُ تحكم بالرقم المعروض نفسِه",
     "لا رقمَ ثانٍ لا تراه الشاشة" if "_shown_fv" in _call else "ما زالت تحكم برقمٍ آخر")
 
 # ── ٢ · والبوّاباتُ ما تزال تعمل ──────────────────────────────────────
@@ -82,13 +97,13 @@ cases = {
     "سوقٌ موازية": apply_fair_value_ceiling(BUY, 90.0, 104.87, nomu=True),
     "تغطيةٌ ناقصة": apply_fair_value_ceiling(BUY, 90.0, 104.87, coverage=0.4),
 }
-say(cases["فوق القيمة"].decision == "انتظار", "٨ سعرٌ فوق القيمة ⇐ انتظار")
-say(cases["بلا قيمة"].decision == ABSTAIN, "٩ بلا قيمةٍ ⇐ امتناع")
+say(cases["فوق القيمة"].decision == "انتظار", "١٠ سعرٌ فوق القيمة ⇐ انتظار")
+say(cases["بلا قيمة"].decision == ABSTAIN, "١١ بلا قيمةٍ ⇐ امتناع")
 say(cases["دون القيمة وفوق الدخول"].decision == "شراء",
-    "١٠ «شراء قوي» فوق سعر الدخول تنزل إلى «شراء»")
+    "١٢ «شراء قوي» فوق سعر الدخول تنزل إلى «شراء»")
 say(all(cases[k].decision == "انتظار"
         for k in ("مسارٌ واحد", "تقديرٌ شاذّ", "سوقٌ موازية", "تغطيةٌ ناقصة")),
-    "١١ بوّاباتُ التحفّظ الأربعُ تُنزل الشراءَ إلى انتظار")
+    "١٣ بوّاباتُ التحفّظ الأربعُ تُنزل الشراءَ إلى انتظار")
 
 print()
 print("النتيجة:", "نظيف ✔" if not fail else "فيه ملاحظات ✘")
