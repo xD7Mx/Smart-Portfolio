@@ -1247,6 +1247,27 @@ export function RebalanceCard() {
     return a;
   }, { amount: 0, liq: 0, rei: 0, liqShares: 0, reiShares: 0 });
 
+  /* ══ دخلُ التوزيعات: ما هو اليوم، وما يصير بعد التوظيف ══
+     (بأمر المالك · D190)
+     الجدولُ كان يقول كم سهماً يُشترى ولا يقول ماذا يُدرّ. والرقمان:
+       · الحاليّ  = Σ (قيمةُ المركز السوقية × عائدُ توزيعاته)
+       · المستهدف = Σ ((القيمة + نصيبُها من النقد) × العائد نفسِه)
+     أي دخلُ سنةٍ كاملةٍ بأسعار اليوم وتوزيعاتِ آخر اثني عشر شهراً — لا
+     تنبّؤَ بزيادةٍ ولا نقصان. والشركةُ بلا عائدٍ معلومٍ لا تُحسب صفراً:
+     تُعدّ ويُقال عددُها، فالمعروضُ حدٌّ أدنى مصرَّحٌ به لا رقمٌ ناقصٌ صامت. */
+  const income = items.reduce((a: any, it: any) => {
+    const dy = it.dividend_yield;
+    const mv = Number(it.market_value) || 0;
+    const { totalAmount } = shareOf(it);
+    if (typeof dy === "number" && isFinite(dy)) {
+      a.now += mv * dy / 100;
+      a.after += (mv + (totalAmount || 0)) * dy / 100;
+    } else if (mv > 0 || totalAmount) {
+      a.unknown += 1;
+    }
+    return a;
+  }, { now: 0, after: 0, unknown: 0 });
+
   return (
     <div className="card">
       <TagAudit />
@@ -1373,15 +1394,39 @@ export function RebalanceCard() {
           {totals.amount > 0 && (
             <tfoot>
               <tr style={{borderTop:"2px solid var(--hairline)"}}>
-                <td className="td text-start text-[var(--ink-muted)] text-xs font-semibold" colSpan={3}>المجموع</td>
-                {/* تحت عمود الوزن المستهدف: معدّلُ عائد التوزيعات بهذه الأوزان. */}
+                <td className="td text-start text-[var(--ink-muted)] text-xs font-semibold">المجموع</td>
+                {/* تحت «القيمة»: مجموعُ قيمة المراكز — أساسُ الدخل المحسوب بجانبه. */}
+                <td className="td text-start">
+                  <span className="text-[var(--ink)] text-xs font-bold tabular-nums" dir="ltr">
+                    {fmt(items.reduce((s: number, it: any) => s + (Number(it.market_value) || 0), 0))}
+                  </span>
+                </td>
+                {/* تحت «الوزن الحالي»: دخلُ التوزيعات بأوزانك اليوم. */}
+                <td className="td text-start">
+                  {income.now > 0 ? (
+                    <div className="leading-tight"
+                         title={"دخلُ توزيعاتٍ سنويٌّ متوقَّع بأسعار اليوم"
+                                + (income.unknown ? ` — ${income.unknown} شركة بلا عائد معلوم، خارج الحساب` : "")}>
+                      <div className="text-[9px] text-[var(--ink-muted)]">توزيعات الآن</div>
+                      <span className="text-[var(--pos-ink)] text-xs font-bold tabular-nums" dir="ltr">
+                        {fmt(Math.round(income.now))}
+                      </span>
+                    </div>
+                  ) : <span className="text-[var(--ink-muted)] text-xs">غير متوفّر</span>}
+                </td>
+                {/* تحت «الوزن المستهدف»: معدّلُ العائد بهذه الأوزان، ودخلُها بعد التوظيف. */}
                 <td className="td text-start">
                   {dyWeighted != null ? (
-                    <span className="text-[var(--pos-ink)] text-xs font-bold tabular-nums" dir="ltr"
-                          title={"معدّل عائد التوزيعات مرجّحاً بالوزن المستهدف"
+                    <div className="leading-tight"
+                         title={"معدّل عائد التوزيعات مرجّحاً بالوزن المستهدف، ودخلُه بعد توظيف النقد"
                                  + (dyAgg.unknown ? ` — ${dyAgg.unknown} شركة بلا عائد معلوم` : "")}>
-                      {dyWeighted.toFixed(2)}%
-                    </span>
+                      <div className="text-[9px] text-[var(--ink-muted)]">
+                        عند الهدف · {dyWeighted.toFixed(2)}%
+                      </div>
+                      <span className="text-[var(--pos-ink)] text-xs font-bold tabular-nums" dir="ltr">
+                        {fmt(Math.round(income.after))}
+                      </span>
+                    </div>
                   ) : (
                     <span className="text-[var(--ink-muted)] text-xs">غير متوفّر</span>
                   )}
