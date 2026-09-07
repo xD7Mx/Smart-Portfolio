@@ -293,12 +293,20 @@ type ScreenSort = { key: string; dir: "asc" | "desc" };
 /* الحكم المركّب — يُحسب في الخادم من بياناتٍ مخزّنة (بلا أي نداء شبكة):
    التقييم مقابل **وسيط قطاع الشركة** + درجة الحوكمة. والوسوم هنا عرضٌ فقط،
    فلا يوجد تعريفان للحكم يتباعدان. */
+/* ══ الحكمُ يسمّي مقياسَه ══ (بأمر المالك · D186)
+   رأى المالكُ شركةً تبعد ‎40٪ عن هدف المحلّلين وحكمُها «عادل» فاستنكره —
+   وهو محقٌّ في الاستنكار لا في التشخيص: الحكمُ لا يقيس هدفَ المحلّلين
+   أصلاً، بل يقيس مضاعفَ الشركة على **وسيط مضاعفات قطاعها**. سؤالان
+   مختلفان: «أرخصُ من أقرانه؟» و«كم يبعد عن تقدير المحلّلين؟». وقد
+   يتعاكسان بحقّ: قطاعٌ كلُّه غالٍ يجعل الغاليَ «بسعر قطاعه».
+   والعطبُ أن الكلمةَ كانت مطلقةً («عادل») بجوار عمود هدف المحلّلين،
+   فتُقرأ حكماً على القيمة العادلة. فصارت تحمل مقياسَها في لفظها. */
 const VERDICTS: Record<string, { label: string; color: string; bg: string }> = {
-  cheap:        { label: "مبخّس",     color: "var(--pos-ink)", bg: "transparent" },
-  fair:         { label: "عادل",      color: "var(--ink-muted)", bg: "transparent" },
-  expensive:    { label: "مبالغ فيه", color: "var(--neg-ink)", bg: "transparent" },
-  loss:         { label: "خاسرة",     color: "var(--neg-ink)", bg: "transparent" },
-  insufficient: { label: "لا يكفي",   color: "var(--ink-muted)", bg: "transparent" },
+  cheap:        { label: "أرخص من قطاعه", color: "var(--pos-ink)", bg: "transparent" },
+  fair:         { label: "بسعر قطاعه",    color: "var(--ink-muted)", bg: "transparent" },
+  expensive:    { label: "أغلى من قطاعه", color: "var(--neg-ink)", bg: "transparent" },
+  loss:         { label: "خاسرة",         color: "var(--neg-ink)", bg: "transparent" },
+  insufficient: { label: "لا يكفي",       color: "var(--ink-muted)", bg: "transparent" },
 };
 
 /* الحالات القابلة للبحث ثلاث فقط. «خاسرة» و«لا يكفي» بيانُ حالٍ لا خيارُ بحث،
@@ -306,11 +314,18 @@ const VERDICTS: Record<string, { label: string; color: string; bg: string }> = {
    وللسلامة فلترها المستقلّ، فتقاطعهما يغني عن تصنيفٍ يضاعف القائمة. */
 const VERDICT_FILTERS = ["cheap", "fair", "expensive"] as const;
 
-const VerdictTag = ({ v, small = false }: { v?: string; small?: boolean }) => {
+const VerdictTag = ({ v, small = false, gap, basis }:
+  { v?: string; small?: boolean; gap?: number | null; basis?: string | null }) => {
   const d = VERDICTS[v || ""];
   if (!d) return null;
+  /* التلميحةُ تقول الأساسَ والرقم: مكرّرُ الربحية أم مكرّرُ الدفترية، وكم
+     الفجوة — فلا يبقى الحكمُ كلمةً بلا سند. */
+  const title = gap != null
+    ? `مقابل وسيط ${basis === "pb" ? "مكرّر الدفترية" : "مكرّر الربحية"} للقطاع: `
+      + `${gap > 0 ? "أرخص بـ" : "أغلى بـ"}${Math.abs(gap).toFixed(1)}%`
+    : "مقابل وسيط مضاعفات القطاع";
   return (
-    <span className="rounded shrink-0 whitespace-nowrap"
+    <span className="rounded shrink-0 whitespace-nowrap" title={title}
       style={{ color: d.color, background: d.bg, border: `1px solid ${d.color}33`,
                fontSize: small ? 9.5 : 10.5, padding: small ? "1px 5px" : "2px 6px" }}>
       {d.label}
@@ -849,7 +864,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] text-[var(--ink-muted)]">شرعي</span>
                   <Seg value={sharia} set={setSharia} opts={[["COMPLIANT", "متوافق"]]} />
-                  <span className="text-[10px] text-[var(--ink-muted)]">الحكم</span>
+                  <span className="text-[10px] text-[var(--ink-muted)]">مقابل القطاع</span>
                   <select value={verdict} onChange={e => setVerdict(e.target.value)}
                     className="border border-[var(--hairline)] rounded-lg px-2 py-1 text-[12px] text-[var(--ink)] focus:outline-none"
                     style={{ background: "var(--field)" }}>
@@ -963,7 +978,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                 {/* الوسوم المتبقية — صفٌّ خاصّ بها */}
                 {(r.verdict || r.sharia === "COMPLIANT" || r.dividend_yield != null || m.macd_cross) && (
                   <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
-                    <VerdictTag v={r.verdict} small />
+                    <VerdictTag v={r.verdict} small gap={r.value_gap_pct} basis={r.value_basis} />
                     {r.sharia === "COMPLIANT" && <Chip text="متوافق شرعاً" color="var(--pos-ink)" />}
                     {r.dividend_yield != null && <Chip text={`توزيع ${r.dividend_yield}%`} color="var(--info-ink)" />}
                     {m.macd_cross === "up" && <Chip text="ماكد صاعد" color="var(--pos-ink)" />}
@@ -1054,7 +1069,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                       style={{ color: r.upside_pct == null ? "var(--ink-muted)" : r.upside_pct >= 15 ? "var(--pos-ink)" : r.upside_pct <= -15 ? "var(--neg-ink)" : "var(--ink-muted)" }}>
                       {r.upside_pct == null ? "—" : `${r.upside_pct > 0 ? "+" : ""}${Math.round(r.upside_pct)}%`}
                     </td>
-                    <td className="px-2 py-2"><VerdictTag v={r.verdict} /></td>
+                    <td className="px-2 py-2"><VerdictTag v={r.verdict} gap={r.value_gap_pct} basis={r.value_basis} /></td>
                     <td className="px-2 py-2 text-[var(--ink-muted)] tabular-nums">{fmt(r.high_52w)}</td>
                     <td className="px-2 py-2 text-[var(--ink-muted)] tabular-nums">{fmt(r.low_52w)}</td>
                   </tr>

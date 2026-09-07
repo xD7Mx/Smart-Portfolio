@@ -259,33 +259,21 @@ export default function AIPage() {
                 </span>
               )}
             </div>
-            {/* جملة الذكاء — بارزة: خطّ جانبي وخلفية متدرّجة ونصّ أكبر */}
-            {evaluation.summary && (
-              <div className="rounded-xl p-4"
-                style={{ background: "var(--panel)", borderInlineStart: "3px solid var(--chart-1)" }}>
-                <p className="text-[var(--ink)] text-[13px] leading-relaxed font-medium">{evaluation.summary}</p>
-              </div>
-            )}
             {evaluation.diversification_basis === "plan" && evaluation.unplanned_pct > 0 && (
               <p className="text-xs text-[var(--ink-muted)] mt-2">{evaluation.unplanned_pct}% من المحفظة بلا نسبة مستهدفة</p>
             )}
 
-            {/* خطوات الوصول للدرجة الكاملة — كامل العرض، هادئة لكن واضحة (بلا صندوق) */}
-            {Array.isArray(evaluation.improvement_steps) && evaluation.improvement_steps.length > 0 && (
-              <div className="mt-5">
-                <p className="text-[13px] font-bold text-[var(--ink)] mb-2.5">
-                  خطوات الوصول للدرجة الكاملة (100){evaluation.overall_score != null && <span className="text-[var(--ink-muted)] font-medium"> — حالياً {evaluation.overall_score}</span>}
-                </p>
-                <ol className="space-y-2">
-                  {evaluation.improvement_steps.map((s: string, i: number) => (
-                    <li key={i} className="flex gap-2.5 text-[13px] leading-relaxed text-[var(--ink-muted)]">
-                      <span className="text-[var(--ink-muted)] font-semibold shrink-0 tabular-nums">{i + 1}.</span>
-                      <span>{s}</span>
-                    </li>
-                  ))}
-                </ol>
+            {/* ══ سطرُ الذكاء خاتمةُ البطاقة ══ (بأمر المالك · D189)
+                كانت تحته «خطوات الوصول للدرجة الكاملة» — قائمةٌ تُملي على
+                المالك ما يفعل بمحفظته، وقد أمر بحذفها. فحلّ سطرُ الذكاء
+                محلَّها خاتمةً: الوسومُ تقول الحال، والسطرُ يقول خلاصتَه. */}
+            {evaluation.summary && (
+              <div className="rounded-xl p-4 mt-4"
+                style={{ background: "var(--panel)", borderInlineStart: "3px solid var(--chart-1)" }}>
+                <p className="text-[var(--ink)] text-[13px] leading-relaxed font-medium">{evaluation.summary}</p>
               </div>
             )}
+
           </div>
         )}
       </div>

@@ -63,14 +63,20 @@ export function FairValueBar({ upside, hideLabel = false, width = 96, ctx }:
   // المعروض نصّاً يبقى صادقاً بلا قصّ.
   const dev = Math.max(-50, Math.min(50, upside));
   const pos = 50 + dev;
+  /* ══ الحكمُ بجانب الشريط لا فوقه ══ (بأمر المالك · D187)
+     كان سطراً علوياً، فيأخذ الصفُّ ارتفاعَ سطرين ويختلف عن «درجة السلامة»
+     في البطاقة نفسِها — والشريطان جوابا سؤالين متجاورين، فاختلافُ ترتيبهما
+     يُقرأ فوضى. صار كالسلامة: شريطٌ ثمّ حكمُه إلى يساره. */
   return (
-    <div style={{ width }} dir="ltr">
-      {!hideLabel && <div className="text-[11px] font-bold mb-1.5" style={{ color: tier.color }}>{tier.label}</div>}
-      <div className="relative h-1.5 rounded-full" style={{ /* مساحةٌ لا حرف ⇒ حشو (انظر --pos-fill في globals.css) */ background: "linear-gradient(90deg, var(--gauge-neg), var(--gauge-warn) 50%, var(--gauge-pos))",
-        boxShadow: "inset 0 0 0 1px var(--gauge-edge)" }}>
-        <div className="absolute" style={{ left: "50%", top: -3, width: 1, height: 8, background: "transparent" }} />
-        <Marker pos={pos} color={tier.color} />
+    <div className="flex items-center gap-2">
+      <div style={{ width }} dir="ltr">
+        <div className="relative h-1.5 rounded-full" style={{ background: "linear-gradient(90deg, var(--gauge-neg), var(--gauge-warn) 50%, var(--gauge-pos))" }}>
+          <Marker pos={pos} color={tier.color} />
+        </div>
       </div>
+      {!hideLabel && (
+        <span className="text-[11px] font-bold whitespace-nowrap" style={{ color: tier.color }}>{tier.label}</span>
+      )}
     </div>
   );
 }
@@ -79,7 +85,7 @@ export function SafetyBar({ score, width = 64 }: { score: number | null; width?:
   if (score == null) return <span className="text-xs text-[var(--ink-muted)]">غير متاح</span>;
   const c = safeFill(score);
   return (
-    <div className="relative h-1.5 rounded-full bg-[var(--surface)]" style={{ width, boxShadow: "inset 0 0 0 1px var(--gauge-edge)" }}>
+    <div className="relative h-1.5 rounded-full bg-[var(--surface)]" style={{ width }}>
       <div className="h-1.5 rounded-full" style={{ width: `${score}%`, background: c }} />
       <Marker pos={score} color={c} from="right" />
     </div>
@@ -101,8 +107,9 @@ function Marker({ pos, color, from = "left" }:
       }} />
       <div className="absolute rounded-full" style={{
         top: "50%", width: 12, height: 12, ...place,
+        /* العلامةُ بيضاءُ بطوقٍ من لون الحكم — والطوقُ الأسودُ الخارجيّ
+           حُذف مع أطراف المسار: لونُ الحكم نفسُه يفصلها عن أيّ أرضية. */
         transform: shift, background: "#fff", border: `2.5px solid ${color}`,
-        boxShadow: "0 0 0 1px var(--gauge-edge)",
       }} />
     </>
   );
@@ -125,8 +132,7 @@ export function TrendBar({ score, width = "100%" }:
   return (
     <div style={{ width }} dir="ltr">
       <div className="relative h-1.5 rounded-full" style={{
-        background: "linear-gradient(90deg, var(--gauge-neg), var(--gauge-warn) 50%, var(--gauge-pos))",
-        boxShadow: "inset 0 0 0 1px var(--gauge-edge)" }}>
+        background: "linear-gradient(90deg, var(--gauge-neg), var(--gauge-warn) 50%, var(--gauge-pos))" }}>
         <Marker pos={50 + dev} color={color} />
       </div>
     </div>

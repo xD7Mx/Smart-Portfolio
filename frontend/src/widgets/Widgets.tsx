@@ -189,12 +189,21 @@ function ScoreTrend({ score, color }: { score: number; color: string }) {
     .slice(-60);
 
   const W = 300, H = 56, PAD = 5;
-  let path = "", endX = 0, endY = 0;
+  /* ══ مقياسٌ ثابتٌ لا يتمدّد مع البيانات ══ (بأمر المالك · D188)
+     كان المدى يُشتقّ من أدنى القياسات وأعلاها، فدرجةُ ‎٩٠ إن كانت أدنى ما
+     سُجّل رُسمت في قاع الصندوق — «رأسُ الخطّ إلى أسفل والدرجة ٩٠+».
+     المقياسُ الآن يشمل العتبتين دائماً (‏٤٥ و‎٧٠) ويتّسع لما خرج عنهما،
+     فموضعُ النقطة يعني شيئاً في نفسه لا بالنسبة لجيرانها. والعتبتان
+     خطّان خافتان — «مستوياتٌ مخفية» كما طلب: تُقرأ حين تُطلب ولا تزاحم. */
+  let path = "", endX = 0, endY = 0, yOf = (_v: number) => 0;
+  const vals = series.map(p => p.v);
+  const lo = Math.max(0, Math.min(40, ...(vals.length ? vals : [40])));
+  const hi = Math.min(100, Math.max(80, ...(vals.length ? vals : [80])));
+  const sp = (hi - lo) || 1;
+  yOf = (v: number) => PAD + (hi - v) / sp * (H - PAD * 2);
   if (series.length >= 2) {
-    const vals = series.map(p => p.v);
-    const lo = Math.min(...vals), hi = Math.max(...vals), sp = (hi - lo) || 1;
     const x = (i: number) => PAD + i * (W - PAD * 2) / (series.length - 1);
-    const y = (v: number) => PAD + (hi - v) / sp * (H - PAD * 2);
+    const y = yOf;
     path = series.map((p, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p.v).toFixed(1)).join(" ");
     endX = x(series.length - 1); endY = y(series[series.length - 1].v);
   }
@@ -224,6 +233,11 @@ function ScoreTrend({ score, color }: { score: number; color: string }) {
       {series.length >= 2 ? (
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 56 }} dir="ltr"
           role="img" aria-label={`اتجاه التقييم: ${score.toFixed(0)} من 100`}>
+          {/* المستويان: يُرسمان أوّلاً فيبقيان تحت الخطّ. */}
+          {[45, 70].map(lvl => (
+            <line key={lvl} x1={PAD} x2={W - PAD} y1={yOf(lvl)} y2={yOf(lvl)}
+                  stroke="var(--hairline)" strokeWidth={1} strokeDasharray="3 4" />
+          ))}
           <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
           <circle cx={endX} cy={endY} r={7} fill={color} opacity={0.16} />
           <circle cx={endX} cy={endY} r={3.2} fill={color} />
@@ -238,8 +252,9 @@ function ScoreTrend({ score, color }: { score: number; color: string }) {
 
       {/* العتبتان مكتوبتان: الخطّ يقول الاتجاه، وهذه تقول أين تقف منه. */}
       <div className="flex items-center justify-between text-[10px] mt-1" style={{ color: "var(--ink-muted)" }}>
-        <span>متوسّطة عند ٤٥</span>
+        {/* «جيّدة» يميناً و«متوسّطة» يساراً — بأمر المالك. */}
         <span>جيّدة عند ٧٠</span>
+        <span>متوسّطة عند ٤٥</span>
       </div>
     </div>
   );
