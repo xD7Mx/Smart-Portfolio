@@ -133,7 +133,9 @@ def check_hardcoded_colors() -> None:
     }
     for f in (ROOT / "frontend/src").rglob("*.tsx"):
         rel = str(f.relative_to(ROOT))
-        if any(k in rel for k in exempt):
+        # منصّةُ القياس ليست شاشةً يراها المالك: تُركّب المكوّنَ على أرضيةٍ
+        # مصنوعةٍ عمداً ليُقاس عليها، فألوانُها أداةُ قياسٍ لا تصميم.
+        if "__probe" in rel or any(k in rel for k in exempt):
             continue
         # ══ التعليق ليس شيفرة ══
         # كان الفحص يتخطّى السطر إن **بدأ** بعلامة تعليق، فيمرّ على سطرٍ
