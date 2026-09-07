@@ -161,6 +161,12 @@ python3 scripts/audit/fv_synthetic.py || fail=1
 echo
 node scripts/audit/alloc_totals.mjs || fail=1
 
+# D198: درجةُ الحوكمة تُقرأ من المحرّك، والعمودُ المخزَّن يملأ الفراغَ ولا
+# يغلبه. كان المخزَّنُ أوّلاً فيُعرض رقمٌ قديمٌ في الفرز وخريطة القطاعات
+# بينما تحسب صفحةُ الشركة حيّاً.
+echo
+python3 scripts/audit/score_source.py || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then

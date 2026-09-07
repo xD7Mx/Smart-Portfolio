@@ -296,12 +296,19 @@ async def _enrich_fundamentals(rows: list[dict]) -> None:
         if not sharia:                       # احتياط: قاعدة البيانات لشركاتك
             sharia = d.get("sharia")
         r["sharia"] = sharia if sharia and sharia != "UNKNOWN" else None
-        # درجة الحوكمة: من قاعدة البيانات (تُخزَّن هناك من المحرّك نفسه)، وإلا
-        # من المحرّك مباشرةً على القوائم المخزَّنة — رقمٌ واحد لا يعارض صفحة
-        # الحوكمة أبداً.
-        fs = d.get("finance_score")
+        # ══ المحرّكُ أوّلاً، والمخزَّنُ احتياطٌ ══ (D198)
+        # كان العمودُ المخزَّن في قاعدة البيانات يُقرأ أوّلاً، والمحرّكُ لا
+        # يُستدعى إلا إن غاب. والعمودُ **نسخةٌ محفوظة** يكتبها مسحٌ دوريّ:
+        # فإن تغيّرت معايرةُ المحرّك (D162) أو تجدّدت القوائمُ ولم يُعَد
+        # المسحُ بعد، عُرض في الفرز وخريطة القطاعات رقمٌ قديمٌ بينما صفحةُ
+        # الشركة تحسب حيّاً — وهو الاختلافُ الذي رآه المالك.
+        #
+        # والحيُّ هنا لا يكلّف نداءَ شبكة: `_governance_score` تمتنع ما لم
+        # تكن القوائمُ مخزَّنةً سلفاً. فإن لم تكن، رجعنا إلى المخزَّن — رقمٌ
+        # قديمٌ خيرٌ من فراغ، والفراغُ خيرٌ من رقمٍ مُختلَق.
+        fs = await _governance_score(ysym, r.get("sector"))
         if not fs:
-            fs = await _governance_score(ysym, r.get("sector"))
+            fs = d.get("finance_score")
         r["finance_score"] = fs if fs else None
 
         # ٢) حقول التقييم: الكاش أوّلاً (٣٠ يوماً)، فإن انتهى فالمخزن الدائم.
@@ -317,7 +324,6 @@ async def _enrich_fundamentals(rows: list[dict]) -> None:
         # نفسُ الرقم الذي تعرضه صفحةُ الشركة وتحليلُ الذكاء — مصدرٌ واحد
         # في التطبيق كلِّه، باسمٍ واحد.
         _fv = pick("target_mean_price")
-        _up = None
         r["fair_value"] = _fv
         r["fair_value_asof"] = stored.get("val_asof")
         dy = fund.get("dividend_yield")
@@ -380,12 +386,16 @@ def _attach_relative_valuation(rows: list[dict]) -> None:
         # سؤالٌ آخر غير سؤال القطاع: لا «أرخص من أقرانه؟» بل «كم يبعد سعره عن
         # القيمة التي يراها المحللون؟». يُعرض مستقلاً ولا يُخلط بالأول، فمصدره
         # آراء بشر لا مقارنة أرقام — ويُحدَّث شهرياً لا يومياً.
+        # ══ متغيّرٌ من دالّةٍ أخرى ══ (D199)
+        # كان السطرُ يبدأ بـ`_up if _up is not None` — و`_up` متغيّرٌ محلّيٌّ
+        # في `_enrich_fundamentals` لا وجودَ له هنا، فيرفع NameError على
+        # **كلّ صفّ** فتسقط الفجوةُ عن هدف المحلّلين من الفرز كلِّه. كشفه
+        # مسبارٌ شغّل المسارَ على صفٍّ واحد بدل قراءة الشيفرة.
         fv, px = r.get("fair_value"), r.get("price")
-        r["upside_pct"] = (_up if _up is not None else
-                           (round((float(fv) - float(px)) / float(px) * 100, 1)
-                            if isinstance(fv, (int, float)) and fv > 0
-                            and isinstance(px, (int, float)) and px > 0
-                            else None))
+        r["upside_pct"] = (round((float(fv) - float(px)) / float(px) * 100, 1)
+                           if isinstance(fv, (int, float)) and fv > 0
+                           and isinstance(px, (int, float)) and px > 0
+                           else None)
 
 
         m = med.get(r.get("sector") or "", {})

@@ -232,9 +232,14 @@ async def get_sector_map(db) -> dict:
     except Exception as e:
         from loguru import logger
         logger.debug(f"sector-map: market governance unavailable: {e}")
+    # ══ المخزَّنُ لا يغلب الحيّ ══ (D198)
+    # كان عمودُ قاعدة البيانات يُكتب فوق درجةِ المسح الحيّ لشركات المالك،
+    # فتخالف الخريطةُ صفحةَ الشركة كلّما تقادمت النسخة المحفوظة. الآن
+    # يملأ الفراغَ ولا يمسح ما وصل.
     for sym, fs in (await db.execute(_select(Company.symbol, Company.finance_score))).all():
-        if fs is not None:
-            score[str(sym).replace(".SR", "")] = float(fs)
+        key = str(sym).replace(".SR", "")
+        if fs is not None and key not in score:
+            score[key] = float(fs)
     # ══ الحكمُ العميق المحفوظ مصدرٌ ثالث ══
     # مفتاحُ كاش مسح السوق يحمل نسخةَ القواعد، فكلُّ تعديلٍ في ملفّ القواعد
     # يُبطله — وتبقى خريطةُ القطاعات فارغةً حتى يكتمل مسحٌ جديد لأربعمئة

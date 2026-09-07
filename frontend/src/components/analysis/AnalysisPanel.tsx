@@ -154,7 +154,17 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                 )}
               </>
             ) : (
-              <div className="text-base text-[var(--ink-muted)]" style={{ fontWeight: 700 }}>غير متوفّرة</div>
+              /* ══ الغيابُ يُذكر بسببه ══ (بأمر المالك · D200)
+                 «غير متوفّرة» وحدَها تُقرأ عطباً في التطبيق. والسببُ هنا
+                 واحدٌ معلوم: المعروضُ هدفُ بيوت الخبرة، ولا تغطّي بيوتُ
+                 الخبرة كلَّ ورقة — والصناديقُ العقارية أقلُّها تغطيةً.
+                 فيُقال ما هو، ولا يُخترع رقمٌ ليملأ الفراغ. */
+              <>
+                <div className="text-base text-[var(--ink-muted)]" style={{ fontWeight: 700 }}>غير متوفّر</div>
+                <div className="text-[9.5px] text-[var(--ink-muted)] leading-tight mt-1">
+                  لا يصلنا هدفُ محلّلين لهذه الورقة
+                </div>
+              </>
             )}
           </div>
         </div>
