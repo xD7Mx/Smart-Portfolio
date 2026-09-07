@@ -155,6 +155,12 @@ python3 scripts/audit/sharia_ink.py || fail=1
 echo
 python3 scripts/audit/fv_synthetic.py || fail=1
 
+# D182: صفُّ المجموع في جدول التوزيع — مجموعٌ مستهدفٌ يكتبه المالك، ومعدّلُ
+# عائد توزيعاتٍ مرجّحٌ بالأوزان. والشركةُ بلا عائدٍ معلوم تخرج من البسط
+# والمقام معاً: عدُّها صفراً يخفض المعدّل برقمٍ لا مصدرَ له.
+echo
+node scripts/audit/alloc_totals.mjs || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then

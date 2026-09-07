@@ -77,6 +77,21 @@ async def get_allocation(db: AsyncSession = Depends(get_db)):
     pool = pool_info["pool"]
     fresh_cash = max(0.0, cash - pool)
 
+    # ── عائدُ التوزيعات لكلّ شركة — من مخزن الفرز، بلا نداءِ شبكة ──────────
+    # يُطلب ليُحسب **معدّلُ عائد التوزيعات المرجّح بالأوزان المستهدفة** في صفّ
+    # المجموع: المالك يوازن الأوزان لا لِتُوزَّع السيولة وحدَها، بل ليعرف ماذا
+    # يُدرّ عليه هذا التوزيع نفسُه. والرقمُ من الصفوف المخزَّنة التي تُغذّي قسم
+    # السوق — نفسُ الرقم الذي يراه هناك، لا رقمٌ ثانٍ باسمٍ واحد.
+    dy_by_symbol: dict[str, float] = {}
+    try:
+        from app.services.market_screener import get_cached_screener
+        for r in (get_cached_screener() or []):
+            v = r.get("dividend_yield")
+            if isinstance(v, (int, float)) and v > 0:
+                dy_by_symbol[str(r.get("symbol"))] = float(v)
+    except Exception:                                             # noqa: BLE001
+        dy_by_symbol = {}
+
     data = []
     for h in holdings:
         mv = float(h.market_value or 0)
@@ -97,6 +112,8 @@ async def get_allocation(db: AsyncSession = Depends(get_db)):
             "current_weight": round(mv / investable * 100, 2) if investable else 0,
             "target_weight": tw,
             "last_price": lp,
+            # None تعني «غير متوفّر» — لا صفراً يُقرأ «لا توزيعات».
+            "dividend_yield": dy_by_symbol.get(str(h.company.symbol)),
             "liquidity_share": liquidity_share,
             "reinvest_share": reinvest_share,
             "total_amount": total_amount,

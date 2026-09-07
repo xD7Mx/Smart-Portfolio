@@ -8,6 +8,7 @@ import { companiesApi, holdingsApi, transactionsApi, cashApi, allocationApi, por
 import { useT } from "../i18n";
 import { searchCompanies, lookupCompany, SaudiCompany } from "../data/saudiCompanies";
 import StockSheet from "../components/market/StockSheet";
+import { weightedDividendYield, retainedCashPct } from "../lib/allocMath";
 import { useAppStore, GridItem } from "../store/appStore";
 import { useAuthStore } from "../store/authStore";
 import CompanyLogo from "../components/common/CompanyLogo";
@@ -1144,6 +1145,15 @@ function RebalanceCard() {
   /* نصّ عتبة كل شركة أثناء الكتابة: «5» ثم «50» رقمان، وحفظ الأول يُعيد
      حساب المحفظة بلا داعٍ. يُحفظ عند ترك الحقل. */
   const [thrRow, setThrRow] = useState<Record<number, string>>({});
+  /* المجموعُ المستهدف — تفضيلُ عرضٍ لهذا الجهاز، لا بيانَ محفظةٍ يُحفظ في
+     الخادم: لا يدخل في حسابِ نصيبٍ ولا في أمرِ شراء، وإنما يقول للوسم
+     متى يكون أخضر. */
+  const [deployDraft, setDeployDraft] = useState<string>(() => {
+    try { return localStorage.getItem("sp.deployTarget") || "100"; } catch { return "100"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("sp.deployTarget", deployDraft); } catch { /* وضعُ التصفّح الخاصّ */ }
+  }, [deployDraft]);
   const saveCompanyThr = useMutation({
     mutationFn: (v: { id: number; pct: number | null }) =>
       allocationApi.setCompanyThreshold(v.id, v.pct).then(r => r.data),
@@ -1160,6 +1170,19 @@ function RebalanceCard() {
   if (!items.length) return null;
   const val = (id: number, fallback: number) => targets[id] !== undefined ? targets[id] : String(fallback || "");
   const sumTargets = items.reduce((a: number, it: any) => a + (Number(val(it.company_id, it.target_weight)) || 0), 0);
+  /* ══ المجموعُ المستهدف ليس مئةً بالضرورة ══ (بأمر المالك)
+     مَن أراد أن يوزّع سبعين بالمئة ويُبقي ثلاثين نقداً كان يرى وسمَ المجموع
+     محذّراً برتقالياً وهو مصيبٌ في قصده. فصار الهدفُ رقماً يكتبه، والوسمُ
+     يُقاس عليه. ولا أثرَ له في الحساب: النصيبُ أصلاً `وزن ÷ 100 × النقد`،
+     فمجموعُ سبعين ينشر سبعين بالمئة ويترك الباقيَ نقداً من نفسه. */
+  const deployTarget = Number(deployDraft) || 0;
+  const retainedPct = retainedCashPct(deployTarget);
+  /* معدّلُ عائد التوزيعات مرجّحاً بالأوزان المكتوبة الآن — يتحرّك مع كلّ
+     تعديل قبل الحفظ، كبقيّة أرقام هذه البطاقة. وشركةٌ بلا عائدٍ معلوم تخرج
+     من البسط والمقام معاً، فلا تُقرأ صفراً. */
+  const dyAgg = weightedDividendYield(
+    items, (it: any) => Number(val(it.company_id, it.target_weight)) || 0);
+  const dyWeighted = dyAgg.value;
   /* هل في الحقول وزنٌ يخالف المحفوظ؟ عليه يتوقّف وسم «معاينة» أعلى البطاقة. */
   const hasUnsaved = items.some((it: any) =>
     (Number(val(it.company_id, it.target_weight)) || 0) !== (Number(it.target_weight) || 0));
@@ -1217,7 +1240,25 @@ function RebalanceCard() {
           <h2 className="card-title">التوزيع النسبي</h2>
         </div>
         <div className="flex items-center gap-2">
-          <span className={"text-xs font-bold " + (Math.abs(sumTargets - 100) < 0.01 ? "text-[var(--pos-ink)]" : "text-[var(--warn-ink)]")}>المجموع: {sumTargets.toFixed(1)}%</span>
+          <span className={"text-xs font-bold " + (Math.abs(sumTargets - deployTarget) < 0.01 ? "text-[var(--pos-ink)]" : "text-[var(--warn-ink)]")}>المجموع: {sumTargets.toFixed(1)}%</span>
+          <span className="flex items-center gap-1 text-xs text-[var(--ink-muted)]">
+            من
+            <input className="input tabular-nums" style={{ width: 56, padding: "4px 8px" }}
+              type="text" inputMode="decimal" lang="en" dir="ltr"
+              title="المجموع المستهدف — ما تبقّى يبقى نقداً" aria-label="المجموع المستهدف"
+              value={deployDraft}
+              onChange={e => setDeployDraft(
+                e.target.value
+                  .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+                  .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
+                  .replace(/[^\d.]/g, ""))} />
+            %
+          </span>
+          {retainedPct > 0 && (
+            <span className="text-xs text-[var(--ink-muted)] tabular-nums" dir="rtl">
+              يبقى نقداً {retainedPct.toFixed(0)}%
+            </span>
+          )}
           {/* **حمايةُ الرقم**: هذه البطاقة تحسب الأنصبة من الوزن المكتوب في
               الحقل الآن (معاينةً فوريّة)، بينما بطاقة المعاملة تقرأ الوزن
               **المحفوظ** من الخادم. فما دام في الحقول تعديلٌ لم يُحفظ، الرقمان
@@ -1310,7 +1351,19 @@ function RebalanceCard() {
           {totals.amount > 0 && (
             <tfoot>
               <tr style={{borderTop:"2px solid var(--hairline)"}}>
-                <td className="td text-start text-[var(--ink-muted)] text-xs font-semibold" colSpan={4}>المجموع</td>
+                <td className="td text-start text-[var(--ink-muted)] text-xs font-semibold" colSpan={3}>المجموع</td>
+                {/* تحت عمود الوزن المستهدف: معدّلُ عائد التوزيعات بهذه الأوزان. */}
+                <td className="td text-start">
+                  {dyWeighted != null ? (
+                    <span className="text-[var(--pos-ink)] text-xs font-bold tabular-nums" dir="ltr"
+                          title={"معدّل عائد التوزيعات مرجّحاً بالوزن المستهدف"
+                                 + (dyAgg.unknown ? ` — ${dyAgg.unknown} شركة بلا عائد معلوم` : "")}>
+                      {dyWeighted.toFixed(2)}%
+                    </span>
+                  ) : (
+                    <span className="text-[var(--ink-muted)] text-xs">غير متوفّر</span>
+                  )}
+                </td>
                 <td className="td text-start">
                   <span className="text-[var(--ink)] text-xs font-bold tabular-nums" dir="ltr">{fmt(totals.amount)}</span>
                 </td>
@@ -1387,6 +1440,23 @@ function RebalanceCard() {
               </div>
             );
           })}
+          {/* صفُّ المجموع في الجوّال: ما يقوله tfoot في الحاسوب بعينه. */}
+          {totals.amount > 0 && (
+            <div className="py-3 flex items-center justify-between gap-3">
+              <span className="text-[var(--ink-muted)] text-xs font-semibold">المجموع</span>
+              <div className="flex items-center gap-4">
+                <span className="text-[11px] text-[var(--ink-muted)]">عائد التوزيعات</span>
+                {dyWeighted != null ? (
+                  <span className="text-[var(--pos-ink)] text-xs font-bold tabular-nums" dir="ltr">
+                    {dyWeighted.toFixed(2)}%
+                  </span>
+                ) : (
+                  <span className="text-[var(--ink-muted)] text-xs">غير متوفّر</span>
+                )}
+                <span className="text-[var(--ink)] text-xs font-bold tabular-nums" dir="ltr">{fmt(totals.amount)}</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       {showProfit && (
