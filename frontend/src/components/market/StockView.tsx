@@ -118,18 +118,21 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
     <div className="space-y-4">
       {/* ── الهوية ── */}
       <div className="relative">
-        {onClose && (
-          <button onClick={onClose} title="إلغاء"
-            className="stock-close absolute top-0 end-0 p-1 rounded-lg z-10">
-            <X size={16} />
-          </button>
-        )}
-        <div className="flex items-center gap-3 pe-8">
+        <div className="flex items-center gap-3">
           <CompanyLogo symbol={symbol} size={40} logoUrl={data?.logo_url} />
           <div className="min-w-0">
+            {/* ══ الإلغاءُ بجانب الاسم لا في زاوية البطاقة ══ (بأمر المالك)
+                كان في أقصى الطرف، فمن أراد إلغاءَ بحثه قطع الشاشةَ بعينه
+                ويده. والفعلُ يخصّ هذه الشركةَ فمحلُّه عندها. */}
             <div className="flex items-center gap-2 min-w-0">
               <ShariaBadge status={data?.sharia_status} size={15} />
               <h2 className="text-lg font-bold text-[var(--ink)] truncate">{lookupCompany(symbol)?.name_ar || data?.name || symbol}</h2>
+              {onClose && (
+                <button onClick={onClose} title="إلغاء" aria-label="إلغاء"
+                  className="stock-close shrink-0 p-1 rounded-lg">
+                  <X size={15} />
+                </button>
+              )}
             </div>
             {/* صفٌّ واحد نظيف: الرمز · القطاع · الحوكمة — بلا خلفيات ولا أُطر. */}
             <div className="flex items-center gap-x-3 gap-y-1 mt-1 flex-wrap text-xs text-[var(--ink-muted)]">

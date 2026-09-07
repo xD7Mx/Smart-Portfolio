@@ -262,7 +262,7 @@ export default function AIPage() {
             {/* جملة الذكاء — بارزة: خطّ جانبي وخلفية متدرّجة ونصّ أكبر */}
             {evaluation.summary && (
               <div className="rounded-xl p-4"
-                style={{ background: "transparent,rgba(139,92,246,.06))", borderInlineStart: "3px solid var(--chart-1)" }}>
+                style={{ background: "var(--panel)", borderInlineStart: "3px solid var(--chart-1)" }}>
                 <p className="text-[var(--ink)] text-[13px] leading-relaxed font-medium">{evaluation.summary}</p>
               </div>
             )}
@@ -383,21 +383,22 @@ export default function AIPage() {
           )}
           {risk.summary && (
             <div className="rounded-xl p-4"
-              style={{ background: "transparent,rgba(139,92,246,.06))", borderInlineStart: "3px solid var(--chart-1)" }}>
+              style={{ background: "var(--panel)", borderInlineStart: "3px solid var(--chart-1)" }}>
               <p className="text-[var(--ink)] text-[13px] leading-relaxed font-medium">{risk.summary}</p>
             </div>
           )}
           {risk.risks && risk.risks.length > 0 && (
             <div className="mt-3 space-y-2">
               {risk.risks.map((r: any, i: number) => (
+                /* كهرمانيٌّ لا برتقاليٌّ صارخ — سببُ مخاطرةٍ يُقرأ لا يصرخ. */
                 <div key={i} className="flex items-start gap-2.5 p-3 panel rounded-xl"
-                  style={{ borderInlineStart: "3px solid var(--warn-ink)" }}>
+                  style={{ borderInlineStart: "3px solid var(--amber-ink)" }}>
                   <span className="h-5 w-5 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 tabular-nums"
                     /* الحبر لون **أرضية الصفحة** لا الأبيض: الرموز الدلالية تنقلب مع
                       المظهر (كهرمانٌ ساطع في الداكن، بنّيٌّ غامق في الفاتح)،
                       وأرضية الصفحة تنقلب معها عكسياً — فيبقى التباين قائماً
                       في المظهرين بقاعدةٍ واحدة بلا شرط. قِيس: ١٫٦٧ ← ١١٫٦. */
-                    style={{ background: "var(--warn-ink)", color: "var(--bg)" }}>{i + 1}</span>
+                    style={{ background: "var(--amber-ink)", color: "var(--bg)" }}>{i + 1}</span>
                   <p className="text-[var(--ink)] text-[13px] leading-relaxed">{r.description || r}</p>
                 </div>
               ))}
@@ -422,7 +423,9 @@ export default function AIPage() {
           </p>
         ) : (
           <div className="rounded-xl p-4 text-sm whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto"
-            style={{ background: "color-mix(in srgb, var(--ink) 4%, var(--surface))", color: "var(--ink)" }}>
+            /* سطحُ التطبيق نفسُه لا خلطةٌ رماديّة: كان `--ink 4%` فوق السطح
+               يعطي لوناً باهتاً لا يشبه بطاقةً أخرى في التطبيق. */
+            style={{ background: "var(--panel)", border: "1px solid var(--line)", color: "var(--ink)" }}>
             {report.content}
           </div>
         )}
