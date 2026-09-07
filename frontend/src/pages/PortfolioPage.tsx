@@ -1104,7 +1104,7 @@ function TagAudit() {
 }
 
 // ── Target Weights & Rebalance (advisory only) ───────────────
-function RebalanceCard() {
+export function RebalanceCard() {
   const qc = useQueryClient();
   const { isOwner } = useAuthStore();
   const [targets, setTargets] = useState<Record<number, string>>({});
