@@ -128,6 +128,7 @@ def check_hardcoded_colors() -> None:
         "common/CompanyLogo.tsx": "حرفُ الشركة على تدرّج لونها هي",
         "pages/LoginPage.tsx": "شاشةُ القفل: سطحٌ داكنٌ واحد قبل الدخول، لا مظهرَ للمستخدم بعد",
         "common/MarketTicker.tsx": "لسانٌ بنفسجيّ لا يتبدّل بالمظهر — ألوانه الثلاث بأمر المالك",
+        "common/TadawulMark.tsx": "شعارُ تداول — ألوانُ علامةٍ مملوكةٍ لغيرنا، منقولةٌ من ملفّ المالك ولا تتبع مظهراً",
     }
     for f in (ROOT / "frontend/src").rglob("*.tsx"):
         rel = str(f.relative_to(ROOT))
