@@ -1245,26 +1245,60 @@ def check_symbol_consistency() -> None:
             note("S-SYMBOL", "frontend/src/components/analysis/AnalysisPanel.tsx",
                  "مقياسُ الانحراف غيرُ مأخوذ من تعريفه المشترك — نسخةٌ "
                  "ثانية تتباعد عن أصلها مع أوّل تعديل")
-    # ══ ألوانُ المقاييس لا تتفرّق بين مظهرين ══ (بأمر المالك)
-    # رضي درجاتِ الداكن وطلب اعتمادها في الفاتح. ورمزٌ يُعاد تعريفه تحت
-    # `html.light` يُعيد التفرقة صامتاً — فيُمنع. أمّا `--gauge-edge`
-    # فيجب أن يُعاد تعريفه: هو فصلٌ عن الأرضية لا لون، ولا يصحّ أن يبقى
-    # واحداً على أرضيتين متضادّتين.
+    # ══ ألوانُ المقاييس تُقاس على أرضيتها ══ (بأمر المالك · D187)
+    #
+    # كان هنا شرطٌ يمنع تعريفَ اللون للمظهر الفاتح: أمرَ المالكُ يوماً
+    # بلونٍ واحدٍ للمظهرين، وعُوّض ضعفُ التباين بطوقٍ داكنٍ حول المسار.
+    # ثم رأى النتيجةَ على الشاشة فردّها: «الألوان باهتة كأنها فسفورية،
+    # والأطرافُ السوداء قبيحة». فنُقض الشرطُ الشكليُّ وحلّ محلَّه شرطٌ
+    # **يقيس ما كان الطوقُ يعوّضه**: لكلّ مظهرٍ لونُه، ولونُ كلٍّ يبلغ
+    # ‎3:1 على أرضية مظهره — عتبةُ الميثاق للعناصر غير النصّية. فإن بلغها
+    # اللونُ استغنى عن الطوق، وإن لم يبلغها لم ينفعه طوق.
     if css.exists():
         c = css.read_text(encoding="utf-8")
         if "--gauge-pos" not in c:
             note("S-SYMBOL", "frontend/src/styles/globals.css",
                  "لا رموز موحَّدة لألوان المقاييس")
         else:
-            for tok in ("--gauge-pos", "--gauge-warn", "--gauge-neg"):
-                if re.search(r"html\.light\s*\{[^}]*" + tok + r"\s*:", c):
+            _GAUGE = ("--gauge-pos", "--gauge-warn", "--gauge-neg")
+
+            def _block(sel: str) -> str:
+                m = re.search(sel + r"\s*\{([^}]*--gauge-pos[^}]*)\}", c)
+                return m.group(1) if m else ""
+
+            def _hex(block: str, tok: str):
+                m = re.search(tok + r"\s*:\s*(#[0-9a-fA-F]{6})", block)
+                return m.group(1) if m else None
+
+            def _lum(h: str) -> float:
+                ch = [int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+                f = lambda v: v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+                r, g, b = map(f, ch)
+                return .2126 * r + .7152 * g + .0722 * b
+
+            def _ratio(a: str, b: str) -> float:
+                la, lb = _lum(a), _lum(b)
+                hi, lo = max(la, lb), min(la, lb)
+                return (hi + .05) / (lo + .05)
+
+            for sel, ground, name in ((r":root", "#0d0d0d", "الداكن"),
+                                      (r"html\.light", "#ffffff", "الفاتح")):
+                blk = _block(sel)
+                if not blk:
                     note("S-SYMBOL", "frontend/src/styles/globals.css",
-                         "«" + tok + "» أُعيد تعريفه للمظهر الفاتح — عادت "
-                         "التفرقة اللونية بين المظهرين")
-            if not re.search(r"html\.light\s*\{[^}]*--gauge-edge\s*:", c):
-                note("S-SYMBOL", "frontend/src/styles/globals.css",
-                     "حافّةُ المقياس واحدةٌ على أرضيتين متضادّتين — "
-                     "تذوب في إحداهما")
+                         f"ألوانُ المقاييس غيرُ معرَّفةٍ للمظهر {name} — تُورَث من الآخر")
+                    continue
+                for tok in _GAUGE:
+                    h = _hex(blk, tok)
+                    if not h:
+                        note("S-SYMBOL", "frontend/src/styles/globals.css",
+                             f"«{tok}» بلا لونٍ في المظهر {name}")
+                        continue
+                    r = _ratio(h, ground)
+                    if r < 3.0:
+                        note("S-SYMBOL", "frontend/src/styles/globals.css",
+                             f"«{tok}» = {h} يقيس {r:.2f}:1 على أرضية المظهر "
+                             f"{name} — دون عتبة 3:1 للعناصر غير النصّية")
 
     v = ROOT / "frontend/src/components/common/ValueBars.tsx"
     if v.exists():
