@@ -129,6 +129,7 @@ def check_hardcoded_colors() -> None:
         "pages/LoginPage.tsx": "شاشةُ القفل: سطحٌ داكنٌ واحد قبل الدخول، لا مظهرَ للمستخدم بعد",
         "common/MarketTicker.tsx": "لسانٌ بنفسجيّ لا يتبدّل بالمظهر — ألوانه الثلاث بأمر المالك",
         "common/TadawulMark.tsx": "شعارُ تداول — ألوانُ علامةٍ مملوكةٍ لغيرنا، منقولةٌ من ملفّ المالك ولا تتبع مظهراً",
+        "common/TadawulLogo.tsx": "شعارُ تداول كاملاً — العلامةُ نفسُها بكلمتها، ولونُ الكلمة وحدَه يُملى من الخارج",
     }
     for f in (ROOT / "frontend/src").rglob("*.tsx"):
         rel = str(f.relative_to(ROOT))

@@ -5,7 +5,7 @@ import { useAuthStore } from "../../store/authStore";
 // أيقونة اللسان هي أيقونة شريط الأخبار نفسها (`Radio` — موجاتُ بثّ). كانت
 // `Newspaper` فبدا في التطبيق رمزان لشيءٍ واحد، والمالك يقرؤهما قسمين.
 import { Radio } from "lucide-react";
-import TadawulMark from "./TadawulMark";
+import TadawulLogo from "./TadawulLogo";
 import TrendArrow from "./TrendArrow";
 
 /**
@@ -267,7 +267,7 @@ export default function MarketTicker() {
               {/* شعارُ تداول مكانَ رمز الطور (بأمر المالك). والطورُ باقٍ في
                   تلميحة اللسان ونصّه المسموع — لم تضِع المعلومة، تغيّر
                   حاملُها. */}
-              <TadawulMark size={15} title={stateText} />
+              <TadawulLogo height={15} wordColor="#fff" title={stateText} />
               {/* ══ الرقم قيمة، والسهم والنسبة دلالة ══ (بأمر المالك)
                   كان الثلاثة يتلوّنون معاً، فيصير رقم المؤشّر نفسه أحمر —
                   وهو ليس ربحاً ولا خسارة، بل مستوى السوق. الدلالة تخصّ
