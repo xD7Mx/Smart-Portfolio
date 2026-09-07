@@ -273,7 +273,7 @@ export default function MarketTicker() {
                   الصندوق إلى أعلى. قِيس في المتصفّح: أسفلُ «تداول» 18.04
                   وأعلى «Tadawul» 17.21 ⇐ منتصفُهما 17.63، وحبرُ الرقم 16.
                   فرُفع الشعارُ بالفرق (1.6px) لا بتقديرٍ بالعين. */}
-              <span style={{ display: "inline-flex", transform: "translateY(-1.6px)" }}>
+              <span style={{ display: "inline-flex", transform: "translateY(-3.1px)" }}>
                 <TadawulLogo height={15} wordColor="#ffffff" title={stateText} />
               </span>
               {/* ══ الرقم قيمة، والسهم والنسبة دلالة ══ (بأمر المالك)
