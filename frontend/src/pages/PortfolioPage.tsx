@@ -9,6 +9,7 @@ import { useT } from "../i18n";
 import { searchCompanies, lookupCompany, SaudiCompany } from "../data/saudiCompanies";
 import StockSheet from "../components/market/StockSheet";
 import { weightedDividendYield, retainedCashPct, rescaleWeights } from "../lib/allocMath";
+import AllocationCharts from "../components/portfolio/AllocationCharts";
 import { useAppStore, GridItem } from "../store/appStore";
 import { useAuthStore } from "../store/authStore";
 import CompanyLogo from "../components/common/CompanyLogo";
@@ -1526,6 +1527,14 @@ export function RebalanceCard() {
           )}
         </div>
       </div>
+      {/* صورةُ التوزيع — تتحرّك مع الحقول قبل الحفظ (D191). */}
+      <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--hairline)" }}>
+        <AllocationCharts
+          rows={items}
+          currentOf={(r: any) => Number(r.current_weight) || 0}
+          targetOf={(r: any) => Number(val(r.company_id, r.target_weight)) || 0} />
+      </div>
+
       {showProfit && (
         <div className="mt-4 rounded-xl p-4" style={{background:"transparent", border: "1px solid var(--hairline)"}}>
           <div className="flex items-center gap-2 mb-3 flex-wrap">

@@ -82,6 +82,8 @@ async def get_allocation(db: AsyncSession = Depends(get_db)):
     # المجموع: المالك يوازن الأوزان لا لِتُوزَّع السيولة وحدَها، بل ليعرف ماذا
     # يُدرّ عليه هذا التوزيع نفسُه. والرقمُ من الصفوف المخزَّنة التي تُغذّي قسم
     # السوق — نفسُ الرقم الذي يراه هناك، لا رقمٌ ثانٍ باسمٍ واحد.
+    from app.data.company_sectors import SYMBOL_TO_SECTOR_AR
+
     dy_by_symbol: dict[str, float] = {}
     try:
         from app.services.market_screener import get_cached_screener
@@ -114,6 +116,10 @@ async def get_allocation(db: AsyncSession = Depends(get_db)):
             "last_price": lp,
             # None تعني «غير متوفّر» — لا صفراً يُقرأ «لا توزيعات».
             "dividend_yield": dy_by_symbol.get(str(h.company.symbol)),
+            # القطاع من دليل التطبيق المنسَّق أوّلاً — لا من تصنيفٍ خارجيّ
+            # قد يخالفه. يُنشَر ليُرسم توزيعُ القطاعات مع الجدول نفسِه.
+            "sector": (SYMBOL_TO_SECTOR_AR.get(str(h.company.symbol).replace(".SR", ""))
+                       or h.company.sector or None),
             "liquidity_share": liquidity_share,
             "reinvest_share": reinvest_share,
             "total_amount": total_amount,
