@@ -167,6 +167,12 @@ node scripts/audit/alloc_totals.mjs || fail=1
 echo
 python3 scripts/audit/score_source.py || fail=1
 
+# D201: ما امتنع التطبيقُ عن الحكم عليه لا يُرشَّح «فرصة». كان مرشِّحُ الفرص
+# يشترط وجودَ الدرجة وحدَها، وفيها شقٌّ فنّيٌّ يُحسب من السعر — فتظهر شركةٌ
+# تقول صفحتُها «بيانات غير كافية» (رآها المالك في غازكو 2080).
+echo
+python3 scripts/audit/evaluable_gate.py || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then

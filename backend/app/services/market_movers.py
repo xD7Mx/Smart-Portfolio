@@ -298,7 +298,12 @@ async def compute_investment_opportunities(db, sorted_momentum_rows: list) -> li
     scored = []
     for c in candidates:
         result = await analyze_company(c["symbol"], c["name"], db)
-        if result and result.get("ai_score") is not None:
+        # ══ ما امتنع التطبيقُ عن الحكم عليه لا يُرشَّح فرصةً ══ (D201)
+        # كان الشرطُ وجودَ `ai_score` وحدَه، و«الأهليّة» لا تُسأل. فتظهر في
+        # «تحليل الذكاء» شركةٌ تقول عنها صفحتُها «بيانات غير كافية» —
+        # رآها المالكُ في غازكو (‏2080). والدرجةُ الفنّيةُ تُحسب من السعر
+        # وحدَه فتُنتج رقماً ولو خلت القوائم، فلا يصلح وجودُها دليلَ أهليّة.
+        if result and result.get("ai_score") is not None and result.get("evaluable"):
             info = result.get("fundamentals") or {}
             val = result.get("valuation") or {}
             # درجة الحوكمة = نفس finance_score الموحّد (financial.score)، وعائد
