@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { invalidateWatchlist } from "../../services/watchlistCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Star } from "lucide-react";
+import { Search, Star, X } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { searchCompanies, SaudiCompany } from "../../data/saudiCompanies";
 import { useAuthStore } from "../../store/authStore";
@@ -15,7 +15,13 @@ import StockView from "./StockView";
  * في قائمة النتائج نجمة متابعة لكل شركة: تُضيفها أو تُزيلها من قائمة المراقبة
  * الافتراضية دون فتح صفحتها أصلاً — أسرع مسار من «بحثتُ» إلى «أتابعها».
  */
-export default function StockLookup({ initialSymbol, onActiveChange }: { initialSymbol?: string | null; onActiveChange?: (active: boolean) => void }) {
+/* ══ المربّعُ لا يشغل صدرَ الشاشة وهو ساكن ══ (بأمر المالك · D192)
+   كان مربّعُ البحث أوّلَ ما تراه في تبويب «الرئيسي»، و«نبض السوق» تحته —
+   وأكثرُ الزيارات ليست بحثاً عن سهم. فصعِد النبضُ إلى الصدر، وصار البحثُ
+   أيقونةً في ترويسته تفتح المربّعَ عند طلبه وتغلقه بعد قضاء الحاجة. */
+export default function StockLookup({ initialSymbol, onActiveChange, open = true, onRequestClose }:
+  { initialSymbol?: string | null; onActiveChange?: (active: boolean) => void;
+    open?: boolean; onRequestClose?: () => void }) {
   const qc = useQueryClient();
   const { isOwner } = useAuthStore();
   const [q, setQ] = useState("");
@@ -62,9 +68,12 @@ export default function StockLookup({ initialSymbol, onActiveChange }: { initial
     );
   }
 
+  if (!open) return null;
+
   return (
     <div className="card space-y-4">
-      <div className="relative max-w-xl">
+      <div className="flex items-center gap-2">
+      <div className="relative flex-1 max-w-xl">
         <Search size={15} className="absolute end-3 top-1/2 -translate-y-1/2 text-[var(--ink-muted)]" />
         <input className="input px-9" placeholder="ابحث عن أي سهم بالسوق — بالرمز أو الاسم…" value={q}
           onChange={e => { setQ(e.target.value); setSuggestions(searchCompanies(e.target.value, 400)); }}
@@ -96,6 +105,14 @@ export default function StockLookup({ initialSymbol, onActiveChange }: { initial
             })}
           </div>
         )}
+      </div>
+      {onRequestClose && (
+        <button type="button" onClick={() => { setQ(""); setSuggestions([]); onRequestClose(); }}
+          title="إغلاق البحث" aria-label="إغلاق البحث"
+          className="stock-close shrink-0 p-1.5 rounded-lg">
+          <X size={16} />
+        </button>
+      )}
       </div>
     </div>
   );

@@ -23,7 +23,11 @@
          تطبيقٍ أرضيّته بيضاء. -->
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0e0c0a" />
-</head>
+    <!-- مضيفا الشعارات: تُفتح القناةُ معهما مع أوّل رسمٍ للصفحة بدل أن
+         تُفتح عند أوّل شعار، فيسقط زمنُ المصافحة عن أوّل عشرات الطلبات. -->
+    <link rel="preconnect" href="https://s3-symbol-logo.tradingview.com" crossorigin />
+    <link rel="preconnect" href="https://assets.parqet.com" crossorigin />
+  </head>
 <body>
   <div id="root"></div>
   <script type="module" src="/src/index.tsx"></script>

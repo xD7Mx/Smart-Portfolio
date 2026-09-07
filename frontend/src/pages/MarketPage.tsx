@@ -112,8 +112,8 @@ function MarketBreadthCard({ movers }: { movers: any }) {
    كان نصّاً واحداً يجمع ستّ معلوماتٍ بفواصل، فتختفي الأرقام في النثر
    ويتكرّر ما تعرضه البطاقات تحته. الآن تُقرأ الأرقام في لمحة، ويبقى نصّ
    الذكاء لما لا تقوله الأرقام وحدها: **سبب** الحركة من الأخبار. */
-function PulseCard({ summary, tasi, brent, movers }:
-  { summary: any; tasi: any; brent: any; movers: any }) {
+function PulseCard({ summary, tasi, brent, movers, onSearch }:
+  { summary: any; tasi: any; brent: any; movers: any; onSearch?: () => void }) {
   const num = (v: any, d = 2) => v == null ? "—" : Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
   const pct = (v: any) => v == null ? null : (v >= 0 ? "+" : "") + Number(v).toFixed(2) + "%";
   const tone = (v: any) => v == null ? "var(--ink)" : v > 0 ? "var(--pos-ink)" : v < 0 ? "var(--neg-ink)" : "var(--ink-muted)";
@@ -138,6 +138,13 @@ function PulseCard({ summary, tasi, brent, movers }:
       <div className="flex items-center gap-2 mb-3">
         <Sparkles size={16} className="ai-star" />
         <h2 className="card-title">نبض السوق</h2>
+        {/* ══ البحثُ أيقونةٌ هنا لا مربّعٌ فوق ══ (بأمر المالك · D192) */}
+        {onSearch && (
+          <button type="button" onClick={onSearch} title="ابحث عن سهم" aria-label="ابحث عن سهم"
+            className="btn-ghost ms-1" style={{ padding: "4px 7px" }}>
+            <Search size={15} />
+          </button>
+        )}
         {phase && (
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-md"
             style={{
@@ -414,13 +421,18 @@ const SECTOR_PERIODS: [string, string][] = [
   ["3m", "3 أشهر"], ["6m", "6 أشهر"], ["1y", "سنة"], ["3y", "3 سنوات"], ["5y", "5 سنوات"],
 ];
 
-function SectorAnalysis() {
+function SectorAnalysis({ sortKey: sortKeyProp }: { sortKey?: string }) {
   const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["sector-analysis"],
     queryFn: () => marketApi.sectors().then(r => Array.isArray(r.data.data) ? r.data.data : []),
     staleTime: 30 * 60 * 1000,
   });
-  const [sortKey, setSortKey] = useState<string>("1y");
+  /* ══ الترتيبُ يُملى من الشريط لا يُرسم هنا ══ (بأمر المالك · D193)
+     كان صفّاً مستقلاً بإطارٍ وحشوٍ وخلفيةٍ زرقاءَ ثابتة — تصميمٌ سابقٌ لا
+     يشبه مبدّلات التطبيق، ويجلس تحت شريط الأدوات فيصير للشاشة صفّان
+     يفعلان الشيءَ نفسه. فصعِد إلى الشريط نفسِه، في موضع مربّع البحث من
+     تبويب الأسهم — صفٌّ واحدٌ لكلّ ما يضبط العرض. */
+  const sortKey = sortKeyProp || "1y";
 
   const sorted = React.useMemo(() => {
     return [...rows].sort((a: any, b: any) => {
@@ -446,20 +458,6 @@ function SectorAnalysis() {
 
   return (
     <div>
-      {/* الفرز: حسب فترة أداء أو حسب التوزيعات */}
-      <div className="flex items-center gap-2 flex-wrap mb-3">
-        <span className="text-[10px] text-[var(--ink-muted)]">رتّب حسب</span>
-        <div className="flex items-center rounded-lg overflow-hidden flex-wrap" style={{ border: "1px solid var(--hairline)" }}>
-          {[...SECTOR_PERIODS, ["dividend_yield", "التوزيعات"] as [string, string]].map(([k, lbl], i) => (
-            <button key={k} onClick={() => setSortKey(k)}
-              className={"px-2.5 py-2 text-[11px] min-h-[32px] transition-colors " + (sortKey === k ? "text-[var(--ink)] font-bold" : "text-[var(--ink-muted)]")}
-              style={{ background: sortKey === k ? "rgba(59,130,246,.18)" : "transparent", borderInlineStart: i ? "1px solid var(--hairline)" : "none" }}>
-              {lbl}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* الجوال: بطاقات */}
       <div className="md:hidden space-y-2">
         {sorted.map((r: any) => (
@@ -597,6 +595,9 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
   const [sort, setSort] = useState<ScreenSort>({ key: "dividend_yield", dir: "desc" });
   const [sheet, setSheet] = useState(false);   // لوحة الفلاتر السفلية (جوال)
   const [view, setView] = useState<"stocks" | "sectors">("stocks");  // أسهم | قطاعات
+  /* ترتيبُ القطاعات يسكن هنا لا في المكوّن: مبدّلُه في الشريط والقائمةُ
+     تحته، فلا يملك أحدُهما الحالةَ دون الآخر. */
+  const [secSort, setSecSort] = useState<string>("1y");
 
   // القطاعات من الدليل المعتمد (٢٢ قطاعاً) لا من صفوف الفرز — فالقائمة تكتمل
   // دائماً حتى قبل حساب الفرز، وتتّسق مع بقية أقسام التطبيق. نضمّ أي قطاع
@@ -743,7 +744,20 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="بحث بالاسم أو الرمز"
               className="flex-1 min-w-0 bg-transparent text-[13px] text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none" />
           </div>
-        ) : <div className="flex-1" />}
+        ) : (
+          /* في وضع القطاعات: ترتيبُها بلغة المبدّلات نفسِها وفي موضع البحث. */
+          <div className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto">
+            <span className="text-[10px] text-[var(--ink-muted)] shrink-0">رتّب حسب</span>
+            <div className="seg inline-flex w-fit shrink-0">
+              {[...SECTOR_PERIODS, ["dividend_yield", "التوزيعات"] as [string, string]].map(([k, lbl]) => (
+                <button key={k} onClick={() => setSecSort(k)} aria-pressed={secSort === k}
+                  className={"seg-btn whitespace-nowrap" + (secSort === k ? " on" : "")}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div ref={viewSegRef} className="seg inline-flex w-fit shrink-0">
           {([["stocks", "الأسهم"], ["sectors", "القطاعات"]] as [any, string][]).map(([k, lbl]) => (
             <button key={k} onClick={() => setView(k)} aria-pressed={view === k}
@@ -754,7 +768,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
         </div>
       </div>
 
-      {view === "sectors" ? <SectorAnalysis /> : (<>
+      {view === "sectors" ? <SectorAnalysis sortKey={secSort} /> : (<>
 
       {/* ══ أدوات الفرز ══
           الجوال: البحث والفاصل ظاهران دائماً (الأكثر استخداماً)، وبقيّة
@@ -1243,6 +1257,9 @@ export default function MarketPage() {
   }, []);
   const [stockSheet, setStockSheet] = useState<string | null>(null);
   const [searchActive, setSearchActive] = useState(false);
+  /* المربّعُ يُفتح بأيقونة «نبض السوق» ويُغلق بعد قضاء الحاجة (D192).
+     ويُفتح تلقائياً إن جاء رمزٌ من رابطٍ خارجيّ. */
+  const [searchOpen, setSearchOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSymbol = searchParams.get("symbol");
   const { data: overview } = useQuery({
@@ -1300,7 +1317,9 @@ export default function MarketPage() {
         <>
           {/* Look up any Tadawul stock by symbol/name — same detail view as a
               held company's page (overview / AI evaluation / financial statements) */}
-          <StockLookup initialSymbol={initialSymbol} onActiveChange={setSearchActive} />
+          <StockLookup initialSymbol={initialSymbol} onActiveChange={setSearchActive}
+            open={searchOpen || !!initialSymbol}
+            onRequestClose={() => setSearchOpen(false)} />
 
           {/* While a stock result is on screen, the rest of the market widgets
               fade back and blur so focus stays on the result — they return the
@@ -1317,7 +1336,8 @@ export default function MarketPage() {
 
           {/* AI market summary — right under the lookup box, before the
               detailed numbers below. */}
-          <PulseCard summary={marketSummary} tasi={overview?.tasi} brent={overview?.brent} movers={movers} />
+          <PulseCard summary={marketSummary} tasi={overview?.tasi} brent={overview?.brent} movers={movers}
+            onSearch={() => setSearchOpen(true)} />
 
           {/* Ticker cards — user picks which ones in Settings */}
           {enabled.length > 0 && (

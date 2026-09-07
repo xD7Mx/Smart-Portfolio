@@ -84,10 +84,15 @@ export default function CompanyLogo({ symbol, color, size = 40, logoUrl }: { sym
         }}
         className="co-logo rounded-xl object-contain shrink-0"
         style={{ width: size, height: size }}
+        /* ══ أولويةٌ عاديةٌ لا منخفضة ══ (بأمر المالك · D194)
+           كان `fetchpriority="low"` يأمر المتصفّحَ صراحةً بتأخير الشعارات
+           خلف كلّ طلبٍ آخر، و`loading="lazy"` يؤجّل ما قارب حافّةَ الشاشة.
+           فاجتمع أمران على التأخير في الشاشات الكثيفة (فرزُ السوق ·
+           خريطةُ القطاعات) — وهو «التأخّرُ في مناطق دون أخرى» الذي رآه
+           المالك. الشعارُ هويّةُ الصفّ لا زينةٌ فيه: يُحمَّل بأولويةٍ
+           عادية، ويبقى التأجيلُ الكسول لما خرج عن الشاشة. */
         loading="lazy"
         decoding="async"
-        // @ts-ignore — سمةٌ حديثة لا يعرفها التعريف بعد
-        fetchpriority="low"
       />
     );
   }
