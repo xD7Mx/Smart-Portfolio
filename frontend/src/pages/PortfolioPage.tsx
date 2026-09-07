@@ -8,7 +8,7 @@ import { companiesApi, holdingsApi, transactionsApi, cashApi, allocationApi, por
 import { useT } from "../i18n";
 import { searchCompanies, lookupCompany, SaudiCompany } from "../data/saudiCompanies";
 import StockSheet from "../components/market/StockSheet";
-import { weightedDividendYield, retainedCashPct } from "../lib/allocMath";
+import { weightedDividendYield, retainedCashPct, rescaleWeights } from "../lib/allocMath";
 import { useAppStore, GridItem } from "../store/appStore";
 import { useAuthStore } from "../store/authStore";
 import CompanyLogo from "../components/common/CompanyLogo";
@@ -1177,6 +1177,22 @@ function RebalanceCard() {
      فمجموعُ سبعين ينشر سبعين بالمئة ويترك الباقيَ نقداً من نفسه. */
   const deployTarget = Number(deployDraft) || 0;
   const retainedPct = retainedCashPct(deployTarget);
+  /* تطبيقُ المجموع المستهدف: تنزل الأوزانُ كلُّها بنسبةٍ واحدة فيبلغ مجموعُها
+     الرقمَ المكتوب، وتتبعها المبالغُ والأسهم لأنها تُحسب من الحقول نفسها.
+     ويبقى الأمرُ **معاينةً** حتى يُضغط الحفظ — كبقيّة تعديلات هذه البطاقة. */
+  const applyDeployTarget = () => {
+    const t = Number(deployDraft);
+    if (!isFinite(t) || t <= 0 || t > 100) return;
+    const ids = items.map((it: any) => it.company_id);
+    const cur = items.map((it: any) => Number(val(it.company_id, it.target_weight)) || 0);
+    if (!(cur.reduce((a: number, b: number) => a + b, 0) > 0)) return;
+    const next = rescaleWeights(cur, t);
+    setTargets(s => {
+      const o = { ...s };
+      ids.forEach((id: number, i: number) => { o[id] = String(next[i]); });
+      return o;
+    });
+  };
   /* معدّلُ عائد التوزيعات مرجّحاً بالأوزان المكتوبة الآن — يتحرّك مع كلّ
      تعديل قبل الحفظ، كبقيّة أرقام هذه البطاقة. وشركةٌ بلا عائدٍ معلوم تخرج
      من البسط والمقام معاً، فلا تُقرأ صفراً. */
@@ -1243,10 +1259,16 @@ function RebalanceCard() {
           <span className={"text-xs font-bold " + (Math.abs(sumTargets - deployTarget) < 0.01 ? "text-[var(--pos-ink)]" : "text-[var(--warn-ink)]")}>المجموع: {sumTargets.toFixed(1)}%</span>
           <span className="flex items-center gap-1 text-xs text-[var(--ink-muted)]">
             من
+            {/* يُطبَّق عند ترك الحقل أو بالإدخال — لا مع كلّ ضغطة: «70» تُكتب
+                «7» أوّلاً، فإعادةُ التوزيع على سبعةٍ تمحو الأوزان قبل أن
+                يُتمّ المالكُ رقمَه. */}
             <input className="input tabular-nums" style={{ width: 56, padding: "4px 8px" }}
               type="text" inputMode="decimal" lang="en" dir="ltr"
-              title="المجموع المستهدف — ما تبقّى يبقى نقداً" aria-label="المجموع المستهدف"
+              title="المجموع المستهدف — تُعاد الأوزان بنسبها، وما تبقّى يبقى نقداً"
+              aria-label="المجموع المستهدف"
               value={deployDraft}
+              onBlur={() => applyDeployTarget()}
+              onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
               onChange={e => setDeployDraft(
                 e.target.value
                   .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))

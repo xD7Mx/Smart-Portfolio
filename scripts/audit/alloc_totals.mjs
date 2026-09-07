@@ -31,7 +31,8 @@ const say = (ok, label, detail = "") => {
 
 const out = join(mkdtempSync(join(tmpdir(), "sp-alloc-")), "allocMath.mjs");
 await build({ entryPoints: [SRC], outfile: out, format: "esm", bundle: false, logLevel: "silent" });
-const { weightedDividendYield, retainedCashPct } = await import(pathToFileURL(out).href);
+const { weightedDividendYield, retainedCashPct, rescaleWeights } =
+  await import(pathToFileURL(out).href);
 
 const near = (a, b) => a != null && Math.abs(a - b) < 1e-9;
 const W = (r) => r.w;
@@ -73,18 +74,55 @@ say(weightedDividendYield([{ w: 10, dividend_yield: Infinity }], W).value === nu
 say(retainedCashPct(70) === 30 && retainedCashPct(100) === 0 && retainedCashPct(0) === 0,
   "٧ الباقي نقداً = 100 − المجموع المستهدف");
 
-// ٨ · والمكوّنُ يستدعي هذه الدالّةَ بعينها — لا نسخةً محلّية.
+// ══ إعادةُ التوزيع تُحرّك الأرقام فعلاً ══
+// أوّلُ صياغةٍ لهذه الميزة كانت **شكلاً بلا أثر**: الحقلُ يغيّر لونَ الوسم
+// والأوزانُ ثابتةٌ على افتراض المئة، فلا يتحرّك مبلغٌ ولا سهم. فحصٌ يُثبت
+// الأثرَ لا وجودَ الحقل.
+{
+  const before = [50, 30, 20];
+  const after = rescaleWeights(before, 70);
+  const sum = after.reduce((a, b) => a + b, 0);
+  say(Math.abs(sum - 70) < 1e-9, "٨ المجموعُ بعد إعادة التوزيع يبلغ الهدف",
+      `${before.join("+")} ⇐ ${after.join("+")} = ${sum}`);
+  say(after.every((v, i) => Math.abs(v - before[i]) > 1e-9),
+      "٩ وكلُّ وزنٍ تحرّك — لا رقمَ بقي على حاله");
+  const ratio = after[0] / after[1], was = before[0] / before[1];
+  say(Math.abs(ratio - was) < 0.02, "١٠ والنسبةُ بين الشركات محفوظة",
+      `${was.toFixed(3)} ⇐ ${ratio.toFixed(3)}`);
+}
+
+// ١١ · والكسورُ لا تترك بقيّةً تُبقي الوسمَ برتقالياً بعد عملٍ صحيح.
+{
+  const bad = rescaleWeights([33.3, 33.3, 33.4], 70).reduce((a, b) => a + b, 0);
+  say(Math.abs(bad - 70) < 1e-9, "١١ ولا بقيّةَ تقريبٍ تُفسد المجموع", String(bad));
+}
+
+// ١٢ · مجموعٌ حاليٌّ صفرٌ لا يُقسَم عليه.
+say(rescaleWeights([0, 0], 70).every(v => v === 0),
+    "١٢ ولا يُوزَّع شيءٌ بنسبةٍ من عدم");
+
+// ١٣ · والمبلغُ يتبع الوزن — النصيبُ `وزن ÷ 100 × نقد`.
+{
+  const cash = 100000;
+  const amt = (w) => w / 100 * cash;
+  const b = rescaleWeights([50, 30, 20], 100).map(amt).reduce((a, c) => a + c, 0);
+  const a70 = rescaleWeights([50, 30, 20], 70).map(amt).reduce((a, c) => a + c, 0);
+  say(Math.abs(b - 100000) < 1 && Math.abs(a70 - 70000) < 1,
+      "١٣ والمبلغُ الموزَّع ينزل معه", `${b} ⇐ ${a70}`);
+}
+
+// ١٤ · والمكوّنُ يستدعي هذه الدالّةَ بعينها — لا نسخةً محلّية.
 {
   const page = readFileSync(join(ROOT, "frontend/src/pages/PortfolioPage.tsx"), "utf8");
   const imports = /import\s*\{[^}]*weightedDividendYield[^}]*\}\s*from\s*"\.\.\/lib\/allocMath"/.test(page);
-  say(imports && page.includes("weightedDividendYield("),
-    "٨ جدولُ التوزيع يستدعي الدالّةَ المفحوصة نفسَها");
+  say(imports && page.includes("weightedDividendYield(") && page.includes("rescaleWeights("),
+    "١٤ جدولُ التوزيع يستدعي الدوالَّ المفحوصة نفسَها");
 }
 
-// ٩ · والخادمُ ينشر عائدَ كلّ شركة، وإلا فلا شيءَ يُرجَّح.
+// ١٥ · والخادمُ ينشر عائدَ كلّ شركة، وإلا فلا شيءَ يُرجَّح.
 {
   const api = readFileSync(join(ROOT, "backend/app/api/v1/endpoints/allocation.py"), "utf8");
-  say(/"dividend_yield":/.test(api), "٩ نقطةُ التوزيع تنشر عائدَ كلّ شركة");
+  say(/"dividend_yield":/.test(api), "١٥ نقطةُ التوزيع تنشر عائدَ كلّ شركة");
 }
 
 console.log("\nالنتيجة:", fail ? "فيه ملاحظات ✘" : "نظيف ✔");

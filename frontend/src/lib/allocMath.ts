@@ -24,6 +24,35 @@ export function weightedDividendYield(
   return { value: den > 0 ? num / den : null, known, unknown };
 }
 
+/** إعادةُ توزيع الأوزان على مجموعٍ جديد، بنسبها بينها.
+ *
+ *  هذا هو معنى «المجموع المستهدف»: من أراد سبعين للمحفظة وثلاثين نقداً
+ *  لا يريد وسماً يتلوّن، بل أوزاناً تنزل بنسبةٍ واحدةٍ فتتبعها المبالغُ
+ *  والأسهم. والنسبةُ بين الشركات لا تتغيّر — من كان ضعفَ أخيه بقي ضعفَه.
+ *
+ *  والكسورُ تُجبر على الأكبر: تقريبُ كلّ وزنٍ إلى منزلةٍ واحدة يترك بقيّةً
+ *  (‏0.1٪ أو 0.2٪) فلا يبلغ المجموعُ هدفَه ويبقى الوسمُ برتقالياً بعد عملٍ
+ *  صحيح. تُحمَّل البقيّةُ على أكبر وزنٍ حيث أثرُها النسبيُّ أصغر.
+ *
+ *  مجموعٌ حاليٌّ صفرٌ لا يُقسَم عليه — تُعاد الأوزانُ كما هي، فلا شيءَ
+ *  يُوزَّع بنسبةٍ من عدم. */
+export function rescaleWeights(weights: number[], target: number): number[] {
+  const w = weights.map(v => (Number(v) > 0 ? Number(v) : 0));
+  const sum = w.reduce((a, b) => a + b, 0);
+  const t = Number(target);
+  if (!(sum > 0) || !isFinite(t) || t < 0) return w.map(v => round1(v));
+  const scaled = w.map(v => round1(v * t / sum));
+  const drift = round1(t - scaled.reduce((a, b) => a + b, 0));
+  if (drift !== 0) {
+    let big = 0;
+    for (let i = 1; i < scaled.length; i++) if (scaled[i] > scaled[big]) big = i;
+    if (scaled[big] + drift >= 0) scaled[big] = round1(scaled[big] + drift);
+  }
+  return scaled;
+}
+
+const round1 = (v: number) => Math.round(v * 10) / 10;
+
 /** ما يبقى نقداً حين لا يكون المجموعُ المستهدف مئةً. */
 export function retainedCashPct(deployTarget: number): number {
   const t = Number(deployTarget) || 0;
