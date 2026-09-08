@@ -12,13 +12,17 @@ import React from "react";
 let _seq = 0;
 
 export default function TadawulLogo(
-  { height = 16, wordColor = "#00476D", title }:
-  { height?: number; wordColor?: string; title?: string },
+  { height = 16, wordColor = "#00476D", title, latin = true }:
+  { height?: number; wordColor?: string; title?: string; latin?: boolean },
 ) {
   const gid = React.useMemo(() => `tdwl-w-${++_seq}`, []);
   /* الصندوقُ مقيسٌ من رسم المتصفّح (‏getBBox) لا مقدَّرٌ من أرقام الملفّ:
      أوامرُ المسار نسبيّةٌ فلا تُقرأ حدودُها من نصّها. */
-  const VB = { x: 165.94, y: 199.67, w: 510.0, h: 195.93 };
+  /* صندوقان مقيسان في المتصفّح (‏getBBox): كاملاً بالكلمتين، وبالعربية
+     وحدَها بعد حذف اللاتينية — لا يُشتقّ أحدُهما من الآخر بالحساب. */
+  const VB = latin
+    ? { x: 165.94, y: 199.67, w: 510.0, h: 195.93 }
+    : { x: 165.95, y: 199.67, w: 509.99, h: 177.93 };
   return (
     <svg height={height} width={height * (VB.w / VB.h)}
          viewBox={`${VB.x} ${VB.y} ${VB.w} ${VB.h}`}
@@ -37,7 +41,7 @@ export default function TadawulLogo(
       </defs>
 <g>
 	<g>
-		<g>
+		{latin && (<g>
 			<path fill={wordColor} d="M194.75,323.64h-28.81v-10.13h69.08v10.13h-28.7v70.29h-11.57V323.64z"/>
 			<path fill={wordColor} d="M260.6,387.18c-2.65,3.78-9.01,8.32-18.83,8.32c-9.64,0-19.52-5.02-19.52-17.49
 				c0-6.03,2.11-10.84,6.32-14.46c4.23-3.62,10.32-5.43,18.27-5.43c2.71,0,10.09,0.33,13.63,0.84v-2.05
@@ -64,7 +68,7 @@ export default function TadawulLogo(
 				c-1.06,1.13-2.34,2.15-3.85,3.08c-1.54,0.92-3.3,1.71-5.32,2.35c-2,0.64-4.3,0.96-6.86,0.96c-7.32,0-12.7-2.11-16.15-6.34
 				c-3.47-4.22-5.2-9.98-5.2-17.29V337.87z"/>
 			<path fill={wordColor} d="M551.24,313.51h10.85v80.42h-10.85V313.51z"/>
-		</g>
+		</g>)}
 		<g>
 			<g>
 				<rect x="470.25" y="224.23" fill={wordColor} width="11.56" height="14.86"/>

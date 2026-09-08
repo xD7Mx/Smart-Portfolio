@@ -5,18 +5,12 @@ import "../styles/globals.css";
 createRoot(document.getElementById("root")!).render(
   <div>
     <div id="measure" style={{ position: "absolute", opacity: 0 }}>
-      <TadawulLogo height={200} />
+      <TadawulLogo height={200} latin={false} />
     </div>
-    <div style={{ padding: 16, background: "linear-gradient(90deg,#4338ca,#6d28d9)",
-                  display: "flex", gap: 20, alignItems: "center" }}>
-      <TadawulLogo height={16} wordColor="#fff" title="تداول" />
-      <TadawulLogo height={22} wordColor="#fff" />
-      <TadawulLogo height={32} wordColor="#fff" />
-    </div>
-    <div style={{ padding: 16, background: "#fff", display: "flex", gap: 20, alignItems: "center" }}>
-      <TadawulLogo height={16} />
-      <TadawulLogo height={22} />
-      <TadawulLogo height={32} />
+    <div style={{ padding: 16, background: "#4c1d95", display: "flex", gap: 20, alignItems: "center" }}>
+      <TadawulLogo height={15} latin={false} wordColor="#ffffff" />
+      <TadawulLogo height={22} latin={false} wordColor="#ffffff" />
+      <TadawulLogo height={40} latin={false} wordColor="#ffffff" />
     </div>
   </div>
 );
