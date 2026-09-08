@@ -340,17 +340,18 @@ export default function GovernancePage() {
         <div className="flex items-center gap-2.5 flex-wrap">
           <h1 className="text-2xl font-medium text-[var(--ink)]">الحوكمة</h1>
         </div>
-        <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: "var(--panel)" }}>
-          <button onClick={() => setMode("portfolio")}
-            className={mode === "portfolio" ? "px-3 py-1.5 rounded-lg text-xs font-bold text-[var(--brand-ink)]" : "px-3 py-1.5 rounded-lg text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"}
-            style={mode === "portfolio" ? { background: "transparent,rgba(139,92,246,.12))", border: "1px solid var(--hairline)" } : undefined}>
-            محفظتي
-          </button>
-          <button onClick={() => setMode("market")}
-            className={mode === "market" ? "px-3 py-1.5 rounded-lg text-xs font-bold text-[var(--brand-ink)]" : "px-3 py-1.5 rounded-lg text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"}
-            style={mode === "market" ? { background: "transparent,rgba(139,92,246,.12))", border: "1px solid var(--hairline)" } : undefined}>
-            السوق
-          </button>
+        {/* ══ مبدّلٌ واحدٌ في التطبيق ══ (بأمر المالك · D202)
+            كان هذا بتصميمٍ سابق: حشوةٌ في لوحةٍ رمادية، وحالةُ الاختيار
+            بقيمةٍ مشوّهةٍ لا يقرؤها المتصفّح أصلاً
+            (`transparent,rgba(...))`) — فلا تظهر إلا بالخطّ الغليظ.
+            صار بلغة `.seg` نفسِها التي يحملها مبدّلُ «الأسهم · القطاعات». */}
+        <div className="seg inline-flex w-fit">
+          {([["portfolio", "محفظتي"], ["market", "السوق"]] as [any, string][]).map(([k, lbl]) => (
+            <button key={k} onClick={() => setMode(k)} aria-pressed={mode === k}
+              className={"seg-btn" + (mode === k ? " on" : "")}>
+              {lbl}
+            </button>
+          ))}
         </div>
       </div>
 

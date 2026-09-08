@@ -103,26 +103,25 @@ export default function DashboardPage() {
       {/* Tabs */}
       <div className="flex items-center gap-2 flex-wrap">
         <LayoutGrid size={14} className="text-[var(--ink-muted)]" />
-        {Object.entries(layouts).map(([id, l]) => (
-          <button key={id}
-            onClick={() => { setActiveLayout(id); setActiveTab("default"); }}
-            className={activeTab === "default" && activeLayout === id
-              ? "px-3 py-1.5 rounded-lg text-xs font-bold text-[var(--brand-ink)]"
-              : "px-3 py-1.5 rounded-lg text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"}
-            style={activeTab === "default" && activeLayout === id ? {background: "transparent,rgba(139,92,246,.12))", border: "1px solid rgba(59,130,246,.3)"} : {background: "var(--panel)"}}>
-            {l.name}
-          </button>
-        ))}
-        {EXTRA_TABS.map(t => (
-          <button key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className={activeTab === t.id
-              ? "px-3 py-1.5 rounded-lg text-xs font-bold text-[var(--brand-ink)]"
-              : "px-3 py-1.5 rounded-lg text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"}
-            style={activeTab === t.id ? {background: "transparent,rgba(139,92,246,.12))", border: "1px solid rgba(59,130,246,.3)"} : {background: "var(--panel)"}}>
-            {t.name}
-          </button>
-        ))}
+        {/* مبدّلٌ واحدٌ في التطبيق — لغةُ `.seg` نفسُها (D202). */}
+        <div className="seg inline-flex w-fit flex-wrap">
+          {Object.entries(layouts).map(([id, l]) => {
+            const on = activeTab === "default" && activeLayout === id;
+            return (
+              <button key={id} aria-pressed={on}
+                onClick={() => { setActiveLayout(id); setActiveTab("default"); }}
+                className={"seg-btn whitespace-nowrap" + (on ? " on" : "")}>
+                {l.name}
+              </button>
+            );
+          })}
+          {EXTRA_TABS.map(t => (
+            <button key={t.id} onClick={() => setActiveTab(t.id)} aria-pressed={activeTab === t.id}
+              className={"seg-btn whitespace-nowrap" + (activeTab === t.id ? " on" : "")}>
+              {t.name}
+            </button>
+          ))}
+        </div>
       </div>
 
       {ExtraTabContent && <ExtraTabContent />}

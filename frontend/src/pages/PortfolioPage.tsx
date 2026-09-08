@@ -118,15 +118,15 @@ function DashboardGrid() {
       {Object.keys(layouts).length > 1 && (
         <div className="flex items-center gap-2 flex-wrap mb-3">
           <LayoutGrid size={14} className="text-[var(--ink-muted)]" />
-          {Object.entries(layouts).map(([id, l]) => (
-            <button key={id} onClick={() => setActiveLayout(id)}
-              className={activeLayout === id
-                ? "px-3 py-1.5 rounded-lg text-xs font-bold text-[var(--brand-ink)]"
-                : "px-3 py-1.5 rounded-lg text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"}
-              style={activeLayout === id ? {background: "transparent,rgba(139,92,246,.12))", border: "1px solid var(--hairline)"} : {background: "var(--panel)"}}>
-              {l.name}
-            </button>
-          ))}
+          {/* مبدّلٌ واحدٌ في التطبيق — لغةُ `.seg` نفسُها (D202). */}
+          <div className="seg inline-flex w-fit">
+            {Object.entries(layouts).map(([id, l]) => (
+              <button key={id} onClick={() => setActiveLayout(id)} aria-pressed={activeLayout === id}
+                className={"seg-btn whitespace-nowrap" + (activeLayout === id ? " on" : "")}>
+                {l.name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       <div ref={containerRef} dir="ltr">

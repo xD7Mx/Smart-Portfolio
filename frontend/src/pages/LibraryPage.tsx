@@ -178,7 +178,7 @@ function InsightModal({ id, title, onClose }: { id: number; title: string; onClo
           <div className="py-8 text-center text-[var(--neg-ink)] text-sm">{detail || "تعذّر توليد النبذة."}</div>
         ) : (
           <div className="space-y-4">
-            <div className="rounded-2xl p-4" style={{ background: "transparent,rgba(59,130,246,.08))", border: "1px solid var(--hairline)" }}>
+            <div className="rounded-2xl p-4" style={{ background: "var(--panel)", border: "1px solid var(--hairline)" }}>
               <FileText size={16} className="text-[var(--warn-ink)] mb-1.5" />
               <p className="text-[var(--ink)] text-[15px] leading-relaxed font-medium">{data.idea}</p>
             </div>

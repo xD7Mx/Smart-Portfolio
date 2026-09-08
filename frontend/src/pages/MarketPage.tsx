@@ -685,12 +685,14 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                        minGap.trim(), minUpside.trim(), verdict]
     .filter(Boolean).length + (q.trim() ? 1 : 0);
 
+  /* مبدّلاتُ الفلاتر بلغة `.seg` نفسِها — كانت بخلفيةٍ زرقاءَ ثابتة
+     وخيوطٍ فاصلة، تصميمٌ سابقٌ لم يلحقه التوحيد (D202). والسلوكُ كما هو:
+     الضغطُ على المختار يُلغيه. */
   const Seg = ({ value, set, opts }: { value: string; set: (v: any) => void; opts: [string, string][] }) => (
-    <div className="flex items-center rounded-lg overflow-hidden" style={{ border: "1px solid var(--hairline)" }}>
-      {opts.map(([k, lbl], i) => (
-        <button key={k} onClick={() => set(value === k ? "" : k)}
-          className={"px-2.5 py-2 text-[11px] min-h-[32px] transition-colors " + (value === k ? "text-[var(--ink)] font-bold" : "text-[var(--ink-muted)] hover:text-[var(--ink)]")}
-          style={{ background: value === k ? "rgba(59,130,246,.18)" : "transparent", borderInlineStart: i ? "1px solid var(--hairline)" : "none" }}>
+    <div className="seg inline-flex w-fit">
+      {opts.map(([k, lbl]) => (
+        <button key={k} onClick={() => set(value === k ? "" : k)} aria-pressed={value === k}
+          className={"seg-btn whitespace-nowrap" + (value === k ? " on" : "")}>
           {lbl}
         </button>
       ))}

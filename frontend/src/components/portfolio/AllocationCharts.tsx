@@ -14,9 +14,15 @@ import React from "react";
    ولا مكتبةَ رسمٍ هنا: شرائطُ نسبٍ وقوسٌ مرسومٌ بـ`conic-gradient`. أخفُّ
    من حزمةٍ كاملة، ويتبع رموزَ المظهرين بلا شرط. */
 
-const PALETTE = ["var(--chart-1)", "var(--chart-3)", "var(--chart-5)",
-                 "var(--chart-4)", "var(--chart-2)"];
-const REST = "var(--ink-muted)";
+/* لوحةٌ تكفي القطاعاتِ كلَّها: خمسةُ رموزِ الرسوم ثم درجاتٌ منها بشفافيةٍ
+   نازلة — فلا قطاعَ يُطوى تحت «أخرى» بأمر المالك، ولا لونَ يتكرّر متجاوراً. */
+const BASE = ["var(--chart-1)", "var(--chart-3)", "var(--chart-5)",
+              "var(--chart-4)", "var(--chart-2)"];
+const paletteAt = (i: number) => {
+  const c = BASE[i % BASE.length];
+  const tier = Math.floor(i / BASE.length);
+  return tier === 0 ? c : `color-mix(in srgb, ${c} ${Math.max(28, 100 - tier * 26)}%, var(--surface))`;
+};
 
 export type AllocRow = {
   company_id: number; name: string; symbol: string;
@@ -27,7 +33,9 @@ function pct(part: number, whole: number) {
   return whole > 0 ? (part / whole) * 100 : 0;
 }
 
-/** يجمع الأوزانَ بالقطاع، ويضمّ الذيلَ في «أخرى» كي لا تصير الصورةُ قائمة. */
+/** يجمع الأوزانَ بالقطاع — **كلَّ** قطاعٍ بلا طيّ. كان الذيلُ يُضمّ في
+ *  «أخرى» فيختفي عن العين ما قد يكون ثُلثَ المحفظة، وقد أمر المالكُ بذكر
+ *  الجميع. */
 function bySector(rows: AllocRow[], weightOf: (r: AllocRow) => number) {
   const map = new Map<string, number>();
   let total = 0;
@@ -38,11 +46,9 @@ function bySector(rows: AllocRow[], weightOf: (r: AllocRow) => number) {
     map.set(k, (map.get(k) || 0) + w);
     total += w;
   }
-  const sorted = [...map.entries()].sort((a, b) => b[1] - a[1]);
-  const head = sorted.slice(0, 5);
-  const tailSum = sorted.slice(5).reduce((s, [, v]) => s + v, 0);
-  const parts = head.map(([k, v], i) => ({ key: k, value: v, color: PALETTE[i] }));
-  if (tailSum > 0) parts.push({ key: `أخرى (${sorted.length - 5})`, value: tailSum, color: REST });
+  const parts = [...map.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v], i) => ({ key: k, value: v, color: paletteAt(i) }));
   return { parts, total };
 }
 
@@ -84,26 +90,24 @@ export default function AllocationCharts(
         <p className="text-[10px] font-bold tracking-[0.06em] text-[var(--ink-muted)]">
           صورةُ التوزيع
         </p>
-        {/* سويتشٌ باسمين كما طلب المالك: حالي · مستهدف. */}
-        <div className="inline-flex rounded-lg overflow-hidden"
-             style={{ border: "1px solid var(--hairline)" }}>
-          {([["current", "حالي"], ["target", "مستهدف"]] as const).map(([k, label]) => (
-            <button key={k} onClick={() => setMode(k)}
-              className="px-2.5 py-1 text-[11px] font-semibold transition-colors"
-              style={mode === k
-                ? { background: "var(--brand-ink)", color: "var(--bg)" }
-                : { background: "transparent", color: "var(--ink-muted)" }}>
+        {/* مبدّلٌ بلغة التطبيق نفسِها — لا تصميمٌ ثالثٌ لهذه البطاقة (D202). */}
+        <div className="seg inline-flex w-fit">
+          {([["current", "الحالي"], ["target", "المستهدف"]] as const).map(([k, label]) => (
+            <button key={k} onClick={() => setMode(k)} aria-pressed={mode === k}
+              className={"seg-btn whitespace-nowrap" + (mode === k ? " on" : "")}>
               {label}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
         {/* ── القطاعات ── */}
-        <div className="flex items-center gap-3">
-          <div className="shrink-0 rounded-full" style={{
-            width: 84, height: 84,
+        {/* الحلقةُ بحجم البطاقة لا رقعةً صغيرة (بأمر المالك): تتمدّد إلى
+            عرض عمودها وتُسقَف كي لا تبتلع الشاشة على الحاسوب. */}
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <div className="shrink-0 rounded-full w-full" style={{
+            maxWidth: 220, aspectRatio: "1 / 1",
             background: `conic-gradient(${stops})`,
             /* ثقبٌ في الوسط: الحلقةُ تُقرأ نسباً، والقرصُ المصمت يُقرأ كتلة. */
             WebkitMask: "radial-gradient(circle, transparent 46%, #000 47%)",
@@ -122,9 +126,9 @@ export default function AllocationCharts(
           </div>
         </div>
 
-        {/* ── الشركات ── */}
-        <div className="space-y-1.5">
-          {companies.slice(0, 8).map(({ r, w }) => (
+        {/* ── الشركات: كلُّها، ومن طالت قائمتُه فالبطاقةُ تمرّر ── */}
+        <div className="space-y-1.5 max-h-[260px] overflow-y-auto pe-1">
+          {companies.map(({ r, w }) => (
             <div key={r.company_id} className="flex items-center gap-2 text-[11px]">
               <span className="text-[var(--ink)] truncate" style={{ width: "38%" }}>{r.name}</span>
               <span className="flex-1 h-1.5 rounded-full" style={{ background: "var(--surface)" }}>
@@ -138,11 +142,6 @@ export default function AllocationCharts(
               </span>
             </div>
           ))}
-          {companies.length > 8 && (
-            <p className="text-[10px] text-[var(--ink-muted)]">
-              و{companies.length - 8} شركةً أخرى
-            </p>
-          )}
         </div>
       </div>
     </div>
