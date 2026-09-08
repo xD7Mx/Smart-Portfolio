@@ -1110,6 +1110,11 @@ export function RebalanceCard() {
   const { isOwner } = useAuthStore();
   const [targets, setTargets] = useState<Record<number, string>>({});
   const [showProfit, setShowProfit] = useState(false);
+  /* ══ اسمُ الشركة يفتح ورقتَها ══ (بأمر المالك · D207)
+     الجدولُ يعرض شركاتِ المحفظة ولا يُفضي إليها، فمن أراد قراءةَ حال
+     شركةٍ قبل تعديل وزنها غادر البطاقةَ وبحث عنها. والورقةُ هي نفسُها
+     التي يفتحها قسمُ السوق وخريطةُ القطاعات — لا شاشةٌ رابعة. */
+  const [sheet, setSheet] = useState<string | null>(null);
 
   const { data: alloc } = useQuery({
     queryKey: ["allocation"],
@@ -1351,7 +1356,13 @@ export function RebalanceCard() {
               const { tw, liquidityShare, reinvestShare, totalAmount, totalShares } = shareOf(it);
               return (
               <tr key={it.company_id}>
-                <td className="td text-start"><span className="text-[var(--ink)] font-semibold text-[13px]">{it.name}</span> <span className="tag-b ms-1" style={{fontSize:10,padding:"2px 6px"}}>{it.symbol}</span></td>
+                <td className="td text-start">
+                  <button type="button" onClick={() => setSheet(it.symbol)}
+                    className="text-start hover:underline" title={`اعرض ورقة ${it.name}`}>
+                    <span className="text-[var(--ink)] font-semibold text-[13px]">{it.name}</span>
+                    <span className="tag-b ms-1" style={{fontSize:10,padding:"2px 6px"}}>{it.symbol}</span>
+                  </button>
+                </td>
                 <td className="td text-start text-[var(--ink)]">{fmt(it.market_value)}</td>
                 <td className="td text-start"><span className="tag-n">{it.current_weight}%</span></td>
                 <td className="td text-start">
@@ -1459,10 +1470,11 @@ export function RebalanceCard() {
             return (
               <div key={it.company_id} className="py-3.5 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
+                  <button type="button" onClick={() => setSheet(it.symbol)}
+                    className="min-w-0 text-start" title={`اعرض ورقة ${it.name}`}>
                     <span className="text-[var(--ink)] font-semibold text-[13px]">{it.name}</span>{" "}
                     <span className="tag-b" style={{fontSize:10,padding:"2px 6px"}}>{it.symbol}</span>
-                  </div>
+                  </button>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <label className="text-[11px] text-[var(--ink-muted)]">الهدف %</label>
                     <input className="input" style={{width: 76, padding: "6px 10px"}} type="text" inputMode="decimal" lang="en"
@@ -1527,6 +1539,8 @@ export function RebalanceCard() {
           )}
         </div>
       </div>
+      {sheet && <StockSheet symbol={sheet} onClose={() => setSheet(null)} />}
+
       {/* صورةُ التوزيع — تتحرّك مع الحقول قبل الحفظ (D191). */}
       <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--hairline)" }}>
         <AllocationCharts
