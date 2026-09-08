@@ -88,7 +88,7 @@ export default function AllocationCharts(
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-[10px] font-bold tracking-[0.06em] text-[var(--ink-muted)]">
-          صورةُ التوزيع
+          توزيع القطاعات
         </p>
         {/* مبدّلٌ بلغة التطبيق نفسِها — لا تصميمٌ ثالثٌ لهذه البطاقة (D202). */}
         <div className="seg inline-flex w-fit">
@@ -105,9 +105,14 @@ export default function AllocationCharts(
         {/* ── القطاعات ── */}
         {/* الحلقةُ بحجم البطاقة لا رقعةً صغيرة (بأمر المالك): تتمدّد إلى
             عرض عمودها وتُسقَف كي لا تبتلع الشاشة على الحاسوب. */}
-        <div className="flex flex-col sm:flex-row items-center gap-4">
-          <div className="shrink-0 rounded-full w-full" style={{
-            maxWidth: 220, aspectRatio: "1 / 1",
+        {/* ══ صفٌّ واحدٌ في المقاسين ══ (بأمر المالك · D206)
+            كانت الحلقةُ تعلو الأسماءَ على الجوّال (‏flex-col) فيطول العمودُ
+            ويحتاج تمريراً لقراءة نسبةٍ بجانب لونها. الآن الحلقةُ يميناً
+            والأسماءُ يسارها في المقاسين — واتّجاهُ الصفحة يضع الأولَ يميناً
+            بلا شرط. وحجمُ الحلقة نسبةٌ من العرض كي لا تخنق الأسماء. */}
+        <div className="flex flex-row items-center gap-3 sm:gap-4">
+          <div className="shrink-0 rounded-full" style={{
+            width: "42%", maxWidth: 220, aspectRatio: "1 / 1",
             background: `conic-gradient(${stops})`,
             /* ثقبٌ في الوسط: الحلقةُ تُقرأ نسباً، والقرصُ المصمت يُقرأ كتلة. */
             WebkitMask: "radial-gradient(circle, transparent 46%, #000 47%)",
