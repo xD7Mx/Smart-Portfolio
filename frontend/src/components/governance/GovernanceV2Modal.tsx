@@ -60,7 +60,7 @@ export default function GovernanceV2Modal({ symbol, name, onClose }: { symbol: s
                 </div>
                 <div className="flex items-baseline gap-3">
                   {typeof data.finance_score === "number" && (
-                    <span className="text-[11px] text-[var(--ink-muted)] tabular-nums">درجة السلامة {data.finance_score}/100</span>
+                    <span className="text-[11px] text-[var(--ink-muted)] tabular-nums">درجة الجودة المالية {data.finance_score}/100</span>
                   )}
                   <span className="text-sm font-bold" style={{ color: col }}>{data.decision.decision}</span>
                 </div>

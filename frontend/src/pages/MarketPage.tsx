@@ -294,7 +294,7 @@ type ScreenSort = { key: string; dir: "asc" | "desc" };
 
 /** خيارات الترتيب على الجوال (بديل النقر على رؤوس الجدول). */
 /* الحكم المركّب — يُحسب في الخادم من بياناتٍ مخزّنة (بلا أي نداء شبكة):
-   التقييم مقابل **وسيط قطاع الشركة** + درجة الحوكمة. والوسوم هنا عرضٌ فقط،
+   التقييم مقابل **وسيط قطاع الشركة** + درجة الجودة المالية. والوسوم هنا عرضٌ فقط،
    فلا يوجد تعريفان للحكم يتباعدان. */
 /* ══ الحكمُ يسمّي مقياسَه ══ (بأمر المالك · D186)
    رأى المالكُ شركةً تبعد ‎40٪ عن هدف المحلّلين وحكمُها «عادل» فاستنكره —
@@ -345,7 +345,7 @@ const SORT_OPTS: [string, string][] = [
   ["dist_sma50", "البُعد عن م50"],
   ["dist_sma200", "البُعد عن م200"],
   ["rsi", "RSI"],
-  ["finance_score", "درجة السلامة"],
+  ["finance_score", "درجة الجودة المالية"],
   ["pe_ratio", "مضاعف الربحية"],
 ];
 
@@ -861,7 +861,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                   <input value={minYield} onChange={e => setMinYield(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-16 border border-[var(--hairline)] rounded-lg px-2 py-1 text-[12px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]"
                     style={{ background: "var(--field)" }} />
-                  <span className="text-[10px] text-[var(--ink-muted)]">درجة السلامة ≥</span>
+                  <span className="text-[10px] text-[var(--ink-muted)]">درجة الجودة المالية ≥</span>
                   <input value={minScore} onChange={e => setMinScore(e.target.value)} inputMode="decimal" placeholder="0-100"
                     className="w-20 border border-[var(--hairline)] rounded-lg px-2 py-1 text-[12px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]"
                     style={{ background: "var(--field)" }} />
@@ -993,7 +993,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                       </div>
                     </div>
                     <div className="space-y-1.5 min-w-0">
-                      <div className="text-[9.5px] text-[var(--ink-muted)] text-end">درجة السلامة</div>
+                      <div className="text-[9.5px] text-[var(--ink-muted)] text-end">درجة الجودة المالية</div>
                       <div className="flex items-center gap-1.5 justify-end">
                         <SafetyBar score={r.finance_score == null ? null : Math.round(r.finance_score)} width={44} />
                         <span className="text-[10.5px] font-semibold tabular-nums"
@@ -1044,7 +1044,8 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                 {th("dist_sma200", "عن م200")}
                 {th("rsi", "RSI")}
                 {th("dividend_yield", "التوزيعات")}
-                {th("finance_score", "السلامة")}
+                {/* رأسُ العمود بالاسم الموحَّد — كان «السلامة»، وهو ثالثُ اسمٍ للرقم نفسِه (D224). */}
+                {th("finance_score", "الجودة")}
                 {th("value_gap_pct", "عن القطاع")}
                 {th("upside_pct", "عن العادلة")}
                 <th className="px-2 py-2 text-[var(--ink-muted)] font-semibold text-start whitespace-nowrap">الحكم</th>
@@ -1217,7 +1218,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                   <input value={minYield} onChange={e => setMinYield(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-20 bg-[var(--field)] border border-[var(--hairline)] rounded-lg px-2 py-1.5 text-[13px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]" />
                 </SheetRow>
-                <SheetRow label="درجة السلامة ≥">
+                <SheetRow label="درجة الجودة المالية ≥">
                   <input value={minScore} onChange={e => setMinScore(e.target.value)} inputMode="decimal" placeholder="0-100"
                     className="w-20 bg-[var(--field)] border border-[var(--hairline)] rounded-lg px-2 py-1.5 text-[13px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]" />
                 </SheetRow>

@@ -27,7 +27,7 @@ function PortfolioInsight() {
           <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm min-w-[640px]">
               <thead><tr className="border-b border-[var(--hairline)]">
-                {["الشركة", "السعر", "هدف المحللين", "الفرصة", "التقييم", "درجة السلامة"].map(h => <th key={h} className="th text-start">{h}</th>)}
+                {["الشركة", "السعر", "هدف المحللين", "الفرصة", "التقييم", "درجة الجودة المالية"].map(h => <th key={h} className="th text-start">{h}</th>)}
               </tr></thead>
               <tbody>
                 {companies.map((c: any) => (
@@ -90,13 +90,13 @@ function PortfolioInsight() {
                       <span className="text-[11px] font-semibold" style={{ color: fairValueTier(c.upside_pct).color }}>{fairValueTier(c.upside_pct).label}</span>
                     </div>
                   </div>
-                  {/* درجة السلامة: سطران منفصلان كعمود القيمة تمامًا — سطر العنوان
+                  {/* درجة الجودة المالية: سطران منفصلان كعمود القيمة تمامًا — سطر العنوان
                       علويًا (يحاذي عنوان القيمة) وسطر الشريط سفليًا (يحاذي شريط
                       القيمة). العنوان فوق منتصف الشريط عبر مُباعِدٍ خفيّ بعرض
                       الحالة، والحالة يسار الشريط. */}
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2 justify-end">
-                      <div className="text-[10px] text-[var(--ink-muted)] text-center whitespace-nowrap" style={{ width: 64 }}>درجة السلامة</div>
+                      <div className="text-[10px] text-[var(--ink-muted)] text-center whitespace-nowrap" style={{ width: 64 }}>درجة الجودة المالية</div>
                       <span className="text-[11px] font-semibold invisible" aria-hidden="true">{c.safety_label}</span>
                     </div>
                     {/* الغيابُ يُعلَن ولا يُرسَم له شريط — كما في الجدول. */}

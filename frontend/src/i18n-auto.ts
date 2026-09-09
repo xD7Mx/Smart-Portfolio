@@ -9,7 +9,7 @@
  */
 
 export const AR_EN: Record<string, string> = {
-  "القيمة العادلة = متوسط تقدير المحللين · درجة السلامة = الصحة المالية":
+  "القيمة العادلة = متوسط تقدير المحللين · درجة الجودة المالية = الصحة المالية":
     "Fair value = analysts' mean target · Safety score = financial health",
   // ── عام/تنقّل ──
   "المحفظة": "Portfolio",
@@ -196,7 +196,7 @@ export const AR_EN: Record<string, string> = {
   "إجماع أهداف المحلّلين": "Analyst consensus target",
   "التقييم مقابل السعر العادل": "Rating vs Fair Value",
   "تقييم القيمة العادلة": "Fair Value Rating",
-  "درجة السلامة": "Safety Score",
+  "درجة الجودة المالية": "Governance Score",
   "الفرصة": "Upside",
   "التقييم": "Rating",
   "قوية": "Strong",
