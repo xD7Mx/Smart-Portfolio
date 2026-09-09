@@ -31,7 +31,7 @@ const say = (ok, label, detail = "") => {
 
 const out = join(mkdtempSync(join(tmpdir(), "sp-alloc-")), "allocMath.mjs");
 await build({ entryPoints: [SRC], outfile: out, format: "esm", bundle: false, logLevel: "silent" });
-const { weightedDividendYield, retainedCashPct, rescaleWeights } =
+const { weightedDividendYield, retainedCashPct, rescaleWeights, rebalanceRow } =
   await import(pathToFileURL(out).href);
 
 const near = (a, b) => a != null && Math.abs(a - b) < 1e-9;
@@ -123,6 +123,74 @@ say(rescaleWeights([0, 0], 70).every(v => v === 0),
 {
   const api = readFileSync(join(ROOT, "backend/app/api/v1/endpoints/allocation.py"), "utf8");
   say(/"dividend_yield":/.test(api), "١٥ نقطةُ التوزيع تنشر عائدَ كلّ شركة");
+}
+
+
+/* ══ D217 — المتضخّمةُ تُباع ولا تُشترى ══
+   رأى المالكُ الجدولَ لا يتصرّف حين يتجاوز الوزنُ الحاليُّ المستهدفَ: لا رقمَ
+   سالبٌ يقول «بِعْ». والأسوأُ من السكوت أنّ النصيبَ كان يُحسب بالوزن
+   المستهدف وحدَه بلا نظرٍ إلى الحاليّ، فتأخذ المتضخّمةُ نقداً جديداً
+   فيزداد اختلالُها — عطبٌ يعمل عكسَ غرض الجدول.
+   وهذا الجدولُ قلبُ القرار الاستثماريّ لا بطاقةً تكميلية، فتُقاس حالاتُه
+   بأرقامٍ معلومة الجواب سلفاً لا بالنظر. */
+const RB = { investable: 1_000_000, lastPrice: 50, freshCash: 100_000, reinvestPool: 0 };
+
+// ١٦ · تجاوزٌ بنقطتين على مليون ⇒ بيعُ ‎20,000 ريالاً (‏400 سهم).
+{
+  const r = rebalanceRow({ ...RB, currentWeight: 12, targetWeight: 10 });
+  say(r.side === "sell" && near(r.totalAmount, -20000) && near(r.totalShares, -400),
+      "١٦ الوزنُ الحاليُّ فوق المستهدف ⇒ مبلغٌ سالبٌ بيعاً",
+      `${r.side} · ${r.totalAmount} · ${r.totalShares} سهم`);
+}
+
+// ١٧ · ولا تأخذ المتضخّمةُ نصيباً من النقد الجديد — وإلّا زاد اختلالُها.
+{
+  const r = rebalanceRow({ ...RB, currentWeight: 12, targetWeight: 10 });
+  say(r.liquidityShare === null && r.reinvestShare === null,
+      "١٧ ولا نصيبَ لها من النقد الجديد", `${r.liquidityShare} · ${r.reinvestShare}`);
+}
+
+// ١٨ · دون المستهدف ⇒ شراءٌ بنصيب وزنه من النقد (‏10٪ × 100,000).
+{
+  const r = rebalanceRow({ ...RB, currentWeight: 6, targetWeight: 10 });
+  say(r.side === "buy" && near(r.totalAmount, 10000),
+      "١٨ دون المستهدف ⇒ شراءٌ بنصيب وزنه", `${r.side} · ${r.totalAmount}`);
+}
+
+// ١٩ · فائضٌ لا يبلغ سعرَ سهمٍ واحد لا يُقترح — رقمٌ لا يُنفَّذ ليس نصيحة.
+{
+  const r = rebalanceRow({ ...RB, currentWeight: 10.001, targetWeight: 10 });
+  say(r.side === "none" && r.totalAmount === null,
+      "١٩ فائضٌ دون سهمٍ واحدٍ لا يُقترح", `${r.side} · فائض ${r.excessPct.toFixed(4)} نقطة`);
+}
+
+// ٢٠ · بلا وزنٍ مستهدفٍ لا حكمَ أصلاً — لا شراءَ ولا بيع.
+{
+  const r = rebalanceRow({ ...RB, currentWeight: 30, targetWeight: 0 });
+  say(r.side === "none" && r.totalAmount === null,
+      "٢٠ بلا وزنٍ مستهدفٍ لا شراءَ ولا بيع", r.side);
+}
+
+// ٢١ · عند التساوي يبقى نصيبُ النقد الجديد — التوازنُ لا يمنع التوظيف.
+{
+  const r = rebalanceRow({ ...RB, currentWeight: 10, targetWeight: 10 });
+  say(r.side === "buy" && r.totalAmount > 0,
+      "٢١ عند التساوي يبقى نصيبُ النقد الجديد", `${r.side} · ${r.totalAmount}`);
+}
+
+// ٢٢ · حجمُ البيع يتناسب مع حجم التجاوز — لا رقمَ ثابت.
+{
+  const a = rebalanceRow({ ...RB, currentWeight: 12, targetWeight: 10 });
+  const b = rebalanceRow({ ...RB, currentWeight: 14, targetWeight: 10 });
+  say(near(b.totalAmount, 2 * a.totalAmount),
+      "٢٢ ضِعفُ التجاوز ⇒ ضِعفُ البيع", `${a.totalAmount} ⇐ ${b.totalAmount}`);
+}
+
+// ٢٣ · بطاقةُ التوزيع تستدعي الدالّةَ المفحوصة نفسَها — لا نسخةً في المكوّن.
+{
+  const page = readFileSync(join(ROOT, "frontend/src/pages/PortfolioPage.tsx"), "utf8");
+  say(/rebalanceRow\(/.test(page) && /from "\.\.\/lib\/allocMath"/.test(page),
+      "٢٣ الجدولُ يستدعي `rebalanceRow` المفحوصة");
 }
 
 console.log("\nالنتيجة:", fail ? "فيه ملاحظات ✘" : "نظيف ✔");

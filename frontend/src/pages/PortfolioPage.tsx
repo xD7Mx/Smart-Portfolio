@@ -8,7 +8,7 @@ import { companiesApi, holdingsApi, transactionsApi, cashApi, allocationApi, por
 import { useT } from "../i18n";
 import { searchCompanies, lookupCompany, SaudiCompany } from "../data/saudiCompanies";
 import StockSheet from "../components/market/StockSheet";
-import { weightedDividendYield, retainedCashPct, rescaleWeights } from "../lib/allocMath";
+import { weightedDividendYield, retainedCashPct, rescaleWeights, rebalanceRow } from "../lib/allocMath";
 import AllocationCharts from "../components/portfolio/AllocationCharts";
 import { useAppStore, GridItem } from "../store/appStore";
 import { useAuthStore } from "../store/authStore";
@@ -1220,9 +1220,30 @@ export function RebalanceCard() {
   const availCash = alloc?.fresh_cash ?? Math.max(0, (alloc?.available_cash || 0) - pool);
   const shareOf = (it: any) => {
     const tw = Number(val(it.company_id, it.target_weight)) || 0;
-    if (tw <= 0) return { tw, liquidityShare: null, reinvestShare: null, totalAmount: null, totalShares: null };
-    const liquidityShare = tw / 100 * availCash;
-    const reinvestShare = tw / 100 * pool;
+    /* ══ الحسابُ في `allocMath.rebalanceRow` ══ (D217)
+       كان النصيبُ يُحسب هنا بالوزن المستهدف وحدَه بلا نظرٍ إلى الحاليّ،
+       فالشركةُ المتضخّمةُ تأخذ نصيباً جديداً فيزداد اختلالُها، ولا يظهر
+       رقمٌ سالبٌ يقول «بِعْ». والقاعدةُ الآن دالّةٌ خالصةٌ يفحصها الحارس. */
+    const rb = rebalanceRow({
+      currentWeight: Number(it.current_weight) || 0,
+      targetWeight: tw,
+      investable: (alloc?.total_market_value || 0) + (alloc?.available_cash || 0),
+      lastPrice: Number(it.last_price) || 0,
+      freshCash: availCash,
+      reinvestPool: pool,
+    });
+    if (rb.side === "sell") {
+      return { tw, liquidityShare: null, reinvestShare: null,
+               totalAmount: Math.round(rb.totalAmount as number),
+               totalShares: rb.totalShares, side: "sell" as const,
+               excessPct: rb.excessPct };
+    }
+    if (rb.side === "none") {
+      return { tw, liquidityShare: null, reinvestShare: null, totalAmount: null,
+               totalShares: null, side: "none" as const, excessPct: rb.excessPct };
+    }
+    const liquidityShare = rb.liquidityShare as number;
+    const reinvestShare = rb.reinvestShare as number;
     /* **المجموع هو جمع ما تراه.** المبالغ تُعرض بلا كسور، وجزآ أرامكو
        ١٧٬٤٠٤٫٦١ و٣٦٠٫٦٦ يُعرضان ١٧٬٤٠٥ و٣٦١ فيجمعان ١٧٬٧٦٦، بينما مجموعهما
        الحقيقي ١٧٬٧٦٥٫٢٧ يُعرض ١٧٬٧٦٥. ريالٌ واحد، لكنه رقمٌ يخالف نفسه بين
@@ -1230,7 +1251,8 @@ export function RebalanceCard() {
        كلّها. يُجمع المعروضان لا الخامان، فلا يبقى فرق. */
     const totalAmount = Math.round(liquidityShare) + Math.round(reinvestShare);
     const totalShares = it.last_price > 0 ? totalAmount / it.last_price : null;
-    return { tw, liquidityShare, reinvestShare, totalAmount, totalShares };
+    return { tw, liquidityShare, reinvestShare, totalAmount, totalShares,
+             side: "buy" as const, excessPct: rb.excessPct };
   };
   /* تحويل مبلغٍ إلى أسهم بسعر الشركة الأخير — الأسهم وحدة القرار الفعلية:
      المالك يشتري أسهماً لا مبالغ، وقراءة «١٢٬٤٠٠ ريال» تحتاج قسمةً ذهنية على
@@ -1353,7 +1375,7 @@ export function RebalanceCard() {
           </tr></thead>
           <tbody>
             {items.map((it: any) => {
-              const { tw, liquidityShare, reinvestShare, totalAmount, totalShares } = shareOf(it);
+              const { tw, liquidityShare, reinvestShare, totalAmount, totalShares, side, excessPct } = shareOf(it);
               return (
               <tr key={it.company_id}>
                 <td className="td text-start">
@@ -1378,9 +1400,20 @@ export function RebalanceCard() {
                         .replace(/[^\d.]/g, "") }))} />
                 </td>
                 <td className="td text-start">
-                  {tw > 0
-                    ? <span className="text-[var(--ink)] text-xs font-bold tabular-nums" dir="ltr">{fmt(totalAmount)}</span>
-                    : <span className="text-[var(--ink-muted)] text-xs">لم تحدد</span>}
+                  {/* ══ الفائضُ يُعرض سالباً بلفظه ══ (D217)
+                      رقمٌ سالبٌ وحدَه يُقرأ خطأً حسابياً؛ ومعه كلمةُ «بيع»
+                      ولونُ النقصان يصير أمراً مفهوماً. ونقاطُ التجاوز في
+                      التلميح: المبلغُ يقول كم، والنسبةُ تقول لماذا. */}
+                  {tw <= 0
+                    ? <span className="text-[var(--ink-muted)] text-xs">لم تحدد</span>
+                    : side === "sell"
+                      ? <span className="text-[var(--neg-ink)] text-xs font-bold tabular-nums" dir="ltr"
+                          title={`الوزن الحالي يتجاوز المستهدف بـ${excessPct.toFixed(1)} نقطة`}>
+                          {fmt(totalAmount)} <span className="font-normal">بيع</span>
+                        </span>
+                      : totalAmount == null
+                        ? <span className="text-[var(--ink-muted)] text-xs" title="الفائض دون سعر سهم واحد">متوازنة</span>
+                        : <span className="text-[var(--ink)] text-xs font-bold tabular-nums" dir="ltr">{fmt(totalAmount)}</span>}
                 </td>
                 <td className="td text-start">
                   {tw > 0
@@ -1466,7 +1499,7 @@ export function RebalanceCard() {
             سيولة (أخضر) وإعادة استثمار (أزرق). لا حشو غير هذا. */}
         <div className="lg:hidden divide-y" style={{ borderColor: "var(--hairline)" }}>
           {items.map((it: any) => {
-            const { tw, liquidityShare, reinvestShare, totalAmount, totalShares } = shareOf(it);
+            const { tw, liquidityShare, reinvestShare, totalAmount, totalShares, side } = shareOf(it);
             return (
               <div key={it.company_id} className="py-3.5 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
@@ -1488,9 +1521,14 @@ export function RebalanceCard() {
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[10px] text-[var(--ink-muted)]">المبلغ الكلي</p>
-                    <p className="text-sm font-bold text-[var(--ink)] tabular-nums" dir="ltr">
-                      {tw > 0 ? fmt(totalAmount) : "لم تحدد"}
+                    <p className="text-[10px] text-[var(--ink-muted)]">
+                      {side === "sell" ? "فائضٌ عن الوزن · بيع" : "المبلغ الكلي"}
+                    </p>
+                    <p className="text-sm font-bold tabular-nums" dir="ltr"
+                      style={{ color: side === "sell" ? "var(--neg-ink)" : "var(--ink)" }}>
+                      {tw <= 0 ? "لم تحدد"
+                       : totalAmount == null ? "متوازنة"
+                       : fmt(totalAmount)}
                     </p>
                   </div>
                   <div className="text-end">
