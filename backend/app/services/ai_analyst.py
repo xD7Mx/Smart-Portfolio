@@ -415,6 +415,20 @@ async def company_analysis(db, ent: dict, ctx: dict) -> str:
     except Exception as e:                                        # noqa: BLE001
         logger.debug(f"analyst: calendar({symbol}) skipped: {e}")
 
+    # ══ شواهدُ «أرقام» — المصدرُ نفسُه الذي يستشهد به رأيُ الذكاء ══ (D218)
+    # بأمر المالك: يستقي صقرٌ ورأيُ الذكاء من مَعينٍ واحد، فيتطابق مخرَجُهما
+    # ولا يختلف تقريرُ التلغرام عن بطاقة الشاشة في واقعةٍ منشورة. وهي
+    # **بيّنةٌ لا حكم**: الخلاصةُ أدناه تبقى من إشارات التطبيق نفسِها،
+    # وتوصيةُ بيت خبرةٍ لا تُصيَّر قراراً ثانياً.
+    try:
+        from app.services.argaam_evidence import argaam_evidence, evidence_lines
+        _ev = evidence_lines(await argaam_evidence(symbol))
+        if _ev:
+            parts.append(_sec("شواهد من «أرقام» (بيانات منشورة، لا أحكام):",
+                              [f"• {l}" for l in _ev[:3]]))
+    except Exception as e:                                        # noqa: BLE001
+        logger.debug(f"analyst: argaam evidence({symbol}) skipped: {e}")
+
     # ٦) الخلاصة — تُبنى من الإشارات المتاحة، وتُعلن عددها بصراحة
     verdict = _verdict(held, row, pe, upside, gov, rsi, d200, fund_signals)
     parts.append(verdict)

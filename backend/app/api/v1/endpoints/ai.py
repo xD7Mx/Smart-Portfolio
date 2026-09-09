@@ -337,9 +337,17 @@ async def get_stock_opinion(symbol: str, name: str = "", db: AsyncSession = Depe
         select(MarketNews.headline).where(MarketNews.company_symbol == s)
         .order_by(MarketNews.published_at.desc().nullslast()).limit(5)
     )).scalars().all()
+    # شواهدُ «أرقام» — تُجمع بمهلةٍ قصيرة، وغيابُها لا يمنع الرأي (D218).
+    _ev_lines: list[str] = []
+    try:
+        from app.services.argaam_evidence import argaam_evidence, evidence_lines
+        _ev_lines = evidence_lines(await argaam_evidence(s))
+    except Exception:                                             # noqa: BLE001
+        _ev_lines = []
     opinion = None
     try:
-        opinion = await stock_opinion(symbol, name or analysis.get("name") or symbol, analysis, headlines=list(rows))
+        opinion = await stock_opinion(symbol, name or analysis.get("name") or symbol, analysis,
+                                      headlines=list(rows), evidence_lines_ar=_ev_lines)
     except Exception:
         opinion = None
     if not opinion:
@@ -349,9 +357,17 @@ async def get_stock_opinion(symbol: str, name: str = "", db: AsyncSession = Depe
         # never shows "تعذّر توليد رأي الذكاء" while the stock has data.
         from app.services.rule_opinion import build_stock_opinion
         opinion = build_stock_opinion(symbol, name or analysis.get("name") or symbol, analysis)
+
     # Unify the headline verdict across every surface: whatever built the
     # opinion (Gemini or rules), its label IS the app-wide governance
     # decision — so رأي الذكاء can never contradict الحوكمة/تقييم الأداء.
+    # ══ الشواهدُ تُعرض كما وردت، أياً كان من كتب الرأي ══ (D218)
+    # لو تُركت للنموذج لأعاد صياغتَها، وصياغةُ الشاهد تُفسده. ولو أُلحقت
+    # بالمسار القاعديّ وحدَه لاختلف المعروضُ باختلاف من كتب — والمستخدمُ
+    # لا يعلم أيَّ محرّكٍ كتب رأيَ اليوم.
+    if opinion and _ev_lines:
+        opinion["evidence_headline"] = "شواهد من «أرقام»"
+        opinion["evidence_bullets"] = _ev_lines[:3]
     unified = (analysis.get("decision") or {}).get("label")
     if opinion and unified:
         opinion["sentiment_label"] = unified

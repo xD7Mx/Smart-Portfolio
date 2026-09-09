@@ -648,7 +648,9 @@ async def portfolio_risk(holdings: list[dict], cash: float) -> dict | None:
     return await _generate_obj(prompt, key, ANALYSIS_TTL)
 
 
-async def stock_opinion(symbol: str, name: str, analysis: dict, headlines: list[str] | None = None) -> dict | None:
+async def stock_opinion(symbol: str, name: str, analysis: dict,
+                        headlines: list[str] | None = None,
+                        evidence_lines_ar: list[str] | None = None) -> dict | None:
     """One-click "رأي الذكاء" card for a single stock — a fixed-template
     prompt (only symbol/data/headlines change) grounded ONLY in our own real,
     already-computed numbers (price, technical indicators, fundamentals,
@@ -658,7 +660,9 @@ async def stock_opinion(symbol: str, name: str, analysis: dict, headlines: list[
     per symbol."""
     # نسخةُ التوجيه في المفتاح: تغييرُ التوجيه يُبطل رأياً مخزَّناً كُتب
     # قبله — وإلّا بقي رأيُ اليوم يناقض القرارَ رغم إصلاح التوجيه.
-    key = f"ai:opinion:v2:{date.today().isoformat()}:{symbol}"
+    # نسخةُ التوجيه ‎v3: دخلت شواهدُ «أرقام»، فرأيٌ مخزَّنٌ كُتب قبلها لا
+    # يعرفها — والمفتاحُ القديم كان سيُبقيه يوماً كاملاً.
+    key = f"ai:opinion:v3:{date.today().isoformat()}:{symbol}"
     f = analysis.get("fundamentals") or {}
     t = analysis.get("technical") or {}
     lines = [
@@ -687,6 +691,13 @@ async def stock_opinion(symbol: str, name: str, analysis: dict, headlines: list[
     ]
     ctx = "\n".join(l for l in lines if l)
     news_ctx = ("\n\nأحدث الأخبار الحقيقية المتوفرة عن السهم:\n- " + "\n- ".join(headlines[:5])) if headlines else ""
+    # ══ شواهدُ «أرقام» — بيّنةٌ لا حَكَم ══ (D218)
+    # مصدرٌ محدَّثٌ صار متاحاً (توصياتُ بيوت الخبرة · نِسَبٌ رقابية · مفكرة).
+    # يدخل مادّةً يُستشهد بها، ولا يُعطى صلاحيةَ تغيير القرار: المُقرِّرُ
+    # واحدٌ والشهودُ كُثر.
+    argaam_ctx = (("\n\nشواهدُ من «أرقام» (بيانات منشورة، لا أحكام):\n- "
+                   + "\n- ".join(evidence_lines_ar))
+                  if evidence_lines_ar else "")
 
     # ══ العقلُ الثالثُ يُخبَر بالقرار ولا يخترعه ══ (D166)
     # كان التوجيهُ يسأل النموذجَ «هل أنت متفائل أم متشائم؟» ولا يذكر له
@@ -716,12 +727,13 @@ async def stock_opinion(symbol: str, name: str, analysis: dict, headlines: list[
 اشرح لقارئٍ غيرِ متخصّص **لماذا** خرج التطبيقُ بهذا القرار عن {name}:{symbol}: حلل أساسياته (مكرر الربحية P/E، نمو ربحية السهم EPS) باستخدام المقاييس الرئيسية أدناه، وراجع إجماع هدف المحللين، ولاحظ أي إشارات فنية مهمة من المؤشرات الفنية.{decision_ctx}
 
 المعطيات الحقيقية المتاحة فقط (لا تستخدم أي رقم من خارجها):
-{ctx}{news_ctx}
+{ctx}{news_ctx}{argaam_ctx}
 
 قواعد صارمة:
 - لا تخترع أي رقم أو إحصائية غير موجودة أعلاه (مثل عدد المحللين أو أهداف أسعار غير مذكورة) — إن لم تُعطَ معلومة فاحذف القسم الخاص بها أو اذكر "غير متاح".
 - اربط كل نقطة برقم فعلي من المعطيات أعلاه.
-- كن متزناً: اذكر نقاط القوة والضعف معاً، لا تصاغة تسويقية.{tone_rule}
+- كن متزناً: اذكر نقاط القوة والضعف معاً، لا تصاغة تسويقية.
+- شواهدُ «أرقام» **بيّنةٌ لا حكم**: استشهد بها بأسمائها وتواريخها، ولا تجعلها قراراً ثانياً. وإن خالفت توصياتُ بيوت الخبرة قرارَ التطبيق فقُل ذلك صراحةً بوصفه واقعة — «توصياتٌ حديثةٌ بالشراء بينما قرارُنا كذا لأنّ كذا» — ولا تُخفِ أحدهما ولا تُطاوع الأعلى صوتاً.{tone_rule}
 
 أعد النتيجة بصيغة JSON فقط بدون أي شرح خارج الكائن، بهذا الشكل بالضبط:
 {{

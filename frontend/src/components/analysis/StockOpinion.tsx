@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles, Compass, LineChart, Target, Zap, Landmark, Loader2 } from "lucide-react";
+import { Sparkles, Compass, LineChart, Target, Zap, Landmark, Loader2, BookOpen } from "lucide-react";
 import { aiApi } from "../../services/api";
 
 /* لصقُ لاحقةٍ ستّ عشرية على اللون (`${color}33`) يعمل مع قيمةٍ ثابتة فقط،
@@ -88,6 +88,11 @@ export default function StockOpinion({ symbol, name }: { symbol: string; name?: 
         <Section icon={Target} color="var(--chart-3)" headline={data.valuation_headline} bullets={data.valuation_bullets} />
         <Section icon={Zap} color="var(--warn-ink)" headline={data.fundamentals_headline} bullets={data.fundamentals_bullets} />
         <Section icon={Landmark} color="var(--pos-ink)" headline={data.dividends_headline} bullets={data.dividends_bullets} />
+        {/* ══ شواهدُ «أرقام» — بيّنةٌ لا حَكَم ══ (D218)
+            تُعرض كما وردت من المصدر بأسماء بيوت الخبرة وتواريخها، ولا
+            يُعاد صوغها: صياغةُ الشاهد تُفسده. والقرارُ في صدر البطاقة
+            يبقى قرارَ المحرّك مهما قالت. */}
+        <Section icon={BookOpen} color="var(--ink-muted)" headline={data.evidence_headline} bullets={data.evidence_bullets} />
       </div>
       {/* ══ ما يعارض الحكم ══ (بأمر المالك)
           كان الحكم يعلو شواهدَ تخالفه بلا كلمة، فيُقرأ تناقضاً. وإخفاء
