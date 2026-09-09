@@ -93,6 +93,38 @@ check(len(rows3) == 2 and rows3[1]["dividend_yield"] == 2.56,
 ep = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
 check("refresh_derived(rows)" in ep, "٦ نقطةُ الفرز تستدعي الإنعاش")
 
+# ── ٧ · صيغتا النداء تُعطيان الرقمَ نفسَه ────────────────────────────
+# ══ لماذا هذا الفحصُ بالذات ══
+# قال المالك: «الموضوع تكرّر لأكثر من حزمة». وسببُ التكرار أنّي كنتُ أفحص
+# طرفاً واحداً في كلّ مرّة. والطرفان ينادِيان الدالّةَ نفسَها بصيغتين:
+#   · الفرز يمرّر الكاشَ والمخزنَ **صراحةً** (هما بيده أصلاً)
+#   · وصفحةُ السهم تتركها **تقرأ بنفسها**
+# فلو اختلف ما تقرؤه الدالّةُ بنفسها عمّا يُمرَّر إليها، عاد الاختلافُ من
+# بابٍ آخر — ويمرّ كلُّ فحصٍ يقيس طرفاً واحداً.
+import app.services.cache as _cache_mod                          # noqa: E402
+from app.services.dividend_yield import resolve as _resolve      # noqa: E402
+
+_FAKE = {"fund:yahoo:8210.SR": {}}
+_cache_mod.get = lambda k: _FAKE.get(k)
+ce.fund_store_load = lambda: STORE
+
+explicit, src_e = _resolve("8210", 157.20, _FAKE["fund:yahoo:8210.SR"], STORE["8210"])
+implicit, src_i = _resolve("8210", 157.20)          # كما تفعل صفحة السهم
+check(explicit == implicit and src_e == src_i,
+      "٧ صيغتا النداء (صريحةٌ وذاتيةُ القراءة) تُعطيان الرقمَ نفسَه",
+      f"{explicit} · {src_e}  ⇐  {implicit} · {src_i}")
+
+# ── ٨ · والرقمُ في صفّ الجدول هو عينُه ما تعرضه الصفحة ───────────────
+# القياسُ من طرفٍ إلى طرف: صفٌّ مجمَّدٌ يمرّ بالإنعاش، ورقمُ الصفحة يُحسب،
+# ثمّ يُقارَنان — لا يُفحص كلٌّ في معزل.
+ms.cache.get = lambda k: _FAKE.get(k)
+ms._governance_score = _no_engine
+row = asyncio.run(ms.refresh_derived([dict(FROZEN[0])]))[0]
+page_value, _ = _resolve("8210", 157.20)
+check(row["dividend_yield"] == page_value,
+      "٨ رقمُ الجدول = رقمُ صفحة السهم (قياسٌ من طرفٍ إلى طرف)",
+      f"جدول {row['dividend_yield']} · صفحة {page_value}")
+
 print()
 print("النتيجة:", "فيه ملاحظات ✘" if fail else "نظيف ✔")
 raise SystemExit(fail)
