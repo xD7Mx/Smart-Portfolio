@@ -140,8 +140,13 @@ def _persist_valuation(symbol: str, data: dict) -> None:
     الرمز يُخزَّن مجرّداً من اللاحقة (`2222` لا `2222.SR`) — بنفس مفتاح مخزن
     التوزيعات، وإلا ظهر للشركة الواحدة سجلّان لا يجد الفرز أحدهما."""
     from datetime import datetime, timezone
+    # ══ عائدُ التوزيعات يُثبَّت كغيره ══ (D223)
+    # كان خارج القائمة، فيعيش في الكاش ثلاثين يوماً ثمّ يزول. والفرزُ حينها
+    # يسقط إلى حسابنا الخاصّ (توزيعُ ١٢ شهراً ÷ السعر) بينما صفحةُ السهم
+    # تقرأ رقمَ المزوّد — فرقمان لمعنًى واحد في شاشتين، وهو خطٌّ أحمر.
     keep = {k: data.get(k) for k in
-            ("target_mean_price", "pe_ratio", "price_to_book", "roe", "book_value")
+            ("target_mean_price", "pe_ratio", "price_to_book", "roe",
+             "book_value", "dividend_yield")
             if data.get(k) is not None}
     if not keep:
         return

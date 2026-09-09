@@ -27,7 +27,11 @@ export default function PriceChart({ symbol }: { symbol: string }) {
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <p className="card-title">حركة السعر</p>
         <div className="flex gap-1.5">
-          {[["1mo", "شهر"], ["3mo", "3 أشهر"], ["6mo", "6 أشهر"], ["1y", "سنة"]].map(([id, lbl]) => (
+          {/* خمسُ سنواتٍ بأمر المالك. والخادمُ يدعمها أصلاً بفاصلٍ أسبوعيّ
+              (‏`market_data`: 2y/5y ⇐ 1wk) — كان النقصُ في الواجهة وحدَها.
+              وخمسُ سنواتٍ ليست زينةً: دورةُ السوق لا تُرى في سنة. */}
+          {[["1mo", "شهر"], ["3mo", "3 أشهر"], ["6mo", "6 أشهر"], ["1y", "سنة"],
+            ["5y", "5 سنوات"]].map(([id, lbl]) => (
             <button key={id} onClick={() => setRange(id)}
               className={clsx("px-3 py-1 rounded-lg text-[11px] font-bold border transition-all",
                 range === id ? " text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)]")}>
