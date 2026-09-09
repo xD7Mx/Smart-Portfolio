@@ -417,7 +417,8 @@ const SECTOR_PERIODS: [string, string][] = [
   ["3m", "3 أشهر"], ["6m", "6 أشهر"], ["1y", "سنة"], ["3y", "3 سنوات"], ["5y", "5 سنوات"],
 ];
 
-function SectorAnalysis({ sortKey: sortKeyProp }: { sortKey?: string }) {
+function SectorAnalysis({ sortKey: sortKeyProp, onSort }:
+  { sortKey?: string; onSort?: (k: string) => void }) {
   const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["sector-analysis"],
     queryFn: () => marketApi.sectors().then(r => Array.isArray(r.data.data) ? r.data.data : []),
@@ -429,6 +430,10 @@ function SectorAnalysis({ sortKey: sortKeyProp }: { sortKey?: string }) {
      يفعلان الشيءَ نفسه. فصعِد إلى الشريط نفسِه، في موضع مربّع البحث من
      تبويب الأسهم — صفٌّ واحدٌ لكلّ ما يضبط العرض. */
   const sortKey = sortKeyProp || "1y";
+  /* رأسُ الجدول يبقى مرتّباً: الحالةُ في الشريط، والنداءُ يصعد إليها.
+     كان يُنادى `setSortKey` بعد أن رُفعت الحالة — اسمٌ لا وجودَ له،
+     يُسقط تبويبَ القطاعات كلَّه عند أوّل رسم (D211). */
+  const setSortKey = (k: string) => onSort?.(k);
 
   const sorted = React.useMemo(() => {
     return [...rows].sort((a: any, b: any) => {
@@ -766,7 +771,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
         </div>
       </div>
 
-      {view === "sectors" ? <SectorAnalysis sortKey={secSort} /> : (<>
+      {view === "sectors" ? <SectorAnalysis sortKey={secSort} onSort={setSecSort} /> : (<>
 
       {/* ══ أدوات الفرز ══
           الجوال: البحث والفاصل ظاهران دائماً (الأكثر استخداماً)، وبقيّة
@@ -1256,10 +1261,14 @@ export default function MarketPage() {
   const [stockSheet, setStockSheet] = useState<string | null>(null);
   /* المربّعُ يُفتح بأيقونة «نبض السوق» ويُغلق بعد قضاء الحاجة (D192).
      ويُفتح تلقائياً إن جاء رمزٌ من رابطٍ خارجيّ. */
-  /* رمزٌ يأتي من رابطٍ خارجيّ يفتح ورقةَ السهم مباشرةً — كما لو بُحث عنه. */
-  useEffect(() => { if (initialSymbol) setStockSheet(initialSymbol.toUpperCase()); }, [initialSymbol]);
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSymbol = searchParams.get("symbol");
+  /* رمزٌ يأتي من رابطٍ خارجيّ يفتح ورقةَ السهم مباشرةً — كما لو بُحث عنه.
+     ══ وموضعُه بعد التعريف لا قبله ══ (D211)
+     كُتب فوقه فقرأ ثابتاً في «منطقة موته» (‏TDZ) — فرمى
+     `ReferenceError` عند أوّل رسم فأطفأ تبويبَ السوق كلَّه. ولا يمسكه
+     فحصُ الأنواع: الاسمُ **معرَّفٌ** في النطاق، والخطأُ في الترتيب. */
+  useEffect(() => { if (initialSymbol) setStockSheet(initialSymbol.toUpperCase()); }, [initialSymbol]);
   const { data: overview } = useQuery({
     queryKey: ["market-overview"],
     queryFn: () => marketApi.overview().then(r => r.data.data),

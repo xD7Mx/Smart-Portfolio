@@ -173,6 +173,16 @@ python3 scripts/audit/score_source.py || fail=1
 echo
 python3 scripts/audit/evaluable_gate.py || fail=1
 
+# D211: الشاشةُ تُرسَم فعلاً لا تُترجَم فحسب. ركّب المالكُ حزمةً فرأى شاشةً
+# سوداء، والبناءُ كان قد نجح: `vite build` يترجم بلا فحصِ أنواع، وفحصُ
+# الخطّافات لا يرى اسماً بلا تعريف. حارسان:
+#   · أسماءٌ مستعملةٌ بلا تعريف (‏tsc: TS2304/TS2552)
+#   · وصفحاتُ التطبيق الخمس تُفتح في متصفّحٍ حقيقيّ ويُشترط رسمُها بلا خطأ
+echo
+python3 scripts/audit/ts_undefined.py || fail=1
+echo
+node scripts/audit/render_smoke.mjs || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then

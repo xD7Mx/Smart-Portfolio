@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Layers, Users, Pencil, Check, X, Globe } from "lucide-react";
+import { Layers, Users, Pencil, Check, X, Globe, Star } from "lucide-react";
 import { companiesApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 
@@ -12,6 +12,14 @@ import { useAuthStore } from "../../store/authStore";
    وتقبلان **مُعرِّفَ صفٍّ أو رمزاً**: بالمعرِّف يكتب المالكُ نبذتَه،
    وبالرمز تُقرأ نبذةُ ياهو لورقةٍ لا يملكها. */
 
+/* أدواتٌ صغيرةٌ كانت في الصفحة الأمّ فسقطت مع النقل — كشفها فحصُ الأسماء
+   غيرِ المعرَّفة (D211)، لا العينُ ولا البناء. */
+const fmt0 = (n: number) => (n ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
+
+function Empty({ label = "لا توجد بيانات حالياً" }: { label?: string }) {
+  return <div className="py-6 text-center text-[12px] text-[var(--ink-muted)]">{label}</div>;
+}
+
 const DESC_SOURCE_LABEL: Record<string, { label: string; tone: string }> = {
   manual: { label: "نصّك المحفوظ", tone: "var(--pos-ink)" },
 };
@@ -21,7 +29,10 @@ export default function CompanyProfileCards(
 ) {
   const canEdit = companyId != null;
   const qc = useQueryClient();
-  const { canWrite: owner } = useAuthStore();
+  /* ══ صلاحيةُ الكتابة: مالكٌ **ومعرِّفُ صفّ** ══
+     التحريرُ يكتب في صفّ الشركة، فورقةٌ لا تملك صفّاً لا تُحرَّر. */
+  const { isOwner } = useAuthStore();
+  const canWrite = isOwner && canEdit;
   const { data, isLoading } = useQuery({
     queryKey: ["company-profile", companyId ?? symbol],
     queryFn: () => (companyId != null
