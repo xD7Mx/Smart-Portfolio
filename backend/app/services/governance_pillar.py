@@ -38,8 +38,38 @@ def _val(features: dict, key: str):
     return v if isinstance(v, (int, float)) else None
 
 
+# ══ ما يخفّف حصّةَ المساهم فعلاً ══ (D225)
+# «أرقام» تنشر إجراءاتِ الشركة، وفيها ما يُخفّف الحصّةَ وما لا يُخفّفها —
+# والخلطُ بينهما يُنتج حكماً خاطئاً بثقةٍ عالية:
+#
+#   · **أسهمُ المنحة لا تُخفّف**: كلُّ مساهمٍ يأخذ بنسبته، فحصّتُه من الشركة
+#     كما هي. ازديادُ عدد الأسهم هنا حسابيٌّ لا اقتصاديّ — وعدُّه تخفيفاً
+#     يُعاقب شركةً على إجراءٍ محايد. وكذلك التجزئة.
+#   · **زيادةُ رأس المال بطرحٍ جديد تُخفّف**: أسهمٌ لغير المساهمين، أو مقابل
+#     استحواذ، أو بتحويل دَين — حصّتُك تصغر بلا أن تُستأذن.
+#   · **حقوقُ الأولوية تُخفّف من لم يكتتب**: يُدعى المساهمُ ليدفع، فإن لم
+#     يدفع صغرت حصّتُه. فهي إشارةُ طلبِ رأس مالٍ لا إشارةَ سخاء.
+_DILUTIVE = ("زيادة رأس المال", "حقوق أولوية")
+_NEUTRAL = ("منحة", "تجزئة")
+
+
+def dilution_events(actions: list[dict] | None) -> dict:
+    """يفرز إجراءاتِ الشركة إلى مُخفِّفٍ ومحايد — ولا يحكم بعددٍ وحدَه."""
+    dil, neu = [], []
+    for a in actions or []:
+        kind = str((a or {}).get("kind") or "")
+        title = str((a or {}).get("title") or "")
+        blob = f"{kind} {title}"
+        if any(k in blob for k in _DILUTIVE):
+            dil.append({"kind": kind or "زيادة رأس المال",
+                        "date": (a or {}).get("date"), "title": title})
+        elif any(k in blob for k in _NEUTRAL):
+            neu.append({"kind": kind or "منحة", "date": (a or {}).get("date")})
+    return {"مخفِّفة": dil, "محايدة": neu}
+
+
 def build(features: dict, periods: list[dict] | None,
-          ownership: dict | None) -> dict:
+          ownership: dict | None, actions: list[dict] | None = None) -> dict:
     """أركانُ الحوكمة المقيسة — وما تعذّر قياسُه صريحاً.
 
     يُعاد عددٌ بين صفرٍ ومئة **مع** عدد الأركان التي أمكن قياسها. ولا
@@ -109,7 +139,40 @@ def build(features: dict, periods: list[dict] | None,
                           "value": round(chg, 1), "unit": "%", "score": sc,
                           "tone": tone, "verdict": verdict})
     else:
-        blind.append("سلسلةُ الأسهم القائمة")
+        # ══ إجراءاتُ «أرقام» تملأ العمى ولا تغلب القياس ══ (D225)
+        # سلسلةُ الأسهم القائمة هي القياسُ المباشر، وحيث غابت كان الركنُ
+        # يُعلَن أعمى. و«أرقام» تنشر إجراءاتِ الشركة المؤرَّخة — وهي شاهدٌ
+        # على **وقوع** التخفيف لا قياسٌ لمقداره. فتُقرأ حيث لا سلسلة، ولا
+        # تُقرأ حيث توجد: شاهدٌ لا يزاحم مقياساً.
+        _ev = dilution_events(actions)
+        if _ev["مخفِّفة"]:
+            n = len(_ev["مخفِّفة"])
+            when = ", ".join(str(e.get("date") or "") for e in _ev["مخفِّفة"][:3]).strip(", ")
+            reads.append({
+                "key": "share_dilution",
+                "label": "تخفيفُ الحصّة (إجراءاتُ الشركة)",
+                "value": n, "unit": "إجراء",
+                # لا تُساوى بدرجة القياس المباشر: وقوعُ الحدث معلومٌ ومقدارُه
+                # ليس كذلك، فالحكمُ متحفّظٌ لا حاسم.
+                "score": 45.0 if n == 1 else 30.0,
+                "tone": "yellow" if n == 1 else "red",
+                "verdict": (f"{n} إجراءَ زيادةِ رأس مالٍ أو حقوقِ أولوية"
+                            + (f" ({when})" if when else "")
+                            + " — من أرقام، والمقدارُ غيرُ مقيس"),
+                "source": "أرقام",
+            })
+        else:
+            blind.append("سلسلةُ الأسهم القائمة")
+            if _ev["محايدة"]:
+                # تُذكر ولا تُحتسب: منحةٌ أو تجزئةٌ ليست تخفيفاً.
+                reads.append({
+                    "key": "share_actions_neutral",
+                    "label": "إجراءاتٌ لا تُخفّف الحصّة",
+                    "value": len(_ev["محايدة"]), "unit": "إجراء",
+                    "score": None, "tone": "muted",
+                    "verdict": "منحةٌ أو تجزئة — عددُ الأسهم يزيد وحصّتُك كما هي",
+                    "source": "أرقام",
+                })
 
     # ── انضباطُ تخصيص رأس المال ──
     # أتوزّع الشركةُ أكثرَ ممّا تولّد نقداً؟ التوزيعُ من الدَّين ليس دخلاً.
@@ -133,5 +196,10 @@ def build(features: dict, periods: list[dict] | None,
     blind.append("استقلالُ المجلس ومعاملاتُ الأطراف ذات العلاقة "
                  "(مصدرُها التقريرُ السنويّ)")
 
-    score = round(sum(r["score"] for r in reads) / len(reads), 1) if reads else None
-    return {"score": score, "pillars": len(reads), "reads": reads, "blind": blind}
+    # ══ ما يُعرض ولا يُحتسَب ══ (D225)
+    # صفُّ «إجراءاتٌ لا تُخفّف الحصّة» بيانٌ للقارئ لا حكمٌ على الشركة، فدرجتُه
+    # `None`. وجمعُها كان سيرفع استثناءً على كلّ شركةٍ لها منحة — عطبٌ يُسقط
+    # الركنَ كلَّه. فالمحسوبُ ما له درجة، والمعروضُ أوسعُ منه.
+    scored = [r for r in reads if isinstance(r.get("score"), (int, float))]
+    score = round(sum(r["score"] for r in scored) / len(scored), 1) if scored else None
+    return {"score": score, "pillars": len(scored), "reads": reads, "blind": blind}

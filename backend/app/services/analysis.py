@@ -103,7 +103,25 @@ async def _financial_from_statements(
         _own = await market_service.get_ownership(symbol)
     except Exception:                                             # noqa: BLE001
         _own = None
-    gov_pillar = _gp.build(features, periods, _own)
+    # ══ إجراءاتُ الشركة من «أرقام» ══ (D225)
+    # تُقرأ لتملأ عمى ركنِ التخفيف حيث تغيب سلسلةُ الأسهم القائمة. ومُكيَّشةٌ
+    # يوماً كاملاً: إجراءُ شركةٍ لا يتغيّر في ساعة، وجلبُه مع كلّ تحليلٍ
+    # يُثقل الصفحةَ ويضغط المصدر. وغيابُها يترك الركنَ أعمى كما كان — لا
+    # يُسقط التحليل.
+    _actions = None
+    try:
+        from app.services import cache as _c
+        _ak = f"argaam:actions:{symbol}"
+        _actions = _c.get(_ak)
+        if _actions is None:
+            from app.services.argaam_calendar import fetch_company_page
+            _pg = await fetch_company_page(str(symbol).replace(".SR", ""))
+            _actions = (_pg.get("calendar") or []) + (_pg.get("disclosures") or [])
+            _c.set(_ak, _actions, 24 * 3600)
+    except Exception as e:                                        # noqa: BLE001
+        logger.debug(f"إجراءات أرقام {symbol}: {type(e).__name__}: {e}")
+        _actions = None
+    gov_pillar = _gp.build(features, periods, _own, _actions)
 
     # ══ منطقُ بطاقة السلامة هو المنطقُ العامّ ══ (بأمر المالك)
     # كان ركنُ الجودة يُستبدَل هنا بدرجة «المواصفة» بعد حسابه، وبطاقةُ
