@@ -57,6 +57,16 @@ _HEX = re.compile(r"#([0-9a-fA-F]{3,8})\b")
 _NAMED_LIGHT = ("white", "#fff", "#ffffff")
 
 
+def _lum(hex6: str) -> float:
+    """إضاءةٌ نسبيةٌ تقريبيةٌ (0 أسود · 1 أبيض) — بمعامِلات الإدراك."""
+    h = hex6
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    h = h[:6].ljust(6, "0")
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
 def _svg_tone(raw: bytes) -> str:
     """لونُ شعارٍ متّجهٍ (‏SVG) — بقراءة تعبئاته، بلا وسادةِ صور.
 
@@ -72,10 +82,23 @@ def _svg_tone(raw: bytes) -> str:
     has_named_white = any(w in txt.lower() for w in _NAMED_LIGHT)
     if not fills and not has_named_white:
         return "لا تعبئةَ صريحة — يرث اللونَ من الصفحة (‏currentColor غالباً)"
-    verdict = ("أبيضُ خالص  ⚠ يختفي على أرضيةٍ فاتحة"
-               if colored == 0 and (white or has_named_white)
-               else f"ملوّن ({colored} تعبئةً ملوّنة · {white} بيضاء)")
-    return f"متّجه · {verdict}"
+    # ══ «ملوّن» ليست حكماً كافياً ══ (قِيس بعد تشغيل المالك)
+    # عدُّ التعبئات غير البيضاء وحدَه يعدّ `#f2f2f2` لوناً وهو يكاد يكون
+    # أبيض. فتُقاس **إضاءةُ** كلّ تعبئةٍ وتُطبع بقيمتها: شعارٌ كلُّ حبره
+    # فوق ‎0.85 إضاءةً يُرى كتلةً باهتةً على أرضيةٍ فاتحة، وإن لم يكن
+    # أبيضَ خالصاً. والرقمُ يُعرض ليُحكَم عليه لا ليُصدَّق.
+    lums = sorted((round(_lum(f), 2), "#" + f) for f in set(fills))
+    dark = [x for x in lums if x[0] <= 0.60]
+    pale = [x for x in lums if x[0] > 0.85]
+    shown = ", ".join(f"{c}({l})" for l, c in lums[:6]) or "—"
+    if colored == 0 and (white or has_named_white):
+        verdict = "أبيضُ خالص  ⚠ يختفي على أرضيةٍ فاتحة"
+    elif not dark:
+        verdict = (f"لا حبرَ داكناً — أفتحُ تعبئةٍ {lums[0][0]}"
+                   "  ⚠ يُرى باهتاً على أرضيةٍ فاتحة")
+    else:
+        verdict = f"فيه حبرٌ داكن ({len(dark)} تعبئةً ≤0.60)"
+    return f"متّجه · {verdict} · التعبئات: {shown}"
 
 
 def analyse(raw: bytes) -> str:
@@ -128,13 +151,13 @@ def main() -> int:
             broken += 1
             continue
         note = analyse(raw)
-        if "لا حبرَ يُرى" in note or "يختفي على أرضيةٍ فاتحة" in note:
+        if "⚠" in note:
             pale += 1
         else:
             ok += 1
         print(f"■ {s}: ‎{code} · {len(raw):,} بايت · {note}")
     print("─" * 74)
-    print(f"ملوّنة {ok} · متعذّرة {broken} · بيضاءُ خالصة {pale}")
+    print(f"فيها حبرٌ داكن {ok} · متعذّرة {broken} · باهتةٌ أو بيضاء {pale}")
     print("متعذّرةٌ ⇐ العلاجُ في المصدر. بيضاءُ خالصةٌ ⇐ العلاجُ أرضيةٌ داكنةٌ")
     print("ثابتةٌ تحت الشعار في المظهرين، لا تبديلُ رابط.")
     return 0
