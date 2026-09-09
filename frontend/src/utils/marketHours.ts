@@ -92,9 +92,14 @@ export function tasiPhase(d: Date = new Date()): TasiPhase {
   const trading = wd >= 0 && wd <= 4;          // الأحد…الخميس
   if (trading && mins >= 9 * 60 + 30 && mins < 10 * 60)
     return { key: "pre", label: "قبل الافتتاح", color: "var(--st-pre)" };
-  if (trading && mins >= 10 * 60 && mins < 14 * 60 + 30)
+  /* ══ ساعاتُ تداول الحقيقية ══ (رآه المالك: «مغلق» والسوقُ يعمل)
+     التداولُ المستمرّ حتى 15:00، ثمّ مزادُ الإغلاق 15:00–15:10، ثمّ
+     التداولُ عند سعر الإغلاق حتى 15:20. فكان يقول «قبل الإغلاق» ونصفُ
+     ساعةٍ من الجلسة باقية، و«مغلق» وعشرون دقيقةً من المزاد قائمة.
+     ونسخةُ الخادم في `settings.py` أُصلحت معها — القاعدةُ في موضعين. */
+  if (trading && mins >= 10 * 60 && mins < 15 * 60)
     return { key: "open", label: "السوق مفتوح", color: "var(--st-open)" };
-  if (trading && mins >= 14 * 60 + 30 && mins < 15 * 60)
+  if (trading && mins >= 15 * 60 && mins < 15 * 60 + 20)
     return { key: "preclose", label: "قبل الإغلاق", color: "var(--st-preclose)" };
   return { key: "closed", label: "السوق مغلق", color: "var(--st-idle)" };
 }

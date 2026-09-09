@@ -107,15 +107,10 @@ async def get_server_time():
     # الأحد–الخميس تداولاً: نحوّل لترقيم أسبوع يبدأ بالأحد (0=الأحد).
     dow_sun0 = (wd + 1) % 7
     mins = local.hour * 60 + local.minute
-    trading = dow_sun0 <= 4  # الأحد(0)…الخميس(4)
-    if trading and 9 * 60 + 30 <= mins < 10 * 60:
-        status = "pre"           # قبل الافتتاح (مزاد الافتتاح)
-    elif trading and 10 * 60 <= mins < 14 * 60 + 30:
-        status = "open"          # الجلسة مفتوحة
-    elif trading and 14 * 60 + 30 <= mins < 15 * 60:
-        status = "preclose"      # قبل الإغلاق (آخر نصف ساعة)
-    else:
-        status = "closed"
+    # القاعدةُ في `services/market_phase.py` — موضعٌ واحدٌ يقيسه الفحص،
+    # بدل أوقاتٍ مكتوبةٍ في نقطةٍ لا تُستدعى إلا عبر الشبكة (‏D215).
+    from app.services.market_phase import market_phase
+    status = market_phase(dow_sun0, mins)
     return success_response(data={
         "epoch_ms": int(now_utc.timestamp() * 1000),  # UTC، تُحوّلها الواجهة لمكة
         "offset_minutes": 180,                          # مكة = UTC+3 ثابت

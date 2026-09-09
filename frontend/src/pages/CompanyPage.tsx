@@ -15,6 +15,7 @@ import { ShariaBadge, ShariaStatusIndicator, NumInput } from "../components/comm
 import AnalysisPanel from "../components/analysis/AnalysisPanel";
 import FinancialsTable from "../components/analysis/FinancialsTable";
 import OwnershipBar from "../components/analysis/OwnershipBar";
+import KeyFigures from "../components/common/KeyFigures";
 import PriceChart from "../components/analysis/PriceChart";
 import DividendProfile from "../components/analysis/DividendProfile";
 import StockCalendar from "../components/analysis/StockCalendar";
@@ -878,11 +879,10 @@ export default function CompanyPage() {
 
       {tab === "overview" && (
         <>
-        <div className="card">
-          <p className="card-title mb-3">التوافق الشرعي</p>
-          <ShariaStatusIndicator status={company.sharia_status} loading={resolveSharia.isPending}
-            purification={company.purification} source={company.sharia_source} />
-        </div>
+        {/* ══ أهمُّ البيانات المالية ══ (بأمر المالك)
+            المكوّنُ نفسُه الذي في صفحة السهم بالسوق — توحيدُ التصميم بمكوّنٍ
+            واحدٍ لا بنسخةٍ مطابقةٍ اليوم تتباعد غداً. */}
+        <KeyFigures fundamentals={analysis?.fundamentals} />
         {/* ══ حُذفت بطاقةُ «هدف المحللين» من النظرة العامّة ══
             (بأمر المالك · D208)
             كانت تحمل سعرَ الدخول وقد أُمر بحذفه، ورقمُها معروضٌ في تبويب
@@ -915,6 +915,16 @@ export default function CompanyPage() {
             </div>
           </div>
           <OwnershipBar symbol={company.symbol} />
+        </div>
+        {/* ══ التوافقُ الشرعيّ تحت الهيكلة — مكانٌ ثابت ══ (بأمر المالك)
+            كان في صدر «نظرة عامة» يتقدّم على أرقام المركز. وهنا موضعُه
+            الطبيعيّ: بعد هيكلة الملكية، حكمٌ على الشركة لا رقمٌ يُتابَع.
+            وهو التفصيلُ الكامل (التطهير والمصدر) — وقد حُذفت بطاقتُه من
+            صفحة السهم في السوق لأنّ الهلالَ هناك يكفي. */}
+        <div className="card">
+          <p className="card-title mb-3">التوافق الشرعي</p>
+          <ShariaStatusIndicator status={company.sharia_status} loading={resolveSharia.isPending}
+            purification={company.purification} source={company.sharia_source} />
         </div>
         {/* النبذة والإدارة في آخر الصفحة: مرجعٌ يُقرأ مرّةً لا رقمٌ يُتابَع
             يومياً، فمكانه بعد الأرقام التي تُفتح الصفحة لأجلها. */}

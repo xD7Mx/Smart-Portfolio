@@ -45,7 +45,14 @@ export default function LoginPage() {
       >
         <div className="flex flex-col items-center gap-2.5 mb-2">
           {/* الصورة الرمزية الدائرية — كشاشة دخول ماك */}
-          <div className="w-24 h-24 rounded-full overflow-hidden panel border border-[#1e2a44] flex items-center justify-center shadow-lg">
+          {/* ══ الاستدارةُ بأسلوبٍ مباشر لا بصنف ══ (بأمر المالك)
+              رآه المالكُ مربّعَ الإطار مع أنّ الحاويةَ والصورةَ كلتيهما
+              `rounded-full` — وهو عودُ ‏D178: قصُّ الحاوية يسقط بأسبابٍ لا
+              تظهر في الشيفرة (طبقةٌ مركَّبة · محرّكُ عرضٍ لا يقصّ عبر
+              `overflow`). والأسلوبُ المباشر لا يغلبه صنفٌ ولا ترتيبُ تتالٍ.
+              والملفُّ الشخصيّ دائريٌّ في التطبيق كلِّه، فلا استثناءَ هنا. */}
+          <div className="w-24 h-24 rounded-full overflow-hidden panel border border-[#1e2a44] flex items-center justify-center shadow-lg"
+               style={{ borderRadius: "9999px" }}>
             {hasAvatar
               ? <AvatarImg iconSize={38} />
               : <Briefcase size={38} className="text-[var(--brand)]" />}

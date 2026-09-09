@@ -190,6 +190,18 @@ python3 scripts/audit/relative_value_check.py || fail=1
 echo
 python3 scripts/audit/rel_vs_target.py || fail=1
 
+# D214: عند تعارض مصدرَي الشرعية يُؤخذ الأشدّ ويُعلَن التعارض. رأى المالكُ
+# «المملكة» مختلطةً وهي غيرُ متوافقةٍ عند أرقام — والأولويةُ صُمّمت للتغطية
+# فاستُعملت للترجيح، فخرج حكمٌ أخفُّ من أحد مصدرَيه في أخطرِ ما يُعرض.
+echo
+python3 scripts/audit/sharia_conflict.py || fail=1
+
+# D215: أطوارُ الجلسة بحدودها الحقيقية (‏تداول: مستمرٌّ حتى 15:00 ثمّ مزادٌ
+# وسعرُ إغلاقٍ حتى 15:20). كانت 14:30/15:00 في الخادم والواجهة معاً، فقال
+# التطبيقُ «مغلق» والسوقُ يعمل.
+echo
+python3 scripts/audit/market_hours.py || fail=1
+
 echo
 python3 scripts/audit/ts_undefined.py || fail=1
 echo

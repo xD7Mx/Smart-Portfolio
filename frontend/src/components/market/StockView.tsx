@@ -6,7 +6,8 @@ import { lookupCompany } from "../../data/saudiCompanies";
 import { isTasiOpen } from "../../utils/marketHours";
 import FlashPrice from "../common/FlashPrice";
 import CompanyLogo from "../common/CompanyLogo";
-import { ShariaBadge, ShariaStatusIndicator } from "../common/UI";
+import KeyFigures from "../common/KeyFigures";
+import { ShariaBadge } from "../common/UI";
 import AnalysisPanel from "../analysis/AnalysisPanel";
 import FinancialsTable from "../analysis/FinancialsTable";
 import DividendProfile from "../analysis/DividendProfile";
@@ -101,15 +102,6 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
     retry: 0,
   });
 
-  const f = data?.fundamentals || {};
-  const kpis: [string, string][] = ([
-    ["القيمة السوقية", f.market_cap ? compact(f.market_cap) : null],
-    ["الإيرادات", f.revenue ? compact(f.revenue) : null],
-    ["صافي الربح", f.net_income ? compact(f.net_income) : null],
-    ["ربحية السهم EPS", f.eps != null ? fmt(f.eps) : null],
-    ["مكرر الربحية P/E", f.pe_ratio ? fmt(f.pe_ratio) : null],
-    ["عائد التوزيعات", f.dividend_yield != null ? fmt(f.dividend_yield) + "%" : null],
-  ] as [string, string | null][]).filter(([, v]) => v != null) as [string, string][];
 
   const gov = data?.governance;
   const sector = sectorAr(symbol, data?.sector);
@@ -237,25 +229,15 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
                   ووجودُه بجانب القيمة العادلة يُغري بالخلط بينهما. وهو
                   باقٍ في «التحليل الفني» حيث يخصّ. */}
             </div>
-            {kpis.length > 0 ? (
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                {kpis.map(([lbl, v]) => (
-                  <div key={lbl} className="kpi"><div className="kpi-lbl">{lbl}</div><div className="kpi-val">{v}</div></div>
-                ))}
-              </div>
-            ) : <p className="text-[11px] text-[var(--ink-muted)] flex items-center gap-1"><Shield size={11} /> لا توجد بيانات مالية تفصيلية حالياً</p>}
+            {/* الشبكةُ مكوّنٌ مشتركٌ مع صفحة الشركة في الحيازات — تصميمٌ
+                واحدٌ لا نسختان (بأمر المالك). */}
+            <KeyFigures fundamentals={data?.fundamentals} />
             <PriceChart symbol={symbol} />
             <OwnershipBar symbol={symbol} />
-            {/* ══ ما كان في صفحة الشركة ولم يكن هنا ══ (بأمر المالك · D209)
-                التوافقُ الشرعيّ بتفصيله (التطهير والمصدر) والنبذةُ والإدارة
-                — بالمكوّنات نفسِها لا بنسخةٍ ثانية، فلا يتباعد التصميمان. */}
-            {data?.sharia_status && (
-              <div className="card">
-                <p className="card-title mb-3">التوافق الشرعي</p>
-                <ShariaStatusIndicator status={data.sharia_status}
-                  purification={data.purification} source={data.sharia_source} />
-              </div>
-            )}
+            {/* ══ بطاقةُ التوافق الشرعيّ حُذفت ══ (بأمر المالك)
+                الهلالُ في ترويسة الصفحة يقول الحكمَ بلونه وتلميحه، فبطاقةٌ
+                كاملةٌ تحته تكرارٌ لِما قيل. وموضعُ التفصيل صفحةُ الشركة في
+                الحيازات — هناك تحت الهيكلة مكاناً ثابتاً. */}
             <CompanyProfileCards symbol={symbol} />
           </div>
         )

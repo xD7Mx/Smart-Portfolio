@@ -36,7 +36,10 @@ export function AvatarImg({ refreshKey = 0, className = "", iconSize = 30 }: {
     // الحاوية يسقط بأسبابٍ لا تظهر في الشيفرة (تحويلٌ على الابن · طبقةٌ
     // مركَّبة · محرّكُ عرضٍ لا يقصّ عبر `overflow`). فالتدويرُ يُوضع على
     // الصورة أيضاً: لا يضرّ حيث الحاويةُ تعمل، ويكفي حيث لا تعمل.
-    return <img src={url} alt="" className={"w-full h-full object-cover rounded-full " + className} />;
+    // والأسلوبُ المباشر فوق الصنف: صنفٌ يُمرَّر من نداءٍ آخر قد يحمل
+    // `rounded-*` مخالفاً فيغلب بترتيب التتالي لا بترتيب كتابته هنا.
+    return <img src={url} alt="" style={{ borderRadius: "9999px" }}
+      className={"w-full h-full object-cover rounded-full " + className} />;
   }
   return <Briefcase size={iconSize} className="text-[var(--brand)]" />;
 }

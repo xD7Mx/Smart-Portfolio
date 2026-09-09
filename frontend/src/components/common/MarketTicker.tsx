@@ -138,6 +138,26 @@ export default function MarketTicker() {
     };
   }, []);
 
+  /* ══ وميضٌ عند تغيّر الرقم ══ (بأمر المالك)
+     الرقمُ أبيضُ دائماً لأنه مستوى السوق لا ربحاً ولا خسارة — وذلك باقٍ.
+     والوميضُ حدثٌ لا حالة: يشتعل لحظةَ **تغيّر** الرقم بلون اتّجاه
+     التغيّر ثمّ ينطفئ، فيلتقط الطرفُ عينَ الناظر عند الحركة ولا يبقى
+     لوناً دائماً يُقرأ حكماً على المستوى.
+     والمقارنةُ بالقيمة السابقة لا بالنسبة: النسبةُ قد تثبت بينما يتحرّك
+     الرقم في الخانة العشرية. */
+  const prevPrice = useRef<number | null>(null);
+  const [flash, setFlash] = useState<"up" | "dn" | null>(null);
+  useEffect(() => {
+    const p = typeof tasi?.price === "number" ? tasi.price : null;
+    if (p == null) return;
+    const was = prevPrice.current;
+    prevPrice.current = p;
+    if (was == null || was === p) return;      // أوّلُ قراءةٍ ليست تغيّراً
+    setFlash(p > was ? "up" : "dn");
+    const t = setTimeout(() => setFlash(null), 900);
+    return () => clearTimeout(t);
+  }, [tasi?.price]);
+
   if (!isOwner) return null;
 
   const num = (v: any, d = 2) =>
@@ -151,6 +171,7 @@ export default function MarketTicker() {
   const noRef = !!tasi && tasi.prev_close == null;
   const tasiC = noRef ? null : tasi?.change_pct;
   const tasiDir = tasiC == null ? "fl" : tasiC > 0 ? "up" : tasiC < 0 ? "dn" : "fl";
+
   /* التعادل: الرقم والنسبة بحبر التطبيق الأساسيّ (أسود على الورق، أبيض
      على الداكن)، والسهمُ وحده أصفر. (بأمر المالك)
      وهو الصواب دلالةً أيضاً: اللون في هذا التطبيق يقول **اتجاهاً**، ولا
@@ -278,7 +299,11 @@ export default function MarketTicker() {
                   **التغيّر** لا القيمة: فالرقم أبيضُ دائماً، والسهم والنسبة
                   وحدهما يحملان الأخضر أو الأحمر. */}
               <span className={`mk-tasi ${tasiDir}`}>
-                <span className="mk-tab-val" dir="ltr" style={{ color: "#ffffff" }}>{num(tasi?.price, 2)}</span>
+                {/* اللونُ في الصنف لا في الأسلوب المباشر: الحركةُ تغلبه في
+                    التتالي نظرياً، لكنّ اعتمادَ ظهورِ الوميض على ترتيبٍ خفيّ
+                    هشاشة — والصنفُ يجعل الأساسَ والوميضَ في طبقةٍ واحدة. */}
+                <span className={`mk-tab-val${flash ? ` mk-flash-${flash}` : ""}`}
+                  dir="ltr">{num(tasi?.price, 2)}</span>
                 {/* السهم بين الرقم ونسبته — يفصل الكمّية عن تغيّرها. */}
                 <TrendArrow dir={tasiDir as any} size={11}
                   color={tasiDir === "fl" ? "var(--flat-arrow)"

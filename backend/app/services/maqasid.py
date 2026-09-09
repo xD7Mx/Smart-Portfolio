@@ -44,6 +44,12 @@ def meta() -> dict:
     return {"maqasid": _maqasid().get("meta", {}), "argaam": _argaam().get("meta", {})}
 
 
+# شدّةُ الحكم مرتّبةً — لا تُقارَن الأحكامُ بنصّها بل برتبتها.
+_RANK = {"COMPLIANT": 0, "MIXED": 1, "NON_COMPLIANT": 2}
+_AR_STATUS = {"COMPLIANT": "نقية", "MIXED": "مختلطة",
+              "NON_COMPLIANT": "غير متوافقة"}
+
+
 def rating(symbol: str) -> dict | None:
     """Returns {status, purification?, source} for a Saudi symbol, applying the
     layer priority (Maqasid → Argaam → None). None means neither source covers
@@ -52,8 +58,25 @@ def rating(symbol: str) -> dict | None:
 
     r = _maqasid().get("ratings", {}).get(base)
     if r:
-        return {"status": r.get("status"), "purification": r.get("purification"),
-                "source": r.get("source", "المقاصد"), "note": r.get("note")}
+        out = {"status": r.get("status"), "purification": r.get("purification"),
+               "source": r.get("source", "المقاصد"), "note": r.get("note")}
+        # ══ الأولويةُ للتغطية، والأشدُّ يغلب عند التعارض ══
+        # رأى المالكُ «المملكة» (‏4280) مختلطةً وهي غيرُ متوافقةٍ عند أرقام.
+        # والأولويةُ كانت تأخذ المقاصدَ صامتةً فيُخفى الخلاف. وقِيس مداه:
+        # ‎54 اختلافاً بين المصدرين، في ‎52 منها المقاصدُ أشدّ — فالأولويةُ
+        # تعمل صواباً — وفي اثنين فقط أرقامُ أشدّ (‏4280 · 4072).
+        #
+        # ونصُّ الميثاق: «عند الشك يُخفَّض التقييم لا يُرفَع». وحكمٌ شرعيٌّ
+        # أخفُّ من أحد مصدرَيه ليس ترجيحاً بل تساهلٌ في أخطرِ ما نعرضه.
+        # فيُؤخذ الأشدُّ ويُعلَن الخلافُ بمصدريه — ولا يُطهَّر ما حُكم بعدم
+        # توافقه، فيسقط مبلغُ التطهير معه.
+        a0 = _argaam().get("ratings", {}).get(base)
+        if a0 and _RANK.get(a0.get("status"), 0) > _RANK.get(out["status"], 0):
+            out = {"status": a0.get("status"), "purification": None,
+                   "source": "أرقام · والمقاصد أخفّ",
+                   "note": f"تعارضُ مصدرين — أُخذ الأشدّ. المقاصد: "
+                           f"{_AR_STATUS.get(r.get('status'), r.get('status'))}."}
+        return out
 
     a = _argaam().get("ratings", {}).get(base)
     if a:
