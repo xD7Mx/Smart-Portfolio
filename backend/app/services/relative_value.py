@@ -87,8 +87,14 @@ class SectorTable:
         # الرُّبعان يرسمان النطاق: عرضُه من تشتّت القطاع لا من نسبةٍ مخترعة.
         q1, q3 = (statistics.quantiles(v, n=4)[0],
                   statistics.quantiles(v, n=4)[2]) if len(v) >= 4 else (v[0], v[-1])
+        # ══ التشتّتُ يُقاس بالوسط لا بالطرفين ══ (قِيس على السوق الحقيقيّ)
+        # كان `(الأعلى − الأدنى) ÷ الوسيط`، فحكَمه شاذٌّ واحد: شركةٌ مكرّرُها
+        # تسعون في قطاعٍ متقاربٍ تُسقط ثقةَ القطاع كلِّه. فخرجت الشركاتُ
+        # كلُّها «منخفضةَ الثقة» على السوق: ‎196 من ‎247 وصفرٌ مرتفعة —
+        # وهو حكمٌ على المقياس لا على السوق. والمدى الرُّبيعيُّ يقيس تجمّعَ
+        # الوسط، وهو ما يُبنى عليه الوسيطُ أصلاً.
         return {"n": len(v), "median": med, "q1": q1, "q3": q3,
-                "spread": (v[-1] - v[0]) / med if med else 0.0}
+                "spread": (q3 - q1) / med if med else 0.0}
 
     def for_sector(self, sector: str, *, own_pe: float | None = None,
                    own_pb: float | None = None) -> dict:
@@ -161,9 +167,12 @@ def relative_value(*, sector: str | None, price: float | None,
     # حتى ‎5.0 للمتوسطة، فمرّ قطاعٌ مضاعفاتُه بين ‎4 و‎90 بثقةٍ متوسطة —
     # كأنه قطاعٌ متقارب. والتشتّتُ هو جوهرُ الطريقة: وسيطُ قطاعٍ متباعدٍ
     # لا يقول عن السهم شيئاً. فصار يخفض وحدَه مهما كثُر العدد.
-    if peers >= 8 and spread <= 1.5 and agree <= 0.25 and len(paths) == 2:
+    # العتباتُ معايَرةٌ للمدى الرُّبيعيّ لا للمدى الكامل — وهو أصغرُ عدداً
+    # بطبيعته، فنقلُ المقياس بلا نقلِ عتباته يجعل الحارسَ بلا أثر.
+    # ‎0.35 يعني: النصفُ الأوسط من مضاعفات القطاع داخل ثُلثِ وسيطه.
+    if peers >= 8 and spread <= 0.35 and agree <= 0.25 and len(paths) == 2:
         out["confidence"] = "مرتفعة"
-    elif peers >= MIN_PEERS and spread <= 3.0 and agree <= 0.60:
+    elif peers >= MIN_PEERS and spread <= 0.80 and agree <= 0.60:
         out["confidence"] = "متوسطة"
     else:
         out["confidence"] = "منخفضة"
