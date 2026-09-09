@@ -18,6 +18,8 @@ quota — it degrades gracefully (uses cached/last data) instead of erroring.
 
 import json
 import os
+import pathlib
+import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
 from threading import Lock
@@ -55,6 +57,21 @@ def _load() -> tuple[str, dict]:
     return _today_ast(), {}
 
 
+def _load_sites() -> dict:
+    """الإسنادُ يُقرأ مع العدّاد، ويُهمَل إن كان ليومٍ مضى."""
+    try:
+        with open(_path(), encoding="utf-8") as fh:
+            raw = json.load(fh)
+        if isinstance(raw, dict) and raw.get("day") == _today_ast():
+            st = raw.get("sites")
+            if isinstance(st, dict):
+                return {k: int(v) for k, v in st.items()
+                        if isinstance(v, (int, float))}
+    except (OSError, ValueError, TypeError):
+        pass
+    return {}
+
+
 def _save() -> None:
     """كتابةٌ ذرّية: مؤقّتٌ ثمّ إحلال، فلا يُقرأ ملفٌّ نصفَ مكتوب."""
     try:
@@ -62,7 +79,7 @@ def _save() -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump({"day": _day, "counts": _counts}, fh)
+            json.dump({"day": _day, "counts": _counts, "sites": _sites}, fh)
         os.replace(tmp, path)
     except OSError:
         # قرصٌ ممتلئ أو للقراءة فقط: العدُّ يبقى في الذاكرة ولا ينهار شيء.
@@ -70,6 +87,7 @@ def _save() -> None:
 
 
 _day, _counts = _load()
+_sites: dict = _load_sites()
 
 
 def _limits() -> dict:
@@ -82,11 +100,13 @@ def _limits() -> dict:
 
 
 def _reset_if_new_day() -> None:
-    global _day, _counts
+    global _day, _counts, _sites
     today = _today_ast()
     if today != _day:
         _day = today
         _counts = {}
+        # الإسنادُ يُصفَّر مع العدّاد — وإلّا نُسب استهلاكُ اليوم إلى أمس.
+        _sites = {}
         _save()
 
 
@@ -104,12 +124,52 @@ def can_call(provider: str) -> bool:
         return _counts.get(provider, 0) < limit
 
 
+def _caller() -> str:
+    """موضعُ الاستدعاء الحقيقيّ: أوّلُ إطارٍ خارج هذه الوحدة.
+
+    `record` تُستدعى من `market_data` في ثمانية مواضع، ومن دوالَّ أعلى منها.
+    فيُصعَد في المكدّس حتى يُتجاوَز هذا الملفُّ نفسُه — وإلا كان كلُّ نداءٍ
+    منسوباً إلى السطر الذي يسجّل، لا إلى الذي يطلب.
+    """
+    try:
+        f = sys._getframe(2)
+        for _ in range(6):
+            if f is None:
+                break
+            name = f.f_code.co_filename
+            if not name.endswith("usage_tracker.py"):
+                return f"{pathlib.Path(name).stem}.{f.f_code.co_name}"
+            f = f.f_back
+    except Exception:                                             # noqa: BLE001
+        pass
+    return "?"
+
+
 def record(provider: str) -> None:
-    """Increment the call counter for a provider (call on every real request)."""
+    """Increment the call counter for a provider (call on every real request).
+
+    ══ العدُّ بلا إسناد لا يُصلح شيئاً ══
+    بلغ ياهو سقفَه (‏5000/5000) فامتنع التطبيقُ عن الجلب حتى منتصف ليل مكة،
+    ولم يكن في الملفّ ما يقول **أيُّ مسارٍ** أكل الحصّة — فيُخمَّن الجاني
+    ويُعالَج الظنّ. فصار كلُّ نداءٍ يُنسَب إلى موضع طلبه، ويُحفظ الإسنادُ
+    مع العدّاد. كلفتُه إطارٌ من المكدّس لكلّ نداءٍ شبكيّ — لا تُذكر بجانب
+    نداءٍ عبر الشبكة.
+    """
     with _lock:
         _reset_if_new_day()
         _counts[provider] = _counts.get(provider, 0) + 1
+        key = f"{provider}:{_caller()}"
+        _sites[key] = _sites.get(key, 0) + 1
         _save()
+
+
+def sites(provider: str | None = None) -> dict:
+    """الإسنادُ: كم نداءً من كلِّ موضع، مرتّباً تنازلياً."""
+    with _lock:
+        _reset_if_new_day()
+        items = {k: v for k, v in _sites.items()
+                 if provider is None or k.startswith(f"{provider}:")}
+        return dict(sorted(items.items(), key=lambda x: -x[1]))
 
 
 def usage(provider: str) -> dict:
