@@ -15,6 +15,12 @@ set -u
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 
+# ══ اللجنةُ تُحصي نفسَها ══ (البند ٣١)
+# يُنسَخ مخرَجُ التشغيلة إلى ملفٍّ ليُحصى في آخرها: فحصٌ سكت وهو يظنّ نفسه
+# يعمل لا يُكتشف إلا بعدّ ما نُفِّذ فعلاً ومقارنته بالمُسجَّل.
+_AUDIT_LOG="$(mktemp -t sp-audit-XXXXXX.log)"
+exec > >(tee "$_AUDIT_LOG") 2>&1
+
 python3 scripts/audit/static.py || fail=1
 
 # فحصُ الرتبة — يشغّل المحرّكَ على عشيرةٍ كاملة لكلّ نمطٍ من الأحد عشر
@@ -218,6 +224,11 @@ node scripts/audit/render_smoke.mjs || fail=1
 # شرطُها كان `!risk` و`[]` قيمةٌ صادقةٌ في جافاسكربت.
 echo
 node scripts/audit/empty_sections.mjs || fail=1
+
+# البند ٣١: عددُ الفحوص المنفَّذة يُقارَن بالمُسجَّل قبل الحكم بالنظافة.
+# يُشغَّل بعد الجميع، ومخرَجُه لا يدخل الإحصاءَ (يُقرأ الملفُّ قبل كتابته).
+echo
+python3 scripts/audit/check_census.py "$_AUDIT_LOG" || fail=1
 
 if [ "${1:-}" = "--live" ]; then
   echo
