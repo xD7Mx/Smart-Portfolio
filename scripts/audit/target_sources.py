@@ -15,9 +15,23 @@
 # ─────────────────────────────────────────────────────────────────────────
 from __future__ import annotations
 
-import os as _os, tempfile as _tf
+import os as _os, shutil as _sh, tempfile as _tf
 _SANDBOX = _tf.mkdtemp(prefix="sp-audit-")
-_os.environ["LASTGOOD_PATH"] = _os.path.join(_SANDBOX, "lastgood.json")
+
+# ══ الحمايةُ من الكتابة كانت تعمي القراءة ══ (قِيس في تشغيل المالك)
+# أُسنِد `LASTGOOD_PATH` إلى مجلّدٍ مؤقّتٍ **فارغ** لئلّا يكتب المسبارُ في
+# مخزن التشغيل، فقرأ فراغاً وأعلن «‎273 من ‎273 بلا هدفٍ من ياهو» — وهو
+# كذبٌ صريح؛ التغطيةُ الحقيقية ‎149. فصار يُنسَخ المخزنُ الحقيقيُّ إلى
+# الرملة ويُقرأ منها: القراءةُ صادقة، والكتابةُ لا تبلغ الأصلَ أبداً.
+_REAL_LG = _os.environ.get("LASTGOOD_PATH") or (
+    "/app/data/lastgood.json" if _os.path.isdir("/app/data") else "")
+_COPY = _os.path.join(_SANDBOX, "lastgood.json")
+if _REAL_LG and _os.path.exists(_REAL_LG):
+    try:
+        _sh.copyfile(_REAL_LG, _COPY)
+    except Exception:                                             # noqa: BLE001
+        pass
+_os.environ["LASTGOOD_PATH"] = _COPY
 _os.environ["SP_STATE_DIR"] = _SANDBOX
 
 import asyncio
@@ -131,15 +145,29 @@ async def argaam_probe(sym: str) -> str:
         return f"صفحةُ التقديرات تعذّرت ({type(ex).__name__}) · {est_url}"
     if e.status_code != 200:
         return f"صفحةُ التقديرات ‎{e.status_code} · {est_url}"
-    text = re.sub(r"<[^>]+>", " ", e.text)
-    text = re.sub(r"\s+", " ", text)
-    hit = _AR_TARGET.search(text)
-    if not hit:
-        return f"‎200 بلا لفظِ هدفٍ · {est_url}"
-    i = hit.start()
-    around = text[max(0, i - 60): i + 220].strip()
-    nums = re.findall(r"\d+\.\d{1,2}", around)
-    return (f"«{hit.group(1)}» · أرقامٌ حولها: {nums[:6] or '—'} · {est_url}")
+    # ══ أوّلُ لفظٍ ليس الجدول ══ (قِيس في التشغيل الثاني)
+    # ظهر اللفظُ في إحدى عشرة شركةٍ من اثنتي عشرة، وحولَه **لا رقم** —
+    # لأنّ أوّلَ موضعٍ للفظ هو رابطُ القائمة الجانبية لا الجدول. فصار
+    # يُفتَّش عن **كلّ** المواضع، ويُقال هل في الصفحة جدولٌ وأرقامٌ أصلاً،
+    # أم هي صفحةٌ تُملأ بجافاسكربت — فرقٌ يقرّر أيّ طبقةِ جلبٍ تُبنى.
+    html = e.text
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html))
+    hits = list(_AR_TARGET.finditer(text))
+    best: list[str] = []
+    for h in hits:
+        i = h.start()
+        nums = re.findall(r"\d+\.\d{1,2}", text[max(0, i - 80): i + 400])
+        if nums:
+            best = nums[:8]
+            break
+    tables = html.lower().count("<table")
+    js = ("__NEXT_DATA__" in html or "angular" in html.lower()
+          or bool(re.search(r"ajax|/api/", html, re.I)))
+    marks = (f"مواضعُ اللفظ {len(hits)} · جداول {tables}"
+             + (" · صفحةٌ تُملأ بجافاسكربت" if js and not tables else ""))
+    if best:
+        return f"أرقامٌ عند اللفظ: {best} · {marks} · {est_url}"
+    return f"‎200 بلا رقمٍ عند أيّ لفظ · {marks} · {est_url}"
 
 
 async def main() -> int:
@@ -164,6 +192,12 @@ async def main() -> int:
     if args:
         syms = [a.replace(".SR", "") for a in args]
     else:
+        n_store = len(_store())
+        print(f"… مخزنُ الأساسيات: {n_store} رمزاً" +
+              ("" if n_store else "  ⚠ فارغ — القراءةُ معطوبة، لا السوق"))
+        if not n_store:
+            print("    لا يُحكم على تغطية ياهو من مخزنٍ فارغ. أُوقف.")
+            return 2
         print("… أوّلاً: أيُّ الرموز لا يغطّيها ياهو؟ (يُقرأ من الكاش، بلا نداءٍ جديد)")
         syms = []
         for s in uni:
