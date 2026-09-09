@@ -973,10 +973,23 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                         </span>
                       </div>
                     </div>
+                    {/* ══ رقمان لا يُخلطان ══ (D213)
+                        حيث لا هدفَ لبيوت الخبرة — و‏124 شركةً كذلك، لأن أحداً
+                        لا يُصدر لها توصية — تُعرض قيمةٌ نسبيةٌ إلى القطاع
+                        مكانه. والعنوانُ نفسُه يتبدّل، فلا يُقرأ مضاعفُ قطاعٍ
+                        على أنه رأيُ محلّل. ولونُها خافتٌ لأنها مشتقّةٌ لا
+                        منقولة. */}
                     <div className="space-y-1.5 text-center">
-                      <div className="text-[9.5px] text-[var(--ink-muted)]">هدف المحللين</div>
-                      <div className="text-[12px] font-bold tabular-nums text-[var(--ink)]" dir="ltr">
-                        {r.fair_value == null ? "—" : Number(r.fair_value).toFixed(2)}
+                      <div className="text-[9.5px] text-[var(--ink-muted)]">
+                        {r.fair_value == null && r.rel_value != null ? "نسبية للقطاع" : "هدف المحللين"}
+                      </div>
+                      <div className="text-[12px] font-bold tabular-nums" dir="ltr"
+                        title={r.fair_value == null && r.rel_value != null
+                          ? `قيمة نسبية إلى القطاع ${r.rel_low}–${r.rel_high} · ثقة ${r.rel_conf}`
+                          : ""}
+                        style={{ color: r.fair_value == null && r.rel_value != null ? "var(--ink-muted)" : "var(--ink)" }}>
+                        {r.fair_value != null ? Number(r.fair_value).toFixed(2)
+                          : r.rel_value != null ? Number(r.rel_value).toFixed(2) : "—"}
                       </div>
                     </div>
                     <div className="space-y-1.5 min-w-0">
@@ -1082,9 +1095,18 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                     {/* الفرق عن تقدير المحللين — مقياسٌ آخر لا امتداد للأول:
                         مصدره آراء بشر لا مقارنة أرقام، فيُعرض مستقلاً. */}
                     <td className="px-2 py-2 tabular-nums" dir="ltr"
-                      title={r.fair_value ? `هدف المحللين ${r.fair_value}${r.fair_value_asof ? " · " + r.fair_value_asof : ""}` : ""}
+                      title={r.fair_value ? `هدف المحللين ${r.fair_value}${r.fair_value_asof ? " · " + r.fair_value_asof : ""}`
+                        : r.rel_value != null ? `قيمة نسبية إلى القطاع ${r.rel_value} (${r.rel_low}–${r.rel_high}) · ثقة ${r.rel_conf} — لا هدفَ محلّلين لهذه الشركة`
+                        : ""}
                       style={{ color: r.upside_pct == null ? "var(--ink-muted)" : r.upside_pct >= 15 ? "var(--pos-ink)" : r.upside_pct <= -15 ? "var(--neg-ink)" : "var(--ink-muted)" }}>
-                      {r.upside_pct == null ? "—" : `${r.upside_pct > 0 ? "+" : ""}${Math.round(r.upside_pct)}%`}
+                      {/* ولا يُدسّ المشتقُّ في خانة المنقول: علامةُ «≈» ولونٌ
+                          خافتٌ يقولان إن هذا فرقٌ عن قيمةٍ نسبيةٍ لا عن هدفِ
+                          محلّل (‏D213). */}
+                      {r.upside_pct != null
+                        ? `${r.upside_pct > 0 ? "+" : ""}${Math.round(r.upside_pct)}%`
+                        : r.rel_value != null && r.price
+                          ? <span className="text-[var(--ink-muted)]">{`≈${Math.round((r.rel_value - r.price) / r.price * 100) > 0 ? "+" : ""}${Math.round((r.rel_value - r.price) / r.price * 100)}%`}</span>
+                          : "—"}
                     </td>
                     <td className="px-2 py-2"><VerdictTag v={r.verdict} gap={r.value_gap_pct} basis={r.value_basis} /></td>
                     <td className="px-2 py-2 text-[var(--ink-muted)] tabular-nums">{fmt(r.high_52w)}</td>

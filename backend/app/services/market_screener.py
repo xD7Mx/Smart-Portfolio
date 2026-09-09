@@ -279,6 +279,21 @@ async def _enrich_fundamentals(rows: list[dict]) -> None:
     except Exception:
         maqasid = None
 
+    # جدولُ مضاعفات القطاعات — يُبنى مرّةً من المخزن الدائم قبل الحلقة، لا
+    # لكلّ صفّ. ويسقط إلى None بلا إسقاط الفرز: القيمةُ النسبية إضافةٌ لا
+    # ركن، وغيابُها يترك الحقولَ فارغةً كما لو لم تُحسب.
+    _sector_table = None
+    try:
+        from app.services.relative_value import SectorTable as _ST
+        from app.services.relative_value import relative_value as _relative_value
+        from app.data.company_sectors import SYMBOL_TO_SECTOR_AR as _SEC_AR
+        _sector_table = _ST(
+            {"sector": _SEC_AR.get(s), "pe": (v or {}).get("pe_ratio"),
+             "pb": (v or {}).get("price_to_book")}
+            for s, v in fund_store.items())
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"القيمة النسبية معطّلة في هذا المسح: {type(e).__name__}: {e}")
+
     for r in rows:
         sym = r["symbol"]
         ysym = f"{sym}.SR"
@@ -326,6 +341,31 @@ async def _enrich_fundamentals(rows: list[dict]) -> None:
         _fv = pick("target_mean_price")
         r["fair_value"] = _fv
         r["fair_value_asof"] = stored.get("val_asof")
+
+        # ══ ما لا يغطّيه بيتُ خبرة ══ (D212)
+        # ‎124 شركةً من ‎273 بلا هدفِ محلّلين، وقد قِيس أنّ ذلك نقصُ السوق لا
+        # نقصُ أنبوبنا: لا مصدرَ ينشر لها هدفاً لأن أحداً لا يُصدره. فتُشتقّ
+        # لها **قيمةٌ نسبيةٌ إلى القطاع** من مضاعفات نظائرها.
+        #
+        # وهي حقلٌ مستقلٌّ لا يمسّ `fair_value`: لا تستبدل رأيَ محلّلٍ حيث
+        # وُجد، ولا تُخلط به في العرض. تُحسب فقط حيث لا هدفَ أصلاً.
+        r["rel_value"] = r["rel_conf"] = r["rel_why"] = None
+        if _fv is None and _sector_table is not None:
+            try:
+                _rv = _relative_value(
+                    sector=r.get("sector"), price=r.get("price"),
+                    pe=r["pe_ratio"], pb=r["price_to_book"],
+                    book_value=pick("book_value"), table=_sector_table)
+                if _rv["value"] is not None:
+                    r["rel_value"] = round(_rv["value"], 2)
+                    r["rel_low"] = round(_rv["low"], 2)
+                    r["rel_high"] = round(_rv["high"], 2)
+                    r["rel_conf"] = _rv["confidence"]
+                    r["rel_basis"] = _rv["basis"]
+                else:
+                    r["rel_why"] = _rv["why"]
+            except Exception as e:                                # noqa: BLE001
+                logger.warning(f"القيمة النسبية {sym}: {type(e).__name__}: {e}")
         dy = fund.get("dividend_yield")
 
         # ٣) عائد التوزيعات: إن غاب من الأساسيات نحسبه من **المخزن المتراكم**

@@ -185,6 +185,11 @@ python3 scripts/audit/evaluable_gate.py || fail=1
 echo
 python3 scripts/audit/relative_value_check.py || fail=1
 
+# D213: القيمةُ النسبيةُ تملأ الفراغَ ولا تستبدل رأيَ محلّل — ولا تُدسّ في
+# خانة «القيمة العادلة» فيُظنّ مضاعفُ القطاع رأيَ بيوت الخبرة.
+echo
+python3 scripts/audit/rel_vs_target.py || fail=1
+
 echo
 python3 scripts/audit/ts_undefined.py || fail=1
 echo
