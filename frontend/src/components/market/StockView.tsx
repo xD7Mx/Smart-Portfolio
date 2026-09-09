@@ -6,12 +6,13 @@ import { lookupCompany } from "../../data/saudiCompanies";
 import { isTasiOpen } from "../../utils/marketHours";
 import FlashPrice from "../common/FlashPrice";
 import CompanyLogo from "../common/CompanyLogo";
-import { ShariaBadge } from "../common/UI";
+import { ShariaBadge, ShariaStatusIndicator } from "../common/UI";
 import AnalysisPanel from "../analysis/AnalysisPanel";
 import FinancialsTable from "../analysis/FinancialsTable";
 import DividendProfile from "../analysis/DividendProfile";
 import StockOpinion from "../analysis/StockOpinion";
 import StockCalendar from "../analysis/StockCalendar";
+import CompanyProfileCards from "../analysis/CompanyProfileCards";
 import PriceChart from "../analysis/PriceChart";
 import OwnershipBar from "../analysis/OwnershipBar";
 import clsx from "clsx";
@@ -245,6 +246,17 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
             ) : <p className="text-[11px] text-[var(--ink-muted)] flex items-center gap-1"><Shield size={11} /> لا توجد بيانات مالية تفصيلية حالياً</p>}
             <PriceChart symbol={symbol} />
             <OwnershipBar symbol={symbol} />
+            {/* ══ ما كان في صفحة الشركة ولم يكن هنا ══ (بأمر المالك · D209)
+                التوافقُ الشرعيّ بتفصيله (التطهير والمصدر) والنبذةُ والإدارة
+                — بالمكوّنات نفسِها لا بنسخةٍ ثانية، فلا يتباعد التصميمان. */}
+            {data?.sharia_status && (
+              <div className="card">
+                <p className="card-title mb-3">التوافق الشرعي</p>
+                <ShariaStatusIndicator status={data.sharia_status}
+                  purification={data.purification} source={data.sharia_source} />
+              </div>
+            )}
+            <CompanyProfileCards symbol={symbol} />
           </div>
         )
       )}

@@ -137,6 +137,9 @@ export const companiesApi = {
   directory: () => api.get<APIResponse>("/companies/directory"),
   // نبذة النشاط والإدارة التنفيذية — من Yahoo حصراً
   profile: (id: number) => api.get<APIResponse>(`/companies/${id}/profile`),
+  // النبذةُ نفسُها لورقةٍ لا تملك صفّاً في المحفظة (D209).
+  profileBySymbol: (symbol: string) =>
+    api.get<APIResponse>(`/companies/by-symbol/${symbol.replace(".SR", "")}/profile`),
   saveProfile: (id: number, data: { description?: string | null }) =>
     api.put<APIResponse>(`/companies/${id}/profile`, data),
 };

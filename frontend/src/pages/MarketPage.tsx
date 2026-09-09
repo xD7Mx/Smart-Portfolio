@@ -7,8 +7,8 @@ import { useT } from "../i18n";
 import { useAppStore } from "../store/appStore";
 import { useAuthStore } from "../store/authStore";
 import { searchCompanies, SECTORS } from "../data/saudiCompanies";
-import StockLookup from "../components/market/StockLookup";
 import StockSheet from "../components/market/StockSheet";
+import InlineStockSearch from "../components/market/InlineStockSearch";
 import CompanyLogo from "../components/common/CompanyLogo";
 import { FairValueBar, SafetyBar, fairValueTier, safeColor } from "../components/common/ValueBars";
 import SourceLogo, { hasSourceLogo } from "../components/common/SourceLogo";
@@ -113,7 +113,7 @@ function MarketBreadthCard({ movers }: { movers: any }) {
    ويتكرّر ما تعرضه البطاقات تحته. الآن تُقرأ الأرقام في لمحة، ويبقى نصّ
    الذكاء لما لا تقوله الأرقام وحدها: **سبب** الحركة من الأخبار. */
 function PulseCard({ summary, tasi, brent, movers, onSearch }:
-  { summary: any; tasi: any; brent: any; movers: any; onSearch?: () => void }) {
+  { summary: any; tasi: any; brent: any; movers: any; onSearch?: (symbol: string) => void }) {
   const num = (v: any, d = 2) => v == null ? "—" : Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
   const pct = (v: any) => v == null ? null : (v >= 0 ? "+" : "") + Number(v).toFixed(2) + "%";
   const tone = (v: any) => v == null ? "var(--ink)" : v > 0 ? "var(--pos-ink)" : v < 0 ? "var(--neg-ink)" : "var(--ink-muted)";
@@ -138,13 +138,9 @@ function PulseCard({ summary, tasi, brent, movers, onSearch }:
       <div className="flex items-center gap-2 mb-3">
         <Sparkles size={16} className="ai-star" />
         <h2 className="card-title">نبض السوق</h2>
-        {/* ══ البحثُ أيقونةٌ هنا لا مربّعٌ فوق ══ (بأمر المالك · D192) */}
-        {onSearch && (
-          <button type="button" onClick={onSearch} title="ابحث عن سهم" aria-label="ابحث عن سهم"
-            className="btn-ghost ms-1" style={{ padding: "4px 7px" }}>
-            <Search size={15} />
-          </button>
-        )}
+        {/* ══ البحثُ حقلٌ يتمدّد في محلّه ══ (بأمر المالك · D210)
+            كان زرّاً يفتح بطاقةً كاملةً فوق النبض بمربّعٍ من تصميمٍ سابق. */}
+        {onSearch && <InlineStockSearch onPick={onSearch} />}
         {phase && (
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-md"
             style={{
@@ -1258,10 +1254,10 @@ export default function MarketPage() {
     };
   }, []);
   const [stockSheet, setStockSheet] = useState<string | null>(null);
-  const [searchActive, setSearchActive] = useState(false);
   /* المربّعُ يُفتح بأيقونة «نبض السوق» ويُغلق بعد قضاء الحاجة (D192).
      ويُفتح تلقائياً إن جاء رمزٌ من رابطٍ خارجيّ. */
-  const [searchOpen, setSearchOpen] = useState(false);
+  /* رمزٌ يأتي من رابطٍ خارجيّ يفتح ورقةَ السهم مباشرةً — كما لو بُحث عنه. */
+  useEffect(() => { if (initialSymbol) setStockSheet(initialSymbol.toUpperCase()); }, [initialSymbol]);
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSymbol = searchParams.get("symbol");
   const { data: overview } = useQuery({
@@ -1317,29 +1313,23 @@ export default function MarketPage() {
 
       {tab === "main" && (
         <>
-          {/* Look up any Tadawul stock by symbol/name — same detail view as a
-              held company's page (overview / AI evaluation / financial statements) */}
-          <StockLookup initialSymbol={initialSymbol} onActiveChange={setSearchActive}
-            open={searchOpen || !!initialSymbol}
-            onRequestClose={() => setSearchOpen(false)} />
-
+          {/* ══ لا بطاقةَ بحثٍ فوق النبض ══ (بأمر المالك · D210)
+              البحثُ صار حقلاً يتمدّد داخل ترويسة «نبض السوق»، والنتيجةُ
+              تُفتح في ورقة السهم نفسِها التي يفتحها الفرزُ والتوزيعُ
+              وخريطةُ القطاعات — لا شاشةٌ رابعة. */}
           {/* While a stock result is on screen, the rest of the market widgets
               fade back and blur so focus stays on the result — they return the
               moment the search is closed. aria-hidden + pointer-events-none so
               the faded area isn't interactive or read out while hidden. */}
-          <div
-            aria-hidden={searchActive}
-            className="transition-all duration-500 ease-out"
-            style={searchActive
-              ? { opacity: 0.15, filter: "blur(4px)", pointerEvents: "none", transform: "scale(0.99)" }
-              : { opacity: 1, filter: "none" }}
-          >
+          {/* طبقةُ التلاشي أُلغيت مع صندوق البحث: الورقةُ تُفتح فوق الصفحة
+              بطبقتها الخاصّة، فلا حاجةَ إلى إخفاء ما تحتها بضبابٍ ثانٍ. */}
+          <div>
           <div className="space-y-5">
 
           {/* AI market summary — right under the lookup box, before the
               detailed numbers below. */}
           <PulseCard summary={marketSummary} tasi={overview?.tasi} brent={overview?.brent} movers={movers}
-            onSearch={() => setSearchOpen(true)} />
+            onSearch={(sym: string) => setStockSheet(sym)} />
 
           {/* Ticker cards — user picks which ones in Settings */}
           {enabled.length > 0 && (

@@ -198,6 +198,72 @@ class CompanyProfileUpdate(BaseModel):
     description: Optional[str] = None
 
 
+@router.get("/by-symbol/{symbol}/profile")
+async def get_company_profile_by_symbol(symbol: str, db: AsyncSession = Depends(get_db)):
+    """النبذةُ نفسُها لورقةٍ يُبحث عنها في السوق ولا تملك صفّاً في المحفظة.
+
+    ══ لغةُ عرضٍ واحدة ══ (بأمر المالك · D209)
+    كانت النبذةُ والإدارةُ تظهران في صفحة الشركة المملوكة وحدَها، لأن
+    المسارَ يطلب مُعرِّفَ صفٍّ في قاعدة البيانات. فرأى المالكُ شاشتين
+    لشيءٍ واحد: إحداهما تعرّف بالشركة والأخرى لا.
+
+    وإن كانت الورقةُ مملوكةً فصفُّها يُوجد بالرمز، فيُخدَم من المسار
+    نفسِه بنصّ المالك المحفوظ — لا نسخةٌ ثانيةٌ من المنطق.
+    """
+    sym = (symbol or "").replace(".SR", "").strip()
+    company = (await db.execute(
+        select(Company).where(Company.symbol.in_([sym, f"{sym}.SR"])))).scalars().first()
+    if company:
+        return await get_company_profile(company.id, db)
+
+    # لا صفَّ لها: تُبنى النبذةُ من ياهو مباشرةً بلا حفظٍ في قاعدة البيانات.
+    from app.data.market_universe import MARKET_UNIVERSE
+    meta = MARKET_UNIVERSE.get(sym) or {}
+    payload = await _yahoo_profile(sym, meta.get("name_ar") or sym, meta.get("sector"))
+    return success_response(data=payload)
+
+
+async def _yahoo_profile(symbol: str, name: str, sector: str | None) -> dict:
+    """نبذةٌ وإدارةٌ من ياهو — المنطقُ نفسُه الذي يخدم صفحةَ الشركة."""
+    executives: list[dict] = []
+    website = employees = description = None
+    source = None
+    try:
+        from app.services.market_data import market_service
+        ap = await market_service.get_asset_profile(symbol)
+    except Exception:                                             # noqa: BLE001
+        ap = None
+    if ap:
+        executives = ap.get("executives") or []
+        for e in executives:
+            e.setdefault("name_en", e.get("name"))
+        try:
+            from app.services.ai_content import exec_titles_ar, exec_names_ar
+            tmap = await exec_titles_ar([e.get("title") for e in executives])
+            if tmap:
+                executives = [{**e, "title": tmap.get((e.get("title") or "").strip(), e.get("title"))}
+                              for e in executives]
+            nmap = await exec_names_ar([e.get("name") for e in executives])
+            if nmap:
+                executives = [{**e, "name": nmap.get((e.get("name_en") or "").strip(), e.get("name"))}
+                              for e in executives]
+        except Exception:                                         # noqa: BLE001
+            pass
+        website, employees = ap.get("website"), ap.get("employees")
+        if ap.get("summary_en"):
+            try:
+                from app.services.ai_content import company_brief_ar
+                brief = await company_brief_ar(name, ap["summary_en"], sector)
+                if brief:
+                    description, source = brief, "ai"
+            except Exception:                                     # noqa: BLE001
+                pass
+            if not description:
+                description, source = ap["summary_en"], "yahoo"
+    return {"description": description, "description_source": source,
+            "website": website, "employees": employees, "executives": executives}
+
+
 @router.get("/{company_id}/profile")
 async def get_company_profile(company_id: int, db: AsyncSession = Depends(get_db)):
     """نبذة نشاط الشركة وإدارتها التنفيذية — **من Yahoo حصراً**.

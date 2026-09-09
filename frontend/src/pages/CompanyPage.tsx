@@ -18,6 +18,7 @@ import OwnershipBar from "../components/analysis/OwnershipBar";
 import PriceChart from "../components/analysis/PriceChart";
 import DividendProfile from "../components/analysis/DividendProfile";
 import StockCalendar from "../components/analysis/StockCalendar";
+import CompanyProfileCards from "../components/analysis/CompanyProfileCards";
 import StockOpinion from "../components/analysis/StockOpinion";
 import clsx from "clsx";
 
@@ -85,138 +86,6 @@ function Stat({ label, value, sub, icon: Icon, ic, color, cls = "" }: any) {
 /* وسم «مترجَمة آلياً» أُزيل بقرار المالك: النصّ وصفُ نشاطٍ لا إفصاحٌ مالي،
    والوسم التحذيري بجانبه كان يوحي بريبةٍ لا محلّ لها. ويبقى وسم «نصّك
    المحفوظ» وحده — فهو يميّز ما كتبه المالك عمّا جاء من المصدر. */
-const DESC_SOURCE_LABEL: Record<string, { label: string; tone: string }> = {
-  manual: { label: "نصّك المحفوظ", tone: "var(--pos-ink)" },
-};
-
-function CompanyProfileCards({ companyId }: { companyId: number }) {
-  const qc = useQueryClient();
-  const { isOwner } = useAuthStore();
-  const { data, isLoading } = useQuery({
-    queryKey: ["company-profile", companyId],
-    queryFn: () => companiesApi.profile(companyId).then(r => r.data.data).catch(() => null),
-  });
-
-  const [editDesc, setEditDesc] = useState(false);
-  const [descDraft, setDescDraft] = useState("");
-
-  const save = useMutation({
-    mutationFn: (payload: any) => companiesApi.saveProfile(companyId, payload).then(r => r.data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["company-profile", companyId] });
-      setEditDesc(false);
-    },
-  });
-
-  const src = data?.description_source ? DESC_SOURCE_LABEL[data.description_source] : null;
-  const execs: { name: string; title: string }[] = data?.executives ?? [];
-  const isEnglish = data?.description_source === "yahoo";
-  const hasDesc = !!data?.description;
-
-  /* لا شيء من Yahoo ولا نصٌّ محفوظ ⇒ لا بطاقة إطلاقاً. عنوانٌ فوق فراغٍ يبدو
-     خللاً، وإخفاؤه أنظف من رسالة «لا بيانات» في صفحةٍ مزدحمة أصلاً. الاستثناء
-     الوحيد: المالك يرى البطاقة كي يستطيع كتابة النبذة بنفسه. */
-  if (!isLoading && !hasDesc && execs.length === 0 && !isOwner) return null;
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* ① نبذة النشاط */}
-      {(hasDesc || isLoading || isOwner) && (
-      <div className="card">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <Layers size={15} className="text-[var(--brand-ink)] shrink-0" />
-            <p className="card-title">نبذة عن نشاط الشركة</p>
-            {src && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0"
-                style={{ background: `color-mix(in srgb, ${src.tone} 12%, transparent)`, color: src.tone }}>{src.label}</span>
-            )}
-          </div>
-          {isOwner && !editDesc && (
-            <button className="p-1 rounded-lg text-[var(--ink-muted)] hover:text-[var(--warn-ink)] transition-all shrink-0"
-              title="تحرير النبذة"
-              onClick={() => { setDescDraft(data?.description || ""); setEditDesc(true); }}>
-              <Pencil size={13} />
-            </button>
-          )}
-        </div>
-
-        {editDesc ? (
-          <div className="space-y-2">
-            <textarea className="input" rows={7} value={descDraft} onChange={e => setDescDraft(e.target.value)}
-              placeholder="اكتب نبذة عن نشاط الشركة…" autoFocus />
-            <p className="text-[10px] text-[var(--ink-muted)]">
-              نصّك يتقدّم على المصدر ولا يُستبدَل. وإفراغ الحقل يُعيد الجلب من Yahoo.
-            </p>
-            <div className="flex gap-2">
-              <button className="btn-primary flex-1" disabled={save.isPending}
-                onClick={() => save.mutate({ description: descDraft })}>
-                {save.isPending ? "جارٍ الحفظ…" : "حفظ"}
-              </button>
-              <button className="btn-ghost" onClick={() => setEditDesc(false)}>إلغاء</button>
-            </div>
-          </div>
-        ) : isLoading ? (
-          <div className="h-20 skeleton" />
-        ) : hasDesc ? (
-          <>
-            <p className="text-[13px] text-[var(--ink)] leading-relaxed" dir={isEnglish ? "ltr" : undefined}
-              style={isEnglish ? { textAlign: "left" } : undefined}>
-              {data.description}
-            </p>
-            {(data.website || data.employees) && (
-              <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--hairline)] text-[11px]">
-                {data.employees ? (
-                  <span className="text-[var(--ink-muted)]">الموظفون: <span className="text-[var(--ink)] tabular-nums">{fmt0(data.employees)}</span></span>
-                ) : null}
-                {data.website && (
-                  <a href={data.website} target="_blank" rel="noopener noreferrer"
-                    className="text-[var(--brand-ink)] hover:text-[var(--brand-ink)] truncate" dir="ltr">{data.website}</a>
-                )}
-              </div>
-            )}
-          </>
-        ) : (
-          <Empty label="لا نبذة متاحة من المصدر — اكتبها بنفسك من زر التحرير" />
-        )}
-      </div>
-      )}
-
-      {/* ② الإدارة التنفيذية — تظهر فقط إن وفّرها Yahoo فعلاً */}
-      {execs.length > 0 && (
-        <div className="card">
-          <div className="flex items-center gap-2 mb-3">
-            <Star size={15} className="text-[var(--brand-ink)] shrink-0" />
-            <p className="card-title">الإدارة التنفيذية</p>
-          </div>
-          {/* تمريرٌ أفقيّ بأمر المالك. وكانت قائمةً رأسية يُقصّ فيها الاسم
-              الطويل بـ`truncate` — أي أن العلاج القديم للضيق كان **إخفاء
-              الاسم**. والصفّ الأفقيّ يُعطي كلّ اسمٍ عرضه كاملاً ويُبقي
-              الزائد وراء التمرير بدل أن يبتره.
-              و`snap` يُوقف الصفّ عند بطاقةٍ كاملة لا عند نصفها على الجوال. */}
-          <div className="overflow-x-auto -mx-1 px-1 pb-1 snap-x snap-mandatory">
-            <div className="flex gap-2 w-max">
-              {execs.slice(0, 10).map((o, i) => (
-                <div key={i}
-                  className="snap-start shrink-0 w-[190px] rounded-xl border border-[var(--hairline)] bg-[var(--field)] px-3 py-2.5"
-                  /* الاسم اللاتينيّ الأصل يبقى متاحاً عند المرور — فالنقل
-                     الصوتيّ لا يُلغي ما يُبحث به. */
-                  title={(o as any).name_en || undefined}>
-                  {/* الاسم صار عربياً من الخادم، فيتبع اتجاه الصفحة.
-                      و`auto` تحمي ما تعذّر نقله فبقي لاتينياً. */}
-                  <p className="text-[12.5px] text-[var(--ink)] leading-snug" dir="auto">{o.name}</p>
-                  {o.title && (
-                    <p className="text-[10.5px] text-[var(--ink-muted)] mt-1 leading-snug" dir="auto">{o.title}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 
 /* Quick transaction modal — same engine/payload contract as PortfolioPage */
@@ -1014,33 +883,10 @@ export default function CompanyPage() {
           <ShariaStatusIndicator status={company.sharia_status} loading={resolveSharia.isPending}
             purification={company.purification} source={company.sharia_source} />
         </div>
-        {/* ══ اسمٌ واحد لمصدرٍ واحد ══ (بأمر المالك)
-            كان هنا «السعر العادل» مقروءاً من `technical.fair_value` — وهو
-            **متوسّطُ السعر المتحرّك** لا قيمةً جوهرية: متوسطُ ما دُفع في
-            السهم لا ما يستحقّه. وقد أُعيد الحقلُ في المحرّك إلى اسمه
-            (`mean_basis`) فبقي هذا الموضع يقرأ حقلاً لا وجود له — عرضٌ
-            ميّت باسمٍ محجوز، لو عاد الحقل يوماً لعرض الرقم الخطأ.
-            فصار الموضع يعرض القيمة العادلة الواحدة نفسها التي في تقييم
-            الأداء، بلا حساب ثانٍ ولا اسمٍ ثانٍ. */}
-        {analysis?.fair_value != null && (
-          <div className="card flex items-center justify-between gap-2 flex-wrap">
-            <span className="card-title">هدف المحللين</span>
-            <span className="flex items-baseline gap-2">
-              {analysis.fair_value_detail?.entry_price != null && (
-                <span className="text-[11px] text-[var(--ink-muted)]">
-                  دخول <span className="tabular-nums text-[var(--ink)]">{fmt(analysis.fair_value_detail.entry_price)}</span>
-                </span>
-              )}
-              {analysis.fair_value_upside_pct != null && (
-                <span className="text-[11px] tabular-nums" dir="ltr"
-                  style={{ color: analysis.fair_value_upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
-                  {analysis.fair_value_upside_pct > 0 ? "+" : ""}{analysis.fair_value_upside_pct}%
-                </span>
-              )}
-              <span className="text-xl tabular-nums text-[var(--ink)]" style={{ fontWeight: 800 }}>{fmt(analysis.fair_value)}</span>
-            </span>
-          </div>
-        )}
+        {/* ══ حُذفت بطاقةُ «هدف المحللين» من النظرة العامّة ══
+            (بأمر المالك · D208)
+            كانت تحمل سعرَ الدخول وقد أُمر بحذفه، ورقمُها معروضٌ في تبويب
+            «تقييم الأداء» — وهو تبويبٌ مشتركٌ بين الشاشتين. */}
         <PriceChart symbol={company.symbol} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="card">

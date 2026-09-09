@@ -5,8 +5,7 @@ import {
 } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { lookupCompany } from "../../data/saudiCompanies";
-import { FairValueBar, TrendBar } from "../common/ValueBars";
-import ExpertPanelBoard from "../governance/ExpertPanelBoard";
+import { TrendBar } from "../common/ValueBars";
 
 const TONE_COLOR: Record<string, string> = { green: "var(--pos-ink)", yellow: "var(--warn-ink)", red: "var(--neg-ink)", na: "var(--ink-muted)" };
 const DECISION_COLOR: Record<string, string> = { "شراء قوي": "var(--pos-ink)", "شراء": "var(--pos-ink)", "انتظار": "var(--warn-ink)", "تجنب": "var(--neg-ink)" };
@@ -147,11 +146,6 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                     </span>
                   )}
                 </div>
-                {fv.entry_price != null && (
-                  <div className="text-[9.5px] text-[var(--ink-muted)] leading-tight mt-1">
-                    سعر الدخول <span className="tabular-nums text-[var(--ink)]">{fmt(fv.entry_price)}</span>
-                  </div>
-                )}
               </>
             ) : (
               /* ══ الغيابُ يُذكر بسببه ══ (بأمر المالك · D200)
@@ -169,21 +163,14 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
           </div>
         </div>
 
-        {/* القرار: سطرٌ واحد يجمع حكم المجلس وحكم السعر — وهما سؤالان
-            مختلفان لا يُدمجان: أجيّدةٌ الشركة؟ وأعادلٌ سعرها اليوم؟ */}
-        <div className="flex items-center justify-between gap-2 mt-2 px-1">
-          <span className="text-[11px] text-[var(--ink-muted)]">
-            {data.evaluable === false ? "بانتظار وصول القوائم" : "خلاصة المجلس"}
-          </span>
-          <span className="flex items-center gap-2">
-            {fv.entry_verdict && (
-              <span className="text-[10px]" style={{ color: fv.entry_gap_pct >= 0 ? "var(--pos-ink)" : "var(--ink-muted)" }}>{fv.entry_verdict}</span>
-            )}
-            {dec.label && data.evaluable !== false && (
-              <span className="text-sm" style={{ fontWeight: 800, color: DECISION_COLOR[dec.label] || dec.color || "var(--ink-muted)" }}>{dec.label}</span>
-            )}
-          </span>
-        </div>
+        {/* ══ حُذف سعرُ الدخول وحكمُه وسطرُ «خلاصة المجلس» ══
+            (بأمر المالك · D208)
+            سعرُ الدخول مشتقٌّ من هامش أمانٍ يخصّ محرّكاً لا يُعرض، وحكمُه
+            («دون سعر الدخول» · «فوق القيمة العادلة») يقول ما يقوله القرارُ
+            نفسُه بلفظٍ آخر. والقرارُ باقٍ في موضعه من البطاقة أعلاه. */}
+        {data.evaluable === false && (
+          <div className="text-[11px] text-[var(--ink-muted)] mt-2 px-1">بانتظار وصول القوائم</div>
+        )}
       </div>
 
       {/* ══ أرقامٌ وعناوين — لا شرحَ ولا تبرير ══ (بأمر المالك)
@@ -255,33 +242,11 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
           </div>
         )}
 
-        <ExpertPanelBoard panel={data.expert_panel} />
-
       </div>
 
-      {/* ══ السعرُ العادل = إجماعُ أهداف المحلّلين ══ (بأمر المالك)
-          وكان هذا الموضعُ يعرض الرقمَ من مصدرٍ ويشرحه بمساراتِ محرّكنا
-          (خصمُ تدفّقٍ · مضاعفُ ربحية · دخلٌ متبقٍّ) — رقمٌ من مصدرٍ
-          وتفسيرٌ من آخر، وهو عينُ ما نهى عنه المالك. فبقيَ الرقمُ بمصدره
-          وحدَه، وحُذف الشرحُ الذي لا يخصّه. والمدى محذوفٌ للسبب نفسِه:
-          كان مدى محرّكنا لا مدى المحلّلين. */}
-      {data.fair_value != null && (
-        <div className="card">
-          <p className="card-title mb-3 flex items-center gap-1.5">
-            <TrendingUp size={14} className="text-[var(--brand-ink)]" /> هدف المحللين
-          </p>
-          <div className="flex items-baseline gap-2 mb-2 flex-wrap">
-            <span className="text-2xl font-extrabold tabular-nums text-[var(--ink)]">
-              {fmt(data.fair_value)}
-            </span>
-            <span className="text-[10.5px] text-[var(--ink-muted)]">
-              {data.fair_value_source || "أهداف بيوت الخبرة"}
-            </span>
-          </div>
-          <FairValueBar upside={data.fair_value_upside_pct ?? null} width="100%"
-            ctx={{ price: data.price, entry: null, value: data.fair_value }} />
-        </div>
-      )}
+      {/* ══ حُذفت بطاقةُ «هدف المحللين» بشريطها ══ (بأمر المالك · D208)
+          الرقمُ نفسُه معروضٌ في صدر البطاقة أعلاه، والشريطُ يعيد قولَه
+          شكلاً. */}
 
       {/* التحليل الفني (سياق ثانوي) */}
       <div className="grid grid-cols-1 gap-3">
