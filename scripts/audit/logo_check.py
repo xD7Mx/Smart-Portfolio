@@ -24,23 +24,65 @@ import sys
 import pathlib
 import urllib.request
 
-ROOT = pathlib.Path("/app") if pathlib.Path("/app/frontend").exists() else \
-       pathlib.Path(__file__).resolve().parents[2]
-MAP = ROOT / "frontend" / "src" / "data" / "tradingviewLogos.ts"
+# ══ خريطةُ الشعارات في الواجهة، والواجهةُ غيرُ مربوطةٍ في حاوية الخادم ══
+# ترى الحاويةُ `backend` و`scripts` و`data` و`storage` فقط. فيُبحث عن
+# الخريطة في المواضع الممكنة كلِّها، ويُقال أين بُحث إن لم تُوجد — بدل
+# سطرٍ واحدٍ يقول «لم يُعثر» ولا يقول أين. ويُشغَّل من الخادم مباشرةً:
+#     cd ~/Smart-Portfolio && python3 scripts/audit/logo_check.py
+_HERE = pathlib.Path(__file__).resolve()
+_CANDIDATES = [
+    _HERE.parents[2] / "frontend/src/data/tradingviewLogos.ts",   # جذرُ المستودع
+    pathlib.Path("/app/frontend/src/data/tradingviewLogos.ts"),
+    pathlib.Path.home() / "Smart-Portfolio/frontend/src/data/tradingviewLogos.ts",
+    pathlib.Path("/home/ubuntu/Smart-Portfolio/frontend/src/data/tradingviewLogos.ts"),
+]
+MAP = next((c for c in _CANDIDATES if c.exists()), _CANDIDATES[0])
 UA = {"User-Agent": "Mozilla/5.0 (logo-probe)"}
 SAMPLE = ["8020", "8030", "8040", "8012", "8210", "8010", "8170", "8250"]
 
 
 def links() -> dict[str, str]:
     if not MAP.exists():
-        print(f"… لم يُعثر على خريطة الشعارات: {MAP}")
+        print("… لم يُعثر على خريطة الشعارات. بُحث في:")
+        for c in _CANDIDATES:
+            print(f"     {'✔' if c.exists() else '✖'} {c}")
+        print("   شغّله من جذر المستودع على الخادم مباشرةً (لا داخل الحاوية):")
+        print("     cd ~/Smart-Portfolio && python3 scripts/audit/logo_check.py")
         return {}
     txt = MAP.read_text(encoding="utf-8")
     return dict(re.findall(r'"(\d{4})"\s*:\s*"([^"]+)"', txt))
 
 
+_HEX = re.compile(r"#([0-9a-fA-F]{3,8})\b")
+_NAMED_LIGHT = ("white", "#fff", "#ffffff")
+
+
+def _svg_tone(raw: bytes) -> str:
+    """لونُ شعارٍ متّجهٍ (‏SVG) — بقراءة تعبئاته، بلا وسادةِ صور.
+
+    روابطُ TradingView متّجهةٌ لا نقطية، وكان المحلّلُ يفترض PNG فيعجز عن
+    كلّ رابطٍ في الخريطة. وكثيرٌ منها **أبيضُ على شفّاف** — مصمَّمٌ لأرضيةٍ
+    داكنة — فيُرى كتلةً بيضاء بلا تفصيل حيث الأرضيةُ فاتحة، وهو ما يشكوه
+    المالك. فتُعدّ التعبئاتُ: كم بيضاء وكم ملوّنة.
+    """
+    txt = raw.decode("utf-8", "replace")
+    fills = [m.lower() for m in _HEX.findall(txt)]
+    white = sum(1 for f in fills if f in ("fff", "ffffff", "ffffffff"))
+    colored = len(fills) - white
+    has_named_white = any(w in txt.lower() for w in _NAMED_LIGHT)
+    if not fills and not has_named_white:
+        return "لا تعبئةَ صريحة — يرث اللونَ من الصفحة (‏currentColor غالباً)"
+    verdict = ("أبيضُ خالص  ⚠ يختفي على أرضيةٍ فاتحة"
+               if colored == 0 and (white or has_named_white)
+               else f"ملوّن ({colored} تعبئةً ملوّنة · {white} بيضاء)")
+    return f"متّجه · {verdict}"
+
+
 def analyse(raw: bytes) -> str:
-    """نسبةُ الفاتح والشفّاف — بلا اعتماديةٍ خارجية إن غابت الوسادة."""
+    """نسبةُ الفاتح والشفّاف — ولل‏SVG قراءةٌ نصّيةٌ تخصّه."""
+    head = raw[:400].lstrip().lower()
+    if head.startswith(b"<svg") or b"<svg" in head:
+        return _svg_tone(raw)
     try:
         from PIL import Image           # type: ignore
         import io
@@ -86,15 +128,15 @@ def main() -> int:
             broken += 1
             continue
         note = analyse(raw)
-        if "لا حبرَ يُرى" in note:
+        if "لا حبرَ يُرى" in note or "يختفي على أرضيةٍ فاتحة" in note:
             pale += 1
         else:
             ok += 1
         print(f"■ {s}: ‎{code} · {len(raw):,} بايت · {note}")
     print("─" * 74)
-    print(f"سليمة {ok} · متعذّرة {broken} · فاتحةٌ لا تُرى {pale}")
-    print("إن كانت متعذّرةً فالعلاجُ في المصدر، وإن كانت فاتحةً فالعلاجُ")
-    print("خلفيةٌ للشعار — ولا يُبنى علاجٌ قبل أن يُعرف أيُّهما.")
+    print(f"ملوّنة {ok} · متعذّرة {broken} · بيضاءُ خالصة {pale}")
+    print("متعذّرةٌ ⇐ العلاجُ في المصدر. بيضاءُ خالصةٌ ⇐ العلاجُ أرضيةٌ داكنةٌ")
+    print("ثابتةٌ تحت الشعار في المظهرين، لا تبديلُ رابط.")
     return 0
 
 
