@@ -432,6 +432,15 @@ async def get_screener():
     from app.services.market_screener import get_cached_screener, compute_screener
     rows = get_cached_screener()
     if rows is not None:
+        # ══ الحقولُ المشتقّةُ تُنعَش عند التقديم ══ (D226)
+        # اللقطةُ تحفظ ما كلّف شبكةً (سعرٌ ومتوسّطاتٌ وRSI)، والمشتقُّ من
+        # مخزنٍ محلّيٍّ يُقرأ الآن — فلا يخالف الجدولُ صفحةَ السهم بين
+        # مسحةٍ وأخرى.
+        from app.services.market_screener import refresh_derived
+        try:
+            rows = await refresh_derived(rows)
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning(f"إنعاشُ حقول الفرز تعذّر: {type(e).__name__}: {e}")
         return success_response(data={"rows": rows, "state": "ready"})
 
     if _screener_build is None or _screener_build.done():

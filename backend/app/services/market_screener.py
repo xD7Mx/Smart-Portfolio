@@ -560,6 +560,52 @@ async def compute_screener() -> list | None:
     return rows
 
 
+async def refresh_derived(rows: list) -> list:
+    """يُنعش الحقولَ المشتقّةَ في صفوف اللقطة عند التقديم — لا عند بنائها.
+
+    ══ لقطةٌ مجمَّدةٌ تخالف صفحةً حيّة ══ (D226)
+    رأى المالكُ عائدَ التوزيعات ودرجةَ الجودة في الجدول يخالفان صفحةَ السهم
+    «كأنهما تطبيقان». والسببُ ليس حساباً مختلفاً بل **زمناً مختلفاً**: صفوفُ
+    الفرز تُبنى مرّةً في اليوم وتُخزَّن، وصفحةُ السهم تحسب لحظتَها. فما
+    دام الحقلُ المشتقُّ محفوظاً في اللقطة، سيظلّ يخالفها بين مسحةٍ وأخرى —
+    ولو وحّدنا المُنتِج.
+
+    والفصلُ الصحيح: **ما يكلّف شبكةً يُخزَّن، وما يُقرأ من مخزنٍ يُحسب عند
+    الطلب.** فالسعرُ والمتوسّطاتُ وRSI تبقى لقطةً يومية (نداءُ تاريخٍ لكلّ
+    شركة)، وعائدُ التوزيعات ودرجةُ الجودة تُقرآن من المخزن بلا نداءٍ واحد —
+    فلا عذرَ لتجميدهما.
+    """
+    if not rows:
+        return rows
+    try:
+        from app.services.dividend_yield import resolve as _dy_resolve
+        from app.services.content_engine import fund_store_load
+        store = fund_store_load() or {}
+    except Exception:                                             # noqa: BLE001
+        return rows
+    for r in rows:
+        sym = str(r.get("symbol") or "")
+        if not sym:
+            continue
+        try:
+            fund = cache.get(f"fund:yahoo:{sym}.SR") or {}
+            dy, src = _dy_resolve(sym, r.get("price"), fund, store.get(sym) or {})
+            if dy is not None:
+                r["dividend_yield"] = dy
+                r["dividend_yield_source"] = src
+        except Exception:                                         # noqa: BLE001
+            pass
+        # درجةُ الجودة: المحرّكُ أوّلاً كما في البناء (D198) — ويمتنع بلا
+        # قوائمَ مخزَّنةٍ فيبقى المخزَّنُ في الصفّ، فلا يُفرَّغ عمودٌ كان مملوءاً.
+        try:
+            fs = await _governance_score(f"{sym}.SR", r.get("sector"))
+            if fs:
+                r["finance_score"] = fs
+        except Exception:                                         # noqa: BLE001
+            pass
+    return rows
+
+
 def get_cached_screener() -> list | None:
     data = cache.get(SCREENER_CACHE_KEY)
     if data is not None:
