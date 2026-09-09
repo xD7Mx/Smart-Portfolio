@@ -84,6 +84,20 @@ async def get_company_analysis(symbol: str, db: AsyncSession = Depends(get_db)):
               "profit_margin", "dividend_yield", "week52_low", "week52_high",
               "avg_volume", "target_mean_price"):
         data.setdefault(k, f.get(k))
+    # ══ عائدُ التوزيعات من المُنتِج الواحد ══ (D223)
+    # كانت الصفحةُ تأخذ رقمَ المزوّد وحدَه، والفرزُ يسقط إلى حسابٍ آخر متى
+    # غاب — فرقمان تحت اسمٍ واحد. الآن الترتيبُ نفسُه في الموضعين، ويعود
+    # المصدرُ مع الرقم.
+    try:
+        from app.services.dividend_yield import resolve as _dy_resolve
+        _dy, _dy_src = _dy_resolve(symbol, data.get("price"))
+        if _dy is not None:
+            data["dividend_yield"] = _dy
+            data["dividend_yield_source"] = _dy_src
+            if isinstance(data.get("fundamentals"), dict):
+                data["fundamentals"]["dividend_yield"] = _dy
+    except Exception:                                             # noqa: BLE001
+        pass
     data["overall_score"] = data.get("ai_score")
     # Sharia compliance for ANY market stock — same layered source the
     # portfolio uses (Maqasid → Argaam), so the market lookup shows the
