@@ -146,10 +146,19 @@ async def main() -> int:
     from app.data.market_universe import MARKET_UNIVERSE
     from app.data.universe import main_market
 
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    # ══ قيمةُ الخيار ليست رمزاً ══ (قِيس في تشغيل المالك)
+    # كان `--limit 30` يترك «30» في القائمة الوضعية فيُسأل عنه كأنه سهم،
+    # ولا يُشغَّل مسارُ «ما لا يغطّيه ياهو» أصلاً. فتُحذف قيمةُ الخيار معه.
+    argv = list(sys.argv[1:])
     limit = 12
-    if "--limit" in sys.argv:
-        limit = int(sys.argv[sys.argv.index("--limit") + 1])
+    if "--limit" in argv:
+        i = argv.index("--limit")
+        if i + 1 >= len(argv) or not argv[i + 1].lstrip("-").isdigit():
+            print("… `--limit` بلا عددٍ صحيح.")
+            return 2
+        limit = int(argv[i + 1])
+        del argv[i:i + 2]
+    args = [a for a in argv if not a.startswith("--")]
     uni = main_market(MARKET_UNIVERSE)
 
     if args:
