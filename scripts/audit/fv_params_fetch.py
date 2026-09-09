@@ -85,12 +85,35 @@ def main() -> int:
         print("    (الجدولُ كاملاً في التقرير؛ المطابقةُ بقطاعات تداول تُبنى بعد النظر فيه)")
 
     # ── ٣ · المعدّلُ الخالي من المخاطر بالريال ─────────────────────────
-    # لا مصدرَ عامٌّ موثوقٌ يُقرأ آلياً لمنحنى العائد السياديّ بالريال.
-    # يُقرأ يدوياً من مركز إدارة الدين أو من اشتراك المالك، ويُدوَّن بتاريخه.
-    print("\n[٣] المعدّل الخالي من المخاطر بالريال — يدويّ")
+    # ══ «يدويّ» لم تكن قياساً ══
+    # كان هذا القسمُ يطبع أسماءَ مصادرَ ويُسلّم بأن الرقمَ يُدخَل يدوياً —
+    # بلا محاولةٍ واحدة. والفرقُ جوهريّ: مصدرٌ **جُرّب فردّ ‎403** حدٌّ
+    # نُقرّ به، ومصدرٌ **لم يُجرَّب** كسلٌ نسمّيه حدّاً. فتُجرَّب المرشّحاتُ
+    # ويُطبع ردُّ كلٍّ منها بنصّه، ويبقى الإدخالُ اليدويُّ طريقاً أخيراً
+    # لا أوّل.
+    print("\n[٣] المعدّل الخالي من المخاطر بالريال")
     print("    عائدُ الصكوك/السندات السيادية السعودية العشرية **بالريال**.")
-    print("    المصادر: مركز إدارة الدين (ndmc.gov.sa) · منحنى تداول للصكوك")
-    print("    · أو اشتراكُك في investing.com. دوّن الرقمَ وتاريخَه.")
+    rf_try = {
+        "مركز إدارة الدين": "https://www.ndmc.gov.sa/ar/Pages/default.aspx",
+        "ساما — النشرة": "https://www.sama.gov.sa/ar-sa/Pages/default.aspx",
+        "تداول — الصكوك": "https://www.saudiexchange.sa/wps/portal/saudiexchange/hidden/bonds-sukuk",
+        "أرقام — الفائدة": "https://www.argaam.com/ar/tags/tagdetails/1050/0",
+    }
+    found["risk_free_tried"] = {}
+    for name, url in rf_try.items():
+        try:
+            req = urllib.request.Request(url, headers=UA)
+            with urllib.request.urlopen(req, timeout=30) as r:
+                body = r.read().decode("utf-8", "replace")
+            import re as _re
+            pct = _re.findall(r"\d{1,2}[.,]\d{1,2}\s*%", body)[:8]
+            found["risk_free_tried"][name] = {"http": 200, "نِسَبٌ في الصفحة": pct}
+            print(f"    · {name:<22} ‎200 · نِسَبٌ ظاهرة: {pct or '—'}")
+        except Exception as e:                                    # noqa: BLE001
+            found["risk_free_tried"][name] = {"خطأ": f"{type(e).__name__}: {e}"}
+            print(f"    · {name:<22} ✖ {type(e).__name__}")
+    print("    ما ظهر أعلاه نِسَبٌ خامٌ لا يُعتمد منها رقمٌ بلا تحديدِ أجلِه")
+    print("    (عشرُ سنواتٍ لا سنةٌ ولا سايبور). دوّن الرقمَ وتاريخَه ومصدرَه.")
     found["risk_free_sar"] = None
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
