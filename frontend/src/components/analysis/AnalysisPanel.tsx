@@ -164,7 +164,8 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                    فتُشتقّ قيمةٌ من مضاعفات نظائرها، بلونٍ خافتٍ يقول إنها
                    مشتقّةٌ لا منقولة، ومعها نطاقُها ودرجةُ ثقتها. */
                 <>
-                  <div className="flex items-baseline gap-1.5">
+                  <div className="flex items-baseline gap-1.5"
+                    title={`قيمة نسبية إلى القطاع ${fmt(data.rel_low)} – ${fmt(data.rel_high)} · ثقة ${data.rel_conf} — لا هدفَ محلّلين لهذه الورقة`}>
                     <span className="text-xl tabular-nums leading-none text-[var(--ink-muted)]" style={{ fontWeight: 800 }}>
                       {fmt(data.rel_value)}
                     </span>
@@ -175,12 +176,10 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                       </span>
                     )}
                   </div>
-                  <div className="text-[9.5px] text-[var(--ink-muted)] leading-tight mt-1" dir="ltr">
-                    {fmt(data.rel_low)} – {fmt(data.rel_high)}
-                  </div>
-                  <div className="text-[9.5px] text-[var(--ink-muted)] leading-tight">
-                    ثقة {data.rel_conf} · لا هدفَ محلّلين لهذه الورقة
-                  </div>
+                  {/* ══ النطاقُ والثقةُ إلى التلميح ══ (بأمر المالك)
+                      سطران تحت الرقم يشرحانه — والتطبيقُ رسميٌّ لا مدوّنة.
+                      ولا تضيع المعلومة: تُقرأ بالمرور على الرقم أعلاه، فيبقى
+                      المصدرُ مصحوباً بالرقم كما يوجب الميثاق. */}
                 </>
               ) : (
               <>
