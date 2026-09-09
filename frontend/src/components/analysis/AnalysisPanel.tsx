@@ -134,7 +134,12 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
           </div>
 
           <div className="rounded-xl px-3 py-2.5" style={{ background: "color-mix(in srgb, var(--brand) 7%, transparent)" }}>
-            <div className="text-[10px] text-[var(--ink-muted)] mb-1">هدف المحللين</div>
+            {/* العنوانُ يتبدّل مع مصدره: حيث لا هدفَ لبيوت الخبرة تُعرض
+                القيمةُ النسبيةُ إلى القطاع باسمها — لا يُقرأ مضاعفُ قطاعٍ
+                رأيَ محلّل (‏D213). */}
+            <div className="text-[10px] text-[var(--ink-muted)] mb-1">
+              {data.fair_value == null && data.rel_value != null ? "قيمة نسبية إلى القطاع" : "هدف المحللين"}
+            </div>
             {data.fair_value != null ? (
               <>
                 <div className="flex items-baseline gap-1.5">
@@ -153,12 +158,38 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                  واحدٌ معلوم: المعروضُ هدفُ بيوت الخبرة، ولا تغطّي بيوتُ
                  الخبرة كلَّ ورقة — والصناديقُ العقارية أقلُّها تغطيةً.
                  فيُقال ما هو، ولا يُخترع رقمٌ ليملأ الفراغ. */
+              data.rel_value != null ? (
+                /* ══ الفراغُ يُملأ باشتقاقٍ معلَنٍ لا برقمٍ مُنتحِل ══ (D212)
+                   ‎124 شركةً لا يُصدر لها أحدٌ توصية — نقصُ السوق لا نقصُنا.
+                   فتُشتقّ قيمةٌ من مضاعفات نظائرها، بلونٍ خافتٍ يقول إنها
+                   مشتقّةٌ لا منقولة، ومعها نطاقُها ودرجةُ ثقتها. */
+                <>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-xl tabular-nums leading-none text-[var(--ink-muted)]" style={{ fontWeight: 800 }}>
+                      {fmt(data.rel_value)}
+                    </span>
+                    {data.rel_upside_pct != null && (
+                      <span className="text-[11px] tabular-nums" dir="ltr"
+                        style={{ color: data.rel_upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
+                        ≈{data.rel_upside_pct > 0 ? "+" : ""}{data.rel_upside_pct}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[9.5px] text-[var(--ink-muted)] leading-tight mt-1" dir="ltr">
+                    {fmt(data.rel_low)} – {fmt(data.rel_high)}
+                  </div>
+                  <div className="text-[9.5px] text-[var(--ink-muted)] leading-tight">
+                    ثقة {data.rel_conf} · لا هدفَ محلّلين لهذه الورقة
+                  </div>
+                </>
+              ) : (
               <>
                 <div className="text-base text-[var(--ink-muted)]" style={{ fontWeight: 700 }}>غير متوفّر</div>
                 <div className="text-[9.5px] text-[var(--ink-muted)] leading-tight mt-1">
-                  لا يصلنا هدفُ محلّلين لهذه الورقة
+                  {data.rel_why ? `لا هدفَ محلّلين، ولا قيمةَ نسبية: ${data.rel_why}` : "لا يصلنا هدفُ محلّلين لهذه الورقة"}
                 </div>
               </>
+              )
             )}
           </div>
         </div>
@@ -210,7 +241,13 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
         </div>
       )}
 
-      {/* الحكم الموحّد — نفس ميزان خبراء الحوكمة بالضبط */}
+      {/* ══ لا عنوانَ بلا محتوى ══ (رآه المالك في غازكو 2080)
+          كانت البطاقةُ تُرسَم دائماً ومحتواها مشروطٌ بوجود أركان الإطار،
+          فحين يمتنع المحرّكُ عن الحكم — وهو امتناعٌ صحيح — يبقى العنوانُ
+          وحدَه فوق فراغ. والعنوانُ يَعِد بما تحته: عنوانٌ بلا مضمونٍ عطبٌ
+          في العرض لا صدقٌ في الامتناع. */}
+      {Array.isArray(data.governance_standard?.metrics)
+       && data.governance_standard.metrics.length > 0 && (
       <div className="card">
         <div className="flex items-baseline justify-between flex-wrap gap-1.5 mb-3">
           <p className="card-title flex items-center gap-1.5"><ShieldCheck size={14} className="text-[var(--brand-ink)]" /> ميزان خبراء الحوكمة</p>
@@ -243,6 +280,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
         )}
 
       </div>
+      )}
 
       {/* ══ حُذفت بطاقةُ «هدف المحللين» بشريطها ══ (بأمر المالك · D208)
           الرقمُ نفسُه معروضٌ في صدر البطاقة أعلاه، والشريطُ يعيد قولَه

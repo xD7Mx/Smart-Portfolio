@@ -359,7 +359,12 @@ export default function AIPage() {
           <h2 className="card-title">تحليل المخاطر</h2>
           {risk?.source === "AI" && <span className="tag-v ms-auto" style={{fontSize:10}}>AI</span>}
         </div>
-        {!risk ? (
+        {/* ══ الصدقُ لا يكفي فيه أن يكون الحقلُ «صادقاً» ══ (D216)
+            كان الشرطُ `!risk`، و`[]` أو `{}` قيمةٌ صادقةٌ في جافاسكربت —
+            فيدخل فرعَ العرض ولا يُرسَم شيءٌ تحت العنوان: بطاقةٌ فارغةٌ
+            بعنوانٍ يَعِد. فيُسأل عن **مضمون** لا عن وجود. */}
+        {!(risk && (risk.overall_risk_level || risk.summary
+                    || (Array.isArray(risk.risks) && risk.risks.length > 0))) ? (
           <p className="text-[var(--ink-muted)] text-sm py-4 text-center">لا توجد بيانات حالياً — يُبنى تحليل المخاطر تلقائياً عند وجود شركات في المحفظة وتفعيل مفتاح الذكاء</p>
         ) : (
         <>

@@ -207,6 +207,12 @@ python3 scripts/audit/ts_undefined.py || fail=1
 echo
 node scripts/audit/render_smoke.mjs || fail=1
 
+# D216: لا عنوانَ بطاقةٍ بلا مضمون. رأى المالكُ «ميزان خبراء الحوكمة» فوق
+# فراغٍ حين امتنع المحرّك، وكشف الحارسُ حالةً ثانيةً في «تحليل المخاطر»:
+# شرطُها كان `!risk` و`[]` قيمةٌ صادقةٌ في جافاسكربت.
+echo
+node scripts/audit/empty_sections.mjs || fail=1
+
 if [ "${1:-}" = "--live" ]; then
   echo
   if [ -z "${SP_TOKEN:-}" ]; then
