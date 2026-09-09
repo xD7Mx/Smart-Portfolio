@@ -33,11 +33,35 @@ _AR_TARGET = re.compile(
     r"(السعر\s*المستهدف|متوسط\s*السعر\s*المستهدف|القيمة\s*العادلة|توصيات\s*المحللين)")
 
 
+# ══ لا نداءَ لياهو من مسبار ══ (تصحيحٌ بعد أوّل تشغيل)
+# كان يسأل `get_company_info` لكلّ رمز، فارتدّ ‎429 على الخادم: مسبارُ
+# اكتشافٍ يحرق حصّةَ المزوّد ليقول ما هو مخزَّنٌ عندنا أصلاً. فصار يقرأ
+# المخزنَ الدائم والكاش وحدَهما.
+_FUND: dict | None = None
+
+
+def _store() -> dict:
+    global _FUND
+    if _FUND is None:
+        try:
+            from app.services.content_engine import fund_store_load
+            _FUND = fund_store_load() or {}
+        except Exception:                                         # noqa: BLE001
+            _FUND = {}
+    return _FUND
+
+
 async def yahoo_target(sym: str):
-    from app.services.market_data import market_service
-    from app.api.v1.endpoints.holdings import yahoo_symbol
-    info = await market_service.get_company_info(yahoo_symbol(sym)) or {}
-    return info.get("target_mean_price"), info.get("number_of_analysts")
+    base = sym.replace(".SR", "")
+    row = _store().get(base) or {}
+    t = row.get("target_mean_price")
+    if t is None:
+        try:
+            from app.services import cache
+            t = ((cache.get(f"fund:yahoo:{base}.SR") or {}) or {}).get("target_mean_price")
+        except Exception:                                         # noqa: BLE001
+            t = None
+    return t, row.get("number_of_analysts")
 
 
 async def sahmak_probe(sym: str) -> str:
@@ -72,7 +96,7 @@ async def sahmak_probe(sym: str) -> str:
 async def argaam_probe(sym: str) -> str:
     """«أرقام» — تُجلب صفحةُ الشركة ويُفتَّش نصُّها عن لفظ الهدف."""
     try:
-        from app.services.argaam_calendar import _company_id, _company_url, UA
+        from app.services.argaam_calendar import _company_id, _company_url, UA, BASE as BASE_AR
         import httpx
     except Exception as e:                                        # noqa: BLE001
         return f"غير متاح ({type(e).__name__})"
@@ -89,14 +113,33 @@ async def argaam_probe(sym: str) -> str:
         return f"تعذّر الجلب ({type(e).__name__})"
     if r.status_code != 200:
         return f"‎{r.status_code} من {url}"
-    m = _AR_TARGET.search(r.text)
+    # ══ الصفحةُ تحمل الرابطَ لا الرقم ══ (قِيس في أوّل تشغيل)
+    # ظهر في ستٍّ من اثنتي عشرة رابطٌ إلى صفحةٍ مخصّصة:
+    #   .../analystestimates/analystrecomendationsestimate/3/<id>/4
+    # فيُتبَع الرابطُ ويُقرأ ما فيه — الرابطُ وحدَه ليس رقماً.
+    m = re.search(r'href="([^"]*analystrecomendationsestimate[^"]*)"', r.text, re.I)
     if not m:
-        return "‎200 · لا لفظَ هدفٍ في الصفحة"
-    # مقتطفٌ حول الموضع ليُرى السياقُ بالعين قبل أيّ اعتماد.
-    i = m.start()
-    snippet = re.sub(r"<[^>]+>", " ", r.text[max(0, i - 120): i + 240])
-    snippet = re.sub(r"\s+", " ", snippet).strip()[:200]
-    return f"‎200 · «{m.group(1)}» ⇐ {snippet}"
+        return "‎200 · لا صفحةَ تقديراتٍ في هذه الشركة"
+    href = m.group(1)
+    est_url = href if href.startswith("http") else BASE_AR.rstrip("/") + "/" + href.lstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True,
+                                     headers={"User-Agent": UA,
+                                              "Accept-Language": "ar,en;q=0.8"}) as c:
+            e = await c.get(est_url)
+    except Exception as ex:                                       # noqa: BLE001
+        return f"صفحةُ التقديرات تعذّرت ({type(ex).__name__}) · {est_url}"
+    if e.status_code != 200:
+        return f"صفحةُ التقديرات ‎{e.status_code} · {est_url}"
+    text = re.sub(r"<[^>]+>", " ", e.text)
+    text = re.sub(r"\s+", " ", text)
+    hit = _AR_TARGET.search(text)
+    if not hit:
+        return f"‎200 بلا لفظِ هدفٍ · {est_url}"
+    i = hit.start()
+    around = text[max(0, i - 60): i + 220].strip()
+    nums = re.findall(r"\d+\.\d{1,2}", around)
+    return (f"«{hit.group(1)}» · أرقامٌ حولها: {nums[:6] or '—'} · {est_url}")
 
 
 async def main() -> int:
