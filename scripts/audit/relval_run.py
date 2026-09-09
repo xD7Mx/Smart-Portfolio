@@ -69,6 +69,7 @@ def main() -> int:
     table = SectorTable(rows)
 
     made, abstained, by_conf = [], {}, {}
+    blocks: dict[str, int] = {}          # أيُّ شرطٍ يخفض الدرجةَ فعلاً
     gaps: list[float] = []
     for s in uni:
         row = store.get(s) or {}
@@ -80,6 +81,9 @@ def main() -> int:
             abstained[r["why"]] = abstained.get(r["why"], 0) + 1
             continue
         by_conf[r["confidence"]] = by_conf.get(r["confidence"], 0) + 1
+        for b in r.get("confidence_why") or []:
+            key = b.split()[0] if " " in b else b
+            blocks[key] = blocks.get(key, 0) + 1
         made.append((s, r, tgt, price_of.get(s)))
         if isinstance(tgt, (int, float)) and tgt:
             gaps.append((r["value"] - float(tgt)) / float(tgt) * 100)
@@ -88,7 +92,11 @@ def main() -> int:
     print(f"السوقُ الرئيسي: {n} · أنتجت قيمةً: {len(made)} · امتنعت: {n - len(made)}")
     for why, c in sorted(abstained.items(), key=lambda x: -x[1]):
         print(f"   امتناع — {why}: {c}")
-    print(f"الثقة: " + " · ".join(f"{k} {v}" for k, v in by_conf.items()))
+    print("الثقة: " + " · ".join(f"{k} {v}" for k, v in by_conf.items()))
+    # ══ لماذا لا تُبلَغ «مرتفعة»؟ ══ لا تُعاير عتبةٌ قبل معرفة القيدِ المُلزِم.
+    if blocks:
+        print("القيودُ الخافضة: " + " · ".join(
+            f"{k} {v}" for k, v in sorted(blocks.items(), key=lambda x: -x[1])))
     print("─" * 74)
 
     # ══ المحكُّ الحقيقيّ ══
@@ -116,7 +124,7 @@ def main() -> int:
         gap = (r["value"] - px) / px * 100 if px else 0
         print(f"   {s:<6} سعر {px:>7.2f} · نسبية {r['value']:>7.2f}"
               f" [{r['low']:>6.1f}–{r['high']:>6.1f}] {gap:+6.1f}٪"
-              f" · {r['confidence']} · {'+'.join(k[:6] for k in r['paths'])}")
+              f" · {r['confidence']} · {'، '.join(r.get('confidence_why') or ['—'])}")
 
     print("─" * 74)
     print("هذه «قيمةٌ نسبيةٌ إلى القطاع» لا قيمةٌ عادلة: إن غلا القطاعُ كلُّه")

@@ -170,7 +170,22 @@ def relative_value(*, sector: str | None, price: float | None,
     # العتباتُ معايَرةٌ للمدى الرُّبيعيّ لا للمدى الكامل — وهو أصغرُ عدداً
     # بطبيعته، فنقلُ المقياس بلا نقلِ عتباته يجعل الحارسَ بلا أثر.
     # ‎0.35 يعني: النصفُ الأوسط من مضاعفات القطاع داخل ثُلثِ وسيطه.
-    if peers >= 8 and spread <= 0.35 and agree <= 0.25 and len(paths) == 2:
+    # ══ الدرجةُ تقول لماذا ══
+    # عُويرت العتباتُ مرّتين بالحدس، ولم يُعرف أيُّ شرطٍ يخفض فعلاً: أهو
+    # قلّةُ النظائر أم التشتّتُ أم اختلافُ المسارين أم غيابُ أحدهما؟ فصار
+    # القيدُ المُلزِمُ يُسجَّل مع الدرجة. معايرةُ ما لا يُقاس تخمين.
+    blocks: list[str] = []
+    if len(paths) < 2:
+        blocks.append("مسارٌ واحد")
+    if peers < 8:
+        blocks.append(f"نظائر {peers}")
+    if spread > 0.35:
+        blocks.append(f"تشتّت {spread:.2f}")
+    if agree > 0.25:
+        blocks.append(f"تباعدُ المسارين {agree:.2f}")
+    out["confidence_why"] = blocks
+
+    if not blocks:
         out["confidence"] = "مرتفعة"
     elif peers >= MIN_PEERS and spread <= 0.80 and agree <= 0.60:
         out["confidence"] = "متوسطة"
