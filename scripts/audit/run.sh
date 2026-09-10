@@ -234,6 +234,12 @@ python3 scripts/audit/screener_price_fresh.py || fail=1
 echo
 python3 scripts/audit/one_fair_price.py || fail=1
 
+# D241: كلُّ ورقةٍ في السوق لها اسمٌ عربيٌّ وقطاعٌ مصنَّف. ثلاثةُ رموزٍ
+# كانت بلا صفٍّ في الدليل — تُعرض بالإنجليزية ويمتنع عنها السعرُ العادل
+# صامتاً لأن قطاعَها غيرُ مصنّف.
+echo
+python3 scripts/audit/directory_coverage.py || fail=1
+
 # D237: من حمل لقبَ «السعر العادل» حكَم به القرار — وإلا عادت صورةُ D174:
 # رقمٌ معروضٌ وقرارٌ يناقضه لأنه يحكم برقمٍ آخر.
 echo
