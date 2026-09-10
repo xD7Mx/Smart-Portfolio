@@ -75,6 +75,9 @@ const ANALYSIS = {
   rel_value: 28.4, rel_low: 24.1, rel_high: 33.0, rel_conf: "متوسطة",
   rel_basis: "قيمة نسبية إلى القطاع", rel_upside_pct: 9.1,
   rel_confidence_why: ["نظائر 6"],
+  // مقارنةُ السهم بقطاعه — حكمُها هو النصُّ الذي أمر المالكُ بنقله.
+  valuation: { sector: "الطاقة", verdict: "أرخص من متوسط القطاع",
+               pe: 18.1, sector_avg_pe: 21.4, pb: 2.1, sector_avg_pb: 2.6 },
   governance_standard: { metrics: [{ key: "roe", label: "العائد على حقوق الملكية", value: 24.1, unit: "%" }] },
 };
 /* قوائمُ ثلاثِ سنواتٍ — مقياسا القيمة النسبية (ربحيةُ السهم والدفترية)
@@ -142,6 +145,7 @@ const STOPS = [
   ["تحليل الذكاء", "/ai"],
   ["جدول التوزيع", "/probe-alloc.html"],
   ["البيانات المالية", "/probe-fin.html"],
+  ["مقارنة القطاع", "/probe-panel.html"],
 ];
 
 const seenDecisions = new Set();
@@ -208,6 +212,33 @@ for (const [name, path] of STOPS) {
   /* ══ هويّةُ الصفّ في جدول التوزيع ══ (بأمر المالك · D232)
      الجدولُ أمرُ تنفيذ، فيُقاس أن الشعارَ والهلالَ وصلا الصفَّ فعلاً —
      صورةٌ (أو حرفٌ بديلٌ عند تعذّرها) وهلالٌ بتلميحِ حكمه. */
+  if (name === "مقارنة القطاع") {
+    /* ══ الحكمُ تحت العنوان لا يسارَ البطاقة ══ (بأمر المالك · D233)
+       يُقاس بالهندسة لا بالنصّ: صندوقُ الحكم أسفلُ من صندوق العنوان،
+       وحافّتُه اليمنى قريبةٌ من حافّته — أي في عمود العنوان لا في الطرف
+       المقابل. وفي RTL البدايةُ يميناً، فالتباعدُ يُقاس بفرق الحافّتين. */
+    const geo = await page.evaluate(() => {
+      const titles = [...document.querySelectorAll(".card-title")]
+        .filter(t => (t.textContent || "").includes("التقييم مقابل القطاع"));
+      if (!titles.length) return null;
+      const t = titles[0];
+      const card = t.closest(".card");
+      const v = [...(card ? card.querySelectorAll("*") : [])]
+        .find(e => (e.textContent || "").trim() === "أرخص من متوسط القطاع");
+      if (!v) return null;
+      const a = t.getBoundingClientRect(), b = v.getBoundingClientRect();
+      return { below: b.top >= a.bottom - 2, dx: Math.abs(b.right - a.right) };
+    });
+    say(!!geo, "حكمُ مقارنة القطاع ظاهرٌ ليُقاس موضعُه");
+    if (geo) {
+      say(geo.below, "الحكمُ أسفلَ العنوان لا في سطره");
+      say(geo.dx < 40, "وفي عمود العنوان لا في الطرف المقابل",
+          `فرقُ الحافّتين ${Math.round(geo.dx)}px`);
+    }
+    say(text.includes("القيمة النسبية إلى القطاع"),
+        "والقيمةُ النسبيةُ في تبويب مقارنة القطاع أيضاً");
+  }
+
   if (name === "جدول التوزيع") {
     // الشعارُ يُقاس بصفّه لا بنجاح الشبكة: `co-logo` تحمله الصورةُ
     // وبديلُها الحرفيّ معاً، فلا يمرّ الفحصُ ولا يسقط لأجل مزوّدٍ محجوب.

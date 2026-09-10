@@ -718,11 +718,94 @@ async def build_fundamentals_full() -> int:
     # تسخين القوائم المالية (تُغذّي «الدرجة المالية» في الفرز) — دفعة دوّارة
     # محدودة داخل نفس النافذة الفارغة. القوائم تُحفظ ٣٠ يوماً في الذاكرة
     # **وعلى القرص** (lastgood) فتتراكم وتبقى؛ ٦٠/ليلة تُكمل السوق في ~٥ ليالٍ.
+    # ══ تغذيةُ مُدخَل التقييم النسبيّ حتى يغطّي السوق ══ (بأمر المالك · D233)
+    # المحرّكُ صار قراءةً دائمةً في التطبيق، ومُدخَلُه مضاعفانِ لكلّ شركة.
+    # والمسحةُ أعلاه تنادي `get_company_info` لكلّ الكون، لكنّ نداءً يعود
+    # **من الكاش** لا يمرّ بحافظ التقييم — فتبقى شركةٌ بلا مضاعفٍ مخزَّنٍ
+    # وهي في يد الكاش. فتُقاس الفجوةُ صراحةً وتُملأ لأصحابها وحدَهم.
+    try:
+        await top_up_relative_inputs(pairs)
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"Relative-value inputs top-up failed: {e}")
+
     try:
         await _warm_statements_batch(pairs)
     except Exception as e:
         logger.warning(f"Statements warm batch failed: {e}")
     return saved
+
+
+def relative_inputs_coverage() -> dict:
+    """تغطيةُ مُدخَل التقييم النسبيّ: كم شركةً لها مضاعفٌ مخزَّنٌ صالح.
+
+    لا نداءَ ولا كتابة — قياسٌ من المخزن الدائم وحدَه، يقرؤه المسبارُ
+    والمسحةُ معاً فلا تعريفانِ للتغطية.
+    """
+    from app.services.relative_value import PB_RANGE, PE_RANGE, _ok
+    store = fund_store_load()
+    pairs = _universe_pairs()
+    have, missing = 0, []
+    for sym, _ in pairs:
+        row = store.get(sym) or {}
+        pe = _ok(row.get("pe_ratio"), *PE_RANGE)
+        pb = _ok(row.get("price_to_book"), *PB_RANGE)
+        if pe is not None or pb is not None:
+            have += 1
+        else:
+            missing.append(sym)
+    return {"universe": len(pairs), "covered": have, "missing": missing}
+
+
+async def top_up_relative_inputs(pairs: list[tuple[str, str]] | None = None) -> int:
+    """يملأ مضاعفاتِ الشركات التي لا مضاعفَ لها في المخزن — لا الكونَ كلَّه.
+
+    ويحفظ من المخرَج **صراحةً**: نداءٌ يعود من الكاش لا يمرّ بحافظ التقييم
+    داخل `get_company_info`، فكان بيانٌ في اليد ولا يصل المخزن. ويحترم
+    احتياطيَ حصّةِ نهار العمل ويتوقّف عنده بهدوء.
+    """
+    from app.services.market_data import _persist_valuation, market_service
+    from app.services.usage_tracker import usage as _usage
+
+    cov = relative_inputs_coverage()
+    todo = cov["missing"]
+    if not todo:
+        logger.info(f"📐 Relative-value inputs already cover "
+                    f"{cov['covered']}/{cov['universe']}.")
+        return 0
+
+    def headroom() -> int:
+        u = _usage("yahoo")
+        lim = u.get("daily_limit") or 0
+        return (lim - u.get("daily_used", 0)) if lim else 10 ** 9
+
+    sem = asyncio.Semaphore(_FUND_FULL_CONCURRENCY)
+    filled = 0
+
+    async def one(sym: str) -> None:
+        nonlocal filled
+        if headroom() <= _STMT_RESERVE:
+            return
+        ysym = f"{sym}.SR" if sym.isdigit() else sym
+        async with sem:
+            try:
+                info = await market_service.get_company_info(ysym)
+            except Exception:                                     # noqa: BLE001
+                return
+        if not info:
+            return
+        if info.get("pe_ratio") is not None or info.get("price_to_book") is not None:
+            try:
+                _persist_valuation(ysym, info)
+                filled += 1
+            except Exception:                                     # noqa: BLE001
+                pass
+
+    await asyncio.gather(*(one(s) for s in todo), return_exceptions=True)
+    after = relative_inputs_coverage()
+    logger.info(f"📐 Relative-value inputs: +{filled} · coverage "
+                f"{after['covered']}/{after['universe']} "
+                f"(was {cov['covered']}).")
+    return filled
 
 
 _STMT_CURSOR = "market:stmt_cursor"

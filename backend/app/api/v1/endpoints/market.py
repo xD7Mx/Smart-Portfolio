@@ -1590,3 +1590,39 @@ async def get_ipo_value(sector: str, net_profit: float, equity: float,
         "offer_in_range": (None if not (px and r["low"] is not None)
                            else r["low"] <= px <= r["high"]),
     })
+
+
+@router.get("/relative-coverage")
+async def get_relative_coverage():
+    """تغطيةُ مُدخَل التقييم النسبيّ — كم شركةً لها مضاعفٌ مخزَّنٌ صالح (D233).
+
+    المحرّكُ صار قراءةً دائمةً في التطبيق، فتغطيةُ مُدخَله رقمٌ يُراقَب لا
+    يُفترَض. قياسٌ من المخزن بلا نداءٍ واحد، ويُعاد عددُ الناقصين لا
+    قائمتُهم كاملةً حتى لا يصير المخرَجُ سجلّاً.
+    """
+    from app.services.content_engine import relative_inputs_coverage
+    c = relative_inputs_coverage()
+    return success_response(data={
+        "universe": c["universe"], "covered": c["covered"],
+        "missing": len(c["missing"]), "missing_sample": c["missing"][:20],
+        "pct": round(c["covered"] / c["universe"] * 100, 1) if c["universe"] else None,
+    })
+
+
+@router.post("/relative-coverage/top-up", dependencies=[Depends(require_owner)])
+async def top_up_relative_coverage():
+    """يملأ مضاعفاتِ الناقصين فوراً (للمالك) — بدل انتظار مسحة الثالثة فجراً.
+
+    يحترم احتياطيَ حصّةِ نهار العمل ويتوقّف عنده بهدوء، فلا يُجهض عرضاً
+    جارياً لأجل تغذيةٍ يمكن أن تُكمل ليلاً.
+    """
+    from app.services.content_engine import (relative_inputs_coverage,
+                                             top_up_relative_inputs)
+    before = relative_inputs_coverage()
+    filled = await top_up_relative_inputs()
+    after = relative_inputs_coverage()
+    return success_response(data={
+        "filled": filled, "before": before["covered"],
+        "after": after["covered"], "universe": after["universe"],
+        "still_missing": len(after["missing"]),
+    })

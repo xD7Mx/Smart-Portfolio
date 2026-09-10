@@ -302,7 +302,7 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
    والمصدرُ هو استعلامُ التحليل نفسُه (‏["analysis", symbol]) الذي تقرؤه
    صفحةُ السهم — من ذاكرة الاستعلام بلا نداءٍ إضافيّ، ورقمٌ واحدٌ لا
    ينحرف عن بقيّة الشاشات. */
-function RelativeValueStrip({ symbol }: { symbol: string }) {
+export function RelativeValueStrip({ symbol }: { symbol: string }) {
   const { data } = useQuery({
     queryKey: ["analysis", symbol],
     queryFn: () => marketApi.company(symbol).then(r => r.data.data),

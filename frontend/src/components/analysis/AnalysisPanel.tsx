@@ -4,6 +4,7 @@ import {
   CheckCircle, XCircle, TrendingUp, Activity, Sparkles, ShieldCheck
 } from "lucide-react";
 import { marketApi } from "../../services/api";
+import { RelativeValueStrip } from "./FinancialsTable";
 import { lookupCompany } from "../../data/saudiCompanies";
 import { TrendBar } from "../common/ValueBars";
 
@@ -316,15 +317,19 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
           current price cheap or expensive relative to real sector peers? */}
       {data.valuation && (
         <div className="card">
-          <div className="flex items-center justify-between mb-2">
+          {/* ══ الحكمُ تحت العنوان لا يسارَ البطاقة ══ (بأمر المالك · D233)
+              كان في الطرف المقابل للعنوان، فيبعد عن الأرقام التي يحكم عليها
+              بعرض البطاقة كاملاً — عينٌ تقرأ يميناً وحكمٌ ينتظر يساراً.
+              وهو خلاصةُ المضاعفين تحته، فموضعُه سطرٌ تابعٌ للعنوان. */}
+          <div className="mb-2">
             <span className="card-title flex items-center gap-1.5">
               <TrendingUp size={14} className="text-[var(--brand-ink)]" /> التقييم مقابل القطاع ({data.valuation.sector})
             </span>
             {data.valuation.verdict && (
-              <span className="text-xs font-bold" style={{
+              <div className="text-[11px] font-bold mt-1" style={{
                 color: data.valuation.verdict === "أرخص من متوسط القطاع" ? "var(--pos-ink)"
                   : data.valuation.verdict === "أغلى من متوسط القطاع" ? "var(--neg-ink)" : "var(--warn-ink)",
-              }}>{data.valuation.verdict}</span>
+              }}>{data.valuation.verdict}</div>
             )}
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -351,6 +356,11 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
               </div>
             )}
           </div>
+          {/* ══ وموضعُ القيمة النسبية الثاني ══ (بأمر المالك · D233)
+              هذا تبويبُ «مقارنة السهم بقطاعه»، والقيمةُ النسبيةُ هي تلك
+              المقارنةُ مترجَمةً إلى ريالاتٍ للسهم — فمكانُها هنا كمكانها
+              في القوائم. والمكوّنُ واحدٌ لا نسختان تتباعدان. */}
+          <RelativeValueStrip symbol={symbol} />
         </div>
       )}
 
