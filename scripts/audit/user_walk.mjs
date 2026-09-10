@@ -75,7 +75,7 @@ const ANALYSIS = {
   // الحالةُ التي كانت مستحيلةً قبل أمر المالك: هدفٌ موجودٌ وقيمةٌ نسبيةٌ
   // معه. فيُقاس أنها تظهر في موضعها الدائم ولا تُدسّ في خانة الهدف.
   rel_value: 28.4, rel_low: 24.1, rel_high: 33.0, rel_conf: "متوسطة",
-  rel_basis: "قيمة نسبية إلى القطاع", rel_upside_pct: 9.1,
+  rel_basis: "التقييم النسبي", rel_upside_pct: 9.1,
   rel_confidence_why: ["نظائر 6"],
   // مقارنةُ السهم بقطاعه — حكمُها هو النصُّ الذي أمر المالكُ بنقله.
   valuation: { sector: "الطاقة", verdict: "أرخص من متوسط القطاع",
@@ -238,8 +238,8 @@ for (const [name, path] of STOPS) {
       say(geo.dx < 40, "وفي عمود العنوان لا في الطرف المقابل",
           `فرقُ الحافّتين ${Math.round(geo.dx)}px`);
     }
-    say(text.includes("القيمة النسبية إلى القطاع"),
-        "والقيمةُ النسبيةُ في تبويب مقارنة القطاع أيضاً");
+    say(text.includes("التقييم النسبي"),
+        "والتقييمُ النسبيُّ في تبويب مقارنة القطاع أيضاً");
 
     /* ══ خانةٌ دائمةٌ في بطاقة «البيانات المالية» ══ (بأمر المالك · D234)
        لا في جدول السنوات: موضعُها البطاقةُ التي فيها المكرّرُ وهدفُ
@@ -253,7 +253,7 @@ for (const [name, path] of STOPS) {
       if (!card) return null;
       const cell = [...card.querySelectorAll(".kpi")].find(k =>
         ((k.querySelector(".kpi-lbl") || {}).textContent || "").trim()
-          === "القيمة النسبية إلى القطاع");
+          === "التقييم النسبي");
       if (!cell) return { found: false };
       const val = (cell.querySelector(".kpi-val") || {}).textContent || "";
       const peers = [...card.querySelectorAll(".kpi-lbl")]
@@ -263,7 +263,7 @@ for (const [name, path] of STOPS) {
                withTarget: peers.some(l => l.includes("تقدير المحللين")) };
     });
     say(!!kpi && kpi.found === true,
-        "خانةُ القيمة النسبية داخل بطاقة «البيانات المالية»");
+        "خانةُ التقييم النسبيّ داخل بطاقة «البيانات المالية»");
     if (kpi && kpi.found) {
       say(kpi.val.includes("28.4"), "ورقمُها هو المعروضُ فيها", kpi.val);
       say(kpi.withPE && kpi.withTarget,
@@ -282,10 +282,10 @@ for (const [name, path] of STOPS) {
       if (!card) return null;
       const cell = [...card.querySelectorAll(".kpi")].find(k =>
         ((k.querySelector(".kpi-lbl") || {}).textContent || "").trim()
-          === "القيمة النسبية إلى القطاع");
+          === "التقييم النسبي");
       return cell ? ((cell.querySelector(".kpi-val") || {}).textContent || "").trim() : null;
     });
-    say(!!bareCell, "الخانةُ باقيةٌ حيث تمتنع القيمة — لا تُطوى");
+    say(!!bareCell, "الخانةُ باقيةٌ حيث يمتنع التقييم — لا تُطوى");
     say(!!bareCell && bareCell.includes("لا نظائر"),
         "وتقول سببَ امتناعها لا رقماً ضعيفاً", String(bareCell));
   }

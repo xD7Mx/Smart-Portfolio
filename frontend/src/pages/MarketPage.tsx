@@ -982,11 +982,11 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                         منقولة. */}
                     <div className="space-y-1.5 text-center">
                       <div className="text-[9.5px] text-[var(--ink-muted)]">
-                        {r.fair_value == null && r.rel_value != null ? "نسبية للقطاع" : "هدف المحللين"}
+                        {r.fair_value == null && r.rel_value != null ? "التقييم النسبي" : "هدف المحللين"}
                       </div>
                       <div className="text-[12px] font-bold tabular-nums" dir="ltr"
                         title={r.fair_value == null && r.rel_value != null
-                          ? `قيمة نسبية إلى القطاع ${r.rel_low}–${r.rel_high} · ثقة ${r.rel_conf}`
+                          ? `التقييم النسبي ${r.rel_low}–${r.rel_high} · ثقة ${r.rel_conf}`
                           : ""}
                         style={{ color: r.fair_value == null && r.rel_value != null ? "var(--ink-muted)" : "var(--ink)" }}>
                         {r.fair_value != null ? Number(r.fair_value).toFixed(2)
@@ -1108,7 +1108,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                         مصدره آراء بشر لا مقارنة أرقام، فيُعرض مستقلاً. */}
                     <td className="px-2 py-2 tabular-nums" dir="ltr"
                       title={r.fair_value ? `هدف المحللين ${r.fair_value}${r.fair_value_asof ? " · " + r.fair_value_asof : ""}`
-                        : r.rel_value != null ? `قيمة نسبية إلى القطاع ${r.rel_value} (${r.rel_low}–${r.rel_high}) · ثقة ${r.rel_conf} — لا هدفَ محلّلين لهذه الشركة`
+                        : r.rel_value != null ? `التقييم النسبي ${r.rel_value} (${r.rel_low}–${r.rel_high}) · ثقة ${r.rel_conf} — لا هدفَ محلّلين لهذه الشركة`
                         : ""}
                       style={{ color: r.upside_pct == null ? "var(--ink-muted)" : r.upside_pct >= 15 ? "var(--pos-ink)" : r.upside_pct <= -15 ? "var(--neg-ink)" : "var(--ink-muted)" }}>
                       {/* ولا يُدسّ المشتقُّ في خانة المنقول: علامةُ «≈» ولونٌ

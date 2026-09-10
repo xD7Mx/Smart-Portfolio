@@ -139,7 +139,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                 القيمةُ النسبيةُ إلى القطاع باسمها — لا يُقرأ مضاعفُ قطاعٍ
                 رأيَ محلّل (‏D213). */}
             <div className="text-[10px] text-[var(--ink-muted)] mb-1">
-              {data.fair_value == null && data.rel_value != null ? "قيمة نسبية إلى القطاع" : "هدف المحللين"}
+              {data.fair_value == null && data.rel_value != null ? "التقييم النسبي" : "هدف المحللين"}
             </div>
             {data.fair_value != null ? (
               <>
@@ -166,7 +166,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                    مشتقّةٌ لا منقولة، ومعها نطاقُها ودرجةُ ثقتها. */
                 <>
                   <div className="flex items-baseline gap-1.5"
-                    title={`قيمة نسبية إلى القطاع ${fmt(data.rel_low)} – ${fmt(data.rel_high)} · ثقة ${data.rel_conf} — لا هدفَ محلّلين لهذه الورقة`}>
+                    title={`التقييم النسبي ${fmt(data.rel_low)} – ${fmt(data.rel_high)} · ثقة ${data.rel_conf} — لا هدفَ محلّلين لهذه الورقة`}>
                     <span className="text-xl tabular-nums leading-none text-[var(--ink-muted)]" style={{ fontWeight: 800 }}>
                       {fmt(data.rel_value)}
                     </span>
@@ -384,18 +384,25 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                 + ((data.rel_confidence_why || []).length
                    ? ` · ${(data.rel_confidence_why || []).join(" · ")}` : "")
               : "تُشتقّ من وسيط مضاعفات القطاع — وتمتنع حيث لا نظائر كافية"}>
-              <div className="kpi-lbl">القيمة النسبية إلى القطاع</div>
+              <div className="kpi-lbl">التقييم النسبي</div>
               {data.rel_value != null ? (
-                <div className="kpi-val" dir="ltr">
-                  ≈{fmt(data.rel_value)}
-                  {data.rel_upside_pct != null && (
-                    <span className="text-xs font-normal ms-1"
-                      style={{ color: data.rel_upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
-                      {data.rel_upside_pct >= 0 ? "+" : ""}{data.rel_upside_pct}%
-                    </span>
-                  )}
-                  <span className="text-[var(--ink-muted)] text-xs font-normal"> / نطاق {fmt(data.rel_low, 1)}–{fmt(data.rel_high, 1)}</span>
-                </div>
+                <>
+                  {/* سطرانِ لا سطرٌ مزدحم: الرقمُ وفرقُه أوّلاً — وهو ما
+                      تقرؤه العين — والنطاقُ والثقةُ سطراً خافتاً تحته. */}
+                  <div className="kpi-val" dir="ltr">
+                    ≈{fmt(data.rel_value)}
+                    {data.rel_upside_pct != null && (
+                      <span className="text-xs font-normal ms-1.5"
+                        style={{ color: data.rel_upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
+                        {data.rel_upside_pct >= 0 ? "+" : ""}{data.rel_upside_pct}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-[var(--ink-muted)] tabular-nums mt-0.5" dir="ltr">
+                    {fmt(data.rel_low, 1)}–{fmt(data.rel_high, 1)}
+                    {data.rel_conf && <span dir="rtl"> · ثقة {data.rel_conf}</span>}
+                  </div>
+                </>
               ) : (
                 <div className="kpi-val text-[var(--ink-muted)]" style={{ fontSize: 12 }}>
                   {data.rel_why || "غير متوفّرة"}

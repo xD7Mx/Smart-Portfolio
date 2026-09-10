@@ -316,7 +316,7 @@ export function RelativeValueStrip({ symbol }: { symbol: string }) {
   return (
     <div className="mt-4 pt-3" style={{ borderTop: "1px solid var(--hairline)" }}>
       <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="text-[12px] text-[var(--ink)]">القيمة النسبية إلى القطاع</span>
+        <span className="text-[12px] text-[var(--ink)]">التقييم النسبي</span>
         {conf && <span className="text-[11px] font-bold" style={{ color }}>ثقة {conf}</span>}
       </div>
       {data.rel_value == null ? (

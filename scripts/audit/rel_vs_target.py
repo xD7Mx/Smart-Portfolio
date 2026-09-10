@@ -96,7 +96,7 @@ movers = (ROOT / "backend/app/services/market_movers.py").read_text(encoding="ut
 ai = (ROOT / "frontend/src/pages/AIPage.tsx").read_text(encoding="utf-8")
 check('"rel_value": result.get("rel_value")' in movers,
       "٦ صفُّ تحليل الذكاء يحمل القيمةَ النسبية")
-check("c.rel_value" in ai and "نسبية للقطاع" in ai,
+check("c.rel_value" in ai and "التقييم النسبي" in ai,
       "٧ وتُعرض باسمها لا في خانة هدف المحلّلين")
 # والاتّجاه المعاكس: لا تُعرض حيث يوجد هدف — الشرطُ نفسُه في الشاشات كلِّها.
 check("c.fair_value != null ? c.fair_value.toFixed(2)" in ai,
