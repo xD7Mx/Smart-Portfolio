@@ -55,6 +55,11 @@ class _Px:
 
 
 LIVE = _Px(30.0, 2.5)
+# وما تقرؤه الصفحةُ من أساسيات المزوّد — الكاشُ نفسُه بمفتاحه نفسِه.
+FUND = {"eps": 2.0, "book_value": 10.0, "target_mean_price": 36.0,
+        "week52_high": 31.0, "week52_low": 21.0}
+# الفحوصُ ١–٧ للسعر وحدَه (بلا أساسيات)، والفحوصُ ٨–١٠ تُدخل الأساسيات —
+# فسببُ كلّ فحصٍ واحدٌ ولا يُخفي أحدُهما الآخر.
 _CACHE = {"price:yahoo:9999.SR": LIVE}
 ms.cache.get = lambda k: _CACHE.get(k)                           # type: ignore[assignment]
 
@@ -105,6 +110,26 @@ _CACHE["price:yahoo:9999.SR"] = _Px(0, 0)
 zero = asyncio.run(ms.refresh_derived([dict(STALE)]))[0]
 check(zero["price"] == 25.0,
       "٧ وسعرُ صفرٍ يُرفَض ولا يُقسَم عليه", f"سعر {zero['price']}")
+
+# ── ٨ · حقولُ التقييم من سلسلة الصفحة، والمشتقُّ من السعر يُعاد ────────
+# ‏(D239) قِيس على الخادم: المكرّرُ خالف في ‎32 من ‎40، والمضاعفُ في ‎33،
+# وحدّا العام في ‎39 و‎38، وهدفُ المحلّلين في ‎8. والمكرّرُ دالّةُ سعرٍ —
+# فيُحسب من السعر الحاضر وربحيةِ السهم لا يُنسَخ محفوظاً.
+_CACHE.clear()
+_CACHE["price:yahoo:9999.SR"] = LIVE
+_CACHE["fund:yahoo:9999.SR"] = FUND
+fresh = asyncio.run(ms.refresh_derived([dict(STALE)]))[0]
+# `.get` لا `[]`: فحصٌ ينهار بـKeyError يخرج بشيفرةٍ صحيحةٍ لكن بلا
+# سطرِ FAIL يُقرأ — والعطبُ يجب أن يُسمّى لا أن يُستنتَج من انهيار.
+check(fresh.get("pe_ratio") == 15.0 and fresh.get("price_to_book") == 3.0,
+      "٨ المكرّرُ والمضاعفُ يُحسبان بالسعر الحاضر لا يُنسَخان",
+      f"‏30 ÷ 2 = {fresh.get('pe_ratio')} · 30 ÷ 10 = {fresh.get('price_to_book')}")
+check(fresh.get("high_52w") == 31.0 and fresh.get("low_52w") == 21.0,
+      "٩ وحدّا العام من مصدر الصفحة نفسِه — لا تاريخٌ ومزوّدٌ معاً",
+      f"قمّة {fresh.get('high_52w')} · قاع {fresh.get('low_52w')}")
+check(fresh.get("fair_value") == 36.0 and fresh.get("upside_pct") == 20.0,
+      "١٠ وهدفُ المحلّلين من الكاش الحيّ، وفجوتُه من السعر الحاضر",
+      f"هدف {fresh.get('fair_value')} · فجوة {fresh.get('upside_pct')}٪")
 
 print()
 print("النتيجة:", "فيه ملاحظات ✘" if fail else "نظيف ✔")

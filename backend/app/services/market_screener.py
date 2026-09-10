@@ -649,6 +649,47 @@ async def refresh_derived(rows: list) -> list:
                 r["dividend_yield_source"] = src
         except Exception:                                         # noqa: BLE001
             pass
+        # ══ حقولُ التقييم من سلسلة الصفحة نفسِها ══ (D239)
+        # قِيس على أربعين شركةً: المكرّرُ خالف في ‎32، ومضاعفُ الدفترية في
+        # ‎33، وهدفُ المحلّلين في ‎8، وحدّا العام في ‎39 و‎38. والسببُ واحد:
+        # الصفُّ يحمل **نسخةً** مأخوذةً وقتَ المسح، وصفحةُ السهم تقرأ
+        # الكاشَ الحيَّ — مصدران لا مصدرٌ واحد.
+        #
+        # وما هو دالّةُ سعرٍ يُعاد حسابُه بالسعر الحاضر: المكرّرُ = السعر ÷
+        # ربحيةِ السهم، والمضاعفُ = السعر ÷ الدفترية. فلا يبقى مكرّرُ أمسِ
+        # بجانب سعرِ اليوم في صفٍّ واحد.
+        try:
+            _row = store.get(sym) or {}
+            _fnd = cache.get(f"fund:yahoo:{sym}.SR") or {}
+
+            def _pick(key: str):
+                x = _fnd.get(key)
+                return x if x is not None else _row.get(key)
+
+            _px = r.get("price")
+            _eps, _bv = _pick("eps"), _pick("book_value")
+            if isinstance(_px, (int, float)) and _px > 0:
+                if isinstance(_eps, (int, float)) and _eps > 0:
+                    r["pe_ratio"] = round(_px / _eps, 6)
+                if isinstance(_bv, (int, float)) and _bv > 0:
+                    r["price_to_book"] = round(_px / _bv, 6)
+            for _k, _src in (("fair_value", "target_mean_price"),
+                             ("high_52w", "week52_high"),
+                             ("low_52w", "week52_low")):
+                _v2 = _pick(_src)
+                if isinstance(_v2, (int, float)) and _v2 > 0:
+                    r[_k] = _v2
+            # وحدّا العام يشملان سعرَ اليوم بالضرورة.
+            if isinstance(_px, (int, float)) and _px > 0:
+                if isinstance(r.get("high_52w"), (int, float)):
+                    r["high_52w"] = round(max(r["high_52w"], _px), 3)
+                if isinstance(r.get("low_52w"), (int, float)):
+                    r["low_52w"] = round(min(r["low_52w"], _px), 3)
+                _fv2 = r.get("fair_value")
+                if isinstance(_fv2, (int, float)) and _fv2 > 0:
+                    r["upside_pct"] = round((_fv2 - _px) / _px * 100, 1)
+        except Exception:                                         # noqa: BLE001
+            pass
         # درجةُ الجودة: المحرّكُ أوّلاً كما في البناء (D198) — ويمتنع بلا
         # قوائمَ مخزَّنةٍ فيبقى المخزَّنُ في الصفّ، فلا يُفرَّغ عمودٌ كان مملوءاً.
         try:
@@ -657,7 +698,11 @@ async def refresh_derived(rows: list) -> list:
                 r["finance_score"] = fs
         except Exception:                                         # noqa: BLE001
             pass
-        if _tbl is not None and r.get("fair_value") is None:
+        # ══ ودائمٌ كما في صفحة السهم ══ (D239)
+        # كان يُحسب حيث لا هدفَ محلّلين وحدَه، وصفحةُ السهم تحسبه دائماً
+        # (‏D232). فخلا الصفُّ منه في ‎28 شركةً من ‎40 والصفحةُ تعرضه —
+        # وشرطُ العرض (الهدفُ أوّلاً) باقٍ في الواجهة لا في الحساب.
+        if _tbl is not None:
             try:
                 _row = store.get(sym) or {}
                 _fund = cache.get(f"fund:yahoo:{sym}.SR") or {}

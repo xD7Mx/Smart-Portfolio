@@ -79,10 +79,15 @@ check(bool(out.get("rel_basis")) and out.get("rel_low") is not None,
       f"«{out.get('rel_basis')}» {out.get('rel_low')}–{out.get('rel_high')}")
 
 # ── ٣ · الاتّجاه المعاكس: حيث وُجد الهدفُ لا تُحسب ───────────────────────
+# ══ قاعدةٌ نُقضت بقياسٍ لا بسهو ══ (D239)
+# كان الشرطُ عكسَه: ألّا يُحسب حيث وُجد هدفٌ (سدُّ فراغٍ · D212). ثم صار
+# السعرُ العادل قراءةً دائمةً في صفحة السهم (‏D232) — فخلا صفُّ الفرز منه
+# في ‎28 شركةً من ‎40 والصفحةُ تعرضه (قِيس على الخادم). وشرطُ **العرض**
+# (الهدفُ أوّلاً) باقٍ في الواجهة حيث موضعُه، لا في الحساب.
 withfv = _refresh([{"symbol": "9999", "sector": SECTOR, "price": 50.0,
                     "fair_value": 55.0}])[0]
-check(withfv.get("rel_value") is None,
-      "٣ وحيث وُجد هدفُ المحلّلين لا تزحف عليه",
+check(withfv.get("rel_value") is not None and withfv.get("fair_value") == 55.0,
+      "٣ ويُحسب مع وجود الهدف، ولا يُدسّ في حقله",
       f"fair_value={withfv.get('fair_value')} · rel_value={withfv.get('rel_value')}")
 
 # ── ٤ · «رؤية الذكاء» تُمرّر ما في يدها ──────────────────────────────────

@@ -51,12 +51,17 @@ async def main() -> int:
     if not rows:
         print("… لا صفوفَ فرزٍ مخدومة (لم يُبنَ المسحُ بعد) — لا حكم.")
         return 0
-    rows = await refresh_derived([dict(r) for r in rows[:N]])
+    rows = [dict(r) for r in rows[:N]]
     print(f"العيّنة: {len(rows)} شركةً من {len(get_cached_screener() or [])}\n")
 
-    diffs: dict[str, list[str]] = {}
-    absent: dict[str, int] = {}
-    done = 0
+    # ══ الترتيبُ ليس تفصيلاً ══ (صُحّح بعد أوّل تشغيل)
+    # المسبارُ عمليةٌ منفصلةٌ عن الخادم، وكاشُ الأسعار والأساسيات **في
+    # الذاكرة** لا على القرص — فيبدأ فارغاً. فلو أُنعشت الصفوفُ أوّلاً
+    # لقُرئت من كاشٍ خاوٍ ثمّ حلّلنا الشركاتَ فملأناه، فيُقاس فرقٌ سبَبُه
+    # ترتيبُ المسبار لا عطبُ التطبيق. وفي الخادم يجري العكسُ طبعاً:
+    # الصفحةُ تُفتح فيُملأ الكاش، ثم يُخدَم الفرزُ من المملوء.
+    # فيُحلَّل أوّلاً ثم يُنعَش — كترتيب الخادم لا كترتيب الملفّ.
+    analyses: dict[str, dict] = {}
     for r in rows:
         sym = str(r.get("symbol"))
         try:
@@ -64,6 +69,16 @@ async def main() -> int:
         except Exception as e:                                    # noqa: BLE001
             print(f"  ‏{sym}: تعذّر التحليل — {type(e).__name__}")
             continue
+        if a:
+            analyses[sym] = a
+    rows = await refresh_derived(rows)
+
+    diffs: dict[str, list[str]] = {}
+    absent: dict[str, int] = {}
+    done = 0
+    for r in rows:
+        sym = str(r.get("symbol"))
+        a = analyses.get(sym)
         if not a:
             continue
         done += 1
@@ -94,10 +109,14 @@ async def main() -> int:
             if abs(row_v - page_v) > tol:
                 diffs.setdefault(col, []).append(
                     f"{sym}: الفرز {row_v} · الصفحة {page_v}")
-        # الحكمُ الشرعيّ نصٌّ لا رقم
-        if (r.get("sharia") or None) != (a.get("sharia_status") or None):
+        # ══ الحكمُ الشرعيّ خارج نطاق هذه المقارنة ══ (صُحّح بعد أوّل تشغيل)
+        # قال المسبارُ «‏37 خلافاً» وكلُّها «الصفحة None» — وليس ذاك عطباً
+        # في التطبيق بل في المسبار: `analyze_company` لا يُخرج حكماً
+        # شرعياً أصلاً (مصدرُه `maqasid` ويُعرض بمسارٍ آخر). ومقارنةُ حقلٍ
+        # لا وجودَ له تُنتج ضجيجاً يُخفي الأعطابَ الحقيقية.
+        if a.get("sharia_status") and (r.get("sharia") or None) != a["sharia_status"]:
             diffs.setdefault("sharia", []).append(
-                f"{sym}: الفرز {r.get('sharia')} · الصفحة {a.get('sharia_status')}")
+                f"{sym}: الفرز {r.get('sharia')} · الصفحة {a['sharia_status']}")
 
     if not done:
         print("… لم يكتمل تحليلُ أيّ شركة — لا يُقاس التطابق، ولا يُعدّ نجاحاً.")
