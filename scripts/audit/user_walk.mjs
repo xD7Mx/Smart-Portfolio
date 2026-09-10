@@ -52,6 +52,8 @@ const CO = (symbol, name, price, w, tw) => ({
   company_id: symbol === "2222" ? 1 : 2, symbol, name, company_name: name,
   market_value: price * 1000, current_weight: w, target_weight: tw,
   last_price: price, dividend_yield: 4.2, sector: "الطاقة",
+  // الحكمُ الشرعيّ في صفّ القرار (‏D232) — شاهدُ الهلال في جدول التوزيع.
+  sharia_status: "COMPLIANT",
 });
 const ALLOC = {
   items: [CO("2222", "أرامكو", 26, 12, 10), CO("4190", "جرير", 16, 4, 10)],
@@ -67,7 +69,26 @@ const ANALYSIS = {
   technical: { rsi: 49, trend: "محايد", support: 25, resistance: 28 },
   governance: { score: 81 }, ai_score: 81, score: 81,
   decision: DECISION, evaluable: true,
+  // ══ القيمةُ النسبيةُ **مع** هدفِ المحلّلين ══ (D232)
+  // الحالةُ التي كانت مستحيلةً قبل أمر المالك: هدفٌ موجودٌ وقيمةٌ نسبيةٌ
+  // معه. فيُقاس أنها تظهر في موضعها الدائم ولا تُدسّ في خانة الهدف.
+  rel_value: 28.4, rel_low: 24.1, rel_high: 33.0, rel_conf: "متوسطة",
+  rel_basis: "قيمة نسبية إلى القطاع", rel_upside_pct: 9.1,
+  rel_confidence_why: ["نظائر 6"],
   governance_standard: { metrics: [{ key: "roe", label: "العائد على حقوق الملكية", value: 24.1, unit: "%" }] },
+};
+/* قوائمُ ثلاثِ سنواتٍ — مقياسا القيمة النسبية (ربحيةُ السهم والدفترية)
+   سطرانِ فيها، وهو سببُ كون هذا موضعَها. */
+const FINANCIALS = {
+  years: [2022, 2023, 2024],
+  periods: [1, 2, 3].map(i => ({
+    revenue: 1.5e12 + i * 1e11, net_income: 3.0e11 + i * 2e10,
+    eps: 1.2 + i * 0.1, equity: 1.4e12, book_value: 6.0 + i * 0.2,
+    debt_ratio: 22.4, interest_coverage: 18.2,
+    operating_cash_flow: 5.0e11, free_cash_flow: 2.2e11, ending_cash: 1.1e11,
+  })),
+  changes: { revenue: 6.2, net_income: 4.1, eps: 3.9 },
+  verdict: "قوائم متينة", verdict_tone: "green", finance_score: 81,
 };
 const body = (data) => ({ status: 200, contentType: "application/json",
                           body: JSON.stringify({ success: true, data }) });
@@ -91,6 +112,7 @@ await page.route("**/api/v1/**", r => {
   const u = r.request().url();
   if (/\/allocation(\?|$)/.test(u)) return r.fulfill(body(ALLOC));
   if (/\/market\/company\//.test(u) || /\/ai\/stock-opinion\//.test(u)) return r.fulfill(body(ANALYSIS));
+  if (/\/market\/financials\//.test(u)) return r.fulfill(body(FINANCIALS));
   if (/\/holdings(\?|$)/.test(u)) return r.fulfill(body(ALLOC.items.map((it, i) => ({
     id: i + 1, company_id: it.company_id, symbol: it.symbol,
     company: { id: it.company_id, symbol: it.symbol, company_name: it.name },
@@ -119,6 +141,7 @@ const STOPS = [
   ["الحوكمة", "/governance"],
   ["تحليل الذكاء", "/ai"],
   ["جدول التوزيع", "/probe-alloc.html"],
+  ["البيانات المالية", "/probe-fin.html"],
 ];
 
 const seenDecisions = new Set();
@@ -166,6 +189,36 @@ for (const [name, path] of STOPS) {
              || b.getAttribute("title"));
   }).length).catch(() => 0);
   say(mute === 0, `«${name}» بلا زرٍّ صامتٍ بلا اسم`, mute ? `${mute} زرّاً` : "");
+
+  /* ══ موضعُ القيمة النسبية الدائم ══ (D232 · بأمر المالك)
+     الحالةُ المقيسة: هدفُ المحلّلين موجودٌ (‏30.5) والقيمةُ النسبيةُ معه
+     (‏28.4). فتُشترط ثلاثةٌ في متصفّحٍ حقيقيّ: أنها تظهر أصلاً — وهذا هو
+     الدوام —، وأنها باسمها لا باسم «القيمة العادلة»، وأن رقمَها هو
+     المعروضُ في موضعها لا رقمُ الهدف. */
+  if (name === "البيانات المالية") {
+    say(text.includes("القيمة النسبية إلى القطاع"),
+        "القيمةُ النسبيةُ تظهر مع وجود هدفِ المحلّلين — موضعٌ دائم");
+    say(text.includes("28.4"), "ورقمُها هو المعروضُ في موضعها", "28.4");
+    say(!/قيمة عادلة|القيمة العادلة/.test(text),
+        "ولا تُسمّى «قيمةً عادلة» في هذا الموضع");
+    say(text.includes("ثقة متوسطة") && text.includes("نظائر 6"),
+        "ودرجةُ ثقتها وقيدُها معها — لا رقمَ يُقرأ يقيناً");
+  }
+
+  /* ══ هويّةُ الصفّ في جدول التوزيع ══ (بأمر المالك · D232)
+     الجدولُ أمرُ تنفيذ، فيُقاس أن الشعارَ والهلالَ وصلا الصفَّ فعلاً —
+     صورةٌ (أو حرفٌ بديلٌ عند تعذّرها) وهلالٌ بتلميحِ حكمه. */
+  if (name === "جدول التوزيع") {
+    // الشعارُ يُقاس بصفّه لا بنجاح الشبكة: `co-logo` تحمله الصورةُ
+    // وبديلُها الحرفيّ معاً، فلا يمرّ الفحصُ ولا يسقط لأجل مزوّدٍ محجوب.
+    const logos = await page.$$eval("table .co-logo", els => els.length).catch(() => 0);
+    say(logos >= 2, "صفوفُ جدول التوزيع تحمل شعارَ الشركة",
+        `${logos} شعاراً لصفّين`);
+    const moons = await page.$$eval("table [title]", els =>
+      els.filter(e => /متوافقة|مختلطة|نقية|غير متوافقة/.test(e.getAttribute("title") || "")).length
+    ).catch(() => 0);
+    say(moons > 0, "والهلالُ يقول حكمَه في تلميحه", `${moons} هلالاً`);
+  }
 }
 
 /* ══ العقلُ الواحد ══ (‏D166)

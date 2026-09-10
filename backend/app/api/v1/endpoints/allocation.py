@@ -116,6 +116,11 @@ async def get_allocation(db: AsyncSession = Depends(get_db)):
             "last_price": lp,
             # None تعني «غير متوفّر» — لا صفراً يُقرأ «لا توزيعات».
             "dividend_yield": dy_by_symbol.get(str(h.company.symbol)),
+            # ══ الحكمُ الشرعيّ في جدول القرار ══ (بأمر المالك · D232)
+            # الجدولُ يقول «اشترِ كذا سهماً» — فحكمُ الورقة شرطُ قراءةِ
+            # الأمر لا زينةٌ بجانبه. من حقل الشركة نفسِه الذي تقرؤه
+            # صفحةُ الحيازات، فلا مصدرَ ثانياً يخالفه.
+            "sharia_status": h.company.sharia_status,
             # القطاع من دليل التطبيق المنسَّق أوّلاً — لا من تصنيفٍ خارجيّ
             # قد يخالفه. يُنشَر ليُرسم توزيعُ القطاعات مع الجدول نفسِه.
             "sector": (SYMBOL_TO_SECTOR_AR.get(str(h.company.symbol).replace(".SR", ""))

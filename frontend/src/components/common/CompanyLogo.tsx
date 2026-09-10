@@ -98,7 +98,9 @@ export default function CompanyLogo({ symbol, color, size = 40, logoUrl }: { sym
   }
   return (
     <div
-      className="rounded-xl flex items-center justify-center font-bold shrink-0"
+      /* `co-logo` على البديل كما على الصورة: صفٌّ واحدٌ يسمّي الحالتين،
+         فيُقاس **وجودُ الشعار** لا وجودُ الشبكة (‏D232). */
+      className="co-logo rounded-xl flex items-center justify-center font-bold shrink-0"
       style={{
         width: size, height: size, color: "#fff",
         // أرضية ٩٫٥ بكسل: شعارٌ بحجم ٢٤ كان يكتب رمزه بـ٧٫٢ — تحت عتبة

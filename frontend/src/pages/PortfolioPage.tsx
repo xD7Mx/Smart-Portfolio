@@ -1378,11 +1378,21 @@ export function RebalanceCard() {
               const { tw, liquidityShare, reinvestShare, totalAmount, totalShares, side, excessPct } = shareOf(it);
               return (
               <tr key={it.company_id}>
+                {/* ══ الشعارُ والهلالُ في هويّة الصفّ ══ (بأمر المالك · D232)
+                    الجدولُ أمرُ تنفيذٍ («اشترِ كذا سهماً»)، فالتعرّفُ على
+                    الورقة بالشعار أسرعُ من قراءة الاسم، والحكمُ الشرعيُّ
+                    شرطُ الأمر لا حاشيةٌ بجانبه. والهلالُ وحدَه يكفي —
+                    بلونه وتلميحه — كما في صفحة السهم. */}
                 <td className="td text-start">
                   <button type="button" onClick={() => setSheet(it.symbol)}
-                    className="text-start hover:underline" title={`اعرض ورقة ${it.name}`}>
-                    <span className="text-[var(--ink)] font-semibold text-[13px]">{it.name}</span>
-                    <span className="tag-b ms-1" style={{fontSize:10,padding:"2px 6px"}}>{it.symbol}</span>
+                    className="text-start hover:underline flex items-center gap-2 min-w-0"
+                    title={`اعرض ورقة ${it.name}`}>
+                    <CompanyLogo symbol={it.symbol} size={22} />
+                    <span className="min-w-0">
+                      <span className="text-[var(--ink)] font-semibold text-[13px]">{it.name}</span>
+                      <span className="tag-b ms-1" style={{fontSize:10,padding:"2px 6px"}}>{it.symbol}</span>
+                    </span>
+                    <ShariaBadge status={it.sharia_status} size={13} />
                   </button>
                 </td>
                 <td className="td text-start text-[var(--ink)]">{fmt(it.market_value)}</td>
@@ -1503,10 +1513,15 @@ export function RebalanceCard() {
             return (
               <div key={it.company_id} className="py-3.5 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
+                  {/* والبطاقةُ على الجوّال كالصفّ — لا شاشتان بحظّين. */}
                   <button type="button" onClick={() => setSheet(it.symbol)}
-                    className="min-w-0 text-start" title={`اعرض ورقة ${it.name}`}>
-                    <span className="text-[var(--ink)] font-semibold text-[13px]">{it.name}</span>{" "}
-                    <span className="tag-b" style={{fontSize:10,padding:"2px 6px"}}>{it.symbol}</span>
+                    className="min-w-0 text-start flex items-center gap-2" title={`اعرض ورقة ${it.name}`}>
+                    <CompanyLogo symbol={it.symbol} size={22} />
+                    <span className="min-w-0">
+                      <span className="text-[var(--ink)] font-semibold text-[13px]">{it.name}</span>{" "}
+                      <span className="tag-b" style={{fontSize:10,padding:"2px 6px"}}>{it.symbol}</span>
+                    </span>
+                    <ShariaBadge status={it.sharia_status} size={13} />
                   </button>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <label className="text-[11px] text-[var(--ink-muted)]">الهدف %</label>

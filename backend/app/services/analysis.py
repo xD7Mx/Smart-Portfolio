@@ -331,41 +331,49 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
                    if _shown_fv and isinstance(_px_now, (int, float))
                    and _px_now > 0 else None)
 
-    # ══ القيمةُ النسبيةُ إلى القطاع — تملأ الفراغ ولا تستبدل رأياً ══
-    # تُحسب فقط حيث لا هدفَ محلّلين، ومن المخزن القائم بلا نداءٍ جديد.
-    # وسقوطُها لا يُسقط التحليل: حقولٌ فارغةٌ كما لو لم تُحسب.
+    # ══ القيمةُ النسبيةُ إلى القطاع — قراءةٌ دائمةٌ لا سدَّ فراغ ══ (D232)
+    # كانت تُحسب حيث لا هدفَ محلّلين وحدَه. وبأمر المالك صارت **دائمة**:
+    # موضعُ السهم من نظائره خبرٌ قائمٌ بنفسه، يُقرأ مع هدفِ المحلّلين لا
+    # بدلاً منه — وحين يتباعدان فذلك خبرٌ أيضاً.
+    #
+    # والشرطُ الباقي شرطُ عرضٍ لا شرطُ حساب: لا تُعرض في خانة «هدف
+    # المحلّلين» ولا تُدسّ فيها؛ لها موضعُها المستقلّ في البيانات المالية
+    # حيث مقياساها (ربحيةُ السهم والقيمةُ الدفترية) مذكوران فوقها.
+    #
+    # وتُحسب من المخزن القائم بلا نداءٍ جديد، وسقوطُها لا يُسقط التحليل.
     _rel_fields: dict = {}
-    if _shown_fv is None:
-        try:
-            from app.services.relative_value import SectorTable, relative_value
-            from app.services.content_engine import fund_store_load
-            from app.data.company_sectors import SYMBOL_TO_SECTOR_AR as _SEC
-            from app.data.market_universe import MARKET_UNIVERSE as _MU
-            from app.data.universe import main_market as _mm
-            _store = fund_store_load()
-            _base = str(symbol).replace(".SR", "")
-            _tbl = SectorTable(
-                {"sector": _SEC.get(k), "pe": (v or {}).get("pe_ratio"),
-                 "pb": (v or {}).get("price_to_book")}
-                for k, v in _store.items() if k in _mm(_MU))
-            _row = _store.get(_base) or {}
-            _rv = relative_value(sector=_SEC.get(_base), price=_px_now,
-                                 pe=_row.get("pe_ratio"), pb=_row.get("price_to_book"),
-                                 book_value=_row.get("book_value"), table=_tbl)
-            if _rv["value"] is not None:
-                _rel_fields = {
-                    "rel_value": round(_rv["value"], 2),
-                    "rel_low": round(_rv["low"], 2),
-                    "rel_high": round(_rv["high"], 2),
-                    "rel_conf": _rv["confidence"],
-                    "rel_basis": _rv["basis"],
-                    "rel_upside_pct": (round((_rv["value"] - _px_now) / _px_now * 100, 1)
-                                       if isinstance(_px_now, (int, float)) and _px_now else None),
-                }
-            else:
-                _rel_fields = {"rel_why": _rv["why"]}
-        except Exception as _e:                                   # noqa: BLE001
-            logger.warning(f"القيمة النسبية {symbol}: {type(_e).__name__}: {_e}")
+    try:
+        from app.services.relative_value import SectorTable, relative_value
+        from app.services.content_engine import fund_store_load
+        from app.data.company_sectors import SYMBOL_TO_SECTOR_AR as _SEC
+        from app.data.market_universe import MARKET_UNIVERSE as _MU
+        from app.data.universe import main_market as _mm
+        _store = fund_store_load()
+        _base = str(symbol).replace(".SR", "")
+        _tbl = SectorTable(
+            {"sector": _SEC.get(k), "pe": (v or {}).get("pe_ratio"),
+             "pb": (v or {}).get("price_to_book")}
+            for k, v in _store.items() if k in _mm(_MU))
+        _row = _store.get(_base) or {}
+        _rv = relative_value(sector=_SEC.get(_base), price=_px_now,
+                             pe=_row.get("pe_ratio"), pb=_row.get("price_to_book"),
+                             book_value=_row.get("book_value"), table=_tbl)
+        if _rv["value"] is not None:
+            _rel_fields = {
+                "rel_value": round(_rv["value"], 2),
+                "rel_low": round(_rv["low"], 2),
+                "rel_high": round(_rv["high"], 2),
+                "rel_conf": _rv["confidence"],
+                "rel_basis": _rv["basis"],
+                # قيودُ الثقة تُعرض مع الدرجة — درجةٌ بلا سببٍ تُقرأ يقيناً.
+                "rel_confidence_why": _rv.get("confidence_why") or [],
+                "rel_upside_pct": (round((_rv["value"] - _px_now) / _px_now * 100, 1)
+                                   if isinstance(_px_now, (int, float)) and _px_now else None),
+            }
+        else:
+            _rel_fields = {"rel_why": _rv["why"]}
+    except Exception as _e:                                   # noqa: BLE001
+        logger.warning(f"القيمة النسبية {symbol}: {type(_e).__name__}: {_e}")
 
     from app.services.four_scores import technical_to_timing_snapshot, valuation_to_snapshot, resolve_sector
     # Canonical Arabic sector drives archetype exemptions; Yahoo's English
