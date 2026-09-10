@@ -583,6 +583,23 @@ async def refresh_derived(rows: list) -> list:
         store = fund_store_load() or {}
     except Exception:                                             # noqa: BLE001
         return rows
+
+    # ══ والقيمةُ النسبيةُ من جنس المشتقّات ══ (D230)
+    # هي حسابٌ من المخزن الدائم بلا نداءٍ واحد، فتجميدُها في اللقطة يورث
+    # العطبَ نفسَه من وجهٍ أشدّ: كلُّ صفٍّ بُني قبل وجود المحرّك يبقى بلا
+    # قيمةٍ إلى الأبد، فيرى المالكُ «—» على شركةٍ تقييمُها في يدنا. تُعاد
+    # هنا عند التقديم — وحيث لا هدفَ محلّلين فقط، فلا تزحف على رأيِ أحد.
+    _tbl = None
+    try:
+        from app.services.relative_value import SectorTable as _ST
+        from app.services.relative_value import relative_value as _rel
+        from app.data.company_sectors import SYMBOL_TO_SECTOR_AR as _SEC_AR
+        _tbl = _ST({"sector": _SEC_AR.get(s), "pe": (v or {}).get("pe_ratio"),
+                    "pb": (v or {}).get("price_to_book")}
+                   for s, v in store.items())
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"إنعاشُ القيمة النسبية معطّل: {type(e).__name__}: {e}")
+
     for r in rows:
         sym = str(r.get("symbol") or "")
         if not sym:
@@ -603,6 +620,29 @@ async def refresh_derived(rows: list) -> list:
                 r["finance_score"] = fs
         except Exception:                                         # noqa: BLE001
             pass
+        if _tbl is not None and r.get("fair_value") is None:
+            try:
+                _row = store.get(sym) or {}
+                _fund = cache.get(f"fund:yahoo:{sym}.SR") or {}
+
+                def _v(key: str):
+                    x = _fund.get(key)
+                    return x if x is not None else _row.get(key)
+
+                _rv = _rel(sector=r.get("sector"), price=r.get("price"),
+                           pe=_v("pe_ratio"), pb=_v("price_to_book"),
+                           book_value=_v("book_value"), table=_tbl)
+                if _rv["value"] is not None:
+                    r["rel_value"] = round(_rv["value"], 2)
+                    r["rel_low"] = round(_rv["low"], 2)
+                    r["rel_high"] = round(_rv["high"], 2)
+                    r["rel_conf"] = _rv["confidence"]
+                    r["rel_basis"] = _rv["basis"]
+                    r["rel_why"] = None
+                else:
+                    r["rel_why"] = _rv["why"]
+            except Exception:                                     # noqa: BLE001
+                pass
     return rows
 
 
