@@ -228,6 +228,12 @@ node scripts/audit/one_relval_name.mjs || fail=1
 echo
 python3 scripts/audit/screener_price_fresh.py || fail=1
 
+# D240: مُنتِجٌ واحدٌ للسعر العادل — مائدةٌ واحدةٌ ومدخلاتٌ واحدة. كان
+# لكلٍّ من الفرز والصفحة حسابُه، فخرج رقمان لمعنًى واحد في ‎28 شركةً
+# من ‎40 (قِيس على الخادم بمسبار الأعمدة).
+echo
+python3 scripts/audit/one_fair_price.py || fail=1
+
 # D237: من حمل لقبَ «السعر العادل» حكَم به القرار — وإلا عادت صورةُ D174:
 # رقمٌ معروضٌ وقرارٌ يناقضه لأنه يحكم برقمٍ آخر.
 echo

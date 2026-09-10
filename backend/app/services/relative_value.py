@@ -219,3 +219,75 @@ def relative_value(*, sector: str | None, price: float | None,
         sector=sector,
         eps=(px / own_pe if own_pe and px else None),
         bvps=book_value, table=table, own_pe=own_pe, own_pb=own_pb)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# مُنتِجٌ واحدٌ للسعر العادل — بمائدةٍ واحدةٍ ومدخلاتٍ واحدة (D240)
+#
+# كان لكلٍّ من صفحة السهم والفرز بناؤه الخاصّ للمائدة ومدخلاتِه:
+#   · الصفحةُ تبني المائدةَ من المخزن **مصفَّى على السوق الرئيسي**، وتقرأ
+#     مضاعفَ الشركة من المخزن وحدَه.
+#   · والفرزُ يبنيها من المخزن **كلِّه**، ويقرأ المضاعفَ من الكاش أوّلاً.
+# فاختلف وسيطُ القطاع واختلف ما يُنزَع منه — فخرج رقمان لمعنًى واحد:
+# ‎28 خلافاً في أربعين شركة (‏1111: ‎44.42 في الفرز و‎38.92 في الصفحة).
+# وهو صنفُ العطب الذي تكرّر في هذا التطبيق أكثرَ من غيره، ولا يُعالج
+# بتقريب حسابين بل بإلغاء أحدهما.
+# ══════════════════════════════════════════════════════════════════════════
+
+def market_table(store: dict) -> SectorTable:
+    """مائدةُ مضاعفات القطاعات — تعريفٌ واحدٌ لكلّ من يسأل.
+
+    الكونُ هو السوقُ الرئيسيّ (‏main_market): هو ما يُعرض ويُقارَن به،
+    وإدخالُ غيره يُحرّك الوسيطَ بشركاتٍ لا تظهر في أيّ شاشة.
+    """
+    from app.data.company_sectors import SYMBOL_TO_SECTOR_AR as _SEC
+    from app.data.market_universe import MARKET_UNIVERSE as _MU
+    from app.data.universe import main_market as _mm
+    allowed = _mm(_MU)
+    return SectorTable(
+        {"sector": _SEC.get(k), "pe": (v or {}).get("pe_ratio"),
+         "pb": (v or {}).get("price_to_book")}
+        for k, v in (store or {}).items() if k in allowed)
+
+
+def value_for(symbol: str, price, *, store: dict, fund: dict | None = None,
+              table: SectorTable | None = None) -> dict:
+    """السعرُ العادل لشركةٍ واحدة — مدخلاتٌ واحدةٌ لكلّ مستدعٍ.
+
+    ‏`fund` كاشُ المزوّد إن وُجد؛ ويُقدَّم على المخزن لأنه الأحدث — وهو
+    ما تقرؤه صفحةُ السهم. والمضاعفُ المقروءُ هنا هو نفسُه المنزوعُ من
+    وسيط القطاع، فلا تُقارَن الشركةُ بنفسها.
+    """
+    from app.data.company_sectors import SYMBOL_TO_SECTOR_AR as _SEC
+    base = str(symbol).replace(".SR", "")
+    row = (store or {}).get(base) or {}
+    f = fund or {}
+
+    def pick(key):
+        v = f.get(key)
+        return v if v is not None else row.get(key)
+
+    return relative_value(
+        sector=_SEC.get(base), price=price,
+        pe=pick("pe_ratio"), pb=pick("price_to_book"),
+        book_value=pick("book_value"),
+        table=table if table is not None else market_table(store))
+
+
+def fields_for(symbol: str, price, *, store: dict, fund: dict | None = None,
+               table: SectorTable | None = None) -> dict:
+    """حقولُ العرض جاهزةً — تسميةٌ واحدةٌ للحقول في كلّ شاشة."""
+    rv = value_for(symbol, price, store=store, fund=fund, table=table)
+    if rv["value"] is None:
+        return {"rel_value": None, "rel_low": None, "rel_high": None,
+                "rel_conf": None, "rel_basis": None, "rel_upside_pct": None,
+                "rel_confidence_why": [], "rel_paths": 0,
+                "rel_why": rv["why"]}
+    up = (round((rv["value"] - price) / price * 100, 1)
+          if isinstance(price, (int, float)) and price > 0 else None)
+    return {"rel_value": round(rv["value"], 2),
+            "rel_low": round(rv["low"], 2), "rel_high": round(rv["high"], 2),
+            "rel_conf": rv["confidence"], "rel_basis": rv["basis"],
+            "rel_confidence_why": rv.get("confidence_why") or [],
+            "rel_paths": len(rv.get("paths") or {}),
+            "rel_upside_pct": up, "rel_why": None}

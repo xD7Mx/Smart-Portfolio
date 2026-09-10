@@ -289,6 +289,44 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
                 info = {**info, "_regulatory_ratios": _rr}
         except Exception:                                         # noqa: BLE001
             pass
+    # ══ ما تعرضه الشاشةُ يخرج من المُنتِج الواحد ══ (D240)
+    # قِيس على الخادم: عائدُ التوزيعات غائبٌ في الصفحة وموجودٌ في الفرز
+    # (‏1304)، ومضاعفُ الدفترية كذلك (‏1213). والسببُ أن هذه الصفحةَ تقرأ
+    # حقلَ المزوّد وحدَه، والفرزُ يقرأ سلسلةَ المصادر المرتَّبة. فالأفقرُ
+    # هو الصفحةُ لا الفرز — فتُرفَع إلى السلسلة نفسِها:
+    #   · العائد: `dividend_yield.resolve` (‏D223) — مُنتِجٌ واحدٌ للعائد
+    #   · المكرّرُ والمضاعف: حقلُ المزوّد أوّلاً، وإلا السعرُ ÷ مقياسِ
+    #     الشركة (ربحيةُ السهم · الدفترية)، وما خرج عن مدى المعقول لا
+    #     يُنشَر — فلا رقمٌ لا يُصدَّق ولا فراغٌ يمكن ملؤه.
+    try:
+        from app.services.dividend_yield import resolve as _dy_res
+        from app.services.content_engine import fund_store_load as _fsl
+        from app.services.relative_value import PB_RANGE as _PBR
+        from app.services.relative_value import PE_RANGE as _PER
+        from app.services.relative_value import _ok as _rng
+        # السعرُ محسوبٌ محلّياً: `_px_now` يُعرَّف بعد هذا الموضع بمئة
+        # سطر، والإشارةُ إليه هنا خطأٌ وقعتُ فيه قبلاً في هذا الملفّ نفسِه.
+        _px2 = (price or {}).get("price") if isinstance(price, dict) else price
+        _base2 = str(symbol).replace(".SR", "")
+        _store2 = _fsl() or {}
+        _row2 = _store2.get(_base2) or {}
+        _dy2, _dys = _dy_res(_base2, _px2, info, _row2)
+        _add: dict = {}
+        if info.get("dividend_yield") is None and _dy2 is not None:
+            _add["dividend_yield"] = _dy2
+            _add["dividend_yield_source"] = _dys
+        if isinstance(_px2, (int, float)) and _px2 > 0:
+            _eps2 = info.get("eps") if info.get("eps") is not None else _row2.get("eps")
+            _bv2 = (info.get("book_value") if info.get("book_value") is not None
+                    else _row2.get("book_value"))
+            if info.get("pe_ratio") is None and isinstance(_eps2, (int, float)) and _eps2 > 0:
+                _add["pe_ratio"] = _rng(round(_px2 / _eps2, 6), *_PER)
+            if info.get("price_to_book") is None and isinstance(_bv2, (int, float)) and _bv2 > 0:
+                _add["price_to_book"] = _rng(round(_px2 / _bv2, 6), *_PBR)
+        info = {**info, **{k: v for k, v in _add.items() if v is not None}}
+    except Exception as _e:                                       # noqa: BLE001
+        logger.warning(f"حقولُ العرض {symbol}: {type(_e).__name__}: {_e}")
+
     _fv = _fvmod.compute(info, (price or {}).get("price"),
                          (valuation or {}).get("sector_avg_pe"),
                          (valuation or {}).get("sector_avg_pb"),
@@ -342,39 +380,21 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
     #
     # وتُحسب من المخزن القائم بلا نداءٍ جديد، وسقوطُها لا يُسقط التحليل.
     _rel_fields: dict = {}
+    _fund_cache = cache.get(f"fund:yahoo:{symbol}") or {}
     try:
-        from app.services.relative_value import SectorTable, relative_value
+        # ══ مُنتِجٌ واحدٌ بمائدةٍ واحدة ══ (D240)
+        # كان لكلٍّ من هذه الصفحة والفرز بناؤه الخاصّ للمائدة ومدخلاتِه،
+        # فخرج رقمان لمعنًى واحد: ‎28 خلافاً في أربعين شركة (قِيس على
+        # الخادم). فصار الاثنان ينزلان إلى `fields_for` — مائدةٌ من السوق
+        # الرئيسيّ، ومضاعفٌ من الكاش أوّلاً ثمّ المخزن، وهو نفسُه المنزوعُ
+        # من وسيط القطاع.
+        from app.services.relative_value import fields_for as _rel_fields_for
         from app.services.content_engine import fund_store_load
-        from app.data.company_sectors import SYMBOL_TO_SECTOR_AR as _SEC
-        from app.data.market_universe import MARKET_UNIVERSE as _MU
-        from app.data.universe import main_market as _mm
-        _store = fund_store_load()
-        _base = str(symbol).replace(".SR", "")
-        _tbl = SectorTable(
-            {"sector": _SEC.get(k), "pe": (v or {}).get("pe_ratio"),
-             "pb": (v or {}).get("price_to_book")}
-            for k, v in _store.items() if k in _mm(_MU))
-        _row = _store.get(_base) or {}
-        _rv = relative_value(sector=_SEC.get(_base), price=_px_now,
-                             pe=_row.get("pe_ratio"), pb=_row.get("price_to_book"),
-                             book_value=_row.get("book_value"), table=_tbl)
-        if _rv["value"] is not None:
-            _rel_fields = {
-                "rel_value": round(_rv["value"], 2),
-                "rel_low": round(_rv["low"], 2),
-                "rel_high": round(_rv["high"], 2),
-                "rel_conf": _rv["confidence"],
-                "rel_basis": _rv["basis"],
-                # قيودُ الثقة تُعرض مع الدرجة — درجةٌ بلا سببٍ تُقرأ يقيناً.
-                "rel_confidence_why": _rv.get("confidence_why") or [],
-                "rel_paths": len(_rv.get("paths") or {}),
-                "rel_upside_pct": (round((_rv["value"] - _px_now) / _px_now * 100, 1)
-                                   if isinstance(_px_now, (int, float)) and _px_now else None),
-            }
-        else:
-            _rel_fields = {"rel_why": _rv["why"]}
+        _rel_fields = _rel_fields_for(symbol, _px_now,
+                                      store=fund_store_load(),
+                                      fund=_fund_cache)
     except Exception as _e:                                   # noqa: BLE001
-        logger.warning(f"القيمة النسبية {symbol}: {type(_e).__name__}: {_e}")
+        logger.warning(f"السعر العادل {symbol}: {type(_e).__name__}: {_e}")
 
     from app.services.four_scores import technical_to_timing_snapshot, valuation_to_snapshot, resolve_sector
     # Canonical Arabic sector drives archetype exemptions; Yahoo's English

@@ -589,16 +589,18 @@ async def refresh_derived(rows: list) -> list:
     # العطبَ نفسَه من وجهٍ أشدّ: كلُّ صفٍّ بُني قبل وجود المحرّك يبقى بلا
     # قيمةٍ إلى الأبد، فيرى المالكُ «—» على شركةٍ تقييمُها في يدنا. تُعاد
     # هنا عند التقديم — وحيث لا هدفَ محلّلين فقط، فلا تزحف على رأيِ أحد.
+    # ══ المائدةُ من المُنتِج الواحد ══ (D240)
+    # كانت تُبنى هنا من المخزن **كلِّه**، وفي صفحة السهم من المخزن مصفَّى
+    # على السوق الرئيسيّ — فاختلف وسيطُ القطاع بين الشاشتين: ‎28 خلافاً
+    # في أربعين شركة (قِيس على الخادم). فصار البناءُ في موضعٍ واحد.
     _tbl = None
+    _fields_for = None
     try:
-        from app.services.relative_value import SectorTable as _ST
-        from app.services.relative_value import relative_value as _rel
-        from app.data.company_sectors import SYMBOL_TO_SECTOR_AR as _SEC_AR
-        _tbl = _ST({"sector": _SEC_AR.get(s), "pe": (v or {}).get("pe_ratio"),
-                    "pb": (v or {}).get("price_to_book")}
-                   for s, v in store.items())
+        from app.services.relative_value import fields_for as _fields_for
+        from app.services.relative_value import market_table as _mkt
+        _tbl = _mkt(store)
     except Exception as e:                                        # noqa: BLE001
-        logger.warning(f"إنعاشُ القيمة النسبية معطّل: {type(e).__name__}: {e}")
+        logger.warning(f"إنعاشُ السعر العادل معطّل: {type(e).__name__}: {e}")
 
     for r in rows:
         sym = str(r.get("symbol") or "")
@@ -668,11 +670,19 @@ async def refresh_derived(rows: list) -> list:
 
             _px = r.get("price")
             _eps, _bv = _pick("eps"), _pick("book_value")
+            # وما خرج عن مدى المعقول لا يُنشَر — الحدُّ نفسُه الذي يستعمله
+            # المحرّك، فلا يُعرض مضاعفٌ ‎63 في جدولٍ ويُخفى في صفحة (‏1213).
+            from app.services.relative_value import PB_RANGE as _PBR
+            from app.services.relative_value import PE_RANGE as _PER
+            from app.services.relative_value import _ok as _rng
             if isinstance(_px, (int, float)) and _px > 0:
                 if isinstance(_eps, (int, float)) and _eps > 0:
-                    r["pe_ratio"] = round(_px / _eps, 6)
+                    _v3 = _rng(round(_px / _eps, 6), *_PER)
+                    if _v3 is not None:
+                        r["pe_ratio"] = _v3
                 if isinstance(_bv, (int, float)) and _bv > 0:
-                    r["price_to_book"] = round(_px / _bv, 6)
+                    _v4 = _rng(round(_px / _bv, 6), *_PBR)
+                    r["price_to_book"] = _v4
             for _k, _src in (("fair_value", "target_mean_price"),
                              ("high_52w", "week52_high"),
                              ("low_52w", "week52_low")):
@@ -702,27 +712,11 @@ async def refresh_derived(rows: list) -> list:
         # كان يُحسب حيث لا هدفَ محلّلين وحدَه، وصفحةُ السهم تحسبه دائماً
         # (‏D232). فخلا الصفُّ منه في ‎28 شركةً من ‎40 والصفحةُ تعرضه —
         # وشرطُ العرض (الهدفُ أوّلاً) باقٍ في الواجهة لا في الحساب.
-        if _tbl is not None:
+        if _tbl is not None and _fields_for is not None:
             try:
-                _row = store.get(sym) or {}
-                _fund = cache.get(f"fund:yahoo:{sym}.SR") or {}
-
-                def _v(key: str):
-                    x = _fund.get(key)
-                    return x if x is not None else _row.get(key)
-
-                _rv = _rel(sector=r.get("sector"), price=r.get("price"),
-                           pe=_v("pe_ratio"), pb=_v("price_to_book"),
-                           book_value=_v("book_value"), table=_tbl)
-                if _rv["value"] is not None:
-                    r["rel_value"] = round(_rv["value"], 2)
-                    r["rel_low"] = round(_rv["low"], 2)
-                    r["rel_high"] = round(_rv["high"], 2)
-                    r["rel_conf"] = _rv["confidence"]
-                    r["rel_basis"] = _rv["basis"]
-                    r["rel_why"] = None
-                else:
-                    r["rel_why"] = _rv["why"]
+                r.update(_fields_for(sym, r.get("price"), store=store,
+                                     fund=cache.get(f"fund:yahoo:{sym}.SR") or {},
+                                     table=_tbl))
             except Exception:                                     # noqa: BLE001
                 pass
     return rows
