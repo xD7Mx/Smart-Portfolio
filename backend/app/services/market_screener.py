@@ -604,6 +604,43 @@ async def refresh_derived(rows: list) -> list:
         sym = str(r.get("symbol") or "")
         if not sym:
             continue
+        # ══ سعرُ الصفّ هو سعرُ صفحة السهم ══ (بأمر المالك · D236)
+        # قال: «بياناتها في كوكبٍ آخر لا تطابق صفحة السهم، سواءَ آخر سعرٍ
+        # وغير ذلك». والسببُ مقيس: سعرُ الصفّ **آخرُ إغلاقٍ في تاريخٍ**
+        # جُلب وقت المسح (‏`closes[-1]`)، وصفحةُ السهم تقرأ السعرَ اللحظيّ.
+        # فيختلفان طولَ اليوم كلَّه — وليس هذا نقصَ بيانٍ بل زمنَين.
+        #
+        # والعلاجُ بلا نداءٍ واحد: كاشُ الأسعار (‏15 دقيقة) هو نفسُه الذي
+        # تملؤه صفحةُ السهم، فيُقرأ منه. وكلُّ ما اشتُقّ من السعر يُعاد
+        # حسابُه معه — وإلا صار الصفُّ يخالف **نفسَه**: سعرٌ جديدٌ وفجوةٌ
+        # محسوبةٌ على قديم.
+        try:
+            pd = cache.get(f"price:yahoo:{sym}.SR")
+            px_new = getattr(pd, "price", None) if pd is not None else None
+            if isinstance(px_new, (int, float)) and px_new > 0:
+                r["price"] = px_new
+                _chg = getattr(pd, "change_pct", None)
+                if isinstance(_chg, (int, float)):
+                    r["change_pct"] = round(_chg, 2)
+                for _k, _sma in (("dist_sma50", r.get("sma50")),
+                                 ("dist_sma200", r.get("sma200"))):
+                    if isinstance(_sma, (int, float)):
+                        r[_k] = _pct(px_new, _sma)
+                if isinstance(r.get("sma50"), (int, float)):
+                    r["above_sma50"] = px_new >= r["sma50"]
+                if isinstance(r.get("sma200"), (int, float)):
+                    r["above_sma200"] = px_new >= r["sma200"]
+                # قمّةُ العام وقاعُه: سعرُ اليوم داخلُ العام بالضرورة، فإن
+                # تجاوز المحفوظَ فالحدُّ هو السعر — لا رقمٌ أقلُّ من الواقع.
+                if isinstance(r.get("high_52w"), (int, float)):
+                    r["high_52w"] = round(max(r["high_52w"], px_new), 3)
+                if isinstance(r.get("low_52w"), (int, float)):
+                    r["low_52w"] = round(min(r["low_52w"], px_new), 3)
+                _fv = r.get("fair_value")
+                if isinstance(_fv, (int, float)) and _fv > 0:
+                    r["upside_pct"] = round((_fv - px_new) / px_new * 100, 1)
+        except Exception:                                         # noqa: BLE001
+            pass
         try:
             fund = cache.get(f"fund:yahoo:{sym}.SR") or {}
             dy, src = _dy_resolve(sym, r.get("price"), fund, store.get(sym) or {})

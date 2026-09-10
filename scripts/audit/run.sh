@@ -222,6 +222,17 @@ python3 scripts/audit/relval_feed.py || fail=1
 echo
 node scripts/audit/one_relval_name.mjs || fail=1
 
+# D236: صفُّ الفرز لا يعيش في كوكبٍ آخر — سعرُه سعرُ صفحة السهم، وكلُّ ما
+# اشتُقّ منه يُعاد حسابُه. وعمودٌ عمودٌ على بياناتٍ حقيقيةٍ على الخادم:
+#   docker exec sp_backend python /app/scripts/audit/screener_columns.py
+echo
+python3 scripts/audit/screener_price_fresh.py || fail=1
+
+# D237: من حمل لقبَ «السعر العادل» حكَم به القرار — وإلا عادت صورةُ D174:
+# رقمٌ معروضٌ وقرارٌ يناقضه لأنه يحكم برقمٍ آخر.
+echo
+python3 scripts/audit/decision_fv_gate.py || fail=1
+
 # D214: عند تعارض مصدرَي الشرعية يُؤخذ الأشدّ ويُعلَن التعارض. رأى المالكُ
 # «المملكة» مختلطةً وهي غيرُ متوافقةٍ عند أرقام — والأولويةُ صُمّمت للتغطية
 # فاستُعملت للترجيح، فخرج حكمٌ أخفُّ من أحد مصدرَيه في أخطرِ ما يُعرض.

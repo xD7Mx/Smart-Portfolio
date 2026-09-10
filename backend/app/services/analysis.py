@@ -367,6 +367,7 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
                 "rel_basis": _rv["basis"],
                 # قيودُ الثقة تُعرض مع الدرجة — درجةٌ بلا سببٍ تُقرأ يقيناً.
                 "rel_confidence_why": _rv.get("confidence_why") or [],
+                "rel_paths": len(_rv.get("paths") or {}),
                 "rel_upside_pct": (round((_rv["value"] - _px_now) / _px_now * 100, 1)
                                    if isinstance(_px_now, (int, float)) and _px_now else None),
             }
@@ -411,12 +412,25 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         _cov = (sum(_cs) / len(_cs)) if _cs else None
     except Exception:                                             # noqa: BLE001
         _cov = None
+    # ══ من حمل لقبَ «السعر العادل» حكَم به القرار ══ (D237 · بأمر المالك)
+    # صار التقييمُ النسبيُّ يُعرض باسم «السعر العادل». ولو بقيت البوّابةُ
+    # تحكم بهدف المحلّلين وحدَه، لعادت أقبحُ صورةٍ من D174: شاشةٌ تقول
+    # «السعر العادل ‎28.40» وسعرٌ ‎34 وقرارٌ يقول «شراء» — لأن الرقمَ
+    # المعروضَ ليس هو المحكومَ به. فالبوّابةُ تأخذ المعروضَ نفسَه.
+    #
+    # وثقةٌ منخفضةٌ لا يُبنى عليها منعٌ: هي تُعرض بقيدها المعلَن ولا تُسقط
+    # حكماً — كما لا يُطبَّق السقفُ حين تمتنع القيمةُ أصلاً.
+    _gate_fv = _shown_fv
+    if _gate_fv is None and _rel_fields.get("rel_conf") in ("مرتفعة", "متوسطة"):
+        _gate_fv = _rel_fields.get("rel_value")
     # البوّابةُ تحكم بالرقم المعروض نفسِه — لا برقمٍ ثانٍ لا تراه الشاشة.
     gov = apply_fair_value_ceiling(fin["decision"],
                                    (price or {}).get("price"),
-                                   _shown_fv,
+                                   _gate_fv,
                                    _fv.get("entry_price"),
-                                   single_path=bool(_fv.get("single_path")),
+                                   single_path=bool(_fv.get("single_path"))
+                                   or (_shown_fv is None
+                                       and _rel_fields.get("rel_paths") == 1),
                                    coverage=_cov,
                                    nomu=bool(_fv.get("nomu")),
                                    red_lines=(fin.get("red_lines") or []),

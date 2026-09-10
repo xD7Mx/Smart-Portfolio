@@ -245,7 +245,7 @@ function IpoValueCalc() {
   const conf = res?.confidence;
   const confColor = conf === "مرتفعة" ? "var(--pos-ink)" : conf === "متوسطة" ? "var(--warn-ink)" : "var(--neg-ink)";
   return (
-    <Card icon={Building2} title="تقييم اكتتاب — التقييم النسبي" tint="var(--chart-2)">
+    <Card icon={Building2} title="تقييم اكتتاب — السعر العادل" tint="var(--chart-2)">
       <div className="grid grid-cols-2 gap-3">
         <Field label="قطاع الشركة">
           <select className="input" value={sector} onChange={e => { setSector(e.target.value); setRes(null); }}>
@@ -299,7 +299,7 @@ function IpoValueCalc() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
             <Result label="ربحية السهم" value={money2(res.eps)} />
             <Result label="القيمة الدفترية للسهم" value={money2(res.bvps)} />
-            <Result label="التقييم النسبي للسهم" value={money2(res.value)} color="var(--chart-2)" big />
+            <Result label="السعر العادل للسهم" value={money2(res.value)} color="var(--chart-2)" big />
             <Result label="النطاق" value={`${money2(res.low)} – ${money2(res.high)}`} />
           </div>
 
@@ -337,7 +337,7 @@ function IpoValueCalc() {
           {res.offer_price != null && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
               <Result label="سعر الطرح" value={money2(res.offer_price)} />
-              <Result label="الفرق عن التقييم النسبي"
+              <Result label="الفرق عن السعر العادل"
                 value={`${res.offer_gap_pct > 0 ? "+" : ""}${money2(res.offer_gap_pct)}%`}
                 color={res.offer_gap_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)"} />
               <Result label="موضعه من النطاق"

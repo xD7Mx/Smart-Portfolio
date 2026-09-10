@@ -120,7 +120,7 @@ def value_from_metrics(*, sector: str | None, eps: float | None,
     """
     out: dict = {"value": None, "low": None, "high": None,
                  "confidence": None, "paths": {}, "why": None,
-                 "basis": "التقييم النسبي"}
+                 "basis": "السعر العادل"}
     if not sector:
         out["why"] = "القطاع غير مصنّف"
         return out

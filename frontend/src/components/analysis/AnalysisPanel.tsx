@@ -139,7 +139,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                 القيمةُ النسبيةُ إلى القطاع باسمها — لا يُقرأ مضاعفُ قطاعٍ
                 رأيَ محلّل (‏D213). */}
             <div className="text-[10px] text-[var(--ink-muted)] mb-1">
-              {data.fair_value == null && data.rel_value != null ? "التقييم النسبي" : "هدف المحللين"}
+              {data.fair_value == null && data.rel_value != null ? "السعر العادل" : "هدف المحللين"}
             </div>
             {data.fair_value != null ? (
               <>
@@ -166,7 +166,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                    مشتقّةٌ لا منقولة، ومعها نطاقُها ودرجةُ ثقتها. */
                 <>
                   <div className="flex items-baseline gap-1.5"
-                    title={`التقييم النسبي ${fmt(data.rel_low)} – ${fmt(data.rel_high)} · ثقة ${data.rel_conf} — لا هدفَ محلّلين لهذه الورقة`}>
+                    title={`السعر العادل ${fmt(data.rel_low)} – ${fmt(data.rel_high)} · ثقة ${data.rel_conf} — لا هدفَ محلّلين لهذه الورقة`}>
                     <span className="text-xl tabular-nums leading-none text-[var(--ink-muted)]" style={{ fontWeight: 800 }}>
                       {fmt(data.rel_value)}
                     </span>
@@ -384,7 +384,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                 + ((data.rel_confidence_why || []).length
                    ? ` · ${(data.rel_confidence_why || []).join(" · ")}` : "")
               : "تُشتقّ من وسيط مضاعفات القطاع — وتمتنع حيث لا نظائر كافية"}>
-              <div className="kpi-lbl">التقييم النسبي</div>
+              <div className="kpi-lbl">السعر العادل</div>
               {data.rel_value != null ? (
                 <>
                   {/* سطرانِ لا سطرٌ مزدحم: الرقمُ وفرقُه أوّلاً — وهو ما
