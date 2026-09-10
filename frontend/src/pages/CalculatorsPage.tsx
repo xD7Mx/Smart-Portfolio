@@ -2,7 +2,9 @@ import React, { useState } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import { Calculator, Layers, Coins, Target, TrendingUp, Plus, X } from "lucide-react";
+import { Calculator, Layers, Coins, Target, TrendingUp, Plus, X, Building2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { marketApi } from "../services/api";
 
 const money = (n: number) => (isFinite(n) ? Math.round(n) : 0).toLocaleString("en-US");
 const money2 = (n: number) => (isFinite(n) ? n : 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -203,6 +205,152 @@ function CompoundCalc() {
   );
 }
 
+/* 5) تقييمُ اكتتاب — القيمةُ النسبيةُ إلى القطاع بمدخلاتِ نشرة الإصدار.
+      بأمر المالك (D231). الشركةُ قبل الطرح بلا سعرٍ تاريخيٍّ ولا هدفِ
+      محلّلين، فالنظائرُ أنسبُ ما نملك: مقياساها من النشرة × وسيطِ قطاعها.
+      والحسابُ على الخادم بالمحرّك نفسِه الذي يقيس السوق — لا نسخةَ ثانية
+      في المتصفّح تنحرف عنه. */
+function IpoValueCalc() {
+  const [sector, setSector] = useState("");
+  const [profit, setProfit] = useState("");
+  const [equity, setEquity] = useState("");
+  const [shares, setShares] = useState("");
+  const [offer, setOffer] = useState("");
+  const [res, setRes] = useState<any>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const { data: sectors } = useQuery({
+    queryKey: ["ipo-sectors"],
+    queryFn: () => marketApi.ipoSectors().then(r => r.data.data as any[]),
+  });
+  const sec = (sectors || []).find((s: any) => s.sector === sector);
+  const nShares = Number(shares) || 0;
+  const ready = !!sector && nShares > 0 && shares !== "" && equity !== "" && profit !== "";
+
+  const run = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const r = await marketApi.ipoValue({
+        sector, net_profit: Number(profit) || 0, equity: Number(equity) || 0,
+        shares: nShares, ...(Number(offer) > 0 ? { offer_price: Number(offer) } : {}),
+      });
+      setRes(r.data.data);
+    } catch (e: any) {
+      setErr(e?.response?.data?.detail || "تعذّر الحساب");
+      setRes(null);
+    } finally { setBusy(false); }
+  };
+
+  const conf = res?.confidence;
+  const confColor = conf === "مرتفعة" ? "var(--pos-ink)" : conf === "متوسطة" ? "var(--warn-ink)" : "var(--neg-ink)";
+  return (
+    <Card icon={Building2} title="تقييم اكتتاب — القيمة النسبية إلى القطاع" tint="var(--chart-2)">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="قطاع الشركة">
+          <select className="input" value={sector} onChange={e => { setSector(e.target.value); setRes(null); }}>
+            <option value="">اختر القطاع</option>
+            {(sectors || []).map((s: any) => (
+              <option key={s.sector} value={s.sector} disabled={!!s.why}>
+                {s.sector}{s.why ? ` — ${s.why}` : ""}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="عدد الأسهم بعد الطرح">
+          <input className="input" type="text" inputMode="decimal" lang="en" placeholder="0" value={shares} onChange={e => setShares(e.target.value)} />
+        </Field>
+        <Field label="صافي الربح (آخر ١٢ شهراً)">
+          <input className="input" type="text" inputMode="decimal" lang="en" placeholder="0" value={profit} onChange={e => setProfit(e.target.value)} />
+        </Field>
+        <Field label="حقوق الملكية بعد الطرح">
+          <input className="input" type="text" inputMode="decimal" lang="en" placeholder="0" value={equity} onChange={e => setEquity(e.target.value)} />
+        </Field>
+        <Field label="سعر الطرح (اختياري)">
+          <input className="input" type="text" inputMode="decimal" lang="en" placeholder="0.00" value={offer} onChange={e => setOffer(e.target.value)} />
+        </Field>
+        <div className="flex items-end">
+          <button className="btn-primary w-full" style={{ minHeight: 34 }} disabled={!ready || busy} onClick={run}>
+            {busy ? "يُحسب…" : "احسب التقييم"}
+          </button>
+        </div>
+      </div>
+
+      {/* مضاعفاتُ القطاع المختار — تُرى قبل الحساب، فالمستخدم يعرف بماذا يُقاس. */}
+      {sec && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
+          <Result label="وسيط مكرر الربحية" value={sec.pe_median != null ? money2(sec.pe_median) : "غير متوفّر"} />
+          <Result label="نطاق المكرر (ربعيّ)" value={sec.pe_q1 != null ? `${money2(sec.pe_q1)} – ${money2(sec.pe_q3)}` : "غير متوفّر"} />
+          <Result label="وسيط مضاعف الدفترية" value={sec.pb_median != null ? money2(sec.pb_median) : "غير متوفّر"} />
+          <Result label="عدد النظائر" value={String(Math.max(sec.pe_peers || 0, sec.pb_peers || 0))} />
+        </div>
+      )}
+
+      {err && <p className="text-xs mt-3" style={{ color: "var(--neg-ink)" }}>{err}</p>}
+
+      {res && res.value == null && (
+        <div className="mt-4 p-3 rounded-lg" style={{ background: "var(--field)" }}>
+          <p className="text-xs" style={{ color: "var(--warn-ink)" }}>امتناع: {res.why}</p>
+        </div>
+      )}
+
+      {res && res.value != null && (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
+            <Result label="ربحية السهم" value={money2(res.eps)} />
+            <Result label="القيمة الدفترية للسهم" value={money2(res.bvps)} />
+            <Result label="القيمة النسبية للسهم" value={money2(res.value)} color="var(--chart-2)" big />
+            <Result label="النطاق" value={`${money2(res.low)} – ${money2(res.high)}`} />
+          </div>
+
+          <div className="flex items-center flex-wrap gap-2 mt-3">
+            <span className="text-[11px] text-[var(--ink-muted)]">درجة الثقة</span>
+            <span className="text-xs font-bold" style={{ color: confColor }}>{conf}</span>
+            {(res.confidence_why || []).map((b: string) => (
+              <span key={b} className="tag-b" style={{ fontSize: 10 }}>{b}</span>
+            ))}
+          </div>
+
+          {/* المسارانِ مفصولان: مسارٌ واحدٌ وحدَه لا يبلغ ثقةً مرتفعة، فيُرى
+              أيُّهما حكَم وبكم نظيراً — لا رقمٌ واحدٌ مغلق. */}
+          <div className="overflow-x-auto mt-3">
+            <table className="w-full text-xs min-w-[360px]">
+              <thead><tr style={{ borderBottom: "1px solid var(--hairline)" }}>
+                {["المسار", "القيمة", "النطاق", "النظائر", "التشتّت"].map(h => (
+                  <th key={h} className="th text-start">{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {Object.entries(res.paths || {}).map(([k, v]: any) => (
+                  <tr key={k} style={{ borderBottom: "1px solid var(--hairline)" }}>
+                    <td className="td">{k}</td>
+                    <td className="td tabular-nums">{money2(v.value)}</td>
+                    <td className="td tabular-nums" dir="ltr">{money2(v.low)} – {money2(v.high)}</td>
+                    <td className="td tabular-nums">{v.peers}</td>
+                    <td className="td tabular-nums">{money2(v.spread)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {res.offer_price != null && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
+              <Result label="سعر الطرح" value={money2(res.offer_price)} />
+              <Result label="الفرق عن القيمة النسبية"
+                value={`${res.offer_gap_pct > 0 ? "+" : ""}${money2(res.offer_gap_pct)}%`}
+                color={res.offer_gap_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)"} />
+              <Result label="موضعه من النطاق"
+                value={res.offer_in_range ? "داخل النطاق" : res.offer_price > res.high ? "فوق النطاق" : "تحت النطاق"}
+                color={res.offer_in_range ? "var(--ink)" : res.offer_price > res.high ? "var(--neg-ink)" : "var(--pos-ink)"} />
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
 export default function CalculatorsPage() {
   return (
     <div className="space-y-5 fade-in">
@@ -214,6 +362,9 @@ export default function CalculatorsPage() {
         <InvestmentCalc />
         <GoalCalc />
         <CompoundCalc />
+        {/* أداةُ تقييمٍ لا حاسبةَ أرقامٍ شخصية، فتأخذ الصفَّ كاملاً: جدولُ
+            المسارين ومضاعفاتُ القطاع لا تُقرأ في نصف عرض. */}
+        <div className="lg:col-span-2"><IpoValueCalc /></div>
       </div>
     </div>
   );

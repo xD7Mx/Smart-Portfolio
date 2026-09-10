@@ -1508,3 +1508,85 @@ async def source_capability(symbol: str):
     out["الخلاصة"] = ("وصلت القوائم. راجع «البنود الرقابية»: ما كان «متاح» "
                       "يُبنى عليه، وما سواه يبقى خارج نطاق القياس ويُعلَن.")
     return success_response(data=out)
+
+
+@router.get("/ipo-sectors")
+async def get_ipo_sectors():
+    """قطاعاتُ السوق ومضاعفاتُها الوسيطة — مادّةُ حاسبة الاكتتاب (D231).
+
+    من المخزن الدائم بلا نداءِ شبكةٍ واحد. وقطاعٌ نظائرُه دون الحدّ يُعاد
+    مع سببِ امتناعه لا محجوباً: المستخدمُ يرى لماذا لا رقمَ لقطاعه.
+    """
+    from app.services.relative_value import MIN_PEERS, SectorTable
+    from app.services.content_engine import fund_store_load
+    from app.data.company_sectors import SYMBOL_TO_SECTOR_AR
+
+    store = fund_store_load() or {}
+    table = SectorTable(
+        {"sector": SYMBOL_TO_SECTOR_AR.get(s), "pe": (v or {}).get("pe_ratio"),
+         "pb": (v or {}).get("price_to_book")}
+        for s, v in store.items())
+    out = []
+    for sec in sorted(set(table.pe) | set(table.pb)):
+        t = table.for_sector(sec)
+        pe, pb = t["pe"], t["pb"]
+        out.append({
+            "sector": sec,
+            "pe_median": round(pe["median"], 2) if pe else None,
+            "pe_q1": round(pe["q1"], 2) if pe else None,
+            "pe_q3": round(pe["q3"], 2) if pe else None,
+            "pe_peers": pe["n"] if pe else len(table.pe.get(sec, [])),
+            "pb_median": round(pb["median"], 2) if pb else None,
+            "pb_q1": round(pb["q1"], 2) if pb else None,
+            "pb_q3": round(pb["q3"], 2) if pb else None,
+            "pb_peers": pb["n"] if pb else len(table.pb.get(sec, [])),
+            "why": None if (pe or pb) else f"نظائرُ القطاع دون {MIN_PEERS}",
+        })
+    return success_response(data=out)
+
+
+@router.get("/ipo-value")
+async def get_ipo_value(sector: str, net_profit: float, equity: float,
+                        shares: float, offer_price: float | None = None):
+    """تقييمٌ نسبيٌّ لشركةٍ تُطرح للاكتتاب — بالمحرّك نفسِه لا بمحرّكٍ ثانٍ.
+
+    المدخلاتُ من نشرة الإصدار: صافي الربح · حقوقُ الملكية · عددُ الأسهم
+    **بعد الطرح** — ومنها يُشتقّ مقياسا الشركة (ربحيةُ السهم ودفتريّتُه)،
+    فتنزل إلى `value_from_metrics` كما تنزل الشركةُ المدرَجة.
+
+    والشركةُ غيرُ المدرَجة ليست في عيّنة قطاعها، فلا يُنزَع لها مضاعف.
+    وموضعُ سعر الطرح من النطاق يُعاد رقماً ولا يُترجَم حكمَ شراء.
+    """
+    from app.services.relative_value import SectorTable, value_from_metrics
+    from app.services.content_engine import fund_store_load
+    from app.data.company_sectors import SYMBOL_TO_SECTOR_AR
+
+    if not shares or shares <= 0:
+        raise HTTPException(400, "عددُ الأسهم بعد الطرح مطلوبٌ وموجب")
+    store = fund_store_load() or {}
+    table = SectorTable(
+        {"sector": SYMBOL_TO_SECTOR_AR.get(s), "pe": (v or {}).get("pe_ratio"),
+         "pb": (v or {}).get("price_to_book")}
+        for s, v in store.items())
+    eps = net_profit / shares
+    bvps = equity / shares
+    r = value_from_metrics(sector=sector, eps=eps, bvps=bvps, table=table)
+    px = offer_price if isinstance(offer_price, (int, float)) and offer_price > 0 else None
+    return success_response(data={
+        "sector": sector, "eps": round(eps, 4), "bvps": round(bvps, 4),
+        "value": round(r["value"], 2) if r["value"] is not None else None,
+        "low": round(r["low"], 2) if r["low"] is not None else None,
+        "high": round(r["high"], 2) if r["high"] is not None else None,
+        "confidence": r["confidence"], "confidence_why": r.get("confidence_why") or [],
+        "basis": r["basis"], "why": r["why"],
+        "paths": {k: {"value": round(v["value"], 2), "low": round(v["low"], 2),
+                      "high": round(v["high"], 2), "peers": v["peers"],
+                      "spread": round(v["spread"], 3)}
+                  for k, v in (r.get("paths") or {}).items()},
+        "offer_price": px,
+        # الفرقُ عن الوسيط، وموضعُ السعر من النطاق — رقمان لا حكم.
+        "offer_gap_pct": (round((r["value"] - px) / px * 100, 1)
+                          if px and r["value"] else None),
+        "offer_in_range": (None if not (px and r["low"] is not None)
+                           else r["low"] <= px <= r["high"]),
+    })

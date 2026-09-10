@@ -248,6 +248,10 @@ export const marketApi = {
   dividends:  (symbol: string) => api.get<APIResponse>(`/market/dividends/${symbol}`),
   sectors:  () => api.get<APIResponse>("/market/sectors"),
   screener:   () => api.get<APIResponse>("/market/screener"),
+  // حاسبةُ الاكتتاب — مضاعفاتُ القطاعات، والتقييمُ بالمحرّك نفسِه (D231).
+  ipoSectors: () => api.get<APIResponse>("/market/ipo-sectors"),
+  ipoValue: (p: { sector: string; net_profit: number; equity: number; shares: number; offer_price?: number }) =>
+    api.get<APIResponse>("/market/ipo-value", { params: p }),
   watchlist:  (groupId?: number | string) => api.get<APIResponse>("/market/watchlist", { params: groupId ? { group_id: groupId } : undefined }),
   watchAdd:   (symbol: string, name?: string, groupId?: number | string) => api.post<APIResponse>("/market/watchlist", { symbol, name, group_id: groupId }),
   watchRemove: (symbol: string, groupId?: number | string) => api.delete<APIResponse>(`/market/watchlist/${symbol}`, { params: groupId ? { group_id: groupId } : undefined }),

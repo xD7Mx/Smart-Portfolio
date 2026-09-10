@@ -104,12 +104,19 @@ class SectorTable:
         }
 
 
-def relative_value(*, sector: str | None, price: float | None,
-                   pe: float | None, pb: float | None,
-                   book_value: float | None, table: SectorTable) -> dict:
-    """قيمةٌ نسبيةٌ إلى القطاع لشركةٍ واحدة — أو امتناعٌ مُعلَّل.
+def value_from_metrics(*, sector: str | None, eps: float | None,
+                       bvps: float | None, table: SectorTable,
+                       own_pe: float | None = None,
+                       own_pb: float | None = None) -> dict:
+    """المحرّكُ الأصليّ: مقياسا الشركة (ربحيةُ السهم ودفتريّتُه) × وسيطِ قطاعها.
 
-    تُعاد دائماً بنية واحدة؛ و`value=None` تعني الامتناع، و`why` سببَه.
+    ‏`own_pe`/`own_pb` مضاعفاتُ الشركة نفسِها إن كانت **داخل** العيّنة —
+    تُنزَع منها قبل القياس بها. والشركةُ غيرُ المدرَجة (اكتتابٌ مرتقب) ليست
+    في العيّنة أصلاً، فلا يُنزَع لها شيء.
+
+    وهذا هو موضعُ الحساب الواحد: `relative_value` تشتقّ المقياسَين من السعر
+    والمضاعفات ثم تنزل إلى هنا، وحاسبةُ الاكتتاب تأخذهما من النشرة وتنزل
+    إلى هنا — فلا مسطرتان لقياسٍ واحد (D231).
     """
     out: dict = {"value": None, "low": None, "high": None,
                  "confidence": None, "paths": {}, "why": None,
@@ -117,18 +124,15 @@ def relative_value(*, sector: str | None, price: float | None,
     if not sector:
         out["why"] = "القطاع غير مصنّف"
         return out
-    own_pe = _ok(pe, *PE_RANGE)
-    own_pb = _ok(pb, *PB_RANGE)
-    px = _ok(price, 0.0, 1e9)
-    bvps = _ok(book_value, 0.0, 1e9)
+    eps = _ok(eps, -1e9, 1e9)
+    bvps = _ok(bvps, 0.0, 1e9)
 
     t = table.for_sector(sector, own_pe=own_pe, own_pb=own_pb)
+    out["sector_stats"] = t
     paths: dict[str, dict] = {}
 
-    # ── مسارُ المكرّر ──
-    # ربحيةُ السهم تُشتقّ من السعر والمكرّر — كلاهما عندنا، فلا نداءَ زائد.
-    if t["pe"] and own_pe and px:
-        eps = px / own_pe
+    # ── مسارُ المكرّر ── يسقط مع الخسارة: مكرّرُ ربحٍ سالبٍ لا معنى له.
+    if t["pe"] and eps is not None and eps > 0:
         paths["مكرر الربحية"] = {
             "value": t["pe"]["median"] * eps,
             "low": t["pe"]["q1"] * eps,
@@ -150,6 +154,11 @@ def relative_value(*, sector: str | None, price: float | None,
         out["why"] = ("لا نظائرَ كافيةً في القطاع" if not (t["pe"] or t["pb"])
                       else "لا مقياسَ موجباً للشركة")
         return out
+    return _combine(out, paths)
+
+
+def _combine(out: dict, paths: dict[str, dict]) -> dict:
+    """الجمعُ والنطاقُ ودرجةُ الثقة — موضعٌ واحدٌ لكلّ من يستدعي المحرّك."""
 
     vals = [p["value"] for p in paths.values()]
     out["paths"] = paths
@@ -193,3 +202,20 @@ def relative_value(*, sector: str | None, price: float | None,
         out["confidence"] = "منخفضة"
     # المسارُ الواحد لا يبلغ «مرتفعة» أبداً — لا مُقاطعَ يسنده.
     return out
+
+
+def relative_value(*, sector: str | None, price: float | None,
+                   pe: float | None, pb: float | None,
+                   book_value: float | None, table: SectorTable) -> dict:
+    """قيمةٌ نسبيةٌ إلى القطاع لشركةٍ **مدرَجة** — أو امتناعٌ مُعلَّل.
+
+    تُعاد دائماً بنية واحدة؛ و`value=None` تعني الامتناع، و`why` سببَه.
+    وربحيةُ السهم تُشتقّ من السعر والمكرّر — كلاهما عندنا، فلا نداءَ زائد.
+    """
+    own_pe = _ok(pe, *PE_RANGE)
+    own_pb = _ok(pb, *PB_RANGE)
+    px = _ok(price, 0.0, 1e9)
+    return value_from_metrics(
+        sector=sector,
+        eps=(px / own_pe if own_pe and px else None),
+        bvps=book_value, table=table, own_pe=own_pe, own_pb=own_pb)
