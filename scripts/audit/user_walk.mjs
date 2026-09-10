@@ -65,7 +65,9 @@ const ANALYSIS = {
   day_low: 26.02, day_high: 26.2,
   fair_value: 30.5, fair_value_upside_pct: 17.1,
   fundamentals: { market_cap: 6.3e12, revenue: 1.6e12, net_income: 3.5e11,
-                  eps: 1.44, pe_ratio: 18.1, dividend_yield: 6.0 },
+                  eps: 1.44, pe_ratio: 18.1, dividend_yield: 6.0,
+                  // هدفُ المحلّلين في البطاقة نفسِها — بجانبه توضع الخانة.
+                  target_mean_price: 30.5, book_value: 6.4 },
   technical: { rsi: 49, trend: "محايد", support: 25, resistance: 28 },
   governance: { score: 81 }, ai_score: 81, score: 81,
   decision: DECISION, evaluable: true,
@@ -93,6 +95,12 @@ const FINANCIALS = {
   changes: { revenue: 6.2, net_income: 4.1, eps: 3.9 },
   verdict: "قوائم متينة", verdict_tone: "green", finance_score: 81,
 };
+/* حالةُ الامتناع: قطاعٌ بلا نظائرَ كافية — الخانةُ تبقى وتقول سببَها. */
+const ANALYSIS_BARE = {
+  ...ANALYSIS, rel_value: null, rel_low: null, rel_high: null,
+  rel_conf: null, rel_upside_pct: null, rel_confidence_why: [],
+  rel_why: "لا نظائرَ كافيةً في القطاع",
+};
 const body = (data) => ({ status: 200, contentType: "application/json",
                           body: JSON.stringify({ success: true, data }) });
 
@@ -110,11 +118,13 @@ if (!up) { console.log("… لم يقلع خادمُ التطوير — لا ح�
 const browser = await chromium.launch({ executablePath: CHROME });
 const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
 const errors = [];
+let bare = false;                 // تُضبط قبل كلّ محطّة من مسارها
 page.on("pageerror", e => errors.push(String(e).split("\n")[0].slice(0, 120)));
 await page.route("**/api/v1/**", r => {
   const u = r.request().url();
   if (/\/allocation(\?|$)/.test(u)) return r.fulfill(body(ALLOC));
-  if (/\/market\/company\//.test(u) || /\/ai\/stock-opinion\//.test(u)) return r.fulfill(body(ANALYSIS));
+  if (/\/market\/company\//.test(u) || /\/ai\/stock-opinion\//.test(u))
+    return r.fulfill(body(bare ? ANALYSIS_BARE : ANALYSIS));
   if (/\/market\/financials\//.test(u)) return r.fulfill(body(FINANCIALS));
   if (/\/holdings(\?|$)/.test(u)) return r.fulfill(body(ALLOC.items.map((it, i) => ({
     id: i + 1, company_id: it.company_id, symbol: it.symbol,
@@ -146,11 +156,13 @@ const STOPS = [
   ["جدول التوزيع", "/probe-alloc.html"],
   ["البيانات المالية", "/probe-fin.html"],
   ["مقارنة القطاع", "/probe-panel.html"],
+  ["مقارنة القطاع (بلا نظائر)", "/probe-panel.html?bare=1"],
 ];
 
 const seenDecisions = new Set();
 for (const [name, path] of STOPS) {
   errors.length = 0;
+  bare = /bare=1/.test(path);
   try {
     await page.goto(`http://localhost:${PORT}${path}`, { waitUntil: "load", timeout: 30000 });
   } catch (e) { errors.push("تعذّر الفتح: " + String(e).slice(0, 60)); }
@@ -199,15 +211,6 @@ for (const [name, path] of STOPS) {
      (‏28.4). فتُشترط ثلاثةٌ في متصفّحٍ حقيقيّ: أنها تظهر أصلاً — وهذا هو
      الدوام —، وأنها باسمها لا باسم «القيمة العادلة»، وأن رقمَها هو
      المعروضُ في موضعها لا رقمُ الهدف. */
-  if (name === "البيانات المالية") {
-    say(text.includes("القيمة النسبية إلى القطاع"),
-        "القيمةُ النسبيةُ تظهر مع وجود هدفِ المحلّلين — موضعٌ دائم");
-    say(text.includes("28.4"), "ورقمُها هو المعروضُ في موضعها", "28.4");
-    say(!/قيمة عادلة|القيمة العادلة/.test(text),
-        "ولا تُسمّى «قيمةً عادلة» في هذا الموضع");
-    say(text.includes("ثقة متوسطة") && text.includes("نظائر 6"),
-        "ودرجةُ ثقتها وقيدُها معها — لا رقمَ يُقرأ يقيناً");
-  }
 
   /* ══ هويّةُ الصفّ في جدول التوزيع ══ (بأمر المالك · D232)
      الجدولُ أمرُ تنفيذ، فيُقاس أن الشعارَ والهلالَ وصلا الصفَّ فعلاً —
@@ -237,6 +240,54 @@ for (const [name, path] of STOPS) {
     }
     say(text.includes("القيمة النسبية إلى القطاع"),
         "والقيمةُ النسبيةُ في تبويب مقارنة القطاع أيضاً");
+
+    /* ══ خانةٌ دائمةٌ في بطاقة «البيانات المالية» ══ (بأمر المالك · D234)
+       لا في جدول السنوات: موضعُها البطاقةُ التي فيها المكرّرُ وهدفُ
+       المحلّلين — أي مُدخَلاها والرقمُ الذي تُقرأ بجانبه. ويُقاس أنها
+       **داخل تلك البطاقة** لا في أخرى، وأن رقمَها هو المعروضُ فيها. */
+    const kpi = await page.evaluate(() => {
+      const card = [...document.querySelectorAll(".card")].find(c => {
+        const t = c.querySelector(".card-title");
+        return t && (t.textContent || "").trim() === "البيانات المالية";
+      });
+      if (!card) return null;
+      const cell = [...card.querySelectorAll(".kpi")].find(k =>
+        ((k.querySelector(".kpi-lbl") || {}).textContent || "").trim()
+          === "القيمة النسبية إلى القطاع");
+      if (!cell) return { found: false };
+      const val = (cell.querySelector(".kpi-val") || {}).textContent || "";
+      const peers = [...card.querySelectorAll(".kpi-lbl")]
+        .map(l => (l.textContent || "").trim());
+      return { found: true, val: val.trim(),
+               withPE: peers.some(l => l.includes("مكرر الربحية")),
+               withTarget: peers.some(l => l.includes("تقدير المحللين")) };
+    });
+    say(!!kpi && kpi.found === true,
+        "خانةُ القيمة النسبية داخل بطاقة «البيانات المالية»");
+    if (kpi && kpi.found) {
+      say(kpi.val.includes("28.4"), "ورقمُها هو المعروضُ فيها", kpi.val);
+      say(kpi.withPE && kpi.withTarget,
+          "وبجانبِ المكرّر وهدفِ المحلّلين — لا في بطاقةٍ أخرى");
+    }
+  }
+
+  /* والدوامُ يُقاس في حالة الامتناع أيضاً: خانةٌ تُطوى عند الغياب تُخفي
+     الميزةَ ويظنّها المستخدمُ خاصّةً ببعض الشركات. */
+  if (name === "مقارنة القطاع (بلا نظائر)") {
+    const bareCell = await page.evaluate(() => {
+      const card = [...document.querySelectorAll(".card")].find(c => {
+        const t = c.querySelector(".card-title");
+        return t && (t.textContent || "").trim() === "البيانات المالية";
+      });
+      if (!card) return null;
+      const cell = [...card.querySelectorAll(".kpi")].find(k =>
+        ((k.querySelector(".kpi-lbl") || {}).textContent || "").trim()
+          === "القيمة النسبية إلى القطاع");
+      return cell ? ((cell.querySelector(".kpi-val") || {}).textContent || "").trim() : null;
+    });
+    say(!!bareCell, "الخانةُ باقيةٌ حيث تمتنع القيمة — لا تُطوى");
+    say(!!bareCell && bareCell.includes("لا نظائر"),
+        "وتقول سببَ امتناعها لا رقماً ضعيفاً", String(bareCell));
   }
 
   if (name === "جدول التوزيع") {

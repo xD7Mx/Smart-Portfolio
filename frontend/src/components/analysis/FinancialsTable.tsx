@@ -285,7 +285,6 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
           </span>
         </div>
       </div>
-      <RelativeValueStrip symbol={symbol} />
     </div>
   );
 }

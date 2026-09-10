@@ -364,14 +364,44 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
         </div>
       )}
 
-      {/* Fundamentals grid */}
-      {kpis.length > 0 && (
+      {/* Fundamentals grid — تُرسَم دائماً لأن خانةَ القيمة النسبية فيها
+          دائمةٌ بأمر المالك: بطاقةٌ تُطوى تُخفي الخانةَ معها. */}
+      {(
         <div className="card">
           <p className="card-title mb-2">البيانات المالية</p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             {kpis.map(([lbl, v]) => (
               <div key={lbl} className="kpi"><div className="kpi-lbl">{lbl}</div><div className="kpi-val">{v}</div></div>
             ))}
+            {/* ══ القيمةُ النسبيةُ خانةٌ دائمةٌ هنا ══ (بأمر المالك · D234)
+                موضعُها هذه البطاقةُ بعينها: فيها المكرّرُ ومضاعفُ الدفترية
+                وهدفُ المحلّلين — أي مُدخَلاها والرقمُ الذي تُقرأ بجانبه.
+                ودائمةٌ تعني أن الخانةَ لا تُطوى: حيث تمتنع تقول سببَ
+                امتناعها، فلا يظنّها المستخدمُ ميزةً تظهر لبعض الشركات.
+                وعلامةُ «≈» ولونٌ خافتٌ يقولان إنها مشتقّةٌ لا منقولة. */}
+            <div className="kpi" title={data.rel_value != null
+              ? `نطاق ${data.rel_low}–${data.rel_high} · ثقة ${data.rel_conf}`
+                + ((data.rel_confidence_why || []).length
+                   ? ` · ${(data.rel_confidence_why || []).join(" · ")}` : "")
+              : "تُشتقّ من وسيط مضاعفات القطاع — وتمتنع حيث لا نظائر كافية"}>
+              <div className="kpi-lbl">القيمة النسبية إلى القطاع</div>
+              {data.rel_value != null ? (
+                <div className="kpi-val" dir="ltr">
+                  ≈{fmt(data.rel_value)}
+                  {data.rel_upside_pct != null && (
+                    <span className="text-xs font-normal ms-1"
+                      style={{ color: data.rel_upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
+                      {data.rel_upside_pct >= 0 ? "+" : ""}{data.rel_upside_pct}%
+                    </span>
+                  )}
+                  <span className="text-[var(--ink-muted)] text-xs font-normal"> / نطاق {fmt(data.rel_low, 1)}–{fmt(data.rel_high, 1)}</span>
+                </div>
+              ) : (
+                <div className="kpi-val text-[var(--ink-muted)]" style={{ fontSize: 12 }}>
+                  {data.rel_why || "غير متوفّرة"}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
