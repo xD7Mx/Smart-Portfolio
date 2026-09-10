@@ -34,9 +34,25 @@ function PortfolioInsight() {
                   <tr key={c.symbol} className="border-b border-[var(--hairline)]/40 hover:bg-[var(--field)]">
                     <td className="td"><span className="text-[var(--ink)] font-semibold text-[13px]">{c.name}</span> <span className="tag-b ms-1" style={{ fontSize: 10 }}>{c.symbol}</span></td>
                     <td className="td tabular-nums">{c.price != null ? c.price.toFixed(2) : "—"}</td>
-                    <td className="td tabular-nums">{c.fair_value != null ? c.fair_value.toFixed(2) : "—"}</td>
-                    <td className="td">{c.upside_pct != null ? <span style={{ color: c.upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }} className="text-xs font-bold">{c.upside_pct >= 0 ? "+" : ""}{c.upside_pct}%</span> : "—"}</td>
-                    <td className="td"><FairValueBar upside={c.upside_pct} /></td>
+                    {/* ══ التغطيةُ شاملة ══ (بأمر المالك · D228)
+                        حيث لا هدفَ لبيوت الخبرة تُعرض القيمةُ النسبيةُ إلى
+                        القطاع — بلونٍ خافتٍ وعلامة «≈» لأنها مشتقّةٌ لا
+                        منقولة، وبتلميحٍ يحمل نطاقَها وثقتَها. فلا تُقرأ
+                        رأيَ محلّلٍ ولا يبقى الصفُّ فارغاً. */}
+                    <td className="td tabular-nums"
+                      title={c.fair_value == null && c.rel_value != null
+                        ? `قيمة نسبية إلى القطاع ${c.rel_low}–${c.rel_high} · ثقة ${c.rel_conf}`
+                        : ""}
+                      style={{ color: c.fair_value == null && c.rel_value != null ? "var(--ink-muted)" : undefined }}>
+                      {c.fair_value != null ? c.fair_value.toFixed(2)
+                        : c.rel_value != null ? c.rel_value.toFixed(2) : "—"}
+                    </td>
+                    <td className="td">{c.upside_pct != null
+                      ? <span style={{ color: c.upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }} className="text-xs font-bold">{c.upside_pct >= 0 ? "+" : ""}{c.upside_pct}%</span>
+                      : c.rel_upside_pct != null
+                        ? <span className="text-xs font-bold text-[var(--ink-muted)]">≈{c.rel_upside_pct >= 0 ? "+" : ""}{c.rel_upside_pct}%</span>
+                        : "—"}</td>
+                    <td className="td"><FairValueBar upside={c.upside_pct ?? c.rel_upside_pct ?? null} /></td>
                     <td className="td">
                       {/* ══ الدرجةُ غائبةٌ حقّاً أحياناً ══
                           كانت تُستبدَل بـ50 فلم يقع الغياب. ولمّا صارت
@@ -79,7 +95,7 @@ function PortfolioInsight() {
                 </div>
                 <div className="grid grid-cols-3 gap-1 text-center">
                   <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">السعر</div><div className="text-[var(--ink)] font-semibold tabular-nums text-xs">{c.price != null ? c.price.toFixed(2) : "—"}</div></div>
-                  <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">هدف المحللين</div><div className="text-[var(--ink)] font-semibold tabular-nums text-xs">{c.fair_value != null ? c.fair_value.toFixed(2) : "—"}</div></div>
+                  <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">{c.fair_value == null && c.rel_value != null ? "نسبية للقطاع" : "هدف المحللين"}</div><div className="font-semibold tabular-nums text-xs" style={{ color: c.fair_value == null && c.rel_value != null ? "var(--ink-muted)" : "var(--ink)" }} title={c.fair_value == null && c.rel_value != null ? `قيمة نسبية إلى القطاع ${c.rel_low}–${c.rel_high} · ثقة ${c.rel_conf}` : ""}>{c.fair_value != null ? c.fair_value.toFixed(2) : c.rel_value != null ? c.rel_value.toFixed(2) : "—"}</div></div>
                   <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">الفرصة</div><div className="font-bold text-xs" style={{ color: c.upside_pct == null ? "var(--ink-muted)" : c.upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>{c.upside_pct != null ? `${c.upside_pct >= 0 ? "+" : ""}${c.upside_pct}%` : "—"}</div></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 pt-1 border-t border-[var(--hairline)]">

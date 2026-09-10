@@ -11,6 +11,7 @@ import StockSheet from "../components/market/StockSheet";
 import InlineStockSearch from "../components/market/InlineStockSearch";
 import CompanyLogo from "../components/common/CompanyLogo";
 import { FairValueBar, SafetyBar, fairValueTier, safeColor } from "../components/common/ValueBars";
+import { ShariaBadge } from "../components/common/UI";
 import SourceLogo, { hasSourceLogo } from "../components/common/SourceLogo";
 import EventsList from "../components/market/EventsList";
 import {
@@ -1066,7 +1067,10 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                       <div className="flex items-center gap-2 min-w-0">
                         <CompanyLogo symbol={r.symbol} size={24} />
                         <div className="min-w-0">
-                          <div className="text-[var(--ink)] text-[12px] font-semibold truncate max-w-[140px]">{r.name}</div>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <ShariaBadge status={r.sharia} size={12} />
+                            <div className="text-[var(--ink)] text-[12px] font-semibold truncate max-w-[140px]">{r.name}</div>
+                          </div>
                           <span className="tag-b" style={{ fontSize: 9 }}>{r.symbol}</span>
                         </div>
                       </div>
@@ -1081,9 +1085,16 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                     <td className="px-2 py-2 tabular-nums" style={{ color: r.dividend_yield == null ? "var(--ink-muted)" : "var(--pos-ink)" }}>
                       {r.dividend_yield == null ? "—" : `${r.dividend_yield}%`}
                     </td>
-                    <td className="px-2 py-2 tabular-nums text-[var(--ink)]">
+                    {/* ══ لونُ الدرجة كصفحة السهم ══ (بأمر المالك · D227)
+                        كان الرقمُ في الجدول بلا لونٍ بينما تلوّنه البطاقةُ
+                        وصفحةُ السهم بـ`safeColor` — فاختلف المظهرُ لرقمٍ
+                        واحد. وكانت علامةُ «✓» الخضراءُ بجانبه **للتوافق
+                        الشرعيّ لا للجودة**، فيُقرأ العمودُ كأنّ الجميعَ
+                        ناجح. فانتقلت العلامةُ إلى هويّة الشركة هلالاً
+                        كبقيّة التطبيق، وبقي هنا رقمٌ ملوَّنٌ وحدَه. */}
+                    <td className="px-2 py-2 tabular-nums font-bold"
+                      style={{ color: r.finance_score == null ? "var(--ink-muted)" : safeColor(r.finance_score) }}>
                       {r.finance_score == null ? "—" : Math.round(r.finance_score)}
-                      {r.sharia === "COMPLIANT" && <span className="text-[var(--pos-ink)] ms-1" title="متوافق شرعاً">✓</span>}
                     </td>
                     {/* الفجوة عن وسيط القطاع — موجبٌ يعني أرخص من أقرانه.
                         والأساس (مضاعف ربحية أم دفترية) يُعلَن في التلميح كي لا

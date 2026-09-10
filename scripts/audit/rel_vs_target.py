@@ -89,6 +89,19 @@ src = (ROOT / "backend/app/services/market_screener.py").read_text(encoding="utf
 wired = "_relative_value(" in src and 'r["rel_value"]' in src
 check(wired, "٥ الفرزُ موصولٌ بالمحرّك", "استدعاءٌ وحقلٌ موجودان" if wired else "غير موصول")
 
+# ── ٦ · التغطيةُ شاملةٌ للتطبيق ──────────────────────────────────────
+# بأمر المالك: القيمةُ النسبيةُ تصل «تحليل الذكاء» كما وصلت الفرزَ وصفحةَ
+# السهم. وشاشةٌ غرضُها التقييمُ تعرض شركةً بلا رقمِ تقييمٍ عطبٌ في التغطية.
+movers = (ROOT / "backend/app/services/market_movers.py").read_text(encoding="utf-8")
+ai = (ROOT / "frontend/src/pages/AIPage.tsx").read_text(encoding="utf-8")
+check('"rel_value": result.get("rel_value")' in movers,
+      "٦ صفُّ تحليل الذكاء يحمل القيمةَ النسبية")
+check("c.rel_value" in ai and "نسبية للقطاع" in ai,
+      "٧ وتُعرض باسمها لا في خانة هدف المحلّلين")
+# والاتّجاه المعاكس: لا تُعرض حيث يوجد هدف — الشرطُ نفسُه في الشاشات كلِّها.
+check("c.fair_value != null ? c.fair_value.toFixed(2)" in ai,
+      "٨ وحيث وُجد الهدفُ يُعرض هو لا هي")
+
 print()
 print("النتيجة:", "فيه ملاحظات ✘" if fail else "نظيف ✔")
 raise SystemExit(fail)

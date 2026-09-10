@@ -318,6 +318,17 @@ async def compute_investment_opportunities(db, sorted_momentum_rows: list) -> li
                 "valuation_verdict": val.get("verdict"),
                 # مبخّس = أرخص من متوسط القطاع (حكم التقييم النسبي الحقيقي).
                 "is_undervalued": (val.get("verdict") == "أرخص من متوسط القطاع"),
+                # ══ التغطيةُ شاملةٌ للتطبيق ══ (بأمر المالك · D228)
+                # كان صفُّ «تحليل الذكاء» بلا هدفٍ أصلاً، فتُعرض شركةٌ بلا
+                # رقمِ تقييمٍ في شاشةٍ غرضُها التقييم. والهدفُ والقيمةُ
+                # النسبيةُ كلاهما في مخرَج المُنتِج الواحد — يُنقلان كما هما
+                # بأسمائهما، فلا يُخلط مضاعفُ قطاعٍ برأي بيتِ خبرة.
+                "fair_value": result.get("fair_value"),
+                "upside_pct": result.get("fair_value_upside_pct"),
+                "rel_value": result.get("rel_value"),
+                "rel_upside_pct": result.get("rel_upside_pct"),
+                "rel_low": result.get("rel_low"), "rel_high": result.get("rel_high"),
+                "rel_conf": result.get("rel_conf"), "rel_basis": result.get("rel_basis"),
             })
 
     scored.sort(key=lambda r: r["ai_score"], reverse=True)
