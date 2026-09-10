@@ -1142,10 +1142,16 @@ class YahooFinanceAdapter:
         """Major-holders breakdown (insiders / institutions / public float)."""
         from app.services import cache
         from app.services.usage_tracker import record, can_call
+        # ══ الغيابُ يُخزَّن كما يُخزَّن الحضور ══ (D229)
+        # كانت الدالّةُ تعود `None` بلا تخزينٍ حين لا تنشر ياهو هيكلةَ ملكية —
+        # وهو حالُ أكثر شركات السوق الصغيرة. فيُعاد النداءُ في كلّ تحليل،
+        # أبداً. قِيس على خادم المالك: ‎599 نداءً في يومٍ واحد لبيانٍ يتغيّر
+        # ربعياً — أي أنّ الحصّةَ تُنفَق على سؤالٍ جوابُه معروفٌ سلفاً.
+        # فيُخزَّن الغيابُ بعلامةٍ صريحة: «سُئل ولم يوجد» ليست «لم يُسأل».
         ck = f"own:yahoo:{symbol}"
         cached = cache.get(ck)
         if cached is not None:
-            return cached
+            return None if isinstance(cached, dict) and cached.get("_absent") else cached
         if not can_call("yahoo"):
             return None
         try:
@@ -1160,6 +1166,9 @@ class YahooFinanceAdapter:
             insiders = pct("insidersPercentHeld")
             institutions = pct("institutionsPercentHeld")
             if insiders is None and institutions is None:
+                # مدّةٌ أقصر من النجاح: الغيابُ قد يكون نقصاً مؤقّتاً عند
+                # المزوّد، فلا يُؤبَّد سبعةَ وعشرين يوماً كالحضور.
+                cache.set(ck, {"_absent": True}, cache.COMPANY_INFO_TTL)
                 return None
             public = None
             if insiders is not None and institutions is not None:
