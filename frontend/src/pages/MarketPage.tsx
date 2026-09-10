@@ -418,7 +418,7 @@ const SECTOR_PERIODS: [string, string][] = [
   ["3m", "3 أشهر"], ["6m", "6 أشهر"], ["1y", "سنة"], ["3y", "3 سنوات"], ["5y", "5 سنوات"],
 ];
 
-function SectorAnalysis({ sortKey: sortKeyProp, onSort }:
+export function SectorAnalysis({ sortKey: sortKeyProp, onSort }:
   { sortKey?: string; onSort?: (k: string) => void }) {
   const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["sector-analysis"],
@@ -491,15 +491,23 @@ function SectorAnalysis({ sortKey: sortKeyProp, onSort }:
               <th className="px-2 py-2 text-[var(--ink-muted)] font-semibold text-start">القطاع</th>
               {SECTOR_PERIODS.map(([k, lbl]) => (
                 <th key={k} onClick={() => setSortKey(k)}
-                  className="px-2 py-2 text-[var(--ink-muted)] font-semibold cursor-pointer select-none whitespace-nowrap">
-                  {lbl}{sortKey === k && <span className="text-[var(--brand-ink)]"> ▾</span>}
+                  className="px-2 py-2 text-center text-[var(--ink-muted)] font-semibold cursor-pointer select-none whitespace-nowrap">
+                  <span className="relative inline-block whitespace-nowrap">
+                    {lbl}{sortKey === k && (
+                      <span className="absolute text-[var(--brand-ink)]"
+                        style={{ insetInlineEnd: -12, top: 0 }}>▾</span>)}
+                  </span>
                 </th>
               ))}
               <th onClick={() => setSortKey("dividend_yield")}
-                className="px-2 py-2 text-[var(--ink-muted)] font-semibold cursor-pointer select-none whitespace-nowrap">
-                التوزيعات{sortKey === "dividend_yield" && <span className="text-[var(--brand-ink)]"> ▾</span>}
+                className="px-2 py-2 text-center text-[var(--ink-muted)] font-semibold cursor-pointer select-none whitespace-nowrap">
+                <span className="relative inline-block whitespace-nowrap">
+                  التوزيعات{sortKey === "dividend_yield" && (
+                    <span className="absolute text-[var(--brand-ink)]"
+                      style={{ insetInlineEnd: -12, top: 0 }}>▾</span>)}
+                </span>
               </th>
-              <th className="px-2 py-2 text-[var(--ink-muted)] font-semibold">شركات</th>
+              <th className="px-2 py-2 text-center text-[var(--ink-muted)] font-semibold">شركات</th>
             </tr>
           </thead>
           <tbody>
@@ -507,12 +515,12 @@ function SectorAnalysis({ sortKey: sortKeyProp, onSort }:
               <tr key={r.sector} style={{ borderBottom: "1px solid var(--hairline)" }}>
                 <td className="px-2 py-2 text-[var(--ink)] font-semibold">{r.sector}</td>
                 {SECTOR_PERIODS.map(([k]) => (
-                  <td key={k} className="px-2 py-2 tabular-nums font-bold" style={{ color: col(r[k]) }}>{val(r[k])}</td>
+                  <td key={k} className="px-2 py-2 text-center tabular-nums font-bold" style={{ color: col(r[k]) }}>{val(r[k])}</td>
                 ))}
-                <td className="px-2 py-2 tabular-nums" style={{ color: r.dividend_yield == null ? "var(--ink-muted)" : "var(--info-ink)" }}>
+                <td className="px-2 py-2 text-center tabular-nums" style={{ color: r.dividend_yield == null ? "var(--ink-muted)" : "var(--info-ink)" }}>
                   {r.dividend_yield == null ? "—" : `${r.dividend_yield}%`}
                 </td>
-                <td className="px-2 py-2 text-[var(--ink-muted)] tabular-nums">{r.companies}</td>
+                <td className="px-2 py-2 text-center text-[var(--ink-muted)] tabular-nums">{r.companies}</td>
               </tr>
             ))}
           </tbody>
@@ -525,7 +533,7 @@ function SectorAnalysis({ sortKey: sortKeyProp, onSort }:
   );
 }
 
-function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
+export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
   /* الخادم يعيد الآن {rows, state} ويبني المسح في الخلفية بدل أن يحسبه داخل
      الطلب. نقبل الشكلين (قائمة صِرفة أو غلاف) حتى لا تنكسر واجهةٌ أمام خادمٍ
      أقدم، ونعيد السؤال كل عشر ثوانٍ ما دام البناء جارياً — بحالةٍ معلنة لا
@@ -701,12 +709,23 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
     </div>
   );
 
+  /* ══ العنوانُ والرقمُ على محورٍ واحد ══ (بأمر المالك · D238)
+     كان العنوانُ يورث `text-start` من الصفّ والأرقامُ كذلك، فينزاح الرقمُ
+     عن عنوانه بقدر فرق العرض بينهما — يقرأ المالكُ رقماً ويتحرّى أيَّ
+     عمودٍ هو. فصار العمودُ الرقميُّ موسَّطاً في رأسه وجسمه معاً. */
   const th = (key: string, label: string) => (
-    <th className="px-2 py-2 text-[var(--ink-muted)] font-semibold cursor-pointer select-none whitespace-nowrap"
+    <th className="px-2 py-2 text-center text-[var(--ink-muted)] font-semibold cursor-pointer select-none whitespace-nowrap"
       onClick={() => setSort(s => ({ key, dir: s.key === key && s.dir === "desc" ? "asc" : "desc" }))}>
-      <span className="inline-flex items-center gap-0.5">
+      {/* سهمُ الترتيب **مُطلَقٌ** خارج تدفّق العنوان: كان في الصفّ نفسِه
+          فيُوسَّط الزوجُ (العنوان + السهم) لا العنوان — فينزاح عن محور
+          عموده بنصف عرض السهم. قِيس ‎4–9px. وهي العلّةُ نفسُها التي
+          عُولجت في بطاقات القوائم على الجوّال. */}
+      <span className="relative inline-block whitespace-nowrap">
         {label}
-        {sort.key === key && <span className="text-[var(--brand-ink)]">{sort.dir === "desc" ? "▾" : "▴"}</span>}
+        {sort.key === key && (
+          <span className="absolute text-[var(--brand-ink)]"
+            style={{ insetInlineEnd: -12, top: 0 }}>{sort.dir === "desc" ? "▾" : "▴"}</span>
+        )}
       </span>
     </th>
   );
@@ -1049,7 +1068,7 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                 {th("finance_score", "الجودة")}
                 {th("value_gap_pct", "عن القطاع")}
                 {th("upside_pct", "عن السعر العادل")}
-                <th className="px-2 py-2 text-[var(--ink-muted)] font-semibold text-start whitespace-nowrap">الحكم</th>
+                <th className="px-2 py-2 text-center text-[var(--ink-muted)] font-semibold whitespace-nowrap">الحكم</th>
                 {th("high_52w", "قمة 52أ")}
                 {th("low_52w", "قاع 52أ")}
               </tr>
@@ -1075,14 +1094,14 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                         </div>
                       </div>
                     </td>
-                    <td className="px-2 py-2 text-[var(--ink)] tabular-nums">{fmt(r.price)}</td>
-                    <td className="px-2 py-2 font-bold" style={{ color: r.change_pct == null ? "var(--ink-muted)" : up ? "var(--pos-ink)" : "var(--neg-ink)" }}>
+                    <td className="px-2 py-2 text-center text-[var(--ink)] tabular-nums">{fmt(r.price)}</td>
+                    <td className="px-2 py-2 text-center font-bold" style={{ color: r.change_pct == null ? "var(--ink-muted)" : up ? "var(--pos-ink)" : "var(--neg-ink)" }}>
                       {r.change_pct == null ? "—" : `${up ? "+" : ""}${r.change_pct.toFixed(2)}%`}
                     </td>
-                    <td className="px-2 py-2 tabular-nums" style={{ color: distColor(m.dist_sma50) }}>{m.dist_sma50 == null ? "—" : `${m.dist_sma50 >= 0 ? "+" : ""}${m.dist_sma50}%`}</td>
-                    <td className="px-2 py-2 tabular-nums" style={{ color: distColor(m.dist_sma200) }}>{m.dist_sma200 == null ? "—" : `${m.dist_sma200 >= 0 ? "+" : ""}${m.dist_sma200}%`}</td>
-                    <td className="px-2 py-2 tabular-nums font-bold" style={{ color: rsiColor }}>{m.rsi == null ? "—" : m.rsi}</td>
-                    <td className="px-2 py-2 tabular-nums" style={{ color: r.dividend_yield == null ? "var(--ink-muted)" : "var(--pos-ink)" }}>
+                    <td className="px-2 py-2 text-center tabular-nums" style={{ color: distColor(m.dist_sma50) }}>{m.dist_sma50 == null ? "—" : `${m.dist_sma50 >= 0 ? "+" : ""}${m.dist_sma50}%`}</td>
+                    <td className="px-2 py-2 text-center tabular-nums" style={{ color: distColor(m.dist_sma200) }}>{m.dist_sma200 == null ? "—" : `${m.dist_sma200 >= 0 ? "+" : ""}${m.dist_sma200}%`}</td>
+                    <td className="px-2 py-2 text-center tabular-nums font-bold" style={{ color: rsiColor }}>{m.rsi == null ? "—" : m.rsi}</td>
+                    <td className="px-2 py-2 text-center tabular-nums" style={{ color: r.dividend_yield == null ? "var(--ink-muted)" : "var(--pos-ink)" }}>
                       {r.dividend_yield == null ? "—" : `${r.dividend_yield}%`}
                     </td>
                     {/* ══ لونُ الدرجة كصفحة السهم ══ (بأمر المالك · D227)
@@ -1092,21 +1111,21 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                         الشرعيّ لا للجودة**، فيُقرأ العمودُ كأنّ الجميعَ
                         ناجح. فانتقلت العلامةُ إلى هويّة الشركة هلالاً
                         كبقيّة التطبيق، وبقي هنا رقمٌ ملوَّنٌ وحدَه. */}
-                    <td className="px-2 py-2 tabular-nums font-bold"
+                    <td className="px-2 py-2 text-center tabular-nums font-bold"
                       style={{ color: r.finance_score == null ? "var(--ink-muted)" : safeColor(r.finance_score) }}>
                       {r.finance_score == null ? "—" : Math.round(r.finance_score)}
                     </td>
                     {/* الفجوة عن وسيط القطاع — موجبٌ يعني أرخص من أقرانه.
                         والأساس (مضاعف ربحية أم دفترية) يُعلَن في التلميح كي لا
                         يُقرأ رقمان مختلفا الأساس كأنهما واحد. */}
-                    <td className="px-2 py-2 tabular-nums" dir="ltr"
+                    <td className="px-2 py-2 text-center tabular-nums" dir="ltr"
                       title={r.value_basis === "pb" ? "الأساس: مكرّر القيمة الدفترية" : r.value_basis === "pe" ? "الأساس: مضاعف الربحية" : ""}
                       style={{ color: r.value_gap_pct == null ? "var(--ink-muted)" : r.value_gap_pct >= 20 ? "var(--pos-ink)" : r.value_gap_pct <= -20 ? "var(--neg-ink)" : "var(--ink-muted)" }}>
                       {r.value_gap_pct == null ? "—" : `${r.value_gap_pct > 0 ? "+" : ""}${Math.round(r.value_gap_pct)}%`}
                     </td>
                     {/* الفرق عن تقدير المحللين — مقياسٌ آخر لا امتداد للأول:
                         مصدره آراء بشر لا مقارنة أرقام، فيُعرض مستقلاً. */}
-                    <td className="px-2 py-2 tabular-nums" dir="ltr"
+                    <td className="px-2 py-2 text-center tabular-nums" dir="ltr"
                       title={r.fair_value ? `هدف المحللين ${r.fair_value}${r.fair_value_asof ? " · " + r.fair_value_asof : ""}`
                         : r.rel_value != null ? `السعر العادل ${r.rel_value} (${r.rel_low}–${r.rel_high}) · ثقة ${r.rel_conf} — لا هدفَ محلّلين لهذه الشركة`
                         : ""}
@@ -1120,9 +1139,9 @@ function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                           ? <span className="text-[var(--ink-muted)]">{`≈${Math.round((r.rel_value - r.price) / r.price * 100) > 0 ? "+" : ""}${Math.round((r.rel_value - r.price) / r.price * 100)}%`}</span>
                           : "—"}
                     </td>
-                    <td className="px-2 py-2"><VerdictTag v={r.verdict} gap={r.value_gap_pct} basis={r.value_basis} /></td>
-                    <td className="px-2 py-2 text-[var(--ink-muted)] tabular-nums">{fmt(r.high_52w)}</td>
-                    <td className="px-2 py-2 text-[var(--ink-muted)] tabular-nums">{fmt(r.low_52w)}</td>
+                    <td className="px-2 py-2 text-center"><VerdictTag v={r.verdict} gap={r.value_gap_pct} basis={r.value_basis} /></td>
+                    <td className="px-2 py-2 text-center text-[var(--ink-muted)] tabular-nums">{fmt(r.high_52w)}</td>
+                    <td className="px-2 py-2 text-center text-[var(--ink-muted)] tabular-nums">{fmt(r.low_52w)}</td>
                   </tr>
                 );
               })}

@@ -101,6 +101,23 @@ const ANALYSIS_BARE = {
   rel_conf: null, rel_upside_pct: null, rel_confidence_why: [],
   rel_why: "لا نظائرَ كافيةً في القطاع",
 };
+/* صفوفُ الفرز والقطاعات — لقياس محور الأعمدة (‏D238). */
+const SCREEN = [
+  { symbol: "2222", name: "أرامكو", sector: "الطاقة", price: 26.04, change_pct: -0.08,
+    dist_sma50: 1.2, dist_sma200: -3.4, rsi: 49, dividend_yield: 6.0,
+    finance_score: 81, value_gap_pct: 12, upside_pct: 17.1, verdict: "بسعر قطاعه",
+    high_52w: 32.1, low_52w: 24.0, sharia: "COMPLIANT", fair_value: 30.5 },
+  { symbol: "4190", name: "جرير", sector: "التجزئة", price: 16.2, change_pct: 1.4,
+    dist_sma50: -2.1, dist_sma200: 4.8, rsi: 55, dividend_yield: 4.2,
+    finance_score: 64, value_gap_pct: -8, upside_pct: -4.0, verdict: "بسعر قطاعه",
+    high_52w: 19.0, low_52w: 14.2, sharia: "MIXED", fair_value: 15.6 },
+];
+const SECTORS = [
+  { sector: "الطاقة", "3m": 4.1, "6m": -2.3, "1y": 9.8, "3y": 21.4, "5y": 40.2,
+    dividend_yield: 5.4, companies: 6 },
+  { sector: "التجزئة", "3m": -1.2, "6m": 3.3, "1y": -4.8, "3y": 8.1, "5y": 12.0,
+    dividend_yield: 3.1, companies: 12 },
+];
 const body = (data) => ({ status: 200, contentType: "application/json",
                           body: JSON.stringify({ success: true, data }) });
 
@@ -126,6 +143,8 @@ await page.route("**/api/v1/**", r => {
   if (/\/market\/company\//.test(u) || /\/ai\/stock-opinion\//.test(u))
     return r.fulfill(body(bare ? ANALYSIS_BARE : ANALYSIS));
   if (/\/market\/financials\//.test(u)) return r.fulfill(body(FINANCIALS));
+  if (/\/market\/screener(\?|$)/.test(u)) return r.fulfill(body({ rows: SCREEN, state: "ready" }));
+  if (/\/market\/sectors(\?|$)/.test(u)) return r.fulfill(body(SECTORS));
   if (/\/holdings(\?|$)/.test(u)) return r.fulfill(body(ALLOC.items.map((it, i) => ({
     id: i + 1, company_id: it.company_id, symbol: it.symbol,
     company: { id: it.company_id, symbol: it.symbol, company_name: it.name },
@@ -157,6 +176,7 @@ const STOPS = [
   ["البيانات المالية", "/probe-fin.html"],
   ["مقارنة القطاع", "/probe-panel.html"],
   ["مقارنة القطاع (بلا نظائر)", "/probe-panel.html?bare=1"],
+  ["جدولا الفرز", "/probe-tables.html"],
 ];
 
 const seenDecisions = new Set();
@@ -288,6 +308,63 @@ for (const [name, path] of STOPS) {
     say(!!bareCell, "الخانةُ باقيةٌ حيث يمتنع التقييم — لا تُطوى");
     say(!!bareCell && bareCell.includes("لا نظائر"),
         "وتقول سببَ امتناعها لا رقماً ضعيفاً", String(bareCell));
+  }
+
+  /* ══ محورُ العمود: العنوانُ والرقمُ على خطٍّ واحد ══ (بأمر المالك · D238)
+     يُقاس بالهندسة لا بصنف CSS: مركزُ رأس كلّ عمودٍ رقميٍّ ومركزُ خليّته
+     في الصفّ الأول — والفارقُ المسموح بضعةُ بكسلات. وتُقاس نقطةُ الشريط
+     كذلك: لونُها المحسوبُ هو لونُ حكمها لا أبيض. */
+  if (name === "جدولا الفرز") {
+    const cols = await page.evaluate(() => {
+      const out = [];
+      for (const tbl of document.querySelectorAll("table")) {
+        const head = [...tbl.querySelectorAll("thead th")];
+        const cells = [...(tbl.querySelector("tbody tr")?.children || [])];
+        if (!head.length || head.length !== cells.length) continue;
+        /* يُقاس مركزُ **النصّ** لا مركزُ الخليّة: صندوقا الرأس والخليّة
+           في عمودٍ واحدٍ مركزُهما واحدٌ دائماً مهما كانت المحاذاة — فقياسُ
+           الصندوق يمرّ على العطب. فيُحاط النصُّ بمدًى (Range) ويُقاس هو. */
+        const ink = (el) => {
+          const n = [...el.querySelectorAll("*"), el]
+            .flatMap(e => [...e.childNodes])
+            .find(t => t.nodeType === 3 && (t.textContent || "").trim());
+          if (!n) return null;
+          const r = document.createRange();
+          r.selectNodeContents(n);
+          const b = r.getBoundingClientRect();
+          return b.width ? (b.left + b.right) / 2 : null;
+        };
+        head.forEach((h, i) => {
+          const txt = (h.textContent || "").trim();
+          const val = (cells[i].textContent || "").trim();
+          if (!/[0-9]/.test(val)) return;          // الأعمدة الرقمية وحدها
+          const a = ink(h), b = ink(cells[i]);
+          if (a == null || b == null) return;
+          out.push({ txt, dx: Math.abs(a - b) });
+        });
+      }
+      return out;
+    });
+    say(cols.length >= 8, "أعمدةٌ رقميةٌ قِيست في جدولَي الفرز",
+        `${cols.length} عموداً`);
+    const off = cols.filter(c => c.dx > 3);
+    say(off.length === 0, "كلُّ رقمٍ على محور عنوانه",
+        off.slice(0, 3).map(c => `«${c.txt}» ${Math.round(c.dx)}px`).join(" · "));
+
+    const dot = await page.evaluate(() => {
+      const d = [...document.querySelectorAll("div")].find(e => {
+        const st = getComputedStyle(e);
+        return st.borderRadius.startsWith("9999") || st.borderRadius === "50%"
+          ? e.clientWidth === 12 && e.clientHeight === 12 : false;
+      });
+      return d ? getComputedStyle(d).backgroundColor : null;
+    });
+    if (dot) {
+      say(!/255,\s*255,\s*255/.test(dot),
+          "ونقطةُ الشريط مصمتةٌ بلون حكمها لا بيضاء", dot);
+    } else {
+      console.log("…  لم تظهر نقطةُ الشريط في هذه الرحلة — لا تُقاس.");
+    }
   }
 
   if (name === "جدول التوزيع") {
