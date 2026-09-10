@@ -91,7 +91,10 @@ check(len(rows3) == 2 and rows3[1]["dividend_yield"] == 2.56,
 
 # ── ٦ · والنقطةُ تستدعي الإنعاشَ فعلاً ──────────────────────────────
 ep = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
-check("refresh_derived(rows)" in ep, "٦ نقطةُ الفرز تستدعي الإنعاش")
+# الاسمُ صار `refresh_derived_cached` بعد حفظِ مخرَجه تسعين ثانية
+# (‏D243) — والمقصودُ أن النقطةَ تُنعش لا أن تنادي اسماً بعينه.
+check("refresh_derived_cached(rows)" in ep or "refresh_derived(rows)" in ep,
+      "٦ نقطةُ الفرز تستدعي الإنعاش")
 
 # ── ٧ · صيغتا النداء تُعطيان الرقمَ نفسَه ────────────────────────────
 # ══ لماذا هذا الفحصُ بالذات ══

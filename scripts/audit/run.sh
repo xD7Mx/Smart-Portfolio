@@ -240,6 +240,18 @@ python3 scripts/audit/one_fair_price.py || fail=1
 echo
 python3 scripts/audit/directory_coverage.py || fail=1
 
+# D242: الكونُ ينمو مع السوق ولا يفقد أحداً — مزامنةٌ أسبوعيةٌ مع «تداول»:
+# الجديدُ يُضاف، والغائبُ يُوسَم موقوفاً ولا يُحذف، وقائمةٌ قصيرةٌ تُرفَض.
+# والبنيةُ تُثبَّت بمسبارٍ على الخادم قبل الاعتماد:
+#   docker exec sp_backend python /app/scripts/audit/tadawul_sync_probe.py
+echo
+python3 scripts/audit/directory_sync.py || fail=1
+
+# D243: الفرزُ يُفتح بسرعة — يُقاس بالزمن. الإنعاشُ كان يجري مع كلّ طلبٍ
+# على ‎270 صفّاً بتشغيلِ محرّكِ حوكمةٍ لكلّ صفّ.
+echo
+python3 scripts/audit/screener_speed.py || fail=1
+
 # D237: من حمل لقبَ «السعر العادل» حكَم به القرار — وإلا عادت صورةُ D174:
 # رقمٌ معروضٌ وقرارٌ يناقضه لأنه يحكم برقمٍ آخر.
 echo

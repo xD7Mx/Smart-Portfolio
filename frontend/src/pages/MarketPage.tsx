@@ -526,9 +526,6 @@ export function SectorAnalysis({ sortKey: sortKeyProp, onSort }:
           </tbody>
         </table>
       </div>
-      <p className="text-[10.5px] text-[var(--ink-muted)] mt-3 pt-2.5 text-center" style={{ borderTop: "1px solid var(--line)" }}>
-        وسيط عائد شركات كل قطاع لكل فترة — الفترة التي لا يبلغها تاريخ شركاته تظهر «—»
-      </p>
     </div>
   );
 }
@@ -671,10 +668,13 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
     return list;
   }, [rows, q, sector, frame, M, ma50, ma200, trend, rsiBand, macd, sharia, minYield, minScore, minGap, minUpside, verdict, sort]);
 
-  /* حدّ العرض ٢٠٠ صفّاً — لأداء الصفحة. لكنه كان **صامتاً**: لو طابقت فلاترك
-     ٢٣٠ شركة رأيتَ ٢٠٠ وظننتَ أن الباقي غير موجود، بلا أي إشارة. الآن يُعرض
-     العدد الكلي دائماً، ويظهر تنبيهٌ صريح حين يُقتطع شيء فعلاً. */
-  const ROW_CAP = 200;
+  /* ══ الحدُّ يرتفع لأن الرسمَ صار بثمن ما يُرى ══ (بأمر المالك · D243)
+     كان مئتين «لأداء الصفحة»، فتُحجب سبعون شركةً من السوق لأجل سرعةٍ لم
+     تتحقّق (قِيس ‎575ms لنقرة ترتيب). والآن صفوفُ الجدول
+     `content-visibility: auto`: ما خرج عن الشاشة لا يُنسَّق ولا يُرسَم.
+     فالحدُّ يتّسع للسوق كلِّه، ويبقى موجوداً حارساً لا سياسةَ عرض —
+     والتنبيهُ الصريحُ باقٍ إن اقتُطع شيءٌ يوماً. */
+  const ROW_CAP = 500;
   const shown = filtered.slice(0, ROW_CAP);
   const hidden = Math.max(0, filtered.length - shown.length);
 
@@ -1081,7 +1081,7 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                 const distColor = (v: any) => v == null ? "var(--ink-muted)" : v >= 0 ? "var(--pos-ink)" : "var(--neg-ink)";
                 return (
                   <tr key={r.symbol} onClick={() => onOpen(r.symbol)}
-                    className="cursor-pointer hover:bg-[var(--field)] transition-colors" style={{ borderBottom: "1px solid var(--hairline)" }}>
+                    className="scr-row cursor-pointer hover:bg-[var(--field)] transition-colors" style={{ borderBottom: "1px solid var(--hairline)" }}>
                     <td className="px-2 py-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <CompanyLogo symbol={r.symbol} size={24} />

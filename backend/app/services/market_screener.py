@@ -230,11 +230,22 @@ async def _governance_score(ysym: str, sector_ar: str | None) -> float | None:
         ck = f"stmt:{ysym}"
         if cache.get(ck) is None and lastgood.load(ck, max_age_seconds=cache.FUNDAMENTALS_TTL) is None:
             return None                      # لا قوائم مخزَّنة → لا نُشغّل المحرّك
+        # ══ الدرجةُ تُحفظ ساعةً ══ (D243)
+        # القوائمُ لا تتغيّر في يومٍ فضلاً عن ساعة، ومحرّكُ الحوكمة يُشغَّل
+        # لكلّ صفٍّ في كلّ إنعاش — ‎270 تشغيلاً للمحرّك في كلّ فتحةِ فرز.
+        # فتُحفظ نتيجتُه لكلّ رمزٍ ساعةً: المخرَجُ هو هو، والزمنُ يسقط.
+        sk = f"screener:gov:{ysym}"
+        cached = cache.get(sk)
+        if cached is not None:
+            return None if cached == "-" else cached
         from app.services.governance_engine import evaluate_company
         gov = await evaluate_company(ysym, sector=sector_ar)
         if not gov or not gov.get("evaluable"):
+            cache.set(sk, "-", 3600)          # والغيابُ يُحفظ كما يُحفظ الحضور
             return None
-        return gov.get("overall")
+        out = gov.get("overall")
+        cache.set(sk, out if out is not None else "-", 3600)
+        return out
     except Exception:
         return None
 
@@ -558,6 +569,33 @@ async def compute_screener() -> list | None:
         pass
     logger.info(f"Screener: computed technical rows for {len(rows)}/{len(universe)} companies.")
     return rows
+
+
+REFRESHED_KEY = "market:screener:refreshed"
+REFRESHED_TTL = 90        # ثانيةً — أقصرُ من عمر كاش الأسعار (‏15 دقيقة)
+
+
+async def refresh_derived_cached(rows: list) -> list:
+    """الإنعاشُ نفسُه، محفوظاً لدقيقةٍ ونصف — لأن الفرزَ يُفتح ويُغلق (D243).
+
+    قال المالك: «فرزُ السوق يواجه صعوبة، اجعلها سلسة وتفتح بسرعة».
+    والسببُ من عملي: الإنعاشُ يجري **مع كلّ طلب** على ‎270 صفّاً، وفيه
+    لكلّ صفٍّ درجةُ جودةٍ تُحسب من القوائم المخزَّنة، وسعرٌ ومضاعفاتٌ
+    وسعرٌ عادلٌ بمائدةِ قطاعات. فما بُني ليُطابق صفحةَ السهم صار ثقلاً
+    في كلّ فتحة — وكلُّ نقرةٍ على تبويبٍ ثمّ رجوعٍ تُعيد الحساب كلَّه.
+    وهو حسابٌ بلا شبكة، لكنّ «بلا شبكة» ليست «بلا وقت».
+    فيُحفظ المخرَجُ تسعين ثانية: أقصرُ من عمر أيّ مدخلٍ يقرؤه، فلا يشيخ
+    عن صفحة السهم، ويجعل الفتحةَ الثانية بلا حساب.
+    """
+    hit = cache.get(REFRESHED_KEY)
+    if isinstance(hit, list) and len(hit) == len(rows or []):
+        return hit
+    out = await refresh_derived(rows)
+    try:
+        cache.set(REFRESHED_KEY, out, REFRESHED_TTL)
+    except Exception:                                             # noqa: BLE001
+        pass
+    return out
 
 
 async def refresh_derived(rows: list) -> list:

@@ -41,6 +41,22 @@ async def job_update_market_prices():
         logger.error(f"Market movers scan failed: {e}")
 
 
+async def job_directory_sync():
+    """مزامنةُ دليل السوق مع «تداول» — أسبوعياً (D242).
+
+    الكونُ كان ساكناً: اكتتابٌ جديدٌ لا يظهر حتى يُضاف بيدٍ وتُبنى حزمة،
+    وشركةٌ موقوفةٌ تبقى بسعرها الأخير بلا أن يُقال إنها موقوفة. والمزامنةُ
+    لا تحذف أحداً أبداً: تُضيف الجديدَ وتوسم الغائبَ «موقوفاً» وترفع
+    الوسمَ إن عاد، وترفض قائمةً قصيرةً لأنها جلبٌ فشل لا سوقٌ تقلّص.
+    """
+    logger.info("🗂️ Scheduler: syncing market directory with Tadawul...")
+    try:
+        from app.services.tadawul_sync import sync
+        await sync()
+    except Exception as e:
+        logger.error(f"Directory sync failed: {e}")
+
+
 async def job_compute_screener():
     """Whole-market technical screener scan — one Yahoo history call per
     company, so it runs once daily after the close, never on-demand. Feeds the
@@ -297,6 +313,15 @@ def start_scheduler():
         job_market_pulse,
         CronTrigger(minute=0, hour="10-15", day_of_week="mon-fri"),
         id="market_pulse_hourly",
+        replace_existing=True,
+    )
+
+    # مزامنةُ الدليل — الجمعةَ فجراً: السوقُ مغلقٌ والحصّةُ فارغة، وقائمةُ
+    # المدرَجين لا تتغيّر أكثرَ من مرّةٍ في الأسبوع عملياً.
+    _scheduler.add_job(
+        job_directory_sync,
+        CronTrigger(day_of_week="fri", hour=4, minute=0),
+        id="directory_sync_weekly",
         replace_existing=True,
     )
 
