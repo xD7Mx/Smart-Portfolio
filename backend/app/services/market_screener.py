@@ -609,6 +609,15 @@ async def refresh_derived_cached(rows: list) -> list:
     return out
 
 
+def _movers_prices() -> dict:
+    """أسعارُ اليوم من لقطة المحرّكين — تُقرأ مرّةً لكلّ إنعاشٍ لا لكلّ صفّ."""
+    try:
+        from app.services.market_movers import get_cached_market_movers
+        return (get_cached_market_movers() or {}).get("prices") or {}
+    except Exception:                                             # noqa: BLE001
+        return {}
+
+
 async def refresh_derived(rows: list) -> list:
     """يُنعش الحقولَ المشتقّةَ في صفوف اللقطة عند التقديم — لا عند بنائها.
 
@@ -669,7 +678,17 @@ async def refresh_derived(rows: list) -> list:
         try:
             pd = cache.get(f"price:yahoo:{sym}.SR")
             px_new = getattr(pd, "price", None) if pd is not None else None
+            _src = "live" if isinstance(px_new, (int, float)) and px_new > 0 else None
+            # ══ ولمن لم تُفتح صفحتُه: سعرُ مسح المحرّكين ══ (D248)
+            # كاشُ الأسعار لا يحمل إلا من فُتحت صفحتُه، فبقيت بقيّةُ السوق
+            # على إغلاق المسح. ومسحُ المحرّكين يجلب سعرَ كلّ شركةٍ أصلاً
+            # وينشره — فيُقرأ منه: تغطيةٌ كاملةٌ بلا نداءٍ زائد.
+            if _src is None:
+                _mv = (_movers_prices() or {}).get(sym)
+                if isinstance(_mv, (int, float)) and _mv > 0:
+                    px_new, _src = _mv, "movers"
             if isinstance(px_new, (int, float)) and px_new > 0:
+                r["price_source"] = _src
                 r["price"] = px_new
                 _chg = getattr(pd, "change_pct", None)
                 if isinstance(_chg, (int, float)):

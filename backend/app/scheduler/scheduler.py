@@ -57,6 +57,23 @@ async def job_directory_sync():
         logger.error(f"Directory sync failed: {e}")
 
 
+async def job_risk_free():
+    """المعدَّلُ الخالي من المخاطر بالريال — أسبوعياً (D249).
+
+    محرّكُ القيمة العادلة يرفض العملَ بمعدَّلٍ مفترَض، والقيمةُ في ملفّ
+    المعايير فارغةٌ عمداً. فتُقرأ من صكٍّ سياديٍّ عشريٍّ في «تداول» بتاريخها
+    وأجلِها؛ وما لم يُفهم لا يُكتب شيءٌ ويبقى المحرّكُ ممتنعاً.
+    """
+    logger.info("📉 Scheduler: reading SAR risk-free rate from Tadawul sukuk...")
+    try:
+        from app.services.risk_free import refresh
+        rec = await refresh()
+        if rec.get("value") is None:
+            logger.warning(f"Risk-free unread: {rec.get('error')}")
+    except Exception as e:
+        logger.error(f"Risk-free refresh failed: {e}")
+
+
 async def job_compute_screener():
     """Whole-market technical screener scan — one Yahoo history call per
     company, so it runs once daily after the close, never on-demand. Feeds the
@@ -322,6 +339,16 @@ def start_scheduler():
         job_directory_sync,
         CronTrigger(day_of_week="fri", hour=4, minute=0),
         id="directory_sync_weekly",
+        replace_existing=True,
+    )
+
+    # المعدَّلُ الخالي من المخاطر — الجمعةَ بعد مزامنة الدليل بنصف ساعة:
+    # نفسُ المضيفِ ونفسُ الجلسةِ المسخَّنة، وعائدُ صكٍّ عشريٍّ لا يتحرّك
+    # في اليوم حركةً تُغيّر تقييماً.
+    _scheduler.add_job(
+        job_risk_free,
+        CronTrigger(day_of_week="fri", hour=4, minute=30),
+        id="risk_free_weekly",
         replace_existing=True,
     )
 

@@ -234,6 +234,13 @@ python3 scripts/audit/screener_price_fresh.py || fail=1
 echo
 python3 scripts/audit/one_fair_price.py || fail=1
 
+# D249: المعدَّلُ الخالي من المخاطر يُقرأ من صكٍّ سياديٍّ عشريٍّ بتاريخه، لا
+# «يُملأ يدوياً». والجلبُ نفسُه لا يُجرَّب في حارسٍ (المضيفُ محجوبٌ عن
+# التطوير، والشبكةُ تُنتج تقلُّباً لا قياساً) — البنيةُ تُثبَّت بمسبار الخادم:
+#   docker exec sp_backend python /app/scripts/audit/risk_free_probe.py
+echo
+python3 scripts/audit/risk_free.py || fail=1
+
 # D244: سلسلةُ مصادرَ واحدةٌ لحقول العرض — كان كلُّ مسارٍ يكتب سلسلتَه،
 # فاختلف مضاعفُ الدفترية وعائدُ التوزيعات في مسبار الأعمدة.
 echo

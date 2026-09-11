@@ -42,6 +42,7 @@ def check(ok: bool, label: str, detail: str = "") -> None:
 
 
 import app.services.market_screener as ms  # noqa: E402
+from app.services.market_screener import _pct  # noqa: E402
 from app.services import content_engine as ce  # noqa: E402
 
 ce.fund_store_load = lambda: {}                                  # type: ignore[assignment]
@@ -130,6 +131,26 @@ check(fresh.get("high_52w") == 31.0 and fresh.get("low_52w") == 21.0,
 check(fresh.get("fair_value") == 36.0 and fresh.get("upside_pct") == 20.0,
       "١٠ وهدفُ المحلّلين من الكاش الحيّ، وفجوتُه من السعر الحاضر",
       f"هدف {fresh.get('fair_value')} · فجوة {fresh.get('upside_pct')}٪")
+
+# ── ١١ · ولمن لم تُفتح صفحتُه: سعرُ مسح المحرّكين ──────────────────────
+# ‏(D248) كاشُ الأسعار لا يحمل إلا من فُتحت صفحتُه، فبقيت بقيّةُ السوق على
+# إغلاق المسح. ومسحُ المحرّكين يجلب سعرَ كلّ شركةٍ أصلاً — فيُقرأ منه.
+_CACHE.clear()
+ms._movers_prices = lambda: {"9999": 28.0}                       # type: ignore[assignment]
+mv = asyncio.run(ms.refresh_derived([dict(STALE)]))[0]
+check(mv["price"] == 28.0 and mv.get("price_source") == "movers",
+      "١١ شركةٌ لم تُفتح صفحتُها تأخذ سعرَ مسح المحرّكين",
+      f"سعر {mv['price']} · مصدر {mv.get('price_source')}")
+_expect50 = round((28.0 - 24.0) / 24.0 * 100, 2)
+check(mv["dist_sma50"] == _expect50,
+      "١٢ ومشتقّاتُه تُعاد حسابُها بالسعر نفسِه",
+      f"م50 {mv['dist_sma50']}٪ · المتوقَّع {_expect50}٪")
+
+# والأولويةُ للكاش الحيّ: هو أحدثُ من لقطةِ مسح.
+_CACHE["price:yahoo:9999.SR"] = LIVE
+pri = asyncio.run(ms.refresh_derived([dict(STALE)]))[0]
+check(pri["price"] == 30.0 and pri.get("price_source") == "live",
+      "١٣ والكاشُ الحيُّ يتقدّم لقطةَ المسح", f"سعر {pri['price']}")
 
 print()
 print("النتيجة:", "فيه ملاحظات ✘" if fail else "نظيف ✔")

@@ -11,6 +11,21 @@ class ParamsError(RuntimeError):
     pass
 
 
+def _live_reading() -> dict | None:
+    """قراءةُ المعدَّل الخالي من المخاطر من منتِجها الوحيد (‏risk_free.py)."""
+    try:
+        from app.services.risk_free import reading
+        return reading()
+    except Exception:                                             # noqa: BLE001
+        return None
+
+
+def _live_risk_free() -> float | None:
+    rec = _live_reading()
+    v = (rec or {}).get("value")
+    return float(v) if isinstance(v, (int, float)) else None
+
+
 @dataclass(frozen=True)
 class Params:
     raw: dict
@@ -20,6 +35,15 @@ class Params:
     def risk_free(self) -> float:
         node = self.raw["risk_free_sar"]
         v = node.get("value")
+        if v is None:
+            # ══ القراءةُ الحيّة قبل الرفض (D249) ══
+            # الملفُّ فارغٌ عمداً، والفراغُ كان يعني توقُّفَ المحرّك إلى أن
+            # تُكتب قيمةٌ بيد. واليدُ ليست مصدراً: رقمٌ يُكتب مرّةً يشيخ بلا
+            # أن يُقال إنه شاخ. فيُقرأ من منتِجٍ واحدٍ مؤرَّخٍ له عمرٌ أقصى،
+            # وما بقي بعده رفضٌ لا افتراض.
+            v = _live_risk_free()
+            if v is not None:
+                node = {**node, **(_live_reading() or {})}
         if v is None:
             raise ParamsError(
                 "risk_free_sar.value غير معبأ — المحرك لا يعمل بمعدل خالٍ من المخاطر مفترض. "
@@ -56,7 +80,12 @@ class Params:
             "params_as_of": self.raw["as_of"],
             "erp_source": self.raw["erp"]["source"],
             "erp_selected": self.raw["erp"]["selected"],
-            "risk_free_as_of": self.raw["risk_free_sar"].get("as_of"),
+            "risk_free_as_of": (self.raw["risk_free_sar"].get("as_of")
+                                or (_live_reading() or {}).get("as_of")),
+            "risk_free_source": (
+                self.raw["risk_free_sar"].get("source")
+                if self.raw["risk_free_sar"].get("value") is not None
+                else (_live_reading() or {}).get("source")),
             "betas_verified": self.raw["unlevered_sector_betas"].get("_status") == "verified",
             "params_verified": bool(self.raw.get("verified")),
         }

@@ -172,6 +172,13 @@ async def compute_market_movers(db=None) -> dict | None:
         # with today's move, using the SAME already-scanned rows (no extra
         # provider calls).
         "stocks": {r["symbol"]: r["change_pct"] for r in rows + fund_rows},
+        # ══ وسعرُ اليوم لكلّ رمزٍ من المسح نفسِه ══ (بأمر المالك · D248)
+        # إنعاشُ الفرز يقرأ سعرَ صفحة السهم من كاش الأسعار — وهو لا يحمل
+        # إلا الشركاتَ التي فُتحت صفحتُها. فبقيت بقيّةُ السوق على إغلاق
+        # المسح. وهذا المسحُ يجلب سعرَ **كلّ** شركةٍ أصلاً، فيُنشَر معه:
+        # تغطيةٌ كاملةٌ للسوق بلا نداءٍ واحدٍ زائد.
+        "prices": {r["symbol"]: r["price"] for r in rows + fund_rows
+                   if r.get("price")},
         # REAL market liquidity — the actual traded value = Σ(price × today's
         # volume) across every scanned company, from the SAME scan (no extra
         # calls). This is the true market turnover, not the TASI-index
