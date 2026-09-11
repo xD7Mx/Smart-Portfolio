@@ -217,17 +217,39 @@ def plan(listed: dict[str, dict]) -> dict:
         if not cur:
             added.append({"symbol": sym, **row})
             continue
-        if row.get("name") and cur.get("name") and row["name"] != cur["name"]:
-            renamed.append({"symbol": sym, "from": cur["name"], "to": row["name"]})
-        if cur.get("suspended"):
+        # ══ التسميةُ تُقرأ ولا تُطبَّق ══ (بعد أوّل تشغيلٍ ناجح · D245)
+        # قائمةُ «تداول» تحمل **اسمَ المتابعة** المختصر: «الرياض» لا «بنك
+        # الرياض»، و«الراجحي» لا «مصرف الراجحي» — ‎138 صفّاً من هذا الجنس.
+        # وأسماؤنا منسَّقةٌ مقصودة، فتطبيقُ المختصر تخريبٌ لا تحديث. فتُسجَّل
+        # في التقرير ليقرأها المالك، ولا تُكتب. ويُملأ الاسمُ حيث لا اسمَ
+        # عندنا فقط — وذاك إكمالٌ لا استبدال.
+        if row.get("name") and not cur.get("name"):
+            renamed.append({"symbol": sym, "from": None, "to": row["name"],
+                            "fill": True})
+        elif row.get("name") and cur.get("name") and row["name"] != cur["name"]:
+            renamed.append({"symbol": sym, "from": cur["name"],
+                            "to": row["name"], "fill": False})
+        if cur.get("suspended") or (ov.get(sym) or {}).get("absent_runs"):
+            # الحاضرُ اليومَ يُرفع وسمُه ويُصفّر عدّادُ غيابه معاً.
             resumed.append({"symbol": sym, "name": cur.get("name") or row.get("name")})
-    gone = [{"symbol": s,
-             "name": ({**(SAUDI_DIRECTORY.get(s) or {}), **(ov.get(s) or {})}
-                      ).get("name") or s}
-            for s in sorted(known - set(listed))
-            if not (ov.get(s) or {}).get("suspended")]
+    # ══ غيابٌ مرّةً لا يكفي ══ (بعد أوّل تشغيلٍ ناجح · D245)
+    # أوّلُ تشغيلٍ حقيقيٍّ رشّح عشرةَ رموزٍ للإيقاف، وفيها ثلاثةٌ أضفتُها
+    # إلى الدليل أمسِ لأنها **مدرَجةٌ فعلاً** — فغيابُها عن قائمةٍ واحدةٍ
+    # قد يكون ثقباً في الجلب أو في الفهم لا حقيقةً في السوق. وخطأُ هذا
+    # الوسم يُقرأ في الشاشة «موقوفة» عن شركةٍ تُتداول.
+    # فيُسجَّل الغيابُ أوّلاً (`absent_runs`)، ولا يُوسَم إلا بعد غيابين
+    # متتاليين — أي أسبوعين. والحضورُ يُصفّر العدّاد.
+    absent_now, gone = [], []
+    for s in sorted(known - set(listed)):
+        e = ov.get(s) or {}
+        if e.get("suspended"):
+            continue
+        runs = int(e.get("absent_runs") or 0) + 1
+        nm = ({**(SAUDI_DIRECTORY.get(s) or {}), **e}).get("name") or s
+        (gone if runs >= 2 else absent_now).append(
+            {"symbol": s, "name": nm, "absent_runs": runs})
     return {"listed": len(listed), "added": added, "renamed": renamed,
-            "resumed": resumed, "suspended": gone}
+            "resumed": resumed, "suspended": gone, "absent_once": absent_now}
 
 
 def apply_plan(p: dict) -> dict:
@@ -238,14 +260,19 @@ def apply_plan(p: dict) -> dict:
         ov[sym] = {k: v for k, v in row.items() if k != "symbol" and v}
         ov[sym]["added"] = _now()
     for row in p.get("renamed") or []:
-        ov.setdefault(row["symbol"], {})["name"] = row["to"]
+        if row.get("fill"):                 # إكمالُ اسمٍ غائبٍ فقط
+            ov.setdefault(row["symbol"], {})["name"] = row["to"]
     for row in p.get("suspended") or []:
         ov.setdefault(row["symbol"], {}).update(
-            {"suspended": True, "since": _now()})
+            {"suspended": True, "since": _now(), "absent_runs": 0})
+    # غيابُ المرّة الأولى يُسجَّل عدّاً لا وسماً.
+    for row in p.get("absent_once") or []:
+        ov.setdefault(row["symbol"], {})["absent_runs"] = row["absent_runs"]
     for row in p.get("resumed") or []:
         e = ov.get(row["symbol"]) or {}
         e.pop("suspended", None)
         e.pop("since", None)
+        e.pop("absent_runs", None)
         if e:
             ov[row["symbol"]] = e
         else:

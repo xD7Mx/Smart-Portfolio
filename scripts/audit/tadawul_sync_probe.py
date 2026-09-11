@@ -40,9 +40,13 @@ async def main() -> int:
     p = plan(listed)
     print()
     print(f"الخطّة: جديد {len(p['added'])} · تسمية {len(p['renamed'])} · "
-          f"موقوف {len(p['suspended'])} · عائد {len(p['resumed'])}")
+          f"موقوف {len(p['suspended'])} · غائبٌ مرّةً "
+          f"{len(p.get('absent_once') or [])} · عائد {len(p['resumed'])}")
+    print("‏(التسميةُ تُسجَّل ولا تُكتب إلا حيث لا اسمَ عندنا · "
+          "والوسمُ لا يُكتب إلا بعد غيابين متتاليين)")
     for label, key in (("جديد", "added"), ("تسمية", "renamed"),
-                       ("موقوف", "suspended"), ("عائد", "resumed")):
+                       ("موقوف", "suspended"), ("غائبٌ مرّةً", "absent_once"),
+                       ("عائد", "resumed")):
         for row in (p.get(key) or [])[:10]:
             print(f"   [{label}] {json.dumps(row, ensure_ascii=False)}")
 

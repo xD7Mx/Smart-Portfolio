@@ -84,9 +84,21 @@ p = ts.plan(full)
 gone_sym = sorted(set(DIR) - set(full))[0]
 check(any(r["symbol"] == "9500" for r in p["added"]),
       "٤ الاكتتابُ الجديد يُضاف", f"جديد {len(p['added'])}")
+check(any(r["symbol"] == gone_sym for r in (p.get("absent_once") or []) + p["suspended"]),
+      "٥ والغائبُ عن قائمة «تداول» يُرشَّح للإيقاف",
+      f"مرشَّح {len((p.get('absent_once') or []) + p['suspended'])} · منها {gone_sym}")
+
+# ══ غيابٌ مرّةً لا يكفي ══ (D245 · بعد أوّل تشغيلٍ حقيقيّ)
+# رشّح التشغيلُ الأوّلُ عشرةَ رموزٍ للإيقاف، وفيها ثلاثةٌ مدرَجةٌ فعلاً —
+# فغيابُها عن قائمةٍ واحدةٍ ثقبُ جلبٍ لا حقيقةُ سوق. فالوسمُ بعد غيابين.
+check(not p["suspended"] and any(r["symbol"] == gone_sym
+                                 for r in p.get("absent_once") or []),
+      "٥ب وأوّلُ غيابٍ يُعَدّ ولا يُوسَم",
+      f"موقوف {len(p['suspended'])} · غائبٌ مرّةً {len(p.get('absent_once') or [])}")
+ts.apply_plan(p)
+p = ts.plan(full)                      # التشغيلةُ الثانية: غيابٌ ثانٍ
 check(any(r["symbol"] == gone_sym for r in p["suspended"]),
-      "٥ والغائبُ عن قائمة «تداول» يُوسَم موقوفاً",
-      f"موقوف {len(p['suspended'])} · منها {gone_sym}")
+      "٥ج والغيابُ الثاني يُوسَم موقوفاً", f"موقوف {len(p['suspended'])}")
 
 applied = ts.apply_plan(p)
 ov = ts.overlay()
@@ -95,6 +107,16 @@ check(ov.get("9500", {}).get("name") == "شركةُ اكتتابٍ جديدة"
       and ov[gone_sym].get("since"),
       "٦ والطبقةُ تحفظ الاثنين — إضافةً ووسمَ إيقافٍ بتاريخه",
       f"{applied}")
+
+# ── والتسميةُ المختصرةُ لا تُطبَّق ──
+sym0 = sorted(set(DIR))[0]
+short = dict(full)
+short[sym0] = {"name": "مختصر"}
+p3 = ts.plan(short)
+ts.apply_plan(p3)
+check((ts.overlay().get(sym0) or {}).get("name") != "مختصر",
+      "٦ب واسمُ المتابعة المختصر يُسجَّل ولا يُكتب — أسماؤنا منسَّقة",
+      f"في الطبقة: {(ts.overlay().get(sym0) or {}).get('name')}")
 
 # ── ٧ · ولا حذفَ أبداً: الموقوفةُ تبقى معروفةً بالاسم ───────────────────
 check(gone_sym in DIR and (DIR[gone_sym].get("name")),

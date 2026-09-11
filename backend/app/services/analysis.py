@@ -306,8 +306,10 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         _fc2 = cache.get(f"fund:yahoo:{symbol}") or {}
         _add = _disp(_base2, _px2, fund=_fc2 or info,
                      store_row=(_fsl() or {}).get(_base2) or {})
+        # والصفحةُ تأخذ ما لا رقمَ لها فيه فقط — ورفضُ السلسلة (`None`)
+        # لا يمحو رقماً جاء من المزوّد صريحاً في هذا الموضع.
         info = {**info, **{k: v for k, v in _add.items()
-                           if info.get(k) is None}}
+                           if info.get(k) is None and v is not None}}
     except Exception as _e:                                       # noqa: BLE001
         # و`logger` يُستورَد داخل هذه الدالّة في موضعٍ لاحق، فصار اسماً
         # محلّياً — والإشارةُ إليه قبل سطر استيراده ترفع الخطأ نفسَه.

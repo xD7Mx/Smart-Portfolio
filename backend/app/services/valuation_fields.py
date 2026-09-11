@@ -44,16 +44,19 @@ def resolve_display(symbol: str, price, *, fund: dict | None = None,
     px = price if isinstance(price, (int, float)) and price > 0 else None
 
     # ── دالّتا السعر: تُحسبان لا تُنسَخان ──
+    # ══ الرفضُ حكمٌ يُكتب، لا مفتاحٌ يُحجَب ══ (بعد تشغيلٍ رابع · D245)
+    # كان المفتاحُ يُحجَب عند الرفض، وقاعدةُ «لا يُفرَّغ عمودٌ كان مملوءاً»
+    # تُبقي رقمَ البناء القديم — فبقي مضاعفُ ‎63.31 في الفرز وصفحةُ السهم
+    # تقول «غير متوفّر» (‏1213). والفرقُ بين الحالتين جوهريّ:
+    #   · **لا مدخَلَ** ⇒ يُحجَب المفتاح: لا علمَ لنا، فلا نُفرّغ.
+    #   · **مدخَلٌ ونتيجةٌ خارج المعقول** ⇒ يُكتب `None`: هذا حكمُنا،
+    #     والرقمُ القديم مرفوضٌ في الشاشتين معاً.
     if px:
         eps, bv = pick("eps"), pick("book_value")
         if isinstance(eps, (int, float)) and eps > 0:
-            v = _ok(round(px / eps, 6), *PE_RANGE)
-            if v is not None:
-                out["pe_ratio"] = v
+            out["pe_ratio"] = _ok(round(px / eps, 6), *PE_RANGE)
         if isinstance(bv, (int, float)) and bv > 0:
-            v = _ok(round(px / bv, 6), *PB_RANGE)
-            if v is not None:
-                out["price_to_book"] = v
+            out["price_to_book"] = _ok(round(px / bv, 6), *PB_RANGE)
 
     # ── المنقولاتُ من المصدر: تُقرأ بالسلسلة نفسِها ──
     for key, src in (("fair_value", "target_mean_price"),
@@ -71,12 +74,13 @@ def resolve_display(symbol: str, price, *, fund: dict | None = None,
             out["upside_pct"] = round((out["fair_value"] - px) / px * 100, 1)
 
     # ── العائد: المُنتِجُ الواحد (‏D223) بالمدخلات نفسِها ──
+    # وجوابُه هو الجواب: إن قال «لا عائد» كُتب `None` ولم يُترك رقمُ
+    # بناءٍ قديمٌ في الجدول بينما الصفحةُ تقول «غير متوفّر» (‏1304).
     try:
         from app.services.dividend_yield import resolve as _dy
         dy, src = _dy(str(symbol).replace(".SR", ""), px, f, row)
-        if dy is not None:
-            out["dividend_yield"] = dy
-            out["dividend_yield_source"] = src
+        out["dividend_yield"] = dy
+        out["dividend_yield_source"] = src if dy is not None else None
     except Exception:                                             # noqa: BLE001
         pass
     return out
