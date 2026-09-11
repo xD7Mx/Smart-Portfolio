@@ -51,12 +51,27 @@ def resolve_display(symbol: str, price, *, fund: dict | None = None,
     #   · **لا مدخَلَ** ⇒ يُحجَب المفتاح: لا علمَ لنا، فلا نُفرّغ.
     #   · **مدخَلٌ ونتيجةٌ خارج المعقول** ⇒ يُكتب `None`: هذا حكمُنا،
     #     والرقمُ القديم مرفوضٌ في الشاشتين معاً.
+    # ══ المنشورُ أوّلاً ثمّ المحسوب ══ (بعد تشغيلٍ خامس · D246)
+    # قِيس على 1213: الفرزُ يعرض ‎63.31 والصفحةُ «غير متوفّر». والسببُ
+    # ترتيبٌ معكوس: الفرزُ كان يحسب من السعر ومقياسِ الشركة، والصفحةُ
+    # تُقدّم رقمَ المزوّد. فحيث لا مقياسَ اليومَ بقي في الفرز رقمُ بناءٍ
+    # قديمٌ محسوبٌ بسعرٍ آخر.
+    # فالترتيبُ واحدٌ في الاثنين: **رقمُ المزوّد المنشور** أوّلاً — هو ما
+    # تعرضه الصفحةُ وهو محسوبٌ عند المصدر بسعره — وإلا حُسب من السعر
+    # الحاضر ومقياسِ الشركة، وإلا `None`.
+    # والمفتاحُ يُكتب دائماً: حقلٌ دالّةُ سعرٍ إمّا يُعرَف الآن أو لا
+    # يُعرض — وإبقاءُ رقمٍ محسوبٍ بسعرِ أمسِ أسوأُ من الفراغ.
     if px:
         eps, bv = pick("eps"), pick("book_value")
-        if isinstance(eps, (int, float)) and eps > 0:
-            out["pe_ratio"] = _ok(round(px / eps, 6), *PE_RANGE)
-        if isinstance(bv, (int, float)) and bv > 0:
-            out["price_to_book"] = _ok(round(px / bv, 6), *PB_RANGE)
+        pub_pe, pub_pb = pick("pe_ratio"), pick("price_to_book")
+        out["pe_ratio"] = (
+            _ok(pub_pe, *PE_RANGE) if _ok(pub_pe, *PE_RANGE) is not None
+            else (_ok(round(px / eps, 6), *PE_RANGE)
+                  if isinstance(eps, (int, float)) and eps > 0 else None))
+        out["price_to_book"] = (
+            _ok(pub_pb, *PB_RANGE) if _ok(pub_pb, *PB_RANGE) is not None
+            else (_ok(round(px / bv, 6), *PB_RANGE)
+                  if isinstance(bv, (int, float)) and bv > 0 else None))
 
     # ── المنقولاتُ من المصدر: تُقرأ بالسلسلة نفسِها ──
     for key, src in (("fair_value", "target_mean_price"),

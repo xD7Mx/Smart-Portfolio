@@ -278,7 +278,17 @@ def apply_plan(p: dict) -> dict:
         else:
             ov.pop(row["symbol"], None)
     _save_overlay(ov)
-    return {k: len(p.get(k) or []) for k in ("added", "renamed", "suspended", "resumed")}
+    # ══ يُعَدّ ما كُتب لا ما في الخطّة ══ (بعد تشغيلٍ خامس · D246)
+    # قال التقريرُ «‏renamed: 138» وهو **لا يكتب** إلا التسميةَ الغائبة —
+    # فعدَّ الخطّةَ وسمّاها تطبيقاً. وتقريرٌ يقول ما لم يفعل أخطرُ من
+    # سكوت: المالكُ رآه وظنّ أسماءَه بُدِّلت.
+    return {"added": len(p.get("added") or []),
+            "renamed": sum(1 for r in (p.get("renamed") or []) if r.get("fill")),
+            "renamed_reported_only": sum(1 for r in (p.get("renamed") or [])
+                                         if not r.get("fill")),
+            "suspended": len(p.get("suspended") or []),
+            "resumed": len(p.get("resumed") or []),
+            "absent_once": len(p.get("absent_once") or [])}
 
 
 def log_run(entry: dict) -> None:

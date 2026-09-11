@@ -55,7 +55,11 @@ async def main() -> int:
         print("… لم يُكتب شيء (مسبار). أضف --apply للكتابة في الطبقة.")
         return 0
     print()
-    print("طُبِّق:", json.dumps(apply_plan(p), ensure_ascii=False))
+    _rep = apply_plan(p)
+    print("طُبِّق:", json.dumps(_rep, ensure_ascii=False))
+    if _rep.get("renamed_reported_only"):
+        print(f"‏({_rep['renamed_reported_only']} تسميةً سُجِّلت للقراءة "
+              f"ولم تُكتب — أسماؤنا منسَّقة وقائمةُ «تداول» مختصرة)")
     return 0
 
 
