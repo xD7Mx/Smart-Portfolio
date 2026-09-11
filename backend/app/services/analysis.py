@@ -300,12 +300,19 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         from app.services.valuation_fields import resolve_display as _disp
         _px2 = (price or {}).get("price") if isinstance(price, dict) else price
         _base2 = str(symbol).replace(".SR", "")
-        _add = _disp(_base2, _px2, fund=_fund_cache or info,
+        # كاشُ المزوّد يُقرأ **هنا**: كان يُشار إلى متغيّرٍ يُسنَد بعد هذا
+        # الموضع بخمسين سطراً فيرفع UnboundLocalError — وهو الخطأُ نفسُه
+        # الذي وقعتُ فيه قبلاً في هذا الملفّ (‏`_px_now`). كشفته اللجنة.
+        _fc2 = cache.get(f"fund:yahoo:{symbol}") or {}
+        _add = _disp(_base2, _px2, fund=_fc2 or info,
                      store_row=(_fsl() or {}).get(_base2) or {})
         info = {**info, **{k: v for k, v in _add.items()
                            if info.get(k) is None}}
     except Exception as _e:                                       # noqa: BLE001
-        logger.warning(f"حقولُ العرض {symbol}: {type(_e).__name__}: {_e}")
+        # و`logger` يُستورَد داخل هذه الدالّة في موضعٍ لاحق، فصار اسماً
+        # محلّياً — والإشارةُ إليه قبل سطر استيراده ترفع الخطأ نفسَه.
+        from loguru import logger as _lg2
+        _lg2.warning(f"حقولُ العرض {symbol}: {type(_e).__name__}: {_e}")
 
     _fv = _fvmod.compute(info, (price or {}).get("price"),
                          (valuation or {}).get("sector_avg_pe"),
@@ -374,7 +381,8 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
                                       store=fund_store_load(),
                                       fund=_fund_cache)
     except Exception as _e:                                   # noqa: BLE001
-        logger.warning(f"السعر العادل {symbol}: {type(_e).__name__}: {_e}")
+        from loguru import logger as _lg3
+        _lg3.warning(f"السعر العادل {symbol}: {type(_e).__name__}: {_e}")
 
     from app.services.four_scores import technical_to_timing_snapshot, valuation_to_snapshot, resolve_sector
     # Canonical Arabic sector drives archetype exemptions; Yahoo's English
