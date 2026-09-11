@@ -59,9 +59,17 @@ async def _tiny(url):
     return 200, html
 
 
-ts._orig = None
 import app.services.tadawul_announcements as _ann  # noqa: E402
 _ann._raw_fetch = _tiny                                          # type: ignore[assignment]
+
+
+async def _no_argaam():
+    return {}
+
+
+# ولا شبكةَ في اللجنة: مصدرُ «أرقام» يُموَّه أيضاً، وإلا خرج الفحصُ إلى
+# الإنترنت فصار يقيس حالةَ البروكسي لا قاعدةَ الرفض.
+ts._argaam_listed = _no_argaam                                   # type: ignore[assignment]
 listed, why = asyncio.run(ts.fetch_listed())
 check(not listed and "الحدّ" in (why or ""),
       "٣ قائمةٌ دون الحدّ تُرفَض ويُقال سببُها", str(why))

@@ -61,10 +61,18 @@ async def main() -> int:
     # ترتيبُ المسبار لا عطبُ التطبيق. وفي الخادم يجري العكسُ طبعاً:
     # الصفحةُ تُفتح فيُملأ الكاش، ثم يُخدَم الفرزُ من المملوء.
     # فيُحلَّل أوّلاً ثم يُنعَش — كترتيب الخادم لا كترتيب الملفّ.
+    # ══ ولا يُقاس تحليلٌ محفوظٌ من أمس ══ (صُحّح بعد التشغيل الثالث)
+    # التحليلُ مُكيَّشٌ أربعاً وعشرين ساعةً ومحفوظٌ على القرص. فمسبارٌ
+    # يُشغَّل بعد تركيبٍ جديدٍ يقرأ نتيجةَ الشيفرة **القديمة** ويسمّيها
+    # خلافاً — فيُبطَل مفتاحُ الشركة قبل تحليلها.
+    from app.services import cache as _c
     analyses: dict[str, dict] = {}
     for r in rows:
         sym = str(r.get("symbol"))
         try:
+            # المفتاحُ يحمل نسخةَ القواعد — يُقرأ منها لا يُخمَّن.
+            from app.services.governance_rules import rules_version as _rv
+            _c.set(f"analysis:{sym}.SR:{_rv()}", None, 0)
             a = await analyze_company(f"{sym}.SR", r.get("name") or sym)
         except Exception as e:                                    # noqa: BLE001
             print(f"  ‏{sym}: تعذّر التحليل — {type(e).__name__}")

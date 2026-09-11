@@ -121,8 +121,59 @@ def parse_listed(body: str) -> dict[str, dict]:
     return out
 
 
+async def _argaam_listed() -> dict[str, dict]:
+    """قائمةُ المدرَجين من «أرقام» — مصدرٌ ثانٍ مقيسُ الوصول (D244).
+
+    قِيس على الخادم أن «تداول» تردّ ‎403 على صفحتَي الدليل ومراقبة السوق
+    (حمايةُ Akamai تمرّر صفحةَ الإعلانات ولا تمرّر هاتين). و«أرقام»
+    تُقرأ يومياً في هذا التطبيق بنجاحٍ مُسجَّل، وصفحةُ مفكرتها تحمل
+    فهرسَ الشركات برمزها واسمها العربيّ — فتصلح قائمةً.
+
+    وليست بديلاً عن «تداول» في المعنى: إن نقصت عن حدّ القبول رُفضت كما
+    تُرفض غيرُها، فلا يُوسَم أحدٌ موقوفاً على قائمةٍ ناقصة.
+    """
+    from app.services.argaam_calendar import CAL_URL, UA, _company_index
+    import httpx
+    async with httpx.AsyncClient(timeout=25, headers={"User-Agent": UA},
+                                 follow_redirects=True) as c:
+        r = await c.get(CAL_URL)
+        if r.status_code != 200:
+            return {}
+        idx = _company_index(r.text)
+    return {sym: {"name": name} for name, (sym, _cid) in idx.items() if sym}
+
+
+async def new_listings_from_announcements() -> dict[str, dict]:
+    """رموزٌ جديدةٌ من إعلانات «تداول» — إضافةٌ فقط، لا وسمَ إيقاف (D244).
+
+    صفحةُ الإعلانات تمرّ من الحماية (تُقرأ في التطبيق أصلاً)، وفيها
+    «إدراجُ وبدءُ تداولِ أسهم شركة …». وهي قائمةُ **أحداثٍ** لا قائمةُ
+    سوق: تكشف الوافدَ ولا تُثبت غيابَ أحد. فتُستعمل للإضافة وحدَها —
+    فلا يبني وسمُ الإيقاف على مصدرٍ لا يعرف من بقي.
+    """
+    try:
+        from app.services.tadawul_announcements import \
+            fetch_tadawul_announcements as fetch_announcements
+    except Exception:                                             # noqa: BLE001
+        return {}
+    try:
+        items = await fetch_announcements()
+    except Exception:                                             # noqa: BLE001
+        return {}
+    out: dict[str, dict] = {}
+    for it in items or []:
+        title = str((it or {}).get("headline") or (it or {}).get("title") or "")
+        if "إدراج" not in title or "تداول" not in title:
+            continue
+        sym = str((it or {}).get("symbol") or "")
+        m = _SYM.search(sym) or _SYM.search(title)
+        if m:
+            out[m.group(1)] = {"name": title}
+    return out
+
+
 async def fetch_listed() -> tuple[dict[str, dict], str | None]:
-    """قائمةُ المدرَجين من «تداول» — أو (فارغ، سببُ التعذّر)."""
+    """قائمةُ المدرَجين — «تداول» أوّلاً ثم «أرقام» — أو (فارغ، سببُ التعذّر)."""
     from app.services.tadawul_announcements import _raw_fetch
     last = None
     for url in SOURCES:
@@ -139,6 +190,15 @@ async def fetch_listed() -> tuple[dict[str, dict], str | None]:
             return got, None
         last = (f"فُهم {len(got)} رمزاً فقط من {url.rsplit('/', 1)[-1]} "
                 f"(الحدّ {MIN_LISTED})")
+    # ثمّ «أرقام» — مصدرٌ مقيسُ الوصول حين تردّ «تداول» ‎403.
+    try:
+        got = await _argaam_listed()
+    except Exception as e:                                        # noqa: BLE001
+        got, last = {}, f"أرقام: {type(e).__name__}: {e}"
+    if len(got) >= MIN_LISTED:
+        return got, None
+    if got:
+        last = f"فُهم {len(got)} رمزاً من «أرقام» (الحدّ {MIN_LISTED}) · {last or ''}"
     return {}, last or "لم يُفهم أيُّ مصدر"
 
 
@@ -209,9 +269,22 @@ async def sync(*, dry_run: bool = False) -> dict:
     """
     listed, why = await fetch_listed()
     if not listed:
-        out = {"ok": False, "why": why, "applied": None}
-        logger.warning(f"مزامنةُ الدليل تعذّرت: {why}")
-        log_run(out)
+        # ══ الإضافةُ لا تنتظر القائمةَ الكاملة ══ (D244)
+        # قائمةُ السوق قد تُحجب (‏403)، وإعلاناتُ «تداول» تمرّ. فمن
+        # الإعلانات يُعرف الوافدُ الجديد — وهو أهمُّ ما سأل عنه المالك.
+        # ولا يُوسَم أحدٌ موقوفاً هنا: مصدرُ الأحداث لا يعرف من بقي.
+        fresh = await new_listings_from_announcements()
+        p0 = plan({**{s: {"name": (r.get("name") or s)} for s, r in fresh.items()}})
+        p0["suspended"] = []      # لا يُبنى وسمُ إيقافٍ على قائمةِ أحداث
+        out = {"ok": False, "why": why, "partial": "إعلانات",
+               "plan": p0, "applied": None}
+        if not dry_run and p0["added"]:
+            out["applied"] = apply_plan(p0)
+            logger.info(f"🗂️ من الإعلانات: أُضيف {len(p0['added'])} رمزاً جديداً.")
+        logger.warning(f"مزامنةُ الدليل: القائمةُ الكاملة تعذّرت ({why}) — "
+                       f"اكتُفي بالإعلانات: جديد {len(p0['added'])}.")
+        log_run({k: v for k, v in out.items() if k != "plan"} | {
+            "counts": {"added": len(p0["added"])}})
         return out
     p = plan(listed)
     out = {"ok": True, "plan": p, "dry_run": dry_run}

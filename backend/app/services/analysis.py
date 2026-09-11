@@ -289,41 +289,21 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
                 info = {**info, "_regulatory_ratios": _rr}
         except Exception:                                         # noqa: BLE001
             pass
-    # ══ ما تعرضه الشاشةُ يخرج من المُنتِج الواحد ══ (D240)
-    # قِيس على الخادم: عائدُ التوزيعات غائبٌ في الصفحة وموجودٌ في الفرز
-    # (‏1304)، ومضاعفُ الدفترية كذلك (‏1213). والسببُ أن هذه الصفحةَ تقرأ
-    # حقلَ المزوّد وحدَه، والفرزُ يقرأ سلسلةَ المصادر المرتَّبة. فالأفقرُ
-    # هو الصفحةُ لا الفرز — فتُرفَع إلى السلسلة نفسِها:
-    #   · العائد: `dividend_yield.resolve` (‏D223) — مُنتِجٌ واحدٌ للعائد
-    #   · المكرّرُ والمضاعف: حقلُ المزوّد أوّلاً، وإلا السعرُ ÷ مقياسِ
-    #     الشركة (ربحيةُ السهم · الدفترية)، وما خرج عن مدى المعقول لا
-    #     يُنشَر — فلا رقمٌ لا يُصدَّق ولا فراغٌ يمكن ملؤه.
+    # ══ ما تعرضه الشاشةُ يخرج من المُنتِج الواحد ══ (D240 · D244)
+    # قِيس على الخادم: عائدُ التوزيعات ومضاعفُ الدفترية يختلفان بين الفرز
+    # وهذه الصفحة — لا لأن الحسابَ مختلفٌ بل لأن **ترتيبَ المصادر** كان
+    # مكتوباً في كلّ مسارٍ بيده. فصار `resolve_display` هو السلسلةَ
+    # الواحدة، وهذه تستعملها كما يستعملها الفرز.
+    # وما جاء من المزوّد صريحاً يبقى: السلسلةُ تُكمل ولا تُبدّل.
     try:
-        from app.services.dividend_yield import resolve as _dy_res
         from app.services.content_engine import fund_store_load as _fsl
-        from app.services.relative_value import PB_RANGE as _PBR
-        from app.services.relative_value import PE_RANGE as _PER
-        from app.services.relative_value import _ok as _rng
-        # السعرُ محسوبٌ محلّياً: `_px_now` يُعرَّف بعد هذا الموضع بمئة
-        # سطر، والإشارةُ إليه هنا خطأٌ وقعتُ فيه قبلاً في هذا الملفّ نفسِه.
+        from app.services.valuation_fields import resolve_display as _disp
         _px2 = (price or {}).get("price") if isinstance(price, dict) else price
         _base2 = str(symbol).replace(".SR", "")
-        _store2 = _fsl() or {}
-        _row2 = _store2.get(_base2) or {}
-        _dy2, _dys = _dy_res(_base2, _px2, info, _row2)
-        _add: dict = {}
-        if info.get("dividend_yield") is None and _dy2 is not None:
-            _add["dividend_yield"] = _dy2
-            _add["dividend_yield_source"] = _dys
-        if isinstance(_px2, (int, float)) and _px2 > 0:
-            _eps2 = info.get("eps") if info.get("eps") is not None else _row2.get("eps")
-            _bv2 = (info.get("book_value") if info.get("book_value") is not None
-                    else _row2.get("book_value"))
-            if info.get("pe_ratio") is None and isinstance(_eps2, (int, float)) and _eps2 > 0:
-                _add["pe_ratio"] = _rng(round(_px2 / _eps2, 6), *_PER)
-            if info.get("price_to_book") is None and isinstance(_bv2, (int, float)) and _bv2 > 0:
-                _add["price_to_book"] = _rng(round(_px2 / _bv2, 6), *_PBR)
-        info = {**info, **{k: v for k, v in _add.items() if v is not None}}
+        _add = _disp(_base2, _px2, fund=_fund_cache or info,
+                     store_row=(_fsl() or {}).get(_base2) or {})
+        info = {**info, **{k: v for k, v in _add.items()
+                           if info.get(k) is None}}
     except Exception as _e:                                       # noqa: BLE001
         logger.warning(f"حقولُ العرض {symbol}: {type(_e).__name__}: {_e}")
 
