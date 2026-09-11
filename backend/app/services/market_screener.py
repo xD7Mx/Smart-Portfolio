@@ -237,14 +237,23 @@ async def _governance_score(ysym: str, sector_ar: str | None) -> float | None:
         sk = f"screener:gov:{ysym}"
         cached = cache.get(sk)
         if cached is not None:
-            return None if cached == "-" else cached
+            return cached                     # وقد يكون "-" أي امتناعٌ صريح
         from app.services.governance_engine import evaluate_company
         gov = await evaluate_company(ysym, sector=sector_ar)
-        if not gov or not gov.get("evaluable"):
-            cache.set(sk, "-", 3600)          # والغيابُ يُحفظ كما يُحفظ الحضور
-            return None
+        # ══ الامتناعُ حكمٌ، والتعذّرُ جهل ══ (بعد عيّنة ‎120 · D247)
+        # قِيس على 2180: الفرزُ يعرض ‎43 والصفحةُ «غير متاحة». والسببُ أن
+        # هذه الدالّةَ تُعيد `None` في حالتين مختلفتين تماماً، فتُعالَجان
+        # معالجةً واحدة: «أبقِ المخزَّن» (‏D226).
+        #   · **لا قوائمَ مخزَّنة** ⇒ لم يُشغَّل المحرّك: جهلٌ، فيبقى
+        #     المخزَّنُ — وإلا فُرِّغ عمودٌ لسببٍ فينا لا في الشركة.
+        #   · **المحرّكُ نطق وامتنع** (‏evaluable=False) ⇒ حكمٌ صريح:
+        #     والصفحةُ تقول «غير متاحة»، فلا يجوز أن يبقى في الجدول رقمٌ
+        #     لا يقف التطبيقُ خلفه. يُعاد "-" ليُفرَّغ العمود.
+        if not gov or not gov.get("evaluable") or gov.get("overall") is None:
+            cache.set(sk, "-", 3600)
+            return "-"
         out = gov.get("overall")
-        cache.set(sk, out if out is not None else "-", 3600)
+        cache.set(sk, out, 3600)
         return out
     except Exception:
         return None
@@ -333,8 +342,10 @@ async def _enrich_fundamentals(rows: list[dict]) -> None:
         # تكن القوائمُ مخزَّنةً سلفاً. فإن لم تكن، رجعنا إلى المخزَّن — رقمٌ
         # قديمٌ خيرٌ من فراغ، والفراغُ خيرٌ من رقمٍ مُختلَق.
         fs = await _governance_score(ysym, r.get("sector"))
-        if not fs:
-            fs = d.get("finance_score")
+        if fs == "-":
+            fs = None                         # امتناعٌ صريحٌ لا يُستبدَل بمخزَّن
+        elif not fs:
+            fs = d.get("finance_score")       # تعذّرٌ: المخزَّنُ خيرٌ من فراغ
         r["finance_score"] = fs if fs else None
 
         # ٢) حقول التقييم: الكاش أوّلاً (٣٠ يوماً)، فإن انتهى فالمخزن الدائم.
@@ -704,7 +715,9 @@ async def refresh_derived(rows: list) -> list:
         # قوائمَ مخزَّنةٍ فيبقى المخزَّنُ في الصفّ، فلا يُفرَّغ عمودٌ كان مملوءاً.
         try:
             fs = await _governance_score(f"{sym}.SR", r.get("sector"))
-            if fs:
+            if fs == "-":
+                r["finance_score"] = None     # امتناعٌ صريح: كالصفحة
+            elif fs:
                 r["finance_score"] = fs
         except Exception:                                         # noqa: BLE001
             pass

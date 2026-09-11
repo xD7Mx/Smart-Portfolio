@@ -96,6 +96,32 @@ ep = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8
 check("refresh_derived_cached(rows)" in ep or "refresh_derived(rows)" in ep,
       "٦ نقطةُ الفرز تستدعي الإنعاش")
 
+# ══ الامتناعُ حكمٌ يُفرّغ، والتعذّرُ جهلٌ يُبقي ══ (D247)
+# قِيس على 2180 في عيّنة ‎120: الفرزُ يعرض ‎43 والصفحةُ «غير متاحة».
+# والدالّةُ كانت تُعيد `None` في الحالتين فتُعالَجان معالجةً واحدة.
+async def _abstains(*_a, **_k):
+    return "-"                      # المحرّكُ نطق وامتنع
+
+
+async def _cannot(*_a, **_k):
+    return None                     # لا قوائمَ مخزَّنة: لم يُشغَّل
+
+
+_keep = ms._governance_score
+ms._governance_score = _abstains
+_row_a = asyncio.run(ms.refresh_derived([{"symbol": "8210", "sector": "التأمين",
+                                          "finance_score": 43}]))[0]
+ms._governance_score = _cannot
+_row_c = asyncio.run(ms.refresh_derived([{"symbol": "8210", "sector": "التأمين",
+                                          "finance_score": 43}]))[0]
+ms._governance_score = _keep
+check(_row_a.get("finance_score") is None,
+      "٦ب امتناعُ المحرّك يُفرّغ العمود — كما تقول الصفحة «غير متاحة»",
+      f"{_row_a.get('finance_score')}")
+check(_row_c.get("finance_score") == 43,
+      "٦ج وتعذّرُ التشغيل يُبقي المخزَّن — جهلٌ فينا لا حكمٌ على الشركة",
+      f"{_row_c.get('finance_score')}")
+
 # ── ٧ · صيغتا النداء تُعطيان الرقمَ نفسَه ────────────────────────────
 # ══ لماذا هذا الفحصُ بالذات ══
 # قال المالك: «الموضوع تكرّر لأكثر من حزمة». وسببُ التكرار أنّي كنتُ أفحص

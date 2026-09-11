@@ -39,6 +39,14 @@ TOL = {          # ما يُعدّ خلافاً: النسبةُ تُقاس با�
 }
 
 
+# ══ ما يُقاس نسبةً لا بالهللة ══ (بعد عيّنة ‎120)
+# السعرُ العادل دالّةُ سعرٍ لحظيّ، والمسبارُ يحلّل الشركةَ ثمّ يُنعش الصفّ —
+# فبين القياسين تِكّاتُ سعرٍ. فخرج فرقٌ ‎0.01–0.04 على قيمةٍ ‎31–42 (نحو
+# جزءٍ من الألف): ذاك **زمنٌ** لا مصدران، ومقارنتُه بالهللة تُنتج ضجيجاً
+# يُخفي العطبَ الحقيقيّ. فيُقاس نسبةً، ويُطبَع الفرقُ النسبيُّ حين يزيد.
+REL_TOL = {"rel_value": 0.005}          # نصفُ بالمئة
+
+
 def _num(x):
     return x if isinstance(x, (int, float)) and not isinstance(x, bool) else None
 
@@ -114,7 +122,14 @@ async def main() -> int:
                 diffs.setdefault(col, []).append(
                     f"{sym}: الفرز {row_v} · الصفحة {page_v}")
                 continue
-            if abs(row_v - page_v) > tol:
+            frac = REL_TOL.get(col)
+            if frac is not None:
+                base = max(abs(row_v), abs(page_v)) or 1.0
+                if abs(row_v - page_v) / base > frac:
+                    diffs.setdefault(col, []).append(
+                        f"{sym}: الفرز {row_v} · الصفحة {page_v} "
+                        f"(‏{abs(row_v - page_v) / base * 100:.2f}٪)")
+            elif abs(row_v - page_v) > tol:
                 diffs.setdefault(col, []).append(
                     f"{sym}: الفرز {row_v} · الصفحة {page_v}")
         # ══ الحكمُ الشرعيّ خارج نطاق هذه المقارنة ══ (صُحّح بعد أوّل تشغيل)

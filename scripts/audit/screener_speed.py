@@ -92,9 +92,11 @@ check(len(half) == 5, "٤ وصفوفٌ مختلفةُ العدد لا تُخدَ
 
 # ── ٥ · ودرجةُ الحوكمة نفسُها محفوظةٌ لساعة (‏الطبقةُ الثانية) ──────────
 src = (ROOT / "backend/app/services/market_screener.py").read_text(encoding="utf-8")
-check('cache.set(sk, out if out is not None else "-", 3600)' in src
-      and 'screener:gov:' in src,
-      "٥ ودرجةُ الحوكمة لكلّ رمزٍ محفوظةٌ ساعةً — والغيابُ يُحفظ كالحضور")
+# صار الامتناعُ يُحفظ بعلامةٍ صريحةٍ ("-") تُفرّغ العمود (‏D247)، فالفحصُ
+# يسأل عن **الحفظ ساعةً** لا عن سطرٍ بعينه.
+check('screener:gov:' in src and 'cache.set(sk, "-", 3600)' in src
+      and 'cache.set(sk, out, 3600)' in src,
+      "٥ ودرجةُ الحوكمة لكلّ رمزٍ محفوظةٌ ساعةً — والامتناعُ يُحفظ كالحضور")
 
 # ── ٦ · وما خرج عن الشاشة لا يُرسَم — وحدُّ الصفوف اتّسع للسوق ──────────
 css = (ROOT / "frontend/src/styles/globals.css").read_text(encoding="utf-8")

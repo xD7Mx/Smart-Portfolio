@@ -61,17 +61,27 @@ def resolve_display(symbol: str, price, *, fund: dict | None = None,
     # الحاضر ومقياسِ الشركة، وإلا `None`.
     # والمفتاحُ يُكتب دائماً: حقلٌ دالّةُ سعرٍ إمّا يُعرَف الآن أو لا
     # يُعرض — وإبقاءُ رقمٍ محسوبٍ بسعرِ أمسِ أسوأُ من الفراغ.
+    # ══ مدى المحرّك ليس مدى العرض ══ (بعد عيّنة ‎120 · D247)
+    # قِيس: خمسُ شركاتٍ مكرّرُها ‎136–1172 تعرضه الصفحةُ ويُخفيه الفرز.
+    # والسببُ أنّي طبّقتُ على **العرض** مدى `PE_RANGE` — وهو مدًى مصنوعٌ
+    # لعيّنة النظائر: مكرّرٌ ‎1172 لا يقول عن القطاع شيئاً فيُستبعَد من
+    # الوسيط. لكنّه **رقمٌ حقيقيٌّ عن الشركة**: ربحُها كاد ينعدم، وذاك
+    # خبرٌ يستحقّ العرضَ لا الحجب. ومَن يُصفّي بالمكرّر يجب أن يجدها.
+    # فالعرضُ يقبل كلَّ موجبٍ، والمحرّكُ يبقى على مداه في عيّنته.
     if px:
         eps, bv = pick("eps"), pick("book_value")
         pub_pe, pub_pb = pick("pe_ratio"), pick("price_to_book")
+
+        def _pos(v):
+            return float(v) if isinstance(v, (int, float)) and not isinstance(
+                v, bool) and v > 0 else None
+
         out["pe_ratio"] = (
-            _ok(pub_pe, *PE_RANGE) if _ok(pub_pe, *PE_RANGE) is not None
-            else (_ok(round(px / eps, 6), *PE_RANGE)
-                  if isinstance(eps, (int, float)) and eps > 0 else None))
+            _pos(pub_pe) if _pos(pub_pe) is not None
+            else (round(px / eps, 6) if _pos(eps) else None))
         out["price_to_book"] = (
-            _ok(pub_pb, *PB_RANGE) if _ok(pub_pb, *PB_RANGE) is not None
-            else (_ok(round(px / bv, 6), *PB_RANGE)
-                  if isinstance(bv, (int, float)) and bv > 0 else None))
+            _pos(pub_pb) if _pos(pub_pb) is not None
+            else (round(px / bv, 6) if _pos(bv) else None))
 
     # ── المنقولاتُ من المصدر: تُقرأ بالسلسلة نفسِها ──
     for key, src in (("fair_value", "target_mean_price"),
