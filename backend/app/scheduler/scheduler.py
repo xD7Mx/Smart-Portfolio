@@ -57,6 +57,22 @@ async def job_directory_sync():
         logger.error(f"Directory sync failed: {e}")
 
 
+async def job_tadawul_snapshot():
+    """لقطةُ السوق من «تداول» — نداءٌ واحدٌ لكلّ الشركات (D251).
+
+    فيها منشوراً: السعرُ والقيمةُ السوقية والمكرّرُ ومضاعفُ الدفترية
+    وحدّا العام. تحلّ محلّ الاشتقاق من المزوّد، وتُقرأ بلا حصّةٍ ولا
+    نداءٍ لكلّ شركة.
+    """
+    try:
+        from app.services.tadawul_market import refresh
+        rec = await refresh()
+        if not rec.get("count"):
+            logger.warning(f"Tadawul snapshot unread: {rec.get('error')}")
+    except Exception as e:
+        logger.error(f"Tadawul snapshot failed: {e}")
+
+
 async def job_risk_free():
     """المعدَّلُ الخالي من المخاطر بالريال — أسبوعياً (D249).
 
@@ -339,6 +355,15 @@ def start_scheduler():
         job_directory_sync,
         CronTrigger(day_of_week="fri", hour=4, minute=0),
         id="directory_sync_weekly",
+        replace_existing=True,
+    )
+
+    # لقطةُ «تداول» — كلَّ خمس دقائقَ في أيّام التداول وساعاتِه. نداءٌ
+    # واحدٌ يغطّي السوق كلَّه، فلا حصّةَ تُستهلك ولا سعرَ يشيخ في شاشة.
+    _scheduler.add_job(
+        job_tadawul_snapshot,
+        CronTrigger(day_of_week="sun-thu", hour="9-16", minute="*/5"),
+        id="tadawul_snapshot",
         replace_existing=True,
     )
 

@@ -234,6 +234,11 @@ python3 scripts/audit/screener_price_fresh.py || fail=1
 echo
 python3 scripts/audit/one_fair_price.py || fail=1
 
+# D251: لقطةُ السوق من مُصدِره — المكرّرُ ومضاعفُ الدفترية وحدّا العام
+# منشورةً في «تداول» لا مشتقّةً عندنا من سعرٍ ومقياسٍ من ياهو.
+echo
+python3 scripts/audit/tadawul_source.py || fail=1
+
 # D250: مَعبرٌ واحدٌ إلى «تداول» — الحجبُ كان ببصمة TLS لا بالرؤوس،
 # فعُبر بانتحال بصمة كروم فانفتحت صفحاتُ السوق والدليل والصكوك.
 echo

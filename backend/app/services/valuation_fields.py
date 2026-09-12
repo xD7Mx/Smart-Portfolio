@@ -36,7 +36,21 @@ def resolve_display(symbol: str, price, *, fund: dict | None = None,
     f = fund or {}
     row = store_row or {}
 
+    # ══ المصدرُ يتقدّم المزوّد ══ (D251)
+    # بعد عبور الحماية صار السوقُ مقروءاً من «تداول» نفسِها: المكرّرُ
+    # ومضاعفُ الدفترية وحدّا العام **منشورةً** لا مشتقّةً من سعرٍ ومقياس.
+    # وأربعةُ أعطابٍ سابقة (‏D239 · D244 · D246 · D247) كانت خلافاتِ
+    # اشتقاق. فيُقدَّم المصدرُ، وياهو يملأ الفراغَ ولا يستبدل.
+    try:
+        from app.services.tadawul_market import row_for as _tad_row
+        tad = _tad_row(symbol)
+    except Exception:                                             # noqa: BLE001
+        tad = {}
+
     def pick(key):
+        v = tad.get(key)
+        if v is not None:
+            return v
         v = f.get(key)
         return v if v is not None else row.get(key)
 

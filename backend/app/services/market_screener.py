@@ -609,6 +609,16 @@ async def refresh_derived_cached(rows: list) -> list:
     return out
 
 
+def _tadawul_prices() -> dict:
+    """أسعارُ لقطة «تداول» — تُقرأ مرّةً لكلّ إنعاشٍ لا لكلّ صفّ (D251)."""
+    try:
+        from app.services.tadawul_market import snapshot
+        return {k: v.get("price") for k, v in (snapshot() or {}).items()
+                if isinstance(v, dict) and v.get("price")}
+    except Exception:                                             # noqa: BLE001
+        return {}
+
+
 def _movers_prices() -> dict:
     """أسعارُ اليوم من لقطة المحرّكين — تُقرأ مرّةً لكلّ إنعاشٍ لا لكلّ صفّ."""
     try:
@@ -687,6 +697,14 @@ async def refresh_derived(rows: list) -> list:
                 _mv = (_movers_prices() or {}).get(sym)
                 if isinstance(_mv, (int, float)) and _mv > 0:
                     px_new, _src = _mv, "movers"
+            # ══ ولقطةُ «تداول» تسدّ ما بقي ══ (D251)
+            # مصدرُ السوق نفسُه، نداءٌ واحدٌ لكلّ الشركات. ويأتي بعد الكاش
+            # الحيّ ولقطةِ المحرّكين لأنهما أحدثُ زمناً عند من قُرئ لهم،
+            # وقبل إغلاقِ البناء لأنه سعرُ اليوم لا سعرُ الليلة الماضية.
+            if _src is None:
+                _td = _tadawul_prices().get(sym)
+                if isinstance(_td, (int, float)) and _td > 0:
+                    px_new, _src = _td, "tadawul"
             if isinstance(px_new, (int, float)) and px_new > 0:
                 r["price_source"] = _src
                 r["price"] = px_new
