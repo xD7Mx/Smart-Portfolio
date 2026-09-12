@@ -241,6 +241,8 @@ export const marketApi = {
   companyEvents: (symbol: string, name?: string) => api.get<APIResponse>(`/market/events/${symbol}`, { params: name ? { name } : undefined }),
   results:  () => api.get<APIResponse>("/market/results"),
   company:  (symbol: string) => api.get<APIResponse>(`/market/company/${symbol}`),
+  // عمقُ السوق: مستوًى واحدٌ من لقطة «تداول» (D272).
+  depth:    (symbol: string) => api.get<APIResponse>(`/market/depth/${symbol}`),
   history:  (symbol: string, range = "3mo") => api.get<APIResponse>(`/market/history/${symbol}?range=${range}`),
   recommendations: (symbol: string) => api.get<APIResponse>(`/market/recommendations/${symbol}`),
   financials: (symbol: string, period: "annual" | "quarterly" = "annual") =>

@@ -17,6 +17,7 @@ import FinancialsTable from "../components/analysis/FinancialsTable";
 import OwnershipBar from "../components/analysis/OwnershipBar";
 import KeyFigures from "../components/common/KeyFigures";
 import PriceChart from "../components/analysis/PriceChart";
+import MarketDepth from "../components/market/MarketDepth";
 import DividendProfile from "../components/analysis/DividendProfile";
 import StockCalendar from "../components/analysis/StockCalendar";
 import CompanyProfileCards from "../components/analysis/CompanyProfileCards";
@@ -888,6 +889,7 @@ export default function CompanyPage() {
             كانت تحمل سعرَ الدخول وقد أُمر بحذفه، ورقمُها معروضٌ في تبويب
             «تقييم الأداء» — وهو تبويبٌ مشتركٌ بين الشاشتين. */}
         <PriceChart symbol={company.symbol} />
+        <MarketDepth symbol={company.symbol} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="card">
             <p className="card-title mb-3">إنتاج السهم</p>

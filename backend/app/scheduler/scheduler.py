@@ -88,6 +88,21 @@ async def job_tadawul_snapshot():
         logger.error(f"Tadawul snapshot failed: {e}")
 
 
+async def job_special_deals():
+    """الصفقاتُ الخاصة — كلَّ ربع ساعةٍ في وقت التداول (D273).
+
+    تُنشَر أثناء الجلسة وبعدها، وهي بطيئةُ التغيّر مقارنةً بالسعر — فربعُ
+    ساعةٍ يكفي، ولا تُجلب في مسار طلبِ المستخدم أبداً.
+    """
+    try:
+        from app.services.special_deals import refresh
+        rec = await refresh()
+        if not rec.get("count"):
+            logger.warning(f"Special deals unread: {rec.get('error')}")
+    except Exception as e:
+        logger.error(f"Special deals failed: {e}")
+
+
 async def job_xbrl_statements():
     """قوائمُ XBRL الرسمية — دفعةٌ دوّارةٌ يومية (D263).
 
@@ -363,6 +378,17 @@ async def job_daily_portfolio_refresh():
 
 # ─── Scheduler Control ────────────────────────────────────────
 
+# ══ أسبوعُ التداول السعوديّ — مكتوبٌ مرّةً (D274) ══
+# كانت وظائفُ السوق مجدوَلةً «mon-fri»: أسبوعُ عملٍ غربيٌّ في تطبيقٍ سوقُه
+# **الأحدُ إلى الخميس**. فأثرُه مرّتان في كلّ أسبوع: يومَ الأحد يفتح السوقُ
+# ولا تعمل الوظائف (فيرى المالكُ أرقامَ الخميس)، ويومَ الجمعة تعمل والسوقُ
+# مغلق. ويُكتب المدى مرّةً واحدةً لا في ثلاثةَ عشرَ موضعاً — فما تكرّر نصّاً
+# يختلف يوماً بلا أن يلاحظه أحد.
+# (والأيامُ تُعدّ ولا تُمدّ: APScheduler ‏mon=0…sun=6، فـ«sun-thu» مدًى
+#  مقلوبٌ يرفع ValueError في الإقلاع — وهو عطبُ D258 الذي أسقط التطبيق.)
+TRADING_DAYS = "sun,mon,tue,wed,thu"
+
+
 def start_scheduler():
     if not settings.SCHEDULER_ENABLED:
         logger.info("⚠️ Scheduler is disabled.")
@@ -377,7 +403,7 @@ def start_scheduler():
     # that risk zone (6 runs/day vs. 28 at a 15-min interval).
     _scheduler.add_job(
         job_update_market_prices,
-        CronTrigger(minute=0, hour="10-15", day_of_week="mon-fri"),
+        CronTrigger(minute=0, hour="10-15", day_of_week=TRADING_DAYS),
         id="market_movers_hourly",
         replace_existing=True,
     )
@@ -388,13 +414,13 @@ def start_scheduler():
     # rule-based fallback; the endpoint only serves the cached snapshot.
     _scheduler.add_job(
         job_market_pulse,
-        CronTrigger(minute=30, hour=9, day_of_week="mon-fri"),
+        CronTrigger(minute=30, hour=9, day_of_week=TRADING_DAYS),
         id="market_pulse_preopen",
         replace_existing=True,
     )
     _scheduler.add_job(
         job_market_pulse,
-        CronTrigger(minute=0, hour="10-15", day_of_week="mon-fri"),
+        CronTrigger(minute=0, hour="10-15", day_of_week=TRADING_DAYS),
         id="market_pulse_hourly",
         replace_existing=True,
     )
@@ -416,9 +442,19 @@ def start_scheduler():
         # ترتيبُ الأيام في APScheduler ‏mon=0…sun=6، فـ«sun-thu» يعني
         # ‏6 ← 3 فيرفع ValueError **في الإقلاع** — فلا تسقط الجدولةُ
         # وحدَها بل الخلفيةُ كلُّها. والأيامُ تُعدّ ولا تُمدّ.
-        CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour="9-16",
+        CronTrigger(day_of_week=TRADING_DAYS, hour="9-16",
                     minute="*"),
         id="tadawul_snapshot",
+        replace_existing=True,
+    )
+
+    # الصفقاتُ الخاصة — كلَّ ربع ساعةٍ في أيّام التداول وساعاتِه، وساعةً
+    # بعد الإغلاق: كثيرٌ منها يُنشَر بعد الجلسة. (والأيامُ تُعدّ لا تُمدّ.)
+    _scheduler.add_job(
+        job_special_deals,
+        CronTrigger(day_of_week=TRADING_DAYS, hour="9-17",
+                    minute="*/15"),
+        id="special_deals",
         replace_existing=True,
     )
 
@@ -461,14 +497,14 @@ def start_scheduler():
     # final closes. One history call per company → daily, not intraday.
     _scheduler.add_job(
         job_compute_screener,
-        CronTrigger(hour=16, minute=0, day_of_week="mon-fri"),
+        CronTrigger(hour=16, minute=0, day_of_week=TRADING_DAYS),
         id="market_screener_daily",
         replace_existing=True,
     )
     # التحليل القطاعي — بعد الفرز بنصف ساعة (يقرأ نفس التواريخ المجلوبة).
     _scheduler.add_job(
         job_sector_analysis,
-        CronTrigger(hour=16, minute=30, day_of_week="mon-fri"),
+        CronTrigger(hour=16, minute=30, day_of_week=TRADING_DAYS),
         id="sector_analysis_daily",
         replace_existing=True,
     )
@@ -476,7 +512,7 @@ def start_scheduler():
     # توزيعُ الأقران — بعد التحليل القطاعيّ، على المخزون لا على المصدر.
     _scheduler.add_job(
         job_peer_distribution,
-        CronTrigger(hour=17, minute=0, day_of_week="mon-fri"),
+        CronTrigger(hour=17, minute=0, day_of_week=TRADING_DAYS),
         id="peer_distribution_daily",
         replace_existing=True,
     )
@@ -484,7 +520,7 @@ def start_scheduler():
     # AI analysis — weekdays at 18:00
     _scheduler.add_job(
         job_run_ai_analysis,
-        CronTrigger(hour=18, day_of_week="mon-fri"),
+        CronTrigger(hour=18, day_of_week=TRADING_DAYS),
         id="ai_analysis",
         replace_existing=True,
     )
@@ -492,7 +528,7 @@ def start_scheduler():
     # Daily report — weekdays at 20:00
     _scheduler.add_job(
         job_generate_daily_report,
-        CronTrigger(hour=20, day_of_week="mon-fri"),
+        CronTrigger(hour=20, day_of_week=TRADING_DAYS),
         id="daily_report",
         replace_existing=True,
     )
@@ -546,13 +582,13 @@ def start_scheduler():
     # والمفكرة ساعتين، فالتشغيل المتكرر في نفس النافذة لا يستهلك حصة إضافية.
     _scheduler.add_job(
         job_daily_portfolio_refresh,
-        CronTrigger(hour=9, minute=20, day_of_week="mon-fri"),
+        CronTrigger(hour=9, minute=20, day_of_week=TRADING_DAYS),
         id="portfolio_content_preopen",
         replace_existing=True,
     )
     _scheduler.add_job(
         job_daily_portfolio_refresh,
-        CronTrigger(hour=15, minute=40, day_of_week="mon-fri"),
+        CronTrigger(hour=15, minute=40, day_of_week=TRADING_DAYS),
         id="portfolio_content_postclose",
         replace_existing=True,
     )

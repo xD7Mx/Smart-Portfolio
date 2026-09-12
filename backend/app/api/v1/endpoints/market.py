@@ -1728,3 +1728,74 @@ async def top_up_relative_coverage():
         "after": after["covered"], "universe": after["universe"],
         "still_missing": len(after["missing"]),
     })
+
+
+@router.get("/depth/{symbol}")
+async def get_market_depth(symbol: str):
+    """عمقُ السوق لشركةٍ — مستوًى واحدٌ من «تداول»، بزمنه (D272).
+
+    ══ جُمع ولم يُعرَض ══
+    طلب المالك عمقَ السوق لكلّ شركة، فقُرئ أفضلُ طلبٍ وعرضٍ بكمّيتيهما في
+    لقطة مراقبة السوق (‏D262) — ثمّ **بقي في اللقطة بلا باب**: لا مسارَ
+    يقرؤه ولا شاشةَ تعرضه. وقلتُ للمالك «المستوى الأوّل سُلّم»، وهذا خطأٌ
+    مني: يُجمَع شيءٌ فيُحسَب مسلَّماً. والتسليمُ أن يصل العين.
+
+    وثلاثةُ قيود:
+      · **الزمنُ جزءٌ من الرقم**: لقطةٌ شائخةٌ لا تُعرَض عمقاً حاضراً —
+        `snapshot()` يرفضها أصلاً، فيعود «غير متوفّر».
+      · **مستوًى واحدٌ يُسمّى واحداً**: `levels: 1`. والعشرون تغذيةٌ
+        مرخَّصةٌ لا تُوعَد قبل أن تُملَك.
+      · **ولا يُملأ ناقصٌ**: طرفٌ بلا سعرٍ أو كمّيةٍ يغيب ولا يُصفَّر.
+    """
+    from app.services.tadawul_market import row_for, snapshot
+
+    row = row_for(symbol)
+    if not row:
+        return success_response(
+            data={"symbol": str(symbol), "levels": 0, "bids": [], "asks": [],
+                  "available": False},
+            message="عمقُ السوق غير متوفّر — لا لقطةَ حاضرةٌ لهذا الرمز.")
+
+    def side(p, q) -> list[dict]:
+        return ([{"price": row[p], "quantity": row[q]}]
+                if row.get(p) is not None and row.get(q) is not None else [])
+
+    bids, asks = side("bid", "bid_qty"), side("ask", "ask_qty")
+    spread = (round(asks[0]["price"] - bids[0]["price"], 2)
+              if bids and asks else None)
+    return success_response(
+        data={
+            "symbol": str(symbol), "levels": 1 if (bids or asks) else 0,
+            "bids": bids, "asks": asks, "spread": spread,
+            "last": row.get("price"), "prev_close": row.get("prev_close"),
+            "day_high": row.get("day_high"), "day_low": row.get("day_low"),
+            "trades": row.get("trades"), "volume": row.get("volume"),
+            "as_of": snapshot().get("_as_of") or row.get("as_of"),
+            "source": "تداول — مراقبة السوق",
+            "available": bool(bids or asks),
+            "note": "مستوًى واحد — وهو ما تنشره «تداول» مجّاناً",
+        },
+        message="عمقُ السوق." if (bids or asks)
+                else "عمقُ السوق غير متوفّر لهذا الرمز الآن.")
+
+
+@router.get("/special-deals")
+async def get_special_deals(symbol: str | None = None):
+    """الصفقاتُ الخاصة — كلُّ السوق، أو لشركةٍ إن مُرِّر رمزُها (D273).
+
+    ولا تُجلب في مسار الطلب: تُقرأ اللقطةُ المحفوظةُ فقط. الجلبُ في
+    الجدولة — فلا ينتظر المالكُ شبكةً خارجيةً عند فتح شاشة.
+    """
+    from app.services.special_deals import for_symbol, reading
+
+    rec = reading()
+    if not rec:
+        return success_response(
+            data={"deals": [], "as_of": None, "available": False,
+                  "source": "تداول — الصفقات الخاصة"},
+            message="الصفقاتُ الخاصة غير متوفّرة الآن.")
+    deals = for_symbol(symbol) if symbol else (rec.get("deals") or [])
+    return success_response(
+        data={"deals": deals, "as_of": rec.get("at"), "available": True,
+              "count": len(deals), "source": "تداول — الصفقات الخاصة"},
+        message="الصفقاتُ الخاصة.")

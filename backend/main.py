@@ -21,6 +21,8 @@ if hasattr(_time, "tzset"):
         os.environ["TZ"] = "UTC-3"
         _time.tzset()
 
+import asyncio as _aio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -33,6 +35,12 @@ from app.core.config import settings
 from app.core.database import init_db
 from app.scheduler.scheduler import start_scheduler, stop_scheduler
 from app.api.v1.router import api_router
+
+
+# حالُ إقلاع القاعدة — تُقرأ في `/api/health` فيُعرف العجزُ بلا تخمين.
+DB_BOOT_TRIES = 5
+DB_BOOT: dict = {"ok": None, "error": None}
+SCHED_BOOT: dict = {"ok": None, "error": None}
 
 
 @asynccontextmanager
@@ -54,7 +62,29 @@ async def lifespan(app: FastAPI):
         logger.info(f"🧹 Cache cleared on boot · governance rules version = {rules_version()}")
     except Exception as e:
         logger.warning(f"Boot cache clear failed: {e}")
-    await init_db()
+    # ══ الإقلاعُ لا يموت (D271) ══
+    # `init_db` كان مكشوفاً: قاعدةٌ متأخّرةٌ لحظةً عن قبول الاتّصالات —
+    # وهو المعتادُ في `docker compose up -d --build` حين تُبنى الحاويتان
+    # معاً — ترفع استثناءً في دورة الحياة، فيسقط **التطبيقُ كلُّه** ويراه
+    # المالك فارغاً. وهو صنفُ D258 بعينه: عطبٌ في خطوةٍ واحدةٍ يُسقط كلَّ
+    # الشاشات، بما فيها ما لا يمسّ القاعدة أصلاً (السوقُ والأسعارُ
+    # والقوائم). فيُنتظَر بتراجعٍ محدود، وما بقي بعده **يُعلَن ولا يَقتل**:
+    # الخادمُ يقوم، وكلُّ نداءٍ يحتاج القاعدةَ يقول عجزَه بنفسه.
+    for _try in range(1, DB_BOOT_TRIES + 1):
+        try:
+            await init_db()
+            DB_BOOT["ok"], DB_BOOT["error"] = True, None
+            break
+        except Exception as _e:                                   # noqa: BLE001
+            DB_BOOT["ok"], DB_BOOT["error"] = False, f"{type(_e).__name__}: {_e}"
+            if _try == DB_BOOT_TRIES:
+                logger.error("❌ قاعدةُ البيانات لم تستجب بعد {} محاولة — "
+                             "الخادمُ يقوم ويُعلن العجزَ في كلّ نداءٍ يحتاجها: {}",
+                             DB_BOOT_TRIES, DB_BOOT["error"])
+                break
+            logger.warning("قاعدةُ البيانات لم تستجب (محاولة {}/{}) — إعادةٌ بعد {}ث: {}",
+                           _try, DB_BOOT_TRIES, _try * 2, DB_BOOT["error"])
+            await _aio.sleep(_try * 2)
     # استرداد كتب المكتبة العالقة: أي كتاب لم يكتمل تحضيره (ready=False) أو لم
     # يُستخرَج نصّه (has_text=False) — مثلاً أُعيد تشغيل الخادم أثناء معالجته —
     # يُعاد جدولته في الخلفية كي لا يبقى عالقاً في «جارٍ التحضير» للأبد.
@@ -154,13 +184,25 @@ async def lifespan(app: FastAPI):
                 logger.info(f"Startup: applied {tv_updated} real TradingView logo(s) to portfolio companies.")
     except Exception as e:
         logger.warning(f"Startup snapshot skipped: {e}")
-    start_scheduler()
+    # والجدولةُ كذلك لا تُسقط الخادم (D271): في D258 أسقطَ خطأُ تعبيرٍ في
+    # `CronTrigger` التطبيقَ كلَّه فرآه المالك فارغاً. أُصلح التعبيرُ يومَها،
+    # ولم يُصلَح **الصنف**: خطوةٌ واحدةٌ ما زالت قادرةً على قتل كلّ الشاشات.
+    # فيُعلَن العجزُ بصوتٍ عالٍ ويبقى الخادمُ قائماً — وحارسُ `scheduler_boot`
+    # هو الذي يمنع أن يصير هذا الصمتُ عادةً: يثبت أن الجدولةَ تقوم فعلاً.
+    try:
+        start_scheduler()
+        SCHED_BOOT["ok"], SCHED_BOOT["error"] = True, None
+    except Exception as _e:                                       # noqa: BLE001
+        SCHED_BOOT["ok"], SCHED_BOOT["error"] = False, f"{type(_e).__name__}: {_e}"
+        logger.error("❌ الجدولةُ لم تبدأ — التطبيقُ يعمل والتحديثُ الدوريُّ "
+                     "متوقّف: {}", SCHED_BOOT["error"])
     # Warm the whole-market scan in the BACKGROUND if no snapshot exists yet
     # (fresh deploy / first boot): the market widgets (breadth, sectors,
     # distribution, mood) must never sit on "لم تُحسب بيانات السوق بعد"
     # waiting for the next hourly cron slot. Non-blocking — startup finishes
     # immediately; the ~20s concurrent scan fills in behind the scenes.
-    import asyncio as _aio
+    # (‏`_aio` مستورَدٌ على مستوى الوحدة — واستيرادُه هنا ثانيةً كان يجعله
+    # متغيّراً محلّياً فيسقط الإقلاعُ قبل بلوغه بـ`UnboundLocalError`.)
 
     async def _warm_movers():
         try:

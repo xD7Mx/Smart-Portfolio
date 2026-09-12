@@ -101,5 +101,30 @@ missing = want - ids
 check(not missing, "٣ والمهامُّ الجديدةُ مسجَّلةٌ فعلاً",
       "غاب: " + "، ".join(sorted(missing)) if missing else f"{len(ids)} مهمّة")
 
+# ── ٤ · أسبوعُ السوق سعوديّ لا غربيّ ────────────────────────────────────
+# «mon-fri» في تطبيقٍ سوقُه الأحدُ إلى الخميس يعني خسارةَ الأحد (والسوقُ
+# مفتوح) وتشغيلاً عبثياً يومَ الجمعة. والمدى يُكتب مرّةً في ثابتٍ واحد —
+# فما تكرّر نصّاً في ثلاثةَ عشرَ موضعاً يختلف يوماً بلا أن يلاحظه أحد.
+# (والتعليقُ يذكره ليشرح العطب — والعبرةُ بالوسائط لا بالشرح.)
+check('day_of_week="mon-fri"' not in src,
+      "٤ ولا أسبوعَ عملٍ غربيٍّ في وسائط جدولة السوق")
+check(src.count('TRADING_DAYS = "sun,mon,tue,wed,thu"') == 1
+      and src.count("day_of_week=TRADING_DAYS") >= 10,
+      "٤ب وأسبوعُ التداول ثابتٌ واحدٌ يُقرأ — لا نصٌّ مكرَّر",
+      f"{src.count('day_of_week=TRADING_DAYS')} موضعاً")
+
+# والسلوكُ لا النصّ: كلُّ مهمّةٍ سوقيةٍ تشمل الأحدَ وتستثني الجمعة.
+MARKET_JOBS = {"tadawul_snapshot", "special_deals", "market_movers_hourly",
+               "market_screener_daily", "market_pulse_preopen",
+               "sector_analysis_daily", "ai_analysis"}
+wrong = []
+for jid, trg in jobs:
+    if jid in MARKET_JOBS:
+        t = str(trg)
+        if "'sun" not in t or "fri" in t.split("day_of_week=")[-1][:34]:
+            wrong.append(jid)
+check(not wrong, "٤ج ومهامُّ السوق تعمل الأحدَ ولا تعمل الجمعة",
+      "؛ ".join(wrong[:4]) if wrong else f"{len(MARKET_JOBS)} مهمّة")
+
 print(("FAIL" if fail else "PASS") + " D258 — الجدولةُ تُقلع")
 raise SystemExit(fail)

@@ -5,6 +5,7 @@ import { marketApi } from "../../services/api";
 import { lookupCompany } from "../../data/saudiCompanies";
 import { isTasiOpen } from "../../utils/marketHours";
 import FlashPrice from "../common/FlashPrice";
+import MarketDepth from "./MarketDepth";
 import CompanyLogo from "../common/CompanyLogo";
 import KeyFigures from "../common/KeyFigures";
 import { ShariaBadge } from "../common/UI";
@@ -233,6 +234,7 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
                 واحدٌ لا نسختان (بأمر المالك). */}
             <KeyFigures fundamentals={data?.fundamentals} />
             <PriceChart symbol={symbol} />
+            <MarketDepth symbol={symbol} />
             <OwnershipBar symbol={symbol} />
             {/* ══ بطاقةُ التوافق الشرعيّ حُذفت ══ (بأمر المالك)
                 الهلالُ في ترويسة الصفحة يقول الحكمَ بلونه وتلميحه، فبطاقةٌ

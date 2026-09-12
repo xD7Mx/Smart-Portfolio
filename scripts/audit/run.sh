@@ -253,6 +253,17 @@ python3 scripts/audit/tadawul_xbrl.py || fail=1
 echo
 python3 scripts/audit/ownership.py || fail=1
 
+# D271: خطوةٌ واحدةٌ لا تُسقط كلَّ الشاشات — قاعدةٌ متأخّرةٌ أو جدولةٌ
+# متعثّرةٌ تُعلَن ولا تَقتل، والحالُ تُقاس في `/api/health` لا تُكتَب.
+echo
+python3 scripts/audit/boot_survives.py || fail=1
+
+# D272 · D273: عمقُ السوق يصل الشاشةَ (جُمع ولم يُعرَض)، والصفقاتُ الخاصة
+# بُنيت بعد سهوٍ عنها. وأسماءُ حقول الصفقات تُقاس على الخادم:
+#   docker exec sp_backend python /app/scripts/audit/deals_probe.py
+echo
+python3 scripts/audit/deals_and_depth.py || fail=1
+
 # D260: اللحظيةُ زمنٌ لا لون — ميزانيةُ طزاجةٍ مقيسةٌ لكلّ حلقةٍ في
 # سلسلة التأخير، وعلاقةُ الحلقات ببعضها (عمرٌ مقبولٌ ≥ دورةِ تجديد).
 echo
