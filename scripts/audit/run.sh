@@ -234,6 +234,11 @@ python3 scripts/audit/screener_price_fresh.py || fail=1
 echo
 python3 scripts/audit/one_fair_price.py || fail=1
 
+# D252: لسانُ «تاسي» يقول رقمَ السوق الآن — من خدمة المؤشّر نفسِها بدل
+# قراءةٍ متأخّرةٍ عند المزوّد ومخزَّنةٍ ربعَ ساعةٍ فوق تأخيرها.
+echo
+python3 scripts/audit/tasi_live.py || fail=1
+
 # D251: لقطةُ السوق من مُصدِره — المكرّرُ ومضاعفُ الدفترية وحدّا العام
 # منشورةً في «تداول» لا مشتقّةً عندنا من سعرٍ ومقياسٍ من ياهو.
 echo

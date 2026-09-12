@@ -140,6 +140,48 @@ def snapshot() -> dict[str, dict]:
     return rows if isinstance(rows, dict) else {}
 
 
+INDEX_URL = ("https://www.saudiexchange.sa/tadawul.eportal.theme.helper/"
+             "ThemeTASIUtilityServlet")
+INDEX_KEY = "market:tasi:tadawul"
+INDEX_TTL = 60                # اللسانُ مباشرٌ: دقيقةٌ واحدةٌ حدُّ التخزين
+
+
+async def index_quote() -> dict | None:
+    """رقمُ «تاسي» المباشرُ من خدمة المؤشّر في «تداول» (D252).
+
+    كان اللسانُ يقرأ `^TASI.SR` من ياهو: متأخّرٌ عند المزوّد ومخزَّنٌ
+    عندنا ربعَ ساعة — فيُعرض رقمٌ ليس رقمَ السوق الآن. والخدمةُ نفسُها
+    تعطي القيمةَ والتغيّرَ والنسبةَ وحالةَ السوق ووقتَها.
+    """
+    from app.services.tadawul_http import fetch
+    status, body = await fetch(INDEX_URL,
+                               referer="https://www.saudiexchange.sa/wps/portal/"
+                                       "saudiexchange/home")
+    if status != 200 or not body:
+        return None
+    try:
+        d = json.loads(body)
+    except Exception:                                             # noqa: BLE001
+        return None
+    px = _pos(d.get("tasiValue"))
+    if px is None:
+        return None
+    out = {
+        "symbol": "^TASI",
+        "price": px,
+        "change": _num(d.get("tasiNetChange")),
+        "change_pct": _num(d.get("tasiPercentageChange")),
+        "source": "تداول",
+        "as_of": str(d.get("currentTime") or "") or None,
+        "market_status_code": d.get("marketStatusCode"),
+        "mt30": _pos(d.get("mt30IndexValue")),
+        "sukuk_index": _pos(d.get("sukukValue")),
+    }
+    from app.services import cache
+    cache.set(INDEX_KEY, out, INDEX_TTL)
+    return out
+
+
 def row_for(symbol) -> dict:
     """صفُّ شركةٍ من اللقطة — أو فارغ."""
     sym = re.search(r"\b(\d{4})\b", str(symbol or ""))

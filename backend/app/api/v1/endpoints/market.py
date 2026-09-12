@@ -351,6 +351,21 @@ async def market_overview(db: AsyncSession = Depends(get_db)):
     if tasi and tasi.get("volume"):
         tasi["traded_value_est"] = round(tasi["price"] * tasi["volume"])
 
+    # ══ اللسانُ مباشرٌ من المؤشّر نفسِه ══ (D252)
+    # ياهو يتأخّر عند المزوّد ونخزّنه ربعَ ساعةٍ فوق ذلك — فيُعرض رقمٌ ليس
+    # رقمَ السوق الآن. وخدمةُ مؤشّر «تداول» تعطيه بلا تأخير. فيُقدَّم
+    # السعرُ والتغيّرُ منها، ويبقى **حجمُ التداول** من ياهو لأن الخدمةَ لا
+    # تنشره — ولا يُخترع: ما لا مصدرَ له يبقى كما كان.
+    try:
+        from app.services.tadawul_market import index_quote
+        live = await index_quote()
+    except Exception:                                             # noqa: BLE001
+        live = None
+    if live:
+        tasi = {**(tasi or {}), **{k: v for k, v in live.items() if v is not None}}
+        if tasi.get("volume"):
+            tasi["traded_value_est"] = round(tasi["price"] * tasi["volume"])
+
     # Reliability floor: persist every good ticker; when the free source
     # fails (rate limit/outage/restart), serve the last good copy with its
     # capture timestamp instead of an empty market screen.
