@@ -264,6 +264,11 @@ python3 scripts/audit/boot_survives.py || fail=1
 echo
 python3 scripts/audit/deals_and_depth.py || fail=1
 
+# D278: الخلاصةُ الماليةُ بجيمناي ثمّ بمحلّلٍ قاعديّ — وكلُّ رقمٍ في سطر
+# النموذج يُطابَق بما قِيس، وما لم يُطابِق يُرَدُّ السطرُ كلُّه.
+echo
+python3 scripts/audit/financial_brief.py || fail=1
+
 # D260: اللحظيةُ زمنٌ لا لون — ميزانيةُ طزاجةٍ مقيسةٌ لكلّ حلقةٍ في
 # سلسلة التأخير، وعلاقةُ الحلقات ببعضها (عمرٌ مقبولٌ ≥ دورةِ تجديد).
 echo

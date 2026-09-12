@@ -160,5 +160,38 @@ blk = src.split("_dcf: dict = {}", 1)[-1][:1800]
 check(blk.count("rel_value") == 1,
       "٦ ولا رقمان باسمٍ واحد — حقلٌ واحدٌ يُكتب مرّةً", str(blk.count("rel_value")))
 
+# ── ٧ · اعتماديٌّ لا تجريبيّ ────────────────────────────────────────────
+# وُضع `allow_unverified=True, allow_stale=True` يومَ كانت المعاييرُ ناقصةً
+# ليعمل المحرّكُ أصلاً، ثمّ اكتملت ونسيتُ رفعَ العلَم — فبقي الرقمُ يُعرض
+# باسمٍ اعتماديٍّ وهو مولودٌ في وضع التجربة (‏D279).
+SV = (ROOT / "backend" / "app" / "services" / "fair_value_engine"
+      / "serve.py").read_text(encoding="utf-8")
+# (والتعليقُ يذكر الوضعَ القديمَ ليشرحه — والعبرةُ بالنداء لا بالشرح.)
+import re as _re2  # noqa: E402
+_calls = _re2.findall(r"load_params\(([^)]*)\)", SV)
+check(all(not c.strip() for c in _calls) and _calls,
+      "٧ المحرّكُ يُشغَّل في الوضع الصارم — لا وضعِ التجربة", str(_calls))
+check("load_params()" in SV, "٧ب ومعاييرُه تُحمَّل بشروطها كاملةً")
+
+# وسلوكاً: معاييرُ غيرُ موثَّقةٍ ⇒ امتناعٌ مُعلَن، لا هبوطٌ صامتٌ للتجربة.
+import app.services.fair_value_engine.params as _pm  # noqa: E402
+_orig = _pm.load_params
+
+
+def _reject(*a, **k):
+    raise _pm.ParamsError("verified=false في الاختبار")
+
+
+sv.load_params = _reject                                         # type: ignore[attr-defined]
+import app.services.fair_value_engine.serve as _sv2  # noqa: E402
+_pm.load_params = _reject                                        # type: ignore[assignment]
+_md.market_service = _Svc()                                      # type: ignore[assignment]
+cache.set("dcf:2010:70.0", None, 0)
+none_out = asyncio.run(sv.value_for_symbol("2010.SR", price=70.0))
+_pm.load_params = _orig                                          # type: ignore[assignment]
+check(none_out is None,
+      "٧ج ومعاييرُ غيرُ اعتماديةٍ ⇒ امتناعٌ — لا رقمٌ تجريبيٌّ باسمٍ اعتماديّ",
+      str(none_out)[:60])
+
 print(("FAIL" if fail else "PASS") + " D264 — محرّكان واسمٌ واحد")
 raise SystemExit(fail)

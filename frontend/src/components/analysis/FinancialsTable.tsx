@@ -151,18 +151,12 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
        أيضاً. الحلّ: التمرير على غلافٍ للجدول وحده، والعمود الأول مثبَّت
        (sticky) بخلفية البطاقة فلا تمرّ الأرقام من تحته. */
     <div className="card">
-    {/* ══ الترويسة: العنوانُ والخياران ومصدرُ ما يُعرض ══ (D259)
-        ولا يُخلط مصدران بلا بيان: من أين جاءت هذه الأرقام يُقال هنا. */}
+    {/* ══ الترويسة: العنوانُ والخياران ══
+        وسطرُ «المصدر …» أُزيل بأمر المالك: لم يأذن به، وكتبتُه من عندي.
+        والتطبيقُ سجلٌّ رسميٌّ لا مدوّنة — لا حواشيَ ولا تبريرات. */}
     <div className="flex items-center justify-between gap-2 mb-3">
       <h3 className="card-title">البيانات المالية</h3>
-      <div className="flex items-center gap-2">
-        {data.source && (
-          <span className="text-[10px] text-[var(--ink-muted)] whitespace-nowrap">
-            المصدر {data.source}
-          </span>
-        )}
-        <Switch />
-      </div>
+      <Switch />
     </div>
     {data.kind === "net_income_only" && (
       /* صدقٌ في التسمية: هذه نتيجةُ ربعٍ لا قائمةٌ كاملة. */

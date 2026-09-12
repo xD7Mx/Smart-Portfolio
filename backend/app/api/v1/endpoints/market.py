@@ -256,14 +256,26 @@ async def get_company_financials(symbol: str, period: str = "annual"):
         # «تداول ثمّ أرقام وبالأخير ياهو — وأتمنّى ألّا نصل لياهو لأنه لا
         # يدعم الربع سنوي». فتُقرأ الطبقاتُ بترتيبها، ويُعلَن مصدرُ ما
         # عُرض مع الأرقام — لا يُخلط مصدران بلا بيان.
-        q = _quarterly_from_argaam(sym)
-        if q:
-            return success_response(data=q)
-        q = await market_service.get_quarterly_financials(sym)
-        if not q or not q.get("periods"):
-            return success_response(data=None, message="لا توجد قوائم ربعية متاحة لهذا الرمز.")
-        view = _quarterly_view(q)
-        view["source"] = "ياهو"
+        view = _quarterly_from_argaam(sym)
+        if not view:
+            q = await market_service.get_quarterly_financials(sym)
+            if not q or not q.get("periods"):
+                return success_response(
+                    data=None, message="لا توجد قوائم ربعية متاحة لهذا الرمز.")
+            view = _quarterly_view(q)
+        # والربعيُّ يأخذ الخلاصةَ نفسَها — طلبها المالكُ للفترتين معاً،
+        # ولا مبرّرَ لشاشةٍ تحلّل السنويَّ وتصمت عن الربعيّ.
+        from app.services.financial_brief import brief as _brief
+        _b = await _brief(view.get("periods") or [], kind="quarterly", symbol=sym)
+        view["verdict"] = _b["line"]
+        view["verdict_by"] = _b["by"]
+        view["signals"] = _b["signals"]
+        # واللونُ من الحكم الحتميّ لا من نصِّ النموذج — شريطٌ يخضرّ فوق
+        # جملةٍ تحذّر عطبٌ وقعنا فيه قبلاً (D151).
+        from app.services.scores import financial_verdict as _fv
+        from app.services.scores import verdict_tone as _vt
+        _qp = view.get("periods") or []
+        view["verdict_tone"] = _vt(_fv(_qp)) if _qp else None
         return success_response(data=view)
     data = await market_service.get_financials(sym)
     if not data or not data.get("periods"):
@@ -291,6 +303,12 @@ async def get_company_financials(symbol: str, period: str = "annual"):
                                      _finance_score_from_periods)
     verdict = financial_verdict(periods)
     verdict_tone = _tone(verdict)
+    # ══ الخلاصةُ: جيمناي ثمّ القاعديّ ══ (D278 · بأمر المالك)
+    # اللونُ يبقى من الحكم الحتميّ (لا يُلوَّن شريطٌ برأي نموذج)، والجملةُ
+    # تصير تحليلاً مقيساً: كلُّ رقمٍ في سطر جيمناي يُطابَق بما حُسب، وما
+    # لم يُطابِق رُدّ السطرُ كلُّه وكُتب القاعديّ.
+    from app.services.financial_brief import brief as _brief
+    _b = await _brief(periods, kind="annual", symbol=sym)
     health = _finance_score_from_periods(periods)
     return success_response(data={
         "symbol": symbol,
@@ -300,8 +318,11 @@ async def get_company_financials(symbol: str, period: str = "annual"):
             "revenue", "net_income", "eps", "equity", "book_value", "debt_ratio",
             "operating_cash_flow", "ending_cash", "free_cash_flow", "interest_coverage",
         )},
-        "verdict": verdict,
+        "verdict": _b["line"],
         "verdict_tone": verdict_tone,
+        "verdict_by": _b["by"],
+        "verdict_rule": verdict,          # الحكمُ الحتميُّ كما هو — لا يُفقَد
+        "signals": _b["signals"],
         # الدرجةُ تُعرض مع الجدول الذي بُنيت عليه — نفسُ رقم صفحة الشركة
         # وقسم السوق وبطاقة الحوكمة.
         "finance_score": health,

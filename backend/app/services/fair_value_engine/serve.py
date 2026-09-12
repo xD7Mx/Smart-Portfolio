@@ -112,11 +112,23 @@ async def value_for_symbol(symbol: str, *, price: float | None = None) -> dict |
     f = build_fundamentals(sym, fin, price=price, shares=shares)
     if f is None:
         return None
+    # ══ اعتماديٌّ لا تجريبيّ ══ (D279)
+    # كان التشغيلُ بـ`allow_unverified=True, allow_stale=True` — وهو وضعُ
+    # **التجربة** بنصِّ الميثاق: «مخرجاتُها تُعلَّم غيرَ اعتمادية». وُضع يومَ
+    # كانت المعاييرُ ناقصةً ليعمل المحرّكُ أصلاً، ثمّ اكتملت المعايير
+    # (‏D249 · D257 · D264) و**نسيتُ أن أرفع العلَم** — فبقي الرقمُ يُعرض
+    # باسمٍ اعتماديٍّ وهو مولودٌ في وضع التجربة. وهذا ما سمّاه المالكُ
+    # إخفاقاً، وهو كذلك.
+    #
+    # والآن يُطلب الوضعُ الصارم: معاييرُ موثَّقةٌ غيرُ شائخة. وإن لم تكن
+    # كذلك **يمتنع المحرّك** ويُقال سببُه — ولا يُهبَط سرّاً إلى التجربة،
+    # لأن هبوطاً صامتاً يعيد العطبَ نفسَه بعد شهر.
     try:
-        p = load_params(allow_unverified=True, allow_stale=True)
+        p = load_params()
         out = value_company(sym, f, p)
     except ParamsError as e:
-        logger.debug("DCF {}: {}", sym, e)
+        logger.warning("DCF {} امتنع — المعايير ليست اعتمادية: {}", sym, e)
+        cache.set(ck, {}, CACHE_TTL)
         return None
     except Exception as e:                                        # noqa: BLE001
         logger.debug("DCF {}: {}: {}", sym, type(e).__name__, e)
