@@ -392,7 +392,12 @@ def start_scheduler():
     # واحدٌ يغطّي السوق كلَّه، فلا حصّةَ تُستهلك ولا سعرَ يشيخ في شاشة.
     _scheduler.add_job(
         job_tadawul_snapshot,
-        CronTrigger(day_of_week="sun-thu", hour="9-16", minute="*/5"),
+        # ══ «sun-thu» مدًى مقلوب ══ (عطبٌ أسقط التطبيق · D258)
+        # ترتيبُ الأيام في APScheduler ‏mon=0…sun=6، فـ«sun-thu» يعني
+        # ‏6 ← 3 فيرفع ValueError **في الإقلاع** — فلا تسقط الجدولةُ
+        # وحدَها بل الخلفيةُ كلُّها. والأيامُ تُعدّ ولا تُمدّ.
+        CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour="9-16",
+                    minute="*/5"),
         id="tadawul_snapshot",
         replace_existing=True,
     )

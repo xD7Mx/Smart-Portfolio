@@ -110,14 +110,24 @@ async def refresh(symbols: list[str] | None = None) -> dict:
 
     sectors = {s: (uni.get(s) or {}).get("sector") for s in betas}
     leverage: dict[str, tuple] = {}
-    from app.services import lastgood
+    # ══ مفتاحُ القوائم `stmt:{sym}.SR` لا مفتاحٌ من اختراعي ══
+    # أوّلُ تشغيلٍ على الخادم قال: «بلا رافعة: ‎268 من ‎268» — أي أن
+    # القراءةَ لم تجد شيئاً أبداً. والسببُ أنّي قرأتُ من مفتاحٍ لا وجودَ
+    # له (‏`fundamentals:{sym}.SR`)، والقوائمُ تُحفظ تحت `stmt:{sym}.SR`
+    # (هو المفتاحُ نفسُه الذي يقرؤه الفرزُ قبل تشغيل محرّك الحوكمة).
+    # وصفرٌ مطلقٌ في تقريرٍ علامةُ مفتاحٍ خاطئ لا علامةُ سوقٍ ناقص.
+    from app.services import cache, lastgood
     for s in betas:
-        fund = lastgood.load(f"fundamentals:{s}.SR") or {}
+        ck = f"stmt:{s}.SR"
+        fund = cache.get(ck)
+        if fund is None:
+            fund = lastgood.load(ck)
         periods = (fund.get("periods") or []) if isinstance(fund, dict) else []
         last = periods[-1] if periods else {}
         eq = last.get("equity")
         dr = last.get("debt_ratio")          # نسبةُ الالتزامات إلى الأصول ٪
-        if isinstance(eq, (int, float)) and isinstance(dr, (int, float)) and 0 < dr < 100:
+        if isinstance(eq, (int, float)) and eq > 0 \
+                and isinstance(dr, (int, float)) and 0 < dr < 100:
             assets = eq / max(1e-9, (1 - dr / 100.0))
             leverage[s] = (assets - eq, eq)
     table, rep = build_table(betas, leverage, sectors, tax=tax,

@@ -41,14 +41,18 @@ async def main() -> int:
         print(f"بيتا مقروءة: {len(betas)} من {len(syms)}")
         raw = sb._params_raw()
         tax, eng = float(raw["tax_rate"]["value"]), raw["engine"]
-        from app.services import lastgood
+        from app.services import cache, lastgood
         lev = {}
         for s in betas:
-            fund = lastgood.load(f"fundamentals:{s}.SR") or {}
+            ck = f"stmt:{s}.SR"
+            fund = cache.get(ck)
+            if fund is None:
+                fund = lastgood.load(ck)
             per = (fund.get("periods") or []) if isinstance(fund, dict) else []
             last = per[-1] if per else {}
             eq, dr = last.get("equity"), last.get("debt_ratio")
-            if isinstance(eq, (int, float)) and isinstance(dr, (int, float)) and 0 < dr < 100:
+            if isinstance(eq, (int, float)) and eq > 0 \
+                    and isinstance(dr, (int, float)) and 0 < dr < 100:
                 lev[s] = (eq / max(1e-9, 1 - dr / 100.0) - eq, eq)
         print(f"رافعةٌ مقروءةٌ من مخزوننا: {len(lev)} من {len(betas)}")
         table, rep = sb.build_table(

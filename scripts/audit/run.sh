@@ -234,6 +234,10 @@ python3 scripts/audit/screener_price_fresh.py || fail=1
 echo
 python3 scripts/audit/one_fair_price.py || fail=1
 
+# D258: الجدولةُ تُقلع — مُطلِقٌ لا يُبنى يُسقط التطبيقَ كلَّه لا نفسَه.
+echo
+python3 scripts/audit/scheduler_boot.py || fail=1
+
 # D257: بيتا قطاعيةٌ مقيسةٌ من سوقنا لا مستورَدةٌ من جدولٍ أجنبيّ — منزوعةُ
 # الرافعة بهامادا، بوسيطِ قطاعٍ لا متوسّطه. وبناؤها على الخادم:
 #   docker exec sp_backend python /app/scripts/audit/sector_betas_probe.py

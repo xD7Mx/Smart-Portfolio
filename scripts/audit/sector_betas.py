@@ -117,5 +117,28 @@ b_aged, ver_aged = P.unlevered_beta("البنوك")
 check(sb.reading() is None and ver_aged is False and abs(b_aged - 0.75) < 1e-9,
       f"٨ وجدولٌ أقدمُ من {sb.MAX_AGE_DAYS} يوماً يسقط توثيقُه", f"{b_aged}")
 
+# ── ٩ · الرافعةُ تُقرأ من مفتاح القوائم الحقيقيّ ────────────────────────
+# أوّلُ تشغيلٍ على الخادم قال «بلا رافعة: 268 من 268» — صفرٌ مطلقٌ علامةُ
+# مفتاحٍ خاطئ لا سوقٍ ناقص. فيُقاس أن الدالّةَ تجد ما يضعه التطبيقُ فعلاً.
+import asyncio  # noqa: E402
+
+from app.services import cache as _c  # noqa: E402
+
+for _s in ("1010", "1020", "1030"):
+    _c.set(f"stmt:{_s}.SR", {"periods": [{"equity": 100.0, "debt_ratio": 40.0}]}, 3600)
+
+
+async def _h(syms):
+    return {s: 1.2 for s in syms}
+
+
+import app.services.argaam_beta as _ab  # noqa: E402
+_ab.harvest = _h                                                 # type: ignore[assignment]
+rec = asyncio.run(sb.refresh(["1010", "1020", "1030"]))
+rep = rec.get("تقرير") or (rec.get("تقرير") if isinstance(rec, dict) else {}) or {}
+check(rep.get("دخلت") == 3 and rep.get("بلا رافعة") == 0,
+      "٩ الرافعةُ تُقرأ من مفتاح القوائم الحقيقيّ — لا من مفتاحٍ مخترَع",
+      str(rep))
+
 print(("FAIL" if fail else "PASS") + " D257 — بيتا قطاعيةٌ مقيسةٌ من سوقنا")
 raise SystemExit(fail)
