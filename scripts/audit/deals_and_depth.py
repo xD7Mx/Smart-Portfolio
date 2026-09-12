@@ -160,5 +160,39 @@ _days = _re.findall(r'day_of_week\s*=\s*"([^"]+)"', SCH)
 check(_days and not any("-" in d and d != "mon-fri" for d in _days),
       "٧د ولا مدًى مقلوبٌ في وسائط الأيام — عطبُ D258 لا يعود", str(_days))
 
+# ── ٨ · الطبقةُ الثانيةُ قارئٌ لا عنوانٌ في تعليق ────────────────────────
+# سمّيتُ «أرقام» مصدراً ثانياً وتركتُ القارئ — وهو العطبُ الذي نبّه إليه
+# المالك: «تجهّز الحلَّ ثمّ تتركه». فيُقاس القارئُ على الشكلين معاً.
+TBL = """<table>
+ <tr><th>الشركة</th><th>الرمز</th><th>السعر</th><th>الكمية</th><th>التاريخ</th></tr>
+ <tr><td>بنك الرياض</td><td>1010</td><td>28.50</td><td>2,000,000</td><td>2026-09-10</td></tr>
+ <tr><td>سابك</td><td>2010</td><td>71.20</td><td>450,000</td><td>2026-09-11</td></tr>
+ <tr><td>صفٌّ بلا كمّية</td><td>4030</td><td>19.00</td><td>—</td><td>2026-09-11</td></tr>
+</table>"""
+got = sd.rows_from_html(TBL)
+check([d["symbol"] for d in got] == ["1010", "2010"]
+      and got[0]["price"] == 28.5 and got[0]["quantity"] == 2_000_000
+      and got[0]["value"] == 57_000_000.0,
+      "٨ الجدولُ يُقرأ بأركانه الثلاثة، والقيمةُ تُشتقّ", str(got[0]))
+check(got[0].get("at") == "2026-09-10" and got[0].get("name") == "بنك الرياض",
+      "٨ب والتاريخُ والاسمُ يُقرآن إن وُجدا", str(got[0])[:90])
+
+DIV = """<div class="row"><span>1120</span><span>الراجحي</span>
+   <span>96.40</span><span>1,250,000</span></div>
+ <div class="nav"><span>القطاع</span><span>البنوك</span></div>"""
+gd = sd.rows_from_html(DIV)
+check(len(gd) == 1 and gd[0]["symbol"] == "1120" and gd[0]["quantity"] == 1_250_000,
+      "٨ج وبلا جدولٍ تُقرأ الحاويات — و«أرقام» تنشر بلا جدول", str(gd))
+check(sd.rows_from_html("<table><tr><td>لا صفقات</td></tr></table>") == [],
+      "٨د وصفحةٌ بلا صفقةٍ تعود فارغةً لا مختلَقة")
+
+# والترتيب: «تداول» أوّلاً، و«أرقام» حين تتعثّر — لا العكس.
+SRC = (ROOT / "backend" / "app" / "services"
+       / "special_deals.py").read_text(encoding="utf-8")
+check(SRC.index("await fetch_rows()") < SRC.index("await argaam_deals()"),
+      "٨ه والرسميُّ أوّلاً، و«أرقام» حين يتعثّر — لا العكس")
+check("أرقام:" in SRC,
+      "٨و وسببُ التعذّر يذكر الطبقتين معاً — لا واحدةً منهما")
+
 print(("FAIL" if fail else "PASS") + " D272 · D273 — العمقُ يُعرَض، والصفقاتُ الخاصة تُبنى")
 raise SystemExit(fail)

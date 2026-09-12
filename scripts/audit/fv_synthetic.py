@@ -126,10 +126,19 @@ vb, db = models.excess_return(fb, rf=P.risk_free, erp=P.erp, tax=P.tax, beta_u=0
 bvps = 4.0e9/1e8
 check("ROE<COE capped at book", abs(vb - bvps) < 1e-6, f"v={vb} book={bvps}")
 
-# 8 — insurance abstains by route, before any data is read
+# 8 — التأمين يُقيَّم ولا يمتنع بالتصميم (D280)
+# كان هذا الفحصُ يُثبّت **حدَّ مصدرٍ قديم** قاعدةً: «التأمين يمتنع، لأن
+# النسبة المجمّعة غير متاحة في ياهو». وقد بطَل السبب — القوائمُ رسميةٌ من
+# تداول وفيها حقوقُ الملكية وصافي الربح، وهما مدخَلا العائد الفائض. وحارسٌ
+# يحرس عجزاً زال يمنع إصلاحَه، فيُقلَب إلى حراسة الصواب: يُقيَّم، وسقفُ
+# ثقته دون «مرتفع» لأن النسبةَ المجمّعة والقيمةَ الكامنة غيرُ منشورتين.
 r = value_company("8010", healthy(), P, allow_unverified=True)
-check("insurance abstains", r["abstained"] and "النسبة المجمّعة" in r["abstain_reason"],
-      r.get("abstain_reason", ""))
+check("insurance is valued, not abstained",
+      not r["abstained"] and r.get("value"), str(r.get("abstain_reason"))[:60])
+check("insurance confidence capped below high",
+      r.get("confidence") != "مرتفعة", str(r.get("confidence")))
+check("insurance uses excess-return route",
+      r.get("model") == "excess_return", str(r.get("model")))
 
 # 9 — engine end-to-end on an industrial name
 r2 = value_company("2010", healthy(), P, allow_unverified=True)

@@ -139,12 +139,17 @@ async def fetch_rows() -> tuple[list, str | None]:
 
 
 async def refresh() -> dict:
-    """يجلب ويُطبّع ويحفظ. ولا يُكتب فراغٌ فوق قراءةٍ سابقةٍ صالحة."""
+    """يجلب بترتيب الطبقات ويحفظ. ولا يُكتب فراغٌ فوق قراءةٍ صالحة."""
     rows, why = await fetch_rows()
-    if why:
-        logger.warning("الصفقاتُ الخاصة لم تُقرأ: {}", why)
-        return {"count": 0, "error": why}
-    deals = normalize(rows)
+    deals = normalize(rows) if not why else []
+    if not deals:
+        # الطبقةُ الثانية: «تداول» محجوبةٌ عند الحافّة لهذا المسار اليوم،
+        # فلا يُنتظَر المتعثّر — ويُقال في المخرَج من أيِّ طبقةٍ جاء الرقم.
+        deals, why2 = await argaam_deals()
+        if deals:
+            why = None
+        else:
+            why = f"{why or 'تداول: لا صفوف'} · أرقام: {why2}"
     if not deals:
         # يومٌ بلا صفقاتٍ خاصّةٍ **وارد** — لكنّه لا يُميَّز هنا عن أسماءِ
         # حقولٍ لم تُطابَق. فلا يُمحى المحفوظُ، ويُقال العددُ الخام.
@@ -176,3 +181,100 @@ def for_symbol(symbol) -> list[dict]:
         return []
     return [d for d in ((reading() or {}).get("deals") or [])
             if d.get("symbol") == m.group(1)]
+
+# ── الطبقةُ الثانية: «أرقام» ─────────────────────────────────────────────
+_SYM = re.compile(r"\b(\d{4})\b")
+_NUMS = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_DATE = re.compile(r"\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}|\d{2}:\d{2}(?::\d{2})?")
+
+
+def _cells(block: str) -> list[str]:
+    from app.services.ownership import _text
+    parts = re.findall(r"<t[dh]\b[^>]*>(.*?)</t[dh]>", block, re.S | re.I)
+    if not parts:
+        parts = re.findall(r"<(?:span|div|b|strong)\b[^>]*>(.*?)</(?:span|div|b|strong)>",
+                           block, re.S | re.I)
+    return [t for t in (_text(x) for x in parts) if t]
+
+
+def rows_from_html(html: str) -> list[dict]:
+    """صفقاتٌ من صفحة «أرقام» — جدولاً كانت أو حاويات (D281).
+
+    ══ سمّيتُ المصدرَ ولم أقرأ منه ══
+    كتبتُ عنوانَ «أرقام» في الشيفرة وتركتُ القارئ. وهو العطبُ الذي نبّه
+    إليه المالك: «تجمع الملاحظات وتجهّز الحلَّ ثمّ تتركه». فهذا هو القارئ.
+
+    والأركانُ ثلاثةٌ لا يُقبل صفٌّ بدونها: **رمزٌ من أربعة أرقام**،
+    و**سعرٌ** في حدود المعقول، و**كمّيةٌ** لا تقلّ عن مئة سهم. وما نقص
+    أحدُها يُترك — فصفحةُ تنقّلٍ فيها أرقامٌ لا تُقرأ صفقات.
+    """
+    from app.services.ownership import blocks
+
+    out: list[dict] = []
+    seen: set[tuple] = set()
+    src = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html or "",
+                 flags=re.S | re.I)
+    rows = re.findall(r"<tr\b[^>]*>(.*?)</tr>", src, re.S | re.I)
+    candidates = rows if rows else sorted(blocks(src), key=len)
+    for block in candidates:
+        cells = _cells(block if rows else block)
+        if len(cells) < 3:
+            continue
+        joined = " | ".join(cells)
+        m = _SYM.search(joined)
+        if not m:
+            continue
+        # ══ التاريخُ ليس كمّية ══
+        # «2026-09-11» أعطت كمّيةً قدرُها 2026 في أوّل قياس. فتُنزَع
+        # التواريخُ من النصّ قبل استخراج الأرقام — والتاريخُ يُقرأ وحدَه.
+        nums = []
+        for c in cells:
+            c = _DATE.sub(" ", c)
+            for t in _NUMS.findall(c):
+                v = _num(t)
+                if v is not None:
+                    nums.append(v)
+        # ══ الرمزُ ليس سعراً ══
+        # أوّلُ صيغةٍ قرأت «1010» سعراً: استبعدتُه بمقارنة نصٍّ برقمٍ
+        # (`str(1010.0) != "1010"`) فلم تستبعد شيئاً. والمقارنةُ بالقيمة.
+        sym_val = float(m.group(1))
+        pool = [v for v in nums if v != sym_val]
+        # السعرُ يُفضَّل كسريّاً: الصفقةُ تُنفَّذ بسعرٍ ذي هللات.
+        price = next((v for v in pool if 0.1 <= v <= 10_000 and v != int(v)), None)
+        if price is None:
+            price = next((v for v in pool if 0.1 <= v <= 10_000), None)
+        qty = next((v for v in pool if v >= 100 and v == int(v) and v != price), None)
+        if price is None or qty is None:
+            continue
+        key = (m.group(1), price, qty)
+        if key in seen:
+            continue
+        seen.add(key)
+        deal = {"symbol": m.group(1), "price": price, "quantity": qty,
+                "value": round(price * qty, 2)}
+        d = re.search(r"\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}", joined)
+        if d:
+            deal["at"] = d.group(0)
+        name = next((c for c in cells
+                     if len(c) >= 4 and not _NUMS.fullmatch(c.replace(",", ""))
+                     and re.search(r"[ء-ي]{3}", c)), None)
+        if name:
+            deal["name"] = name
+        out.append(deal)
+        if len(out) >= MAX_ROWS:
+            break
+    return out
+
+
+async def argaam_deals() -> tuple[list[dict], str | None]:
+    """الطبقةُ الثانية بالمتصفّح — صفحةُ «أرقام» مرسومةٌ بجافاسكربت."""
+    from app.services.browser_fetch import BrowserUnavailable, render
+    try:
+        pages = await render([ARGAAM_MARKET], settle_ms=8000)
+    except BrowserUnavailable as e:
+        return [], f"المتصفّحُ غيرُ متاح: {e}"
+    html = pages.get(ARGAAM_MARKET, "")
+    if not html:
+        return [], "لم تُرسَم صفحةُ «أرقام»"
+    got = rows_from_html(html)
+    return got, None if got else "لم يُفهَم صفٌّ في صفحة «أرقام»"

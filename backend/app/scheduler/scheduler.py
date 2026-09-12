@@ -161,13 +161,28 @@ async def job_xbrl_statements():
     ويُعاد من شاخ إيداعُه وحدَه. والإفصاحاتُ الجديدةُ تُلتقط بالدورة
     نفسِها — لا انتظارَ موسمٍ ولا نداءَ لكلّ شركةٍ كلَّ يوم.
     """
+    # ══ التغطيةُ جِدٌّ لا شعار ══ (D280)
+    # كانت الدفعةُ اثنتَي عشرةَ شركةً في الليلة: ‎273 شركةً تحتاج ثلاثةً
+    # وعشرين ليلة — وفي هذه المدّة تبقى الدرجةُ والسعرُ العادل بلا قوائمَ
+    # رسميةٍ لأكثر السوق. وقال المالك: «أيُّ عجزٍ لإظهار نتيجة شركةٍ خذلان».
+    # فصارت أربعين في الدفعة، ودفعتين في الليلة — فتكتمل في أربع ليالٍ.
+    #
+    # وكانت القائمةُ تُؤخذ من لقطة السوق وحدَها: لقطةٌ لم تصل ⇒ **صفرُ
+    # قراءةٍ تلك الليلة**، بلا سببٍ ظاهر. فالنطاقُ من السوق الرئيسة، واللقطةُ
+    # تُستعمل إن وُجدت — ولا تُرتهَن التغطيةُ بمصدرٍ آخرَ قد يتأخّر.
     try:
+        from app.data.market_universe import MARKET_UNIVERSE
+        from app.data.universe import main_market
         from app.services.tadawul_market import snapshot
         from app.services.tadawul_xbrl import for_symbol, refresh
-        syms = [s for s in (snapshot() or {}) if not for_symbol(s)][:12]
-        if not syms:
+
+        universe = list(snapshot() or {}) or list(main_market(MARKET_UNIVERSE))
+        missing = [s for s in universe if not for_symbol(s)]
+        logger.info("XBRL: {} مقروءةٌ من {} — الباقي {}",
+                    len(universe) - len(missing), len(universe), len(missing))
+        if not missing:
             return
-        rec = await refresh(syms)
+        rec = await refresh(missing[:40])
         logger.info(f"XBRL batch: {rec}")
     except Exception as e:
         logger.error(f"XBRL batch failed: {e}")
@@ -530,6 +545,15 @@ def start_scheduler():
         job_xbrl_statements,
         CronTrigger(hour=22, minute=15),
         id="xbrl_statements_daily",
+        replace_existing=True,
+    )
+
+    # ودفعةٌ ثانيةٌ بعد منتصف الليل: السوقُ مغلقٌ والمضيفُ فارغ — فتكتمل
+    # التغطيةُ في أربع ليالٍ بدل ثلاثٍ وعشرين.
+    _scheduler.add_job(
+        job_xbrl_statements,
+        CronTrigger(hour=1, minute=30),
+        id="xbrl_statements_night",
         replace_existing=True,
     )
 

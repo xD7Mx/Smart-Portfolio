@@ -269,6 +269,11 @@ python3 scripts/audit/deals_and_depth.py || fail=1
 echo
 python3 scripts/audit/financial_brief.py || fail=1
 
+# D280: تغطيةٌ جادّةٌ لكلّ شركة — لا امتناعَ بالتصميم، ودفعةُ القوائم
+# تكفي لتغطيةٍ في أيّامٍ لا أسابيع، والباقي يُطبع في السجلّ كلَّ ليلة.
+echo
+python3 scripts/audit/coverage_serious.py || fail=1
+
 # D260: اللحظيةُ زمنٌ لا لون — ميزانيةُ طزاجةٍ مقيسةٌ لكلّ حلقةٍ في
 # سلسلة التأخير، وعلاقةُ الحلقات ببعضها (عمرٌ مقبولٌ ≥ دورةِ تجديد).
 echo
