@@ -201,6 +201,47 @@ def _quarterly_view(data: dict) -> dict:
     }
 
 
+def _quarterly_from_argaam(sym: str) -> dict | None:
+    """نتيجةُ الربع من «أرقام» — ربحٌ صافٍ لفترتين بأسمائهما (D253 · D259).
+
+    وهي **ليست قائمةً كاملة**: «أرقام» تنشر صافيَ ربح الربع ومقارنتَه
+    بمماثله، لا الإيرادَ والتدفّقَ والميزانية. فتُعرض بما هي، ويُعلَن
+    مصدرُها ونوعُها — ولا يُملأ فراغٌ باشتقاقٍ ولا يُسمّى ما ليس قائمةً
+    قائمةً. وتُستبدَل كلُّها حين تصل طبقةُ XBRL الرسمية.
+    """
+    try:
+        from app.services.argaam_results import for_symbol
+        rec = (for_symbol(sym) or {}).get("quarter")
+    except Exception:                                             # noqa: BLE001
+        rec = None
+    if not isinstance(rec, dict):
+        return None
+    prev, cur = rec.get("prev"), rec.get("current")
+    if prev is None and cur is None:
+        return None
+    # أرقامُ «أرقام» بملايين الريالات — والجدولُ يعرض بالريال كبقيّة القوائم.
+    def _m(v):
+        return round(float(v) * 1_000_000, 2) if isinstance(v, (int, float)) else None
+
+    cols = []
+    if prev is not None:
+        cols.append({"year": rec.get("prev_label") or "المماثل", "net_income": _m(prev)})
+    if cur is not None:
+        cols.append({"year": rec.get("current_label") or "الربع الحالي",
+                     "net_income": _m(cur)})
+    return {
+        "frequency": "quarterly",
+        "source": "أرقام",
+        "kind": "net_income_only",
+        "periods": cols,
+        "years": [c["year"] for c in cols],
+        "changes": {"net_income": rec.get("change_pct")},
+        "changes_yoy": {"net_income": rec.get("change_pct")},
+        "changes_qoq": {},
+        "verdict": None, "verdict_tone": None, "investment_phase": False,
+    }
+
+
 @router.get("/financials/{symbol}")
 async def get_company_financials(symbol: str, period: str = "annual"):
     """Three-year income/balance/cashflow with YoY change + section grouping +
@@ -211,10 +252,19 @@ async def get_company_financials(symbol: str, period: str = "annual"):
     # الربعيّ مسارٌ مستقلّ (‏get_quarterly_financials): السنويُّ يُغذّي محرّك
     # الحوكمة، فلا يُقحَم فيه تبديلُ تردّدٍ يخصّ العرض وحده.
     if period == "quarterly":
+        # ══ الربعيُّ بترتيب الطبقات ══ (D259 · بأمر المالك)
+        # «تداول ثمّ أرقام وبالأخير ياهو — وأتمنّى ألّا نصل لياهو لأنه لا
+        # يدعم الربع سنوي». فتُقرأ الطبقاتُ بترتيبها، ويُعلَن مصدرُ ما
+        # عُرض مع الأرقام — لا يُخلط مصدران بلا بيان.
+        q = _quarterly_from_argaam(sym)
+        if q:
+            return success_response(data=q)
         q = await market_service.get_quarterly_financials(sym)
         if not q or not q.get("periods"):
             return success_response(data=None, message="لا توجد قوائم ربعية متاحة لهذا الرمز.")
-        return success_response(data=_quarterly_view(q))
+        view = _quarterly_view(q)
+        view["source"] = "ياهو"
+        return success_response(data=view)
     data = await market_service.get_financials(sym)
     if not data or not data.get("periods"):
         return success_response(data=None, message="لا توجد قوائم مالية متاحة لهذا الرمز حالياً.")

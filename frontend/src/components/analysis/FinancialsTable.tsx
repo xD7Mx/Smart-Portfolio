@@ -46,22 +46,56 @@ function Light({ change, invert = false }: { change: number | null; invert?: boo
  * Fully auto-filled from the source; no manual entry.
  */
 export default function FinancialsTable({ symbol }: { symbol: string }) {
-  /* ══ السنويُّ وحده ══ (بأمر المالك)
-     كان مُبدِّلٌ بين السنويّ والربعيّ، والربعيُّ يخرج فارغاً لأكثر رموز
-     السوق — فمُبدِّلٌ يقود إلى فراغٍ أسوأُ من غيابه. والمحرّكُ يقرأ
-     السنويَّ أصلاً، فالجدولُ يعرض ما يُحكَم به لا ما يزيّن. */
+  /* ══ سنويٌّ وربعيّ — خياران ══ (بأمر المالك · D259)
+     كان المُبدِّلُ قد أُزيل لأن الربعيَّ يخرج فارغاً من ياهو: «مُبدِّلٌ
+     يقود إلى فراغٍ أسوأُ من غيابه». وقد زال سببُ الإزالة لا القاعدة —
+     صار للربعيّ مصدرٌ رسميّ (‏تداول ثمّ أرقام)، فعاد الخياران.
+     ومصدرُ ما يُعرض معلَنٌ مع الجدول: لا يُخلط مصدران بلا بيان. */
+  const [freq, setFreq] = React.useState<"annual" | "quarterly">("annual");
   const { data, isLoading } = useQuery({
-    queryKey: ["financials", symbol, "annual"],
-    queryFn: () => marketApi.financials(symbol, "annual").then(r => r.data.data),
+    queryKey: ["financials", symbol, freq],
+    queryFn: () => marketApi.financials(symbol, freq).then(r => r.data.data),
     enabled: !!symbol,
     retry: 0,
   });
 
-  if (isLoading) return <div className="card"><div className="h-40 skeleton" /></div>;
-  if (!data || !data.periods) return (
-    <div className="card"><div className="py-10 text-center text-[var(--ink-muted)] text-sm">
-      لا توجد قوائم مالية متاحة لهذا الرمز
-    </div></div>
+  const Switch = () => (
+    <div className="flex items-center gap-1 shrink-0" role="group" aria-label="دورية القوائم">
+      {([["annual", "سنوي"], ["quarterly", "ربع سنوي"]] as const).map(([k, label]) => (
+        <button key={k} type="button" onClick={() => setFreq(k)}
+                aria-pressed={freq === k}
+                className="text-[11px] font-bold rounded-lg px-2.5 py-1"
+                style={{
+                  background: freq === k ? "var(--tag-agm)" : "var(--field)",
+                  color: freq === k ? "var(--tag-ink)" : "var(--ink-muted)",
+                }}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (isLoading) return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="card-title">البيانات المالية</h3><Switch />
+      </div>
+      <div className="h-40 skeleton" />
+    </div>
+  );
+  /* ══ الخيارُ يبقى ولو خلا الجدول ══
+     شاشةٌ تُبدَّل فتختفي أزرارُها تحبس المستخدمَ في الفرع الفارغ. */
+  if (!data || !data.periods || !data.periods.length) return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="card-title">البيانات المالية</h3><Switch />
+      </div>
+      <div className="py-8 text-center text-[var(--ink-muted)] text-sm">
+        {freq === "quarterly"
+          ? "لا قوائم ربعية لهذا الرمز بعد"
+          : "لا توجد قوائم مالية متاحة لهذا الرمز"}
+      </div>
+    </div>
   );
 
   // Newest year first — in the site's RTL layout that puts 2025 rightmost
@@ -117,6 +151,25 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
        أيضاً. الحلّ: التمرير على غلافٍ للجدول وحده، والعمود الأول مثبَّت
        (sticky) بخلفية البطاقة فلا تمرّ الأرقام من تحته. */
     <div className="card">
+    {/* ══ الترويسة: العنوانُ والخياران ومصدرُ ما يُعرض ══ (D259)
+        ولا يُخلط مصدران بلا بيان: من أين جاءت هذه الأرقام يُقال هنا. */}
+    <div className="flex items-center justify-between gap-2 mb-3">
+      <h3 className="card-title">البيانات المالية</h3>
+      <div className="flex items-center gap-2">
+        {data.source && (
+          <span className="text-[10px] text-[var(--ink-muted)] whitespace-nowrap">
+            المصدر {data.source}
+          </span>
+        )}
+        <Switch />
+      </div>
+    </div>
+    {data.kind === "net_income_only" && (
+      /* صدقٌ في التسمية: هذه نتيجةُ ربعٍ لا قائمةٌ كاملة. */
+      <p className="mb-2 text-[11px] text-[var(--ink-muted)]">
+        نتيجةُ الربع المعلَنة — صافي الربح دون بقيّة بنود القوائم
+      </p>
+    )}
     {/* ══ الجوّال بطاقات · اللوحيّ فما فوق جدول ══ (بأمر المالك)
         الجدولُ يحتاج 520px عرضاً، وشاشةُ الجوّال 390. فكان يُقرأ بتمريرٍ
         أفقيّ: رقمٌ واحد ظاهر، وبقيّةُ السنوات خارج الشاشة — وهو نقيضُ
