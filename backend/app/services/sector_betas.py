@@ -88,6 +88,52 @@ def build_table(betas: dict[str, float], leverage: dict[str, tuple],
     return table, rep
 
 
+def _leverage_for(sym: str, cache, lastgood) -> tuple[float, float] | None:
+    """(دَينٌ، حقوق) لشركةٍ — بترتيب الطبقات، والأدقُّ أوّلاً (D267).
+
+    ══ لماذا تغيّرت القراءة ══
+    هامادا تطلب **دَيناً** لا **التزامات**. وكنّا نشتقُّ الدَّينَ من نسبة
+    المديونية: ‏(أصولٌ − حقوق) — وهذا كلُّ الالتزامات: ذممٌ دائنةٌ ومخصّصاتٌ
+    وزكاةٌ مستحقّة، لا قرضٌ يحمل فائدة. فترتفع D/E فتنخفض بيتا القطاع
+    المنزوعةُ زيفاً — ثم لا تُقرأ أصلاً لمن لا قوائمَ له في الكاش، فيسقط
+    القطاعُ دون حدِّ النظائر و**تُخصَم الثقةُ في كلّ شركةٍ فيه**.
+
+    وقد صار لدينا `total_debt` مجموعاً من القروض والإيجارات في قوائم XBRL
+    الرسمية (‏D266)، وهو مدخَلُ هامادا بعينه. فيُقرأ أوّلاً، ثمّ يبقى
+    الاشتقاقُ القديم طبقةً ثانيةً لمن لا إفصاحَ رسميَّ له — ومن لا هذا ولا
+    ذاك يُترك ويُعَدّ، ولا تُفترَض له رافعة.
+    """
+    for periods in (_xbrl_periods(sym), _cached_periods(sym, cache, lastgood)):
+        last = periods[-1] if periods else {}
+        eq = last.get("equity")
+        if not (isinstance(eq, (int, float)) and eq > 0):
+            continue
+        td = last.get("total_debt")
+        if isinstance(td, (int, float)) and td >= 0:
+            return (float(td), float(eq))
+        dr = last.get("debt_ratio")          # نسبةُ الالتزامات إلى الأصول ٪
+        if isinstance(dr, (int, float)) and 0 < dr < 100:
+            assets = eq / max(1e-9, (1 - dr / 100.0))
+            return (float(assets - eq), float(eq))
+    return None
+
+
+def _xbrl_periods(sym: str) -> list[dict]:
+    try:
+        from app.services.tadawul_xbrl import for_symbol
+        return for_symbol(str(sym).replace(".SR", "")) or []
+    except Exception:                                             # noqa: BLE001
+        return []
+
+
+def _cached_periods(sym: str, cache, lastgood) -> list[dict]:
+    ck = f"stmt:{sym}.SR"
+    fund = cache.get(ck)
+    if fund is None:
+        fund = lastgood.load(ck)
+    return (fund.get("periods") or []) if isinstance(fund, dict) else []
+
+
 def _params_raw() -> dict:
     from app.services.fair_value_engine.params import CONFIG_DIR
     return json.loads((CONFIG_DIR / "market_params.json").read_text(encoding="utf-8"))
@@ -118,18 +164,8 @@ async def refresh(symbols: list[str] | None = None) -> dict:
     # وصفرٌ مطلقٌ في تقريرٍ علامةُ مفتاحٍ خاطئ لا علامةُ سوقٍ ناقص.
     from app.services import cache, lastgood
     for s in betas:
-        ck = f"stmt:{s}.SR"
-        fund = cache.get(ck)
-        if fund is None:
-            fund = lastgood.load(ck)
-        periods = (fund.get("periods") or []) if isinstance(fund, dict) else []
-        last = periods[-1] if periods else {}
-        eq = last.get("equity")
-        dr = last.get("debt_ratio")          # نسبةُ الالتزامات إلى الأصول ٪
-        if isinstance(eq, (int, float)) and eq > 0 \
-                and isinstance(dr, (int, float)) and 0 < dr < 100:
-            assets = eq / max(1e-9, (1 - dr / 100.0))
-            leverage[s] = (assets - eq, eq)
+        leverage[s] = _leverage_for(s, cache, lastgood) or leverage.get(s)
+    leverage = {k: v for k, v in leverage.items() if v}
     table, rep = build_table(betas, leverage, sectors, tax=tax,
                              floor=float(eng["beta_floor"]), cap=float(eng["beta_cap"]))
     if not table:

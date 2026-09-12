@@ -87,9 +87,23 @@ def value_company(code: str, f: Fundamentals, p: Params, *, allow_unverified=Fal
         notes.append("التاريخ المتاح لا يسع دورة كاملة")
     if f.errors:
         notes.append("; ".join(f.errors[:2]))
+    # ---- terminal share: widens the band, and is declared; it is not a grade ----
+    # ══ لا يُخصَم قيدٌ مفروضٌ مرّتين ══ (D268)
+    # ارتفاعُ حصّة القيمة النهائية كان يُنزل الدرجةَ في كلّ شركةٍ نامية،
+    # وهو في خصم التدفّقات **بنيةٌ لا عيب**: النقدُ المبكّر يُعاد استثمارُه
+    # فتتأخّر القيمة. والانضباطُ الذي تخشاه الدرجةُ مفروضٌ أصلاً في
+    # النموذج: نموُّ الأبد مقيَّدٌ بالمعدَّل الخالي من المخاطر (‏g ≤ rf)،
+    # وإعادةُ الاستثمار مشتقّةٌ لا مفترَضة (‏rir = g ÷ ROIC)، والفارقُ
+    # WACC − g له حدٌّ أدنى. فخصمُ الدرجة بعد ذلك خصمٌ لقيدٍ قد فُرض.
+    #
+    # لكنّ الحصّةَ **حساسية**: رقمٌ معظمُه أبديٌّ أوسعُ نطاقاً من رقمٍ
+    # معظمُه مقيسٌ في عشر سنين. فتنتقل إلى مكانها الصحيح — عرضِ النطاق —
+    # وتبقى مُعلَنةً في الملاحظات. ولا تُسكَت، ولا تُصادر بها درجةٌ.
     ts = diag.get("terminal_share")
+    band_extra = 0.0
     if ts and ts > 0.85:
-        conf = _demote(conf); notes.append(f"القيمة النهائية {ts:.0%} من الرقم")
+        band_extra = min((ts - 0.85) * 0.8, 0.12)
+        notes.append(f"القيمة النهائية {ts:.0%} من الرقم — النطاق أوسع")
 
     # ---- book floor: applied, and always declared ----
     floored = False
@@ -103,7 +117,7 @@ def value_company(code: str, f: Fundamentals, p: Params, *, allow_unverified=Fal
         notes.append("انهيار النموذج — طُبّقت أرضية الدفترية، والرقم ليس مخرج نموذج")
 
     # ---- range from sensitivity on cost of equity and terminal growth ----
-    band = {"مرتفعة": 0.18, "متوسطة": 0.28, "منخفضة": 0.40}[conf]
+    band = min({"مرتفعة": 0.18, "متوسطة": 0.28, "منخفضة": 0.40}[conf] + band_extra, 0.50)
     rng = [round(value * (1 - band), 2), round(value * (1 + band), 2)]
 
     lo, hi = p.eng["plausible_band"]

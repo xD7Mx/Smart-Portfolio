@@ -168,6 +168,55 @@ check("non-SAR abstains", r6["abstained"] and "عملة" in r6["abstain_reason"]
 check("unverified beta demotes confidence", r2["confidence"] != "مرتفعة",
       f"conf={r2['confidence']} notes={r2['notes']}")
 
+# 15 — حصّةُ القيمة النهائية تُوسّع النطاق ولا تُصادر الدرجة (D268)
+# القيدُ المفروضُ مرّةً لا يُخصَم مرّةً أخرى: نموُّ الأبد مقيَّدٌ بالمعدَّل
+# الخالي من المخاطر، وإعادةُ الاستثمار مشتقّةٌ لا مفترَضة — فارتفاعُ الحصّة
+# **حساسيةٌ** مكانُها عرضُ النطاق، لا درجةٌ تُنزَع. ويُقاس الأمران معاً:
+# أنها لم تُسكَت، وأنها لم تعد تخصم.
+import app.services.fair_value_engine.models as _mo   # noqa: E402
+import app.services.fair_value_engine.engine as _en   # noqa: E402
+
+# ودرجةٌ بالغةٌ قاعَها تمرّ على أيّ خصمٍ مرّةً أخرى — فحصٌ يمرّ بالتشبّع لا
+# يفحص شيئاً. فتُبذَر بيتا القطاع المقيسةُ ليبدأ الحكمُ فوق القاع.
+import datetime as _dt2  # noqa: E402
+
+from app.services import lastgood as _lg2  # noqa: E402
+_lg2.save("market:sector_betas", {
+    "as_of": _dt2.date.today().isoformat(),
+    "sectors": {_en.universe()["2010"]["tadawul_sector"]: {"beta": 0.95, "n": 12}}})
+
+_ROUTE = _en.universe()["2010"]["model"]        # طريقُ الشركة نفسِه لا طريقٌ نفترضه
+_real_model = _en.MODELS[_ROUTE]
+
+
+def _tv(share):
+    def _f(f, **kw):
+        v, d = _real_model(f, **kw)
+        d["terminal_share"] = share
+        return v, d
+    return _f
+
+
+try:
+    _en.MODELS[_ROUTE] = _tv(0.60)
+    r_lo = value_company("2010", healthy(), P, allow_unverified=True)
+    _en.MODELS[_ROUTE] = _tv(0.97)
+    r_hi = value_company("2010", healthy(), P, allow_unverified=True)
+finally:
+    _en.MODELS[_ROUTE] = _real_model
+
+_w = lambda r: (r["range"][1] - r["range"][0]) / r["value"]        # noqa: E731
+check("TV share widens the band", _w(r_hi) > _w(r_lo) + 1e-6,
+      f"{_w(r_lo):.3f} → {_w(r_hi):.3f}")
+check("TV share does not demote the grade",
+      r_hi["confidence"] == r_lo["confidence"] and r_lo["confidence"] != "منخفضة",
+      f"{r_lo['confidence']} · {r_hi['confidence']}")
+check("TV share stays declared, not silenced",
+      any("القيمة النهائية" in n for n in r_hi["notes"])
+      and not any("القيمة النهائية" in n for n in r_lo["notes"]),
+      str(r_hi["notes"])[:70])
+check("band never runs away", _w(r_hi) <= 1.0 + 1e-9, f"{_w(r_hi):.3f}")
+
 # ---------------------------------------------------------------- report
 w = max(len(n) for n, _, _ in CHECKS)
 print("\nSYNTHETIC FIXTURE TESTS")
