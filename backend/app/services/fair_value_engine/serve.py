@@ -140,13 +140,33 @@ async def value_for_symbol(symbol: str, *, price: float | None = None) -> dict |
     # ══ مصدرُ القوائم يرفع الثقةَ أو يخفضها ══
     # قوائمُ XBRL مدقّقةٌ موقَّعة، وقوائمُ المزوّد تقديرٌ — فالفرقُ يُعلَن.
     src = str(fin.get("source") or "")
+    order = ["مرتفعة", "متوسطة", "منخفضة"]
+    i = order.index(out["confidence"]) if out.get("confidence") in order else 2
     if "XBRL" not in src:
-        order = ["مرتفعة", "متوسطة", "منخفضة"]
-        i = order.index(out["confidence"]) if out.get("confidence") in order else 2
         out["confidence"] = order[min(i + 1, 2)]
         out.setdefault("notes", []).append("قوائمُ مزوّدٍ لا إفصاحٌ رسميّ")
     else:
-        out.setdefault("notes", []).append("قوائمُ رسميةٌ مدقَّقة")
+        # ══ السقفُ الثابتُ وُضع في زمن ياهو ══ (D282)
+        # سقفُ ثقةِ كلّ شركةٍ مكتوبٌ في ملفّ النطاق، وقد كُتب يومَ كانت
+        # القوائمُ تقديراً من مزوّد: جزءٌ كبيرٌ منه كان **خصماً لجهالة
+        # المصدر** لا لطبيعة النشاط. وقد صار المصدرُ رسمياً مدقَّقاً، فبقاءُ
+        # السقف كما هو يحبس الثقةَ عند حدٍّ سببُه زال — وهو نفسُ عطب D280.
+        #
+        # فتُرفع درجةٌ واحدةٌ **بشروطٍ تُقاس كلُّها**، لا لأن المصدرَ رسميٌّ
+        # وحدَه: قوائمُ XBRL · أربعُ فتراتٍ فأكثر · لا بندَ ناقصاً · لم
+        # تُطبَّق أرضيةُ الدفترية · والرقمُ في حدّ المعقولية. وما بقي من
+        # سقفٍ بعد ذلك سببُه طبيعةُ النشاط (دوريةٌ · تأمينٌ بلا نسبةٍ
+        # مجمّعة) — وذاك لا يرفعه مصدر.
+        promote = (out.get("periods_used", 0) >= 4
+                   and not out.get("inputs_missing")
+                   and not out.get("floored_at_book")
+                   and not out.get("implausible"))
+        if promote and i > 0:
+            out["confidence"] = order[i - 1]
+            out.setdefault("notes", []).append(
+                "قوائمُ رسميةٌ مدقَّقةٌ لأربع فتراتٍ فأكثر — بلا بندٍ ناقص")
+        else:
+            out.setdefault("notes", []).append("قوائمُ رسميةٌ مدقَّقة")
     rng = out.get("range") or {}
     res = {
         "value": out["value"],

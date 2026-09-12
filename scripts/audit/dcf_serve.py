@@ -132,6 +132,34 @@ else:
           "٢ المحرّكُ امتنع في الحالتين — ويُقاس الامتناعُ لا يُفترَض نجاح",
           f"{off} · {yh}")
 
+# ── ٢د · السقفُ الثابتُ لا يحبس ثقةً زال سببُها ─────────────────────────
+# سقفُ الثقة كُتب في زمن ياهو، وجزءٌ منه خصمٌ لجهالة المصدر. فمع قوائمَ
+# رسميةٍ لأربع فتراتٍ بلا بندٍ ناقصٍ تُرفع درجةٌ واحدة — وبشروطٍ تُقاس،
+# لا لأن المصدرَ رسميٌّ وحدَه (D282).
+_md.market_service = _Svc()                                      # type: ignore[assignment]
+cache.set("dcf:2010:70.0", None, 0)
+hi = asyncio.run(sv.value_for_symbol("2010.SR", price=70.0))
+check(hi and hi["confidence"] == "مرتفعة",
+      "٢د أربعُ فتراتٍ رسميةٍ بلا نقصٍ ⇒ ترتفع الثقةُ درجة",
+      str((hi or {}).get("confidence")))
+check(hi and any("أربع فترات" in n for n in hi.get("notes") or []),
+      "٢ه ويُعلَن سببُ الرفع — لا يرتفع رقمٌ بلا بيان", str((hi or {}).get("notes"))[:80])
+
+
+class _SvcShort(_Svc):
+    async def get_financials(self, symbol, allow_supplement=True):
+        f = fin()
+        f["periods"] = f["periods"][:3]        # ثلاثُ فتراتٍ فقط
+        return f
+
+
+_md.market_service = _SvcShort()                                 # type: ignore[assignment]
+cache.set("dcf:2010:70.0", None, 0)
+sh = asyncio.run(sv.value_for_symbol("2010.SR", price=70.0))
+check(sh is None or sh["confidence"] != "مرتفعة",
+      "٢و وثلاثُ فتراتٍ لا ترفع — الشرطُ يُقاس لا يُفترَض",
+      str((sh or {}).get("confidence")))
+
 # ── ٣ · الامتناعُ يُحفَظ امتناعاً ────────────────────────────────────────
 class _SvcEmpty:
     async def get_financials(self, symbol, allow_supplement=True):
