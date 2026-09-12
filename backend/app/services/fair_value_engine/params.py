@@ -20,6 +20,15 @@ def _live_reading() -> dict | None:
         return None
 
 
+def _live_betas() -> dict | None:
+    """جدولُ البيتا المقيس — من منتِجه الوحيد."""
+    try:
+        from app.services.sector_betas import reading
+        return reading()
+    except Exception:                                             # noqa: BLE001
+        return None
+
+
 def _live_risk_free() -> float | None:
     rec = _live_reading()
     v = (rec or {}).get("value")
@@ -67,7 +76,21 @@ class Params:
         return self.raw["engine"]
 
     def unlevered_beta(self, tadawul_sector: str) -> tuple[float, bool]:
-        """Returns (beta, is_verified). Unverified betas cost one confidence grade."""
+        """Returns (beta, is_verified). Unverified betas cost one confidence grade.
+
+        ══ المقيسُ من سوقنا يتقدّم المستورَد ══ (D257)
+        جدولُ الملفّ من أسواقٍ ناشئةٍ أجنبية ومعلَّمٌ «غيرُ موثَّق». وبيتا
+        «أرقام» مقيسةٌ من تاسي، وتُنزَع رافعتُها بهامادا ويُؤخذ وسيطُ
+        القطاع — فتُقرأ أوّلاً، ويبقى الملفُّ لقطاعٍ لم يبلغ حدَّ النظائر.
+        والموثوقيةُ تتبع مصدرَ الرقم المستعمَل لا الملفَّ كلَّه.
+        """
+        try:
+            from app.services.sector_betas import beta_for
+            live = beta_for(tadawul_sector)
+        except Exception:                                         # noqa: BLE001
+            live = None
+        if live:
+            return float(live[0]), True
         tbl = self.raw["unlevered_sector_betas"]
         verified = tbl.get("_status") == "verified"
         if tadawul_sector not in tbl:
@@ -86,7 +109,9 @@ class Params:
                 self.raw["risk_free_sar"].get("source")
                 if self.raw["risk_free_sar"].get("value") is not None
                 else (_live_reading() or {}).get("source")),
-            "betas_verified": self.raw["unlevered_sector_betas"].get("_status") == "verified",
+            "betas_verified": (self.raw["unlevered_sector_betas"].get("_status")
+                               == "verified") or bool(_live_betas()),
+            "betas_measured_sectors": len((_live_betas() or {}).get("sectors") or {}),
             "params_verified": bool(self.raw.get("verified")),
         }
 

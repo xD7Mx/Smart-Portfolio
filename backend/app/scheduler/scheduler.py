@@ -88,6 +88,21 @@ async def job_tadawul_snapshot():
         logger.error(f"Tadawul snapshot failed: {e}")
 
 
+async def job_sector_betas():
+    """بيتا قطاعيةٌ مقيسةٌ من سوقنا — شهرياً (D257).
+
+    بيتا «أرقام» لكلّ شركةٍ تُنزَع رافعتُها بهامادا ويُؤخذ وسيطُ القطاع.
+    والبيتا خاصيّةٌ بطيئةُ التغيّر — فشهرياً يكفي، وحصادُها رحيمٌ بالمصدر.
+    """
+    try:
+        from app.services.sector_betas import refresh
+        rec = await refresh()
+        if rec.get("error"):
+            logger.warning(f"Sector betas unread: {rec.get('error')}")
+    except Exception as e:
+        logger.error(f"Sector betas failed: {e}")
+
+
 async def job_risk_free():
     """المعدَّلُ الخالي من المخاطر بالريال — أسبوعياً (D249).
 
@@ -387,6 +402,14 @@ def start_scheduler():
         job_argaam_results,
         CronTrigger(hour=17, minute=30),
         id="argaam_results_daily",
+        replace_existing=True,
+    )
+
+    # البيتا القطاعية — أوّلَ جمعةٍ من كلّ شهرٍ فجراً (خاصيّةٌ بطيئةُ التغيّر).
+    _scheduler.add_job(
+        job_sector_betas,
+        CronTrigger(day="1-7", day_of_week="fri", hour=3, minute=0),
+        id="sector_betas_monthly",
         replace_existing=True,
     )
 

@@ -234,6 +234,12 @@ python3 scripts/audit/screener_price_fresh.py || fail=1
 echo
 python3 scripts/audit/one_fair_price.py || fail=1
 
+# D257: بيتا قطاعيةٌ مقيسةٌ من سوقنا لا مستورَدةٌ من جدولٍ أجنبيّ — منزوعةُ
+# الرافعة بهامادا، بوسيطِ قطاعٍ لا متوسّطه. وبناؤها على الخادم:
+#   docker exec sp_backend python /app/scripts/audit/sector_betas_probe.py
+echo
+python3 scripts/audit/sector_betas.py || fail=1
+
 # D255: ثلاثُ طبقاتٍ بترتيبٍ واحدٍ معلَن — تداول ثمّ أرقام ثمّ ياهو، ومسحُ
 # السوق يُبنى من لقطة «تداول» فلا نداءَ لياهو إلا لمن غاب عنها.
 echo
