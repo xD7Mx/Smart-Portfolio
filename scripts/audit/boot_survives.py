@@ -88,9 +88,10 @@ asyncio.run(_boot())
 check(booted["ok"],
       "٠ قاعدةٌ لا تستجيب: الخادمُ يقوم — ولا تموت دورةُ الحياة",
       str(booted.get("err"))[:70])
-check(tries["n"] == 3 and len(_slept) == 2,
+# (والانتظاراتُ اللاحقةُ لمهامّ الخلفية — يُقاس تراجعُ القاعدة وحدَه.)
+check(tries["n"] == 3 and _slept[:2] == [2, 4],
       "١ وتُعاد المحاولةُ بتراجعٍ محدودٍ قبل الاستسلام",
-      f"{tries['n']} محاولات · انتظارٌ {_slept}")
+      f"{tries['n']} محاولات · تراجعٌ {_slept[:2]}")
 check(main.DB_BOOT.get("ok") is False and main.DB_BOOT.get("error"),
       "١ب والعجزُ يُسجَّل بنصّه لا يُبتلع", str(main.DB_BOOT.get("error"))[:50])
 
@@ -155,6 +156,27 @@ d2 = (out2.get("data") if isinstance(out2, dict) else {}) or {}
 check(d2.get("status") == "healthy"
       and (d2.get("services") or {}).get("scheduler") == "ok",
       "٥ وحين يستجيب الجميعُ يُقال سليماً — لا يُعمَّم العطب", str(d2.get("status")))
+
+# ── ٦ · عقدةٌ واحدةٌ أطفأت الفروعَ كلَّها ────────────────────────────────
+# قِيس على الخادم: «لقطةُ السوق 0 رمزاً» — ومنها انهار ما بعدها: رابطُ
+# صفحة الشركة يُقرأ من اللقطة، وقارئُ XBRL يبني عليه فردَّ «بلا ملفّات»،
+# فبقيت القوائمُ صفراً فامتنع السعرُ العادل. والسببُ أن اللقطةَ مجدوَلةٌ
+# في ساعات التداول وحدَها، فحاويةٌ تُعاد مساءَ الخميس تبقى فارغةً للأحد.
+MAIN = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
+check("_warm_tadawul" in MAIN and "_aio.create_task(_warm_tadawul())" in MAIN,
+      "٦ اللقطةُ تُملأ عند الإقلاع إن كانت فارغة — لا تنتظر ساعةَ تداول")
+check("if rows:\n                return" in MAIN,
+      "٦ب ولا تُعاد إن كانت عامرة — لا نداءَ بلا حاجة")
+check("_warm_betas" in MAIN and "_aio.create_task(_warm_betas())" in MAIN,
+      "٦ج والبيتا تُبنى عند الإقلاع إن غابت — لا تُنتظَر دورةٌ شهرية")
+SCH3 = (ROOT / "backend" / "app" / "scheduler"
+        / "scheduler.py").read_text(encoding="utf-8")
+check('id="sector_betas_weekly"' in SCH3,
+      "٦د ودورتُها أسبوعيةٌ لا شهرية — شهرٌ بلا بيتا شهرٌ بثقةٍ مخصومة")
+check("create_task(_warm_tadawul())" in MAIN
+      and MAIN.index("create_task(_warm_tadawul())")
+      < MAIN.index("create_task(_warm_betas())"),
+      "٦ه واللقطةُ قبل البيتا — الترتيبُ يتبع التبعية")
 
 print(("FAIL" if fail else "PASS") + " D271 — الإقلاعُ لا يموت، والحالُ تُقاس")
 raise SystemExit(fail)

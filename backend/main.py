@@ -216,6 +216,58 @@ async def lifespan(app: FastAPI):
 
     _aio.create_task(_warm_movers())
 
+    async def _warm_tadawul():
+        """لقطةُ «تداول» عند الإقلاع إن كان المخزنُ فارغاً (D286).
+
+        ══ عقدةٌ واحدةٌ أطفأت كلَّ شيء ══
+        قِيس على الخادم: «لقطةُ السوق 0 رمزاً» — ومنها انهار ما بعدها:
+        رابطُ صفحة الشركة يُقرأ من اللقطة، وقارئُ XBRL يبني عليه فردَّ
+        «بلا ملفّات» لكلّ شركة، فبقيت القوائمُ صفراً فامتنع السعرُ العادل.
+        صفرٌ واحدٌ في الأصل أنتج أربعةَ أصفارٍ في الفروع، وكنتُ أطاردها
+        فرعاً فرعاً.
+
+        والسببُ أن اللقطةَ مجدوَلةٌ في **ساعات التداول وحدَها**: حاويةٌ
+        تُعاد مساءَ الخميس تبقى بلا لقطةٍ إلى الأحد. و«تداول» تخدم آخرَ
+        إغلاقٍ في كلّ وقت — فلا عذرَ لفراغٍ يومين.
+
+        فتُقرأ مرّةً عند الإقلاع **إن كانت فارغة**، في الخلفية، ولا تُعاد
+        إن كانت عامرة — لا نداءَ بلا حاجة.
+        """
+        try:
+            from app.services.tadawul_market import refresh, usable_rows
+            rows, _live, _at = usable_rows()
+            if rows:
+                return
+            logger.info("🔥 لقطةُ «تداول» فارغةٌ عند الإقلاع — تُقرأ مرّةً…")
+            rec = await refresh()
+            if not rec.get("count"):
+                logger.warning(f"لقطةُ الإقلاع لم تُقرأ: {rec.get('error')}")
+        except Exception as e:
+            logger.warning(f"Boot Tadawul snapshot failed: {e}")
+
+    _aio.create_task(_warm_tadawul())
+
+    async def _warm_betas():
+        """بيتا القطاعات إن غابت — بعد اللقطة بمهلة، ومرّةً واحدة (D286).
+
+        كانت شهريةً فقط: مخزنٌ فارغٌ يعني شهراً بلا بيتا مقيسة، وثقةً
+        مخصومةً في كلّ شركة. وقِيس على الخادم أنها تُبنى في ثوانٍ حين
+        تُطلب — فلا معنى لانتظارٍ شهريّ.
+        """
+        try:
+            from app.services.sector_betas import reading, refresh
+            if reading():
+                return
+            await _aio.sleep(90)          # بعد اللقطة، ورحمةً بالمصدر
+            logger.info("🔥 بيتا القطاعات غائبةٌ عند الإقلاع — تُبنى مرّةً…")
+            logger.info(f"بيتا الإقلاع: {await refresh()}")
+        except Exception as e:
+            logger.warning(f"Boot sector betas failed: {e}")
+
+    _aio.create_task(_warm_betas())
+
+
+
     async def _warm_market_calendar():
         # مفكرة السوق الكاملة: عند أول إقلاع (المخزن بارد) شغّل عدّة دفعات RSS
         # متتالية لملء جزء محسوس من السوق فوراً بدل انتظار جدولة الـ١٥ دقيقة.

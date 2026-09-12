@@ -561,7 +561,7 @@ def start_scheduler():
     _scheduler.add_job(
         job_sector_betas,
         CronTrigger(day="1-7", day_of_week="fri", hour=3, minute=0),
-        id="sector_betas_monthly",
+        id="sector_betas_weekly",
         replace_existing=True,
     )
 

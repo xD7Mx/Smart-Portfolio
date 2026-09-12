@@ -95,7 +95,8 @@ check(not bad, "٢ ولا مدًى مقلوبٌ في أيّام الأسبوع (
       "؛ ".join(bad[:3]))
 
 ids = {jid for jid, _ in jobs}
-want = {"tadawul_snapshot", "risk_free_weekly", "sector_betas_monthly",
+# (البيتا صارت أسبوعيةً في D286: شهرٌ بلا بيتا شهرٌ بثقةٍ مخصومة.)
+want = {"tadawul_snapshot", "risk_free_weekly", "sector_betas_weekly",
         "argaam_results_daily", "directory_sync_weekly"}
 missing = want - ids
 check(not missing, "٣ والمهامُّ الجديدةُ مسجَّلةٌ فعلاً",
