@@ -388,7 +388,7 @@ def start_scheduler():
         replace_existing=True,
     )
 
-    # لقطةُ «تداول» — كلَّ خمس دقائقَ في أيّام التداول وساعاتِه. نداءٌ
+    # لقطةُ «تداول» — كلَّ دقيقةٍ في أيّام التداول وساعاتِه (D260). نداءٌ
     # واحدٌ يغطّي السوق كلَّه، فلا حصّةَ تُستهلك ولا سعرَ يشيخ في شاشة.
     _scheduler.add_job(
         job_tadawul_snapshot,
@@ -397,7 +397,7 @@ def start_scheduler():
         # ‏6 ← 3 فيرفع ValueError **في الإقلاع** — فلا تسقط الجدولةُ
         # وحدَها بل الخلفيةُ كلُّها. والأيامُ تُعدّ ولا تُمدّ.
         CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour="9-16",
-                    minute="*/5"),
+                    minute="*"),
         id="tadawul_snapshot",
         replace_existing=True,
     )

@@ -234,6 +234,11 @@ python3 scripts/audit/screener_price_fresh.py || fail=1
 echo
 python3 scripts/audit/one_fair_price.py || fail=1
 
+# D260: اللحظيةُ زمنٌ لا لون — ميزانيةُ طزاجةٍ مقيسةٌ لكلّ حلقةٍ في
+# سلسلة التأخير، وعلاقةُ الحلقات ببعضها (عمرٌ مقبولٌ ≥ دورةِ تجديد).
+echo
+python3 scripts/audit/live_prices.py || fail=1
+
 # D258: الجدولةُ تُقلع — مُطلِقٌ لا يُبنى يُسقط التطبيقَ كلَّه لا نفسَه.
 echo
 python3 scripts/audit/scheduler_boot.py || fail=1

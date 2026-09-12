@@ -36,7 +36,7 @@ _BASE_RE = re.compile(r"<base[^>]+href=[\"']([^\"']+)", re.I)
 _EP_RE = re.compile(r"p0/[A-Za-z0-9_=]*=NJgetMainNomucMarketDetails=/")
 
 MIN_ROWS = 200            # دون ذلك: جلبٌ فشل لا سوقٌ تقلّص
-MAX_AGE_SECONDS = 900     # لقطةٌ أقدمُ من ربع ساعةٍ ليست سعراً حاضراً
+MAX_AGE_SECONDS = 300     # لقطةٌ أقدمُ من خمس دقائقَ ليست سعراً لحظياً
 
 
 def _num(x) -> float | None:
@@ -82,6 +82,20 @@ def normalize(rows: list) -> dict[str, dict]:
             "market_cap": _pos(r.get("marketCap")),
             "week52_high": _pos(r.get("high52WeekPrice")),
             "week52_low": _pos(r.get("low52WeekPrice")),
+            # ══ عمقُ السوق: ما يُنشَر فعلاً ══ (D262)
+            # طلب المالك عمقَ السوق «حتى 20x». وهذه التغذيةُ تحمل
+            # **مستوًى واحداً** فقط (أفضلَ طلبٍ وعرضٍ بكمّيتيهما) — وهو
+            # ما تنشره «تداول» مجّاناً؛ وعشرون مستوًى تغذيةٌ أخرى تُقاس
+            # قبل أن تُوعَد. فيُؤخذ الموجودُ بلا نداءٍ زائد، ويُسمّى بما
+            # هو: مستوًى واحد.
+            "bid": _pos(r.get("bidPrice")),
+            "bid_qty": _pos(r.get("bidQuantity")),
+            "ask": _pos(r.get("askPrice")),
+            "ask_qty": _pos(r.get("askQuantity")),
+            "trades": _pos(r.get("nuOfTrades")),
+            "day_high": _pos(r.get("highPrice")),
+            "day_low": _pos(r.get("lowPrice")),
+            "day_open": _pos(r.get("todayOpen")),
             "prev_close": _pos(r.get("previousClosePrice")),
             "change_pct": _num(r.get("precentChange")),
             "sector_en": (str(r.get("sectorName")).strip()
@@ -159,7 +173,12 @@ def snapshot() -> dict[str, dict]:
 INDEX_URL = ("https://www.saudiexchange.sa/tadawul.eportal.theme.helper/"
              "ThemeTASIUtilityServlet")
 INDEX_KEY = "market:tasi:tadawul"
-INDEX_TTL = 60                # اللسانُ مباشرٌ: دقيقةٌ واحدةٌ حدُّ التخزين
+INDEX_TTL = 15                # اللسانُ لحظيّ: خمسَ عشرةَ ثانيةً حدُّ التخزين
+# ══ اللحظيةُ زمنٌ لا لون ══ (بأمر المالك · D260)
+# «أريد الأسعارَ لحظيةً للتطبيق بالكامل، ولسانُ تاسي يومض عند التغيّر».
+# والوميضُ مبنيٌّ أصلاً — لكنه لا يشتعل إن لم يتغيّر الرقمُ الواصل.
+# فالعلاجُ في زمن الوصول: خدمةُ المؤشّر نداءٌ واحدٌ خفيف، فتُقرأ كلَّ
+# ربع دقيقة؛ ولقطةُ السوق نداءٌ واحدٌ لكلّ الشركات، فتُجدَّد كلَّ دقيقة.
 
 
 async def index_quote() -> dict | None:

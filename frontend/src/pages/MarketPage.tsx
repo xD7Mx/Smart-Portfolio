@@ -1098,7 +1098,11 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                         </div>
                       </div>
                     </td>
-                    <td className="px-2 py-2 text-center text-[var(--ink)] tabular-nums">{fmt(r.price)}</td>
+                    <td className="px-2 py-2 text-center text-[var(--ink)] tabular-nums">
+                      {/* سعرُ كلّ شركةٍ في الفرز يومض عند تغيّره — بالمكوّن
+                          القائم نفسِه لا بمنطقٍ ثانٍ (D261). */}
+                      <FlashPrice value={r.price}>{fmt(r.price)}</FlashPrice>
+                    </td>
                     <td className="px-2 py-2 text-center font-bold" style={{ color: r.change_pct == null ? "var(--ink-muted)" : up ? "var(--pos-ink)" : "var(--neg-ink)" }}>
                       {r.change_pct == null ? "—" : `${up ? "+" : ""}${r.change_pct.toFixed(2)}%`}
                     </td>

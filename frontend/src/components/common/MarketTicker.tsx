@@ -1,3 +1,4 @@
+import FlashPrice from "./FlashPrice";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { marketApi, settingsApi } from "../../services/api";
@@ -62,7 +63,11 @@ export default function MarketTicker() {
   const { data: srv } = useQuery({
     queryKey: ["server-time"],
     queryFn: () => settingsApi.serverTime().then(r => r.data.data),
-    refetchInterval: 60 * 1000,
+    /* ══ لحظيةُ اللسان ══ (بأمر المالك · D260)
+       الوميضُ حدثٌ لا حالة — فلا يشتعل إن لم يصل رقمٌ جديد. وخدمةُ
+       المؤشّر في «تداول» تُخزَّن خمسَ عشرةَ ثانيةً عندنا، فاستعلامٌ كلَّ
+       عشرين ثانيةً يلتقط كلَّ تغيّرٍ تقريباً بلا ضغطٍ على المصدر. */
+    refetchInterval: 20 * 1000,
     enabled: isOwner,
   });
 
@@ -219,8 +224,14 @@ export default function MarketTicker() {
               المالك): موضعه هناك يفصل الكمّية عن تغيّرها، وكان في الصدر
               يصف العنصر كلَّه فيُقرأ وسماً للشركة لا للحركة. */}
           <span className="mk-name">{r.name || r.symbol}</span>
+          {/* ══ كلُّ شركةٍ تومض كما تومض في المحفظة ══ (بأمر المالك · D261)
+              «الوميضُ لجميع الشركات، أريده تطبيقياً كتطبيقٍ بنكيّ». وبحثتُ
+              قبل أن أكتب فوجدتُ المكوّنَ قائماً (‏FlashPrice) يعمل في
+              المحفظة وصفحة السهم — فبناءُ ثانٍ مثله هو عينُ العطب الذي
+              نطارده: مُنتِجان لمعنًى واحد. فيُستدعى القائم. */}
           {r.price != null && (
-            <span className="mk-price" dir="ltr" style={{ color: tone(c) }}>{num(r.price)}</span>
+            <FlashPrice value={r.price} className="mk-price"
+                        style={{ color: tone(c) }}>{num(r.price)}</FlashPrice>
           )}
           <TrendArrow dir={dir as any} size={10}
             color={dir === "fl" ? "var(--flat-arrow)" : tone(c)} />

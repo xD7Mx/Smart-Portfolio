@@ -583,7 +583,7 @@ async def compute_screener() -> list | None:
 
 
 REFRESHED_KEY = "market:screener:refreshed"
-REFRESHED_TTL = 90        # ثانيةً — أقصرُ من عمر كاش الأسعار (‏15 دقيقة)
+REFRESHED_TTL = 30        # ثانيةً — أقصرُ من عمر كاش الأسعار (‏15 دقيقة)
 
 
 async def refresh_derived_cached(rows: list) -> list:
