@@ -117,28 +117,53 @@ BRIEF_SNAPSHOT_KEY = "market:brief:latest"
 
 
 def _market_phase(now=None) -> str:
-    """Trading phase from the container-local (Riyadh) clock — the same clock
-    the movers/snapshot jobs already trust. Tadawul trades 10:00–15:00."""
+    """طورُ الجلسة — من الحاكم الواحد `market_phase` لا من ساعةٍ ثانية (D283).
+
+    ══ ساعةٌ لا تعرف اليومَ تقول «قبل الافتتاح» يومَ السبت ══
+    كانت هذه الدالّةُ تقرأ **الساعةَ وحدَها**: أقلُّ من العاشرة ⇒
+    «قبل الافتتاح» — فيقرأ المالكُ في بطاقة نبض السوق «قبل الافتتاح» في
+    عطلة نهاية الأسبوع وفي منتصف الليل. رآه المالك وسمّاه غيرَ منطقيّ،
+    وهو كذلك.
+
+    والجذرُ منتِجان لمعنًى واحد: `services/market_phase.py` يعرف الأيّامَ
+    والمزادات ويقيسه الفحصُ دقيقةً دقيقة، وهذه نسخةٌ ثانيةٌ كتبتُها
+    بثلاثة شروطٍ ساذجة. فحُذفت القاعدةُ وبقي **الحاكمُ الواحد**، وتُترجَم
+    حالاتُه إلى أسماء هذا الملفّ — والعطلةُ حالةٌ مستقلّةٌ لا تُخلط بما
+    قبلَ الافتتاح.
+    """
     from datetime import datetime
+
+    from app.services.market_phase import market_phase
+
     now = now or datetime.now()
-    hm = now.hour * 60 + now.minute
-    if hm < 10 * 60:
-        return "pre_open"     # e.g. the 09:30 pre-open outlook
-    if hm < 15 * 60:
-        return "intraday"     # live session
-    return "post_close"       # wrap-up after the bell
+    dow_sun0 = (now.weekday() + 1) % 7          # 0=الأحد … 6=السبت
+    st = market_phase(dow_sun0, now.hour * 60 + now.minute)
+    if st == "pre":
+        return "pre_open"
+    if st in ("open", "preclose"):
+        return "intraday"
+    # مغلق: عطلةٌ أسبوعيةٌ أم بعد جرس اليوم؟ فرقٌ يقرؤه المالك.
+    return "weekend" if dow_sun0 > 4 else (
+        "post_close" if now.hour * 60 + now.minute >= 15 * 60 else "pre_session")
 
 
 _PHASE_AR = {
     "pre_open": "قبل الافتتاح بنصف ساعة",
     "intraday": "أثناء الجلسة المتداولة",
     "post_close": "بعد إغلاق الجلسة",
+    "weekend": "السوق مغلق — عطلة نهاية الأسبوع",
+    "pre_session": "السوق مغلق — قبل جلسة اليوم",
 }
 
 
 def _tasi_verb(d: float, phase: str) -> str:
     """وصفٌ متدرّج لحركة المؤشر بحسب حجمها — يتنوّع فلا يبقى نمطاً واحداً."""
     a = abs(d)
+    if phase in ("weekend", "pre_session"):
+        # لا تُوصَف حركةٌ لا تجري: يُقال ما أُغلق عليه، بصيغة الماضي.
+        if d > 0.15:  return "أغلق المؤشر صاعداً"
+        if d < -0.15: return "أغلق المؤشر متراجعاً"
+        return "أغلق المؤشر قرب التعادل"
     if phase == "pre_open":
         if d > 0.5:  return "تُرجّح المعطيات افتتاحاً إيجابياً بقوة"
         if d > 0.15: return "تميل المؤشرات إلى افتتاحٍ أخضر"
@@ -157,10 +182,14 @@ def _rule_brief(tasi: dict | None, brent: dict | None, flow: dict | None,
     أحداثاً فعلية: اتساع السوق (صاعد/هابط)، أبرز الرابحين والخاسرين بالاسم،
     القطاعات القائدة والمتراجعة، وأثر النفط والسيولة الأجنبية — بصياغةٍ تتغيّر
     مع الأرقام فلا تبقى نمطاً جامداً."""
+    # والعطلةُ تُقال عطلةً: «قراءة ما قبل الافتتاح» يومَ السبت وصفٌ لحدثٍ
+    # لا يقع بعد يومين (D283).
     prefix = {
         "pre_open": "قراءة ما قبل الافتتاح — ",
         "intraday": "نبض الجلسة الآن — ",
         "post_close": "حصيلة الإغلاق — ",
+        "weekend": "السوق مغلق — آخرُ إغلاقٍ مسجَّل: ",
+        "pre_session": "السوق مغلق — آخرُ إغلاقٍ مسجَّل: ",
     }.get(phase, "")
     sentences: list[str] = []
 

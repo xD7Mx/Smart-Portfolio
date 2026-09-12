@@ -274,6 +274,11 @@ python3 scripts/audit/financial_brief.py || fail=1
 echo
 python3 scripts/audit/coverage_serious.py || fail=1
 
+# D283: حاكمٌ واحدٌ لطور السوق — «قبل الافتتاح» يومَ السبت كان ساعةً
+# ثانيةً لا تعرف اليوم. رآه المالك في بطاقة نبض السوق.
+echo
+python3 scripts/audit/market_phase_one.py || fail=1
+
 # D260: اللحظيةُ زمنٌ لا لون — ميزانيةُ طزاجةٍ مقيسةٌ لكلّ حلقةٍ في
 # سلسلة التأخير، وعلاقةُ الحلقات ببعضها (عمرٌ مقبولٌ ≥ دورةِ تجديد).
 echo
