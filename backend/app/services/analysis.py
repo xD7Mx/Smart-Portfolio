@@ -386,6 +386,37 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         from loguru import logger as _lg3
         _lg3.warning(f"السعر العادل {symbol}: {type(_e).__name__}: {_e}")
 
+    # ══ محرّكان، واسمٌ واحدٌ يحمل الأقوى ══ (D264)
+    # صار للمعايير مصدرٌ حيٌّ كامل: المعدَّلُ الخالي من المخاطر من صكٍّ
+    # سياديٍّ عشريّ (‏D249)، والبيتا مقيسةٌ من سوقنا (‏D257)، والقوائمُ
+    # رسميةٌ مدقَّقةٌ حيث وصلت (‏D263). فمحرّكُ خصم التدفّقات صار قادراً
+    # على النطق بدل الامتناع.
+    #
+    # ولا يُعرض رقمان باسمٍ واحد — هذا عطبُ D147 و D174 بعينه. فالاسمُ
+    # «السعر العادل» يبقى واحداً، ويحمل **الأقوى**: خصمُ التدفّقات حين
+    # ينطق بثقةٍ لا تقلّ عن متوسطة، وإلا فالنظائر. و`rel_basis` يقول أيُّ
+    # محرّكٍ نطق — فلا يُقرأ رقمٌ بلا معرفةِ أصله.
+    _dcf: dict = {}
+    try:
+        from app.services.fair_value_engine.serve import value_for_symbol as _dcf_for
+        _dcf = await _dcf_for(symbol, price=_px_now) or {}
+    except Exception as _e:                                   # noqa: BLE001
+        from loguru import logger as _lg4
+        _lg4.debug(f"DCF {symbol}: {type(_e).__name__}: {_e}")
+    if _dcf.get("value") and _dcf.get("confidence") in ("مرتفعة", "متوسطة"):
+        _rel_fields = {
+            **_rel_fields,
+            "rel_value": _dcf["value"],
+            "rel_low": _dcf.get("low"),
+            "rel_high": _dcf.get("high"),
+            "rel_conf": _dcf.get("confidence"),
+            "rel_basis": "خصم التدفّقات النقدية",
+            "rel_upside_pct": (round((_dcf["value"] - _px_now) / _px_now * 100, 1)
+                               if _px_now else None),
+            "rel_confidence_why": _dcf.get("notes") or [],
+            "rel_why": None,
+        }
+
     from app.services.four_scores import technical_to_timing_snapshot, valuation_to_snapshot, resolve_sector
     # Canonical Arabic sector drives archetype exemptions; Yahoo's English
     # sector never matches the map, so resolve it (DB sector via symbol lookup,

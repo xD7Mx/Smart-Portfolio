@@ -73,6 +73,12 @@ DOC = "<table>" + "".join([
     row("Total basic earnings (loss) per share", "7.69", "0.02"),
     row("Cash flows from (used in) operating activities", "40,000,000", "30,000,000"),
     row("Purchase of property, plant and equipment", "12,000,000", "9,000,000"),
+    row("Profit (loss) before zakat and income tax from continuing operations",
+        "34,087,964", "3,277,257"),
+    row("Current borrowings", "5,000,000", "4,000,000"),
+    row("Non-current borrowings", "60,000,000", "58,000,000"),
+    row("Current lease liabilities", "1,000,000", "900,000"),
+    row("Number of shares outstanding", "3,000,000,000", "3,000,000,000"),
     row("Retained earnings (accumulated losses)", "27,794,542", "15,071,361"),
 ]) + "</table>"
 
@@ -99,6 +105,28 @@ check("retained_earnings" not in last and "equity" in last,
       "٥ وبندٌ لم يُعرَف يُترك — لا يُملأ بشبيهه")
 check(last.get("eps") == 7.69, "٥ب وربحيةُ السهم لا تُضرَب في وحدة التقريب",
       str(last.get("eps")))
+
+# ── ٥ج · بنودُ المحرّك الثلاثة التي كانت تخصم الثقة ─────────────────────
+check(last.get("ebit") == round((34_087_964 + 2_257_224) * 1000, 2),
+      "٥ج والربحُ التشغيليُّ يُشتقّ: قبلَ الزكاة + تكلفةُ التمويل",
+      f"{last.get('ebit'):,}" if last.get("ebit") else "—")
+check(last.get("total_debt") == round((5_000_000 + 60_000_000 + 1_000_000) * 1000, 2),
+      "٥د وإجماليُّ الدَّين مجموعُ ما قُرئ من قروضٍ وإيجارات",
+      f"{last.get('total_debt'):,}" if last.get("total_debt") else "—")
+check(last.get("shares_outstanding") == 3_000_000_000.0,
+      "٥ه وعددُ الأسهم عددٌ لا مالٌ — لا يُضرَب في وحدة التقريب",
+      str(last.get("shares_outstanding")))
+
+# وبالاتّجاه المعاكس: غيابُ أحدِ طرفَي الاشتقاق يمنعه ولا يُقدَّر بنصفه.
+half = "<table>" + "".join([
+    row("Level of rounding used in financial statements", "Thousands"),
+    row("End Date", "2025-12-31"),
+    row("Profit (loss) before zakat and income tax from continuing operations", "100"),
+    row("Total revenue", "500"),
+]) + "</table>"
+hp = (xb.parse(half).get("periods") or [{}])[-1]
+check("ebit" not in hp and "total_debt" not in hp,
+      "٥و وغيابُ طرفٍ يمنع الاشتقاق — لا يُقدَّر بنصف بيان", str(sorted(hp))[:80])
 
 # ── ٦ · عمودٌ بلا بندٍ واحدٍ ليس فترة ────────────────────────────────────
 bare = "<table>" + row("End Date", "2025-12-31") + row("Note No.", "7") + "</table>"

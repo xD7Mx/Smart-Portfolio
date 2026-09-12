@@ -20,7 +20,7 @@ sys.path.insert(0, "/app")
 
 from app.services.fair_value_engine.fetch import Fundamentals                       # noqa: E402
 from app.services.fair_value_engine.engine import value_company                     # noqa: E402
-from app.services.fair_value_engine.params import load_params, ParamsError          # noqa: E402
+from app.services.fair_value_engine.params import CONFIG_DIR, load_params, ParamsError          # noqa: E402
 from app.services.fair_value_engine import models                                   # noqa: E402
 
 COLS = [pd.Timestamp(f"{y}-12-31") for y in (2025, 2024, 2023, 2022)]
@@ -61,10 +61,28 @@ def check(name, cond, detail=""):
 
 
 # 1 — params guard refuses unverified by default
+# ══ يُقاس القانونُ لا حالُ الملفّ ══ (بعد رفع علم التوثيق · D264)
+# كان الفحصُ يحمّل الملفَّ الحقيقيَّ ويشترط رفضَه — أي أنه يقيس **أن
+# الملفّ غيرُ موثَّق** لا أن البوّابةَ ترفض غيرَ الموثَّق. وقد وُثّق الملفُّ
+# بعد أن صار لكلّ معيارٍ مصدرٌ حيٌّ مؤرَّخ، فسقط الفحصُ وهو سليمُ النيّة.
+# فيُقاس القانونُ على ملفٍّ مؤقّتٍ `verified=false`، ويُقاس معه أن الملفَّ
+# الحقيقيَّ يُقبل الآن — الاتّجاهان معاً.
+import json as _json, tempfile as _tf2, pathlib as _pl2
+
+_raw = _json.loads((CONFIG_DIR / "market_params.json").read_text(encoding="utf-8"))
+_tmp = _pl2.Path(_tf2.mkdtemp()) / "unverified.json"
+_tmp.write_text(_json.dumps({**_raw, "verified": False}, ensure_ascii=False),
+                encoding="utf-8")
 try:
-    load_params(allow_stale=True); check("params guard rejects verified=false", False, "لم يرفض")
+    load_params(_tmp, allow_stale=True)
+    check("params guard rejects verified=false", False, "لم يرفض")
 except ParamsError:
     check("params guard rejects verified=false", True)
+try:
+    load_params(allow_stale=True)
+    check("والملفُّ الحقيقيُّ موثَّقٌ فيُقبل", True)
+except ParamsError as _e:
+    check("والملفُّ الحقيقيُّ موثَّقٌ فيُقبل", False, str(_e)[:60])
 
 # 2 — risk free must be supplied, never defaulted
 try:

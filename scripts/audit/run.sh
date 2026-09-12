@@ -234,6 +234,11 @@ python3 scripts/audit/screener_price_fresh.py || fail=1
 echo
 python3 scripts/audit/one_fair_price.py || fail=1
 
+# D264: محرّكان واسمٌ واحد — «السعر العادل» يحمل الأقوى ويقول أيُّهما،
+# ومحرّكُ خصم التدفّقات يقرأ قوائمَنا من الباب الواحد لا من مصدرٍ رابع.
+echo
+python3 scripts/audit/dcf_serve.py || fail=1
+
 # D263: قوائمُ XBRL الرسمية المدقَّقة تتقدّم المزوّد في الباب الواحد،
 # وبندٌ لا يُخمَّن. والقراءةُ على الخادم:
 #   docker exec sp_backend python /app/scripts/audit/xbrl_probe.py 2010

@@ -55,6 +55,24 @@ LABELS: dict[str, tuple[str, ...]] = {
     "eps": ("total basic earnings (loss) per share",
             "basic earnings (loss) per share from continuing operations"),
     "interest_expense": ("finance costs",),
+    # ══ بنودٌ يطلبها محرّكُ التدفّقات ولا يقوم بدونها ══ (D266)
+    # كان يخصم درجةَ ثقةٍ لـ«بنودٍ ناقصة» لأن ثلاثةً منها لم تُطابَق:
+    # الربحُ قبل الزكاة (يُشتقّ منه التشغيليُّ بجمع تكلفة التمويل)،
+    # وإجماليُّ الدَّين (قروضٌ متداولةٌ وغيرُ متداولة)، وعددُ الأسهم.
+    # وأسماؤها هنا **كما وردت في الملفّ الرسميّ المقيس** لا تقريباً.
+    "pretax_income": (
+        "profit (loss) before zakat and income tax from continuing operations",
+        "profit (loss) before tax",
+        "profit (loss) before zakat and income tax"),
+    "borrowings_current": ("current borrowings", "short-term borrowings",
+                           "current portion of long-term borrowings"),
+    "borrowings_noncurrent": ("non-current borrowings", "long-term borrowings",
+                              "noncurrent borrowings"),
+    "lease_current": ("current lease liabilities",),
+    "lease_noncurrent": ("non-current lease liabilities",),
+    "shares_outstanding": ("number of shares outstanding",
+                           "issued capital, number of shares",
+                           "weighted average number of ordinary shares outstanding"),
     "operating_cash_flow": (
         "cash flows from (used in) operating activities",
         "net cash flows from (used in) operating activities"),
@@ -140,7 +158,9 @@ def parse(html: str) -> dict:
     mult = _MULT.get(_norm(meta.get("rounding", "")), 1.0)
     money = {"revenue", "net_income", "equity", "total_assets",
              "total_liabilities", "interest_expense", "operating_cash_flow",
-             "capex", "ending_cash"}
+             "capex", "ending_cash", "pretax_income", "borrowings_current",
+             "borrowings_noncurrent", "lease_current", "lease_noncurrent"}
+    # وعددُ الأسهم عددٌ لا مال: لا يُضرَب في وحدة التقريب (كربحية السهم).
 
     periods: list[dict] = []
     for i, end in enumerate(ends):
@@ -157,6 +177,19 @@ def parse(html: str) -> dict:
         ocf, capex = p.get("operating_cash_flow"), p.get("capex")
         if ocf is not None and capex is not None:
             p["free_cash_flow"] = round(ocf - abs(capex), 2)
+        # ══ مشتقّاتٌ من بنودٍ مقروءةٍ لا من تخمين ══
+        # الربحُ التشغيليُّ لا يُنشَر باسمه في هذا التصنيف، ويُشتقّ حسابياً:
+        # ربحٌ قبل الزكاة + تكلفةُ التمويل. ولا يُشتقّ إن غاب أحدُهما.
+        pre, fin_cost = p.get("pretax_income"), p.get("interest_expense")
+        if pre is not None and fin_cost is not None:
+            p["ebit"] = round(pre + abs(fin_cost), 2)
+        # وإجماليُّ الدَّين مجموعُ ما قُرئ من قروضٍ والتزاماتِ إيجار — وما
+        # لم يُقرأ منها لا يُفترَض صفراً: إن غابت كلُّها يبقى الحقلُ غائباً.
+        _debt = [p.get(k) for k in ("borrowings_current", "borrowings_noncurrent",
+                                    "lease_current", "lease_noncurrent")
+                 if isinstance(p.get(k), (int, float))]
+        if _debt:
+            p["total_debt"] = round(sum(_debt), 2)
         if i < len(starts):
             p["period_start"] = starts[i]
         periods.append(p)
@@ -198,8 +231,12 @@ async def filings_for(symbol: str, company_url: str | None = None) -> list[dict]
     return out
 
 
-async def read_symbol(symbol: str, *, max_files: int = 3) -> dict | None:
+async def read_symbol(symbol: str, *, max_files: int = 5) -> dict | None:
     """أحدثُ قوائمَ رسميةٍ للشركة: سنويةٌ وربعية — أو None.
+
+    وتُقرأ خمسةُ ملفّاتٍ من الأحدث لا ثلاثة: الملفُّ يحمل سنتين، والمحرّكُ
+    يخصم درجةَ ثقةٍ دون **أربع** فتراتٍ سنوية — فالقراءةُ الأوسعُ تُلغي
+    خصماً مستحقّاً بدل أن تُسكته.
 
     تُقرأ ملفّاتٌ قليلةٌ من الأحدث (الملفُّ الواحد ميجاباتٌ عدّة)، ويُفرَز
     كلٌّ إلى سنويٍّ أو ربعيٍّ **بما يقوله الملفُّ عن نفسه** لا بتخمينٍ من
