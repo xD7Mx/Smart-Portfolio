@@ -128,7 +128,29 @@ async def compute_market_movers(db=None) -> dict | None:
     # return nothing, which made the whole scan yield ZERO prices and left
     # every market widget stuck on "لم تُحسب بيانات السوق بعد" forever.
     yahoo_syms = {f"{s}.SR": s for s in list(names) + fund_syms}
-    prices = await market_service.get_prices(list(yahoo_syms.keys()))
+
+    # ══ «تداول» أوّلاً، وياهو للضرورة ══ (D255 · بأمر المالك)
+    # مسحُ السوق كان يُنادي ياهو لكلّ رمزٍ في الكون — مئاتُ النداءات في
+    # الساعة الواحدة، وهي التي أنفدت الحصّةَ مرّتين هذا الأسبوع. ولقطةُ
+    # «تداول» تحمل سعرَ كلّ شركةٍ وإغلاقَها السابق ونسبةَ تغيّرها وكمّيتَها
+    # **في نداءٍ واحد** — فهي مصدرُ هذا المسح، وياهو يُستدعى لمن غاب عنها
+    # وحدَه (الصناديقُ غالباً). ولا تُصنَّع نسبةٌ من إغلاقٍ غائب: ما نقص
+    # عن اللقطة يُسأل عنه المزوّدُ لا يُخمَّن.
+    from app.services.tadawul_market import snapshot as _tad_snap
+    tad = _tad_snap() or {}
+    prices: dict = {}
+    for ysym, sym in yahoo_syms.items():
+        r = tad.get(sym) or {}
+        px, ch = r.get("price"), r.get("change_pct")
+        if px and ch is None and r.get("prev_close"):
+            ch = round((px - r["prev_close"]) / r["prev_close"] * 100, 2)
+        if px and ch is not None:
+            prices[ysym] = {"price": px, "change_pct": ch,
+                            "volume": r.get("volume") or 0, "source": "tadawul"}
+    missing = [y for y in yahoo_syms if y not in prices]
+    if missing:
+        logger.info("Movers: {} من «تداول» · {} من ياهو", len(prices), len(missing))
+        prices.update(await market_service.get_prices(missing) or {})
     if not prices:
         logger.warning("Market movers: no prices returned for any symbol — skipping.")
         return None

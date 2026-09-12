@@ -146,11 +146,26 @@ check(mv["dist_sma50"] == _expect50,
       "١٢ ومشتقّاتُه تُعاد حسابُها بالسعر نفسِه",
       f"م50 {mv['dist_sma50']}٪ · المتوقَّع {_expect50}٪")
 
-# والأولويةُ للكاش الحيّ: هو أحدثُ من لقطةِ مسح.
+# والأولويةُ للكاش الحيّ على لقطةِ المسح: هو أحدثُ منها.
 _CACHE["price:yahoo:9999.SR"] = LIVE
 pri = asyncio.run(ms.refresh_derived([dict(STALE)]))[0]
 check(pri["price"] == 30.0 and pri.get("price_source") == "live",
       "١٣ والكاشُ الحيُّ يتقدّم لقطةَ المسح", f"سعر {pri['price']}")
+
+# ══ وفوقهما: «تداول» ══ (D255 · انعكاسٌ مقصودٌ في الترتيب)
+# كان الكاشُ الحيُّ (ياهو) رأسَ الترتيب يومَ لم يكن للسوق مصدرٌ مباشر.
+# وقد صار لِلقطة «تداول» زمنٌ محروسٌ وتغطيةٌ كاملة، وأمرَ المالك:
+# «تداول ثمّ أرقام ثمّ ياهو، كلٌّ حسب ميزته» — وميزةُ «تداول» السعرُ
+# نفسُه. فيُقلَب الترتيبُ عمداً ويُقاس مقلوباً.
+ms._tadawul_prices = lambda: {"9999": 27.5}                      # type: ignore[assignment]
+top = asyncio.run(ms.refresh_derived([dict(STALE)]))[0]
+check(top["price"] == 27.5 and top.get("price_source") == "tadawul",
+      "١٤ ولقطةُ «تداول» تتقدّمهما جميعاً — المُصدِرُ قبل المزوّد",
+      f"سعر {top['price']} · مصدر {top.get('price_source')}")
+ms._tadawul_prices = lambda: {}                                  # type: ignore[assignment]
+back = asyncio.run(ms.refresh_derived([dict(STALE)]))[0]
+check(back["price"] == 30.0 and back.get("price_source") == "live",
+      "١٤ب وبغيابها يعود ياهو رأسَ الترتيب — لا انكسار", f"سعر {back['price']}")
 
 print()
 print("النتيجة:", "فيه ملاحظات ✘" if fail else "نظيف ✔")

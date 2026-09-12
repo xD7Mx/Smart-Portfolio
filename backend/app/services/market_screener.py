@@ -686,9 +686,19 @@ async def refresh_derived(rows: list) -> list:
         # حسابُه معه — وإلا صار الصفُّ يخالف **نفسَه**: سعرٌ جديدٌ وفجوةٌ
         # محسوبةٌ على قديم.
         try:
-            pd = cache.get(f"price:yahoo:{sym}.SR")
-            px_new = getattr(pd, "price", None) if pd is not None else None
-            _src = "live" if isinstance(px_new, (int, float)) and px_new > 0 else None
+            # ══ ترتيبُ الطبقات: تداول ← ياهو ← لقطةُ المسح ══ (D255)
+            # بأمر المالك: «تداول ثمّ أرقام ثمّ ياهو، كلٌّ حسب ميزته». وميزةُ
+            # «تداول» السعرُ نفسُه — فهي مُصدِرُه. وكان الكاشُ الحيُّ (ياهو)
+            # يتقدّمها لأنه كان الأحدثَ زمناً يومَ لم يكن للسوق مصدرٌ مباشر؛
+            # وقد صار للقطة زمنٌ محروسٌ (ربعُ ساعةٍ حدّاً) وتغطيةٌ كاملة،
+            # فالمُصدِرُ يتقدّم المزوّد. وياهو يبقى لمن غاب عن اللقطة.
+            _tp = _tadawul_prices().get(sym)
+            px_new = _tp if isinstance(_tp, (int, float)) and _tp > 0 else None
+            _src = "tadawul" if px_new else None
+            if _src is None:
+                pd = cache.get(f"price:yahoo:{sym}.SR")
+                px_new = getattr(pd, "price", None) if pd is not None else None
+                _src = "live" if isinstance(px_new, (int, float)) and px_new > 0 else None
             # ══ ولمن لم تُفتح صفحتُه: سعرُ مسح المحرّكين ══ (D248)
             # كاشُ الأسعار لا يحمل إلا من فُتحت صفحتُه، فبقيت بقيّةُ السوق
             # على إغلاق المسح. ومسحُ المحرّكين يجلب سعرَ كلّ شركةٍ أصلاً
@@ -697,14 +707,6 @@ async def refresh_derived(rows: list) -> list:
                 _mv = (_movers_prices() or {}).get(sym)
                 if isinstance(_mv, (int, float)) and _mv > 0:
                     px_new, _src = _mv, "movers"
-            # ══ ولقطةُ «تداول» تسدّ ما بقي ══ (D251)
-            # مصدرُ السوق نفسُه، نداءٌ واحدٌ لكلّ الشركات. ويأتي بعد الكاش
-            # الحيّ ولقطةِ المحرّكين لأنهما أحدثُ زمناً عند من قُرئ لهم،
-            # وقبل إغلاقِ البناء لأنه سعرُ اليوم لا سعرُ الليلة الماضية.
-            if _src is None:
-                _td = _tadawul_prices().get(sym)
-                if isinstance(_td, (int, float)) and _td > 0:
-                    px_new, _src = _td, "tadawul"
             if isinstance(px_new, (int, float)) and px_new > 0:
                 r["price_source"] = _src
                 r["price"] = px_new

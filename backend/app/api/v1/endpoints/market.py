@@ -596,6 +596,43 @@ async def get_argaam_ids():
     })
 
 
+@router.get("/directory")
+async def company_directory():
+    """دليلُ الشركات — السوقُ كلُّه في نداءٍ واحد (D256).
+
+    بأمر المالك: زرٌّ بجانب البحث في «نبض السوق». والدليلُ يُجمع من
+    مصادرِه بترتيبها: **اسمُنا المنسَّق وقطاعُه وحكمُه الشرعيّ** من دليل
+    التطبيق (وفوقه طبقةُ مزامنة «تداول» التي تُضيف المُدرَج الجديد وتوسم
+    الموقوف)، **ورابطُ «أرقام»** من خريطة المعرِّفات المقيسة — فمن لا
+    معرِّفَ له لا يُختلق له رابطٌ ولا يُفتح له بحثٌ باسمه.
+
+    ولا سعرَ هنا: هذا دليلُ هويّةٍ لا شاشةُ تداول، وخلطُهما يجعل الفتحةَ
+    ثقيلةً بلا حاجة.
+    """
+    from app.data.saudi_directory import SAUDI_DIRECTORY, is_suspended, suspended_since
+    from app.services.argaam_ids import snapshot as _ids, url_for
+    # `snapshot()` يعيد {ids, built_at} لا الخريطةَ نفسَها — والفرقُ
+    # يُخرج رابطاً لكلّ الشركات أو لا أحد. كشفه الحارسُ في أوّل تشغيل.
+    ids = (_ids() or {}).get("ids") or {}
+    rows = []
+    for sym, row in sorted(SAUDI_DIRECTORY.items()):
+        if not isinstance(row, dict):
+            continue
+        rows.append({
+            "symbol": sym,
+            "name": row.get("name") or sym,
+            "sector": row.get("sector"),
+            # ولا حكمَ شرعياً هنا: دليلُ التطبيق لا يحمله (مصدرُه «مقاصد»
+            # ويُعرض في صفحة السهم) — وحقلٌ يُقرأ من حيث لا وجودَ له يُخرج
+            # «غير متوفّر» لكلّ الشركات فيبدو عطباً وهو اختلاقُ حقل.
+            "logo": row.get("logo"),
+            "argaam_url": url_for(sym, ids),
+            "suspended": bool(is_suspended(sym)),
+            "suspended_since": suspended_since(sym),
+        })
+    return success_response(data={"count": len(rows), "companies": rows})
+
+
 @router.get("/sectors")
 async def get_sector_analysis():
     """التحليل القطاعي: أداء كل قطاع عبر ٣ش/٦ش/سنة/٣س/٥س + متوسط عائد

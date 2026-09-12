@@ -9,6 +9,7 @@ import { useAuthStore } from "../store/authStore";
 import { searchCompanies, SECTORS } from "../data/saudiCompanies";
 import StockSheet from "../components/market/StockSheet";
 import InlineStockSearch from "../components/market/InlineStockSearch";
+import CompanyDirectory from "../components/market/CompanyDirectory";
 import CompanyLogo from "../components/common/CompanyLogo";
 import { FairValueBar, SafetyBar, fairValueTier, safeColor } from "../components/common/ValueBars";
 import { ShariaBadge } from "../components/common/UI";
@@ -142,6 +143,9 @@ function PulseCard({ summary, tasi, brent, movers, onSearch }:
         {/* ══ البحثُ حقلٌ يتمدّد في محلّه ══ (بأمر المالك · D210)
             كان زرّاً يفتح بطاقةً كاملةً فوق النبض بمربّعٍ من تصميمٍ سابق. */}
         {onSearch && <InlineStockSearch onPick={onSearch} />}
+        {/* دليلُ الشركات — بجانب علامة البحث (بأمر المالك · D256).
+            البحثُ لمن يعرف ما يريد، والدليلُ لمن يتصفّح السوق. */}
+        {onSearch && <CompanyDirectory onPick={onSearch} />}
         {phase && (
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-md"
             style={{

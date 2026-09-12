@@ -234,6 +234,15 @@ python3 scripts/audit/screener_price_fresh.py || fail=1
 echo
 python3 scripts/audit/one_fair_price.py || fail=1
 
+# D255: ثلاثُ طبقاتٍ بترتيبٍ واحدٍ معلَن — تداول ثمّ أرقام ثمّ ياهو، ومسحُ
+# السوق يُبنى من لقطة «تداول» فلا نداءَ لياهو إلا لمن غاب عنها.
+echo
+python3 scripts/audit/source_layers.py || fail=1
+
+# D256: دليلُ الشركات — هويّةٌ من مصدرها، ورابطُ «أرقام» لمن له معرِّفٌ وحدَه.
+echo
+python3 scripts/audit/company_directory.py || fail=1
+
 # D253: الربعيُّ من مصدرٍ يُرسَم في الخادم، والرمزُ يُقرأ من معرِّف الرابط
 # لا من اسمٍ مقارَب — مطابقةُ الأسماء تُدخل أرباحَ شركةٍ في ملفّ أخرى.
 echo

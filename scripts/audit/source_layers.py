@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+# ─────────────────────────────────────────────────────────────────────────
+# D255 — ثلاثُ طبقاتٍ بترتيبٍ واحدٍ معلَن: تداول ← أرقام ← ياهو.
+#
+# بأمر المالك: «اجعل مصدره تداول ثمّ أرقام ثمّ ياهو، كلٌّ حسب ميزته…
+# فلا نحتاج ياهو الآن إلا للضرورة». وميزةُ كلٍّ مقيسةٌ لا مُدّعاة:
+#   · «تداول» مُصدِرُ السعر — لقطةٌ واحدةٌ تغطّي السوق كلَّه بزمنٍ محروس.
+#   · «أرقام» نتائجُ الأرباع (‏D253).
+#   · ياهو للتاريخ ولمن غاب عن الأولَيْن.
+#
+# وأثقلُ مستهلكٍ لياهو كان **مسحُ المحرّكين**: نداءٌ لكلّ رمزٍ في الكون كلَّ
+# ساعة — وهو الذي أنفد الحصّةَ مرّتين. فصار يُبنى من لقطة «تداول».
+# وخطرُ ذلك: أن يُصنَع تغيّرٌ من إغلاقٍ غائب، أو يُهجَر ياهو لمن يحتاجه.
+# فيُقاس السلوك:
+#   ٠· لقطةٌ كاملةٌ ⇒ **صفرُ نداءاتٍ** لياهو، والصفوفُ تُبنى منها
+#   ١· ونسبةُ التغيّر تُشتقّ من الإغلاق السابق حين لا تُنشَر
+#   ٢· وبلا سعرٍ ولا إغلاقٍ لا يُصنَع صفّ
+#   ٣· ومن غاب عن اللقطة يُسأل عنه ياهو — وحدَه لا السوقُ كلُّه
+#   ٤· وبلا لقطةٍ يعود المسحُ كما كان (لا انكسار)
+#   ٥· وترتيبُ سعر الفرز: تداول ← ياهو ← لقطةُ المسح ← إغلاقُ البناء
+# ─────────────────────────────────────────────────────────────────────────
+from __future__ import annotations
+
+import os as _os
+import tempfile as _tf
+
+_SANDBOX = _tf.mkdtemp(prefix="sp-audit-")
+_os.environ["LASTGOOD_PATH"] = _os.path.join(_SANDBOX, "lastgood.json")
+_os.environ["SP_STATE_DIR"] = _SANDBOX
+
+import asyncio  # noqa: E402
+import pathlib  # noqa: E402
+import sys  # noqa: E402
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "backend"))
+sys.path.insert(0, "/app")
+
+fail = 0
+
+
+def check(ok: bool, label: str, detail: str = "") -> None:
+    global fail
+    if not ok:
+        fail = 1
+    print(f"{'PASS' if ok else 'FAIL'} {label}" + (f" — {detail}" if detail else ""))
+
+
+from app.services import cache  # noqa: E402
+from app.services import market_movers as mm  # noqa: E402
+from app.services import tadawul_market as tm  # noqa: E402
+from app.data.market_universe import MARKET_UNIVERSE  # noqa: E402
+from app.data.universe import main_market  # noqa: E402
+
+SYMS = list(main_market(MARKET_UNIVERSE).keys())
+# الصناديقُ تُسعَّر في المسحة نفسِها وإن لم تدخل الإحصاء — فمن أرادَ «صفرَ
+# نداءات» عليه أن يغطّيها في اللقطة أيضاً، وإلا سُئل عنها المزوّدُ بحقّ.
+FUNDS = [s for s, m in MARKET_UNIVERSE.items()
+         if m.get("sector") == "صناديق المؤشرات المتداولة"]
+ALL = SYMS + FUNDS
+asked: list[list[str]] = []
+
+
+class _FakeService:
+    async def get_prices(self, syms):
+        asked.append(list(syms))
+        return {s: {"price": 11.0, "change_pct": 1.0, "volume": 5} for s in syms}
+
+
+import app.services.market_data as _md  # noqa: E402
+_md.market_service = _FakeService()                              # type: ignore[assignment]
+
+
+def snap(rows):
+    cache.set(tm.STORE_KEY, {"at": "now", "rows": rows}, 900)
+
+
+def run():
+    asked.clear()
+    return asyncio.run(mm.compute_market_movers())
+
+
+# ── ٠ · لقطةٌ كاملةٌ ⇒ لا نداءَ لياهو ─────────────────────────────────────
+snap({s: {"price": 20.0 + i * 0.01, "change_pct": 1.5, "volume": 1000}
+      for i, s in enumerate(ALL)})
+out = run()
+check(bool(out) and not asked,
+      "٠ لقطةٌ كاملةٌ ⇒ صفرُ نداءاتٍ لياهو في مسح السوق",
+      f"نداءات: {len(asked)} · رموزُ اللقطة: {len(ALL)}")
+prices = (out or {}).get("prices") or {}
+check(len(prices) >= len(SYMS) - 5 and abs(prices.get(SYMS[0], 0) - 20.0) < 1e-6,
+      "٠ب والصفوفُ تُبنى من اللقطة نفسِها", f"{len(prices)} رمزاً")
+
+# ── ١ · نسبةُ التغيّر تُشتقّ من الإغلاق السابق ─────────────────────────────
+snap({s: {"price": 22.0, "prev_close": 20.0, "volume": 10} for s in ALL})
+out = run()
+row = next((r for r in ((out or {}).get("gainers") or [])
+            if isinstance(r, dict) and r.get("change_pct") is not None), None)
+check(row is not None and abs((row or {}).get("change_pct", 0) - 10.0) < 0.01,
+      "١ نسبةُ التغيّر من الإغلاق السابق حين لا تُنشَر",
+      f"{(row or {}).get('change_pct')}")
+
+# ── ٢ · بلا إغلاقٍ ولا نسبةٍ لا يُصنَع صفّ ──────────────────────────────────
+snap({s: {"price": 22.0} for s in ALL})
+out = run()
+check(bool(asked) and len(asked[0]) >= len(SYMS),
+      "٢ سعرٌ بلا إغلاقٍ ولا نسبةٍ لا يُصنَع منه صفّ — يُسأل المزوّد",
+      f"سُئل عن {len(asked[0]) if asked else 0} رمزاً")
+
+# ── ٣ · من غاب عن اللقطة وحدَه يُسأل ──────────────────────────────────────
+part = {s: {"price": 20.0, "change_pct": 1.0, "volume": 3} for s in ALL[:-7]}
+snap(part)
+out = run()
+check(bool(asked) and 0 < len(asked[0]) <= 14,
+      "٣ من غاب عن اللقطة يُسأل عنه ياهو وحدَه لا السوقُ كلُّه",
+      f"سُئل عن {len(asked[0]) if asked else 0} من {len(SYMS)}")
+
+# ── ٤ · بلا لقطةٍ يعود المسحُ كما كان ─────────────────────────────────────
+snap({})
+out = run()
+check(bool(out) and bool(asked) and len(asked[0]) >= len(SYMS),
+      "٤ وبلا لقطةٍ يعود المسحُ إلى ياهو كاملاً — لا انكسار",
+      f"سُئل عن {len(asked[0]) if asked else 0} رمزاً")
+
+# ── ٥ · ترتيبُ سعر الفرز ────────────────────────────────────────────────
+from app.services import market_screener as ms  # noqa: E402
+
+snap({"1111": {"price": 40.0}})
+ms._movers_prices = lambda: {"1111": 31.0}                       # type: ignore[assignment]
+cache.set("price:yahoo:1111.SR", None, 0)
+r1 = asyncio.run(ms.refresh_derived([{"symbol": "1111", "name": "أ", "price": 20.0}]))[0]
+check(r1.get("price_source") == "tadawul" and r1.get("price") == 40.0,
+      "٥ «تداول» رأسُ الترتيب في الفرز", f"{r1.get('price')} · {r1.get('price_source')}")
+snap({})
+r2 = asyncio.run(ms.refresh_derived([{"symbol": "1111", "name": "أ", "price": 20.0}]))[0]
+check(r2.get("price_source") == "movers" and r2.get("price") == 31.0,
+      "٥ب وبغيابها تُقرأ الطبقةُ التالية بترتيبها",
+      f"{r2.get('price')} · {r2.get('price_source')}")
+
+print(("FAIL" if fail else "PASS") + " D255 — ثلاثُ طبقاتٍ بترتيبٍ واحد")
+raise SystemExit(fail)

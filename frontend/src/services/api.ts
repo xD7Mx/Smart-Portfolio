@@ -225,6 +225,7 @@ export const goalsApi = {
 
 // ── Market ────────────────────────────────────────────────────
 export const marketApi = {
+  directory: () => api.get<APIResponse>("/market/directory"),
   overview: () => api.get<APIResponse>("/market/overview"),
   movers:   () => api.get<APIResponse>("/market/movers"),
   news:     (lang: string = "ar") => api.get<APIResponse>(`/market/news?lang=${lang}`),
