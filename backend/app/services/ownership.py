@@ -30,16 +30,30 @@ STORE_KEY = "ownership:{sym}"
 MAX_AGE_DAYS = 30          # هذه البياناتُ شهريةُ التغيّر — لا يوميّة
 MAX_ROWS = 60
 
-# أسماءُ التبويبات كما تُكتب في الصفحة. ويُقرأ الاسمُ لا المسار.
+# ══ الأسماءُ كما وردت، لا كما افترضتُها ══
+# القياسُ ردّ ثلاثةً من أربعة: كتبتُ «الملكية الأجنبية» والصفحةُ تقول
+# «ملكية الأجانب»، وكتبتُ «صفقات كبار المساهمين» وهي «الصفقات الخاصة»،
+# وكتبتُ «تقديرات المحلّلين» وهي «توصيات المحللين». فصار المعوَّلُ على
+# **المسار** أوّلاً — وهو أثبتُ من نصٍّ يُصاغ — والنصُّ سندٌ ثانٍ.
+#
+# ويُشترط أن يكون الرابطُ **خاصّاً بالشركة**: في الصفحة روابطُ سوقٍ عامّةٌ
+# بالأسماء نفسِها (‏`/ar/monitors/market-ownership/3`)، ولو أُخذت لعُرض
+# جدولُ السوق تحت اسم الشركة — رقمٌ صحيحٌ في مكانٍ خاطئٍ أسوأُ من الغياب.
 TABS = {
-    "major_holders": re.compile(r"كبار\s+المساهمين"),
-    "insider_deals": re.compile(r"صفقات\s+(كبار\s+المساهمين|المطّلعين|المطلعين)"),
-    "foreign": re.compile(r"(الملكية|التملّك|التملك)\s+الأجنبي"),
-    "estimates": re.compile(r"تقديرات\s+المحلّ?لين"),
+    "major_holders": (re.compile(r"/shareholder/major-shareholders/company/"),
+                      re.compile(r"كبار\s+الم(ساهمين|لاك)")),
+    "insider_deals": (re.compile(r"/major-shareholders/company-deals/"),
+                      re.compile(r"(الصفقات\s+الخاصة|صفقات\s+كبار)")),
+    "foreign": (re.compile(r"/foreignownershipdetails/"),
+                re.compile(r"ملكية\s+الأجانب|(الملكية|التملّك|التملك)\s+الأجنبي")),
+    "estimates": (re.compile(r"/analystestimates/analystrecomendations"),
+                  re.compile(r"(توصيات|توقعات|تقديرات)\s+المحلّ?لين")),
 }
 
 _TAG = re.compile(r"<[^>]+>")
 _PCT = re.compile(r"(-?\d{1,3}(?:[.,]\d{1,3})?)\s*%")
+# ما يُنزَع من نصّ الصفّ ليبقى الاسم: النسبةُ وأرقامُها وعلاماتُ الترقيم.
+_NAME_CLEAN = re.compile(r"-?\d[\d.,]*\s*%|[\d.,]{4,}")
 
 
 def _text(s: str) -> str:
@@ -73,17 +87,26 @@ def tables(html: str) -> list[list[list[str]]]:
     return out
 
 
-def tab_links(html: str, base: str) -> dict[str, str]:
-    """اسمُ البند ← رابطُه، مقروءاً من الصفحة. وما لم يوجد يغيب."""
+def tab_links(html: str, base: str, company_id: str | None = None) -> dict[str, str]:
+    """اسمُ البند ← رابطُه، مقروءاً من الصفحة. وما لم يوجد يغيب.
+
+    المسارُ يحكم، والنصُّ يسند. ورابطٌ لا يحمل معرِّفَ الشركة **يُرفض**
+    حين يكون المعرِّفُ معلوماً: صفحةُ السوق ليست صفحةَ الشركة.
+    """
     found: dict[str, str] = {}
     for href, label in re.findall(r'<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>',
                                   html or "", re.S | re.I):
+        url = href.replace("&amp;", "&")
         txt = _text(label)
-        if not txt:
-            continue
-        for key, rx in TABS.items():
-            if key not in found and rx.search(txt):
-                found[key] = href if href.startswith("http") else base + href
+        for key, (by_path, by_text) in TABS.items():
+            if key in found:
+                continue
+            if not (by_path.search(url) or (txt and by_text.search(txt))):
+                continue
+            if company_id and not re.search(rf"(?:^|/|=){re.escape(company_id)}(?:/|$|&)",
+                                            url):
+                continue        # رابطُ سوقٍ عامٌّ لا يُعرض تحت اسم شركة
+            found[key] = url if url.startswith("http") else base + url
     return found
 
 
@@ -103,14 +126,77 @@ def holders_from(rows: list[list[str]]) -> list[dict]:
     return out
 
 
+_TAGS = re.compile(r"<(/?)(tr|li|div)\b[^>]*?(/?)>", re.I)
+_DROP = re.compile(r"<(script|style|noscript)[^>]*>.*?</\1>", re.S | re.I)
+
+
+def blocks(html: str) -> list[str]:
+    """كتلُ العناصر بمطابقة فتحٍ وإغلاق — لا بتعبيرٍ يعجز عن التداخل.
+
+    أوّلُ محاولةٍ استعملت تعبيراً يرفض التداخل، فالتقط **الأعمقَ فقط**
+    (اسمٌ وحدَه، ونسبةٌ وحدَها) ولم يلتقط الصفَّ الذي يجمعهما — فعاد صفراً
+    على الشكل الحقيقيّ نفسِه الذي جاء يقرؤه. والكتلُ تُبنى بمكدَّس.
+    """
+    out: list[str] = []
+    stack: list[tuple[str, int]] = []
+    for m in _TAGS.finditer(html or ""):
+        closing, name, selfclose = m.group(1), m.group(2).lower(), m.group(3)
+        if selfclose:
+            continue
+        if not closing:
+            stack.append((name, m.start()))
+            continue
+        for i in range(len(stack) - 1, -1, -1):
+            if stack[i][0] == name:
+                out.append(html[stack[i][1]:m.end()])
+                del stack[i:]
+                break
+    return out
+
+
+def rows_from_divs(html: str) -> list[dict]:
+    """صفوفٌ من `div`/`li` حين لا يكون في الصفحة جدول (D275).
+
+    قِيس أن «أرقام» تنشر هذه البنودَ **بلا `<table>` واحد** (‏0 جداولَ في
+    509 ألفَ حرف). فقارئُ الجداول وحدَه يعود صفراً دائماً — وصفرٌ مطلقٌ
+    علامةُ قارئٍ يقرأ في المكان الخطأ، لا علامةُ مصدرٍ فارغ (الدرسُ نفسُه
+    الذي علّمنيه مفتاحُ القوائم في D257).
+
+    والقاعدةُ لا تتغيّر: يُقرأ الصفُّ الذي يحمل **اسماً ونسبةً مفهومة**،
+    وما عداه يُترك.
+    """
+    out: list[dict] = []
+    seen: set[str] = set()
+    # الأصغرُ فالأكبر: الصفُّ أصغرُ كتلةٍ تجمع الاسمَ والنسبة، وأخذُ الأكبرِ
+    # يبتلع الصفحةَ كلَّها في «صفٍّ» واحدٍ بلا معنى.
+    for block in sorted(blocks(_DROP.sub(" ", html or "")), key=len):
+        if block.count("%") != 1:
+            continue
+        txt = _text(block)
+        pct = _pct(txt)
+        if pct is None:
+            continue
+        name = _NAME_CLEAN.sub(" ", txt).strip(" ·-—،:")
+        name = re.sub(r"\s+", " ", name)
+        if len(name) < 3 or len(name) > 90 or name in seen:
+            continue
+        if not re.search(r"[A-Za-zء-ي]{3}", name):
+            continue                       # اسمٌ بلا حروفٍ ليس اسمَ مساهم
+        seen.add(name)
+        out.append({"name": name, "percent": pct})
+        if len(out) >= MAX_ROWS:
+            break
+    return out
+
+
 def parse(html: str) -> list[dict]:
-    """أوسعُ جدولٍ يحمل نسباً مفهومة. وبلا واحدٍ تعود قائمةٌ فارغة."""
+    """أوسعُ جدولٍ يحمل نسباً مفهومة، وإلّا فصفوفُ الحاويات. وإلّا فارغ."""
     best: list[dict] = []
     for rows in tables(html):
         got = holders_from(rows)
         if len(got) > len(best):
             best = got
-    return best
+    return best or rows_from_divs(html)
 
 
 async def refresh(symbol: str) -> dict:
@@ -130,7 +216,7 @@ async def refresh(symbol: str) -> dict:
         # غيابُ المتصفّح ليس غيابَ بيانات — ويُقال باسمه.
         return {"error": f"المتصفّحُ غيرُ متاح: {e}"}
     home = next(iter(pages.values()), "")
-    links = tab_links(home, BASE)
+    links = tab_links(home, BASE, company_id=cid)
     if not links:
         return {"error": "لم يُكتشف تبويبٌ بأسماء البنود في صفحة الشركة"}
 

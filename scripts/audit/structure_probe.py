@@ -1,23 +1,21 @@
 #!/usr/bin/env python3
-"""مسبارُ بنية — الإصدارُ الثاني، مبنيٌّ على ما رُدّ لا على ترجيحي (D273 · D270).
+"""مسبارُ بنية ٣ — يقيس ما بعد التصحيح، ولا يكتب قارئاً قبل القياس.
 
-    docker exec sp_backend python /app/scripts/audit/structure_probe.py deals
     docker exec sp_backend python /app/scripts/audit/structure_probe.py own 1010
+    docker exec sp_backend python /app/scripts/audit/structure_probe.py deals
 
-## ما قاله القياسُ الأوّل، وما غيّره
+## ما ثبت في القياس الثاني
 
-**الصفقاتُ الخاصة**: صفرُ جداولَ في 556 ألفَ حرف — فالصفحةُ **قشرةٌ**
-والجدولُ يُرسَم بعدها. والنداءاتُ الظاهرةُ كلُّها خدماتُ الترويسة
-(‏TickerServlet · ThemeTASIUtilityServlet) لا جدولَ الصفقات. وقد ثبت أن
-**المتصفّح يعمل على الخادم** — فتُفتح الصفحةُ به ويُقاس ما رُسم، وتُلتقط
-مع ذلك نداءاتُ الشبكة التي أطلقتها الصفحةُ نفسُها: إن وُجد نداءٌ نظيفٌ
-استُغني عن المتصفّح لاحقاً، وإلّا بقي هو الوسيلة.
+· **«تداول» تحجب مسارَ الصفقات الخاصة عند الحافّة**: 200 وقشرةٌ بلا جدولٍ
+  للجلب المنتحِل، و**403 Access Denied** من أكامايّ لمتصفّحٍ حقيقيّ. فلا
+  حيلةَ في السكربت — المسارُ محجوب. و«أرقام» تنشرها بمسارين ظهرا بأسمائهما.
 
-**هيكلُ الملكية**: رابطٌ واحدٌ من أربعةٍ اكتُشف، والصفحةُ بلا جداول،
-وفيها `locked-menu` و`lock-menu-icon` تسعاً وأربعين مرّة — وهذه إشارةُ
-**محتوًى مقفلٍ خلف اشتراك**، لا إشارةُ قارئٍ ضعيف. والفرقُ حاسم: قارئٌ
-يُصلَح، واشتراكٌ يُقال للمالك ولا يُلتفّ عليه. فيُطبع النصُّ المرئيُّ
-بعد نزع السكربتات، وتُطبع كلُّ الروابط المرشَّحة بأسمائها الحقيقية.
+· **وأسماءُ تبويبات «أرقام» غيرُ ما افترضت**: «ملكية الأجانب» لا «الملكية
+  الأجنبية»، و«الصفقات الخاصة» لا «صفقات كبار المساهمين»، و«توصيات
+  المحللين» لا «تقديرات». فصار المعوَّلُ على المسار، والنصُّ سندٌ ثانٍ.
+
+· **ولا `<table>` في صفحاتها** — الصفوفُ حاوياتٌ. فأُضيف قارئُ الحاويات،
+  وهذا المسبارُ يقيس كم صفّاً يفهم **قبل** أن يُبنى عليه شيء.
 """
 from __future__ import annotations
 
@@ -31,123 +29,123 @@ sys.path.insert(0, "backend")
 
 TAG = re.compile(r"<[^>]+>")
 DROP = re.compile(r"<(script|style|noscript)[^>]*>.*?</\1>", re.S | re.I)
-LOCK_WORDS = ("locked", "lock-menu", "اشترك", "الاشتراك", "تسجيل الدخول",
-              "للمشتركين", "باقة", "premium", "subscribe")
 
 
 def visible(html: str) -> str:
     return re.sub(r"\s+", " ", TAG.sub(" ", DROP.sub(" ", html or ""))).strip()
 
 
-def describe(html: str, label: str) -> None:
-    print(f"\n── {label}: {len(html)} حرفاً")
-    tabs = re.findall(r"<table[^>]*>(.*?)</table>", html, re.S | re.I)
-    print(f"   جداول: {len(tabs)}")
-    for i, tb in enumerate(tabs[:6]):
-        rows = re.findall(r"<tr[^>]*>(.*?)</tr>", tb, re.S | re.I)
-        print(f"     [{i}] صفوف={len(rows)} · {visible(rows[0])[:100] if rows else '—'}")
-        if len(rows) > 1:
-            print(f"          {visible(rows[1])[:100]}")
-    if not tabs:
-        body = DROP.sub(" ", html)
-        common = [(c, n) for c, n in
-                  Counter(re.findall(r'class="([^"]{3,60})"', body)).most_common(18)
-                  if n >= 3]
-        print("   لا جدول. أكثرُ الأصناف تكراراً (بعد نزع السكربتات):")
-        for c, n in common:
-            print(f"     {n:>4} × {c}")
-
-    # ══ المقفلُ يُقال مقفلاً ══
-    hits = [w for w in LOCK_WORDS if w.lower() in html.lower()]
-    if hits:
-        print(f"   ⚠ إشاراتُ إقفال: {', '.join(hits)}")
-        for w in hits[:3]:
-            i = html.lower().index(w.lower())
-            print(f"     سياقُ «{w}»: {visible(html[max(0,i-160):i+200])[:170]}")
-
-    txt = visible(html)
-    print(f"   النصُّ المرئيّ ({len(txt)} حرفاً):")
-    print("     " + (txt[:700] if txt else "— لا نصّ"))
-
-
-async def deals() -> None:
-    from app.services.special_deals import PAGE
-    from app.services.browser_fetch import BrowserUnavailable, _launch_kwargs
-
-    # ١ · بالمتصفّح، مع التقاط نداءات الشبكة التي تُطلقها الصفحةُ نفسُها.
-    try:
-        from playwright.async_api import async_playwright
-    except Exception as e:                                        # noqa: BLE001
-        raise BrowserUnavailable(str(e)) from e
+async def grab(urls: list[str], settle: int = 9000) -> tuple[dict, list]:
+    """يفتح الصفحاتِ بالمتصفّح ويلتقط نداءاتِ الشبكة معها."""
+    from app.services.browser_fetch import _launch_kwargs
+    from playwright.async_api import async_playwright
 
     calls: list[tuple[str, str]] = []
+    out: dict[str, str] = {}
     pw = await async_playwright().start()
     browser = await pw.chromium.launch(**_launch_kwargs())
     try:
         ctx = await browser.new_context(locale="ar-SA")
         page = await ctx.new_page()
-
-        def on_resp(r):
-            u = r.url
-            if any(k in u.lower() for k in ("json", "servlet", "deal", "=nj")):
-                calls.append((str(r.status), u))
-
-        page.on("response", on_resp)
-        await page.goto(PAGE, timeout=45_000, wait_until="domcontentloaded")
-        await page.wait_for_timeout(9_000)
-        html = await page.content()
+        page.on("response", lambda r: calls.append((str(r.status), r.url))
+                if any(k in r.url.lower() for k in
+                       ("json", "ajax", "getdata", "partial", "deal", "holder"))
+                else None)
+        for u in urls:
+            try:
+                await page.goto(u, timeout=45_000, wait_until="domcontentloaded")
+                await page.wait_for_timeout(settle)
+                out[u] = await page.content()
+            except Exception as e:                                # noqa: BLE001
+                out[u] = ""
+                print(f"   تعذّر {u[:70]}: {type(e).__name__}")
     finally:
         await browser.close()
         await pw.stop()
+    return out, calls
 
-    describe(html, "صفحةُ الصفقات الخاصة (بعد رسم المتصفّح)")
-    print("\n   نداءاتُ الشبكة التي أطلقتها الصفحة:")
-    seen = set()
-    for st, u in calls:
-        if u in seen:
-            continue
-        seen.add(u)
-        print(f"     {st} · {u[:150]}")
-    if not calls:
-        print("     — لا نداءَ مطابقاً")
+
+def describe(html: str, label: str) -> None:
+    from app.services import ownership as ow
+
+    print(f"\n── {label}: {len(html)} حرفاً")
+    tabs = re.findall(r"<table[^>]*>(.*?)</table>", html, re.S | re.I)
+    print(f"   جداول: {len(tabs)}")
+
+    rows = ow.parse(html)
+    print(f"   صفوفٌ فهمها القارئُ الآن: {len(rows)}")
+    for r in rows[:8]:
+        print(f"     {r}")
+
+    if not rows:
+        # لِمَ لم يُفهَم شيء؟ تُطبع الكتلُ التي تحمل «٪» بأصنافها.
+        pct_blocks = [m.group(0) for m in
+                      re.finditer(r"<(div|li|tr)\b[^>]*>(?:(?!<\1\b).)*?%.*?</\1>",
+                                  DROP.sub(" ", html), re.S | re.I)][:6]
+        print(f"   كتلٌ تحمل علامةَ النسبة: {len(pct_blocks)}")
+        for b in pct_blocks:
+            cls = re.search(r'class="([^"]{0,70})"', b)
+            print(f"     class={cls.group(1) if cls else '—'} · {visible(b)[:110]}")
+        if not pct_blocks:
+            body = DROP.sub(" ", html)
+            common = [(c, n) for c, n in
+                      Counter(re.findall(r'class="([^"]{3,60})"', body)).most_common(12)
+                      if n >= 4]
+            print("   لا علامةَ نسبةٍ أصلاً. أكثرُ الأصناف:")
+            for c, n in common:
+                print(f"     {n:>4} × {c}")
+            print("   النصُّ المرئيّ (آخرُ 400 حرفٍ من أوّل 4000):")
+            print("     " + visible(body)[3600:4000])
 
 
 async def own(sym: str) -> None:
     from app.services import ownership as ow
     from app.services.argaam_calendar import BASE, _company_id, _company_url
-    from app.services.browser_fetch import render
 
     cid = await _company_id(sym)
     print(f"معرِّفُ الشركة: {cid}")
     if not cid:
         return
-    home = next(iter((await render([_company_url(cid)])).values()), "")
-
-    # ══ الروابطُ الحقيقيةُ تُطبع كلُّها ══
-    # ثلاثةٌ من أربعةٍ لم تُكتشَف، فلعلّ أسماءها غيرُ ما افترضتُ. فتُطبع كلُّ
-    # رابطٍ يحمل معنى الملكية بنصِّه كما هو — ومنه تُبنى المطابقة.
-    print("\nكلُّ الروابط ذات الصلة كما وردت:")
-    KEYS = ("shareholder", "ownership", "foreign", "estimate", "insider",
-            "major", "holders", "forecast", "target")
-    seen = set()
-    for href, label in re.findall(r'<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>',
-                                  home, re.S | re.I):
-        if not any(k in href.lower() for k in KEYS):
-            continue
-        if href in seen:
-            continue
-        seen.add(href)
-        print(f"   «{visible(label)[:40]}» → {href[:120]}")
-
-    links = ow.tab_links(home, BASE)
-    print(f"\nما التقطه القارئُ الحالي: {sorted(links)}")
+    pages, _ = await grab([_company_url(cid)])
+    home = next(iter(pages.values()), "")
+    links = ow.tab_links(home, BASE, company_id=cid)
+    print(f"\nالتُقط الآن: {sorted(links)}")
+    for k, v in links.items():
+        print(f"   {k}: {v[:120]}")
     if not links:
-        describe(home, "صفحةُ الشركة")
         return
-    pages = await render(list(links.values()), settle_ms=8000)
+    got, calls = await grab(list(links.values()))
     for k, u in links.items():
-        describe(pages.get(u, ""), k)
+        describe(got.get(u, ""), k)
+    if calls:
+        print("\n   نداءاتُ الشبكة أثناء الرسم:")
+        for st, u in list(dict.fromkeys(calls))[:12]:
+            print(f"     {st} · {u[:130]}")
 
 
-a = sys.argv[1:] or ["deals"]
+async def deals() -> None:
+    from app.services.special_deals import ARGAAM_MARKET
+    urls = [ARGAAM_MARKET,
+            "https://www.argaam.com/ar/shareholder/major-shareholders/"
+            "company-deals/marketid/3/companyid/47/بنك-الرياض"]
+    got, calls = await grab(urls)
+    for u in urls:
+        describe(got.get(u, ""), u.split("/ar/")[-1][:60])
+        html = got.get(u, "")
+        # الصفقةُ رقمٌ لا نسبة: تُطبع كتلٌ تحمل أرقاماً كبيرةً بأصنافها.
+        blocks = [m.group(0) for m in
+                  re.finditer(r"<(div|li|tr)\b[^>]*>(?:(?!<\1\b).)*?"
+                              r"\d{1,3}(?:,\d{3}){2,}.*?</\1>",
+                              DROP.sub(" ", html), re.S | re.I)][:6]
+        print(f"   كتلٌ تحمل أرقامَ كمّياتٍ كبيرة: {len(blocks)}")
+        for b in blocks:
+            cls = re.search(r'class="([^"]{0,70})"', b)
+            print(f"     class={cls.group(1) if cls else '—'} · {visible(b)[:130]}")
+    if calls:
+        print("\n   نداءاتُ الشبكة:")
+        for st, u in list(dict.fromkeys(calls))[:12]:
+            print(f"     {st} · {u[:130]}")
+
+
+a = sys.argv[1:] or ["own", "1010"]
 asyncio.run(deals() if a[0] == "deals" else own(a[1] if len(a) > 1 else "1010"))

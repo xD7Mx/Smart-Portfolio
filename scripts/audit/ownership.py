@@ -43,29 +43,43 @@ from app.services import lastgood, ownership as ow  # noqa: E402
 
 BASE = "https://www.argaam.com"
 
+# ══ الصفحةُ كما قِيست فعلاً (بنك الرياض · معرِّف 47) ══
+# الأسماءُ والمسارات منسوخةٌ من مخرَج المسبار على الخادم، لا مؤلَّفة.
+# وفيها فخُّها: روابطُ سوقٍ عامّةٌ بالأسماء نفسِها بلا معرِّف شركة.
 HOME = """<html><body>
- <a href="/ar/company/x/1">نظرة عامة</a>
- <a href="/ar/company/shareholders/marketid/3/companyid/1010"> كبار المساهمين </a>
- <a href="/ar/company/insider/marketid/3/companyid/1010">صفقات كبار المساهمين</a>
- <a href="/ar/company/foreign/marketid/3/companyid/1010">الملكية الأجنبية</a>
- <a href="/ar/company/est/marketid/3/companyid/1010">تقديرات المحللين</a>
+ <a href="/ar/monitors/market-ownership/3">ملكية المستثمرين الأجانب</a>
+ <a href="/ar/shareholder/shareholders-history/date/marketid/3">قائمة كبار الملاك</a>
+ <a href="/ar/shareholder/shareholders-history-deals?marketid=3&amp;pageno=1">الصفقات الخاصة</a>
+ <a href="/ar/monitors/analyst-estimates">توقعات المحللين</a>
+ <a href="/ar/shareholder/major-shareholders/company/marketid/3/companyid/47/بنك-الرياض">كبار المساهمين</a>
+ <a href="/ar/company/foreignownershipdetails/marketid/3/companyid/47/بنك-الرياض">ملكية الأجانب</a>
+ <a href="/ar/shareholder/major-shareholders/company-deals/marketid/3/companyid/47/بنك-الرياض">الصفقات الخاصة</a>
+ <a href="/ar/analystestimates/analystrecomendationsestimate/3/47/4">توصيات المحللين</a>
 </body></html>"""
 
-# ── ٠ · الروابطُ تُكتشَف بأسمائها ────────────────────────────────────────
-links = ow.tab_links(HOME, BASE)
-check(set(links) == set(ow.TABS)
-      and links["major_holders"].endswith("/shareholders/marketid/3/companyid/1010")
-      and links["major_holders"].startswith(BASE),
-      "٠ الروابطُ تُقرأ من الصفحة بأسمائها العربية ويُكمَّل أصلُها",
+# ── ٠ · الروابطُ تُكتشَف بمسارها، والسوقُ لا يُعرَض تحت اسم شركة ──────────
+links = ow.tab_links(HOME, BASE, company_id="47")
+check(set(links) == set(ow.TABS),
+      "٠ البنودُ الأربعةُ تُكتشَف بأسمائها ومساراتها كما وردت",
       str(sorted(links)))
+check("/companyid/47/" in links["major_holders"]
+      and links["major_holders"].startswith(BASE),
+      "٠ب ويُكمَّل أصلُ الرابط", links["major_holders"][-40:])
+check("shareholders-history-deals" not in links["insider_deals"]
+      and "company-deals" in links["insider_deals"],
+      "٠ج ورابطُ السوق العامُّ لا يُؤخذ للشركة — رقمٌ صحيحٌ في مكانٍ خاطئ "
+      "أسوأُ من الغياب", links["insider_deals"][-45:])
+check("monitors/market-ownership" not in links["foreign"],
+      "٠د ولا «ملكية المستثمرين الأجانب» للسوق بدل ملكية الشركة",
+      links["foreign"][-45:])
 
-# ويومَ يدور المسار: الاسمُ باقٍ فيُكتشَف الرابطُ الجديدُ بلا تعديل شيفرة.
-moved = HOME.replace("/ar/company/shareholders/marketid/3/companyid/1010",
-                     "/ar/co/v2/holders/9/1010")
-check(ow.tab_links(moved, BASE)["major_holders"].endswith("/ar/co/v2/holders/9/1010"),
-      "٠ب ومسارٌ دار يُكتشَف باسمه — لا يصمت الصفُّ بلا سبب")
-check(not ow.tab_links("<a href='/x'>أخبار الشركة</a>", BASE),
-      "٠ج وتبويبٌ ليس منها لا يُلتقَط بالتقريب")
+# ويومَ يدور المسار: النصُّ سندٌ ثانٍ فيُكتشَف الرابطُ الجديد.
+moved = HOME.replace("/ar/shareholder/major-shareholders/company/marketid/3/companyid/47/بنك-الرياض",
+                     "/ar/co/v2/holders/3/47")
+check(ow.tab_links(moved, BASE, company_id="47").get("major_holders", "").endswith("/47"),
+      "٠ه ومسارٌ دار يُلتقَط بنصِّه — لا يصمت الصفُّ بلا سبب")
+check(not ow.tab_links("<a href='/x'>أخبار الشركة</a>", BASE, company_id="47"),
+      "٠و وتبويبٌ ليس منها لا يُلتقَط بالتقريب")
 
 # ── ١ · ٢ · لا يُقرأ إلا ما فُهم ────────────────────────────────────────
 PAGE = """<table>
@@ -91,13 +105,34 @@ check(ow._pct("120%") is None and ow._pct("-3.2%") == -3.2,
 NAV = "<table><tr><td>القطاع</td><td>50%</td></tr></table>" + PAGE
 check(len(ow.parse(NAV)) == 2, "٢د وجدولُ الزينة لا يُقرأ بدل جدول المحتوى")
 
+# ── ٢ه · ولا `<table>` في «أرقام» أصلاً ─────────────────────────────────
+# قِيس: 0 جداولَ في 509 ألفَ حرف. فقارئُ الجداول وحدَه يعود صفراً دائماً،
+# وصفرٌ مطلقٌ علامةُ قارئٍ في المكان الخطأ لا مصدرٍ فارغ (درسُ D257).
+DIVS = """<div class="holder-full lh-norm">
+   <div class="name">صندوق الاستثمارات العامة</div><div class="pct">37.50%</div></div>
+ <div class="holder-full lh-norm">
+   <div class="name">المؤسسة العامة للتأمينات الاجتماعية</div><div class="pct">9.14 %</div></div>
+ <div class="holder-full lh-norm">
+   <div class="name">مساهمٌ بلا نسبة</div><div class="pct">—</div></div>
+ <div class="footer">جميع الحقوق محفوظة 2026</div>"""
+dv = ow.parse(DIVS)
+check([r["name"] for r in dv] == ["صندوق الاستثمارات العامة",
+                                  "المؤسسة العامة للتأمينات الاجتماعية"]
+      and dv[0]["percent"] == 37.5,
+      "٢ه وصفوفُ الحاويات تُقرأ حين لا جدولَ في الصفحة", str(dv))
+check(all(r["name"] != "جميع الحقوق محفوظة 2026" for r in dv),
+      "٢و وكتلةٌ بلا نسبةٍ ليست صفَّ مساهم")
+check(len({r["name"] for r in dv}) == len(dv),
+      "٢ز ولا يتكرّر مساهمٌ من تداخل الحاويات")
+
 # ── ٣ · غيابُ المتصفّح يُقال باسمه ───────────────────────────────────────
 import app.services.browser_fetch as bf  # noqa: E402
 import app.services.argaam_calendar as ac  # noqa: E402
 
 
+# معرِّفُ «أرقام» لبنك الرياض كما ردّه الخادم — لا رقمٌ من عندي.
 async def _cid(sym, *a, **k):
-    return "1010"
+    return "47"
 
 
 ac._company_id = _cid                                            # type: ignore[assignment]

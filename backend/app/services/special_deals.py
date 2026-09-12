@@ -31,6 +31,19 @@ MAX_ROWS = 200
 
 PAGE = ("https://www.saudiexchange.sa/wps/portal/saudiexchange/trading/"
         "participants-and-deals/special-deals")
+
+# ══ «تداول» مغلقةٌ عند الحافّة لهذا المسار — قِيس، لا رُجّح ══ (D275)
+# الصفحةُ تعود 200 للجلب المنتحِل وفيها **صفرُ جداول** (قشرةٌ بلا محتوى)،
+# وتعود **403 Access Denied** من أكامايّ حين تُفتح بمتصفّحٍ حقيقيّ على
+# الخادم. فليست مسألةَ سكربتٍ يُنفَّذ: المسارُ نفسُه محجوب.
+#
+# و«أرقام» تنشرها بمسارين قِيسا في صفحة الشركة بأسمائهما:
+#   · السوقُ كلُّه: /ar/shareholder/shareholders-history-deals
+#   · وللشركة:     /ar/shareholder/major-shareholders/company-deals/...
+# فتُقرأ منها. والطبقةُ الأولى تبقى مكتوبةً: إن فُتحت «تداول» يوماً عادت
+# أوّلاً — الترتيبُ لا يتغيّر لأن مصدراً تعثّر، ولكنّ المتعثّرَ لا يُنتظَر.
+ARGAAM_MARKET = ("https://www.argaam.com/ar/shareholder/"
+                 "shareholders-history-deals?marketid=3&pageno=1")
 _BASE_RE = re.compile(r"<base[^>]+href=[\"']([^\"']+)", re.I)
 # اسمُ النداء يُلتقط بنمطه لا بمعرِّفٍ محفوظ: البوّابةُ تُدير المعرِّف،
 # ويبقى اسمُ الخدمة. وعدّةُ تسمياتٍ محتملةٍ لأن الاسمَ لم يُقَس بعد.
@@ -96,7 +109,12 @@ def normalize(rows: list) -> list[dict]:
 
 
 async def fetch_rows() -> tuple[list, str | None]:
-    """صفوفُ الصفقات الخاصة — أو (فارغ، سببُ التعذّر) بنصِّه."""
+    """صفوفُ الصفقات الخاصة من «تداول» — أو (فارغ، سببُ التعذّر) بنصِّه.
+
+    وهي اليومَ **محجوبةٌ عند الحافّة** (‏403 لمتصفّحٍ حقيقيّ على الخادم).
+    تبقى مكتوبةً لأن المصدرَ الرسميَّ أوّلُ الطبقات إن فُتح، ولا يُنتظَر
+    وهو مغلق — القارئُ الثاني («أرقام») يعمل بعده.
+    """
     from app.services.tadawul_http import fetch
     status, body = await fetch(PAGE)
     if status != 200 or not body:
