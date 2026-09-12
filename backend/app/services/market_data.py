@@ -1341,7 +1341,41 @@ class MarketDataService:
         return await self._yahoo().get_history(symbol, range_)
 
     async def get_financials(self, symbol: str, allow_supplement: bool = True) -> Optional[dict]:
+        """القوائمُ بترتيب الطبقات: تداول (‏XBRL) ← ياهو (D263).
+
+        هذا هو البابُ الواحد الذي تمرّ منه كلُّ شاشةٍ ومحرّك — فترتيبُ
+        المصادر يُكتب فيه مرّةً لا في كلّ مسارٍ بيده. والرسميُّ المدقَّق
+        يتقدّم المزوّدَ: بندٌ واحدٌ مقروءٌ من إفصاحٍ موقَّعٍ خيرٌ من عشرةٍ
+        مشتقّةٍ من طرفٍ ثالث.
+
+        ولا يُخلط مصدران في فترةٍ واحدة: إمّا فتراتُ XBRL كما هي، أو
+        فتراتُ ياهو كما هي — والمصدرُ يُعلَن مع الصفوف (‏`source`).
+        """
+        try:
+            from app.services.tadawul_xbrl import for_symbol as _xbrl
+            rows = _xbrl(symbol, "annual")
+        except Exception:                                         # noqa: BLE001
+            rows = []
+        if rows:
+            return {"symbol": symbol, "periods": rows, "source": "تداول — XBRL"}
         return await self._yahoo().get_financials(symbol, allow_supplement=allow_supplement)
+
+    async def get_quarterly_financials(self, symbol: str):
+        """الربعيُّ بالترتيب نفسِه — والرسميُّ أوّلاً (D263).
+
+        وياهو لا يدعم الربعيَّ لأكثر رموز السوق (قِيس، وقاله المالك)، فهو
+        آخرُ الطبقات لا أوّلَها.
+        """
+        try:
+            from app.services.tadawul_xbrl import for_symbol as _xbrl
+            rows = _xbrl(symbol, "quarterly")
+        except Exception:                                         # noqa: BLE001
+            rows = []
+        if rows:
+            return {"symbol": symbol, "periods": rows, "source": "تداول — XBRL"}
+        y = self._yahoo()
+        fn = getattr(y, "get_quarterly_financials", None)
+        return await fn(symbol) if fn else None
 
     async def get_ownership(self, symbol: str) -> Optional[dict]:
         return await self._yahoo().get_ownership(symbol)

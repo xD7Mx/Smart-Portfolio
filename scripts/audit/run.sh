@@ -234,6 +234,12 @@ python3 scripts/audit/screener_price_fresh.py || fail=1
 echo
 python3 scripts/audit/one_fair_price.py || fail=1
 
+# D263: قوائمُ XBRL الرسمية المدقَّقة تتقدّم المزوّد في الباب الواحد،
+# وبندٌ لا يُخمَّن. والقراءةُ على الخادم:
+#   docker exec sp_backend python /app/scripts/audit/xbrl_probe.py 2010
+echo
+python3 scripts/audit/tadawul_xbrl.py || fail=1
+
 # D260: اللحظيةُ زمنٌ لا لون — ميزانيةُ طزاجةٍ مقيسةٌ لكلّ حلقةٍ في
 # سلسلة التأخير، وعلاقةُ الحلقات ببعضها (عمرٌ مقبولٌ ≥ دورةِ تجديد).
 echo

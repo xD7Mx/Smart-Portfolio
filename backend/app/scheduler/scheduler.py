@@ -88,6 +88,26 @@ async def job_tadawul_snapshot():
         logger.error(f"Tadawul snapshot failed: {e}")
 
 
+async def job_xbrl_statements():
+    """قوائمُ XBRL الرسمية — دفعةٌ دوّارةٌ يومية (D263).
+
+    الملفُّ الواحد ميجاباتٌ عدّة، والسوقُ ‎273 شركة — فلا تُقرأ دفعةً
+    واحدة. تُقرأ دفعةٌ صغيرةٌ كلَّ ليلةٍ فتكتمل التغطيةُ في أسابيعَ وتبقى،
+    ويُعاد من شاخ إيداعُه وحدَه. والإفصاحاتُ الجديدةُ تُلتقط بالدورة
+    نفسِها — لا انتظارَ موسمٍ ولا نداءَ لكلّ شركةٍ كلَّ يوم.
+    """
+    try:
+        from app.services.tadawul_market import snapshot
+        from app.services.tadawul_xbrl import for_symbol, refresh
+        syms = [s for s in (snapshot() or {}) if not for_symbol(s)][:12]
+        if not syms:
+            return
+        rec = await refresh(syms)
+        logger.info(f"XBRL batch: {rec}")
+    except Exception as e:
+        logger.error(f"XBRL batch failed: {e}")
+
+
 async def job_sector_betas():
     """بيتا قطاعيةٌ مقيسةٌ من سوقنا — شهرياً (D257).
 
@@ -407,6 +427,14 @@ def start_scheduler():
         job_argaam_results,
         CronTrigger(hour=17, minute=30),
         id="argaam_results_daily",
+        replace_existing=True,
+    )
+
+    # قوائمُ XBRL — دفعةٌ صغيرةٌ كلَّ ليلةٍ بعد الإغلاق بساعات.
+    _scheduler.add_job(
+        job_xbrl_statements,
+        CronTrigger(hour=22, minute=15),
+        id="xbrl_statements_daily",
         replace_existing=True,
     )
 

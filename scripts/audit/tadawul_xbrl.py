@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+# ─────────────────────────────────────────────────────────────────────────
+# D263 — قوائمُ رسميةٌ مدقَّقةٌ تتقدّم المزوّد، وبندٌ لا يُخمَّن.
+#
+# الدرجةُ والسعرُ العادل يُبنيان على القوائم، وكانت من ياهو: ناقصةً،
+# ومحدودةَ الحصّة، وبلا ربعيٍّ لأكثر رموز السوق. وقياسُ المصادر ردَّ
+# تبويبَ قوائم «تداول» (متجمّدٌ عند ‎2023) وصفحاتِ «أرقام» (جافاسكربت)،
+# وأبقى ملفّاتِ **XBRL** المرفقةَ بكلّ إفصاح: مدقَّقةٌ · موحَّدةٌ ·
+# بتصنيف IFRS · مؤرَّخةٌ بفترتها وإيداعها.
+#
+# وخطرُها في المطابقة: بندٌ يُملأ بأقربِ اسمٍ شبيهٍ يجعل «إجمالي
+# الالتزامات» حقوقَ ملكية — والدرجةُ تُبنى عليه فيصير الخطأُ حكماً على
+# شركة. فيُقاس السلوكُ بملفٍّ مموَّهٍ على شكل الملفّ الرسميّ المقيس:
+#   ٠· البنودُ تُقرأ بأسمائها الرسمية كما وردت
+#   ١· ووحدةُ التقريب تُقرأ لا تُفترَض (‏Thousands ⇒ ×1000)
+#   ٢· والسالبُ بين قوسين سالب
+#   ٣· ونوعُ الفترة من الملفّ نفسِه (سنويٌّ/ربعيّ) لا من تاريخه
+#   ٤· والمديونيةُ تُشتقّ من بندين مقروءين لا تُنسَخ
+#   ٥· وبندٌ لم يُعرَف يُترك — لا يُملأ بشبيهه
+#   ٦· وعمودٌ بلا بندٍ واحدٍ ليس فترة
+#   ٧· والبابُ الواحد يُقدّم الرسميَّ على المزوّد، وبغيابه لا ينكسر شيء
+#   ٨· وإيداعٌ شائخٌ لا يُقرأ «أحدثَ قوائم»
+# ─────────────────────────────────────────────────────────────────────────
+from __future__ import annotations
+
+import os as _os
+import tempfile as _tf
+
+_SANDBOX = _tf.mkdtemp(prefix="sp-audit-")
+_os.environ["LASTGOOD_PATH"] = _os.path.join(_SANDBOX, "lastgood.json")
+_os.environ["SP_STATE_DIR"] = _SANDBOX
+
+import asyncio  # noqa: E402
+import datetime as _dt  # noqa: E402
+import pathlib  # noqa: E402
+import sys  # noqa: E402
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "backend"))
+sys.path.insert(0, "/app")
+
+fail = 0
+
+
+def check(ok: bool, label: str, detail: str = "") -> None:
+    global fail
+    if not ok:
+        fail = 1
+    print(f"{'PASS' if ok else 'FAIL'} {label}" + (f" — {detail}" if detail else ""))
+
+
+from app.services import tadawul_xbrl as xb  # noqa: E402
+
+
+def row(label, *vals):
+    return "<tr><td>" + label + "</td>" + "".join(
+        f"<td>{v}</td>" for v in vals) + "</tr>"
+
+
+# ملفٌّ على شكل الملفّ الرسميّ المقيس (سابك · 2010) بنصّ بنوده.
+DOC = "<table>" + "".join([
+    row("Period covered by financial statements", "Annual"),
+    row("Status of report", "Audited"),
+    row("Level of rounding used in financial statements", "Thousands"),
+    row("Start Date", "2025-01-01", "2024-01-01"),
+    row("End Date", "2025-12-31", "2024-12-31"),
+    row("Total assets", "318,438,777", "295,468,550"),
+    row("Total liabilities", "106,605,479", "101,231,425"),
+    row("Total equity", "211,833,298", "194,237,125"),
+    row("Total revenue", "174,883,126", "116,949,287"),
+    row("Finance costs", "2,257,224", "1,860,667", "32"),
+    row("Profit (loss) for period", "30,501,771", "(1,256,229)"),
+    row("Total basic earnings (loss) per share", "7.69", "0.02"),
+    row("Cash flows from (used in) operating activities", "40,000,000", "30,000,000"),
+    row("Purchase of property, plant and equipment", "12,000,000", "9,000,000"),
+    row("Retained earnings (accumulated losses)", "27,794,542", "15,071,361"),
+]) + "</table>"
+
+got = xb.parse(DOC)
+P = got.get("periods") or []
+last = P[-1] if P else {}
+
+check(len(P) == 2 and last.get("as_of") == "2025-12-31",
+      "٠ الفتراتُ تُقرأ من صفَّي التاريخ، والأحدثُ آخِراً", str([p["as_of"] for p in P]))
+check(last.get("revenue") == 174_883_126_000.0,
+      "١ ووحدةُ التقريب تُقرأ لا تُفترَض — Thousands ⇒ ×1000",
+      f"{last.get('revenue'):,}" if last.get("revenue") else "—")
+check(P[0].get("net_income") == -1_256_229_000.0,
+      "٢ والسالبُ بين قوسين سالب", str(P[0].get("net_income")))
+check((got.get("kind") or "").lower().startswith("annual")
+      and (got.get("audited") or "") == "Audited",
+      "٣ ونوعُ الفترة وحالُ التدقيق من الملفّ نفسِه",
+      f"{got.get('kind')} · {got.get('audited')}")
+check(last.get("debt_ratio") == round(106_605_479 / 318_438_777 * 100, 2),
+      "٤ والمديونيةُ تُشتقّ من بندين مقروءين", str(last.get("debt_ratio")))
+check(last.get("free_cash_flow") == 28_000_000_000.0,
+      "٤ب والتدفّقُ الحرّ = التشغيليُّ − الرأسماليّ", str(last.get("free_cash_flow")))
+check("retained_earnings" not in last and "equity" in last,
+      "٥ وبندٌ لم يُعرَف يُترك — لا يُملأ بشبيهه")
+check(last.get("eps") == 7.69, "٥ب وربحيةُ السهم لا تُضرَب في وحدة التقريب",
+      str(last.get("eps")))
+
+# ── ٦ · عمودٌ بلا بندٍ واحدٍ ليس فترة ────────────────────────────────────
+bare = "<table>" + row("End Date", "2025-12-31") + row("Note No.", "7") + "</table>"
+check(not (xb.parse(bare).get("periods") or []),
+      "٦ عمودٌ بلا بندٍ مفهومٍ ليس فترة")
+check(xb.parse("<html>لا جدول</html>") == {},
+      "٦ب وملفٌّ بلا جدولٍ يعود فارغاً لا مختلَقاً")
+
+# ── ٧ · البابُ الواحد: الرسميُّ يتقدّم المزوّد ───────────────────────────
+from app.services.market_data import MarketDataService  # noqa: E402
+
+
+class _FakeYahoo:
+    async def get_financials(self, symbol, allow_supplement=True):
+        return {"symbol": symbol, "periods": [{"year": 2024, "revenue": 1.0}],
+                "source": "ياهو"}
+
+    async def get_quarterly_financials(self, symbol):
+        return {"symbol": symbol, "periods": [{"year": 2024}], "source": "ياهو"}
+
+
+svc = MarketDataService()
+svc._yahoo = lambda: _FakeYahoo()                                # type: ignore[assignment]
+
+out = asyncio.run(svc.get_financials("2010.SR"))
+check((out or {}).get("source") == "ياهو",
+      "٧ بلا قوائمَ رسميةٍ يعمل المزوّدُ كما كان — لا انكسار",
+      str((out or {}).get("source")))
+
+xb.save_symbol("2010", {"annual": P, "quarterly": [{"as_of": "2026-03-31",
+                                                    "year": 2026, "revenue": 5.0}],
+                        "as_of": _dt.date.today().isoformat()})
+out = asyncio.run(svc.get_financials("2010.SR"))
+check((out or {}).get("source") == "تداول — XBRL"
+      and (out or {}).get("periods") == P,
+      "٧ب ومع الرسميّ يتقدّم ويُعلَن مصدرُه", str((out or {}).get("source")))
+outq = asyncio.run(svc.get_quarterly_financials("2010.SR"))
+check((outq or {}).get("source") == "تداول — XBRL"
+      and len((outq or {}).get("periods") or []) == 1,
+      "٧ج والربعيُّ كذلك — وياهو آخرُ الطبقات لا أوّلُها")
+
+# ── ٨ · إيداعٌ شائخ ─────────────────────────────────────────────────────
+old = (_dt.date.today() - _dt.timedelta(days=xb.MAX_AGE_DAYS + 5)).isoformat()
+xb.save_symbol("2010", {"annual": P, "quarterly": [], "as_of": old})
+check(xb.for_symbol("2010") == [],
+      f"٨ وقراءةٌ أقدمُ من {xb.MAX_AGE_DAYS} يوماً لا تُقرأ «أحدثَ قوائم»")
+out = asyncio.run(svc.get_financials("2010.SR"))
+check((out or {}).get("source") == "ياهو",
+      "٨ب فيعود البابُ إلى الطبقة التالية", str((out or {}).get("source")))
+
+print(("FAIL" if fail else "PASS") + " D263 — قوائمُ XBRL الرسمية")
+raise SystemExit(fail)
