@@ -38,7 +38,8 @@ export default function MarketDepth({ symbol }: { symbol: string }) {
         <h3 className="text-[13px] font-bold text-[var(--ink)]">عمق السوق</h3>
         {data?.available && (
           <span className="text-[10px] text-[var(--ink-muted)] tabular-nums">
-            مستوى {data.levels} · تداول
+            {/* الإغلاقُ لا يُقرأ لحظياً — الفرقُ يُقال (D285). */}
+            {data.live === false ? "آخر إغلاق" : `مستوى ${data.levels} · تداول`}
           </span>
         )}
       </div>

@@ -157,8 +157,15 @@ async def refresh() -> dict:
     return {"count": len(table), "at": rec["at"]}
 
 
+CLOSE_MAX_DAYS = 5          # أطولُ عطلةٍ معقولة: عيدٌ متّصلٌ بنهاية أسبوع
+
+
 def snapshot() -> dict[str, dict]:
-    """اللقطةُ الحاضرةُ — أو فارغةٌ إن غابت أو شاخت (لا رقمَ بزمنٍ مجهول)."""
+    """اللقطةُ **الحيّة** — أو فارغةٌ إن غابت أو شاخت.
+
+    تبقى صارمةً: ما يُعرض على أنه لحظيٌّ يجب أن يكون لحظياً، وسعرٌ عمرُه
+    ساعتان داخلَ الجلسة كذبٌ لا تأخّر.
+    """
     from app.services import cache
     rec = cache.get(STORE_KEY)
     if not isinstance(rec, dict):
@@ -168,6 +175,41 @@ def snapshot() -> dict[str, dict]:
         return {}
     rows = rec.get("rows")
     return rows if isinstance(rows, dict) else {}
+
+
+def usable_rows() -> tuple[dict[str, dict], bool, str | None]:
+    """(الصفوف، أحيّةٌ هي؟، زمنُها) — للاستعمال لا للعرض اللحظيّ (D285).
+
+    ══ اللقطةُ كانت ترفض نفسَها في العطلة ══
+    قِيس على الخادم: «بلا سعرٍ في اللقطة: ‎40 من ‎40» — والسوقُ مغلقٌ منذ
+    الخميس. فقاعدةُ الطزاجة (‏300 ثانية) صُمّمت لمنع سعرٍ قديمٍ يُعرض
+    لحظياً، وهي صوابٌ **داخل الجلسة**؛ لكنّها خارجَها تمحو آخرَ إغلاقٍ
+    مسجَّل — وهو الرقمُ الصحيحُ الوحيدُ في ذلك الوقت. فيفقد التطبيقُ
+    السعرَ والعمقَ والسعرَ العادلَ يومين في الأسبوع بلا سبب.
+    والجهلُ ليس حكماً: عندنا الرقمُ، ونرفض قراءتَه.
+
+    فالسؤالان يُفصَلان: `snapshot()` للحيّ، وهذه للاستعمال — تقبل آخرَ
+    إغلاقٍ **حين يكون السوقُ مغلقاً فعلاً** (بالحاكم الواحد لا بالساعة)
+    وبعمرٍ لا يتجاوز أطولَ عطلةٍ معقولة، وتقول دائماً **أحيّةٌ هي**
+    فيُعلن المستعمِلُ ذلك ولا يُوهِم أنه لحظيّ.
+    """
+    from datetime import datetime
+
+    from app.services import cache, lastgood
+    from app.services.market_phase import market_phase
+
+    live = snapshot()
+    if live:
+        rec = cache.get(STORE_KEY) or {}
+        return live, True, (rec.get("at") if isinstance(rec, dict) else None)
+
+    now = datetime.now()
+    if market_phase((now.weekday() + 1) % 7, now.hour * 60 + now.minute) != "closed":
+        return {}, False, None          # داخلَ الجلسة: لا بديلَ عن الحيّ
+    rec = lastgood.load(STORE_KEY, max_age_seconds=CLOSE_MAX_DAYS * 86400)
+    if not isinstance(rec, dict) or not isinstance(rec.get("rows"), dict):
+        return {}, False, None
+    return rec["rows"], False, rec.get("at")
 
 
 INDEX_URL = ("https://www.saudiexchange.sa/tadawul.eportal.theme.helper/"
@@ -218,6 +260,9 @@ async def index_quote() -> dict | None:
 
 
 def row_for(symbol) -> dict:
-    """صفُّ شركةٍ من اللقطة — أو فارغ."""
+    """صفُّ شركةٍ للاستعمال — حيّاً في الجلسة، وآخرَ إغلاقٍ خارجَها."""
     sym = re.search(r"\b(\d{4})\b", str(symbol or ""))
-    return (snapshot().get(sym.group(1)) or {}) if sym else {}
+    if not sym:
+        return {}
+    rows, _live, _at = usable_rows()
+    return rows.get(sym.group(1)) or {}

@@ -1797,8 +1797,9 @@ async def get_market_depth(symbol: str):
         مرخَّصةٌ لا تُوعَد قبل أن تُملَك.
       · **ولا يُملأ ناقصٌ**: طرفٌ بلا سعرٍ أو كمّيةٍ يغيب ولا يُصفَّر.
     """
-    from app.services.tadawul_market import row_for, snapshot
+    from app.services.tadawul_market import row_for, usable_rows
 
+    _rows, _live, _at = usable_rows()
     row = row_for(symbol)
     if not row:
         return success_response(
@@ -1820,10 +1821,13 @@ async def get_market_depth(symbol: str):
             "last": row.get("price"), "prev_close": row.get("prev_close"),
             "day_high": row.get("day_high"), "day_low": row.get("day_low"),
             "trades": row.get("trades"), "volume": row.get("volume"),
-            "as_of": snapshot().get("_as_of") or row.get("as_of"),
+            "as_of": _at,
+            "live": _live,
             "source": "تداول — مراقبة السوق",
             "available": bool(bids or asks),
-            "note": "مستوًى واحد — وهو ما تنشره «تداول» مجّاناً",
+            # وسعرُ الإغلاق لا يُقرأ لحظياً: الفرقُ يُقال في الشاشة (D285).
+            "note": ("مستوًى واحد — وهو ما تنشره «تداول» مجّاناً" if _live
+                     else "آخرُ إغلاقٍ مسجَّل — السوق مغلق"),
         },
         message="عمقُ السوق." if (bids or asks)
                 else "عمقُ السوق غير متوفّر لهذا الرمز الآن.")

@@ -102,5 +102,53 @@ wk = ac._tasi_verb(0.8, "weekend")
 check("افتتاح" not in wk and "أغلق" in wk,
       "٤ ولا يُوصَف افتتاحٌ لن يقع — تُقال حصيلةُ آخر إغلاقٍ بصيغة الماضي", wk)
 
+# ── ٦ · اللقطةُ لا ترفض نفسَها في العطلة ────────────────────────────────
+# قِيس على الخادم: «بلا سعرٍ في اللقطة: 40 من 40» والسوقُ مغلقٌ منذ الخميس.
+# قاعدةُ الطزاجة صوابٌ داخل الجلسة، وخارجَها تمحو آخرَ إغلاقٍ مسجَّل —
+# وهو الرقمُ الصحيحُ الوحيدُ حينها. والجهلُ ليس حكماً (D285).
+from app.services import cache, lastgood  # noqa: E402
+from app.services import tadawul_market as tmk  # noqa: E402
+
+ROWS = {"2010": {"price": 70.0, "bid": 69.8, "bid_qty": 100}}
+cache.set(tmk.STORE_KEY, None, 0)
+lastgood.save(tmk.STORE_KEY, {"at": "2026-09-10T15:20:00+00:00", "rows": ROWS})
+# «لا لقطةَ حيّة» تُحاكى بالدالّة نفسِها: مخزنُ الحالة يختم زمنَ حفظه هو،
+# فلا يشيخ سجلٌّ كُتب قبل لحظة — والمقصودُ قياسُ فرعِ البديل لا المخزن.
+tmk.snapshot = lambda: {}                                        # type: ignore[assignment]
+
+import datetime as _d2  # noqa: E402
+_real_dt = _d2.datetime
+
+
+class _SatNow(_real_dt):
+    @classmethod
+    def now(cls, tz=None):
+        return _real_dt(2026, 9, 12, 23, 0)      # سبتٌ — السوق مغلق
+
+
+class _SunNow(_real_dt):
+    @classmethod
+    def now(cls, tz=None):
+        return _real_dt(2026, 9, 13, 11, 0)      # أحدٌ 11:00 — الجلسة قائمة
+
+
+_d2.datetime = _SatNow                                           # type: ignore[misc]
+rows, live, at = tmk.usable_rows()
+check(rows and not live and at,
+      "٦ في العطلة يُقرأ آخرُ إغلاقٍ مسجَّل — ويُعلَن أنه ليس حيّاً",
+      f"{len(rows)} رمزاً · حيّة={live}")
+check(tmk.row_for("2010.SR").get("price") == 70.0,
+      "٦ب فيعود السعرُ والعمقُ والسعرُ العادل للعمل يومَي العطلة")
+
+_d2.datetime = _SunNow                                           # type: ignore[misc]
+rows2, live2, _ = tmk.usable_rows()
+check(not rows2,
+      "٦ج وداخلَ الجلسة لا بديلَ عن الحيّ — سعرٌ شائخٌ يُعرض لحظياً كذب",
+      f"{len(rows2)} رمزاً")
+_d2.datetime = _real_dt                                          # type: ignore[misc]
+
+check(tmk.CLOSE_MAX_DAYS <= 7,
+      "٦د وللإغلاق عمرٌ أقصى — لا يُقرأ إغلاقُ شهرٍ مضى", str(tmk.CLOSE_MAX_DAYS))
+
 print(("FAIL" if fail else "PASS") + " D283 — حاكمٌ واحدٌ لطور السوق")
 raise SystemExit(fail)

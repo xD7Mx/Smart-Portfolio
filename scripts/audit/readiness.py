@@ -64,6 +64,7 @@ async def main() -> int:
         secs = (b.get("sectors") or {})
         line("قطاعاتٌ لها بيتا مقيسة", f"{len(secs)} · {b.get('as_of') or '—'}")
     except Exception as e:                                        # noqa: BLE001
+        secs = {}
         line("قطاعاتٌ لها بيتا مقيسة", f"تعذّر: {type(e).__name__}")
     try:
         from app.services.fair_value_engine.params import load_params
@@ -110,8 +111,38 @@ async def main() -> int:
     if not with_stmt:
         print("\n  القوائمُ الرسميةُ لم تُقرأ بعد. الدفعةُ تعمل 22:15 و01:30 —"
               "\n  وتكتمل التغطيةُ في نحو أربع ليالٍ من التركيب.")
+    # ── ٤ · ولماذا فرغ ما فرغ ───────────────────────────────────────────
+    # صفرٌ بلا سببٍ يُطلب له مسبارٌ آخر — ودورةُ المسابر أنهكت المالك.
+    # فيُقاس السببُ هنا: تُجرَّب قراءةٌ واحدةٌ ويُطبع ما ردّته.
+    if "--why" in sys.argv or not with_stmt or not secs:
+        print("\n٤) لماذا فرغ ما فرغ — قراءةٌ واحدةٌ تُجرَّب الآن")
+        rows, live, at = _rows_state()
+        line("لقطةُ السوق", f"{len(rows)} رمزاً · "
+                            f"{'حيّة' if live else 'آخرُ إغلاق'} · {at or '—'}")
+        try:
+            from app.services.tadawul_xbrl import refresh as x_refresh
+            r = await x_refresh(["1010"])
+            line("قراءةُ XBRL لـ1010", str(r)[:110])
+        except Exception as e:                                    # noqa: BLE001
+            line("قراءةُ XBRL لـ1010", f"{type(e).__name__}: {str(e)[:90]}")
+        try:
+            from app.services.sector_betas import refresh as b_refresh
+            r = await b_refresh(uni[:12])
+            line("محاولةُ بيتا (12 شركة)", str(r)[:110])
+        except Exception as e:                                    # noqa: BLE001
+            line("محاولةُ بيتا", f"{type(e).__name__}: {str(e)[:90]}")
+
     print(f"\nقِيس في {dt.datetime.now():%Y-%m-%d %H:%M}\n")
     return 0
+
+
+def _rows_state():
+    try:
+        from app.services.tadawul_market import usable_rows
+        return usable_rows()
+    except Exception:                                             # noqa: BLE001
+        from app.services.tadawul_market import snapshot
+        return snapshot(), True, None
 
 
 raise SystemExit(asyncio.run(main()))
