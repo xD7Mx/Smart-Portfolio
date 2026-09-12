@@ -248,14 +248,13 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
         </tbody>
       </table>
     </div>
-      {/* ══ خلاصةُ القوائم — شريطٌ بعرض الجدول ══ (بأمر المالك)
-          كان وسماً صغيراً يسبح في سطرٍ فارغ فيبدو هامشاً لا خلاصة. وهو
-          في الحقيقة **حكمُ الجدول الذي فوقه**: أسطرُه الثمانيةُ نفسُها هي
-          مدخلاتُه. فصار شريطاً كامل العرض، ومعه الدرجةُ المشتقّةُ من تلك
-          الأسطر عينها — فيُقرأ الرقمُ وسببُه في موضعٍ واحد.
-          وألوانُه من أوسمة التطبيق (‏tag-buy/sell/hold مع tag-ink) لا من
-          ألوانٍ جديدة: تباينُها مصمَّمٌ ومُقاس، ولون النصّ يجيء معها. */}
-      <div className="mt-4 rounded-xl px-3 py-2.5 flex items-center justify-between gap-3"
+      {/* ══ خلاصةُ القوائم — سطرُ محلّلٍ واحدٌ لا لوحةُ أرقام ══ (بأمر المالك)
+          كان الشريطُ يحمل الدرجةَ `/100` وعددَ السنوات مع الجملة. والدرجةُ
+          معروضةٌ أصلاً في بطاقة التقييم — فتكرارُها يجعل الشاشةَ تقول
+          الشيءَ مرّتين، وعددُ السنوات ظاهرٌ في ترويسة الجدول فوقه.
+          والمصادرُ صارت رسميةً من مُصدِرها، فلا موضعَ لاعتذارٍ ولا لدعوةٍ
+          لاكتشاف سبب: تحليلٌ ماليٌّ مختصرٌ في سطرٍ لا يزيد. */}
+      <div className="mt-4 rounded-xl px-3 py-2.5 flex items-center gap-2"
            style={{
              color: "var(--tag-ink)",
              background: data.verdict_tone === "green" ? "var(--tag-buy)"
@@ -263,27 +262,15 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
                : data.verdict_tone === "yellow" ? "var(--tag-hold)"
                : "var(--tag-agm)",
            }}>
-        <div className="min-w-0 flex items-center gap-2">
-          <span className="text-[12.5px] font-bold leading-snug">
-            {data.verdict || "بيانات متاحة"}
+        <span className="min-w-0 text-[12.5px] font-bold leading-snug">
+          {data.verdict || "بيانات متاحة"}
+        </span>
+        {data.investment_phase === true && (
+          <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                style={{ background: "rgb(0 0 0 / .18)" }}>
+            مرحلة توسّع
           </span>
-          {data.investment_phase === true && (
-            <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md"
-                  style={{ background: "rgb(0 0 0 / .18)" }}>
-              مرحلة توسّع
-            </span>
-          )}
-        </div>
-        <div className="shrink-0 flex items-baseline gap-2.5">
-          {data.finance_score != null && (
-            <span className="text-[15px] font-extrabold tabular-nums" dir="ltr">
-              {data.finance_score}<span className="text-[10px] font-bold opacity-70">/100</span>
-            </span>
-          )}
-          <span className="text-[10px] tabular-nums whitespace-nowrap opacity-80">
-            {years.length} سنوات
-          </span>
-        </div>
+        )}
       </div>
     </div>
   );
