@@ -57,6 +57,21 @@ async def job_directory_sync():
         logger.error(f"Directory sync failed: {e}")
 
 
+async def job_argaam_results():
+    """نتائجُ الشركات ربعياً وسنوياً من «أرقام» — يومياً بعد الإغلاق (D253).
+
+    الإفصاحاتُ تصل تباعاً في موسم النتائج، وجدولٌ واحدٌ يحمل السوقَ كلَّه —
+    فلا نداءَ لكلّ شركة. والرمزُ يُقرأ من معرِّف الرابط لا من اسمٍ مقارَب.
+    """
+    try:
+        from app.services.argaam_results import refresh
+        rec = await refresh()
+        if rec.get("error"):
+            logger.warning(f"Argaam results unread: {rec.get('error')}")
+    except Exception as e:
+        logger.error(f"Argaam results failed: {e}")
+
+
 async def job_tadawul_snapshot():
     """لقطةُ السوق من «تداول» — نداءٌ واحدٌ لكلّ الشركات (D251).
 
@@ -364,6 +379,14 @@ def start_scheduler():
         job_tadawul_snapshot,
         CronTrigger(day_of_week="sun-thu", hour="9-16", minute="*/5"),
         id="tadawul_snapshot",
+        replace_existing=True,
+    )
+
+    # نتائجُ الشركات — يومياً ‎17:30 بعد إغلاق السوق ونشر الإفصاحات.
+    _scheduler.add_job(
+        job_argaam_results,
+        CronTrigger(hour=17, minute=30),
+        id="argaam_results_daily",
         replace_existing=True,
     )
 

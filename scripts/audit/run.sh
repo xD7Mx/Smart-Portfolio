@@ -234,6 +234,11 @@ python3 scripts/audit/screener_price_fresh.py || fail=1
 echo
 python3 scripts/audit/one_fair_price.py || fail=1
 
+# D253: الربعيُّ من مصدرٍ يُرسَم في الخادم، والرمزُ يُقرأ من معرِّف الرابط
+# لا من اسمٍ مقارَب — مطابقةُ الأسماء تُدخل أرباحَ شركةٍ في ملفّ أخرى.
+echo
+python3 scripts/audit/argaam_results.py || fail=1
+
 # D252: لسانُ «تاسي» يقول رقمَ السوق الآن — من خدمة المؤشّر نفسِها بدل
 # قراءةٍ متأخّرةٍ عند المزوّد ومخزَّنةٍ ربعَ ساعةٍ فوق تأخيرها.
 echo
