@@ -88,6 +88,56 @@ async def job_tadawul_snapshot():
         logger.error(f"Tadawul snapshot failed: {e}")
 
 
+async def job_ownership():
+    """هيكلُ الملكية — دفعةٌ دوّارةٌ أسبوعية بالمتصفّح (D276).
+
+    ══ التطبيقُ يقيس نفسَه ══
+    دُرتُ ثلاثَ جولاتِ مسبارٍ لأعرف شكلَ الصفحة، وكلُّ جولةٍ تكلّف المالكَ
+    وقتاً ولا تُوصل ميزة. فالقياسُ ينتقل إلى التطبيق: الوظيفةُ تقرأ دفعةً
+    صغيرةً كلَّ أسبوع، وتسجّل في السجلّ **كم شركةً قُرئت وكم بنداً** —
+    فتُعرَف التغطيةُ من السجلّ بلا مسبارٍ رابع. وما قُرئ يظهر في البطاقة،
+    وما لم يُقرأ يبقى غائباً ولا يُختلق.
+
+    وثقيلةٌ عمداً على مهلها: عشرُ شركاتٍ في الأسبوع، والمتصفّحُ صفحةً
+    صفحةً، وبعد الإغلاق في عطلة نهاية الأسبوع.
+    """
+    try:
+        from app.data.market_universe import MARKET_UNIVERSE
+        from app.data.universe import main_market
+        from app.services import lastgood
+        from app.services.ownership import reading, refresh
+
+        # ══ الرسميُّ أوّلاً ══ (D277)
+        # «تداول» تنشر الملكيةَ الأجنبيةَ وأعضاءَ المجلس في صفحة الشركة،
+        # وتُقرأ بنداءٍ واحدٍ بلا متصفّح. فتُجرَّب لكلّ شركةٍ أوّلاً، ولا
+        # يُفتح المتصفّحُ على «أرقام» إلا لمن لم تُقرأ منه.
+        from app.services.tadawul_ownership import reading as t_reading
+        from app.services.tadawul_ownership import refresh as t_refresh
+
+        syms = [s for s in main_market(MARKET_UNIVERSE)
+                if not t_reading(s) and not reading(s)]
+        if not syms:
+            return
+        done = fresh = 0
+        for sym in syms[:25]:
+            res = await t_refresh(sym)
+            if not res.get("ok"):
+                res = await refresh(sym)          # الطبقةُ الثانية بالمتصفّح
+            done += 1
+            if res.get("ok"):
+                fresh += 1
+            else:
+                logger.warning("هيكلُ الملكية {}: {}", sym, res.get("error"))
+        covered = sum(1 for s in main_market(MARKET_UNIVERSE)
+                      if t_reading(s) or reading(s))
+        logger.info("هيكلُ الملكية: قُرئت {} من {} محاولةً · التغطيةُ {} شركة",
+                    fresh, done, covered)
+        lastgood.save("ownership:coverage",
+                      {"covered": covered, "last_batch": done, "ok": fresh})
+    except Exception as e:
+        logger.error(f"Ownership refresh failed: {e}")
+
+
 async def job_special_deals():
     """الصفقاتُ الخاصة — كلَّ ربع ساعةٍ في وقت التداول (D273).
 
@@ -445,6 +495,15 @@ def start_scheduler():
         CronTrigger(day_of_week=TRADING_DAYS, hour="9-16",
                     minute="*"),
         id="tadawul_snapshot",
+        replace_existing=True,
+    )
+
+    # هيكلُ الملكية — الجمعةَ فجراً: بطيءُ التغيّر (شهريّ)، والمتصفّحُ
+    # ثقيلٌ فلا يُشغَّل في وقت التداول.
+    _scheduler.add_job(
+        job_ownership,
+        CronTrigger(day_of_week="fri", hour=5, minute=0),
+        id="ownership_weekly",
         replace_existing=True,
     )
 

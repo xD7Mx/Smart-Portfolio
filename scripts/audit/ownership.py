@@ -188,5 +188,68 @@ check("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1" in dockerfile
       and "chromium" in dockerfile,
       "٥ب ولا يُنزَّل متصفّحٌ ثانٍ لمعنًى واحد — كروميومُ الصورة نفسُه")
 
+# ── ٦ · بطاقةٌ واحدةٌ تعرض ما قُرئ، والتطبيقُ يقيس نفسَه ────────────────
+# دُرتُ ثلاثَ جولاتِ مسبارٍ بلا ميزةٍ تصل المالك. فالقياسُ ينتقل إلى
+# التطبيق: وظيفةٌ أسبوعيةٌ تقرأ وتسجّل التغطيةَ في السجلّ.
+SCH = (ROOT / "backend" / "app" / "scheduler" / "scheduler.py").read_text(encoding="utf-8")
+check("job_ownership" in SCH and 'id="ownership_weekly"' in SCH,
+      "٦ القراءةُ مجدوَلةٌ — لا دالّةٌ لا يستدعيها أحد")
+check("ownership:coverage" in SCH,
+      "٦ب والتغطيةُ تُسجَّل فتُعرَف بلا مسبارٍ رابع")
+
+MK = (ROOT / "backend" / "app" / "api" / "v1" / "endpoints"
+      / "market.py").read_text(encoding="utf-8")
+check("from app.services.ownership import reading" in MK,
+      "٦ج والبابُ القائمُ يحمل القراءةَ — لا مسارٌ ثانٍ لمعنًى واحد")
+
+CARD = (ROOT / "frontend" / "src" / "components" / "analysis"
+        / "OwnershipBar.tsx").read_text(encoding="utf-8")
+check("major_holders" in CARD and CARD.count(">هيكل الملكية<") == 1,
+      "٦د والبطاقةُ واحدةٌ تُوسَّع — لا بطاقتان بالاسم نفسِه")
+check("rows.length === 0 && holders.length === 0" in CARD,
+      "٦ه ولا تُطوى البطاقةُ على أسماءٍ قُرئت لغياب النِّسَب المجمّعة")
+
+# ── ٧ · الرسميُّ أوّلاً — وهو المتوفّر أصلاً ─────────────────────────────
+# قال المالك: «هيكلُ الملكية متوفّرٌ على تداول… واعتبره دليلَ تخاذل». وهو
+# محقّ: كنتُ قد اكتشفتُ نداءاتِها بنفسي ثمّ ذهبتُ إلى «أرقام» وبنيتُ طبقةَ
+# متصفّحٍ ثقيلة، وقلتُ «غير متوفّر» عمّا هو متوفّر. فالترتيبُ يعود لموضعه.
+from app.services import tadawul_ownership as tow  # noqa: E402
+
+PAGE_TD = ('<base href="https://www.saudiexchange.sa/wps/portal/x/">'
+           '<a href="p0/z1abc=NJforeginOwnerShip=/">الملكية الأجنبية</a>'
+           '<a href="p0/z1abc=NJhistoricalBoardMembersWithDates=/">المجلس</a>'
+           '<a href="p0/z1abc=NJgetMainNomucMarketDetails=/">السوق</a>')
+names = sorted(set(tow._EP_RE.findall(PAGE_TD)))
+check(len(names) == 3,
+      "٧ أسماءُ النداءات تُقرأ من الصفحة لا تُثبَّت في الشيفرة", str(names))
+check(next(n for n in names if tow.KINDS["foreign"].search(n)) == "foreginOwnerShip"
+      and next(n for n in names if tow.KINDS["board"].search(n))
+      == "historicalBoardMembersWithDates",
+      "٧ب والبندُ يُعرَف باسم ندائه — فتغييرُ الاسم لا يُسكت الصفّ")
+check(not any(tow.KINDS["foreign"].search(n) or tow.KINDS["board"].search(n)
+              for n in ["getMainNomucMarketDetails"]),
+      "٧ج ونداءُ السوق لا يُقرأ ملكيةً لشركة")
+
+rows = tow.normalize([
+    {"shareholderName": "صندوق الاستثمارات العامة", "percentage": "37.5"},
+    {"memberName": "عضوٌ بلا نسبة"},
+    {"name": "نسبةٌ خارج المعقول", "percentage": 140},
+    {"nameAr": "عضو مجلس", "ownershipPercentage": 0.25, "position": "رئيس"},
+])
+check([r["name"] for r in rows] == ["صندوق الاستثمارات العامة", "عضو مجلس"]
+      and rows[0]["percent"] == 37.5 and rows[1].get("position") == "رئيس",
+      "٧د وصفٌّ بلا نسبةٍ معقولةٍ يُترك، والمنصبُ يُقرأ إن وُجد", str(rows))
+
+MK2 = (ROOT / "backend" / "app" / "api" / "v1" / "endpoints"
+       / "market.py").read_text(encoding="utf-8")
+i_t = MK2.index("tadawul_ownership import reading")
+i_a = MK2.index("ownership import reading as argaam_reading")
+check("tadawul_reading(sym), argaam_reading(sym)" in MK2,
+      "٧ه والبابُ يقرأ الرسميَّ أوّلاً ثمّ «أرقام» — بندًا بندًا")
+SCH2 = (ROOT / "backend" / "app" / "scheduler"
+        / "scheduler.py").read_text(encoding="utf-8")
+check(SCH2.index("t_refresh(sym)") < SCH2.index("await refresh(sym)"),
+      "٧و ولا يُفتح المتصفّحُ إلا لمن لم يُقرأ من الرسميّ")
+
 print(("FAIL" if fail else "PASS") + " D270 — هيكلُ الملكية بالمتصفّح")
 raise SystemExit(fail)

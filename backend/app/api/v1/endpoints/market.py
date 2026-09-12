@@ -364,9 +364,38 @@ async def get_company_dividends(symbol: str):
 
 @router.get("/ownership/{symbol}")
 async def get_company_ownership(symbol: str):
-    """Ownership structure (insiders / institutions / public float)."""
+    """هيكلُ الملكية — النِّسَبُ العامّة، ومعها كبارُ الملاك بأسمائهم (D276).
+
+    ══ بطاقةٌ واحدةٌ لا بطاقتان ══
+    البطاقةُ قائمةٌ منذ زمنٍ وتعرض ثلاثَ نسبٍ مجمّعة. وبناءُ بطاقةٍ ثانيةٍ
+    لكبار الملاك كان سيكرّر المعنى في شاشةٍ واحدة — وهو العطبُ الذي أطارده
+    في الأرقام، فلا أرتكبه في الشاشات. فتُضاف القراءةُ المفصَّلةُ إلى
+    الاستجابة نفسِها، وتظهر تحت الشريط إن وُجدت.
+
+    ولا جلبَ هنا: يُقرأ المحفوظُ من الجدولة فقط. وما لم يُقرأ يغيب.
+    """
     from app.services.market_data import market_service
-    data = await market_service.get_ownership(_normalize_symbol(symbol))
+    from app.services.ownership import reading as argaam_reading
+    from app.services.tadawul_ownership import reading as tadawul_reading
+
+    sym = _normalize_symbol(symbol)
+    data = await market_service.get_ownership(sym) or {}
+
+    # ══ تداول ← أرقام، بندًا بندًا ══ (D277)
+    # الرسميُّ يتقدّم، ولا يُلغي غيابُ بندٍ فيه قراءةَ الطبقة التالية لبندٍ
+    # آخر: المطابقةُ لكلّ بندٍ على حدة — وأوّلُ من نطق يملأه.
+    for rec in (tadawul_reading(sym), argaam_reading(sym)):
+        if not rec:
+            continue
+        for key in ("major_holders", "board", "foreign", "insider_deals",
+                    "estimates"):
+            if rec.get(key) and not data.get(key):
+                data[key] = rec[key]
+                data.setdefault("detail_sources", {})[key] = rec.get("source")
+        data.setdefault("detail_as_of", rec.get("as_of"))
+    if data.get("detail_sources"):
+        data["detail_source"] = " · ".join(
+            dict.fromkeys(data["detail_sources"].values()))
     return success_response(data=data)
 
 async def _portfolio_symbols(db: AsyncSession) -> list[str]:
