@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 # ─────────────────────────────────────────────────────────────────────────
-# D249 — مسبارُ المعدَّل الخالي من المخاطر بالريال، على الخادم حيث الشبكة.
+# D249 · D250 — مسبارُ المعدَّل الخالي من المخاطر، على الخادم حيث الشبكة.
 #
-# محرّكُ القيمة العادلة يرفض العملَ بمعدَّلٍ مفترَض، و`market_params.json`
-# يحمل القيمةَ فارغةً عمداً. فهذا المسبار يجلب سوقَ الصكوك من «تداول»
-# ويطبع **ما فُهم بنصّه**: الترويسة، وعددَ الصفوف، والمرشَّحاتِ السيادية
-# بأجلِها وعائدِها، والمختارَ ولماذا.
+# يقرأ سوقَ الصكوك من «تداول» (بعبور الحماية) ويطبع **ما فُهم بنصّه**:
+# عددَ الأدوات، والمرشَّحاتِ السياديةَ الثابتةَ بالريال بأجلِها وعائدِها
+# ومصدرِ العائد، والمختارَ ولماذا.
 #
 #   docker exec sp_backend python /app/scripts/audit/risk_free_probe.py
 #   docker exec sp_backend python /app/scripts/audit/risk_free_probe.py --apply
 #
-# بلا `--apply` لا يُكتب شيء: البنيةُ تُرى أوّلاً ثمّ يُعتمد الرقم.
-# ولا يُعدّل ملفَّ المعايير — القراءةُ تُحفَظ في مخزن الحالة بتاريخها.
+# بلا `--apply` لا يُكتب شيء. ولا يُعدَّل ملفُّ المعايير — القراءةُ تُحفَظ
+# في مخزن الحالة بتاريخها وعمرِها الأقصى.
 # ─────────────────────────────────────────────────────────────────────────
 from __future__ import annotations
 
@@ -27,49 +26,41 @@ APPLY = "--apply" in sys.argv
 
 async def main() -> int:
     from app.services import risk_free as rf
-    from app.services.tadawul_announcements import _raw_fetch
 
     sanity = rf._sanity_from_config()
-    print(f"نطاقُ المعقولية من ملفّ المعايير: {sanity}")
-    print(f"الأجلُ المستهدَف: {rf.TARGET_YEARS} سنة · النطاق {rf.TENOR_BAND}\n")
+    print(f"نطاقُ المعقولية: {sanity} · الأجلُ المستهدَف {rf.TARGET_YEARS} "
+          f"سنة ضمن {rf.TENOR_BAND}\n")
 
-    ok = False
-    for url in rf.SOURCES:
-        print(f"── {url}")
-        try:
-            status, body = await _raw_fetch(url)
-        except Exception as e:                                    # noqa: BLE001
-            print(f"   ✖ {type(e).__name__}: {e}\n")
-            continue
-        print(f"   ‏HTTP {status} · {len(body)} حرفاً")
-        if status != 200:
-            print()
-            continue
-        rows, why = rf.parse_instruments(body)
-        if why:
-            print(f"   ✖ {why}\n")
-            continue
-        print(f"   فُهم {len(rows)} صفّاً · الحقولُ المرصودة: "
-              f"{sorted({k for r in rows for k in r})}")
-        for r in rows[:5]:
-            print(f"     · {r}")
-        best, why = rf.choose(rows, sanity=sanity)
-        if best is None:
-            print(f"   ✖ امتناع: {why}\n")
-            continue
-        print(f"   ✔ المختار: {best['name']} · أجل {best['tenor_years']} سنة"
-              f" · استحقاق {best['maturity']}"
-              f" · عائد {best['value'] * 100:.3f}٪ ({best['basis']})"
-              f" · مرشَّحات {best['peers']}\n")
-        ok = True
-        break
-
-    if not ok:
-        print("لم يُقرأ المعدَّل — والمحرّكُ يبقى ممتنعاً، وهذا صوابٌ لا عطب.")
+    rows, why = await rf.fetch_instruments()
+    if why:
+        print(f"✖ تعذّر: {why}")
+        print("المحرّكُ يبقى ممتنعاً — وهذا صوابٌ لا عطب.")
         return 1
+    print(f"أدواتُ سوق الصكوك: {len(rows)}")
+
+    cands = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        one, _ = rf.choose([r])
+        if one:
+            cands.append(one)
+    cands.sort(key=lambda c: c["tenor_years"])
+    print(f"المرشَّحاتُ السياديةُ الثابتةُ بالريال داخلَ النطاق: {len(cands)}")
+    for c in cands:
+        print(f"   · {c['symbol']:<6} {c['maturity']} · أجل {c['tenor_years']:>5} سنة"
+              f" · عائد {c['value'] * 100:.3f}٪ ({c['basis']}) · {c['name'][:40]}")
+
+    best, why = rf.choose(rows)
+    if best is None:
+        print(f"\n✖ امتناع: {why}")
+        return 1
+    print(f"\n✔ المختار: {best['symbol']} · {best['name']}"
+          f" · أجل {best['tenor_years']} سنة · استحقاق {best['maturity']}"
+          f" · عائد {best['value'] * 100:.3f}٪ ({best['basis']})")
 
     if not APPLY:
-        print("لم يُكتب شيء. للاعتماد: أعد التشغيل بـ‎ --apply")
+        print("\nلم يُكتب شيء. للاعتماد: أعد التشغيل بـ‎ --apply")
         return 0
 
     rec = await rf.refresh()
@@ -77,11 +68,11 @@ async def main() -> int:
         print(f"✖ الكتابةُ تعذّرت: {rec.get('error')}")
         return 1
     print(f"✔ حُفظ: {rec}")
-    back = rf.reading()
-    print(f"✔ يُقرأ من المخزن: {back and back.get('value')}")
+    print(f"✔ يُقرأ من المخزن: {(rf.reading() or {}).get('value')}")
     from app.services.fair_value_engine.params import load_params
     p = load_params(allow_unverified=True, allow_stale=True)
-    print(f"✔ يراه المحرّك: rf={p.risk_free} · الأثر {p.provenance()}")
+    print(f"✔ يراه المحرّك: rf={p.risk_free}")
+    print(f"✔ الأثر: {p.provenance()}")
     return 0
 
 

@@ -59,8 +59,20 @@ async def _tiny(url):
     return 200, html
 
 
+# ══ يُموَّه المَعبرُ لا العميلُ القديم ══ (بعد D250)
+# كانت المزامنةُ تجلب بعميل «الإعلانات»، فكان التمويهُ هناك. وقد صارت
+# تجلب من `tadawul_http.fetch` — فبقي التمويهُ على المهجور، وخرج الفحصُ
+# إلى الإنترنت فقاس حالةَ البروكسي لا قاعدةَ الرفض. فيُموَّه المَعبر.
 import app.services.tadawul_announcements as _ann  # noqa: E402
+import app.services.tadawul_http as _th  # noqa: E402
+
+
+async def _tiny_gw(url, **kw):
+    return 200, html
+
+
 _ann._raw_fetch = _tiny                                          # type: ignore[assignment]
+_th.fetch = _tiny_gw                                             # type: ignore[assignment]
 
 
 async def _no_argaam():

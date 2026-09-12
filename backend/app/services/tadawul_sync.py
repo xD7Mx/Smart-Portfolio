@@ -174,7 +174,11 @@ async def new_listings_from_announcements() -> dict[str, dict]:
 
 async def fetch_listed() -> tuple[dict[str, dict], str | None]:
     """قائمةُ المدرَجين — «تداول» أوّلاً ثم «أرقام» — أو (فارغ، سببُ التعذّر)."""
-    from app.services.tadawul_announcements import _raw_fetch
+    # ══ المَعبرُ الواحد بدل العميل المحجوب ══ (D250)
+    # كان الجلبُ هنا يُردّ ‎403 فبُني بديلٌ من «أرقام». والحجبُ كان ببصمة
+    # TLS لا بالرؤوس — فبانتحال بصمة كروم تُقرأ صفحاتُ «تداول» نفسُها،
+    # ويبقى «أرقام» مسارَ احتياطٍ لا مصدراً أوّل.
+    from app.services.tadawul_http import fetch as _raw_fetch
     last = None
     for url in SOURCES:
         try:
