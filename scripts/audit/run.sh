@@ -245,6 +245,14 @@ python3 scripts/audit/dcf_serve.py || fail=1
 echo
 python3 scripts/audit/tadawul_xbrl.py || fail=1
 
+# D270: هيكلُ الملكية بالمتصفّح — أربعةُ بنودٍ مرسومةٍ بجافاسكربت لا يبلغها
+# انتحالُ البصمة. الروابطُ تُكتشَف بأسمائها لا تُحفَظ، وما لم يُفهَم يغيب.
+# والقياسُ على الخادم حيث يُفتح «أرقام» فعلاً:
+#   docker exec sp_backend python /app/scripts/audit/ownership_probe.py 1010
+#   docker exec sp_backend python /app/scripts/audit/ownership_probe.py --market 15 --apply
+echo
+python3 scripts/audit/ownership.py || fail=1
+
 # D260: اللحظيةُ زمنٌ لا لون — ميزانيةُ طزاجةٍ مقيسةٌ لكلّ حلقةٍ في
 # سلسلة التأخير، وعلاقةُ الحلقات ببعضها (عمرٌ مقبولٌ ≥ دورةِ تجديد).
 echo

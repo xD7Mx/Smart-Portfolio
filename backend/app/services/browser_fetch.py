@@ -33,6 +33,26 @@ class BrowserUnavailable(RuntimeError):
     """المتصفّحُ غيرُ مركَّب — حالةٌ معلَنةٌ لا انهيار."""
 
 
+def _launch_kwargs() -> dict:
+    """كروميومُ الصورة نفسُه — لا نسخةٌ ثانيةٌ تُنزَّل (D269).
+
+    الصورةُ تحمل `chromium` من apt أصلاً (يطبع تقريرَ صقر PDF). ولو تُركت
+    بلاي‌رايت تُنزّل متصفّحَها لصار في الصورة **متصفّحان** لمعنًى واحد:
+    زيادةٌ قرابةَ 400MB، ونسختان تشيخان على حِدَة، وعطبٌ يظهر في إحداهما
+    دون الأخرى. فيُمرَّر مسارُ الموجود، ويبقى تنزيلُ بلاي‌رايت مطفأً.
+    وإن غاب المسارُ تُترك بلاي‌رايت تختار — وغيابُهما معاً `BrowserUnavailable`.
+    """
+    kw: dict = {"args": ["--no-sandbox", "--disable-dev-shm-usage"]}
+    try:
+        from app.services.saqr_report import chrome_path
+        p = chrome_path()
+    except Exception:                                             # noqa: BLE001
+        p = None
+    if p:
+        kw["executable_path"] = p
+    return kw
+
+
 async def render(urls: list[str], *, wait_selector: str | None = None,
                  settle_ms: int = SETTLE_MS) -> dict[str, str]:
     """يفتح الصفحاتِ واحدةً واحدةً ويعيد HTML بعد تنفيذ سكربتها.
@@ -52,8 +72,7 @@ async def render(urls: list[str], *, wait_selector: str | None = None,
     try:
         pw = await async_playwright().start()
         try:
-            browser = await pw.chromium.launch(args=["--no-sandbox",
-                                                     "--disable-dev-shm-usage"])
+            browser = await pw.chromium.launch(**_launch_kwargs())
         except Exception as e:                                    # noqa: BLE001
             raise BrowserUnavailable(f"تعذّر تشغيل كروميوم: {e}") from e
         ctx = await browser.new_context(
@@ -100,7 +119,7 @@ async def available() -> tuple[bool, str]:
     pw = None
     try:
         pw = await async_playwright().start()
-        b = await pw.chromium.launch(args=["--no-sandbox"])
+        b = await pw.chromium.launch(**_launch_kwargs())
         await b.close()
         return True, "متاح"
     except Exception as e:                                        # noqa: BLE001
