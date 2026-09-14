@@ -97,12 +97,33 @@ async def main() -> int:
         for d in rows2[:6]:
             print("     " + str(d))
         if not rows2:
-            # الشكلُ يُطبع كي يُبنى القارئُ على ما ورد لا على ترجيح
-            blocks = re.findall(r"<tr[^>]*>(.*?)</tr>", body, re.S | re.I)[:4]
-            line("صفوفُ <tr> في الصفحة", len(re.findall(r"<tr", body, re.I)))
-            for b in blocks:
-                txt = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", b)).strip()
-                print("     صفّ: " + txt[:110])
+            # ══ صفرُ جداولَ في 494 ألفَ حرف ⇒ الصفوفُ من نداءٍ آخر ══
+            # القياسُ الأوّلُ اختلق ثلاثَ «صفقات» من قائمة التنقّل (D293)،
+            # فحُرز القارئ. والآن يُبحَث عن **مصدر الصفوف الحقيقيّ**:
+            # نداءاتُ الصفحة نفسِها بأنماطها. فيُبنى القارئُ على ما ورد.
+            line("صفوفُ <tr>", len(re.findall(r"<tr", body, re.I)))
+            print("     نداءاتٌ مرشَّحةٌ في الصفحة:")
+            pats = (r'url\s*:\s*[\x27"]([^\x27"]{8,140})',
+                    r'data-url="([^"]{8,140})"',
+                    r'\$\.(?:get|post|ajax)\(\s*[\x27"]([^\x27"]{8,140})',
+                    r'"(/ar/[A-Za-z0-9/_\-]{6,90}(?:json|data|partial|list|deals)[A-Za-z0-9/_\-]*)"',
+                    r'(/ar/[A-Za-z]+/[A-Za-z]*[Dd]eal[A-Za-z]*[^"\x27 ]{0,60})')
+            seen = []
+            for pat in pats:
+                for h in re.findall(pat, body):
+                    if h not in seen and not h.lower().endswith((".js", ".css",
+                                                                 ".png", ".jpg",
+                                                                 ".svg", ".woff2")):
+                        seen.append(h)
+            for h in seen[:16]:
+                print("       " + h[:120])
+            if not seen:
+                print("       — لا نداءَ مطابقاً؛ فالصفوفُ تُرسَم بسكربتٍ مغلَّف")
+            # وسياقُ الكلمة الدالّة: أين تقع «الصفقات الخاصة» في الصفحة
+            i = body.find("الصفقات الخاصة")
+            if i > 0:
+                ctx = re.sub(r"\s+", " ", body[i:i + 400])
+                print("     سياقُ «الصفقات الخاصة»: " + ctx[:180])
     if apply:
         print("\n" + str(await sd.refresh()))
     print(f"\nقِيس في {dt.datetime.now():%Y-%m-%d %H:%M}\n")

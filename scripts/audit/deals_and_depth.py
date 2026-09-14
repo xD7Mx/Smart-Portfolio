@@ -177,8 +177,10 @@ check([d["symbol"] for d in got] == ["1010", "2010"]
 check(got[0].get("at") == "2026-09-10" and got[0].get("name") == "بنك الرياض",
       "٨ب والتاريخُ والاسمُ يُقرآن إن وُجدا", str(got[0])[:90])
 
+# وصفُّ الحاويات يحمل تاريخاً كما يحمله صفُّ صفقةٍ حقيقيّ — والشرطُ
+# أُضيف في D293 بعد أن اختُلقت صفقاتٌ من كتلٍ بلا تاريخ.
 DIV = """<div class="row"><span>1120</span><span>الراجحي</span>
-   <span>96.40</span><span>1,250,000</span></div>
+   <span>96.40</span><span>1,250,000</span><span>2026-09-11</span></div>
  <div class="nav"><span>القطاع</span><span>البنوك</span></div>"""
 gd = sd.rows_from_html(DIV)
 check(len(gd) == 1 and gd[0]["symbol"] == "1120" and gd[0]["quantity"] == 1_250_000,
@@ -273,6 +275,33 @@ _HTTP = (ROOT / "backend" / "app" / "services"
          / "tadawul_http.py").read_text(encoding="utf-8")
 check("async def smart_fetch" in _HTTP and _HTTP.count("_IMPERSONATE") >= 2,
       "١١ب والانتحالُ منتِجٌ واحدٌ عامٌّ — لا نسخةٌ لكلّ مصدر")
+
+# ── ١٢ · لا اختلاقَ صفقةٍ من قائمة تنقّل ────────────────────────────────
+# قِيس على الخادم: عاد القارئُ بثلاث «صفقات» — «الدخول» (زرُّ الدخول)
+# و«الإعلام والترفيه» و«الطاقة» (قطاعات)، برموزٍ 7759 و9615 لا وجودَ لها
+# في تاسي. واختلاقٌ يُقرأ قراراً أسوأُ من فراغٍ يُقال (D293).
+JUNK = """<div class="menu"><span>الدخول</span><span>7759</span>
+   <span>966.00</span><span>92,000</span></div>
+ <div class="sec"><span>الإعلام والترفيه</span><span>9615</span>
+   <span>9642</span><span>9521</span></div>
+ <div class="sec"><span>الطاقة</span><span>2222</span><span>2030</span>
+   <span>2380</span></div>"""
+check(sd.rows_from_html(JUNK) == [],
+      "١٢ كتلُ التنقّل لا تُقرأ صفقاتٍ — الاختلاقُ أسوأُ من الفراغ",
+      str(sd.rows_from_html(JUNK))[:80])
+check(sd.rows_from_html(TBL) and sd.rows_from_html(TBL)[0]["symbol"] == "1010",
+      "١٢ب والجدولُ الحقيقيُّ ما زال يُقرأ — لم يُقتل القارئُ بالحراسة")
+_RS = (ROOT / "backend" / "app" / "services"
+       / "special_deals.py").read_text(encoding="utf-8")
+check("_known_symbols" in _RS and "KNOWN and m.group(1) not in KNOWN" in _RS,
+      "١٢ج والرمزُ يُطابَق برموز السوق — لا أيُّ أربعةِ أرقام")
+check("_DATE.search(joined)" in _RS,
+      "١٢د وصفقةٌ بلا تاريخٍ ليست صفقة")
+check("NAV.search(joined)" in _RS,
+      "١٢ه وكلماتُ الواجهة تُستبعَد بأسمائها")
+_no_date = TBL.replace("<td>2026-09-10</td>", "<td></td>")
+check(all(d["symbol"] != "1010" for d in sd.rows_from_html(_no_date)),
+      "١٢و وصفٌّ فقد تاريخَه يسقط — الشرطُ يعمل لا يُكتَب")
 
 print(("FAIL" if fail else "PASS") + " D272 · D273 — العمقُ يُعرَض، والصفقاتُ الخاصة تُبنى")
 raise SystemExit(fail)

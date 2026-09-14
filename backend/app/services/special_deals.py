@@ -204,6 +204,16 @@ def _cells(block: str) -> list[str]:
     return [t for t in (_text(x) for x in parts) if t]
 
 
+def _known_symbols() -> set:
+    """رموزُ السوق الرئيسة — حاكمٌ يمنع اختلاق رمزٍ لا وجودَ له (D293)."""
+    try:
+        from app.data.market_universe import MARKET_UNIVERSE
+        from app.data.universe import main_market
+        return {str(s).replace(".SR", "") for s in main_market(MARKET_UNIVERSE)}
+    except Exception:                                             # noqa: BLE001
+        return set()
+
+
 def rows_from_html(html: str) -> list[dict]:
     """صفقاتٌ من صفحة «أرقام» — جدولاً كانت أو حاويات (D281).
 
@@ -217,6 +227,21 @@ def rows_from_html(html: str) -> list[dict]:
     """
     from app.services.ownership import blocks
 
+    # ══ اختلاقٌ كشفه القياسُ ══ (D293)
+    # عاد القارئُ بثلاث «صفقات» من صفحة «أرقام»: «الدخول» (زرُّ تسجيل
+    # الدخول!) و«الإعلام والترفيه» و«الطاقة» (أسماءُ قطاعات)، برموزٍ
+    # 7759 و9615 **لا وجودَ لها في تاسي**. أي أن قارئَ الحاويات التقط
+    # أرقامَ قائمةِ التنقّل وسمّاها صفقات. وهذا أسوأُ من الفراغ: فراغٌ
+    # يُقال «لا صفقات»، واختلاقٌ يُقرأ قراراً.
+    #
+    # فأربعةُ حرّاسٍ لا يُقبل صفٌّ بدونها:
+    #   · **الرمزُ من رموز السوق الرئيسة** — لا أيُّ أربعةِ أرقام
+    #   · **وتاريخٌ في الصفّ** — الصفقةُ حدثٌ مؤرَّخٌ لا رقمان
+    #   · **والسعرُ في حدّ المعقول** (≤ 1000 ﷼ في تاسي)
+    #   · **والاسمُ ليس كلمةَ واجهة** (دخول · اشترك · قطاع …)
+    KNOWN = _known_symbols()
+    NAV = re.compile(r"الدخول|اشترك|تسجيل|القطاع|قطاعات|الرئيسية|المزيد|"
+                     r"بحث|تنبيه|حسابي|جميع الحقوق")
     out: list[dict] = []
     seen: set[tuple] = set()
     src = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html or "",
@@ -231,6 +256,12 @@ def rows_from_html(html: str) -> list[dict]:
         m = _SYM.search(joined)
         if not m:
             continue
+        if KNOWN and m.group(1) not in KNOWN:
+            continue                      # رمزٌ ليس في السوق ليس شركة
+        if NAV.search(joined):
+            continue                      # كتلةُ واجهةٍ لا صفَّ صفقة
+        if not _DATE.search(joined):
+            continue                      # صفقةٌ بلا تاريخٍ ليست صفقة
         # ══ التاريخُ ليس كمّية ══
         # «2026-09-11» أعطت كمّيةً قدرُها 2026 في أوّل قياس. فتُنزَع
         # التواريخُ من النصّ قبل استخراج الأرقام — والتاريخُ يُقرأ وحدَه.
@@ -247,9 +278,10 @@ def rows_from_html(html: str) -> list[dict]:
         sym_val = float(m.group(1))
         pool = [v for v in nums if v != sym_val]
         # السعرُ يُفضَّل كسريّاً: الصفقةُ تُنفَّذ بسعرٍ ذي هللات.
-        price = next((v for v in pool if 0.1 <= v <= 10_000 and v != int(v)), None)
+        # وسقفُ السعر في تاسي ألفُ ريالٍ عملياً — وما فوقه رقمُ قائمةٍ لا سعر.
+        price = next((v for v in pool if 0.1 <= v <= 1_000 and v != int(v)), None)
         if price is None:
-            price = next((v for v in pool if 0.1 <= v <= 10_000), None)
+            price = next((v for v in pool if 0.1 <= v <= 1_000), None)
         qty = next((v for v in pool if v >= 100 and v == int(v) and v != price), None)
         if price is None or qty is None:
             continue
