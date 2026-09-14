@@ -2,6 +2,7 @@ import FlashPrice from "./FlashPrice";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveInterval } from "../../hooks/useMarketLive";
+import { useLiveQuote, useLiveStreamOn } from "../../hooks/useLivePrices";
 import { marketApi, settingsApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 // أيقونة اللسان هي أيقونة شريط الأخبار نفسها (`Radio` — موجاتُ بثّ). كانت
@@ -28,7 +29,11 @@ export default function MarketTicker() {
   /* نبضُ الشريط يتبع طورَ السوق (D288): كان خمسَ دقائقَ دائماً — وهي
      دهرٌ في جلسةٍ لقطتُها كلَّ دقيقة. والطورُ من الخادم لا من ساعة الجهاز،
      وباستعلامٍ واحدٍ مشترَك. */
-  const liveMs = useLiveInterval();
+  const pollMs = useLiveInterval();
+  /* والدفعُ حين يعمل يُغني عن السؤال: يبقى استعلامٌ بطيءٌ للأسماء والأخبار
+     وسِترةً إن انقطع المجرى (D290). */
+  const streamOn = useLiveStreamOn();
+  const liveMs = streamOn ? 60_000 : pollMs;
 
   const { data: overview } = useQuery({
     queryKey: ["market-overview"],
@@ -221,10 +226,19 @@ export default function MarketTicker() {
           </a>
         );
       }
-      const c = Number(r.change_pct);
+      return <TickerQuote key={`${k}-${r.symbol}-${i}`} row={r} />;
+    });
+
+  /* صفُّ شركةٍ واحد — يقرأ سعرَه من **المجرى** إن وصل، ومن الاستعلام
+     وإلا. ومكوّنٌ مستقلٌّ لأن الاشتراكَ بالرمز: لا يُعاد رسمُ الشريط
+     كلِّه لأن سهماً واحداً تحرّك (D290). */
+  function TickerQuote({ row: r }: { row: any }) {
+    const live = useLiveQuote(r.symbol);
+    const price = live?.p ?? r.price;
+    const c = Number(live?.c ?? r.change_pct);
       const dir = c > 0 ? "up" : c < 0 ? "dn" : "fl";
       return (
-        <span className="mk-item" key={`${k}-${r.symbol}-${i}`}>
+        <span className="mk-item">
           {/* السهم انتقل من صدر العنصر إلى **بين السعر ونسبته** (بأمر
               المالك): موضعه هناك يفصل الكمّية عن تغيّرها، وكان في الصدر
               يصف العنصر كلَّه فيُقرأ وسماً للشركة لا للحركة. */}
@@ -234,9 +248,9 @@ export default function MarketTicker() {
               قبل أن أكتب فوجدتُ المكوّنَ قائماً (‏FlashPrice) يعمل في
               المحفظة وصفحة السهم — فبناءُ ثانٍ مثله هو عينُ العطب الذي
               نطارده: مُنتِجان لمعنًى واحد. فيُستدعى القائم. */}
-          {r.price != null && (
-            <FlashPrice value={r.price} className="mk-price"
-                        style={{ color: tone(c) }}>{num(r.price)}</FlashPrice>
+          {price != null && (
+            <FlashPrice value={price} className="mk-price"
+                        style={{ color: tone(c) }}>{num(price)}</FlashPrice>
           )}
           <TrendArrow dir={dir as any} size={10}
             color={dir === "fl" ? "var(--flat-arrow)" : tone(c)} />
@@ -245,7 +259,7 @@ export default function MarketTicker() {
           </span>
         </span>
       );
-    });
+  }
 
   return (
     <div className="mk-ticker">

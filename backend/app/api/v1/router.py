@@ -19,6 +19,8 @@ api_router.include_router(health.router, prefix="/health", tags=["Health"])
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
 # قراءة الملف الشخصي والصورة عامّة (لشاشة القفل قبل الدخول)
 api_router.include_router(settings.public_router, prefix="/settings", tags=["Settings"])
+# بثُّ الأسعار المباشر: عامٌّ بلا مصادقة، ولا يحمل بياناتَ محفظة (D290).
+api_router.include_router(market.public_router, prefix="/market", tags=["Market"])
 
 # Everything else requires a valid session token — this app has no
 # per-user accounts, just one shared owner password gating the whole API

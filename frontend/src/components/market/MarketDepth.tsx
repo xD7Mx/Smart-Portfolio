@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { marketApi } from "../../services/api";
 import FlashPrice from "../common/FlashPrice";
+import { useLiveQuote, useLiveStreamOn } from "../../hooks/useLivePrices";
 
 const fmt = (n: number, d = 2) =>
   n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -20,11 +21,15 @@ const qty = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 
 type Level = { price: number; quantity: number };
 
 export default function MarketDepth({ symbol }: { symbol: string }) {
+  /* العمقُ يُسأل، والسعرُ يُدفَع: الطرفان (طلبٌ وعرض) في مسار العمق،
+     والسعرُ الأخيرُ من المجرى — فيتحرّك بلا انتظار (D290). And while the
+     stream is on, the poll slows down: لا سؤالَ عمّا يُدفَع. */
+  const streamOn = useLiveStreamOn();
   const { data } = useQuery({
     queryKey: ["depth", symbol],
     queryFn: () => marketApi.depth(symbol).then(r => r.data.data),
-    refetchInterval: 20_000,          // زمنُ اللقطة نفسُه — لا أسرعَ بلا داعٍ
-    staleTime: 10_000,
+    refetchInterval: streamOn ? 15_000 : 5_000,
+    staleTime: 2_000,
   });
 
   const bids: Level[] = data?.bids ?? [];

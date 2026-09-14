@@ -10,6 +10,8 @@ from app.core.auth import require_owner
 from app.models.market import MarketNews, MarketEvent, Watchlist, WatchlistGroup
 
 router = APIRouter()
+# مسارٌ عامٌّ للبثّ المباشر وحدَه (‏EventSource لا يُرسل رؤوساً · D290).
+public_router = APIRouter()
 
 
 def _normalize_symbol(symbol: str) -> str:
@@ -1860,3 +1862,22 @@ async def get_special_deals(symbol: str | None = None):
         data={"deals": deals, "as_of": rec.get("at"), "available": True,
               "count": len(deals), "source": "تداول — الصفقات الخاصة"},
         message="الصفقاتُ الخاصة.")
+
+# ══ بثُّ الأسعار المباشر — دفعٌ لا سؤال ══ (D290)
+@public_router.get("/stream")
+async def market_stream():
+    """مجرى أحداثٍ (SSE) يدفع كلَّ سعرٍ يتغيّر لحظةَ وصوله.
+
+    **عامٌّ بلا مصادقة** وهذا مقصود: `EventSource` في المتصفّح لا يُرسل
+    رؤوساً، وأسعارُ السوق ليست بيانات المالك — ولا يُبثّ منها حرفٌ يخصّ
+    المحفظة. ولو رُبط بمصادقةٍ لوجب تمريرُ الرمز في العنوان، وذاك تسريبٌ
+    للرمز في السجلّات لا حراسةٌ له.
+    """
+    from fastapi.responses import StreamingResponse
+
+    from app.services.live_stream import stream
+    return StreamingResponse(
+        stream(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache, no-transform",
+                 "Connection": "keep-alive",
+                 "X-Accel-Buffering": "no"})     # لا تخزينَ وسيطاً في nginx

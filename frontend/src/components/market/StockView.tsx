@@ -6,6 +6,7 @@ import { lookupCompany } from "../../data/saudiCompanies";
 import { isTasiOpen } from "../../utils/marketHours";
 import FlashPrice from "../common/FlashPrice";
 import MarketDepth from "./MarketDepth";
+import { useLiveQuote } from "../../hooks/useLivePrices";
 import CompanyLogo from "../common/CompanyLogo";
 import KeyFigures from "../common/KeyFigures";
 import { ShariaBadge } from "../common/UI";
@@ -95,6 +96,8 @@ const TABS = [
 
 export default function StockView({ symbol, onClose }: { symbol: string; onClose?: () => void }) {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("overview");
+  /* سعرُ الورقة من المجرى إن وصل — صفرُ تأخيرٍ (D290). */
+  const live = useLiveQuote(symbol);
 
   const { data, isLoading } = useQuery({
     queryKey: ["analysis", symbol],
@@ -188,7 +191,10 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
             <div className="space-y-3 min-w-0">
               {data.price != null && (
                 <div className="flex items-baseline gap-3">
-                  <FlashPrice value={data.price} className="text-2xl font-bold text-[var(--ink)] tabular-nums">{fmt(data.price)} ﷼</FlashPrice>
+                  <FlashPrice value={live?.p ?? data.price}
+                              className="text-2xl font-bold text-[var(--ink)] tabular-nums">
+                    {fmt(live?.p ?? data.price)} ﷼
+                  </FlashPrice>
                   {data.change_pct != null && (
                     /* سهم + رقم، بلا كبسولة — الاتجاه يُقرأ من الشكل واللون معاً. */
                     <span className={"text-sm font-bold tabular-nums " + (up ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]")}>
