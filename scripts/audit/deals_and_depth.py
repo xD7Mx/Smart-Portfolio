@@ -229,8 +229,18 @@ check("/market/special-deals" in API2 and "marketApi.specialDeals(" in SD,
 HK = (ROOT / "frontend" / "src" / "hooks" / "useMarketLive.ts").read_text(encoding="utf-8")
 check('queryKey: ["server-time"]' in HK,
       "٩ز والطورُ باستعلامٍ واحدٍ مشترَك — لا نداءان لحقيقةٍ واحدة")
-check("open: 15_000" in HK and "closed: 10 * 60_000" in HK,
-      "٩ح والنبضُ أسرعُ في الجلسة وأبطأُ في الإغلاق")
+# العلاقةُ تُقاس لا الرقمُ: الأرقامُ تُضبَط (‏15ث ← 3ث في D289) والقاعدةُ
+# ثابتة — الجلسةُ أسرعُ من قبل الافتتاح، وهو أسرعُ من الإغلاق.
+_ms = dict(_re.findall(r"(open|preclose|pre|closed):\s*([\d_*\s]+),", HK))
+
+
+def _val(k: str) -> float:
+    return eval(_ms[k].replace("_", ""))       # noqa: S307 — تعبيرٌ من ملفّنا
+
+
+check(_val("open") < _val("pre") < _val("closed"),
+      "٩ح والنبضُ أسرعُ في الجلسة وأبطأُ في الإغلاق",
+      f"جلسة {_val('open'):.0f} · قبل {_val('pre'):.0f} · مغلق {_val('closed'):.0f}")
 TK = (ROOT / "frontend" / "src" / "components" / "common"
       / "MarketTicker.tsx").read_text(encoding="utf-8")
 check("refetchInterval: liveMs" in TK and "refetchInterval: liveMs" in MP,

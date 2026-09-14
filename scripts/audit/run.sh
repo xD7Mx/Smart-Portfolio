@@ -284,6 +284,11 @@ python3 scripts/audit/market_phase_one.py || fail=1
 echo
 python3 scripts/audit/fetch_method_doc.py || fail=1
 
+# D289: لحظيةٌ في المصدر لا في الشاشة — طزاجةٌ عند الطلب بنداءٍ واحدٍ في
+# الطريق، ولا إيقاظَ والسوقُ مغلق، ولا حبسَ للشاشة في انتظار الشبكة.
+echo
+python3 scripts/audit/live_now.py || fail=1
+
 # D260: اللحظيةُ زمنٌ لا لون — ميزانيةُ طزاجةٍ مقيسةٌ لكلّ حلقةٍ في
 # سلسلة التأخير، وعلاقةُ الحلقات ببعضها (عمرٌ مقبولٌ ≥ دورةِ تجديد).
 echo

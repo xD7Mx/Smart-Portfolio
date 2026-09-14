@@ -438,6 +438,12 @@ async def market_overview(db: AsyncSession = Depends(get_db)):
     weekly foreign-investor net flow (CMA only publishes this weekly, never
     live — see fetch_weekly_foreign_flow)."""
     import asyncio as _aio
+
+    # ══ اللحظيةُ تبدأ من هنا ══ (D289)
+    # هذا أكثرُ المسارات نداءً (اللسانُ وشاشةُ السوق)، فهو موضعُ إيقاظ
+    # اللقطة: تُجدَّد إن شاخت أكثرَ من خمس ثوانٍ، ولا يُنتظَر التجديد.
+    from app.services.tadawul_market import ensure_fresh as _ensure
+    _ensure()
     from app.services.market_data import market_service
     from app.services.news_fetcher import fetch_weekly_foreign_flow
     tasi, brent, flow = await _aio.gather(
@@ -1797,8 +1803,9 @@ async def get_market_depth(symbol: str):
         مرخَّصةٌ لا تُوعَد قبل أن تُملَك.
       · **ولا يُملأ ناقصٌ**: طرفٌ بلا سعرٍ أو كمّيةٍ يغيب ولا يُصفَّر.
     """
-    from app.services.tadawul_market import row_for, usable_rows
+    from app.services.tadawul_market import ensure_fresh, row_for, usable_rows
 
+    ensure_fresh()                      # لحظيةٌ عند الطلب، بلا انتظار (D289)
     _rows, _live, _at = usable_rows()
     row = row_for(symbol)
     if not row:

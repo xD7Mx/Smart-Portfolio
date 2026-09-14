@@ -23,6 +23,8 @@
 """
 from __future__ import annotations
 
+import asyncio
+
 import json
 import re
 from datetime import datetime, timezone
@@ -177,6 +179,82 @@ def snapshot() -> dict[str, dict]:
     return rows if isinstance(rows, dict) else {}
 
 
+# ══ اللحظيةُ الحقيقيةُ في المصدر لا في الشاشة ══ (D289)
+# قال المالك: «لا أقبل بتأخير 15 ثانية، أريد أسعاراً لحظيةً فورية».
+# والحدُّ لم يكن في الشاشة: النبضُ كان ‎15 ثانيةً، لكنّ **اللقطةَ نفسَها
+# مجدوَلةٌ كلَّ دقيقة** — فالتأخيرُ الحقيقيُّ دقيقةٌ كاملةٌ في أسوأ الحال،
+# والشاشةُ تسأل أربعَ مرّاتٍ عن الرقم نفسِه.
+#
+# والجدولةُ وحدَها لا تحلّها: دقيقةٌ سقفُها الطبيعيّ. فتُضاف **طزاجةٌ عند
+# الطلب**: كلُّ نداءٍ يخصّ السعر يوقظ تجديداً إن شاخت اللقطةُ أكثرَ من
+# `LIVE_TTL`، ثمّ **يعود فوراً بما عنده** — لا يحبس الشاشةَ في انتظار
+# الشبكة. فالمُشاهدُ يرى الرقمَ الحاضرَ الآن، والذي بعده أحدثُ منه.
+#
+# وثلاثةُ قيودٍ تمنع ضغطاً على المصدر:
+#   ١· **نداءٌ واحدٌ في الطريق** (‏single-flight): مئةُ طلبٍ متوازٍ توقظ
+#      تجديداً واحداً لا مئة — وهذا هو الفرقُ بين لحظيةٍ وإغراقٍ.
+#   ٢· **في الجلسة فقط**: السوقُ مغلقٌ ⇒ لا تجديدَ عند الطلب أصلاً.
+#   ٣· **حدٌّ أدنى بين تجديدين** حتى لو تدفّقت الطلبات.
+LIVE_TTL = 5                 # ثوانٍ: أقصى شيخوخةٍ مقبولةٍ داخل الجلسة
+_inflight: "asyncio.Task | None" = None
+_last_kick = 0.0
+
+
+def age_seconds() -> float | None:
+    """عمرُ اللقطة بالثواني — أو None إن غابت."""
+    from app.services import cache
+    rec = cache.get(STORE_KEY)
+    if not isinstance(rec, dict):
+        from app.services import lastgood
+        rec = lastgood.load(STORE_KEY, max_age_seconds=CLOSE_MAX_DAYS * 86400)
+    if not isinstance(rec, dict) or not rec.get("at"):
+        return None
+    try:
+        from datetime import datetime, timezone
+        at = datetime.fromisoformat(str(rec["at"]))
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - at).total_seconds()
+    except Exception:                                             # noqa: BLE001
+        return None
+
+
+def ensure_fresh(max_age: float = LIVE_TTL) -> bool:
+    """يوقظ تجديداً إن شاخت اللقطة — ولا ينتظره. (أأُوقظ؟)"""
+    global _inflight, _last_kick
+    import time
+
+    from app.services.market_phase import market_phase
+
+    now = datetime.now()
+    if market_phase((now.weekday() + 1) % 7,
+                    now.hour * 60 + now.minute) == "closed":
+        return False                      # مغلقٌ: لا شيءَ يتجدّد
+    if _inflight is not None and not _inflight.done():
+        return False                      # نداءٌ واحدٌ في الطريق
+    age = age_seconds()
+    if age is not None and age < max_age:
+        return False
+    if time.monotonic() - _last_kick < max_age:
+        return False                      # حدٌّ أدنى بين تجديدين
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    _last_kick = time.monotonic()
+    _inflight = loop.create_task(_kick())
+    return True
+
+
+async def _kick() -> None:
+    try:
+        rec = await refresh()
+        if not rec.get("count"):
+            logger.debug("تجديدٌ لحظيٌّ لم يُقرأ: {}", rec.get("error"))
+    except Exception as e:                                        # noqa: BLE001
+        logger.debug("تجديدٌ لحظيٌّ تعذّر: {}: {}", type(e).__name__, e)
+
+
 def usable_rows() -> tuple[dict[str, dict], bool, str | None]:
     """(الصفوف، أحيّةٌ هي؟، زمنُها) — للاستعمال لا للعرض اللحظيّ (D285).
 
@@ -215,7 +293,9 @@ def usable_rows() -> tuple[dict[str, dict], bool, str | None]:
 INDEX_URL = ("https://www.saudiexchange.sa/tadawul.eportal.theme.helper/"
              "ThemeTASIUtilityServlet")
 INDEX_KEY = "market:tasi:tadawul"
-INDEX_TTL = 15                # اللسانُ لحظيّ: خمسَ عشرةَ ثانيةً حدُّ التخزين
+INDEX_TTL = 3                 # اللسانُ فوريّ: ثلاثُ ثوانٍ — نبضُ الشاشة نفسُه
+# (كانت خمسَ عشرةَ ثانيةً — وهي تُسقط ثلاثةَ أخماسِ تغيّرات المؤشّر حين
+#  تسأل الشاشةُ كلَّ ثلاثِ ثوان. والخدمةُ نداءٌ صغيرٌ واحد · D289.)
 # ══ اللحظيةُ زمنٌ لا لون ══ (بأمر المالك · D260)
 # «أريد الأسعارَ لحظيةً للتطبيق بالكامل، ولسانُ تاسي يومض عند التغيّر».
 # والوميضُ مبنيٌّ أصلاً — لكنه لا يشتعل إن لم يتغيّر الرقمُ الواصل.

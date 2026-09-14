@@ -19,10 +19,15 @@ import { settingsApi } from "../services/api";
 
 export type Phase = "pre" | "open" | "preclose" | "closed";
 
+/* ══ ثلاثُ ثوانٍ في الجلسة ══ (D289)
+   قال المالك: «لا أقبل بتأخير 15 ثانية». وقد صار المصدرُ نفسُه يتجدّد
+   عند الطلب بسقفِ خمس ثوانٍ (`tadawul_market.ensure_fresh`)، فسؤالٌ كلَّ
+   ثلاثِ ثوانٍ يلتقط كلَّ تغيّرٍ يبلغنا — ولا معنى لأسرعَ منه: تحتَه تُسأل
+   الشاشةُ عن رقمٍ لم يتغيّر بعد. وخارجَ الجلسة لا شيءَ يتحرّك أصلاً. */
 export const LIVE_MS: Record<Phase, number> = {
-  open: 15_000,
-  preclose: 15_000,
-  pre: 30_000,
+  open: 3_000,
+  preclose: 3_000,
+  pre: 15_000,
   closed: 10 * 60_000,
 };
 

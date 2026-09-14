@@ -612,7 +612,8 @@ async def refresh_derived_cached(rows: list) -> list:
 def _tadawul_prices() -> dict:
     """أسعارُ لقطة «تداول» — تُقرأ مرّةً لكلّ إنعاشٍ لا لكلّ صفّ (D251)."""
     try:
-        from app.services.tadawul_market import snapshot
+        from app.services.tadawul_market import ensure_fresh, snapshot
+        ensure_fresh()                    # لحظيةٌ عند الطلب، بلا انتظار (D289)
         return {k: v.get("price") for k, v in (snapshot() or {}).items()
                 if isinstance(v, dict) and v.get("price")}
     except Exception:                                             # noqa: BLE001
