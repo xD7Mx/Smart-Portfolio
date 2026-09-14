@@ -282,22 +282,24 @@ async def argaam_deals() -> tuple[list[dict], str | None]:
     العادية، وما لم تُفهَم صفوفُها يُفتح المتصفّح. والفرقُ يُقاس لا
     يُفترَض: إن كفت الخفيفةُ لم يُشغَّل كروميوم أصلاً.
     """
-    import httpx
+    from app.services.tadawul_http import smart_fetch
 
-    from app.services.argaam_calendar import UA
-
-    # ١ · قراءةٌ عادية
-    try:
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True,
-                                     headers={"User-Agent": UA,
-                                              "Accept-Language": "ar,en;q=0.8"}) as c:
-            r = await c.get(ARGAAM_MARKET)
-        if r.status_code == 200 and r.text:
-            got = rows_from_html(r.text)
-            if got:
-                return got, None
-    except Exception as e:                                        # noqa: BLE001
-        logger.debug("أرقام (خفيف): {}: {}", type(e).__name__, e)
+    # ١ · الطريقةُ الذكية: انتحالُ بصمة كروم مع تسخين موقع «أرقام» نفسِه.
+    #    (كانت `httpx` عادية — والطريقةُ التي تفتح الأبوابَ في بيتنا · D292)
+    for page in (ARGAAM_MARKET, ARGAAM_MARKET.replace("pageno=1", "pageno=2")):
+        try:
+            status, body = await smart_fetch(page, warm="https://www.argaam.com/ar",
+                                              referer="https://www.argaam.com/ar")
+        except Exception as e:                                    # noqa: BLE001
+            logger.debug("أرقام (ذكيّ): {}: {}", type(e).__name__, e)
+            break
+        if status != 200 or not body:
+            logger.debug("أرقام: HTTP {} من {}", status, page[-24:])
+            break
+        got = rows_from_html(body)
+        if got:
+            return got, None
+        break                       # صفحةٌ وصلت بلا صفوفٍ ⇒ الشكلُ لا العدد
 
     # ٢ · المتصفّح — للمرسوم بجافاسكربت
     from app.services.browser_fetch import BrowserUnavailable, render

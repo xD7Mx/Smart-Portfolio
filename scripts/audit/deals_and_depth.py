@@ -248,5 +248,31 @@ check("refetchInterval: liveMs" in TK and "refetchInterval: liveMs" in MP,
 check("refetchInterval: 5 * 60 * 1000" not in MP,
       "٩ي ولا مهلةَ خمسِ دقائقَ باقيةٌ لسعرٍ يُسمّى لحظياً")
 
+# ── ١٠ · لا حاشيةَ ولا وسمَ مصدرٍ على الشاشة ────────────────────────────
+# بأمر المالك — وقد قالها قبلاً: «لا فوت نوت ولا هيد نوت لكلّ ميزة».
+# والميثاقُ نفسُه: «لا حواشي تفسيرية أسفل الشاشات». والشرحُ مكانُه التعليق
+# في الشيفرة لا وجهُ التطبيق (D292).
+_DEPTH = (ROOT / "frontend" / "src" / "components" / "market"
+          / "MarketDepth.tsx").read_text(encoding="utf-8")
+_body = _DEPTH.split("*/", 1)[1]            # ما بعد تعليق الرأس
+for bad in ("مستوى ${data.levels}", "آخر إغلاق", "data.note", "{data.source}"):
+    check(bad not in _body, f"١٠ ولا حاشيةَ في عمق السوق — «{bad}»")
+_SD = (ROOT / "frontend" / "src" / "components" / "market"
+       / "SpecialDeals.tsx").read_text(encoding="utf-8").split("*/", 1)[1]
+for bad in ("{data.source}", "tag-v"):
+    check(bad not in _SD, f"١٠ب ولا وسمَ مصدرٍ في الصفقات الخاصة — «{bad}»")
+check("لا صفقات خاصة مسجّلة الآن" in _SD,
+      "١٠ج ويبقى إعلانُ الغياب — وهو حالةٌ لا حاشية")
+
+# ── ١١ · الطريقةُ الذكيةُ تُستعمَل لأرقام ───────────────────────────────
+_SRC = (ROOT / "backend" / "app" / "services"
+        / "special_deals.py").read_text(encoding="utf-8")
+check("smart_fetch" in _SRC and "warm=" in _SRC,
+      "١١ وجلبُ «أرقام» بالطريقة الذكية مع تسخين موقعه — لا httpx عادية")
+_HTTP = (ROOT / "backend" / "app" / "services"
+         / "tadawul_http.py").read_text(encoding="utf-8")
+check("async def smart_fetch" in _HTTP and _HTTP.count("_IMPERSONATE") >= 2,
+      "١١ب والانتحالُ منتِجٌ واحدٌ عامٌّ — لا نسخةٌ لكلّ مصدر")
+
 print(("FAIL" if fail else "PASS") + " D272 · D273 — العمقُ يُعرَض، والصفقاتُ الخاصة تُبنى")
 raise SystemExit(fail)

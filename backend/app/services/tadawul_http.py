@@ -48,12 +48,12 @@ def _have_curl() -> bool:
 
 
 def _blocking_fetch(url: str, params: dict | None, referer: str | None,
-                    timeout: int) -> tuple[int, str]:
+                    timeout: int, warm: str | None = None) -> tuple[int, str]:
     from curl_cffi import requests as cr
     with cr.Session(impersonate=_IMPERSONATE) as s:
         # التسخينُ يجمع كوكيزَ الحماية قبل طلب البيانات — يُحاوَل ويُتجاوَز.
         try:
-            s.get(HOME, timeout=timeout)
+            s.get(warm or HOME, timeout=timeout)
         except Exception:                                         # noqa: BLE001
             pass
         headers = {"Referer": referer} if referer else None
@@ -83,6 +83,44 @@ async def fetch(url: str, *, params: dict | None = None,
             await c.get(HOME)
         except Exception:                                         # noqa: BLE001
             pass
+        r = await c.get(url, params=params,
+                        headers={"Referer": referer} if referer else None)
+        return r.status_code, r.text or ""
+
+async def smart_fetch(url: str, *, params: dict | None = None,
+                      referer: str | None = None, warm: str | None = None,
+                      timeout: int = 45) -> tuple[int, str]:
+    """الطريقةُ الذكيةُ لأيّ مضيفٍ لا لـ«تداول» وحدَها (D292).
+
+    ══ الطريقةُ ملكُ التطبيق لا ملكُ مصدرٍ واحد ══
+    قال المالك: «استخدم طريقةَ الجلب الذكية لأرقام». وكان انتحالُ البصمة
+    محصوراً بـ«تداول»: `fetch()` تُسخّن صفحةَ تداول وتنتحل لها. وقارئُ
+    «أرقام» كان يستعمل `httpx` عادياً — فيُحجَب أو يُردّ ناقصاً بلا سبب
+    ظاهر، والطريقةُ التي تفتح البابَ موجودةٌ في البيت.
+
+    فصارت عامّةً: يُمرَّر **مضيفُ التسخين** (`warm`) فتُجمَع كوكيزُ ذاك
+    الموقع، ويبقى `fetch()` غلافاً لـ«تداول» كما هو — منتِجٌ واحدٌ
+    للانتحال، لا نسخةٌ لكلّ مصدر.
+    """
+    if _have_curl():
+        try:
+            return await asyncio.to_thread(_blocking_fetch, url, params,
+                                            referer, timeout, warm)
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning("الجلبُ الذكيُّ تعذّر ({}: {}) — يُجرَّب httpx",
+                           type(e).__name__, e)
+    import httpx
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True,
+                                 headers={"User-Agent": (
+                                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                     "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                     "Chrome/124.0.0.0 Safari/537.36"),
+                                     "Accept-Language": "ar,en;q=0.8"}) as c:
+        if warm:
+            try:
+                await c.get(warm)
+            except Exception:                                     # noqa: BLE001
+                pass
         r = await c.get(url, params=params,
                         headers={"Referer": referer} if referer else None)
         return r.status_code, r.text or ""
