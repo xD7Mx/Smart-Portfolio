@@ -28,6 +28,7 @@ _os.environ["LASTGOOD_PATH"] = _os.path.join(_SANDBOX, "lastgood.json")
 _os.environ["SP_STATE_DIR"] = _SANDBOX
 
 import asyncio  # noqa: E402
+import datetime as _dt2  # noqa: E402
 import pathlib  # noqa: E402
 import sys  # noqa: E402
 
@@ -197,7 +198,7 @@ SRC = (ROOT / "backend" / "app" / "services"
 # (‏403 لمتصفّحٍ حقيقيّ)، وأمر المالكُ أن يكون المصدرُ «أرقام». وحارسٌ
 # يحرس ترتيباً نُسخ لا ترتيباً مقصوداً يمنع الصواب — فيُقلَب مع القاعدة،
 # ويبقى شرطُ **ذكر الطبقتين** كما هو.
-check(SRC.index("await argaam_deals()") < SRC.index("await fetch_rows()"),
+check(SRC.index("await argaam_deals(days)") < SRC.index("await fetch_rows()"),
       "٨ه و«أرقام» أوّلاً في هذه الشاشة — والرسميُّ يُجرَّب بعده لا يُنتظَر")
 check("إن فُتح المسارُ يوماً عاد الرسميُّ" in SRC,
       "٨ه٢ وسببُ القلب مكتوبٌ — فلا يُقرأ تخلّياً عن قاعدة الطبقات")
@@ -209,9 +210,10 @@ check("أرقام:" in SRC,
 # أرقام»، و«أسعارٌ لحظيةٌ والسوقُ مباشر» (D288).
 SRC2 = (ROOT / "backend" / "app" / "services"
         / "special_deals.py").read_text(encoding="utf-8")
-check(SRC2.index("await argaam_deals()") < SRC2.index("await fetch_rows()"),
+check(SRC2.index("await argaam_deals(days)") < SRC2.index("await fetch_rows()"),
       "٩ «أرقام» أوّلُ الطبقات لهذه الشاشة — والمتعثّرُ لا يُقدَّم")
-check("httpx" in SRC2.split("async def argaam_deals")[1][:1200],
+_blk9 = SRC2.split("async def argaam_deals")[1][:2200]
+check(_blk9.index("smart_fetch") < _blk9.index("render("),
       "٩ب والقراءةُ الخفيفةُ تُجرَّب قبل المتصفّح — لا كروميومُ بلا حاجة")
 check('"source": src' in SRC2,
       "٩ج ويُحفَظ مصدرُ الرقم معه — فتقوله الشاشة")
@@ -221,7 +223,7 @@ check('name: "صفقات خاصة"' in MP and "<SpecialDeals" in MP,
       "٩د والتبويبُ مسجَّلٌ ومركَّبٌ في شاشة السوق — لا مكوّنٌ يتيم")
 SD = (ROOT / "frontend" / "src" / "components" / "market"
       / "SpecialDeals.tsx").read_text(encoding="utf-8")
-check("لا صفقات خاصة مسجّلة الآن" in SD,
+check("لا صفقات خاصة في هذه المدة" in SD,
       "٩ه ويومٌ بلا صفقاتٍ يُقال — لا يُطوى التبويب ولا يُعرض صفرٌ مختلَق")
 API2 = (ROOT / "frontend" / "src" / "services" / "api.ts").read_text(encoding="utf-8")
 check("/market/special-deals" in API2 and "marketApi.specialDeals(" in SD,
@@ -263,7 +265,7 @@ _SD = (ROOT / "frontend" / "src" / "components" / "market"
        / "SpecialDeals.tsx").read_text(encoding="utf-8").split("*/", 1)[1]
 for bad in ("{data.source}", "tag-v"):
     check(bad not in _SD, f"١٠ب ولا وسمَ مصدرٍ في الصفقات الخاصة — «{bad}»")
-check("لا صفقات خاصة مسجّلة الآن" in _SD,
+check("لا صفقات خاصة في هذه المدة" in _SD,
       "١٠ج ويبقى إعلانُ الغياب — وهو حالةٌ لا حاشية")
 
 # ── ١١ · الطريقةُ الذكيةُ تُستعمَل لأرقام ───────────────────────────────
@@ -302,6 +304,47 @@ check("NAV.search(joined)" in _RS,
 _no_date = TBL.replace("<td>2026-09-10</td>", "<td></td>")
 check(all(d["symbol"] != "1010" for d in sd.rows_from_html(_no_date)),
       "١٢و وصفٌّ فقد تاريخَه يسقط — الشرطُ يعمل لا يُكتَب")
+
+# ── ١٣ · سجلٌّ بمدًى، وصيغةٌ يجدها التطبيقُ بنفسه ───────────────────────
+# قال المالك: «توجد صفقاتٌ في أرقام، وليس شرطاً أن تكون لحظية — سجلُّ
+# عملياتٍ بالتاريخ أسبوعيٌّ وشهريٌّ مثل المفكرة». وكلمةُ **history** في
+# اسم المسار كانت تقولها، وكنتُ أطلب الصفحةَ **بلا مدى تاريخٍ** (D295).
+_vs = sd._variants(30)
+check(len(_vs) >= 5 and any("fromdate" in str(v.get("data") or v.get("params"))
+                            for v in _vs),
+      "١٣ الصيغُ تحمل مدى تاريخٍ حقيقياً — لا طلبٌ بلا تاريخ", f"{len(_vs)} صيغة")
+check(any(v["method"] == "POST" and v.get("headers") for v in _vs),
+      "١٣ب ومنها نداءُ جافاسكربت — القشرةُ لا تُعطي صفوفَها لطلبٍ عاديّ")
+_names = [v["name"] for v in _vs]
+check(len(_names) == len(set(_names)), "١٣ج ولكلّ صيغةٍ اسمٌ يُسجَّل في المحاولة")
+
+# والمدى يُصفّي السجلَّ: ما خرج عنه لا يُعرض، وما لا تاريخَ له لا يُحذف بالظنّ.
+_rows = [{"symbol": "1010", "price": 28.5, "quantity": 1000, "value": 28500,
+          "at": _dt2.date.today().isoformat()},
+         {"symbol": "2010", "price": 70.0, "quantity": 500, "value": 35000,
+          "at": (_dt2.date.today() - _dt2.timedelta(days=20)).isoformat()},
+         {"symbol": "1120", "price": 96.0, "quantity": 800, "value": 76800,
+          "at": (_dt2.date.today() - _dt2.timedelta(days=200)).isoformat()},
+         {"symbol": "4030", "price": 19.0, "quantity": 100, "value": 1900}]
+check([d["symbol"] for d in sd.within(_rows, 7)] == ["1010", "4030"],
+      "١٣د والأسبوعيُّ أسبوعيّ", str([d["symbol"] for d in sd.within(_rows, 7)]))
+check([d["symbol"] for d in sd.within(_rows, 30)] == ["1010", "2010", "4030"],
+      "١٣ه والشهريُّ شهريّ", str([d["symbol"] for d in sd.within(_rows, 30)]))
+check("4030" in [d["symbol"] for d in sd.within(_rows, 7)],
+      "١٣و وصفقةٌ بلا تاريخٍ مقروءٍ تبقى — لا تُحذف بالظنّ")
+
+_SDS = (ROOT / "frontend" / "src" / "components" / "market"
+        / "SpecialDeals.tsx").read_text(encoding="utf-8")
+check('{ days: 7, label: "أسبوعي" }' in _SDS and '{ days: 30, label: "شهري" }' in _SDS,
+      "١٣ز والخيارانِ في الشاشة: أسبوعيٌّ وشهريّ")
+_API3 = (ROOT / "frontend" / "src" / "services" / "api.ts").read_text(encoding="utf-8")
+check("special-deals?days=" in _API3, "١٣ح والمدى يُمرَّر في النداء")
+_SD2 = (ROOT / "backend" / "app" / "services"
+        / "special_deals.py").read_text(encoding="utf-8")
+check("lastgood.save(SHAPE_KEY" in _SD2,
+      "١٣ط والصيغةُ الناجحةُ تُحفَظ فتُجرَّب أوّلاً — القياسُ في الخدمة لا في طرفيّة المالك")
+check(_SD2.count("async def argaam_deals") == 1,
+      "١٣ي ودالّةٌ واحدةٌ لا نسختان — الأخيرةُ تغلب الأولى بصمت")
 
 print(("FAIL" if fail else "PASS") + " D272 · D273 — العمقُ يُعرَض، والصفقاتُ الخاصة تُبنى")
 raise SystemExit(fail)

@@ -44,6 +44,49 @@ PAGE = ("https://www.saudiexchange.sa/wps/portal/saudiexchange/trading/"
 # أوّلاً — الترتيبُ لا يتغيّر لأن مصدراً تعثّر، ولكنّ المتعثّرَ لا يُنتظَر.
 ARGAAM_MARKET = ("https://www.argaam.com/ar/shareholder/"
                  "shareholders-history-deals?marketid=3&pageno=1")
+ARGAAM_EP = ("https://www.argaam.com/ar/shareholder/"
+             "shareholders-history-deals")
+SHAPE_KEY = "market:special_deals:shape"
+DEFAULT_DAYS = 30
+
+# ══ سجلٌّ تاريخيٌّ لا لقطةٌ لحظية ══ (D295)
+# قال المالك: «ليس شرطاً أن تكون لحظية — سجلُّ عملياتٍ بالتاريخ، أسبوعيٌّ
+# وشهريٌّ مثل المفكرة، وهناك حتماً صفقاتٌ خلال هذه المدة». وكلمةُ
+# **history** في اسم المسار كانت تقول ذلك ولم أقرأها: كنتُ أطلب الصفحةَ
+# بلا **مدى تاريخٍ**، فتعود قشرةً بلا صفوف — لا لأن المصدرَ فارغ.
+#
+# وشكلُ النداء لا يُخمَّن ولا يُسأل عنه المالك: **التطبيقُ يجرّب الصيغَ
+# بنفسه** ويحفظ الناجحةَ في مخزن الحالة فيبدأ بها في المرّة التالية.
+# فالقياسُ ينتقل من طرفيّة المالك إلى الخدمة نفسِها.
+_XHR = {"X-Requested-With": "XMLHttpRequest",
+        "Accept": "text/html, */*; q=0.01"}
+
+
+def _variants(days: int) -> list[dict]:
+    """صيغُ النداء المرشَّحة، بمدى تاريخٍ حقيقيّ."""
+    from datetime import date, timedelta
+    to_d = date.today()
+    from_d = to_d - timedelta(days=max(1, days))
+    iso_f, iso_t = from_d.isoformat(), to_d.isoformat()
+    dmy_f, dmy_t = from_d.strftime("%d/%m/%Y"), to_d.strftime("%d/%m/%Y")
+    base = {"marketid": 3, "pageno": 1}
+    return [
+        {"name": "POST+XHR·iso", "method": "POST", "headers": _XHR,
+         "data": {**base, "fromdate": iso_f, "todate": iso_t}},
+        {"name": "POST+XHR·dmy", "method": "POST", "headers": _XHR,
+         "data": {**base, "fromdate": dmy_f, "todate": dmy_t}},
+        {"name": "POST+XHR·camel", "method": "POST", "headers": _XHR,
+         "data": {"marketId": 3, "pageNo": 1,
+                  "fromDate": iso_f, "toDate": iso_t}},
+        {"name": "GET+XHR·iso", "method": "GET", "headers": _XHR,
+         "params": {**base, "fromdate": iso_f, "todate": iso_t}},
+        {"name": "GET·iso", "method": "GET", "headers": None,
+         "params": {**base, "fromdate": iso_f, "todate": iso_t}},
+        {"name": "POST+XHR·بلا تاريخ", "method": "POST", "headers": _XHR,
+         "data": base},
+        {"name": "GET·صفحة", "method": "GET", "headers": None,
+         "params": base},
+    ]
 _BASE_RE = re.compile(r"<base[^>]+href=[\"']([^\"']+)", re.I)
 # اسمُ النداء يُلتقط بنمطه لا بمعرِّفٍ محفوظ: البوّابةُ تُدير المعرِّف،
 # ويبقى اسمُ الخدمة. وعدّةُ تسمياتٍ محتملةٍ لأن الاسمَ لم يُقَس بعد.
@@ -138,7 +181,52 @@ async def fetch_rows() -> tuple[list, str | None]:
     return rows, None
 
 
-async def refresh() -> dict:
+async def argaam_deals(days: int = DEFAULT_DAYS) -> tuple[list[dict], str | None]:
+    """صفقاتُ «أرقام» لمدى أيّامٍ — بالصيغة التي تنجح، وتُحفَظ (D295).
+
+    تُجرَّب الصيغُ بترتيبها، والناجحةُ تُحفَظ فتُجرَّب أوّلاً لاحقاً. وما
+    لم تنجح واحدةٌ بقي المتصفّحُ آخرَ الوسائل — ولا يُفتح بلا حاجة.
+    """
+    from app.services import lastgood
+    from app.services.tadawul_http import smart_fetch
+
+    variants = _variants(days)
+    remembered = lastgood.load(SHAPE_KEY)
+    if isinstance(remembered, dict) and remembered.get("name"):
+        variants.sort(key=lambda v: v["name"] != remembered["name"])
+
+    tried = []
+    for v in variants:
+        try:
+            status, body = await smart_fetch(
+                ARGAAM_EP, params=v.get("params"), data=v.get("data"),
+                method=v["method"], headers=v.get("headers"),
+                warm="https://www.argaam.com/ar", referer=ARGAAM_MARKET)
+        except Exception as e:                                    # noqa: BLE001
+            tried.append(f"{v['name']}:{type(e).__name__}")
+            continue
+        got = rows_from_html(body or "") if status == 200 else []
+        tried.append(f"{v['name']}:{status}/{len(got)}")
+        if got:
+            lastgood.save(SHAPE_KEY, {"name": v["name"]})
+            logger.info("الصفقاتُ الخاصة: صيغةُ «{}» أعطت {} صفقة",
+                        v["name"], len(got))
+            return got, None
+
+    # المتصفّحُ آخرَ الوسائل — صفحةٌ واحدةٌ لا أكثر.
+    from app.services.browser_fetch import BrowserUnavailable, render
+    try:
+        pages = await render([ARGAAM_MARKET], settle_ms=9000)
+    except BrowserUnavailable as e:
+        return [], f"الصيغُ: {' · '.join(tried)} · المتصفّح: {e}"
+    got = rows_from_html(next(iter(pages.values()), ""))
+    if got:
+        logger.info("الصفقاتُ الخاصة: بالمتصفّح {} صفقة", len(got))
+        return got, None
+    return [], "الصيغُ: " + " · ".join(tried) + " · المتصفّح: بلا صفوفٍ مفهومة"
+
+
+async def refresh(days: int = DEFAULT_DAYS) -> dict:
     """يجلب ويحفظ — و«أرقام» **أوّلُ الطبقات** لهذه الشاشة (D288).
 
     ══ لماذا انقلب الترتيب هنا وحدَه ══
@@ -149,7 +237,7 @@ async def refresh() -> dict:
     وقد أمر المالكُ أن يكون المصدرُ «أرقام». وتبقى «تداول» مكتوبةً تُجرَّب
     بعده: إن فُتح المسارُ يوماً عاد الرسميُّ إلى مقدّمته بلا تعديل.
     """
-    deals, why = await argaam_deals()
+    deals, why = await argaam_deals(days)
     src = "أرقام"
     if not deals:
         rows, why_t = await fetch_rows()
@@ -164,7 +252,7 @@ async def refresh() -> dict:
         logger.warning("الصفقاتُ الخاصة لم تُقرأ: {}", why)
         return {"count": 0, "error": why}
     rec = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-           "deals": deals, "source": src}
+           "deals": deals, "source": src, "days": days}
     from app.services import cache, lastgood
     lastgood.save(STORE_KEY, rec)
     cache.set(STORE_KEY, rec, MAX_AGE_SECONDS)
@@ -304,43 +392,27 @@ def rows_from_html(html: str) -> list[dict]:
             break
     return out
 
-
-async def argaam_deals() -> tuple[list[dict], str | None]:
-    """صفقاتُ «أرقام» — قراءةٌ خفيفةٌ أوّلاً، ثمّ المتصفّحُ إن لزم (D288).
-
-    ══ الأرخصُ أوّلاً ══
-    بأمر المالك صار **«أرقام» مصدرَ هذه الشاشة**. وفتحُ متصفّحٍ كلَّ نصف
-    ساعةٍ ثقيلٌ إن كانت الصفحةُ تُقرأ بلا سكربت — فتُجرَّب القراءةُ
-    العادية، وما لم تُفهَم صفوفُها يُفتح المتصفّح. والفرقُ يُقاس لا
-    يُفترَض: إن كفت الخفيفةُ لم يُشغَّل كروميوم أصلاً.
-    """
-    from app.services.tadawul_http import smart_fetch
-
-    # ١ · الطريقةُ الذكية: انتحالُ بصمة كروم مع تسخين موقع «أرقام» نفسِه.
-    #    (كانت `httpx` عادية — والطريقةُ التي تفتح الأبوابَ في بيتنا · D292)
-    for page in (ARGAAM_MARKET, ARGAAM_MARKET.replace("pageno=1", "pageno=2")):
+def _row_date(d: dict):
+    """تاريخُ الصفقة تاريخاً — أو None. للتصفية بالمدى لا للعرض."""
+    from datetime import date, datetime as _dtm
+    raw = str(d.get("at") or "").strip()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d", "%d-%m-%Y"):
         try:
-            status, body = await smart_fetch(page, warm="https://www.argaam.com/ar",
-                                              referer="https://www.argaam.com/ar")
-        except Exception as e:                                    # noqa: BLE001
-            logger.debug("أرقام (ذكيّ): {}: {}", type(e).__name__, e)
-            break
-        if status != 200 or not body:
-            logger.debug("أرقام: HTTP {} من {}", status, page[-24:])
-            break
-        got = rows_from_html(body)
-        if got:
-            return got, None
-        break                       # صفحةٌ وصلت بلا صفوفٍ ⇒ الشكلُ لا العدد
+            return _dtm.strptime(raw[:10], fmt).date()
+        except ValueError:
+            continue
+    return None
 
-    # ٢ · المتصفّح — للمرسوم بجافاسكربت
-    from app.services.browser_fetch import BrowserUnavailable, render
-    try:
-        pages = await render([ARGAAM_MARKET], settle_ms=8000)
-    except BrowserUnavailable as e:
-        return [], f"المتصفّحُ غيرُ متاح: {e}"
-    html = pages.get(ARGAAM_MARKET, "")
-    if not html:
-        return [], "لم تُرسَم صفحةُ «أرقام»"
-    got = rows_from_html(html)
-    return got, None if got else "لم يُفهَم صفٌّ في صفحة «أرقام»"
+
+def within(deals: list[dict], days: int) -> list[dict]:
+    """صفقاتُ المدى — والتي بلا تاريخٍ مقروءٍ تبقى (لا تُحذف بالظنّ)."""
+    from datetime import date, timedelta
+    if not days or days <= 0:
+        return list(deals or [])
+    floor = date.today() - timedelta(days=days)
+    out = []
+    for d in deals or []:
+        dd = _row_date(d)
+        if dd is None or dd >= floor:
+            out.append(d)
+    return out

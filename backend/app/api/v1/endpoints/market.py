@@ -1843,24 +1843,29 @@ async def get_market_depth(symbol: str):
 
 
 @router.get("/special-deals")
-async def get_special_deals(symbol: str | None = None):
-    """الصفقاتُ الخاصة — كلُّ السوق، أو لشركةٍ إن مُرِّر رمزُها (D273).
+async def get_special_deals(symbol: str | None = None, days: int = 30):
+    """سجلُّ الصفقات الخاصة بمدًى — أسبوعيٌّ أو شهريّ (D273 · D295).
 
-    ولا تُجلب في مسار الطلب: تُقرأ اللقطةُ المحفوظةُ فقط. الجلبُ في
-    الجدولة — فلا ينتظر المالكُ شبكةً خارجيةً عند فتح شاشة.
+    ══ سجلٌّ كالمفكرة لا لقطةٌ لحظية ══ (بأمر المالك)
+    «ليس شرطاً أن تكون لحظية — سجلُّ عملياتٍ بالتاريخ، أسبوعيٌّ وشهريّ
+    مثل المفكرة». فالمدى يُصفّى **من المحفوظ** ولا يُجلَب لكلّ اختيار،
+    والأحدثُ أوّلاً. ولا جلبَ في مسار الطلب: الجلبُ في الجدولة.
     """
-    from app.services.special_deals import for_symbol, reading
+    from app.services.special_deals import for_symbol, reading, within
 
     rec = reading()
     if not rec:
         return success_response(
             data={"deals": [], "as_of": None, "available": False,
-                  "source": "تداول — الصفقات الخاصة"},
+                  "days": days, "source": "أرقام"},
             message="الصفقاتُ الخاصة غير متوفّرة الآن.")
-    deals = for_symbol(symbol) if symbol else (rec.get("deals") or [])
+    deals = within(for_symbol(symbol) if symbol else (rec.get("deals") or []),
+                   days)
+    deals.sort(key=lambda d: str(d.get("at") or ""), reverse=True)
     return success_response(
         data={"deals": deals, "as_of": rec.get("at"), "available": True,
-              "count": len(deals), "source": "تداول — الصفقات الخاصة"},
+              "count": len(deals), "days": days,
+              "source": rec.get("source") or "أرقام"},
         message="الصفقاتُ الخاصة.")
 
 # ══ بثُّ الأسعار المباشر — دفعٌ لا سؤال ══ (D290)

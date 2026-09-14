@@ -12,6 +12,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { Handshake } from "lucide-react";
+import { useState } from "react";
 
 import { marketApi } from "../../services/api";
 
@@ -30,12 +31,19 @@ function money(v: number): string {
   return num(v);
 }
 
+const RANGES = [
+  { days: 7, label: "أسبوعي" },
+  { days: 30, label: "شهري" },
+] as const;
+
 export default function SpecialDeals({ onOpen }: { onOpen?: (s: string) => void }) {
+  /* مدًى كالمفكرة بأمر المالك: سجلُّ عملياتٍ بالتاريخ لا لقطةٌ لحظية. */
+  const [days, setDays] = useState<number>(30);
   const { data, isLoading } = useQuery({
-    queryKey: ["special-deals"],
-    queryFn: () => marketApi.specialDeals().then(r => r.data.data),
-    refetchInterval: 5 * 60 * 1000,      // تُنشَر أثناء الجلسة وبعدها
-    staleTime: 60_000,
+    queryKey: ["special-deals", days],
+    queryFn: () => marketApi.specialDeals(days).then(r => r.data.data),
+    refetchInterval: 10 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
   });
 
   const deals: Deal[] = data?.deals ?? [];
@@ -46,13 +54,25 @@ export default function SpecialDeals({ onOpen }: { onOpen?: (s: string) => void 
       <div className="flex items-center gap-2 mb-4">
         <Handshake size={16} className="text-[var(--brand-ink)]" />
         <h2 className="card-title">صفقات خاصة</h2>
+        <div className="ms-auto flex rounded-lg border border-[var(--line)] overflow-hidden">
+          {RANGES.map(r => (
+            <button key={r.days} onClick={() => setDays(r.days)}
+                    aria-pressed={days === r.days}
+                    className="px-2.5 py-1 text-[11px] font-bold min-h-[32px]"
+                    style={days === r.days
+                      ? { background: "var(--brand-ink)", color: "var(--on-brand)" }
+                      : { color: "var(--ink-muted)" }}>
+              {r.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {isLoading ? (
         <p className="py-8 text-center text-[13px] text-[var(--ink-muted)]">…</p>
       ) : !deals.length ? (
         <p className="py-8 text-center text-[13px] text-[var(--ink-muted)]">
-          لا صفقات خاصة مسجّلة الآن.
+          لا صفقات خاصة في هذه المدة.
         </p>
       ) : (
         <>

@@ -244,8 +244,8 @@ export const marketApi = {
   // عمقُ السوق: مستوًى واحدٌ من لقطة «تداول» (D272).
   depth:    (symbol: string) => api.get<APIResponse>(`/market/depth/${symbol}`),
   // الصفقاتُ الخاصة — كلُّ السوق أو لشركةٍ (D288).
-  specialDeals: (symbol?: string) => api.get<APIResponse>(
-    "/market/special-deals" + (symbol ? `?symbol=${symbol}` : "")),
+  specialDeals: (days = 30, symbol?: string) => api.get<APIResponse>(
+    `/market/special-deals?days=${days}` + (symbol ? `&symbol=${symbol}` : "")),
   history:  (symbol: string, range = "3mo") => api.get<APIResponse>(`/market/history/${symbol}?range=${range}`),
   recommendations: (symbol: string) => api.get<APIResponse>(`/market/recommendations/${symbol}`),
   financials: (symbol: string, period: "annual" | "quarterly" = "annual") =>
