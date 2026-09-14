@@ -139,30 +139,37 @@ async def fetch_rows() -> tuple[list, str | None]:
 
 
 async def refresh() -> dict:
-    """يجلب بترتيب الطبقات ويحفظ. ولا يُكتب فراغٌ فوق قراءةٍ صالحة."""
-    rows, why = await fetch_rows()
-    deals = normalize(rows) if not why else []
+    """يجلب ويحفظ — و«أرقام» **أوّلُ الطبقات** لهذه الشاشة (D288).
+
+    ══ لماذا انقلب الترتيب هنا وحدَه ══
+    القاعدةُ العامّة «تداول أوّلاً»، وهي باقيةٌ في كلّ شاشةٍ أخرى. أمّا
+    مسارُ الصفقات الخاصة في «تداول» فقد قِيس **محجوباً عند الحافّة**: 200
+    بقشرةٍ بلا جدولٍ للجلب المنتحِل، و403 Access Denied لمتصفّحٍ حقيقيّ
+    على الخادم. فتقديمُ متعثّرٍ على عاملٍ ليس أمانةً بل تأخيرٌ بلا فائدة،
+    وقد أمر المالكُ أن يكون المصدرُ «أرقام». وتبقى «تداول» مكتوبةً تُجرَّب
+    بعده: إن فُتح المسارُ يوماً عاد الرسميُّ إلى مقدّمته بلا تعديل.
+    """
+    deals, why = await argaam_deals()
+    src = "أرقام"
     if not deals:
-        # الطبقةُ الثانية: «تداول» محجوبةٌ عند الحافّة لهذا المسار اليوم،
-        # فلا يُنتظَر المتعثّر — ويُقال في المخرَج من أيِّ طبقةٍ جاء الرقم.
-        deals, why2 = await argaam_deals()
-        if deals:
-            why = None
+        rows, why_t = await fetch_rows()
+        got = normalize(rows) if not why_t else []
+        if got:
+            deals, src, why = got, "تداول", None
         else:
-            why = f"{why or 'تداول: لا صفوف'} · أرقام: {why2}"
+            why = f"أرقام: {why} · تداول: {why_t or 'لا صفوف'}"
     if not deals:
-        # يومٌ بلا صفقاتٍ خاصّةٍ **وارد** — لكنّه لا يُميَّز هنا عن أسماءِ
-        # حقولٍ لم تُطابَق. فلا يُمحى المحفوظُ، ويُقال العددُ الخام.
-        why = f"لم تُفهَم صفقةٌ من {len(rows)} صفّاً"
-        logger.warning("الصفقاتُ الخاصة: {}", why)
-        return {"count": 0, "error": why, "raw_rows": len(rows)}
+        # يومٌ بلا صفقاتٍ خاصّةٍ **وارد** — لكنّه لا يُميَّز عن أسماءِ حقولٍ
+        # لم تُطابَق. فلا يُمحى المحفوظُ، ويُقال سببُ الطبقتين بنصِّه.
+        logger.warning("الصفقاتُ الخاصة لم تُقرأ: {}", why)
+        return {"count": 0, "error": why}
     rec = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-           "deals": deals}
+           "deals": deals, "source": src}
     from app.services import cache, lastgood
     lastgood.save(STORE_KEY, rec)
     cache.set(STORE_KEY, rec, MAX_AGE_SECONDS)
-    logger.info("الصفقاتُ الخاصة: {} صفقة", len(deals))
-    return {"count": len(deals), "at": rec["at"]}
+    logger.info("الصفقاتُ الخاصة: {} صفقة من «{}»", len(deals), src)
+    return {"count": len(deals), "at": rec["at"], "source": src}
 
 
 def reading() -> dict | None:
@@ -267,7 +274,32 @@ def rows_from_html(html: str) -> list[dict]:
 
 
 async def argaam_deals() -> tuple[list[dict], str | None]:
-    """الطبقةُ الثانية بالمتصفّح — صفحةُ «أرقام» مرسومةٌ بجافاسكربت."""
+    """صفقاتُ «أرقام» — قراءةٌ خفيفةٌ أوّلاً، ثمّ المتصفّحُ إن لزم (D288).
+
+    ══ الأرخصُ أوّلاً ══
+    بأمر المالك صار **«أرقام» مصدرَ هذه الشاشة**. وفتحُ متصفّحٍ كلَّ نصف
+    ساعةٍ ثقيلٌ إن كانت الصفحةُ تُقرأ بلا سكربت — فتُجرَّب القراءةُ
+    العادية، وما لم تُفهَم صفوفُها يُفتح المتصفّح. والفرقُ يُقاس لا
+    يُفترَض: إن كفت الخفيفةُ لم يُشغَّل كروميوم أصلاً.
+    """
+    import httpx
+
+    from app.services.argaam_calendar import UA
+
+    # ١ · قراءةٌ عادية
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True,
+                                     headers={"User-Agent": UA,
+                                              "Accept-Language": "ar,en;q=0.8"}) as c:
+            r = await c.get(ARGAAM_MARKET)
+        if r.status_code == 200 and r.text:
+            got = rows_from_html(r.text)
+            if got:
+                return got, None
+    except Exception as e:                                        # noqa: BLE001
+        logger.debug("أرقام (خفيف): {}: {}", type(e).__name__, e)
+
+    # ٢ · المتصفّح — للمرسوم بجافاسكربت
     from app.services.browser_fetch import BrowserUnavailable, render
     try:
         pages = await render([ARGAAM_MARKET], settle_ms=8000)

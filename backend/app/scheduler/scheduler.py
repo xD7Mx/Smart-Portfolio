@@ -526,8 +526,10 @@ def start_scheduler():
     # بعد الإغلاق: كثيرٌ منها يُنشَر بعد الجلسة. (والأيامُ تُعدّ لا تُمدّ.)
     _scheduler.add_job(
         job_special_deals,
+        # نصفُ ساعةٍ لا ربعُها: المصدرُ «أرقام» وقد يُفتح له متصفّحٌ حين
+        # لا تكفي القراءةُ الخفيفة — ورحمةً بالمصدر (D288).
         CronTrigger(day_of_week=TRADING_DAYS, hour="9-17",
-                    minute="*/15"),
+                    minute="5,35"),
         id="special_deals",
         replace_existing=True,
     )

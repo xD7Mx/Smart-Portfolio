@@ -189,10 +189,54 @@ check(sd.rows_from_html("<table><tr><td>لا صفقات</td></tr></table>") == [
 # والترتيب: «تداول» أوّلاً، و«أرقام» حين تتعثّر — لا العكس.
 SRC = (ROOT / "backend" / "app" / "services"
        / "special_deals.py").read_text(encoding="utf-8")
-check(SRC.index("await fetch_rows()") < SRC.index("await argaam_deals()"),
-      "٨ه والرسميُّ أوّلاً، و«أرقام» حين يتعثّر — لا العكس")
+# ══ الترتيبُ انقلب لهذه الشاشة وحدَها بأمر المالك ══ (D288)
+# كان هذا الفحصُ يحرس «تداول أوّلاً» — وهي القاعدةُ العامّةُ الباقية في
+# كلّ شاشةٍ أخرى. أمّا مسارُ الصفقات الخاصة فقد قِيس محجوباً عند الحافّة
+# (‏403 لمتصفّحٍ حقيقيّ)، وأمر المالكُ أن يكون المصدرُ «أرقام». وحارسٌ
+# يحرس ترتيباً نُسخ لا ترتيباً مقصوداً يمنع الصواب — فيُقلَب مع القاعدة،
+# ويبقى شرطُ **ذكر الطبقتين** كما هو.
+check(SRC.index("await argaam_deals()") < SRC.index("await fetch_rows()"),
+      "٨ه و«أرقام» أوّلاً في هذه الشاشة — والرسميُّ يُجرَّب بعده لا يُنتظَر")
+check("إن فُتح المسارُ يوماً عاد الرسميُّ" in SRC,
+      "٨ه٢ وسببُ القلب مكتوبٌ — فلا يُقرأ تخلّياً عن قاعدة الطبقات")
 check("أرقام:" in SRC,
       "٨و وسببُ التعذّر يذكر الطبقتين معاً — لا واحدةً منهما")
+
+# ── ٩ · «أرقام» مصدرُ الشاشة، والتبويبُ موصولٌ، والنبضُ يتبع السوق ───────
+# بأمر المالك: «أضف تبويباً جديداً للسوق باسم صفقات خاصة واجعل مصدرها من
+# أرقام»، و«أسعارٌ لحظيةٌ والسوقُ مباشر» (D288).
+SRC2 = (ROOT / "backend" / "app" / "services"
+        / "special_deals.py").read_text(encoding="utf-8")
+check(SRC2.index("await argaam_deals()") < SRC2.index("await fetch_rows()"),
+      "٩ «أرقام» أوّلُ الطبقات لهذه الشاشة — والمتعثّرُ لا يُقدَّم")
+check("httpx" in SRC2.split("async def argaam_deals")[1][:1200],
+      "٩ب والقراءةُ الخفيفةُ تُجرَّب قبل المتصفّح — لا كروميومُ بلا حاجة")
+check('"source": src' in SRC2,
+      "٩ج ويُحفَظ مصدرُ الرقم معه — فتقوله الشاشة")
+
+MP = (ROOT / "frontend" / "src" / "pages" / "MarketPage.tsx").read_text(encoding="utf-8")
+check('name: "صفقات خاصة"' in MP and "<SpecialDeals" in MP,
+      "٩د والتبويبُ مسجَّلٌ ومركَّبٌ في شاشة السوق — لا مكوّنٌ يتيم")
+SD = (ROOT / "frontend" / "src" / "components" / "market"
+      / "SpecialDeals.tsx").read_text(encoding="utf-8")
+check("لا صفقات خاصة مسجّلة الآن" in SD,
+      "٩ه ويومٌ بلا صفقاتٍ يُقال — لا يُطوى التبويب ولا يُعرض صفرٌ مختلَق")
+API2 = (ROOT / "frontend" / "src" / "services" / "api.ts").read_text(encoding="utf-8")
+check("/market/special-deals" in API2 and "marketApi.specialDeals(" in SD,
+      "٩و والمسارُ له نداءٌ في الواجهة")
+
+# النبضُ يتبع السوق، وبحاكمٍ واحد.
+HK = (ROOT / "frontend" / "src" / "hooks" / "useMarketLive.ts").read_text(encoding="utf-8")
+check('queryKey: ["server-time"]' in HK,
+      "٩ز والطورُ باستعلامٍ واحدٍ مشترَك — لا نداءان لحقيقةٍ واحدة")
+check("open: 15_000" in HK and "closed: 10 * 60_000" in HK,
+      "٩ح والنبضُ أسرعُ في الجلسة وأبطأُ في الإغلاق")
+TK = (ROOT / "frontend" / "src" / "components" / "common"
+      / "MarketTicker.tsx").read_text(encoding="utf-8")
+check("refetchInterval: liveMs" in TK and "refetchInterval: liveMs" in MP,
+      "٩ط والشريطُ وشاشةُ السوق يقرآن النبضَ منه لا رقماً ثابتاً")
+check("refetchInterval: 5 * 60 * 1000" not in MP,
+      "٩ي ولا مهلةَ خمسِ دقائقَ باقيةٌ لسعرٍ يُسمّى لحظياً")
 
 print(("FAIL" if fail else "PASS") + " D272 · D273 — العمقُ يُعرَض، والصفقاتُ الخاصة تُبنى")
 raise SystemExit(fail)

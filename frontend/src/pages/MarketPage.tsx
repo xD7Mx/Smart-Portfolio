@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Newspaper, CalendarDays, Sparkles, Brain, Clock, ShieldCheck, X, Share2, ExternalLink, ArrowUp, ArrowDown, LayoutGrid, Star, Search, Plus, SlidersHorizontal, ArrowUpDown, ChevronDown } from "lucide-react";
+import { Newspaper, CalendarDays, Sparkles, Brain, Clock, ShieldCheck, X, Share2, ExternalLink, ArrowUp, ArrowDown, LayoutGrid, Star, Search, Plus, SlidersHorizontal, ArrowUpDown, ChevronDown, Handshake} from "lucide-react";
 import { marketApi } from "../services/api";
 import { useT } from "../i18n";
 import { useAppStore } from "../store/appStore";
@@ -10,6 +10,8 @@ import { searchCompanies, SECTORS } from "../data/saudiCompanies";
 import StockSheet from "../components/market/StockSheet";
 import InlineStockSearch from "../components/market/InlineStockSearch";
 import CompanyDirectory from "../components/market/CompanyDirectory";
+import SpecialDeals from "../components/market/SpecialDeals";
+import { useLiveInterval } from "../hooks/useMarketLive";
 import CompanyLogo from "../components/common/CompanyLogo";
 import { FairValueBar, SafetyBar, fairValueTier, safeColor } from "../components/common/ValueBars";
 import { ShariaBadge } from "../components/common/UI";
@@ -288,6 +290,8 @@ const MARKET_TABS = [
   { id: "screener", name: "فرز السوق", Icon: SlidersHorizontal },
   { id: "news", name: "أخبار السوق", Icon: Newspaper },
   { id: "calendar", name: "مفكرة السوق", Icon: CalendarDays },
+  /* صفقاتٌ خاصةٌ — بأمر المالك، ومصدرُها «أرقام» (D288). */
+  { id: "deals", name: "صفقات خاصة", Icon: Handshake },
 ];
 
 /** فرز السوق (نمط TradingView): فلاتر تقنية على السوق كامل — الاتجاه مقابل
@@ -1330,15 +1334,20 @@ export default function MarketPage() {
      `ReferenceError` عند أوّل رسم فأطفأ تبويبَ السوق كلَّه. ولا يمسكه
      فحصُ الأنواع: الاسمُ **معرَّفٌ** في النطاق، والخطأُ في الترتيب. */
   useEffect(() => { if (initialSymbol) setStockSheet(initialSymbol.toUpperCase()); }, [initialSymbol]);
+  /* ══ النبضُ يتبع السوق ══ (D288)
+     كان ستّين ثانيةً دائماً: بطيئاً في الجلسة (لقطةُ «تداول» تتجدّد كلَّ
+     دقيقة) ومُسرِفاً في العطلة. والطورُ من الحاكم الواحد في الخادم. */
+  const liveMs = useLiveInterval();
   const { data: overview } = useQuery({
     queryKey: ["market-overview"],
     queryFn: () => marketApi.overview().then(r => r.data.data),
-    refetchInterval: 60000,
+    refetchInterval: liveMs,
   });
   const { data: movers } = useQuery({
     queryKey: ["market-movers"],
     queryFn: () => marketApi.movers().then(r => r.data.data),
-    refetchInterval: 30 * 60 * 1000,
+    // الرابحون والخاسرون من اللقطة نفسِها — فلا معنى لنصف ساعةٍ في الجلسة.
+    refetchInterval: Math.max(liveMs, 30_000),
   });
   const { data: news = [], isLoading } = useQuery({
     queryKey: ["market-news", language],
@@ -1461,6 +1470,8 @@ export default function MarketPage() {
           <NewsList news={news} isLoading={isLoading} emptyText={t("market.noNews")} pageSize={60} />
         </div>
       )}
+
+      {tab === "deals" && <SpecialDeals onOpen={(s) => setStockSheet(s)} />}
 
       {tab === "calendar" && (
         <div className="card">

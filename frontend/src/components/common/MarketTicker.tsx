@@ -1,6 +1,7 @@
 import FlashPrice from "./FlashPrice";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLiveInterval } from "../../hooks/useMarketLive";
 import { marketApi, settingsApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 // أيقونة اللسان هي أيقونة شريط الأخبار نفسها (`Radio` — موجاتُ بثّ). كانت
@@ -24,11 +25,15 @@ import TrendArrow from "./TrendArrow";
  */
 export default function MarketTicker() {
   const isOwner = useAuthStore(s => s.isOwner);
+  /* نبضُ الشريط يتبع طورَ السوق (D288): كان خمسَ دقائقَ دائماً — وهي
+     دهرٌ في جلسةٍ لقطتُها كلَّ دقيقة. والطورُ من الخادم لا من ساعة الجهاز،
+     وباستعلامٍ واحدٍ مشترَك. */
+  const liveMs = useLiveInterval();
 
   const { data: overview } = useQuery({
     queryKey: ["market-overview"],
     queryFn: () => marketApi.overview().then(r => r.data.data),
-    refetchInterval: 5 * 60 * 1000,
+    refetchInterval: liveMs,
     enabled: isOwner,
   });
   const { data: news = [] } = useQuery({
@@ -40,7 +45,7 @@ export default function MarketTicker() {
   const { data: movers } = useQuery({
     queryKey: ["market-movers"],
     queryFn: () => marketApi.movers().then(r => r.data.data),
-    refetchInterval: 5 * 60 * 1000,
+    refetchInterval: Math.max(liveMs, 30_000),
     enabled: isOwner,
   });
 
