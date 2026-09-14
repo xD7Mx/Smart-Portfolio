@@ -124,6 +124,53 @@ async def main() -> int:
             if i > 0:
                 ctx = re.sub(r"\s+", " ", body[i:i + 400])
                 print("     سياقُ «الصفقات الخاصة»: " + ctx[:180])
+    # ── ٣ · مطاردةُ نقطةِ الصفوف — مصفوفةٌ واحدةٌ تحسم ─────────────────
+    # قِيس أن المسارَ نفسَه يظهر في سكربت الصفحة نداءً، وأن الصفحةَ بلا
+    # صفوف. فالصفوفُ تُطلب بطلبٍ ثانٍ — وشكلُه يُقاس لا يُخمَّن: طريقةٌ
+    # (‏GET/POST) وترويسةُ XHR ومعاملاتٌ بأسماءٍ مرشَّحة (D294).
+    print("\n٣) مطاردةُ نقطة الصفوف — تُجرَّب ست صيغ")
+    XHR = {"X-Requested-With": "XMLHttpRequest",
+           "Accept": "text/html, */*; q=0.01"}
+    EP = "https://www.argaam.com/ar/shareholder/shareholders-history-deals"
+    tries = [
+        ("GET  + XHR", "GET", {"marketid": 3, "pageno": 1}, None, XHR),
+        ("POST + XHR (pageno)", "POST", None,
+         {"marketid": 3, "pageno": 1}, XHR),
+        ("POST + XHR (pageNo)", "POST", None,
+         {"marketId": 3, "pageNo": 1}, XHR),
+        ("POST + XHR (فارغ)", "POST", None, {}, XHR),
+        ("GET  بلا ترويسة", "GET", {"marketid": 3, "pageno": 1}, None, None),
+        ("POST + XHR (تواريخ)", "POST", None,
+         {"marketid": 3, "pageno": 1, "fromdate": "", "todate": ""}, XHR),
+    ]
+    best = None
+    for label, method, prm, body, hdr in tries:
+        try:
+            st, txt = await smart_fetch(EP, params=prm, data=body,
+                                        method=method, headers=hdr,
+                                        warm="https://www.argaam.com/ar",
+                                        referer=sd.ARGAAM_MARKET)
+        except Exception as e:                                    # noqa: BLE001
+            line(label, f"تعذّر: {type(e).__name__}")
+            continue
+        import re as _r
+        trs = len(_r.findall(r"<tr", txt or "", _r.I))
+        got = sd.rows_from_html(txt or "")
+        line(label, f"HTTP {st} · {len(txt or '')} حرفاً · <tr>={trs} · "
+                    f"صفقاتٌ={len(got)}")
+        if got and (best is None or len(got) > len(best[1])):
+            best = (label, got)
+        if trs and not got:
+            # صفوفٌ موجودةٌ ولم تُفهَم: يُطبع أوّلُها ليُبنى القارئُ عليها
+            row = _r.search(r"<tr[^>]*>(.*?)</tr>", txt, _r.S | _r.I)
+            if row:
+                clean = _r.sub(r"\s+", " ", _r.sub(r"<[^>]+>", " | ",
+                                                   row.group(1))).strip()
+                print("       أوّلُ صفّ: " + clean[:150])
+    if best:
+        print(f"\n   ✔ الصيغةُ العاملة: {best[0]} — {len(best[1])} صفقة")
+        for d in best[1][:5]:
+            print("     " + str(d))
     if apply:
         print("\n" + str(await sd.refresh()))
     print(f"\nقِيس في {dt.datetime.now():%Y-%m-%d %H:%M}\n")

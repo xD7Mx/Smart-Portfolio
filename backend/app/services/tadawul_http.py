@@ -48,7 +48,9 @@ def _have_curl() -> bool:
 
 
 def _blocking_fetch(url: str, params: dict | None, referer: str | None,
-                    timeout: int, warm: str | None = None) -> tuple[int, str]:
+                    timeout: int, warm: str | None = None,
+                    method: str = "GET", data: dict | None = None,
+                    headers: dict | None = None) -> tuple[int, str]:
     from curl_cffi import requests as cr
     with cr.Session(impersonate=_IMPERSONATE) as s:
         # التسخينُ يجمع كوكيزَ الحماية قبل طلب البيانات — يُحاوَل ويُتجاوَز.
@@ -56,8 +58,14 @@ def _blocking_fetch(url: str, params: dict | None, referer: str | None,
             s.get(warm or HOME, timeout=timeout)
         except Exception:                                         # noqa: BLE001
             pass
-        headers = {"Referer": referer} if referer else None
-        r = s.get(url, params=params, headers=headers, timeout=timeout)
+        h = dict(headers or {})
+        if referer:
+            h["Referer"] = referer
+        if method.upper() == "POST":
+            r = s.post(url, params=params, data=data, headers=h or None,
+                       timeout=timeout)
+        else:
+            r = s.get(url, params=params, headers=h or None, timeout=timeout)
         return r.status_code, r.text or ""
 
 
@@ -89,7 +97,9 @@ async def fetch(url: str, *, params: dict | None = None,
 
 async def smart_fetch(url: str, *, params: dict | None = None,
                       referer: str | None = None, warm: str | None = None,
-                      timeout: int = 45) -> tuple[int, str]:
+                      timeout: int = 45, method: str = "GET",
+                      data: dict | None = None,
+                      headers: dict | None = None) -> tuple[int, str]:
     """الطريقةُ الذكيةُ لأيّ مضيفٍ لا لـ«تداول» وحدَها (D292).
 
     ══ الطريقةُ ملكُ التطبيق لا ملكُ مصدرٍ واحد ══
@@ -101,11 +111,17 @@ async def smart_fetch(url: str, *, params: dict | None = None,
     فصارت عامّةً: يُمرَّر **مضيفُ التسخين** (`warm`) فتُجمَع كوكيزُ ذاك
     الموقع، ويبقى `fetch()` غلافاً لـ«تداول» كما هو — منتِجٌ واحدٌ
     للانتحال، لا نسخةٌ لكلّ مصدر.
+
+    وتقبل `method` و`data` و`headers` لأن مصادرَ كثيرةً لا تُعطي صفوفَها
+    لطلبٍ عاديّ: قِيس أن صفحةَ صفقات «أرقام» تعود ‎494 ألفَ حرفٍ **بصفرِ
+    صفوف**، وأن المسارَ نفسَه يظهر في سكربتها نداءً — أي أن الصفوفَ تُطلب
+    بطلبٍ ثانٍ (‏XHR) بمعاملاتٍ وترويسةٍ تقول إنه نداءُ جافاسكربت (D294).
     """
     if _have_curl():
         try:
             return await asyncio.to_thread(_blocking_fetch, url, params,
-                                            referer, timeout, warm)
+                                            referer, timeout, warm, method,
+                                            data, headers)
         except Exception as e:                                    # noqa: BLE001
             logger.warning("الجلبُ الذكيُّ تعذّر ({}: {}) — يُجرَّب httpx",
                            type(e).__name__, e)
@@ -121,6 +137,11 @@ async def smart_fetch(url: str, *, params: dict | None = None,
                 await c.get(warm)
             except Exception:                                     # noqa: BLE001
                 pass
-        r = await c.get(url, params=params,
-                        headers={"Referer": referer} if referer else None)
+        h = dict(headers or {})
+        if referer:
+            h["Referer"] = referer
+        if method.upper() == "POST":
+            r = await c.post(url, params=params, data=data, headers=h or None)
+        else:
+            r = await c.get(url, params=params, headers=h or None)
         return r.status_code, r.text or ""
