@@ -145,14 +145,28 @@ async def stream():
     _ensure_pump()
     started = asyncio.get_event_loop().time()
     try:
-        # أوّلُ دفعةٍ فوريةٌ: الشاشةُ تُرسَم بما هو موجودٌ الآن لا بعد ثانية.
-        from app.services.tadawul_market import snapshot
+        # ══ نبضةٌ فوريةٌ قبل كلّ شيء ══
+        # قِيس على الخادم: `curl` على المجرى طبع **صفرَ أسطر** في اثنتَي
+        # عشرةَ ثانية. والسببُ أن أوّلَ ما يُرسَل كان معلّقاً على وجود
+        # بياناتٍ؛ فإن لم تكن (سوقٌ مغلقٌ ولقطةٌ غيرُ حيّة) لم يخرج حرفٌ
+        # حتى نبضةِ الحياة بعد خمسَ عشرةَ ثانية. فصار أوّلُ شيءٍ يخرج
+        # **تعليقَ حياةٍ فوراً**: يُثبت أن المجرى قائمٌ للعميل وللوسيط في
+        # اللحظة الأولى، سواءٌ كان في السوق رقمٌ أم لا.
+        yield ": open\n\n"
+
+        # ثمّ الحالةُ الحاضرةُ: **بالقاعدة نفسِها التي تقرأ بها كلُّ شاشة**
+        # (‏`usable_rows` — حيٌّ في الجلسة وآخرُ إغلاقٍ خارجَها). وكان
+        # يُقرأ `snapshot()` الصارمُ وحدَه، فيبقى المجرى صامتاً يومَي
+        # العطلة ويُظنّ معطوباً وهو سليم. ويُعلَن **أحيٌّ هو**.
+        from app.services.tadawul_market import usable_rows
+        rows, live, at = usable_rows()
         first = {s: [r.get("price"), r.get("change_pct")]
-                 for s, r in (snapshot() or {}).items()
+                 for s, r in (rows or {}).items()
                  if isinstance(r, dict) and r.get("price") is not None}
         if first:
             yield "data: " + json.dumps(
-                {"t": datetime.now().strftime("%H:%M:%S"), "q": first},
+                {"t": datetime.now().strftime("%H:%M:%S"), "q": first,
+                 "live": bool(live), "at": at},
                 ensure_ascii=False) + "\n\n"
         while asyncio.get_event_loop().time() - started < MAX_STREAM_SECONDS:
             try:

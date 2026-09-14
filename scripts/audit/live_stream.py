@@ -206,6 +206,43 @@ for f in ("components/market/StockView.tsx", "components/market/MarketDepth.tsx"
     check("useLiveQuote" in src or "useLiveStreamOn" in src,
           f"٨ز و{f.split('/')[-1]} موصولةٌ بالمجرى")
 
+# ── ١٠ · المجرى ينطق فوراً حتى والسوقُ مغلق ─────────────────────────────
+# قِيس على الخادم ‎01:38: `curl` على المجرى طبع **صفرَ أسطر** في اثنتَي عشرةَ
+# ثانية. والسببُ أن أوّلَ ما يُرسَل كان معلّقاً على `snapshot()` الصارم —
+# وهو فارغٌ خارجَ الجلسة — ونبضةُ الحياة بعد خمسَ عشرةَ ثانية. فبقي المجرى
+# صامتاً فظُنّ معطوباً وهو سليم. والحالُ تُقرأ الآن بقاعدة كلّ الشاشات.
+LS.datetime = _Closed                                            # type: ignore[misc]
+M.snapshot = lambda: {}                                          # type: ignore[assignment]
+import app.services.lastgood as _lg  # noqa: E402
+cache.set(M.STORE_KEY, None, 0)
+_lg.save(M.STORE_KEY, {"at": "2026-09-11T15:20:00+00:00",
+                       "rows": {"2010": {"price": 70.0, "change_pct": 0.4}}})
+LS._last.clear()
+
+
+async def _closed_stream():
+    out = []
+    agen = LS.stream()
+    try:
+        async for chunk in agen:
+            out.append(chunk)
+            if len(out) >= 2:
+                break
+    finally:
+        await agen.aclose()
+    return out
+
+
+_out = asyncio.run(asyncio.wait_for(_closed_stream(), 10))
+check(_out and _out[0].startswith(":"),
+      "١٠ أوّلُ ما يخرج تعليقُ حياةٍ فوراً — لا مجرًى صامتٌ يُظنّ معطوباً",
+      repr(_out[0][:12]) if _out else "لا شيء")
+_dat = next((c for c in _out if c.startswith("data:")), "")
+check("2010" in _dat and '"live": false' in _dat,
+      "١٠ب والحالةُ الحاضرةُ تُدفَع بقاعدة كلّ الشاشات — آخرُ إغلاقٍ معلَناً",
+      _dat[:70])
+LS.datetime = _real                                              # type: ignore[misc]
+
 # ── ٩ · الوسيطُ لا يخزّن المجرى ─────────────────────────────────────────
 # عطبٌ لا يظهر في المختبر: `location /api/` العامُّ يخزّن الردَّ ويتحدّث
 # HTTP/1.0، فيصل المجرى دفعاتٍ متأخّرةً خلف نجينكس — فيبطل الدفعُ كلُّه
