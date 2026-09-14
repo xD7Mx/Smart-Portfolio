@@ -279,6 +279,11 @@ python3 scripts/audit/coverage_serious.py || fail=1
 echo
 python3 scripts/audit/market_phase_one.py || fail=1
 
+# D287: طريقةُ الجلب مسجَّلةٌ في `docs/FETCH_METHOD.md`، والسجلُّ يُحرَس:
+# خريطتُه صادقةٌ، وبلاغاتُه مسجَّلة، والميثاقُ يُحيل إليه.
+echo
+python3 scripts/audit/fetch_method_doc.py || fail=1
+
 # D260: اللحظيةُ زمنٌ لا لون — ميزانيةُ طزاجةٍ مقيسةٌ لكلّ حلقةٍ في
 # سلسلة التأخير، وعلاقةُ الحلقات ببعضها (عمرٌ مقبولٌ ≥ دورةِ تجديد).
 echo
