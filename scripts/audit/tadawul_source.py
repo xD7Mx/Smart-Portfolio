@@ -156,5 +156,30 @@ check(by["2222"].get("price") == 33.0 and by["2222"].get("price_source") == "tad
       "٧ب و«تداول» تتقدّم لقطةَ المحرّكين — المُصدِرُ قبل المزوّد",
       f"{by['2222'].get('price')} · {by['2222'].get('price_source')}")
 
+# ── ٨ · مَعبرٌ واحدٌ لـ«تداول» — لا httpx في خدمةٍ تناديها ──────────────
+# قِيس على خادم المالك: خدمةُ الإفصاحات كانت تنادي «تداول» بـ`httpx`
+# برؤوسٍ كاملةٍ وجلسةٍ مسخَّنة، فتردّ **403 Access Denied** (475 حرفاً) في
+# كلّ نداء — فلا إفصاحَ واحدٌ يصل، والمفكرةُ والأخبارُ وبحثُ الصفقات تُبنى
+# على الفراغ بصمت. والقياسُ في D250 كان قد أبطل الاعتقادَ المكتوبَ فيها:
+# الرؤوسُ الكاملةُ مع httpx ⇒ 403، ونفسُها مع انتحال البصمة ⇒ 200 (D312).
+import pathlib as _pl  # noqa: E402
+
+_SVC = _pl.Path(ROOT) / "backend" / "app" / "services"
+_GATEWAY = {"tadawul_http.py"}          # المَعبرُ وحدَه يملك سقوطَ httpx
+_bad = []
+for _f in sorted(_SVC.glob("*.py")):
+    _src = _f.read_text(encoding="utf-8", errors="ignore")
+    if "saudiexchange.sa" not in _src or _f.name in _GATEWAY:
+        continue
+    if "httpx.AsyncClient" in _src:
+        _bad.append(_f.name)
+check(not _bad,
+      "٨ كلُّ خدمةٍ تنادي «تداول» تمرّ بالمَعبر المنتحِل — لا جلسةَ httpx ثانية",
+      "خارجَ المَعبر: " + "، ".join(_bad) if _bad else "")
+
+_ANN = (_SVC / "tadawul_announcements.py").read_text(encoding="utf-8")
+check("from app.services.tadawul_http import fetch" in _ANN,
+      "٨ب وخدمةُ الإفصاحات بعينها تستعمله — وهي التي قِيس ردُّها 403")
+
 print(("FAIL" if fail else "PASS") + " D251 — لقطةُ السوق من مُصدِره")
 raise SystemExit(fail)

@@ -255,19 +255,24 @@ def _parse_rss(text: str) -> list[dict]:
 
 
 async def _raw_fetch(url: str) -> tuple[int, str]:
-    """تسخين جلسة Akamai: زيارة أوّليّة للجذر تجمع كوكيز الحماية (ak_bmsc…)،
-    ثم طلب البيانات بنفس الجلسة مع Referer صحيح ورؤوس متصفح كاملة. كثير من
-    إعدادات Akamai «Access Denied» تُمرّر الطلب متى وُجدت هذه الكوكيز والرؤوس."""
-    async with httpx.AsyncClient(timeout=20, headers=_HEADERS, follow_redirects=True) as client:
-        try:
-            await client.get(_ORIGIN + "/wps/portal/saudiexchange/home",
-                             headers={"Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document",
-                                      "Sec-Fetch-Site": "none"})
-        except Exception:
-            pass  # التسخين اختياري — نُكمل حتى لو فشل
-        r = await client.get(url, headers={"Referer": _ORIGIN + "/wps/portal/saudiexchange/"
-                             "newsandreports/issuer-news/company-announcements"})
-        return r.status_code, r.text
+    """إفصاحاتُ «تداول» عبر **المَعبر المنتحِل** — لا httpx مباشرةً (D312).
+
+    ══ كانت الخدمةُ تصدّق ما أبطله القياس ══
+    كُتب هنا أن «كثيراً من إعدادات Akamai تُمرّر الطلبَ متى وُجدت الكوكيزُ
+    والرؤوس»، وبُني عليه جلبٌ بـ`httpx` برؤوسٍ كاملةٍ وجلسةٍ مسخَّنة. ثمّ
+    قِيس في D250 نقيضُه بالحرف: **الرؤوسُ الكاملةُ مع httpx تردّ 403،
+    ونفسُها مع انتحال بصمة TLS تردّ 200** — فالحجبُ بالمصافحة لا بالرؤوس.
+    وبقيت هذه الخدمةُ وحدَها خارج المَعبر، فصارت تردّ «Access Denied»
+    (475 حرفاً) في كلّ نداء: لا إفصاحَ واحدٌ يصل، والمفكرةُ والأخبارُ
+    وبحثُ الصفقات كلُّها تُبنى على الفراغ **بصمت**.
+
+    فمعبرٌ واحدٌ لكلّ «تداول»: `tadawul_http.fetch` ينتحل البصمةَ ويُسخّن
+    ويسقط إلى httpx وحدَه إن غابت المكتبة — ولا تُكرَّر جلسةٌ في كلّ ملفّ.
+    """
+    from app.services.tadawul_http import fetch
+    return await fetch(url, referer=_ORIGIN + "/wps/portal/saudiexchange/"
+                                              "newsandreports/issuer-news/"
+                                              "company-announcements")
 
 
 async def probe_tadawul() -> dict:

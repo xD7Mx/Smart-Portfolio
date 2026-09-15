@@ -132,14 +132,17 @@ async def _argaam_listed() -> dict[str, dict]:
     وليست بديلاً عن «تداول» في المعنى: إن نقصت عن حدّ القبول رُفضت كما
     تُرفض غيرُها، فلا يُوسَم أحدٌ موقوفاً على قائمةٍ ناقصة.
     """
-    from app.services.argaam_calendar import CAL_URL, UA, _company_index
-    import httpx
-    async with httpx.AsyncClient(timeout=25, headers={"User-Agent": UA},
-                                 follow_redirects=True) as c:
-        r = await c.get(CAL_URL)
-        if r.status_code != 200:
-            return {}
-        idx = _company_index(r.text)
+    # ══ ومَعبرٌ واحدٌ لكلّ مضيف ══ (D312)
+    # كان هذا النداءُ بـ`httpx` عادياً — والطريقةُ الذكيةُ صارت عامّةً
+    # لأيّ مضيفٍ (D292)، فلا تبقى جلسةٌ ثانيةٌ في ملفٍّ على حِدَة: حجبٌ
+    # يقع يوماً في «أرقام» يُصلَح في موضعٍ واحدٍ لا في كلّ ملفّ.
+    from app.services.argaam_calendar import CAL_URL, _company_index
+    from app.services.tadawul_http import smart_fetch
+    status, body = await smart_fetch(CAL_URL, warm="https://www.argaam.com/ar",
+                                     timeout=25)
+    if status != 200 or not body:
+        return {}
+    idx = _company_index(body)
     return {sym: {"name": name} for name, (sym, _cid) in idx.items() if sym}
 
 
