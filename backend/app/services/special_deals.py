@@ -211,7 +211,17 @@ async def fetch_rows() -> tuple[list, str | None]:
 
 
 def _abs(href: str) -> str:
-    href = str(href or "").strip()
+    """رابطٌ مطلقٌ **مفكوكُ الترميز** — و`&amp;` ليست `&` (D303).
+
+    ══ عطبٌ قاسه المالكُ على خادمه ══
+    قائمةُ «أرقام» تكتب روابطَها بترميز HTML: `?marketid=3&amp;pageno=1`.
+    فطُلب الرابطُ بحرفيّته فردّ المصدرُ **403**، وقرأتُ الردَّ حجباً
+    وبنيتُ عليه أن المسارَ خطأٌ — وهو مسارُ «الصفقات الخاصة» بعينه كما
+    تسمّيه قائمتُهم. والقاعدةُ مكتوبةٌ في `docs/FETCH_METHOD.md` (البند ٤)
+    وسقطتُ عنها هنا: **كلُّ رابطٍ يُقرأ من صفحةٍ يُفَكُّ ترميزُه قبل طلبه**.
+    """
+    import html as _html
+    href = _html.unescape(str(href or "").strip())
     if href.startswith("http"):
         return href
     return ARGAAM_ORIGIN + ("" if href.startswith("/") else "/") + href

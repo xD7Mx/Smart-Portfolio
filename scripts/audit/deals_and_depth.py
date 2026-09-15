@@ -466,6 +466,20 @@ check(sd.rows_from_html(
 check(sd._by_name(["شركةٌ لا وجودَ لها في السوق"]) is None,
       "١٤ي واسمٌ لا يُطابق شركةً يُترك — لا أقربُ شبيه")
 
+# ١٤ك٢ · ورابطٌ يُقرأ من صفحةٍ يُفَكُّ ترميزُه قبل طلبه ─────────────────
+# قِيس على خادم المالك: قائمةُ «أرقام» تكتب `?marketid=3&amp;pageno=1`،
+# فطُلب الرابطُ بحرفيّته فردّ المصدرُ **403** — وقرأتُ الردَّ حجباً وبنيتُ
+# عليه أن المسارَ خطأ (D303).
+_NAV_AMP = ('<li id="mnu_x"><a href="/ar/shareholder/shareholders-history-deals'
+            '?marketid=3&amp;pageno=1">الصفقات الخاصة</a></li>')
+_u = sd._index_from_nav(_NAV_AMP)
+check(_u is not None and "&amp;" not in _u and _u.endswith("&pageno=1"),
+      "١٤ك٢ ورابطُ القائمة يُفَكُّ ترميزُه — `&amp;` ليست `&`", str(_u))
+_lnk2 = sd._index_links(
+    '<a href="/ar/article/articledetail/id/9?a=1&amp;b=2">تاسي: صفقات خاصة</a>')
+check(_lnk2 and "&amp;" not in _lnk2[0][0],
+      "١٤ك٣ وكذلك روابطُ المقالات", str(_lnk2[:1]))
+
 # ١٤ك · والقارئُ يستعمل الخطّة فعلاً — لا نداءين منفصلين كما كان
 check("smart_flow" in _SD2 and "_argaam_plan" in _SD2,
       "١٤ك والصفقاتُ تُقرأ بخطّةٍ في جلسةٍ واحدة")

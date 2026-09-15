@@ -98,7 +98,8 @@ async def dump() -> int:
                 if m["file"].startswith(("index_1", "article_1"))]
         pages = await render(want, settle_ms=9000)
         for i, (u, html) in enumerate(pages.items(), 1):
-            keep(f"browser_{i}.html", 200, html, u)
+            # لا حالةَ HTTP للمتصفّح: يُكتب صفراً لا 200 مخترَعاً.
+            keep(f"browser_{i}.html", 0, html, u)
     except BrowserUnavailable as e:
         print(f"  المتصفّحُ غيرُ متاح: {e}")
     except Exception as e:                                        # noqa: BLE001
@@ -110,6 +111,19 @@ async def dump() -> int:
         keep("tadawul.html", status, body, sd.PAGE)
     except Exception as e:                                        # noqa: BLE001
         print(f"تعذّر: {type(e).__name__}: {e}")
+
+    # ══ إشارةٌ فوريةٌ في الطرفيّة ══
+    # لا يُنتظَر تحليلي: عددُ صفوف الجدول في كلّ صفحةٍ يقول فوراً هل وصل
+    # المحتوى أم صفحةُ اعتراض.
+    import re as _re2
+    print("\n═ صفوفُ الجداول في كلّ صفحة ═")
+    for name, raw in files.items():
+        html = raw.decode("utf-8", "replace")
+        trs = len(_re2.findall(r"<tr\b", html, _re2.I))
+        tbl = len(_re2.findall(r"<table\b", html, _re2.I))
+        deny = "Access Denied" in html or "غير مصرح" in html
+        print(f"  · {name}: {tbl} جدولاً · {trs} صفّاً"
+              + ("  ← صفحةُ اعتراض" if deny else ""))
 
     out = pathlib.Path("/app/_deals_dump.tar.gz")
     if not out.parent.exists():
