@@ -412,6 +412,70 @@ async def argaam_deals(days: int = DEFAULT_DAYS) -> tuple[list[dict], str | None
                 + " · المتصفّح: بلا صفوفٍ مفهومة")
 
 
+# ══ بابُ «تداول» العامّ — ظهر بتسجيل الشبكة ══ (D310)
+# قِيس على خادم المالك: صفحةُ الصفقات الخاصة **تنادي** هذه الخدمةَ وتعود
+# بـ٢٩ ألفَ حرف. وهي خدمةُ مساعدٍ ثابتةُ المسار (ليست مسارَ بوّابةٍ
+# يُولَّد)، ومصدرٌ عامٌّ غيرُ مدفوع — فتُنادى كما تناديها الصفحة: بجلسةٍ
+# واحدةٍ تُسخَّن بالصفحة نفسِها، وبترويسة XHR ومُحيلٍ صحيح.
+TD_HELPER = ("https://www.saudiexchange.sa/tadawul.eportal.theme.helper/"
+             "RefreshTradeDetailsServlet")
+
+
+async def tadawul_trade_details() -> tuple[list[dict], str | None]:
+    """صفقاتُ صفحة «تداول» من خدمتها التي قِيس أن الصفحةَ تناديها.
+
+    وشكلُ الجسم لم يُقَس بعد (‏٢٩ ألفَ حرفٍ بلا عيّنةٍ مطبوعة)، فيُقبَل
+    **الشكلان**: JSON بصفوفٍ تُسمّى بحقولها، أو HTML يُقرأ بقارئ الصفوف.
+    وما لم يُفهَم يُقال سببُه بنصّه — ولا يُخترع صفٌّ واحد.
+    """
+    import functools
+
+    from app.services.tadawul_http import smart_flow
+
+    def plan():
+        status, page = yield {"url": PAGE}
+        if status != 200 or not page:
+            return None, f"صفحةُ تداول: HTTP {status}"
+        status, body = yield {"url": TD_HELPER, "referer": PAGE,
+                              "headers": {"X-Requested-With": "XMLHttpRequest",
+                                          "Accept": "application/json, text/html, */*"}}
+        if status != 200 or not body:
+            return None, f"خدمةُ التفاصيل: HTTP {status}"
+        return body, None
+
+    try:
+        body, why = await smart_flow(functools.partial(plan))
+    except Exception as e:                                        # noqa: BLE001
+        return [], f"تداول/خدمة: {type(e).__name__}: {e}"
+    if why or not body:
+        return [], why or "خدمةُ التفاصيل: جسمٌ فارغ"
+
+    # JSON أوّلاً — وأسماءُ الحقول تُطابَق بمرشِّحاتها المكتوبة.
+    try:
+        data = json.loads(body)
+    except Exception:                                             # noqa: BLE001
+        data = None
+    if data is not None:
+        rows = data
+        if isinstance(data, dict):
+            for k in ("data", "rows", "deals", "result", "items"):
+                if isinstance(data.get(k), list):
+                    rows = data[k]
+                    break
+        got = normalize(rows if isinstance(rows, list) else [])
+        if got:
+            return got, None
+        return [], ("خدمةُ التفاصيل: JSON بلا صفوفٍ مفهومة — الحقول: "
+                    + ", ".join(sorted((rows[0] if isinstance(rows, list)
+                                        and rows and isinstance(rows[0], dict)
+                                        else {}).keys()))[:200])
+    # وإلا فقارئُ الصفوف: جدولاً كان أو حاويات.
+    got = rows_from_html(body)
+    if got:
+        return got, None
+    return [], f"خدمةُ التفاصيل: {len(body)} حرفاً بلا صفوفٍ مفهومة"
+
+
 async def refresh(days: int = DEFAULT_DAYS) -> dict:
     """يجلب ويحفظ — و«أرقام» **أوّلُ الطبقات** لهذه الشاشة (D288).
 
@@ -423,8 +487,17 @@ async def refresh(days: int = DEFAULT_DAYS) -> dict:
     وقد أمر المالكُ أن يكون المصدرُ «أرقام». وتبقى «تداول» مكتوبةً تُجرَّب
     بعده: إن فُتح المسارُ يوماً عاد الرسميُّ إلى مقدّمته بلا تعديل.
     """
-    deals, why = await argaam_deals(days)
-    src = "أرقام"
+    # ══ الترتيبُ تغيّر بالقياس ══ (D308 · D310)
+    # قِيس أن صفحةَ «أرقام» مغلقةٌ بالاشتراك (تنادي باقاتَها بدل بياناتها)،
+    # فلا تُقدَّم على مصدرٍ عامٍّ يعمل. و«تداول» رسميٌّ أصلاً.
+    deals, why = await tadawul_trade_details()
+    src = "تداول"
+    if not deals:
+        got, why_a = await argaam_deals(days)
+        if got:
+            deals, src, why = got, "أرقام", None
+        else:
+            why = f"تداول: {why} · أرقام: {why_a}"
     if not deals:
         rows, why_t = await fetch_rows()
         got = normalize(rows) if not why_t else []

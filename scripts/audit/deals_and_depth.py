@@ -557,5 +557,58 @@ check("sniff" in (ROOT / "scripts" / "audit" / "deals_probe.py")
       .read_text(encoding="utf-8"),
       "١٥ج والمسبارُ يستعمله فيطبع ما طلبته الصفحةُ فعلاً")
 
+# ── ١٦ · بابُ «تداول» العامّ يُنادى كما تناديه صفحتُه ──────────────────
+# ظهر البابُ بتسجيل الشبكة على خادم المالك: صفحةُ الصفقات الخاصة تنادي
+# `RefreshTradeDetailsServlet` وتعود بـ٢٩ ألفَ حرف (D310). وشكلُ الجسم لم
+# يُقَس، فيُقبَل الشكلان — ويُقاس الاثنان هنا بخادمٍ محليّ.
+def _td_layer(mode: str) -> tuple[int, str]:
+    import http.server
+    import json as _j
+    import socketserver
+    import threading
+
+    pay = {"data": [{"symbol": "1120", "companyName": "الراجحي", "price": 92.5,
+                     "quantity": 1000000, "value": 92500000,
+                     "tradeDate": "2026-09-14"}]}
+    htm = ("<table><tr><td>بنك الرياض</td><td>1010</td><td>28.50</td>"
+           "<td>2,000,000</td><td>2026-09-14</td></tr></table>")
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):                                # noqa: D102
+            pass
+
+        def do_GET(self):                                         # noqa: N802
+            b = (_j.dumps(pay).encode() if mode == "json" else htm.encode())
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+
+    srv = socketserver.TCPServer(("127.0.0.1", 0), H)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    page, helper = sd.PAGE, sd.TD_HELPER
+    sd.PAGE = f"http://127.0.0.1:{port}/page"
+    sd.TD_HELPER = f"http://127.0.0.1:{port}/RefreshTradeDetailsServlet"
+    try:
+        deals, why = asyncio.run(sd.tadawul_trade_details())
+        return len(deals), (deals[0]["symbol"] if deals else (why or "")[:60])
+    finally:
+        sd.PAGE, sd.TD_HELPER = page, helper
+        srv.shutdown()
+
+
+_nj, _sj = _td_layer("json")
+check(_nj == 1 and _sj == "1120",
+      "١٦ بابُ «تداول» يُقرأ إن عاد JSON — بأسماء الحقول المكتوبة", f"{_nj}/{_sj}")
+_nh, _sh = _td_layer("html")
+check(_nh == 1 and _sh == "1010",
+      "١٦ب ويُقرأ إن عاد HTML — بقارئ الصفوف نفسِه", f"{_nh}/{_sh}")
+check("RefreshTradeDetailsServlet" in _SD2 or "TD_HELPER" in _SD2,
+      "١٦ج والبابُ مكتوبٌ كما قِيس لا كما خُمِّن")
+check("await smart_flow" in _SD2,
+      "١٦د ويُنادى بجلسةٍ واحدةٍ تُسخَّن بصفحته — كما تناديه الصفحة")
+
 print(("FAIL" if fail else "PASS") + " D272 · D273 — العمقُ يُعرَض، والصفقاتُ الخاصة تُبنى")
 raise SystemExit(fail)
