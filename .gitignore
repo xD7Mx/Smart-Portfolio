@@ -39,3 +39,7 @@ backend/.vault/
 # أرقامَ تشغيلٍ من مختبري إلى خادم المالك.
 data/valuation_runs.jsonl
 sp_probe.tar.gz
+
+# دليلُ المصدر المحفوظ من الخادم — مخرَجُ قياسٍ لا كود
+_deals_dump.tar.gz
+backend/_deals_dump.tar.gz

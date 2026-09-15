@@ -4,10 +4,17 @@
     docker exec sp_backend python /app/scripts/audit/deals_probe.py
     docker exec sp_backend python /app/scripts/audit/deals_probe.py --days=7
     docker exec sp_backend python /app/scripts/audit/deals_probe.py --apply
+    docker exec sp_backend python /app/scripts/audit/deals_probe.py --dump
 
 يمشي **بطريقة نشر المصدر نفسِها** مرحلةً مرحلةً فيُرى أين ينقطع الخيط:
 قائمةُ «أرقام» ← فهرسُ الوسم ← مقالاتُه المؤرَّخة ← جدولُ كلٍّ منها. ثمّ
 طبقةُ «تداول» بعدها. ولا يكتب شيئاً إلا بـ`--apply`.
+
+و`--dump` يحفظ **البايتاتَ الخام** التي وصلت (الصفحاتُ كما جاءت) في
+`/app/_deals_dump.tar.gz` — أي `backend/_deals_dump.tar.gz` على الخادم،
+لأن `./backend` مربوطٌ بالحاوية. والسببُ صريح: «أرقام» محجوبةٌ عن بيئة
+التطوير بسياسة الخروج، فالمستخرِجُ لا يُكتب على تخمينِ شكلٍ بل على
+الصفحة الحقيقية. يُرسَل الملفُّ مرّةً واحدةً فيُكتب القارئُ على واقعه.
 """
 from __future__ import annotations
 
@@ -29,7 +36,101 @@ def _days() -> int:
     return 30
 
 
+async def dump() -> int:
+    """يحفظ الصفحاتَ الخام كما وصلت — دليلٌ يُقرأ لا وصفٌ يُروى."""
+    import io
+    import pathlib
+    import tarfile
+
+    from app.services import special_deals as sd
+    from app.services.tadawul_http import fetch, smart_flow
+
+    files: dict[str, bytes] = {}
+    man: list[dict] = []
+
+    def keep(name: str, status: int, body: str, url: str) -> None:
+        raw = (body or "")[:2_000_000].encode("utf-8", "replace")
+        files[name] = raw
+        man.append({"file": name, "url": url, "status": status, "bytes": len(raw)})
+        print(f"  · {name}: HTTP {status} · {len(raw)} بايت · {url[:80]}")
+
+    def plan():
+        status, home = yield {"url": sd.ARGAAM_HOME}
+        keep("home.html", status, home, sd.ARGAAM_HOME)
+        index = sd._index_from_nav(home or "") if status == 200 else None
+        pages = sd._index_pages(index or sd.TAG_INDEX.format(page=1))[:2]
+        arts: list[str] = []
+        for i, u in enumerate(pages, 1):
+            status, body = yield {"url": u, "referer": sd.ARGAAM_HOME}
+            keep(f"index_{i}.html", status, body, u)
+            for href, _t in sd._index_links(body or ""):
+                if href not in arts:
+                    arts.append(href)
+        # وإن لم يُعطِ الفهرسُ مقالاتٍ: تُجلَب روابطُ المقالات كما وردت في
+        # الصفحة بلا مرشِّح عنوان — فالدليلُ أهمُّ من ترشيحنا.
+        if not arts:
+            import re as _re
+            for m in _re.finditer(r'href="([^"]*?/ar/article/articledetail/id/\d+[^"]*)"',
+                                  files.get("index_1.html", b"").decode("utf-8", "replace")):
+                u = sd._abs(m.group(1))
+                if u not in arts:
+                    arts.append(u)
+        for i, u in enumerate(arts[:4], 1):
+            status, body = yield {"url": u, "referer": pages[0]}
+            keep(f"article_{i}.html", status, body, u)
+        return len(arts)
+
+    print("═ جلبُ الدليل من «أرقام» ═")
+    try:
+        found = await smart_flow(plan, warm=sd.ARGAAM_HOME)
+        print(f"روابطُ مقالاتٍ وُجدت: {found}")
+    except Exception as e:                                        # noqa: BLE001
+        print(f"خطّةُ الجلب تعذّرت: {type(e).__name__}: {e}")
+
+    # ══ وبالمتصفّح أيضاً ══
+    # إن كان الجدولُ يُبنى بجافاسكربت فالجلبُ المنتحِلُ يعود بقشرةٍ صادقةٍ
+    # فارغة. فيُحفَظ **ما يراه متصفّحٌ حقيقيٌّ** كذلك — فالدليلُ يحسم أيَّ
+    # الطبقتين تُقرأ، ولا يُخمَّن.
+    print("═ وبالمتصفّح (إن توفّر على الخادم) ═")
+    try:
+        from app.services.browser_fetch import BrowserUnavailable, render
+        want = [m["url"] for m in man
+                if m["file"].startswith(("index_1", "article_1"))]
+        pages = await render(want, settle_ms=9000)
+        for i, (u, html) in enumerate(pages.items(), 1):
+            keep(f"browser_{i}.html", 200, html, u)
+    except BrowserUnavailable as e:
+        print(f"  المتصفّحُ غيرُ متاح: {e}")
+    except Exception as e:                                        # noqa: BLE001
+        print(f"  تعذّر: {type(e).__name__}: {e}")
+
+    print("═ وصفحةُ «تداول» للصفقات الخاصة ═")
+    try:
+        status, body = await fetch(sd.PAGE)
+        keep("tadawul.html", status, body, sd.PAGE)
+    except Exception as e:                                        # noqa: BLE001
+        print(f"تعذّر: {type(e).__name__}: {e}")
+
+    out = pathlib.Path("/app/_deals_dump.tar.gz")
+    if not out.parent.exists():
+        out = pathlib.Path("_deals_dump.tar.gz")
+    with tarfile.open(out, "w:gz") as tar:
+        for name, raw in files.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(raw)
+            tar.addfile(info, io.BytesIO(raw))
+        blob = json.dumps(man, ensure_ascii=False, indent=2).encode()
+        info = tarfile.TarInfo("manifest.json")
+        info.size = len(blob)
+        tar.addfile(info, io.BytesIO(blob))
+    print(f"\n✔ {out} — {out.stat().st_size} بايت · {len(files)} صفحة")
+    print("  على الخادم: backend/_deals_dump.tar.gz — أرسله كما هو.")
+    return 0
+
+
 async def main() -> int:
+    if "--dump" in sys.argv[1:]:
+        return await dump()
     apply = "--apply" in sys.argv[1:]
     days = _days()
     from app.services import special_deals as sd
