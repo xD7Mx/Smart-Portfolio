@@ -1851,21 +1851,29 @@ async def get_special_deals(symbol: str | None = None, days: int = 30):
     مثل المفكرة». فالمدى يُصفّى **من المحفوظ** ولا يُجلَب لكلّ اختيار،
     والأحدثُ أوّلاً. ولا جلبَ في مسار الطلب: الجلبُ في الجدولة.
     """
-    from app.services.special_deals import for_symbol, reading, within
+    from app.services.special_deals import (
+        _row_date, for_symbol, reading, within,
+    )
 
     rec = reading()
     if not rec:
         return success_response(
             data={"deals": [], "as_of": None, "available": False,
-                  "days": days, "source": "أرقام"},
+                  "days": days, "source": "تداول"},
             message="الصفقاتُ الخاصة غير متوفّرة الآن.")
     deals = within(for_symbol(symbol) if symbol else (rec.get("deals") or []),
                    days)
-    deals.sort(key=lambda d: str(d.get("at") or ""), reverse=True)
+    # ══ الترتيبُ بالتاريخ تاريخاً ══ (D322)
+    # تواريخُ المصدر `15-09-2026` — وترتيبُها نصّاً يُقدّم اليومَ على
+    # الشهر، فتظهر صفقةُ ‎30-08 قبل ‎15-09. فتُرتَّب تاريخاً، وبلا تاريخٍ
+    # تُؤخَّر ولا تُحذف.
+    from datetime import date as _date
+    deals.sort(key=lambda d: (_row_date(d) or _date.min,
+                              str(d.get("time") or "")), reverse=True)
     return success_response(
         data={"deals": deals, "as_of": rec.get("at"), "available": True,
               "count": len(deals), "days": days,
-              "source": rec.get("source") or "أرقام"},
+              "source": rec.get("source") or "تداول"},
         message="الصفقاتُ الخاصة.")
 
 # ══ بثُّ الأسعار المباشر — دفعٌ لا سؤال ══ (D290)

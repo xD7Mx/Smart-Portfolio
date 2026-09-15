@@ -26,7 +26,17 @@ from datetime import datetime, timezone
 from loguru import logger
 
 STORE_KEY = "market:special_deals"
-MAX_AGE_SECONDS = 15 * 60
+MAX_AGE_SECONDS = 15 * 60          # عمرُ الكاش في الذاكرة — لا عمرُ السجلّ
+
+# ══ سجلٌّ شهريٌّ لا لقطةٌ لحظية ══ (D322)
+# قِيس: المالكُ رأى التبويبَ **فارغاً** بعد أن وصلت ١٤٤ صفقةً وحُفظت.
+# والسببُ أن `reading()` كان يقرأ المحفوظَ بسقفِ **ربعِ ساعة**، والجلبُ
+# مرّتان في يوم التداول (‎09:20 و‎16:20) — فكلُّ ما عدا نصفَ ساعةٍ في
+# اليوم يُقرأ «غيرَ متوفّر» والسجلُّ سليمٌ على القرص. سقفُ الربع بقيةُ
+# زمنٍ كان البندُ فيه لقطةً لحظية، وقد صار سجلَّ شهرٍ بأمر المالك (D295)
+# ولم يُصحَّح السقفُ معه. فصار للسجلّ سقفُه: ما دام يُعرض بتاريخه فلا
+# معنى لإخفائه، وشيخوختُه تُقاس بأيّامٍ لا بدقائق.
+STORE_MAX_AGE = 14 * 24 * 3600
 MAX_ROWS = 200
 
 PAGE = ("https://www.saudiexchange.sa/wps/portal/saudiexchange/trading/"
@@ -729,11 +739,11 @@ async def refresh(days: int = DEFAULT_DAYS) -> dict:
 
 
 def reading() -> dict | None:
-    """المحفوظُ — أو None إن غاب أو شاخ."""
+    """المحفوظُ — أو None إن غاب أو شاخ بأيّامٍ (لا بدقائق · D322)."""
     from app.services import cache, lastgood
     rec = cache.get(STORE_KEY)
     if not isinstance(rec, dict):
-        rec = lastgood.load(STORE_KEY, max_age_seconds=MAX_AGE_SECONDS)
+        rec = lastgood.load(STORE_KEY, max_age_seconds=STORE_MAX_AGE)
     return rec if isinstance(rec, dict) and rec.get("deals") else None
 
 

@@ -247,6 +247,29 @@ async def lifespan(app: FastAPI):
 
     _aio.create_task(_warm_tadawul())
 
+    async def _warm_deals():
+        """سجلُّ الصفقات الخاصة عند الإقلاع إن كان فارغاً (D322).
+
+        جلبُه مرّتان في يوم التداول (‎09:20 و‎16:20). فحاويةٌ تُعاد بعد
+        الإغلاق — أو في يوم عطلة — تبقى بلا سجلٍّ إلى الغد، والتبويبُ
+        فارغٌ وقد كانت الصفقاتُ مقروءةً مجلوبة. والمصدرُ يخدم مدى شهرٍ
+        في كلّ وقت، فلا عذرَ للفراغ. يُقرأ مرّةً **إن غاب**، ولا يُعاد
+        إن حضر.
+        """
+        try:
+            from app.services.special_deals import reading, refresh
+            if reading():
+                return
+            await _aio.sleep(20)          # بعد اللقطة، ورحمةً بالمصدر
+            logger.info("🔥 سجلُّ الصفقات الخاصة فارغٌ عند الإقلاع — يُقرأ…")
+            rec = await refresh()
+            if not rec.get("count"):
+                logger.warning("صفقاتُ الإقلاع لم تُقرأ: {}", rec.get("error"))
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning(f"Boot special deals failed: {e}")
+
+    _aio.create_task(_warm_deals())
+
     async def _warm_betas():
         """بيتا القطاعات إن غابت — بعد اللقطة بمهلة، ومرّةً واحدة (D286).
 

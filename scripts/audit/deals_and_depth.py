@@ -780,5 +780,49 @@ check(_n2 == 1 and "صفَّ مجاميع" in " ".join(_log3),
       "١٩د والفرقُ بين الواصل والمعروض يُفسَّر في سطره — لا لغزَ «1/2»",
       " ".join(_log3)[-110:])
 
+# ── ٢٠ · التبويبُ يُسأل كما تسأله الشاشة (D322) ──────────────────────────
+# رأى المالكُ التبويبَ **فارغاً** بعد أن وصلت ١٤٤ صفقةً وحُفظت. وكنتُ
+# أقيس `refresh()` ولا أسأل النقطةَ التي تناديها الشاشة — وهو صنفُ D299
+# نفسُه («الاتّصالُ قائمٌ ≠ الرقمُ يصل»). فالسجلُّ كان يُقرأ بسقفِ ربعِ
+# ساعةٍ والجلبُ مرّتان في اليوم، فكلُّ ما عدا نصفَ ساعةٍ «غيرُ متوفّر».
+# ويُقاس هنا **من مخرَج النقطة**، وبسجلٍّ عمرُه ساعةٌ — نسبةً إلى الآن.
+_OLD = [{"symbol": "2250", "price": 11.62, "quantity": 395000,
+         "value": 4589900,
+         "at": (_dt2.date.today() - _dt2.timedelta(days=3)).strftime("%d-%m-%Y"),
+         "time": "14:13:11"},
+        {"symbol": "1120", "price": 90.0, "quantity": 10000, "value": 900000,
+         "at": (_dt2.date.today() - _dt2.timedelta(days=20)).strftime("%d-%m-%Y"),
+         "time": "10:00:00"}]
+lastgood.save(sd.STORE_KEY,
+              {"at": _dt2.datetime.now(_dt2.timezone.utc)
+                     .isoformat(timespec="seconds"),
+               "deals": _OLD, "source": "تداول"})
+# يُشيَّخ المحفوظُ ساعةً — بالفرق لا بتاريخٍ مثبَّت، وفي **الحالة التي
+# يقرؤها** (للطبقة ذاكرةٌ داخلية، فتعديلُ الملفّ وحدَه لا يُشيّخ شيئاً —
+# وهذه مزلقةٌ أوقعتني في «فحصٍ أخضرَ لا يقيس»).
+lastgood._load()[sd.STORE_KEY]["saved_at"] -= 3600
+cache.set(sd.STORE_KEY, None, 0)
+
+_out20 = _data(asyncio.run(M.get_special_deals(days=30)))
+check(_out20.get("available") is True and len(_out20.get("deals") or []) == 2,
+      "٢٠ سجلٌّ عمرُه ساعةٌ يُعرَض — لا «غيرُ متوفّر» والصفقاتُ محفوظة",
+      f"available={_out20.get('available')} · "
+      f"{len(_out20.get('deals') or [])} صفقة")
+check((_out20.get("deals") or [{}])[0].get("symbol") == "2250",
+      "٢٠ب والأحدثُ أوّلاً بالتاريخ تاريخاً — لا ترتيبَ نصٍّ يُقدّم اليومَ"
+      " على الشهر",
+      " → ".join(str(d.get("at")) for d in (_out20.get("deals") or [])))
+check(_out20.get("source") == "تداول",
+      "٢٠ج ومصدرُه يُقال كما حُفظ", str(_out20.get("source")))
+check(sd.STORE_MAX_AGE >= 7 * 24 * 3600 > sd.MAX_AGE_SECONDS,
+      "٢٠د وسقفُ السجلّ بالأيّام وسقفُ الكاش بالدقائق — لا سقفٌ واحدٌ"
+      " يخنق سجلَّ شهر", f"{sd.STORE_MAX_AGE}ث مقابل {sd.MAX_AGE_SECONDS}ث")
+
+_MAIN22 = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
+check("_warm_deals" in _MAIN22
+      and "_aio.create_task(_warm_deals())" in _MAIN22,
+      "٢٠ه وحاويةٌ تُعاد بعد الإغلاق تقرأ سجلَّها عند الإقلاع — لا تنتظر"
+      " الغد")
+
 print(("FAIL" if fail else "PASS") + " D272 · D273 — العمقُ يُعرَض، والصفقاتُ الخاصة تُبنى")
 raise SystemExit(fail)
