@@ -215,14 +215,60 @@ async def main() -> int:
                 await p2.close()
                 continue
 
+            # ══ الجدولُ يُملأ بضغطة ══ (D317)
+            # قِيس على السوق الرئيسة: ترويسةُ الجدول صحيحةٌ («التاريخ |
+            # الرمز | الشركة | السعر | الكمية المتداولة | القيمة المتداولة
+            # | الوقت») وتحتها شروطُ الأهلية، و**صفرُ نداءِ بيانات**. أي
+            # أن الشبكةَ لا تُطلَق بمجرّد الفتح: الصفحةُ تنتظر بحثاً.
+            # فتُجرَّب الأزرارُ بمعناها (بحث · عرض · تطبيق · Search)،
+            # وتُقرأ الصفوفُ والنداءاتُ بعدها.
+            if not any(all(rx.search(r) for rx in ROWISH) for r in rows):
+                try:
+                    btns = await p2.query_selector_all(
+                        "button, input[type=submit], input[type=button], a.btn,"
+                        " [class*='search'], [class*='btn']")
+                    pressed = 0
+                    for b in btns[:40]:
+                        try:
+                            lbl = ((await b.inner_text()) or "").strip()
+                            if not lbl:
+                                lbl = (await b.get_attribute("value")) or ""
+                            if not re.search(r"بحث|عرض|تطبيق|search|submit|go",
+                                             lbl, re.I):
+                                continue
+                            await b.click(timeout=2500)
+                            pressed += 1
+                            await p2.wait_for_timeout(5000)
+                            if pressed >= 2:
+                                break
+                        except Exception:                         # noqa: BLE001
+                            continue
+                    print(f"   أزرارٌ ضُغطت بمعناها: {pressed}")
+                    if pressed:
+                        rows = await p2.evaluate("""() => {
+                            const cells = (el, sel) =>
+                              [...el.querySelectorAll(sel)]
+                                .map(c => (c.textContent || '').replace(/\\s+/g,' ').trim())
+                                .filter(Boolean).join(' | ');
+                            const out = [];
+                            for (const tr of document.querySelectorAll('tr')) {
+                              const s = cells(tr, 'td,th') ||
+                                (tr.textContent || '').replace(/\\s+/g,' ').trim();
+                              if (s) out.push(s);
+                            }
+                            return out.slice(0, 40);
+                        }""")
+                except Exception as e:                            # noqa: BLE001
+                    print(f"   التفاعلُ تعذّر: {type(e).__name__}")
+
             dealish = [r for r in rows
                        if all(rx.search(r) for rx in ROWISH)]
             print(f"   صفوفٌ مرسومة: {len(rows)} · منها تشبه صفقةً: {len(dealish)}")
             for r in dealish[:4]:
                 print(f"      {r[:150]}")
             if not dealish:
-                for r in rows[:3]:
-                    print(f"      (صفٌّ لا يشبه صفقة) {r[:120]}")
+                for r in rows[:8]:
+                    print(f"      (صفٌّ لا يشبه صفقة) {r[:130]}")
 
             xhr = [c for c in calls
                    if c["k"] in ("xhr", "fetch") and HOST in c["u"]]
