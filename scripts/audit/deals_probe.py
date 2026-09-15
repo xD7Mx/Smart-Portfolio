@@ -132,7 +132,9 @@ async def dump() -> int:
     #   · هل في الصفحة عنوانُ الميزة؟ وهل فيها علاماتُ اشتراكٍ مدفوع؟
     #   · وكم كتلةً تشبه صفَّ صفقة (رمزٌ + كسرٌ + تاريخ)؟ وما نصُّ أوائلها؟
     #   · وما نداءاتُ البيانات المذكورةُ في سكربتها؟
-    for name in ("index_1.html", "browser_1.html", "tadawul.html"):
+    # وكلُّ صفحةٍ محفوظةٍ تُفحَص — ومنها **المرسومة**: قِيس أن صفحةَ
+    # «تداول» المرسومةَ 846 ألفَ حرفٍ (الخامُ 556) ولم أفحصها (D307).
+    for name in [n for n in files if n.endswith(".html")]:
         raw = files.get(name)
         if not raw:
             continue
@@ -196,7 +198,9 @@ async def dump() -> int:
     for label, u in (("تداول", sd.PAGE), ("أرقام", sd.ARGAAM_MARKET)):
         try:
             from app.services.browser_fetch import BrowserUnavailable, sniff
-            res = await sniff(u, settle_ms=9000)
+            res = await sniff(u, settle_ms=9000, max_bodies=12,
+                              hosts=("saudiexchange.sa", "argaam.com",
+                                     "tadawul.com.sa"))
         except BrowserUnavailable as e:
             print(f"  {label}: المتصفّحُ غيرُ متاح — {e}")
             continue

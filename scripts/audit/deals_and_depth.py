@@ -507,11 +507,13 @@ def _sniff_probe() -> tuple[int, str]:
 
         def do_GET(self):                                         # noqa: N802
             if self.path == "/page":
+                # اسمٌ **لا يطابق** مرشِّح الأسماء — كما وقع على الخادم
+                # (‏RefreshTradeDetailsServlet · TickerServlet · D307).
                 b = (b"<html><body><script>"
-                     b"fetch('/api/getSpecialDealsData?marketid=3');"
+                     b"fetch('/RefreshTradeDetailsServlet');"
                      b"</script></body></html>")
                 ct = "text/html; charset=utf-8"
-            elif self.path.startswith("/api/getSpecialDealsData"):
+            elif self.path.startswith("/RefreshTradeDetails"):
                 b = b'{"deals":[{"symbol":"1120","price":92.5}]}'
                 ct = "application/json"
             else:
@@ -530,7 +532,9 @@ def _sniff_probe() -> tuple[int, str]:
     try:
         from app.services.browser_fetch import BrowserUnavailable, sniff
         try:
-            res = asyncio.run(sniff(f"http://127.0.0.1:{port}/page", settle_ms=2000))
+            res = asyncio.run(sniff(f"http://127.0.0.1:{port}/page",
+                                    settle_ms=2000, hosts=("127.0.0.1",),
+                                    max_bodies=12))
         except BrowserUnavailable as e:
             return -1, str(e)[:60]
         xhr = [c for c in res["calls"] if c["type"] in ("xhr", "fetch")]
@@ -547,7 +551,8 @@ else:
     check(_n >= 1, "١٥ المتصفّحُ يسجّل نداءَ البيانات الذي تطلبه الصفحة",
           f"{_n} نداءً")
     check('"symbol"' in _b or "1120" in _b,
-          "١٥ب ويُحفَظ جسمُ الردّ — فيُقرأ الشكلُ لا يُخمَّن", _b[:40])
+          "١٥ب ويُحفَظ جسمُ الردّ **بمضيف المصدر** لا بمرشِّح اسمٍ يُسقطه",
+          _b[:40])
 check("sniff" in (ROOT / "scripts" / "audit" / "deals_probe.py")
       .read_text(encoding="utf-8"),
       "١٥ج والمسبارُ يستعمله فيطبع ما طلبته الصفحةُ فعلاً")

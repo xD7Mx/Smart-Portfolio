@@ -112,6 +112,7 @@ async def render(urls: list[str], *, wait_selector: str | None = None,
 
 async def sniff(url: str, *, settle_ms: int = 9000,
                 want: str = r"(?i)json|deal|negotiat|special|grid|table|data",
+                hosts: tuple[str, ...] | None = None,
                 max_bodies: int = 6) -> dict:
     """يفتح صفحةً **ويسجّل نداءاتها** — اكتشافُ النقطة من حركة الشبكة (D306).
 
@@ -175,7 +176,15 @@ async def sniff(url: str, *, settle_ms: int = 9000,
                 break
             if r.request.resource_type not in ("xhr", "fetch"):
                 continue
-            if not rx.search(r.url):
+            # ══ المرشِّحُ بالاسم يُسقط البابَ الصحيح ══ (D307)
+            # قِيس على الخادم: الصفحةُ نادت `RefreshTradeDetailsServlet`
+            # و`TickerServlet` — ولم يُحفظ جسمُهما لأن مرشِّحي لم يطابق
+            # اسمَهما. فالأصلُ **مضيفُ المصدر**: كلُّ نداءٍ من مضيفٍ
+            # مذكورٍ يُحفَظ جسمُه، والاسمُ مرشِّحٌ مساندٌ لا حاكم.
+            if hosts:
+                if not any(h in r.url for h in hosts):
+                    continue
+            elif not rx.search(r.url):
                 continue
             try:
                 bodies[r.url] = (await r.text())[:300_000]
