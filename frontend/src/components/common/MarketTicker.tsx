@@ -2,7 +2,7 @@ import FlashPrice from "./FlashPrice";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveInterval } from "../../hooks/useMarketLive";
-import { useLiveQuote, useLiveStreamOn } from "../../hooks/useLivePrices";
+import { useLiveIndex, useLiveQuote, useLiveStreamOn } from "../../hooks/useLivePrices";
 import { marketApi, settingsApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 // أيقونة اللسان هي أيقونة شريط الأخبار نفسها (`Radio` — موجاتُ بثّ). كانت
@@ -81,7 +81,14 @@ export default function MarketTicker() {
     enabled: isOwner,
   });
 
-  const tasi = overview?.tasi;
+  /* لسانُ تاسي يقرأ المؤشّرَ **مدفوعاً** حين يصل (D299): كان يسأل كلَّ
+     دقيقةٍ ما دام المجرى موصولاً، فيتجمّد الرقمُ في اللسان نفسِه. */
+  const liveIdx = useLiveIndex();
+  const tasiQ = overview?.tasi;
+  const tasi = liveIdx
+    ? { ...(tasiQ || {}), price: liveIdx[0],
+        change_pct: liveIdx[1] ?? tasiQ?.change_pct }
+    : tasiQ;
   /* بياناتٌ قديمة تعني جلسةً منتهية مهما قال التقويم — والصدق مقدَّم. */
   const stale = !!movers?._stale_since;
   const phase: string = stale ? "closed" : (srv?.market_status || "closed");

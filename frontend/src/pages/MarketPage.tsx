@@ -12,6 +12,7 @@ import InlineStockSearch from "../components/market/InlineStockSearch";
 import CompanyDirectory from "../components/market/CompanyDirectory";
 import SpecialDeals from "../components/market/SpecialDeals";
 import { useLiveInterval } from "../hooks/useMarketLive";
+import { useLiveIndex } from "../hooks/useLivePrices";
 import CompanyLogo from "../components/common/CompanyLogo";
 import { FairValueBar, SafetyBar, fairValueTier, safeColor } from "../components/common/ValueBars";
 import { ShariaBadge } from "../components/common/UI";
@@ -116,8 +117,18 @@ function MarketBreadthCard({ movers }: { movers: any }) {
    كان نصّاً واحداً يجمع ستّ معلوماتٍ بفواصل، فتختفي الأرقام في النثر
    ويتكرّر ما تعرضه البطاقات تحته. الآن تُقرأ الأرقام في لمحة، ويبقى نصّ
    الذكاء لما لا تقوله الأرقام وحدها: **سبب** الحركة من الأخبار. */
-function PulseCard({ summary, tasi, brent, movers, onSearch }:
+function PulseCard({ summary, tasi: tasiQ, brent, movers, onSearch }:
   { summary: any; tasi: any; brent: any; movers: any; onSearch?: (symbol: string) => void }) {
+  /* ══ «جلسةٌ مباشرة» ورقمٌ لا يتغيّر ══ (D299)
+     قالها المالك بنصّها. والسببُ أن المجرى كان يحمل الأسعارَ ولا يحمل
+     المؤشّر: فبقيت هذه البطاقةُ على السؤال الدوريّ، وحين يعمل الدفعُ
+     تُبطئ الشاشةُ سؤالَها — فيتجمّد الرقمُ تحت وسمٍ يقول إنه مباشر.
+     فالمؤشّرُ يُقرأ مدفوعاً حين يصل، ومن الاستعلام حين لا يصل. */
+  const liveIdx = useLiveIndex();
+  const tasi = liveIdx
+    ? { ...(tasiQ || {}), price: liveIdx[0],
+        change_pct: liveIdx[1] ?? tasiQ?.change_pct }
+    : tasiQ;
   const num = (v: any, d = 2) => v == null ? "—" : Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
   const pct = (v: any) => v == null ? null : (v >= 0 ? "+" : "") + Number(v).toFixed(2) + "%";
   const tone = (v: any) => v == null ? "var(--ink)" : v > 0 ? "var(--pos-ink)" : v < 0 ? "var(--neg-ink)" : "var(--ink-muted)";
@@ -174,9 +185,12 @@ function PulseCard({ summary, tasi, brent, movers, onSearch }:
         <>
           {/* المؤشر أولاً وأكبر */}
           <div className="flex items-baseline gap-2 mb-3">
-            <span className="text-[26px] font-semibold tabular-nums" dir="ltr" style={{ color: tone(tasi?.change_pct) }}>
+            {/* ويومض كما تومض الأسعار: الحركةُ تُرى قبل أن تُقرأ. */}
+            <FlashPrice value={tasi?.price}
+                        className="text-[26px] font-semibold tabular-nums"
+                        style={{ color: tone(tasi?.change_pct) }}>
               {num(tasi?.price)}
-            </span>
+            </FlashPrice>
             <span className="text-[13px] font-semibold tabular-nums" dir="ltr" style={{ color: tone(tasi?.change_pct) }}>
               {pct(tasi?.change_pct) ?? ""}
             </span>

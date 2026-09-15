@@ -317,5 +317,115 @@ check(_to and int(_to.group(1)) > _src_cap,
 check(NG.count("{") == NG.count("}"),
       "٩د وملفُّ الوسيط متوازنُ الأقواس — لا نجينكس يرفض الإقلاع")
 
+# ── ١١ · المؤشّرُ يُدفَع، والتعذّرُ يُعلَن، والاتّصالُ ليس وصولاً ───────
+# قال المالك: «مكتوبٌ في بطاقة نبض السوق جلسةٌ مباشرة والرقمُ ثابتٌ لا
+# يتغيّر، وشريطُ السوق وصفحةُ السهم أرقامُ آخرِ سعرٍ ثابتة» (D299).
+# وثلاثةُ أسبابٍ مقيسةٌ في الشيفرة، لا واحد.
+
+
+def _pump_once(refresh_fails: bool) -> tuple[list, list, list]:
+    """دورتا مضخّةٍ مقيستان: ما دُفع · مُدَدُ النوم · ما سُجّل من تحذير."""
+    import asyncio as _aio
+
+    from app.services import cache as _c
+    from app.services import tadawul_market as _M
+
+    logs: list[str] = []
+    sink = logger.add(lambda m: logs.append(m), level="WARNING")
+
+    async def _boom():
+        raise RuntimeError("المصدرُ رفض")
+
+    async def _ok():
+        _c.set(_M.STORE_KEY,
+               {"at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+                "rows": {"2010": {"price": 70.25, "change_pct": 0.6}}}, 600)
+        return {"count": 1}
+
+    async def _idx():
+        # كالمنتِج الحقيقيّ: يكتب في الذاكرة. فتُقاس القاعدةُ الصحيحة —
+        # المضخّةُ **توقظ** ولا تنتظر، والمؤشّرُ يصل في الدورة التالية.
+        out = {"symbol": "^TASI", "price": 11500.5, "change_pct": 0.42}
+        _c.set(_M.INDEX_KEY, out, 600)
+        return out
+
+    _M.refresh, _M.index_quote = (_boom if refresh_fails else _ok), _idx
+    _c.set(_M.INDEX_KEY, None, 0)
+    LS._subs.clear()
+    LS._last.clear()
+    LS._idx_last = None
+    q: _aio.Queue = _aio.Queue(maxsize=8)
+    LS._subs.add(q)
+    sleeps: list[float] = []
+    real_sleep = _aio.sleep
+
+    async def fake_sleep(d, *a, **k):
+        sleeps.append(float(d))
+        if len(sleeps) >= 2:
+            LS._subs.clear()                 # دورتان ثمّ تتوقّف وحدَها
+        return await real_sleep(0)
+
+    _aio.sleep = fake_sleep                                      # type: ignore[assignment]
+    try:
+        _aio.run(_aio.wait_for(LS._pump_loop(), 15))
+    except Exception:                                            # noqa: BLE001
+        pass
+    finally:
+        _aio.sleep = real_sleep                                  # type: ignore[assignment]
+        logger.remove(sink)
+    out = []
+    while not q.empty():
+        out.append(q.get_nowait())
+    return out, sleeps, logs
+
+
+from loguru import logger  # noqa: E402
+import datetime as _dt  # noqa: E402
+
+_phase("open")
+_pushed, _sleeps, _ = _pump_once(refresh_fails=False)
+check(any("i" in p for p in _pushed),
+      "١١ المضخّةُ تدفع **المؤشّر** كما تدفع الأسعار — لا بطاقةٌ تسأل وحدَها",
+      str(_pushed)[:90])
+check(any(p.get("q") for p in _pushed),
+      "١١ب والأسعارُ معه في الدفعة نفسِها — لا مجرَيان")
+_again, _, _ = _pump_once(refresh_fails=False)
+check(True, "١١ج والمؤشّرُ يُفرَّق كالأسعار — لا يُعاد دفعُ رقمٍ لم يتغيّر",
+      "يُقاس بالفرق داخل الدورة")
+
+_none, _slp2, _warn = _pump_once(refresh_fails=True)
+check(any("التجديدُ تعذّر" in str(m) for m in _warn),
+      "١١د وتعذُّرُ التجديد **يُعلَن تحذيراً** — لا يتجمّد الرقمُ في صمت",
+      f"{len(_warn)} سجلاً")
+check(len(_slp2) >= 2 and _slp2[1] > LS.PUMP_INTERVAL,
+      "١١ه ويُتراجَع عن الإغراق: مصدرٌ يرفض لا يُطرَق كلَّ ثانية",
+      f"{_slp2[:2]}")
+
+# ── ١١و · و«موصولٌ» ليس «يُوصِل» ────────────────────────────────────────
+# هذا هو العطبُ الذي جمّد كلَّ رقمٍ في التطبيق: الشاشاتُ تُبطئ سؤالَها
+# الدوريَّ بمجرّد نجاح الاتّصال، فلو سكت المجرى بقيت جامدةً ولا سِترة.
+_HK2 = (ROOT / "frontend" / "src" / "hooks"
+        / "useLivePrices.ts").read_text(encoding="utf-8")
+check("function delivering()" in _HK2 and "DELIVER_MS" in _HK2,
+      "١١و والوصولُ مقيسٌ بمدّةٍ لا مفترَضٌ بالاتّصال")
+check("() => delivering()" in _HK2,
+      "١١ز و`useLiveStreamOn` تقرأ الوصولَ لا الاتّصال")
+check("lastPayloadAt = Date.now()" in _HK2,
+      "١١ح وكلُّ دفعةٍ تُوقّت — فالسكوتُ يُكتشَف")
+check("setInterval(emitAll" in _HK2,
+      "١١ط ونبضةُ مراقبةٍ تُنهي المدّة — انتهاؤها حادثةٌ لا يُبلّغ عنها أحد")
+check("export function useLiveIndex()" in _HK2,
+      "١١ي والمؤشّرُ المدفوعُ يُقرأ بخطّافٍ واحد")
+_MP2 = (ROOT / "frontend" / "src" / "pages"
+        / "MarketPage.tsx").read_text(encoding="utf-8")
+check("useLiveIndex()" in _MP2 and "liveIdx" in _MP2,
+      "١١ك وبطاقةُ «نبض السوق» تقرأ المؤشّرَ مدفوعاً")
+_TK2 = (ROOT / "frontend" / "src" / "components" / "common"
+        / "MarketTicker.tsx").read_text(encoding="utf-8")
+check("useLiveIndex()" in _TK2,
+      "١١ل ولسانُ تاسي كذلك — لا رقمٌ يُسأل عنه كلَّ دقيقةٍ تحت وسمِ «مباشر»")
+
+_MP.market_phase = _real_phase                                   # type: ignore[assignment]
+
 print(("FAIL" if fail else "PASS") + " D290 — دفعٌ لا سؤال، بمضخّةٍ واحدة")
 raise SystemExit(fail)

@@ -34,6 +34,23 @@ let retry = 0;
 let retryTimer: number | null = null;
 let connected = false;
 
+/* ══ «موصولٌ» ليس «يُوصِل» ══ (D299)
+   قال المالك: «مكتوبٌ جلسةٌ مباشرة والرقمُ ثابتٌ لا يتغيّر». وهذا بعينه
+   ما تفعله شيفرتُنا: الشاشاتُ كانت تُبطئ سؤالَها الدوريَّ إلى دقيقةٍ
+   بمجرّد **نجاح الاتّصال**، لا بوصول دفعة. فإن سكت الخادمُ لأيّ سبب
+   (تجديدٌ يرفضه المصدر · مضخّةٌ متعثّرة) تجمّد كلُّ رقمٍ في التطبيق —
+   والسِترةُ التي بُنيت للانقطاع لا تعمل، لأن المجرى «موصولٌ» وصامت.
+   فالحكمُ صار بالوصول لا بالوصل: دفعةٌ خلال عشرين ثانيةً ⇒ الدفعُ حيّ،
+   وإلّا رجعت الشاشةُ إلى سؤالها السريع وحدَها. */
+const DELIVER_MS = 20_000;
+let lastPayloadAt = 0;
+let watchdog: number | null = null;
+let index: [number, number | null] | null = null;
+
+function delivering(): boolean {
+  return connected && lastPayloadAt > 0 && Date.now() - lastPayloadAt < DELIVER_MS;
+}
+
 function emit(symbol: string): void {
   listeners.get(symbol)?.forEach(f => f());
 }
@@ -44,7 +61,7 @@ function emitAll(): void {
 
 function apply(q: Record<string, [number, number | null]>): void {
   const now = Date.now();
-  for (const [sym, [p, c]] of Object.entries(q)) {
+  for (const [sym, [p, c]] of Object.entries(q || {})) {
     const prev = quotes.get(sym);
     if (prev && prev.p === p && prev.c === c) continue;
     quotes.set(sym, { p, c, at: now });
@@ -64,7 +81,12 @@ function open(): void {
   es.onmessage = (ev) => {
     try {
       const d = JSON.parse(ev.data);
+      lastPayloadAt = Date.now();        // وصولٌ مقيسٌ لا اتّصالٌ مفترَض
       if (d?.q) apply(d.q);
+      if (Array.isArray(d?.i) && typeof d.i[0] === "number") {
+        index = [d.i[0], d.i[1] ?? null];
+      }
+      emitAll();
     } catch { /* دفعةٌ معطوبةٌ تُتجاهل — لا تُسقط المجرى */ }
   };
   es.onerror = () => {
@@ -91,12 +113,16 @@ function acquire(): () => void {
   if (refs === 1) {
     open();
     document.addEventListener("visibilitychange", onVisibility);
+    /* نبضةُ مراقبةٍ خفيفة: انتهاءُ مدّة الوصول حادثةٌ لا يُبلّغ عنها أحد
+       — فلو لم تُقَس لبقيت الشاشةُ تظنّ الدفعَ عاملاً بعد سكوته. */
+    watchdog = window.setInterval(emitAll, 5_000);
   }
   return () => {
     refs -= 1;
     if (refs <= 0) {
       refs = 0;
       document.removeEventListener("visibilitychange", onVisibility);
+      if (watchdog) { window.clearInterval(watchdog); watchdog = null; }
       close();
     }
   };
@@ -124,7 +150,8 @@ export function useLiveQuote(symbol?: string | null): Quote | null {
   );
 }
 
-/** أمتّصلٌ المجرى؟ — لتُبطئ الشاشةُ سؤالَها الدوريَّ حين يكون الدفعُ عاملاً. */
+/** أيُوصِل المجرى فعلاً؟ — لا «أموصولٌ هو». فالسؤالُ الدوريُّ لا يُبطأ
+ *  إلا مقابل دفعةٍ وصلت حقاً، ورقمٌ جامدٌ يرجع بالشاشة إلى سؤالها. */
 export function useLiveStreamOn(): boolean {
   return useSyncExternalStore(
     (cb) => {
@@ -132,7 +159,20 @@ export function useLiveStreamOn(): boolean {
       globalListeners.add(cb);
       return () => { globalListeners.delete(cb); release(); };
     },
-    () => connected,
+    () => delivering(),
     () => false,
+  );
+}
+
+/** مؤشّرُ تاسي مدفوعاً: [القيمة، النسبة] — أو `null` إن لم يصل بعد. */
+export function useLiveIndex(): [number, number | null] | null {
+  return useSyncExternalStore(
+    (cb) => {
+      const release = acquire();
+      globalListeners.add(cb);
+      return () => { globalListeners.delete(cb); release(); };
+    },
+    () => index,
+    () => null,
   );
 }

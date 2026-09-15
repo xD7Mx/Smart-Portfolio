@@ -50,10 +50,71 @@ QUEUE_MAX = 8                # طابورُ كلّ مشترِك — القديم
 # فتبقى المضخّةُ تعمل لمن لا يُشاهد. والسقفُ يُغلقه بأدبٍ، و`EventSource`
 # في المتصفّح يعيد الوصلَ تلقائياً بلا أن يرى المستخدمُ شيئاً.
 MAX_STREAM_SECONDS = 600.0
+# مهلةٌ تمنع مصدراً متعثّراً من تجميد الدفع (D299): تجديدٌ لا يعود في عشر
+# ثوانٍ لا يصلح لمضخّةٍ دورتُها ثانية — يُعلَن تعذّره ويُتراجَع عنه.
+REFRESH_WAIT = 10.0
 
 _subs: set[asyncio.Queue] = set()
 _pump: asyncio.Task | None = None
 _last: dict[str, tuple] = {}          # آخرُ ما دُفع لكلّ رمز — لحساب الفرق
+_idx_last: tuple | None = None        # وآخرُ ما دُفع من المؤشّر
+_idx_task: asyncio.Task | None = None  # إيقاظُ المؤشّر — واحدٌ في الطريق
+
+
+def _kick_index() -> None:
+    """يوقظ تجديدَ المؤشّر ولا ينتظره — وواحدٌ في الطريق لا أكثر.
+
+    ══ لا نداءَ في طريق الدفع ══ (D299)
+    أوّلُ صياغةٍ انتظرت نداءَ المؤشّر داخل المضخّة بمهلة، فقِيس بالحارس أن
+    الانتظارَ وحدَه استهلك عمرَ المجرى: دفعةٌ واحدةٌ بدل أربع. والقاعدةُ
+    المكتوبةُ عندنا أصلاً: يُوقَظ التجديدُ ويُعاد فوراً بما في الذاكرة.
+    """
+    global _idx_task
+    if _idx_task is not None and not _idx_task.done():
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    _idx_task = loop.create_task(_idx_once())
+
+
+async def _idx_once() -> None:
+    from app.services.tadawul_market import index_quote
+    try:
+        await asyncio.wait_for(index_quote(), 10.0)
+    except Exception as e:                                        # noqa: BLE001
+        logger.debug("بثٌّ: المؤشّرُ تعذّر {}: {}", type(e).__name__, e)
+
+
+async def _index_push(net: bool = True) -> list | None:
+    """المؤشّرُ يُدفَع كما تُدفَع الأسعار — أو None إن لم يتغيّر (D299).
+
+    ══ لسانُ تاسي وبطاقةُ النبض كانا يسألان كلَّ دقيقة ══
+    المجرى كان يحمل الأسعارَ وحدَها، فبقي المؤشّرُ على السؤال الدوريّ —
+    وحين يعمل الدفعُ تُبطئ الشاشةُ سؤالَها إلى دقيقة. فالنتيجةُ رقمٌ
+    يتجمّد في بطاقةٍ مكتوبٌ فيها «جلسةٌ مباشرة». والمعنى الواحدُ يُدفَع
+    من المنتِج الواحد: `index_quote` بذاكرتها (‏`INDEX_TTL`) — فالنداءُ
+    للمصدر كلَّ ثلاث ثوانٍ لا كلَّ دورةِ مضخّة.
+    """
+    global _idx_last
+    from app.services import cache
+    from app.services.tadawul_market import INDEX_KEY
+
+    rec = cache.get(INDEX_KEY)
+    if not isinstance(rec, dict):
+        # الذاكرةُ فارغةٌ: يُوقَظ التجديدُ ولا يُنتظَر — ويصل في الدورة
+        # التالية. ومَن يفتح المجرى لا يوقظ شيئاً (`net=False`).
+        if net:
+            _kick_index()
+        return None
+    if not isinstance(rec, dict) or rec.get("price") is None:
+        return None
+    key = (rec.get("price"), rec.get("change_pct"))
+    if _idx_last == key:
+        return None
+    _idx_last = key
+    return [rec.get("price"), rec.get("change_pct")]
 
 
 def subscribers() -> int:
@@ -102,6 +163,7 @@ async def _pump_loop() -> None:
 
     logger.info("🔴 بثُّ الأسعار: مضخّةٌ بدأت ({} مشترك)", len(_subs))
     idle = 0.0
+    fails = 0
     try:
         while _subs:
             if not _market_open():
@@ -110,19 +172,37 @@ async def _pump_loop() -> None:
                 _publish({"hb": 1})
                 continue
             try:
-                await refresh()
+                await asyncio.wait_for(refresh(), REFRESH_WAIT)
+                if fails:
+                    logger.info("🔴 بثُّ الأسعار: التجديدُ عاد بعد {} تعذّراً", fails)
+                fails = 0
             except Exception as e:                                # noqa: BLE001
-                logger.debug("بثٌّ: تجديدٌ تعذّر {}: {}", type(e).__name__, e)
+                # ══ صمتٌ لا يُغتفَر ══ (D299)
+                # كان يُسجَّل DEBUG. فإن رفض المصدرُ التجديدَ تجمّدت الأرقامُ
+                # كلُّها والشاشةُ تقول «جلسةٌ مباشرة» — **وفي السجلّ لا شيء**.
+                # فعطبٌ يُسكِت الميزةَ كلَّها يُعلَن، ويُتراجَع عن الإغراق.
+                fails += 1
+                if fails in (1, 5) or fails % 30 == 0:
+                    logger.warning("🔴 بثُّ الأسعار: التجديدُ تعذّر {} مرّةً — {}: {}",
+                                   fails, type(e).__name__, e)
+            payload: dict = {}
             changed = _diff(snapshot() or {})
             if changed:
-                _publish({"t": datetime.now().strftime("%H:%M:%S"), "q": changed})
+                payload["q"] = changed
+            idx = await _index_push()
+            if idx:
+                payload["i"] = idx
+            if payload:
+                payload["t"] = datetime.now().strftime("%H:%M:%S")
+                _publish(payload)
                 idle = 0.0
             else:
                 idle += PUMP_INTERVAL
                 if idle >= HEARTBEAT:
                     _publish({"hb": 1})
                     idle = 0.0
-            await asyncio.sleep(PUMP_INTERVAL)
+            # تراجعٌ عند التعذّر: مصدرٌ يرفض لا يُطرَق كلَّ ثانيةٍ بلا فائدة.
+            await asyncio.sleep(PUMP_INTERVAL + min(fails, 5) * 2)
     finally:
         logger.info("⚪ بثُّ الأسعار: مضخّةٌ توقّفت")
 
@@ -163,11 +243,21 @@ async def stream():
         first = {s: [r.get("price"), r.get("change_pct")]
                  for s, r in (rows or {}).items()
                  if isinstance(r, dict) and r.get("price") is not None}
-        if first:
-            yield "data: " + json.dumps(
-                {"t": datetime.now().strftime("%H:%M:%S"), "q": first,
-                 "live": bool(live), "at": at},
-                ensure_ascii=False) + "\n\n"
+        # والمؤشّرُ في الدفعة الأولى أيضاً: بطاقةُ النبض تملأ فوراً ولا
+        # تنتظر دورةَ مضخّةٍ ولا سؤالاً دورياً (D299).
+        # من الذاكرة فقط: لا نداءَ للمصدر في طريق فتح المجرى.
+        try:
+            first_idx = await _index_push(net=False)
+        except Exception:                                         # noqa: BLE001
+            first_idx = None
+        if first or first_idx:
+            body = {"t": datetime.now().strftime("%H:%M:%S"),
+                    "live": bool(live), "at": at}
+            if first:
+                body["q"] = first
+            if first_idx:
+                body["i"] = first_idx
+            yield "data: " + json.dumps(body, ensure_ascii=False) + "\n\n"
         while asyncio.get_event_loop().time() - started < MAX_STREAM_SECONDS:
             try:
                 payload = await asyncio.wait_for(q.get(), timeout=HEARTBEAT * 2)
