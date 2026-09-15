@@ -714,5 +714,39 @@ _bad, _db, _ = _neg({"data": [{"company": "شركةٌ", "strDate": "15-09-2026"}
 check(_bad == 0,
       "١٧ه وصفٌّ بلا سعرٍ ولا كمّيةٍ يُترك — لا نصفُ صفقة")
 
+# ── ١٨ · الوقتُ هويّةٌ، والمتروكُ يُعلَن (D319) ─────────────────────────
+# قِيس على خادم المالك: `144 → 139` و`main:144/166`. فالأولى حذفُ صفقاتٍ
+# حقيقيةٍ لأن المفتاحَ لا يحمل الوقتَ، والثانية سقوطٌ صامتٌ بلا سبب.
+# ويُقاس هنا **بالسلوك**: صفقتان بكلّ شيءٍ مشتركٍ إلا الوقتَ تبقيان،
+# والنسخةُ الحقيقيةُ تُحذف، والأسبابُ تُقال.
+_same = {"symbol": "2250", "price": 11.62, "quantity": 395000,
+         "at": "15-09-2026"}
+_kept = sd._dedupe([
+    {**_same, "time": "14:13:11"},
+    {**_same, "time": "14:09:33"},
+    {**_same, "time": "14:13:11"},
+])
+check(len(_kept) == 2
+      and {d.get("time") for d in _kept} == {"14:13:11", "14:09:33"},
+      "١٨ الوقتُ جزءٌ من هويّة الصفقة — لا يُحذف ما يميّزه الوقت",
+      f"بقي {len(_kept)} من ٣")
+
+_seen_log: list[str] = []
+_sink = sd.logger.add(lambda m: _seen_log.append(str(m)), level="INFO")
+try:
+    _kn = sd.normalize([
+        {"symbol": "2250", "tradePrice": 11.62, "tradeVolume": 395000},
+        {"symbol": "1010", "tradeVolume": 5},            # بلا سعر
+        {"symbol": "1020", "tradePrice": 9.5},           # بلا كمّية
+        {"tradePrice": 9.5, "tradeVolume": 5},           # بلا رمز
+    ])
+finally:
+    sd.logger.remove(_sink)
+_txt = " ".join(_seen_log)
+check(len(_kn) == 1 and "بلا سعر" in _txt and "بلا كمّية" in _txt
+      and "بلا رمز" in _txt,
+      "١٨ب وكلُّ صفٍّ متروكٍ يُقال سببُه — لا سقوطَ صامت",
+      _txt.strip()[:140])
+
 print(("FAIL" if fail else "PASS") + " D272 · D273 — العمقُ يُعرَض، والصفقاتُ الخاصة تُبنى")
 raise SystemExit(fail)

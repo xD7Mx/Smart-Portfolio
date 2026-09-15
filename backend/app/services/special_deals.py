@@ -163,8 +163,15 @@ def _pick(row: dict, names: tuple[str, ...]):
 
 
 def normalize(rows: list) -> list[dict]:
-    """صفوفُ المصدر ← صفقاتٌ مفهومة. وناقصُ الأركان يُترك لا يُرمَّم."""
+    """صفوفُ المصدر ← صفقاتٌ مفهومة. وناقصُ الأركان يُترك لا يُرمَّم.
+
+    ══ والمتروكُ يُعلَن ══ (D319)
+    قِيس: «main:144/166» — اثنتان وعشرون صفّاً سقطت بلا بيان. وسقوطٌ
+    صامتٌ يُخفي إمّا حقلاً لم نطابقه وإمّا صفوفاً ليست صفقاتٍ أصلاً.
+    فتُعدّ الأسبابُ وتُسجَّل: لا حكمَ على ما لا يُقاس.
+    """
     out: list[dict] = []
+    why: dict[str, int] = {}
     for r in rows or []:
         if not isinstance(r, dict):
             continue
@@ -173,7 +180,14 @@ def normalize(rows: list) -> list[dict]:
         price = _num(_pick(r, FIELDS["price"]))
         qty = _num(_pick(r, FIELDS["quantity"]))
         # الأركانُ الثلاثة: رمزٌ وسعرٌ وكمّية. وبلا أحدها ليست صفقةً تُعرض.
-        if not m or price is None or price <= 0 or qty is None or qty <= 0:
+        if not m:
+            why["بلا رمز"] = why.get("بلا رمز", 0) + 1
+            continue
+        if price is None or price <= 0:
+            why["بلا سعر"] = why.get("بلا سعر", 0) + 1
+            continue
+        if qty is None or qty <= 0:
+            why["بلا كمّية"] = why.get("بلا كمّية", 0) + 1
             continue
         val = _num(_pick(r, FIELDS["value"]))
         deal = {"symbol": m.group(1), "price": price, "quantity": qty,
@@ -190,6 +204,9 @@ def normalize(rows: list) -> list[dict]:
         out.append(deal)
         if len(out) >= MAX_ROWS:
             break
+    if why:
+        logger.info("صفوفٌ تُركت: {}",
+                    " · ".join(f"{k}:{v}" for k, v in why.items()))
     return out
 
 
@@ -350,11 +367,20 @@ def _argaam_plan(days: int):
 
 
 def _dedupe(deals: list[dict]) -> list[dict]:
-    """صفقةٌ واحدةٌ لا نسختان — والمفتاحُ يشمل التاريخ (مقالتان تتقاطعان)."""
+    """صفقةٌ واحدةٌ لا نسختان — والمفتاحُ يشمل التاريخ **والوقت** (D319).
+
+    ══ الوقتُ جزءٌ من هويّة الصفقة ══
+    قِيس على خادم المالك: ١٤٤ صفقةً صارت ١٣٩ بعد منع التكرار. والمفتاحُ
+    كان (رمزٌ · سعرٌ · كمّيةٌ · تاريخ) — وفي الصفقات المتفاوض عليها يتكرّر
+    هذا كلُّه في اليوم نفسِه بأوقاتٍ مختلفة (قِيس: 2250 بسعرٍ واحدٍ في
+    ‎14:13:11 و‎14:09:33). فحذفتُ صفقاتٍ حقيقيةً بحجّة التكرار — وهو محضُ
+    نقصٍ في المفتاح: الوقتُ يميّز، فصار في المفتاح.
+    """
     out: list[dict] = []
     seen: set[tuple] = set()
     for d in deals or []:
-        key = (d.get("symbol"), d.get("price"), d.get("quantity"), d.get("at"))
+        key = (d.get("symbol"), d.get("price"), d.get("quantity"),
+               d.get("at"), d.get("time"))
         if key in seen:
             continue
         seen.add(key)
