@@ -125,6 +125,41 @@ async def dump() -> int:
         print(f"  · {name}: {tbl} جدولاً · {trs} صفّاً"
               + ("  ← صفحةُ اعتراض" if deny else ""))
 
+    # ══ اكتشافُ النقطة من حركة الشبكة ══ (D306)
+    # صفحةُ «تداول» لا تذكر اسمَ خدمتها في شيفرتها (قِيس: صفرُ أسماء).
+    # فيُفتح المتصفّحُ ويُسجَّل **ما تطلبه الصفحةُ فعلاً**.
+    print("\n═ نداءاتُ الصفحة كما وقعت (متصفّح) ═")
+    for label, u in (("تداول", sd.PAGE), ("أرقام", sd.ARGAAM_MARKET)):
+        try:
+            from app.services.browser_fetch import BrowserUnavailable, sniff
+            res = await sniff(u, settle_ms=9000, max_bodies=12,
+                              hosts=("saudiexchange.sa", "argaam.com",
+                                     "tadawul.com.sa"))
+        except BrowserUnavailable as e:
+            print(f"  {label}: المتصفّحُ غيرُ متاح — {e}")
+            continue
+        except Exception as e:                                    # noqa: BLE001
+            print(f"  {label}: تعذّر — {type(e).__name__}: {e}")
+            continue
+        calls = res.get("calls") or []
+        xhr = [c for c in calls if c.get("type") in ("xhr", "fetch")]
+        print(f"  {label}: {len(calls)} ردّاً · منها {len(xhr)} نداءَ بيانات")
+        for c in xhr[:14]:
+            print(f"      {c['method']} {c['status']} {c['url'][:110]}")
+        for i, (cu, body) in enumerate((res.get("bodies") or {}).items(), 1):
+            looks = bool(_re2.search(r"\b\d{4}\b", body)
+                         and _re2.search(r"\d+\.\d{1,2}", body))
+            print(f"      جسمٌ {i}: {len(body)} حرفاً"
+                  + ("  ← فيه أرقامٌ تشبه بياناتَ صفقات" if looks else "")
+                  + f"  ({cu[:80]})")
+            keep(f"xhr_{label}_{i}.txt", 0, body, cu)
+        if res.get("html"):
+            keep(f"rendered_{label}.html", 0, res["html"], u)
+
+    # ══ الترتيبُ جزءٌ من القياس ══ (D309)
+    # كانت كتلةُ «شكلُ الصفحات» تعمل **قبل** التسجيل، فلم تُفحَص الصفحةُ
+    # المرسومةُ ولا أجسامُ النداءات — وقد سألني المالكُ عنها فلم يكن عندي
+    # جوابٌ لأن قياسي سبق البيانات. فصارت بعدها.
     # ══ شكلُ المحتوى يُطبع لا يُخمَّن ══ (D304)
     # قِيس أن الصفحةَ تعود 200 بصفرِ جداولٍ **حتى بالمتصفّح** — وعدُّ
     # `<table>` وحدَه لا يكفي: المواقعُ الحديثةُ ترسم الصفوفَ حاويات.
@@ -191,36 +226,21 @@ async def dump() -> int:
         if base:
             print(f"  · أساسُ الصفحة: {base.group(1)}")
 
-    # ══ اكتشافُ النقطة من حركة الشبكة ══ (D306)
-    # صفحةُ «تداول» لا تذكر اسمَ خدمتها في شيفرتها (قِيس: صفرُ أسماء).
-    # فيُفتح المتصفّحُ ويُسجَّل **ما تطلبه الصفحةُ فعلاً**.
-    print("\n═ نداءاتُ الصفحة كما وقعت (متصفّح) ═")
-    for label, u in (("تداول", sd.PAGE), ("أرقام", sd.ARGAAM_MARKET)):
-        try:
-            from app.services.browser_fetch import BrowserUnavailable, sniff
-            res = await sniff(u, settle_ms=9000, max_bodies=12,
-                              hosts=("saudiexchange.sa", "argaam.com",
-                                     "tadawul.com.sa"))
-        except BrowserUnavailable as e:
-            print(f"  {label}: المتصفّحُ غيرُ متاح — {e}")
+
+    # ══ وعيّنةٌ من كلّ جسمٍ من مضيف المصدر ══
+    # جسمٌ طولُه 29 ألفَ حرفٍ لا يُوصَف بأنه «يشبه بياناتٍ»: تُطبع أوّلُ
+    # سبع مئة حرفٍ منه فيُقرأ شكلُه (JSON؟ HTML؟ أعمدةٌ ما؟).
+    print("\n═ عيّناتُ أجسام النداءات ═")
+    for name in sorted(n for n in files if n.startswith("xhr_")):
+        raw = files[name]
+        if len(raw) < 200:
             continue
-        except Exception as e:                                    # noqa: BLE001
-            print(f"  {label}: تعذّر — {type(e).__name__}: {e}")
+        txt = raw.decode("utf-8", "replace")
+        u = next((m["url"] for m in man if m["file"] == name), "")
+        if not any(h in u for h in ("saudiexchange.sa", "argaam.com")):
             continue
-        calls = res.get("calls") or []
-        xhr = [c for c in calls if c.get("type") in ("xhr", "fetch")]
-        print(f"  {label}: {len(calls)} ردّاً · منها {len(xhr)} نداءَ بيانات")
-        for c in xhr[:14]:
-            print(f"      {c['method']} {c['status']} {c['url'][:110]}")
-        for i, (cu, body) in enumerate((res.get("bodies") or {}).items(), 1):
-            looks = bool(_re2.search(r"\b\d{4}\b", body)
-                         and _re2.search(r"\d+\.\d{1,2}", body))
-            print(f"      جسمٌ {i}: {len(body)} حرفاً"
-                  + ("  ← فيه أرقامٌ تشبه بياناتَ صفقات" if looks else "")
-                  + f"  ({cu[:80]})")
-            keep(f"xhr_{label}_{i}.txt", 0, body, cu)
-        if res.get("html"):
-            keep(f"rendered_{label}.html", 0, res["html"], u)
+        print(f"\n  ── {name} · {len(raw)} بايت · {u[:90]}")
+        print("     " + txt[:700].replace("\n", " ")[:700])
 
     out = pathlib.Path("/app/_deals_dump.tar.gz")
     if not out.parent.exists():
