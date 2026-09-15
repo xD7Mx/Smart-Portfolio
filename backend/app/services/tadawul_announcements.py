@@ -110,6 +110,27 @@ def _norm_date(raw) -> str | None:
     s = str(raw).strip()
     if not s:
         return None
+    # ══ «Sep 14, 2026» تاريخٌ أيضاً ══ (D313)
+    # قِيس أن خدمةَ «تداول» تردّ `PR_DATE: "Sep 14, 2026"` — وصيغُ قارئي
+    # كانت أرقاماً فقط، فعاد التاريخُ None فأسقط الفلترُ الإفصاحَ كلَّه.
+    # وشهرٌ بالحرف يُقرأ بجدولٍ صريحٍ لا بلغةِ النظام (‏locale) — فالخادمُ
+    # قد يكون بأيّ لغة.
+    _MON = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+            "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
+    m = re.search(r"([A-Za-z]{3,9})\s+(\d{1,2})\s*,?\s*(\d{4})", s)
+    if m and m.group(1)[:3].lower() in _MON:
+        try:
+            return datetime(int(m.group(3)), _MON[m.group(1)[:3].lower()],
+                            int(m.group(2)), tzinfo=timezone.utc).date().isoformat()
+        except Exception:                                         # noqa: BLE001
+            pass
+    m = re.search(r"(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})", s)
+    if m and m.group(2)[:3].lower() in _MON:
+        try:
+            return datetime(int(m.group(3)), _MON[m.group(2)[:3].lower()],
+                            int(m.group(1)), tzinfo=timezone.utc).date().isoformat()
+        except Exception:                                         # noqa: BLE001
+            pass
     for rx in _DATE_RES:
         m = rx.search(s)
         if not m:
@@ -161,22 +182,38 @@ def _parse_json(payload) -> list[dict]:
     """يتكيّف مع أشكال JSON الشائعة: قائمة مباشرة أو مغلّفة في مفتاح data/
     items/announcements/list. لكل صفّ يبحث عن مفاتيح شائعة للرمز/الاسم/العنوان/
     التاريخ/الرابط بأسماء عربية أو إنجليزية."""
+    # ══ المفتاحُ يُقاس لا يُحفَظ ══ (D313)
+    # قِيس على خادم المالك: خدمةُ الصفحة (`getNewsListData`) تردّ
+    # `{"announcementList":[{"PR_DATE":…,"TITLE":…}]}` — ومفتاحُ القائمة
+    # ليس في قائمتي، وأسماءُ الحقول **كبيرةٌ بشُرَط سفلية**. فالقارئُ صار
+    # يبحث عن **أوّل قائمةٍ من قواميس** في أيّ مفتاح، ويطابق أسماءَ الحقول
+    # بالمعنى لا بالنصّ الحرفيّ (بعد توحيد الحالة وحذف الشُرَط).
     rows = payload
     if isinstance(payload, dict):
-        for k in ("data", "items", "announcements", "list", "result", "results", "records"):
+        named = ("data", "items", "announcements", "announcementList", "list",
+                 "result", "results", "records", "newsList")
+        for k in named:
             v = payload.get(k)
-            if isinstance(v, list):
+            if isinstance(v, list) and v:
                 rows = v
                 break
         else:
-            rows = [payload]
+            rows = next((v for v in payload.values()
+                         if isinstance(v, list) and v
+                         and isinstance(v[0], dict)), [payload])
     if not isinstance(rows, list):
         return []
 
     def pick(d, *keys):
+        # مطابقةٌ بالمعنى: `PR_DATE` و`pr-date` و`prDate` شيءٌ واحد.
+        flat = {re.sub(r"[^a-z0-9]", "", str(k).lower()): v
+                for k, v in d.items()}
         for k in keys:
-            if k in d and d[k] not in (None, ""):
-                return d[k]
+            kk = re.sub(r"[^a-z0-9]", "", str(k).lower())
+            if kk in flat and flat[kk] not in (None, ""):
+                return flat[kk]
+            if str(k) in d and d[str(k)] not in (None, ""):
+                return d[str(k)]
         return None
 
     out: list[dict] = []
@@ -185,10 +222,13 @@ def _parse_json(payload) -> list[dict]:
             continue
         symbol = pick(r, "symbol", "companySymbol", "symbolCode", "code", "tickerSymbol", "الرمز")
         name = pick(r, "companyName", "company", "name", "issuerName", "companyNameAr", "اسم الشركة")
-        title = pick(r, "title", "subject", "headline", "announcementTitle", "titleAr", "العنوان", "الموضوع")
-        date_str = pick(r, "date", "publishDate", "announcementDate", "createdDate",
-                        "dateTime", "publishedDate", "التاريخ")
-        url = pick(r, "url", "link", "detailsUrl", "announcementUrl", "href")
+        title = pick(r, "title", "subject", "headline", "announcementTitle",
+                     "titleAr", "prTitle", "newsTitle", "العنوان", "الموضوع")
+        date_str = pick(r, "date", "prDate", "publishDate", "announcementDate",
+                        "createdDate", "dateTime", "publishedDate", "newsDate",
+                        "التاريخ")
+        url = pick(r, "url", "link", "detailsUrl", "announcementUrl", "href",
+                   "prUrl", "newsUrl")
         symbol = str(symbol).strip() if symbol else _extract_symbol(str(title or ""), str(name or ""))
         item = _row_to_item(symbol, str(name).strip() if name else None,
                             str(title) if title else None, date_str, url)
@@ -307,6 +347,50 @@ async def probe_tadawul() -> dict:
     return report
 
 
+# ══ القشرةُ تُسمّي خدمتَها — فتُنادى ══ (D313)
+# قِيس على خادم المالك بعد فتح الحجب: الصفحةُ ٢٠٠ بـ٥٧٢ ألفَ حرفٍ و**صفرُ
+# جداول** — فهي قشرةٌ يُملأ جدولُها بنداءِ خدمةٍ اسمُها في الصفحة:
+# `getNewsListData`، وردُّها `{"announcementList":[{"PR_DATE":…,"TITLE":…}]}`.
+# وهي الطريقةُ المسجَّلةُ عندنا (‏D251) ولم تكن مطبَّقةً في هذه الخدمة.
+_SVC_RE = re.compile(r"p0/[A-Za-z0-9_=]*=NJ([A-Za-z][A-Za-z0-9_]{3,60})=/")
+_SVC_WANT = re.compile(r"news|announc|disclos|issuer", re.I)
+
+
+async def _from_page_service(page_url: str) -> list[dict]:
+    """يقرأ أساسَ الصفحة واسمَ خدمتها ثمّ يناديها — أو قائمةٌ فارغة."""
+    from app.services.tadawul_http import fetch
+
+    status, page = await _raw_fetch(page_url)
+    if status != 200 or not page:
+        return []
+    mb = re.search(r"<base[^>]+href=[\"']([^\"']+)", page, re.I)
+    if not mb:
+        return []
+    base = mb.group(1).rstrip("/")
+    eps: dict[str, str] = {}
+    for m in _SVC_RE.finditer(page):
+        eps.setdefault(m.group(1), m.group(0))
+    for name in [n for n in eps if _SVC_WANT.search(n)][:3]:
+        try:
+            st, body = await fetch(f"{base}/{eps[name]}",
+                                   params={"requestLocale": "ar"},
+                                   referer=page_url)
+        except Exception as e:                                     # noqa: BLE001
+            logger.debug("خدمةُ الإفصاحات {}: {}", name, e)
+            continue
+        if st != 200 or not body:
+            continue
+        try:
+            got = _parse_json(json.loads(body))
+        except Exception:                                          # noqa: BLE001
+            got = []
+        if got:
+            logger.info("إفصاحاتُ «تداول»: {} عنصراً من خدمة «{}»",
+                        len(got), name)
+            return got
+    return []
+
+
 async def fetch_tadawul_announcements(force: bool = False) -> list[dict]:
     """المصدر الأساسي: إعلانات تداول الرسمية. يُعيد قائمة عناصر مفكرة مُهيكلة
     [{symbol, company_name, title, type, date, url, source}]. مُخزَّن ساعة.
@@ -325,6 +409,13 @@ async def fetch_tadawul_announcements(force: bool = False) -> list[dict]:
                 items = _parse_json(json.loads(body))
         except Exception as e:
             logger.warning(f"Tadawul JSON fetch failed: {e}")
+
+    # 2ب) خدمةُ الصفحة المسمّاةُ فيها — القشرةُ لا تحمل الجدول (D313).
+    if not items:
+        try:
+            items = await _from_page_service(DEFAULT_TADAWUL_URL)
+        except Exception as e:                                     # noqa: BLE001
+            logger.warning("خدمةُ صفحة الإفصاحات تعذّرت: {}", e)
 
     # 2) الصفحة الرسمية (HTML/RSS) — إن لم تُنتج JSON عناصر.
     if not items:

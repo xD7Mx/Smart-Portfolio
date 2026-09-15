@@ -53,6 +53,7 @@ def _stub(url, params, referer, timeout):
     return 200, "صفحةٌ مموَّهة"
 
 
+_real_blocking = th._blocking_fetch          # يُعاد بعد فحوص التمويه
 th._blocking_fetch = _stub
 th._have_curl = lambda: True
 
@@ -107,8 +108,12 @@ check(ok, "٢ بلا المكتبة يعود إلى العميل القديم ب
 SRC = ROOT / "backend" / "app" / "services"
 stray = []
 for p in sorted(SRC.glob("*.py")):
-    if p.name in ("tadawul_http.py", "tadawul_announcements.py"):
-        continue                      # المَعبرُ نفسُه، والإعلاناتُ عميلُها القديمُ مُحال
+    if p.name == "tadawul_http.py":
+        continue                      # المَعبرُ نفسُه — وهو وحدَه
+    # ══ استثناءٌ رُفع ══ (D312)
+    # كان `tadawul_announcements.py` مستثنًى بحجّة «عميلُها القديمُ مُحال»،
+    # وبقيت تنادي «تداول» بـ`httpx` فتردّ 403 في كلّ نداءٍ صامتاً. فرُحّلت
+    # إلى المَعبر ورُفع الاستثناء — فلا حارسَ يحمي ما يجب أن يُقاس.
     t = p.read_text(encoding="utf-8")
     # ══ الجوارُ يُقاس لا الملفّ ══ (بعد أوّل تشغيل)
     # كان الفحصُ يرفض أيَّ عميلٍ في ملفٍّ **يذكر** «تداول» — فأسقط
@@ -129,6 +134,67 @@ check("from app.services.tadawul_http import fetch" in sync_src,
 rf_src = (SRC / "risk_free.py").read_text(encoding="utf-8")
 check("from app.services.tadawul_http import fetch" in rf_src,
       "٥ وقارئُ الصكوك يجلب من المَعبر نفسِه")
+
+# ── ٦ · والإفصاحاتُ: قشرةٌ تُسمّي خدمتَها فتُنادى ──────────────────────
+# قِيس على خادم المالك: بعد المَعبر صارت صفحةُ الإفصاحات ٢٠٠ بـ٥٧٢ ألفَ
+# حرفٍ و**صفرَ جداول**، وخدمتُها المسمّاةُ فيها (`getNewsListData`) تردّ
+# `{"announcementList":[{"PR_DATE":"Sep 14, 2026","TITLE":…}]}` — ومفتاحُ
+# القائمة وأسماءُ الحقول وصيغةُ التاريخ **كلُّها** خارج قارئي (D313).
+th._blocking_fetch = _real_blocking          # قياسٌ حقيقيٌّ يحتاج جالباً حقيقياً
+
+
+def _ann_from_service() -> tuple[int, str, str]:
+    import asyncio as _aio
+    import http.server
+    import json as _j
+    import socketserver
+    import threading
+
+    import app.services.tadawul_announcements as A
+
+    page = ('<!DOCTYPE html><html lang="en"><head><base href='
+            '"http://127.0.0.1:{p}/wps/portal/x/!ut/p/z1/ABC/"></head><body>'
+            '<a href="/wps/portal/x/p0/z1=NJgetNewsListData=/">x</a>'
+            '</body></html>')
+    svc = {"announcementList": [
+        {"PR_DATE": "Sep 14, 2026", "SYMBOL": "1120",
+         "TITLE": "إعلان شركة الراجحي عن تنفيذ صفقة خاصة على أسهمها",
+         "PR_URL": "/ar/news/1"}]}
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):                                # noqa: D102
+            pass
+
+        def do_GET(self):                                         # noqa: N802
+            port = self.server.server_address[1]
+            b = (_j.dumps(svc, ensure_ascii=False).encode()
+                 if "=NJ" in self.path else page.format(p=port).encode())
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+
+    srv = socketserver.TCPServer(("127.0.0.1", 0), H)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url, js = A.DEFAULT_TADAWUL_URL, A.TADAWUL_JSON_URL
+    A.DEFAULT_TADAWUL_URL, A.TADAWUL_JSON_URL = f"http://127.0.0.1:{port}/p", ""
+    try:
+        items = _aio.run(A.fetch_tadawul_announcements(force=True))
+        first = items[0] if items else {}
+        return len(items), str(first.get("date")), str(first.get("symbol"))
+    finally:
+        A.DEFAULT_TADAWUL_URL, A.TADAWUL_JSON_URL = url, js
+        srv.shutdown()
+
+
+_n, _d, _s = _ann_from_service()
+check(_n == 1, "٦ خدمةُ صفحة الإفصاحات تُكتشَف وتُنادى فتُقرأ عناصرُها",
+      f"{_n} عنصراً")
+check(_d == "2026-09-14",
+      "٦ب و«Sep 14, 2026» تاريخٌ يُقرأ — وكان يعود None فيُسقطه الفلتر", _d)
+check(_s == "1120", "٦ج ورمزُ الشركة يُقرأ من الحقل الكبير (`SYMBOL`)", _s)
 
 print(("FAIL" if fail else "PASS") + " D250 — مَعبرٌ واحدٌ إلى «تداول»")
 raise SystemExit(fail)
