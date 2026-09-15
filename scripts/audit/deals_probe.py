@@ -175,6 +175,20 @@ async def dump() -> int:
             for c in calls[:8]:
                 print(f"      {c}")
 
+        # ══ أسماءُ خدمات بوّابة «تداول» ══ (D305)
+        # البوّابةُ تُملأ بنداءٍ اسمُه في الصفحة: `p0/…=NJ{اسم}=/`. وهي
+        # الطريقةُ التي فتحت الصكوكَ ومراقبةَ السوق (‏D249 · D251). فتُطبع
+        # **كلُّ** الأسماء الموجودة — لا ما يطابق تخميني وحدَه، لأنّ
+        # تخميني (`getSpecial…`) هو الذي أخفى الاسمَ الحقيقيّ.
+        svc = sorted(set(_re2.findall(r"=NJ([A-Za-z][A-Za-z0-9_]{3,60})=/", html)))
+        if svc:
+            print(f"  · أسماءُ خدماتٍ في الصفحة: {len(svc)}")
+            for s in svc:
+                print(f"      {s}")
+        base = _re2.search(r"<base[^>]+href=[\"']([^\"']+)", html, _re2.I)
+        if base:
+            print(f"  · أساسُ الصفحة: {base.group(1)}")
+
     out = pathlib.Path("/app/_deals_dump.tar.gz")
     if not out.parent.exists():
         out = pathlib.Path("_deals_dump.tar.gz")
