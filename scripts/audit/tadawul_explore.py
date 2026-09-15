@@ -120,6 +120,28 @@ async def main() -> int:
 
         cands = [(h, t) for h, t in seen.items()
                  if want.search(t) or want.search(h)]
+
+        # ══ أشقّاءُ المسار ══ (D315)
+        # قِيس أن الميزةَ صفحةٌ **لكلّ سوق** بالنمط نفسِه:
+        # `ourmarkets/<السوق>-market-watch/issuers-trading-information`.
+        # وقائمةُ المرشَّحين جاءت بالمشتقّات والصكوك والصناديق ولم تأتِ
+        # بالسوق الرئيسة — وهي المطلوبة. فتُولَّد الأشقّاءُ من النمط
+        # المقيس، لا من تخمينٍ: نفسُ المسار بسوقٍ آخر.
+        sibs: list[tuple[str, str]] = []
+        for h, t0 in list(cands):
+            m = re.search(r"/ourmarkets/([a-z\-]+)-market-watch/", h)
+            if not m:
+                continue
+            for mk in ("main", "nomu"):
+                u = h.replace(f"/{m.group(1)}-market-watch/",
+                              f"/{mk}-market-watch/")
+                if u not in seen and all(u != s for s, _ in sibs):
+                    sibs.append((u, f"{t0} — سوقُ {mk}"))
+        if sibs:
+            print(f"\n═ أشقّاءُ المسار (مولَّدون من النمط): {len(sibs)} ═")
+            for u, lab in sibs:
+                print(f"   «{lab}» → {u[:120]}")
+            cands = sibs + cands          # الرئيسةُ أوّلاً: هي المطلوبة
         print(f"\n═ روابطُ تذكر المعنى: {len(cands)} ═")
         for h, t in cands[:20]:
             print(f"   «{t[:46] or '—'}» → {h[:120]}")
@@ -194,9 +216,17 @@ async def main() -> int:
             print(f"   نداءاتُ بياناتٍ من «تداول»: {len(xhr)}")
             for c in xhr[:8]:
                 print(f"      {c['s']} {c['u'][:120]}")
+            # ══ نداءُ الصفحة أوّلاً ══ (D315)
+            # التقاطي كان بترتيب الوصول، فامتلأ سقفُه بخدمات القالب
+            # (`ThemeTASIUtilityServlet` · `TickerServlet`) ولم يبقَ موضعٌ
+            # لنداءِ الجدول نفسِه. فيُرتَّب: ما يحمل مسارَ الصفحة قبلَ غيره.
+            key = re.sub(r"\?.*$", "", h).rstrip("/").split("/")[-1]
+            ordered = sorted(
+                resp, key=lambda r: 0 if key and key in getattr(r, "url", "")
+                else (1 if "theme.helper" not in getattr(r, "url", "") else 2))
             bodies = []
-            for r in resp:
-                if len(bodies) >= 4:
+            for r in ordered:
+                if len(bodies) >= 5:
                     break
                 try:
                     if r.request.resource_type not in ("xhr", "fetch"):
