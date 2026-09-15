@@ -178,5 +178,50 @@ check("create_task(_warm_tadawul())" in MAIN
       < MAIN.index("create_task(_warm_betas())"),
       "٦ه واللقطةُ قبل البيتا — الترتيبُ يتبع التبعية")
 
+# ── ٧ · نوعٌ خاطئٌ من منتِجٍ واحدٍ يردّ المعاملةَ كلَّها (D320) ───────────
+# قِيس على خادم المالك: `invalid input for query argument $8: '2026-09-14'
+# (expected a datetime.date …)` — ثمّ سطرٌ بعده: `Startup snapshot
+# skipped: This Session's transaction has been rolled back`. فقناةُ
+# أخبارٍ أطفأت لقطةَ الإقلاع. والعلاجُ حاجزُ نوعٍ عند **الكتابة**، لا
+# ثقةٌ بكلّ منتِج. ويُقاس بالسلوك على الدالّة نفسِها.
+import datetime as _dt
+import importlib as _il
+
+_ce = _il.import_module("app.services.content_engine")
+_ac = _il.import_module("app.services.argaam_calendar")
+
+_s = _ce._as_dt("2026-09-14")
+check(isinstance(_s, _dt.datetime) and _s.tzinfo is not None
+      and (_s.year, _s.month, _s.day) == (2026, 9, 14),
+      "٧ تاريخٌ نصٌّ يُحوَّل لحظةً واعيةً بمنطقتها — لا يُسلَّم للقاعدة نصّاً",
+      repr(_s))
+_n = _ce._as_dt("ليس تاريخاً")
+check(_n is None, "٧ب ومجهولُ التاريخ يُكتب بلا تاريخ — لا لحظةَ اليومِ كذباً",
+      repr(_n))
+_naive = _ce._as_dt(_dt.datetime(2026, 9, 14, 10, 0))
+check(_naive is not None and _naive.tzinfo is not None,
+      "٧ج ولحظةٌ بلا منطقةٍ تُوسَم بمنطقتها — لا مقارنةَ واعٍ بغافل")
+check(_ce._as_dt(_dt.date(2026, 9, 14)) is not None
+      and _ce._as_dt(None) is None,
+      "٧د ويومٌ مجرّدٌ يُقبل، والفراغُ يبقى فراغاً")
+
+# ── ٧ه · والمنتِجُ يتكلّم لغةَ العقد: لحظةٌ ومفتاحُ `company` ─────────────
+# قِيس: `_match_company` كان يُكتب في `symbol` والمستهلِكُ يقرأ `company`
+# — فيسقط الرمزُ المطابَقُ صامتاً ويُخزَّن الخبرُ بلا شركة.
+class _M:
+    def group(self, i):                                           # noqa: D102
+        return {1: "2026", 2: "09", 3: "14"}[i]
+
+
+_d = _ac._news_dt(_M())
+check(isinstance(_d, _dt.datetime) and _d.tzinfo is not None,
+      "٧ه وتاريخُ خبر «أرقام» لحظةٌ من عنده — لا نصٌّ يُرفَض عند الكتابة",
+      repr(_d))
+check(_ac._news_dt(None) is None, "٧و وغيابُه يبقى غياباً")
+_NEWS_SRC = (ROOT / "backend" / "app" / "services"
+             / "argaam_calendar.py").read_text(encoding="utf-8")
+check('"company": hit[0] if hit else None' in _NEWS_SRC,
+      "٧ز والرمزُ المطابَقُ يُكتب بالمفتاح الذي يقرؤه المستهلِك")
+
 print(("FAIL" if fail else "PASS") + " D271 — الإقلاعُ لا يموت، والحالُ تُقاس")
 raise SystemExit(fail)

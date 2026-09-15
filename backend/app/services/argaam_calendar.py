@@ -52,7 +52,7 @@
 import re
 import html as _html
 import httpx
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from loguru import logger
 
 BASE = "https://www.argaam.com"
@@ -417,6 +417,25 @@ _N_ITEM = re.compile(r'<a href="(/ar/article/articledetail/id/\d+)"[^>]*>(.*?)</
 _N_DATE = re.compile(r'(\d{4})/(\d{2})/(\d{2})')
 
 
+def _news_dt(dm) -> datetime | None:
+    """تاريخُ الخبر **لحظةً موقوتة** — كعقد مجموع الأخبار (D320).
+
+    ══ النصُّ ليس تاريخاً ══
+    قِيس على خادم المالك: `invalid input for query argument $8:
+    '2026-09-14' (expected a datetime.date …)` — فسقط إدخالُ الأخبار،
+    ومعه **لقطةُ الإقلاع كلُّها** لأن المعاملةَ رُدّت. وكنتُ أرسل نصّاً
+    بينما المنتِجَ الآخرَ (news_fetcher) يرسل `datetime` واعياً بمنطقته.
+    فالتاريخُ يُبنى لحظةً هنا، وغيابُه يبقى `None` ولا يُختلق له بديل.
+    """
+    if not dm:
+        return None
+    try:
+        return datetime(int(dm.group(1)), int(dm.group(2)), int(dm.group(3)),
+                        tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
 async def fetch_argaam_news(pages: int = 1) -> list[dict]:
     """عناوين «أرقام» بتواريخها وروابطها — أو قائمةٌ فارغة وتحذير.
 
@@ -455,8 +474,13 @@ async def fetch_argaam_news(pages: int = 1) -> list[dict]:
                         "headline": title,
                         "url": BASE + href,
                         "source": "أرقام",
-                        "published": f"{dm.group(1)}-{dm.group(2)}-{dm.group(3)}" if dm else None,
-                        "symbol": hit[0] if hit else None,
+                        "published": _news_dt(dm),
+                        # ══ العقدُ يُكتب بلغته ══ (D320)
+                        # مجموعُ الأخبار يُقرأ بمفتاح `company` (news_fetcher)،
+                        # وكنتُ أكتب `symbol` — فيسقط الرمزُ الذي طابقتُه
+                        # صامتاً ويُخزَّن الخبرُ بلا شركة. الاسمُ كما يقرؤه
+                        # المستهلِك لا كما يحسن في عيني.
+                        "company": hit[0] if hit else None,
                     })
     except Exception as e:                                        # noqa: BLE001
         logger.warning(f"📰 أرقام/أخبار: تعذّر الوصول: {e}")

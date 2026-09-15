@@ -41,6 +41,29 @@ async def _portfolio_symbol_names(db: AsyncSession) -> list[tuple[str, str]]:
     return [(r[0], r[1]) for r in rows.all() if r[1]]
 
 
+def _as_dt(v) -> datetime | None:
+    """حاجزُ الكتابة: عمودُ اللحظة لا يدخله إلا لحظة (D320).
+
+    قِيس على خادم المالك: منتِجٌ واحدٌ أرسل تاريخاً نصّاً، فرفضته
+    PostgreSQL، **فرُدّت المعاملةُ كلُّها** وسقطت معها لقطةُ الإقلاع
+    (`Startup snapshot skipped`) — عطبٌ في قناةِ أخبارٍ أطفأ ما لا
+    علاقة له به. فالنوعُ يُصان عند الكتابة لا عند كلّ منتِج، ومجهولُ
+    التاريخ يُكتب `None` ولا يُملأ بلحظةٍ مختلقة.
+    """
+    if isinstance(v, datetime):
+        return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+    if isinstance(v, date):
+        return datetime(v.year, v.month, v.day, tzinfo=timezone.utc)
+    if isinstance(v, str) and v.strip():
+        try:
+            d = datetime.fromisoformat(v.strip().replace("Z", "+00:00"))
+        except ValueError:
+            logger.warning(f"تاريخُ خبرٍ غيرُ مقروء يُكتب بلا تاريخ: {v[:40]!r}")
+            return None
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    return None
+
+
 async def refresh_news(db: AsyncSession, force: bool = False) -> int:
     """Fetch REAL current headlines from Yahoo (per symbol + macro), store new
     ones and keep the old — the feed stays live and never wipes. Falls back to
@@ -104,7 +127,7 @@ async def refresh_news(db: AsyncSession, force: bool = False) -> int:
             # Real signal, not a guess: was this a recognized, reputable
             # Saudi/regional financial outlet (see news_fetcher.TRUSTED_SOURCES)?
             importance="HIGH" if it.get("trusted") else "MEDIUM",
-            published_at=it.get("published"),
+            published_at=_as_dt(it.get("published")),
         ))
         added += 1
 
