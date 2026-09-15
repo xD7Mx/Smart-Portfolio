@@ -561,7 +561,25 @@ check("sniff" in (ROOT / "scripts" / "audit" / "deals_probe.py")
 # ظهر البابُ بتسجيل الشبكة على خادم المالك: صفحةُ الصفقات الخاصة تنادي
 # `RefreshTradeDetailsServlet` وتعود بـ٢٩ ألفَ حرف (D310). وشكلُ الجسم لم
 # يُقَس، فيُقبَل الشكلان — ويُقاس الاثنان هنا بخادمٍ محليّ.
+# والمسارُ يُكتشف من القائمة: قِيس أن المحفوظَ يُصرَف إلى صفحةٍ أخرى (D311).
+check(sd.td_page_from_nav(
+    '<a href="/wps/portal/x/!ut/p/z1/ABC/deals?a=1&amp;b=2">الصفقات الخاصة</a>')
+    == "https://www.saudiexchange.sa/wps/portal/x/!ut/p/z1/ABC/deals?a=1&b=2",
+    "١٦ه ورابطُ «تداول» من قائمتها، مفكوكَ الترميز")
+check(sd.td_page_from_nav("<a href='/x'>شيءٌ آخر</a>") is None,
+      "١٦و ولا يُلتقط رابطٌ لا يحمل اسمَ الميزة")
+check(sd.td_base("<base href='https://x/wps/portal/a/!ut/p/z1/Q/'>")
+      == "https://x/wps/portal/a/!ut/p/z1/Q",
+      "١٦ز وأساسُ الصفحة يُقرأ منها")
+
+
 def _td_layer(mode: str) -> tuple[int, str]:
+    """الطبقةُ كما تعمل حقّاً: قائمةٌ ← صفحةٌ ← (جدولُها أو خدمتُها).
+
+    والحالتان مقيستان بشكلهما الحقيقيّ: صفحةٌ يرسم خادمُها الجدول، أو
+    قشرةٌ فيها اسمُ خدمةٍ تُنادى فتعود JSON. (أوّلُ صياغةٍ جعلت الصفحةَ
+    نفسَها JSON — وهذا لا يقع في بوّابةٍ تُخدَم HTML.)
+    """
     import http.server
     import json as _j
     import socketserver
@@ -578,9 +596,20 @@ def _td_layer(mode: str) -> tuple[int, str]:
             pass
 
         def do_GET(self):                                         # noqa: N802
-            b = (_j.dumps(pay).encode() if mode == "json" else htm.encode())
+            port = self.server.server_address[1]
+            if self.path.endswith("/home"):
+                b = '<a href="/page">الصفقات الخاصة</a>'.encode()
+            elif "=NJ" in self.path:
+                b = _j.dumps(pay).encode()
+            elif mode == "service":
+                b = (f"<html><base href='http://127.0.0.1:{port}/b/'>"
+                     "<a href='/b/p0/z1=NJgetNegotiatedDeals=/'>x</a>"
+                     "</html>").encode()
+            else:
+                b = (f"<html><base href='http://127.0.0.1:{port}/b/'>"
+                     + htm + "</html>").encode()
             self.send_response(200)
-            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(b)))
             self.end_headers()
             self.wfile.write(b)
@@ -588,23 +617,24 @@ def _td_layer(mode: str) -> tuple[int, str]:
     srv = socketserver.TCPServer(("127.0.0.1", 0), H)
     port = srv.server_address[1]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    page, helper = sd.PAGE, sd.TD_HELPER
+    page, home = sd.PAGE, sd.TD_HOME
+    sd.TD_HOME = f"http://127.0.0.1:{port}/home"
     sd.PAGE = f"http://127.0.0.1:{port}/page"
-    sd.TD_HELPER = f"http://127.0.0.1:{port}/RefreshTradeDetailsServlet"
     try:
         deals, why = asyncio.run(sd.tadawul_trade_details())
-        return len(deals), (deals[0]["symbol"] if deals else (why or "")[:60])
+        return len(deals), (deals[0]["symbol"] if deals else (why or "")[:70])
     finally:
-        sd.PAGE, sd.TD_HELPER = page, helper
+        sd.PAGE, sd.TD_HOME = page, home
         srv.shutdown()
 
 
-_nj, _sj = _td_layer("json")
+_nj, _sj = _td_layer("service")
 check(_nj == 1 and _sj == "1120",
-      "١٦ بابُ «تداول» يُقرأ إن عاد JSON — بأسماء الحقول المكتوبة", f"{_nj}/{_sj}")
-_nh, _sh = _td_layer("html")
+      "١٦ قشرةٌ ⇒ تُنادى خدمتُها المسمّاةُ في الصفحة فتُقرأ صفوفُها",
+      f"{_nj}/{_sj}")
+_nh, _sh = _td_layer("table")
 check(_nh == 1 and _sh == "1010",
-      "١٦ب ويُقرأ إن عاد HTML — بقارئ الصفوف نفسِه", f"{_nh}/{_sh}")
+      "١٦ب وجدولٌ يرسمه الخادمُ يُقرأ بلا نداءٍ ثانٍ", f"{_nh}/{_sh}")
 check("RefreshTradeDetailsServlet" in _SD2 or "TD_HELPER" in _SD2,
       "١٦ج والبابُ مكتوبٌ كما قِيس لا كما خُمِّن")
 check("await smart_flow" in _SD2,

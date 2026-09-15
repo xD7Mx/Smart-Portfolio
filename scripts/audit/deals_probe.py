@@ -39,6 +39,7 @@ def _days() -> int:
 async def dump() -> int:
     """يحفظ الصفحاتَ الخام كما وصلت — دليلٌ يُقرأ لا وصفٌ يُروى."""
     import io
+    import re as _re2
     import pathlib
     import tarfile
 
@@ -102,6 +103,37 @@ async def dump() -> int:
             keep(f"browser_{i}.html", 0, html, u)
     except BrowserUnavailable as e:
         print(f"  المتصفّحُ غيرُ متاح: {e}")
+    except Exception as e:                                        # noqa: BLE001
+        print(f"  تعذّر: {type(e).__name__}: {e}")
+
+    # ══ وصفحةُ «تداول» من قائمتها هي ══ (D311)
+    # قِيس أن المسارَ المحفوظَ يُصرَف إلى صفحةٍ أخرى (أساسُها
+    # `investing-trading`). فتُقرأ من القائمة بمعرِّفها المولَّد.
+    print("═ صفحةُ «تداول» من قائمتها ═")
+
+    def nav_plan():
+        status, home = yield {"url": sd.TD_HOME}
+        keep("td_home.html", status, home, sd.TD_HOME)
+        url = sd.td_page_from_nav(home or "") if status == 200 else None
+        print(f"  رابطُ «الصفقات الخاصة» في القائمة: {url or 'لم يوجد'}")
+        if not url:
+            return None
+        status, page = yield {"url": url, "referer": sd.TD_HOME}
+        keep("td_deals.html", status, page, url)
+        base = sd.td_base(page or "")
+        names = sorted(set(_re2.findall(r"=NJ([A-Za-z][A-Za-z0-9_]{3,60})=/",
+                                        page or "")))
+        print(f"  أساسُ الصفحة: {base or 'لا شيء'}")
+        print(f"  أسماءُ خدماتها: {', '.join(names[:10]) or 'لا شيء'}")
+        got = sd.rows_from_html(page or "")
+        print(f"  صفقاتٌ من جدول الصفحة: {len(got)}")
+        for d in got[:4]:
+            print("      " + json.dumps(d, ensure_ascii=False))
+        return len(got)
+
+    try:
+        import re as _re2  # noqa: F811
+        await smart_flow(nav_plan, warm=sd.TD_HOME)
     except Exception as e:                                        # noqa: BLE001
         print(f"  تعذّر: {type(e).__name__}: {e}")
 

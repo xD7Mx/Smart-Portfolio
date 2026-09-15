@@ -421,6 +421,41 @@ TD_HELPER = ("https://www.saudiexchange.sa/tadawul.eportal.theme.helper/"
              "RefreshTradeDetailsServlet")
 
 
+# ══ والمسارُ نفسُه يُكتشف من قائمة «تداول» ══ (D311)
+# قِيس على خادم المالك: طُلبت `participants-and-deals/special-deals` فعاد
+# ردٌّ **أساسُ صفحته** `…/trading/investing-trading/…` — أي أن البوّابةَ
+# صرفتنا إلى صفحةٍ أخرى، فقرأتُ ترويسةَ مؤشّرٍ وحسبتُها «قشرةً بلا
+# جدول». فالمسارُ المحفوظُ قديمٌ أو مُحوَّل، والقاعدةُ المسجَّلةُ عندنا
+# تقول: **لا يُحفَظ مسار** — يُقرأ من قائمة الموقع نفسِه.
+TD_HOME = "https://www.saudiexchange.sa/wps/portal/saudiexchange/home"
+TD_LABEL = re.compile(r"الصفقات\s+الخاصة|صفقات\s+متفاوض|Special\s+Deals",
+                      re.I)
+
+
+def td_page_from_nav(html: str) -> str | None:
+    """رابطُ صفحةِ الصفقات الخاصة من قائمة «تداول» — بمعرِّفها المولَّد."""
+    import html as _h
+    from app.services.ownership import _text
+    for m in re.finditer(r'<a\b[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+                         html or "", re.S | re.I):
+        if not TD_LABEL.search(_text(m.group(2))):
+            continue
+        href = _h.unescape(m.group(1).strip())
+        if href.startswith("http"):
+            return href
+        # الأصلُ من الصفحة التي قُرئت منها القائمةُ — لا مضيفٌ مثبَّتٌ في
+        # الشيفرة: مثبَّتٌ يجعل الدالّةَ غيرَ قابلةٍ للقياس ويشيخ بلا إنذار.
+        from urllib.parse import urlsplit
+        u = urlsplit(TD_HOME)
+        return f"{u.scheme}://{u.netloc}" + ("" if href.startswith("/") else "/") + href
+    return None
+
+
+def td_base(html: str) -> str | None:
+    m = _BASE_RE.search(html or "")
+    return m.group(1).rstrip("/") if m else None
+
+
 async def tadawul_trade_details() -> tuple[list[dict], str | None]:
     """صفقاتُ صفحة «تداول» من خدمتها التي قِيس أن الصفحةَ تناديها.
 
@@ -433,14 +468,35 @@ async def tadawul_trade_details() -> tuple[list[dict], str | None]:
     from app.services.tadawul_http import smart_flow
 
     def plan():
-        status, page = yield {"url": PAGE}
+        # ١ · القائمةُ تدلّ على الصفحة بمعرِّفها المولَّد
+        status, home = yield {"url": TD_HOME}
+        url = td_page_from_nav(home or "") if status == 200 else None
+        log = [f"القائمة:{status}/" + ("وُجد" if url else "لم يوجد")]
+        status, page = yield {"url": url or PAGE, "referer": TD_HOME}
+        log.append(f"الصفحة:{status}/{len(page or '')}")
         if status != 200 or not page:
-            return None, f"صفحةُ تداول: HTTP {status}"
-        status, body = yield {"url": TD_HELPER, "referer": PAGE,
-                              "headers": {"X-Requested-With": "XMLHttpRequest",
-                                          "Accept": "application/json, text/html, */*"}}
+            return None, " · ".join(log)
+        # ٢ · جدولٌ مرسومٌ من الخادم؟ يُقرأ قبل أيّ نداءٍ ثانٍ
+        got = rows_from_html(page)
+        if got:
+            return {"deals": got}, None
+        # ٣ · وإلا: أسماءُ الخدمات في **هذه** الصفحة — ويُختار بمعناه
+        names = sorted(set(re.findall(r"=NJ([A-Za-z][A-Za-z0-9_]{3,60})=/", page)))
+        log.append("خدمات:" + (",".join(names[:6]) or "لا شيء"))
+        base = td_base(page)
+        hit = next((n for n in names
+                    if re.search(r"deal|negotiat|special", n, re.I)), None)
+        if not (base and hit):
+            return None, " · ".join(log)
+        ep = next(m.group(0) for m in
+                  re.finditer(r"p0/[A-Za-z0-9_=]*=NJ([A-Za-z0-9_]+)=/", page)
+                  if m.group(1) == hit)
+        status, body = yield {"url": f"{base}/{ep}",
+                              "params": {"requestLocale": "en"},
+                              "referer": url or PAGE}
+        log.append(f"{hit}:{status}/{len(body or '')}")
         if status != 200 or not body:
-            return None, f"خدمةُ التفاصيل: HTTP {status}"
+            return None, " · ".join(log)
         return body, None
 
     try:
@@ -448,7 +504,9 @@ async def tadawul_trade_details() -> tuple[list[dict], str | None]:
     except Exception as e:                                        # noqa: BLE001
         return [], f"تداول/خدمة: {type(e).__name__}: {e}"
     if why or not body:
-        return [], why or "خدمةُ التفاصيل: جسمٌ فارغ"
+        return [], why or "تداول: جسمٌ فارغ"
+    if isinstance(body, dict) and body.get("deals"):
+        return body["deals"], None          # جدولٌ مرسومٌ من الخادم
 
     # JSON أوّلاً — وأسماءُ الحقول تُطابَق بمرشِّحاتها المكتوبة.
     try:
