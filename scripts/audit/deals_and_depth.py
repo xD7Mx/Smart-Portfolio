@@ -748,5 +748,37 @@ check(len(_kn) == 1 and "بلا سعر" in _txt and "بلا كمّية" in _txt
       "١٨ب وكلُّ صفٍّ متروكٍ يُقال سببُه — لا سقوطَ صامت",
       _txt.strip()[:140])
 
+# ── ١٩ · صفُّ المجاميع يُسمَّى باسمه (D321) ──────────────────────────────
+# عُرضت الاثنتان والعشرون المتروكةُ بحرفها على الخادم فبانت مجاميعَ يومٍ
+# (`symbol:"" · tradePrice:-1 · strDate:"<strong>المجموع<strong>"`). فتركُها
+# صوابٌ، ووسمُها «بلا رمز» يُقرأ كعطبٍ في قارئنا. ويُقاس هنا على الصفّ
+# **كما وصل بالحرف**: يُترك، ويُسمَّى مجاميعَ، ويُفسَّر الفرقُ في السجلّ.
+_TOT_ROW = {"company": "", "tradePrice": -1, "tradeVolume": 2578790,
+            "turnOver": 60610091.5, "strTime": "",
+            "strDate": "<strong>المجموع<strong>", "symbol": ""}
+check(sd._is_total(_TOT_ROW) is True,
+      "١٩ صفُّ المجاميع يُعرَف من جسمه — لا يُحسَب صفقةً ولا «بلا رمز»")
+check(sd._is_total(_REAL["data"][0]) is False,
+      "١٩ب وصفقةٌ حقيقيةٌ لا تُلتبَس به — لا تُحذف مع المجاميع")
+
+_log2: list[str] = []
+_sink2 = sd.logger.add(lambda m: _log2.append(str(m)), level="INFO")
+try:
+    _kept2 = sd.normalize([_REAL["data"][0], _TOT_ROW])
+finally:
+    sd.logger.remove(_sink2)
+check(len(_kept2) == 1 and "صفوفُ مجاميع" in " ".join(_log2),
+      "١٩ج ويُسمَّى في السجلّ مجاميعَ لا نقصاً", " ".join(_log2)[-90:])
+
+_log3: list[str] = []
+_sink3 = sd.logger.add(lambda m: _log3.append(str(m)), level="INFO")
+try:
+    _n2, _, _ = _neg({"data": [_REAL["data"][0], _TOT_ROW]})
+finally:
+    sd.logger.remove(_sink3)
+check(_n2 == 1 and "صفَّ مجاميع" in " ".join(_log3),
+      "١٩د والفرقُ بين الواصل والمعروض يُفسَّر في سطره — لا لغزَ «1/2»",
+      " ".join(_log3)[-110:])
+
 print(("FAIL" if fail else "PASS") + " D272 · D273 — العمقُ يُعرَض، والصفقاتُ الخاصة تُبنى")
 raise SystemExit(fail)

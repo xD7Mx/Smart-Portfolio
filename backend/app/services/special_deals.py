@@ -162,6 +162,29 @@ def _pick(row: dict, names: tuple[str, ...]):
     return None
 
 
+_TOTAL = re.compile(r"المجموع|total", re.I)
+
+
+def _is_total(row: dict) -> bool:
+    """صفُّ مجاميعِ يومٍ — لا صفقة (D321).
+
+    ══ وُصف بالقياس لا بالتخمين ══
+    عُرضت الاثنتان والعشرون المتروكةُ بحرفها على خادم المالك فبانت
+    واحدةً: `{"symbol": "", "tradePrice": -1, "strDate":
+    "<strong>المجموع<strong>", "turnOver": 60610091.5}`. فهي مجموعُ
+    اليوم الذي يُذيّل به المصدرُ كلَّ جدول — تركُها صوابٌ، ووسمُها
+    «بلا رمز» وسمٌ مضلِّلٌ يُقرأ كعطبٍ في قارئنا. فتُسمَّى باسمها.
+    """
+    if _pick(row, FIELDS["symbol"]):
+        return False
+    for k in ("at", "name"):
+        if _TOTAL.search(str(_pick(row, FIELDS[k]) or "")):
+            return True
+    # وسعرٌ سالبٌ بلا رمزٍ علامةُ صفٍّ جامعٍ لا صفقةٍ منقوصة.
+    p = _num(_pick(row, FIELDS["price"]))
+    return p is not None and p < 0
+
+
 def normalize(rows: list) -> list[dict]:
     """صفوفُ المصدر ← صفقاتٌ مفهومة. وناقصُ الأركان يُترك لا يُرمَّم.
 
@@ -174,6 +197,9 @@ def normalize(rows: list) -> list[dict]:
     why: dict[str, int] = {}
     for r in rows or []:
         if not isinstance(r, dict):
+            continue
+        if _is_total(r):
+            why["صفوفُ مجاميع"] = why.get("صفوفُ مجاميع", 0) + 1
             continue
         sym = _pick(r, FIELDS["symbol"])
         m = re.search(r"\b(\d{4})\b", str(sym or ""))
@@ -554,9 +580,13 @@ async def tadawul_negotiated(days: int = DEFAULT_DAYS,
             except Exception:                                     # noqa: BLE001
                 log.append(f"{mk}:مخرَجٌ غيرُ JSON")
                 continue
-            got = normalize(rows if isinstance(rows, list) else [])
-            log.append(f"{mk}:{len(got)}/"
-                       f"{len(rows) if isinstance(rows, list) else 0}")
+            raw = rows if isinstance(rows, list) else []
+            got = normalize(raw)
+            # والفرقُ يُفسَّر في السطر نفسِه: صفوفُ المجاميع تُذيّل كلَّ
+            # جدولٍ في المصدر، فـ«144/166» يُقرأ حكماً لا لغزاً (D321).
+            tot = sum(1 for r in raw if isinstance(r, dict) and _is_total(r))
+            log.append(f"{mk}:{len(got)}/{len(raw)}"
+                       + (f" (منها {tot} صفَّ مجاميع)" if tot else ""))
             out.extend(got)
         return out, log
 
