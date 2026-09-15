@@ -323,7 +323,7 @@ check(NG.count("{") == NG.count("}"),
 # وثلاثةُ أسبابٍ مقيسةٌ في الشيفرة، لا واحد.
 
 
-def _pump_once(refresh_fails: bool) -> tuple[list, list, list]:
+def _pump_once(refresh_fails: bool, refresh=None) -> tuple[list, list, list]:
     """دورتا مضخّةٍ مقيستان: ما دُفع · مُدَدُ النوم · ما سُجّل من تحذير."""
     import asyncio as _aio
 
@@ -349,7 +349,8 @@ def _pump_once(refresh_fails: bool) -> tuple[list, list, list]:
         _c.set(_M.INDEX_KEY, out, 600)
         return out
 
-    _M.refresh, _M.index_quote = (_boom if refresh_fails else _ok), _idx
+    _M.refresh = refresh or (_boom if refresh_fails else _ok)
+    _M.index_quote = _idx
     _c.set(_M.INDEX_KEY, None, 0)
     LS._subs.clear()
     LS._last.clear()
@@ -392,6 +393,41 @@ check(any(p.get("q") for p in _pushed),
 _again, _, _ = _pump_once(refresh_fails=False)
 check(True, "١١ج والمؤشّرُ يُفرَّق كالأسعار — لا يُعاد دفعُ رقمٍ لم يتغيّر",
       "يُقاس بالفرق داخل الدورة")
+
+# ── ١١ح · والقراءةُ لا تُضاف إلى الفاصل ─────────────────────────────────
+# أرضيّةٌ لا تِكّة: كان الفاصلُ = أرضيّةٌ **زائدَ** زمنِ القراءة (D300).
+# فيُقاس بمنتِجٍ بطيءٍ متعمَّد: النومُ يجب أن ينقص بقدرِ ما استغرقت.
+def _slow_read_gap() -> float:
+    import asyncio as _aio
+
+    from app.services import cache as _c
+    from app.services import tadawul_market as _M
+
+    async def _slow():
+        # زمنٌ حقيقيٌّ لا `asyncio.sleep`: الحارسُ يستبدل النومَ ليُقصّر
+        # الاختبار، فنومٌ مزيَّفٌ في المنتِج يُقيس صفراً ويجتاز بلا معنى
+        # (سقط القياسُ الأوّلُ في هذا بعينه).
+        import time as _t
+        await _aio.get_event_loop().run_in_executor(None, _t.sleep, 0.09)
+        _c.set(_M.STORE_KEY,
+               {"at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+                "rows": {"2010": {"price": 71.0, "change_pct": 0.9}}}, 600)
+        return {"count": 1}
+
+    LS.PUMP_INTERVAL = 0.2
+    _o, _s, _l = _pump_once(refresh_fails=False, refresh=_slow)
+    return _s[0] if _s else -1.0
+
+
+_gap = _slow_read_gap()
+check(0.0 <= _gap < 0.15,
+      "١١م والقراءةُ تُقتطع من الفاصل — لا نَومٌ كاملٌ فوق قراءةٍ طويلة",
+      f"نام {_gap*1000:.0f} مل.ث بعد قراءةٍ 90 مل.ث من أرضيّةٍ 200")
+LS.PUMP_INTERVAL = 0.12
+_MPUMP = (ROOT / "backend" / "app" / "services"
+          / "live_stream.py").read_text(encoding="utf-8")
+check("قراءةُ المصدر" in _MPUMP,
+      "١١ط٢ والإيقاعُ يُطبع في السجلّ — يُقاس ولا يُوصَف بالكلام")
 
 _none, _slp2, _warn = _pump_once(refresh_fails=True)
 check(any("التجديدُ تعذّر" in str(m) for m in _warn),

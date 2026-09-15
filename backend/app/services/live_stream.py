@@ -41,7 +41,12 @@ from datetime import datetime
 
 from loguru import logger
 
-PUMP_INTERVAL = 1.0          # ثانيةٌ: أسرعُ ما تُعطيه التغذيةُ المفتوحة
+# ══ أرضيّةٌ لا تِكّةٌ ══ (D300)
+# كانت الدورةُ «اقرأ ثمّ نَمْ ثانيةً»، فالفاصلُ الحقيقيُّ = ثانيةٌ **زائدَ**
+# زمنِ القراءة (نصفُ ثانيةٍ أو أكثر لصفحة السوق كاملةً) — أي ثانيةٌ ونصفٌ
+# بين رقمٍ ورقم. والآن: تُقاس القراءةُ ويُنام **ما تبقّى** من الأرضيّة
+# فقط. فالفاصلُ نصفُ ثانيةٍ حين يُسعِف المصدر، لا ثانيةٌ ونصف.
+PUMP_INTERVAL = 0.5         # أدنى فاصلٍ بين قراءتين — لا نَومٌ فوق القراءة
 HEARTBEAT = 15.0             # نبضةُ حياةٍ تمنع القطعَ الصامت
 QUEUE_MAX = 8                # طابورُ كلّ مشترِك — القديمُ يُسقَط لا يُكدَّس
 # ══ لكلّ اتّصالٍ عمرٌ أقصى ══
@@ -164,8 +169,12 @@ async def _pump_loop() -> None:
     logger.info("🔴 بثُّ الأسعار: مضخّةٌ بدأت ({} مشترك)", len(_subs))
     idle = 0.0
     fails = 0
+    reads = 0
+    pushes = 0
+    t0 = asyncio.get_event_loop().time()
     try:
         while _subs:
+            cycle = asyncio.get_event_loop().time()
             if not _market_open():
                 # مغلقٌ: نبضةُ حياةٍ فقط — لا نداءَ للمصدر
                 await asyncio.sleep(HEARTBEAT)
@@ -186,6 +195,7 @@ async def _pump_loop() -> None:
                     logger.warning("🔴 بثُّ الأسعار: التجديدُ تعذّر {} مرّةً — {}: {}",
                                    fails, type(e).__name__, e)
             payload: dict = {}
+            reads += 1
             changed = _diff(snapshot() or {})
             if changed:
                 payload["q"] = changed
@@ -195,14 +205,28 @@ async def _pump_loop() -> None:
             if payload:
                 payload["t"] = datetime.now().strftime("%H:%M:%S")
                 _publish(payload)
+                pushes += 1
                 idle = 0.0
             else:
                 idle += PUMP_INTERVAL
                 if idle >= HEARTBEAT:
                     _publish({"hb": 1})
                     idle = 0.0
-            # تراجعٌ عند التعذّر: مصدرٌ يرفض لا يُطرَق كلَّ ثانيةٍ بلا فائدة.
-            await asyncio.sleep(PUMP_INTERVAL + min(fails, 5) * 2)
+            # ══ الإيقاعُ يُقاس ويُعلَن ══ (D300)
+            # لا يُوصَف الزمنُ بالكلام: يُطبع كم دفعةً في كم ثانيةً وكم
+            # يستغرق نداءُ المصدر — فيُقرأ الإيقاعُ الحقيقيُّ من السجلّ.
+            spent = asyncio.get_event_loop().time() - cycle
+            if reads % 60 == 0:
+                span = asyncio.get_event_loop().time() - t0
+                logger.info("🔴 بثُّ الأسعار: {} دفعةً في {:.0f} ثانية · "
+                            "قراءةُ المصدر {:.0f} مل.ث",
+                            pushes, span, spent * 1000)
+            if fails:
+                # تراجعٌ عند التعذّر: مصدرٌ يرفض لا يُطرَق بلا فائدة.
+                await asyncio.sleep(PUMP_INTERVAL + min(fails, 5) * 2)
+            else:
+                # وما تبقّى من الأرضيّة فقط — والقراءةُ الطويلةُ لا تُضاف.
+                await asyncio.sleep(max(0.0, PUMP_INTERVAL - spent))
     finally:
         logger.info("⚪ بثُّ الأسعار: مضخّةٌ توقّفت")
 
