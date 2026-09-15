@@ -125,6 +125,56 @@ async def dump() -> int:
         print(f"  · {name}: {tbl} جدولاً · {trs} صفّاً"
               + ("  ← صفحةُ اعتراض" if deny else ""))
 
+    # ══ شكلُ المحتوى يُطبع لا يُخمَّن ══ (D304)
+    # قِيس أن الصفحةَ تعود 200 بصفرِ جداولٍ **حتى بالمتصفّح** — وعدُّ
+    # `<table>` وحدَه لا يكفي: المواقعُ الحديثةُ ترسم الصفوفَ حاويات.
+    # فيُطبع ملخّصٌ يكشف الشكلَ من طرفيّة المالك بلا نقلِ ملفّ:
+    #   · هل في الصفحة عنوانُ الميزة؟ وهل فيها علاماتُ اشتراكٍ مدفوع؟
+    #   · وكم كتلةً تشبه صفَّ صفقة (رمزٌ + كسرٌ + تاريخ)؟ وما نصُّ أوائلها؟
+    #   · وما نداءاتُ البيانات المذكورةُ في سكربتها؟
+    for name in ("index_1.html", "browser_1.html", "tadawul.html"):
+        raw = files.get(name)
+        if not raw:
+            continue
+        html = raw.decode("utf-8", "replace")
+        print(f"\n═ شكلُ {name} ═")
+        for label, needle in (("عنوانُ الميزة", "الصفقات الخاصة"),
+                              ("اشتراكٌ مدفوع", "اشترك"),
+                              ("للمشتركين", "للمشتركين"),
+                              ("تسجيلُ دخول", "تسجيل الدخول")):
+            n = html.count(needle)
+            if n:
+                print(f"  · {label}: {n} مرّة")
+        no_script = _re2.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html,
+                             flags=_re2.S | _re2.I)
+        from app.services.ownership import _text, blocks
+        # القياسُ على **نصّ** الكتلة لا على طول شيفرتها: أوّلُ صياغةٍ
+        # رشّحت بطولِ HTML فأسقطت صفوفاً حقيقيةً صنعتُها للتجربة.
+        rowish, seen_t = [], set()
+        for b in sorted(blocks(no_script), key=len):
+            txt = _text(b)
+            if not (20 <= len(txt) <= 400):
+                continue
+            if not (_re2.search(r"\b\d{4}\b", txt)
+                    and _re2.search(r"\d+\.\d{1,2}", txt)
+                    and _re2.search(r"\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}", txt)):
+                continue
+            if any(txt in s for s in seen_t):      # كتلةٌ أمٌّ تكرّر ابنَها
+                continue
+            seen_t.add(txt)
+            rowish.append(txt[:200])
+        print(f"  · كتلٌ تشبه صفَّ صفقة: {len(rowish)}")
+        for x in rowish[:4]:
+            print(f"      {x}")
+        # نداءاتُ البيانات في السكربت — مسارٌ نسبيٌّ أو مطلقٌ داخل الموقع
+        calls = sorted({m for m in _re2.findall(
+            r'["\'](/[A-Za-z0-9_\-/]{6,}(?:\?[^"\']{0,60})?)["\']', html)
+            if _re2.search(r"deal|shareholder|Data|List|Grid|Get|api", m, _re2.I)})
+        if calls:
+            print(f"  · نداءاتٌ محتملةٌ في السكربت: {len(calls)}")
+            for c in calls[:8]:
+                print(f"      {c}")
+
     out = pathlib.Path("/app/_deals_dump.tar.gz")
     if not out.parent.exists():
         out = pathlib.Path("_deals_dump.tar.gz")
