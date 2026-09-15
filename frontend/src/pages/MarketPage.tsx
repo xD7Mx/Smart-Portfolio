@@ -138,7 +138,6 @@ function PulseCard({ summary, tasi: tasiQ, brent, movers, onSearch }:
   const secs = (movers?.sectors || []).filter((x: any) => x?.avg_change_pct != null);
   const best = secs.length ? secs.reduce((a: any, b: any) => (a.avg_change_pct >= b.avg_change_pct ? a : b)) : null;
   const worst = secs.length ? secs.reduce((a: any, b: any) => (a.avg_change_pct <= b.avg_change_pct ? a : b)) : null;
-  const phase = summary?.phase;
   const noData = tasi?.price == null && !movers?.total;
 
   const Cell = ({ k, v, c }: { k: string; v: any; c?: string }) => (
@@ -159,18 +158,12 @@ function PulseCard({ summary, tasi: tasiQ, brent, movers, onSearch }:
         {/* دليلُ الشركات — بجانب علامة البحث (بأمر المالك · D256).
             البحثُ لمن يعرف ما يريد، والدليلُ لمن يتصفّح السوق. */}
         {onSearch && <CompanyDirectory onPick={onSearch} />}
-        {phase && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md"
-            style={{
-              background: phase === "intraday" ? "color-mix(in srgb, var(--pos-fill) 15%, transparent)"
-                : phase === "pre_open" ? "color-mix(in srgb, var(--chart-1) 15%, transparent)"
-                : "color-mix(in srgb, var(--ink-muted) 15%, transparent)",
-              /* الحبر بدرجةٍ أعمق من صِبغته، وإلّا اختفى فيها. */
-              color: phase === "intraday" ? "var(--pos-fill)" : phase === "pre_open" ? "var(--chart-1)" : "var(--ink-muted)",
-            }}>
-            {phase === "intraday" ? "جلسة مباشرة" : phase === "pre_open" ? "ما قبل الافتتاح" : "بعد الإغلاق"}
-          </span>
-        )}
+        {/* ══ حالةُ السوق تُحذف من هذه البطاقة ══ (بأمر المالك · D302)
+            كانت حالتان في بطاقةٍ واحدة: وسمٌ مشتقٌّ من طورِ خلاصة الذكاء
+            («جلسة مباشرة») ونقطةُ حالةٍ من حاكم الأطوار («السوق مغلق»).
+            ومصدرانِ لمعنًى واحدٍ يتناقضان حتماً — وقد رآهما المالكُ
+            يتناقضان بعينه. والحالةُ معروضةٌ أصلاً في لسان الشريط من
+            الحاكم الواحد، فلا تُعاد هنا بمصدرٍ ثانٍ. */}
         {summary?.generated_at && (
           <span className="text-[10px] text-[var(--ink-muted)] mr-auto">
             {new Date(summary.generated_at).toLocaleTimeString("ar-SA-u-ca-gregory-nu-latn", { hour: "2-digit", minute: "2-digit" })}
@@ -195,9 +188,6 @@ function PulseCard({ summary, tasi: tasiQ, brent, movers, onSearch }:
               {pct(tasi?.change_pct) ?? ""}
             </span>
             <span className="text-[10px] text-[var(--ink-muted)]">تاسي</span>
-            {/* حالة السوق (مفتوح · مغلق · عطلة · استراحة) — كانت في البطاقة
-                المفردة التي حُذفت، ومكانها الطبيعي بجانب المؤشر نفسه. */}
-            <span className="mr-auto"><MarketStatusDot withLabel market="tasi" tappable /></span>
           </div>
 
           {/* اتساع السوق شريطاً: الصورة أسرع من الجملة */}

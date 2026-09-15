@@ -178,6 +178,22 @@ const pulse = await page.evaluate(() => {
 say(pulse != null && /\d/.test(pulse),
     "٢ وبطاقةُ «نبض السوق» تعرض رقمَ المؤشّر لا شرطة", String(pulse).slice(0, 20));
 
+// ══ ولا حالتان في بطاقةٍ واحدة ══ (بأمر المالك · D302)
+// رأى المالكُ في «نبض السوق» وسماً يقول «جلسة مباشرة» ونقطةً تقول «السوق
+// مغلق» — مصدرانِ لمعنًى واحدٍ يتناقضان. فالحالةُ لا تُعرض في هذه البطاقة
+// أصلاً، ويُقاس ذلك من نصِّ البطاقة في المتصفّح لا من الشيفرة (فالتعليقُ
+// الذي يشرح الحذفَ يحمل الكلماتَ نفسَها فيخدع فحصَ النصّ).
+const cardTxt = await page.evaluate(() => {
+  const h = [...document.querySelectorAll("h2")]
+    .find(x => (x.textContent || "").includes("نبض السوق"));
+  return (h?.closest(".card")?.textContent || "").replace(/\s+/g, " ");
+});
+const banned = ["جلسة مباشرة", "السوق مغلق", "بعد الإغلاق", "ما قبل الافتتاح"]
+  .filter(w => cardTxt.includes(w));
+say(banned.length === 0,
+    "٤ ولا حالةَ سوقٍ في بطاقة «نبض السوق» — لا وسمانِ يتناقضان",
+    banned.join(" · ") || "خالية");
+
 for (const e of errs) console.log(`     خطأٌ في الصفحة: ${e}`);
 say(errs.length === 0, "٣ ولا خطأَ في الصفحة أثناء الدفع");
 
