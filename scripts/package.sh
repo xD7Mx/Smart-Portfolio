@@ -80,8 +80,14 @@ rule
 say "✔ $NAME — $SIZE · $COUNT ملفاً · من الالتزام $HEAD_SHA"
 rule
 
-# ── ٥) أمر التركيب يُطبع مع الحزمة دائماً (شرطُ المالك) ──────────────────────
-cat <<'INSTALL'
+# ── ٥) أمر التركيب يُطبع **ويُكتب** مع الحزمة دائماً (شرطُ المالك) ──────────
+# ══ ولا يُكتب من الذاكرة ══ (D297)
+# سلّمتُ المالكَ أمراً بمسارٍ لا وجودَ له (`docker/docker-compose.yml`) —
+# كتبتُه من حفظي بدل أن أنقل ما يطبعه هذا السكربت، فوقف التركيبُ عند
+# خطأٍ ليس في الحزمة. فصار الأمرُ **ملفّاً يُقرأ ويُنقَل حرفياً**
+# (`spupdatechanged.install.txt`)، وحارسُه `scripts/audit/install_command.py`
+# يتحقّق أن كلَّ مسارٍ فيه موجودٌ فعلاً.
+cat > "$NAME.install.txt" <<'INSTALL'
 
 أمر التركيب:
 
@@ -93,3 +99,4 @@ docker compose up -d --build && \
 echo "⏳ انتظر الإقلاع…" && sleep 60 && \
 docker logs sp_backend 2>&1 | grep -a '🦅' | tail -5
 INSTALL
+cat "$NAME.install.txt"

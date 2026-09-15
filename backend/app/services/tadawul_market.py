@@ -162,21 +162,54 @@ async def refresh() -> dict:
 CLOSE_MAX_DAYS = 5          # أطولُ عطلةٍ معقولة: عيدٌ متّصلٌ بنهاية أسبوع
 
 
+def _age_of(rec) -> float | None:
+    """عمرُ سجلٍّ بزمنه المُعلَن (`at`) — أو None إن لم يُفصح عنه.
+
+    ══ زمنُ الحفظ ليس زمنَ القراءة ══ (D298)
+    كان العمرُ يُقاس بزمن **حفظ** الملفّ، فسجلٌّ زمنُه المُعلَن قديمٌ
+    وحُفظ الآن يُقرأ «حيّاً». وهما يتّفقان عندنا اليومَ لأن المنتِجَ يختم
+    بساعتنا، لكنّ القاعدةَ تُكتب على الزمن المُعلَن لا على واقعةِ الكتابة.
+    """
+    at = (rec or {}).get("at") if isinstance(rec, dict) else None
+    if not at:
+        return None
+    try:
+        from datetime import datetime, timezone
+        t = datetime.fromisoformat(str(at))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - t).total_seconds()
+    except Exception:                                             # noqa: BLE001
+        return None
+
+
+def reading() -> dict | None:
+    """السجلُّ الحيُّ بكامله (صفوفٌ وزمن) — أو None إن غاب أو شاخ.
+
+    منتِجٌ واحدٌ للحيّ: `snapshot()` تأخذ صفوفَه، و`usable_rows()` تأخذ
+    زمنَه معها — فلا يُدفَع رقمٌ «حيٌّ» بلا زمنٍ كما كان يحدث بعد كلّ
+    إقلاعٍ (الذاكرةُ فارغةٌ فيُقرأ المحفوظ، والزمنُ كان يُقرأ من الذاكرة).
+    """
+    from app.services import cache, lastgood
+    rec = cache.get(STORE_KEY)
+    if not isinstance(rec, dict):
+        rec = lastgood.load(STORE_KEY, max_age_seconds=MAX_AGE_SECONDS)
+    if not isinstance(rec, dict) or not isinstance(rec.get("rows"), dict):
+        return None
+    age = _age_of(rec)
+    if age is not None and age > MAX_AGE_SECONDS:
+        return None
+    return rec
+
+
 def snapshot() -> dict[str, dict]:
     """اللقطةُ **الحيّة** — أو فارغةٌ إن غابت أو شاخت.
 
     تبقى صارمةً: ما يُعرض على أنه لحظيٌّ يجب أن يكون لحظياً، وسعرٌ عمرُه
     ساعتان داخلَ الجلسة كذبٌ لا تأخّر.
     """
-    from app.services import cache
-    rec = cache.get(STORE_KEY)
-    if not isinstance(rec, dict):
-        from app.services import lastgood
-        rec = lastgood.load(STORE_KEY, max_age_seconds=MAX_AGE_SECONDS)
-    if not isinstance(rec, dict):
-        return {}
-    rows = rec.get("rows")
-    return rows if isinstance(rows, dict) else {}
+    rec = reading()
+    return rec["rows"] if rec else {}
 
 
 # ══ اللحظيةُ الحقيقيةُ في المصدر لا في الشاشة ══ (D289)
@@ -201,22 +234,12 @@ _last_kick = 0.0
 
 
 def age_seconds() -> float | None:
-    """عمرُ اللقطة بالثواني — أو None إن غابت."""
-    from app.services import cache
+    """عمرُ اللقطة بالثواني — أو None إن غابت. وقارئُ الزمن **واحد**."""
+    from app.services import cache, lastgood
     rec = cache.get(STORE_KEY)
     if not isinstance(rec, dict):
-        from app.services import lastgood
         rec = lastgood.load(STORE_KEY, max_age_seconds=CLOSE_MAX_DAYS * 86400)
-    if not isinstance(rec, dict) or not rec.get("at"):
-        return None
-    try:
-        from datetime import datetime, timezone
-        at = datetime.fromisoformat(str(rec["at"]))
-        if at.tzinfo is None:
-            at = at.replace(tzinfo=timezone.utc)
-        return (datetime.now(timezone.utc) - at).total_seconds()
-    except Exception:                                             # noqa: BLE001
-        return None
+    return _age_of(rec) if isinstance(rec, dict) else None
 
 
 def ensure_fresh(max_age: float = LIVE_TTL) -> bool:
@@ -276,10 +299,11 @@ def usable_rows() -> tuple[dict[str, dict], bool, str | None]:
     from app.services import cache, lastgood
     from app.services.market_phase import market_phase
 
-    live = snapshot()
-    if live:
-        rec = cache.get(STORE_KEY) or {}
-        return live, True, (rec.get("at") if isinstance(rec, dict) else None)
+    rec = reading()
+    if rec:
+        # الزمنُ من السجلِّ الذي أعطى الصفوفَ نفسِه — لا من مخزنٍ آخرَ قد
+        # يكون فارغاً فيُدفَع «حيٌّ» بزمنٍ معدوم (D298).
+        return rec["rows"], True, rec.get("at")
 
     now = datetime.now()
     if market_phase((now.weekday() + 1) % 7, now.hour * 60 + now.minute) != "closed":

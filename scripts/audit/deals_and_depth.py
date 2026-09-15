@@ -51,7 +51,13 @@ from app.services import cache, special_deals as sd, tadawul_market as tm  # noq
 
 
 def _snap(rows: dict) -> None:
-    cache.set(tm.STORE_KEY, {"at": "2026-09-12T12:00:00+00:00", "rows": rows},
+    # ══ لقطةٌ حيّةٌ تُختم بالآن ══ (D298)
+    # كان الزمنُ تاريخاً مطلقاً، فصار الفحصُ يشيخ مع الأيّام: اللقطةُ
+    # الحيّةُ تُقاس بزمنها المُعلَن، وتاريخٌ ثابتٌ يصير قديماً بعد أيّام
+    # فيسقط الفحصُ لا لعطبٍ في الشيفرة بل لمرور الوقت.
+    cache.set(tm.STORE_KEY,
+              {"at": _dt2.datetime.now(_dt2.timezone.utc)
+                     .isoformat(timespec="seconds"), "rows": rows},
               tm.MAX_AGE_SECONDS)
 
 
@@ -120,7 +126,9 @@ check(sd.normalize([{"symbol": "2010", "price": 1, "quantity": 1}] * 500).__len_
 
 # ── ٦ · يومٌ بلا صفقاتٍ لا يمحو المحفوظ ─────────────────────────────────
 from app.services import lastgood  # noqa: E402
-lastgood.save(sd.STORE_KEY, {"at": "2026-09-12T10:00:00+00:00", "deals": deals})
+lastgood.save(sd.STORE_KEY,
+              {"at": _dt2.datetime.now(_dt2.timezone.utc)
+                     .isoformat(timespec="seconds"), "deals": deals})
 cache.set(sd.STORE_KEY, None, 0)
 
 

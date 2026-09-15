@@ -212,12 +212,34 @@ for f in ("components/market/StockView.tsx", "components/market/MarketDepth.tsx"
 # وهو فارغٌ خارجَ الجلسة — ونبضةُ الحياة بعد خمسَ عشرةَ ثانية. فبقي المجرى
 # صامتاً فظُنّ معطوباً وهو سليم. والحالُ تُقرأ الآن بقاعدة كلّ الشاشات.
 LS.datetime = _Closed                                            # type: ignore[misc]
-M.snapshot = lambda: {}                                          # type: ignore[assignment]
 import app.services.lastgood as _lg  # noqa: E402
-cache.set(M.STORE_KEY, None, 0)
-_lg.save(M.STORE_KEY, {"at": "2026-09-11T15:20:00+00:00",
-                       "rows": {"2010": {"price": 70.0, "change_pct": 0.4}}})
-LS._last.clear()
+import app.services.market_phase as _MP  # noqa: E402
+
+# ══ الطورُ يُثبَّت، ولا يُقرأ من ساعة الحاوية ══ (D298)
+# كان هذا الفحصُ يجتاز ليلاً ويسقط صباحاً: يقيس قاعدةَ **السوق المغلق**
+# وقارئُ `usable_rows` يسأل الساعةَ الحقيقية. وحارسٌ نتيجتُه تتبع الوقتَ
+# لا الشيفرة **ليس حارساً**. فيُثبَّت الحاكمُ نفسُه في موضعه.
+_real_phase = _MP.market_phase
+
+
+def _phase(state: str):
+    _MP.market_phase = lambda *a, **k: state                     # type: ignore[assignment]
+
+
+# والسجلُّ يُبنى **نسبةً إلى الآن** لا بتاريخٍ مطلقٍ يشيخ فيصير الفحصُ
+# قنبلةً موقوتة: أقدمُ من الطزاجة (فليس حيّاً) وأحدثُ من أطول عطلة.
+def _seed(minutes_old: float) -> None:
+    from datetime import datetime, timedelta, timezone
+    at = (datetime.now(timezone.utc)
+          - timedelta(minutes=minutes_old)).isoformat(timespec="seconds")
+    cache.set(M.STORE_KEY, None, 0)
+    _lg.save(M.STORE_KEY, {"at": at,
+                           "rows": {"2010": {"price": 70.0, "change_pct": 0.4}}})
+    LS._last.clear()
+
+
+_phase("closed")
+_seed(60 * 30)                      # نصفُ يومٍ: إغلاقٌ حاضرٌ لا لقطةٌ حيّة
 
 
 async def _closed_stream():
@@ -241,6 +263,32 @@ _dat = next((c for c in _out if c.startswith("data:")), "")
 check("2010" in _dat and '"live": false' in _dat,
       "١٠ب والحالةُ الحاضرةُ تُدفَع بقاعدة كلّ الشاشات — آخرُ إغلاقٍ معلَناً",
       _dat[:70])
+
+# ── ١٠ج · وداخلَ الجلسة: قديمٌ لا يُدفَع «حيّاً» ─────────────────────────
+# القاعدةُ التي كُتبت في الوثيقة وتُقاس هنا: سعرٌ عمرُه ساعتان داخلَ
+# الجلسة **كذبٌ** لا تأخّر. والعمرُ يُقاس بزمن القراءة المُعلَن لا بزمن
+# كتابة الملفّ — فسجلٌّ قديمٌ حُفظ الآن كان يُقرأ حيّاً (D298).
+# ويُقاس على **القاعدة نفسِها** لا عبر المجرى: المضخّةُ تُجدّد في الجلسة
+# فتأتي بحيٍّ صحيحٍ — فالمقياسُ هنا هو `usable_rows` مباشرةً.
+_phase("open")
+_seed(120)                                                   # ساعتان
+_rows2, _live2, _at2 = M.usable_rows()
+check(_rows2 == {} and _live2 is False and _at2 is None,
+      "١٠ج وداخلَ الجلسة لا يُقرأ قديمٌ على أنه حيّ — ولا بديلَ عن الحيّ",
+      f"{len(_rows2)} صفّاً · حيّ={_live2}")
+check(M.snapshot() == {},
+      "١٠ح واللقطةُ الصارمةُ ترفضه بزمنه المُعلَن لا بزمن كتابة الملفّ")
+
+# ── ١٠د · والحيُّ يُقرأ **بزمنه** ────────────────────────────────────────
+# ثقبٌ حقيقيٌّ كان يُفتح عند كلّ إقلاع: الذاكرةُ فارغةٌ فتُقرأ الصفوفُ من
+# المحفوظ، والزمنُ كان يُقرأ من الذاكرة — فيصل «حيٌّ» بزمنٍ معدوم.
+_seed(0.2)                                                   # اثنتا عشرةَ ثانية
+_rows3, _live3, _at3 = M.usable_rows()
+check(_live3 is True and "2010" in _rows3 and _at3,
+      "١٠د والحيُّ يُقرأ بزمنه المُعلَن — لا «حيٌّ» بلا زمن",
+      f"حيّ={_live3} · زمن={_at3}")
+
+_MP.market_phase = _real_phase                                   # type: ignore[assignment]
 LS.datetime = _real                                              # type: ignore[misc]
 
 # ── ٩ · الوسيطُ لا يخزّن المجرى ─────────────────────────────────────────

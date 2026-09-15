@@ -114,6 +114,7 @@ cache.set(tmk.STORE_KEY, None, 0)
 lastgood.save(tmk.STORE_KEY, {"at": "2026-09-10T15:20:00+00:00", "rows": ROWS})
 # «لا لقطةَ حيّة» تُحاكى بالدالّة نفسِها: مخزنُ الحالة يختم زمنَ حفظه هو،
 # فلا يشيخ سجلٌّ كُتب قبل لحظة — والمقصودُ قياسُ فرعِ البديل لا المخزن.
+tmk.reading = lambda: None                                       # type: ignore[assignment]
 tmk.snapshot = lambda: {}                                        # type: ignore[assignment]
 
 import datetime as _d2  # noqa: E402

@@ -284,6 +284,11 @@ python3 scripts/audit/market_phase_one.py || fail=1
 echo
 python3 scripts/audit/fetch_method_doc.py || fail=1
 
+# D297: أمرُ التركيب يُنقَل حرفياً عن السكربت، ولا يُكتب من الذاكرة —
+# كلُّ مسارٍ فيه موجودٌ، والتشكيلُ يُنادى حيث هو.
+echo
+python3 scripts/audit/install_command.py || fail=1
+
 # D289: لحظيةٌ في المصدر لا في الشاشة — طزاجةٌ عند الطلب بنداءٍ واحدٍ في
 # الطريق، ولا إيقاظَ والسوقُ مغلق، ولا حبسَ للشاشة في انتظار الشبكة.
 echo
