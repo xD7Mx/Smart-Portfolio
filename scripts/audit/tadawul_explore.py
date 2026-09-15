@@ -37,7 +37,7 @@ sys.path.insert(0, "backend")
 HOME = "https://www.saudiexchange.sa/wps/portal/saudiexchange/home"
 MEAN = re.compile(r"صفق|خاص|متفاوض|deal|negotiat", re.I)
 HOST = "saudiexchange.sa"
-MAX_PAGES = 6
+MAX_PAGES = 3          # الموقعُ مقيَّدُ المعدّل: الأهمُّ أوّلاً وقليلاً
 SETTLE = 6000
 
 # صفٌّ يشبه صفقةً: رمزٌ رباعيٌّ + رقمٌ كسريٌّ (سعر) + رقمٌ كبير (كمّية)
@@ -135,13 +135,17 @@ async def main() -> int:
             for mk in ("main", "nomu"):
                 u = h.replace(f"/{m.group(1)}-market-watch/",
                               f"/{mk}-market-watch/")
-                if u not in seen and all(u != s for s, _ in sibs):
+                # لا يُسقَط شقيقٌ لأنه «مرئيٌّ في القائمة»: السوقُ الرئيسة
+                # مرئيةٌ بمساراتٍ أخرى، فأسقطها شرطي الأوّل — وهي المطلوبة.
+                if all(u != s for s, _ in sibs) and u not in [c for c, _ in cands]:
                     sibs.append((u, f"{t0} — سوقُ {mk}"))
         if sibs:
             print(f"\n═ أشقّاءُ المسار (مولَّدون من النمط): {len(sibs)} ═")
             for u, lab in sibs:
                 print(f"   «{lab}» → {u[:120]}")
-            cands = sibs + cands          # الرئيسةُ أوّلاً: هي المطلوبة
+            # الرئيسةُ أوّلاً ثمّ نمو، ثمّ ما رأته القائمة
+            sibs.sort(key=lambda x: 0 if "/main-market-watch/" in x[0] else 1)
+            cands = sibs + cands
         print(f"\n═ روابطُ تذكر المعنى: {len(cands)} ═")
         for h, t in cands[:20]:
             print(f"   «{t[:46] or '—'}» → {h[:120]}")
@@ -170,8 +174,17 @@ async def main() -> int:
             p2.on("response", _on)
             print(f"\n═ زيارة: «{t[:40]}» ═\n   {h[:130]}")
             try:
-                await p2.goto(h, timeout=40000, wait_until="domcontentloaded")
-                await p2.wait_for_timeout(SETTLE)
+                # ══ مهلةٌ أطولُ ومحاولةٌ ثانية ══ (D316)
+                # قِيس أن ثلاثاً من أربع صفحاتٍ انتهت مهلتُها عند ٤٠ ثانية،
+                # ومخرَجُ المزوّد يقول `rate_limited: true` — فالموقعُ بطيءٌ
+                # تحت التوالي. فيُنتظَر أوّلُ بايتٍ (`commit`) لا رسمُ
+                # المستند، وتُعاد المحاولةُ مرّةً، ويُمهَل بين الصفحات.
+                try:
+                    await p2.goto(h, timeout=90000, wait_until="commit")
+                except Exception:                                 # noqa: BLE001
+                    await p2.wait_for_timeout(4000)
+                    await p2.goto(h, timeout=90000, wait_until="commit")
+                await p2.wait_for_timeout(SETTLE + 4000)
                 # ══ الخلايا لا الصفّ ══
                 # `textContent` للصفّ يلصق الخلايا: «الراجحي112092.50…» —
                 # فتضيع حدودُ الرمز والسعر ويُحكم بأنه لا يشبه صفقة (وهو
@@ -241,14 +254,17 @@ async def main() -> int:
                 looks = all(rx.search(b) for rx in ROWISH)
                 bodies.append((r.url, len(b), looks, b[:220]))
             for u, n, looks, head in bodies:
+                data_ep = '"data"' in head or "issuers-trading" in u
                 print(f"      جسمٌ {n} حرفاً"
                       + ("  ← يشبه بياناتِ صفقات" if looks else "")
-                      + f"\n         {u[:110]}\n         "
-                      + re.sub(r"\s+", " ", head))
+                      + ("  ★ نداءُ جدولِ الصفحة" if data_ep else "")
+                      + f"\n         {u if data_ep else u[:110]}\n         "
+                      + re.sub(r"\s+", " ", head if not data_ep else head[:700]))
             if dealish or any(x[2] for x in bodies):
                 best.append({"page": h, "title": t, "rows": len(dealish),
                              "bodies": [x[0] for x in bodies if x[2]]})
             await p2.close()
+            await page.wait_for_timeout(2500)     # نفَسٌ بين الصفحات
 
         # ── ٤ · الحكم ──────────────────────────────────────────────────
         print("\n═ الحكم ═")
