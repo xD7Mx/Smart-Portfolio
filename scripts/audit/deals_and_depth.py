@@ -486,5 +486,71 @@ check("smart_flow" in _SD2 and "_argaam_plan" in _SD2,
 check(_SD2.count("def _argaam_plan") == 1 and _SD2.count("def rows_from_html") == 1,
       "١٤ل ودالّةٌ واحدةٌ لكلّ معنى — لا نسختان تتنازعان")
 
+# ── ١٥ · اكتشافُ النقطة من حركة الشبكة ─────────────────────────────────
+# قِيس على الخادم أن صفحةَ الصفقات الخاصة في بوّابة «تداول» **لا تذكر اسمَ
+# خدمتها في شيفرتها** (صفرُ أسماء `=NJ…=/`)، وأن صفحةَ «أرقام» مغلقةٌ على
+# غير المشترك. فالاسمُ يُقرأ من **ما تطلبه الصفحةُ فعلاً** (D306).
+def _sniff_probe() -> tuple[int, str]:
+    import http.server
+    import socketserver
+    import threading
+
+    for c in ("/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+              "/usr/bin/chromium", "/usr/bin/chromium-browser"):
+        if _os.path.exists(c):
+            _os.environ.setdefault("CHROME_BIN", c)
+            break
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):                                # noqa: D102
+            pass
+
+        def do_GET(self):                                         # noqa: N802
+            if self.path == "/page":
+                b = (b"<html><body><script>"
+                     b"fetch('/api/getSpecialDealsData?marketid=3');"
+                     b"</script></body></html>")
+                ct = "text/html; charset=utf-8"
+            elif self.path.startswith("/api/getSpecialDealsData"):
+                b = b'{"deals":[{"symbol":"1120","price":92.5}]}'
+                ct = "application/json"
+            else:
+                self.send_response(404)
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", ct)
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+
+    srv = socketserver.TCPServer(("127.0.0.1", 0), H)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        from app.services.browser_fetch import BrowserUnavailable, sniff
+        try:
+            res = asyncio.run(sniff(f"http://127.0.0.1:{port}/page", settle_ms=2000))
+        except BrowserUnavailable as e:
+            return -1, str(e)[:60]
+        xhr = [c for c in res["calls"] if c["type"] in ("xhr", "fetch")]
+        body = next(iter(res["bodies"].values()), "")
+        return len(xhr), body[:60]
+    finally:
+        srv.shutdown()
+
+
+_n, _b = _sniff_probe()
+if _n < 0:
+    print(f"…  اكتشافُ النقطة بالشبكة لا يُقاس هنا (المتصفّح: {_b}) — لا حكم.")
+else:
+    check(_n >= 1, "١٥ المتصفّحُ يسجّل نداءَ البيانات الذي تطلبه الصفحة",
+          f"{_n} نداءً")
+    check('"symbol"' in _b or "1120" in _b,
+          "١٥ب ويُحفَظ جسمُ الردّ — فيُقرأ الشكلُ لا يُخمَّن", _b[:40])
+check("sniff" in (ROOT / "scripts" / "audit" / "deals_probe.py")
+      .read_text(encoding="utf-8"),
+      "١٥ج والمسبارُ يستعمله فيطبع ما طلبته الصفحةُ فعلاً")
+
 print(("FAIL" if fail else "PASS") + " D272 · D273 — العمقُ يُعرَض، والصفقاتُ الخاصة تُبنى")
 raise SystemExit(fail)

@@ -110,6 +110,87 @@ async def render(urls: list[str], *, wait_selector: str | None = None,
                     pass
 
 
+async def sniff(url: str, *, settle_ms: int = 9000,
+                want: str = r"(?i)json|deal|negotiat|special|grid|table|data",
+                max_bodies: int = 6) -> dict:
+    """يفتح صفحةً **ويسجّل نداءاتها** — اكتشافُ النقطة من حركة الشبكة (D306).
+
+    ══ لماذا طبقةٌ ثالثةٌ للاكتشاف ══
+    الطريقةُ المسجَّلة تكتشف نقطةَ البيانات **من نصّ الصفحة** (`<base>` ثمّ
+    اسمُ الخدمة). وقِيس على الخادم أن صفحةَ الصفقات الخاصة في بوّابة
+    «تداول» **لا تذكر اسمَ خدمتها في شيفرتها**: صفرُ أسماء. فالاسمُ لا
+    يُقرأ من HTML — يُقرأ من **ما تطلبه الصفحةُ فعلاً** حين تُنفَّذ.
+    فيُفتح المتصفّحُ ويُسجَّل كلُّ ردٍّ: مساره وحالتُه ونوعُه وحجمُه، وتُحفَظ
+    أجسامُ المرشَّحين (محدودةً) — فيُسمّى البابُ بالقياس لا بالتخمين.
+
+    ولا يُستعمل في مسار طلبِ مستخدم: أداةُ اكتشافٍ تُشغَّل مجدولةً أو
+    بأمرٍ، كسائر طبقة المتصفّح.
+    """
+    import re as _re
+
+    try:
+        from playwright.async_api import async_playwright
+    except Exception as e:                                        # noqa: BLE001
+        raise BrowserUnavailable(f"playwright غير مركَّبة: {type(e).__name__}") from e
+
+    rx = _re.compile(want)
+    calls: list[dict] = []
+    seen: list = []
+    pw = browser = None
+    html = ""
+    try:
+        pw = await async_playwright().start()
+        try:
+            browser = await pw.chromium.launch(**_launch_kwargs())
+        except Exception as e:                                    # noqa: BLE001
+            raise BrowserUnavailable(f"تعذّر تشغيل كروميوم: {e}") from e
+        ctx = await browser.new_context(
+            locale="ar-SA",
+            user_agent=("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/124.0.0.0 Safari/537.36"))
+        page = await ctx.new_page()
+
+        def _on_response(r) -> None:
+            try:
+                calls.append({"url": r.url, "status": r.status,
+                              "type": r.request.resource_type,
+                              "method": r.request.method})
+                seen.append(r)
+            except Exception:                                     # noqa: BLE001
+                pass
+
+        page.on("response", _on_response)
+        try:
+            await page.goto(url, timeout=NAV_TIMEOUT_MS,
+                            wait_until="domcontentloaded")
+            await page.wait_for_timeout(settle_ms)
+            html = await page.content()
+        except Exception as e:                                    # noqa: BLE001
+            logger.debug("sniff {}: {}: {}", url[:60], type(e).__name__, e)
+
+        bodies: dict[str, str] = {}
+        for r in seen:
+            if len(bodies) >= max_bodies:
+                break
+            if r.request.resource_type not in ("xhr", "fetch"):
+                continue
+            if not rx.search(r.url):
+                continue
+            try:
+                bodies[r.url] = (await r.text())[:300_000]
+            except Exception:                                     # noqa: BLE001
+                continue
+        return {"html": html, "calls": calls, "bodies": bodies}
+    finally:
+        for closer in (getattr(browser, "close", None), getattr(pw, "stop", None)):
+            if closer:
+                try:
+                    await closer()
+                except Exception:                                 # noqa: BLE001
+                    pass
+
+
 async def available() -> tuple[bool, str]:
     """(أمتاحٌ المتصفّح؟، السبب) — للمسبار وللتشخيص، بلا فتح صفحة."""
     try:
