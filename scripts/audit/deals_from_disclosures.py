@@ -52,6 +52,66 @@ async def main() -> int:
     except Exception as e:                                        # noqa: BLE001
         print(f"  تعذّر فحصُ المصادر: {type(e).__name__}: {e}")
 
+    # ── ١ب · القشرةُ تُسمّي خدمتَها — فتُنادى وتُقاس ──────────────────
+    # قِيس: الصفحةُ صارت ٢٠٠ بـ٥٧٢ ألفَ حرفٍ و«فُهم منها 0» — فهي قشرةٌ
+    # يُملأ جدولُها بنداءِ خدمةٍ (كمراقبة السوق · D251). فتُقرأ أسماءُ
+    # خدماتها، ويُنادى كلُّ ما يشبه معناها، ويُطبع ما عاد — لا يُخمَّن.
+    print("\n═ خدماتُ صفحة الإفصاحات ═")
+    from app.services.tadawul_announcements import DEFAULT_TADAWUL_URL
+    from app.services.tadawul_http import fetch
+
+    try:
+        status, page = await fetch(DEFAULT_TADAWUL_URL)
+    except Exception as e:                                        # noqa: BLE001
+        print(f"  تعذّر: {type(e).__name__}: {e}")
+        page, status = "", 0
+    print(f"  الصفحة: HTTP {status} · {len(page or '')} حرفاً · "
+          f"{len(re.findall(r'<table', page or '', re.I))} جدولاً · "
+          f"{len(re.findall(r'<tr', page or '', re.I))} صفّاً")
+    mb = re.search(r"<base[^>]+href=[\"']([^\"']+)", page or "", re.I)
+    base = mb.group(1).rstrip("/") if mb else None
+    print(f"  أساسُ الصفحة: {base or 'لا شيء'}")
+    eps = {}
+    for m in re.finditer(r"p0/[A-Za-z0-9_=]*=NJ([A-Za-z][A-Za-z0-9_]{3,60})=/",
+                         page or ""):
+        eps.setdefault(m.group(1), m.group(0))
+    print(f"  أسماءُ خدماتها: {len(eps)}")
+    for n in list(eps)[:14]:
+        print(f"      {n}")
+
+    served: list[str] = []          # خدماتٌ عادت بصفوفٍ فعلاً
+    WANT = re.compile(r"news|announc|disclos|issuer|market|list|data|report",
+                      re.I)
+    tried = [n for n in eps if WANT.search(n)][:6]
+    if base and tried:
+        print(f"\n  ── تُنادى {len(tried)} خدمةً بمعناها ──")
+    for n in tried:
+        url = f"{base}/{eps[n]}"
+        for loc in ("ar", "en"):
+            try:
+                st, body = await fetch(url, params={"requestLocale": loc},
+                                       referer=DEFAULT_TADAWUL_URL)
+            except Exception as e:                                # noqa: BLE001
+                print(f"      {n} [{loc}]: تعذّر {type(e).__name__}")
+                continue
+            rows = None
+            try:
+                data = json.loads(body)
+                rows = (data.get("data") if isinstance(data, dict) else data)
+                rows = len(rows) if isinstance(rows, list) else "—"
+            except Exception:                                     # noqa: BLE001
+                rows = f"{len(re.findall(r'<tr', body or '', re.I))} صفّاً"
+            head = re.sub(r"\s+", " ", (body or "")[:180])
+            print(f"      {n} [{loc}]: HTTP {st} · {len(body or '')} حرفاً · "
+                  f"صفوف={rows}")
+            if body:
+                print(f"         {head}")
+            if st == 200 and body:
+                if (isinstance(rows, int) and rows > 0) or (
+                        isinstance(rows, str) and not rows.startswith("0 ")):
+                    served.append(f"{n}[{loc}]:{rows}")
+                break
+
     # ── ٢ · ما وصل فعلاً ───────────────────────────────────────────────
     try:
         items = await fetch_tadawul_announcements(force=True)
@@ -87,9 +147,13 @@ async def main() -> int:
 
     # ── ٤ · الحكمُ يُقال، ولا يُترك للقارئ ─────────────────────────────
     print()
-    if not items:
-        print("الحكم: لم يصل إفصاحٌ واحد — فالعطبُ في المصدر أو في نداءِنا،"
-              " لا في البحث. (انظر «حالُ المصادر» أعلاه.)")
+    if not items and served:
+        print("الحكم: القارئُ لا يفهم القشرة، **وخدمتُها أعطت صفوفاً**: "
+              + " · ".join(served)
+              + " — فيُبنى القارئُ على هذه الخدمة بعينها.")
+    elif not items:
+        print("الحكم: لم يصل إفصاحٌ واحد ولا خدمةٌ أعطت صفوفاً — فالعطبُ في"
+              " المصدر أو في نداءِنا، لا في البحث. (انظر أعلاه.)")
     elif not wide:
         print("الحكم: الإفصاحاتُ تصل، ولا يُذكر فيها لفظُ صفقةٍ أصلاً —"
               " فالصفقاتُ الخاصة لا تُنشَر في هذه القناة.")
