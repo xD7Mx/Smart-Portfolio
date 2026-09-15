@@ -25,9 +25,11 @@
  * يُطوى التبويبُ فيُظنّ أنه لم يُبنَ، ولا يُعرض صفرٌ مختلَق.
  */
 import { useQuery } from "@tanstack/react-query";
-import { Handshake } from "lucide-react";
-import { useState } from "react";
+import { Handshake, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import CompanyLogo from "../common/CompanyLogo";
+import { norm, searchCompanies } from "../../data/saudiCompanies";
 import { marketApi } from "../../services/api";
 
 type Deal = {
@@ -60,7 +62,37 @@ export default function SpecialDeals({ onOpen }: { onOpen?: (s: string) => void 
     staleTime: 2 * 60 * 1000,
   });
 
-  const deals: Deal[] = data?.deals ?? [];
+  /* ══ بحثٌ يتمدّد في محلّه — النمطُ نفسُه لا ثانٍ ══ (بأمر المالك)
+     زرٌّ يستطيل حقلاً ويعود بالعرض والشفافية، بأصنافِ `inline-search`
+     التي أُقرّت في D210 — فلا لغةَ حركةٍ ثانيةٌ في التطبيق. وهو **فرزٌ
+     لما وصل** لا نداءٌ للخادم: السجلُّ في اليد، فالبحثُ لحظيٌّ بلا طلب.
+     والمطابقةُ بالرمز وباسم الصفقة وبالاسم الدارج (معادن ← التعدين) عبر
+     دليل الشركات نفسِه. */
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const close = () => { setOpen(false); setQ(""); };
+  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)
+          && !q) close();
+    };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open, q]);
+
+  const all: Deal[] = data?.deals ?? [];
+  const deals = useMemo(() => {
+    const n = norm(q);
+    if (!n) return all;
+    const byName = new Set(
+      searchCompanies(q, 400).map(c => c.symbol.replace(".SR", "")));
+    return all.filter(d => d.symbol.startsWith(n)
+      || norm(d.name || "").includes(n) || byName.has(d.symbol));
+  }, [all, q]);
   const biggest = deals.reduce((a, d) => Math.max(a, d.value || 0), 0);
 
   return (
@@ -68,6 +100,22 @@ export default function SpecialDeals({ onOpen }: { onOpen?: (s: string) => void 
       <div className="flex items-center gap-2 mb-4">
         <Handshake size={16} className="text-[var(--brand-ink)]" />
         <h2 className="card-title">صفقات خاصة</h2>
+        <div ref={wrapRef} className="relative inline-flex items-center">
+          <div className="inline-search" data-open={open ? "1" : "0"}>
+            <button type="button"
+                    aria-label={open ? "إغلاق البحث" : "ابحث في الصفقات"}
+                    title={open ? "إغلاق البحث" : "ابحث في الصفقات"}
+                    onClick={() => (open ? close() : setOpen(true))}
+                    className="inline-search-btn">
+              {open ? <X size={14} /> : <Search size={14} />}
+            </button>
+            <input ref={inputRef} className="inline-search-input" value={q}
+                   placeholder="بالرمز أو الاسم…"
+                   tabIndex={open ? 0 : -1}
+                   onChange={e => setQ(e.target.value)}
+                   onKeyDown={e => { if (e.key === "Escape") close(); }} />
+          </div>
+        </div>
         <div className="ms-auto flex rounded-lg border border-[var(--line)] overflow-hidden">
           {RANGES.map(r => (
             <button key={r.days} onClick={() => setDays(r.days)}
@@ -85,8 +133,11 @@ export default function SpecialDeals({ onOpen }: { onOpen?: (s: string) => void 
       {isLoading ? (
         <p className="py-8 text-center text-[13px] text-[var(--ink-muted)]">…</p>
       ) : !deals.length ? (
+        /* غيابُ الصفقة وغيابُ نتيجةِ البحث حالتان لا واحدة: الأولى خبرٌ
+           عن السوق، والثانية عن كلمةٍ كتبها القارئ. */
         <p className="py-8 text-center text-[13px] text-[var(--ink-muted)]">
-          لا صفقات خاصة في هذه المدة.
+          {q ? `لا صفقة تطابق «${q}» في هذه المدة.`
+             : "لا صفقات خاصة في هذه المدة."}
         </p>
       ) : (
         <>
@@ -96,7 +147,9 @@ export default function SpecialDeals({ onOpen }: { onOpen?: (s: string) => void 
             {deals.map((d, i) => (
               <button key={`${d.symbol}-${i}`} onClick={() => onOpen?.(d.symbol)}
                       className="w-full text-right rounded-xl border border-[var(--line)] p-2.5">
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-center gap-2">
+                  {/* الشعارُ هويّةُ الصفّ: يُقرأ الصفُّ قبل قراءة حرفه. */}
+                  <CompanyLogo symbol={d.symbol} size={28} />
                   <span className="font-bold text-[13px] text-[var(--ink)]">
                     {d.name || d.symbol}
                   </span>
@@ -133,7 +186,12 @@ export default function SpecialDeals({ onOpen }: { onOpen?: (s: string) => void 
                   <tr key={`${d.symbol}-${i}`}
                       onClick={() => onOpen?.(d.symbol)}
                       className="border-t border-[var(--line)] cursor-pointer">
-                    <td className="py-1.5 text-[var(--ink)]">{d.name || "—"}</td>
+                    <td className="py-1.5 text-[var(--ink)]">
+                      <span className="flex items-center gap-2">
+                        <CompanyLogo symbol={d.symbol} size={24} />
+                        <span>{d.name || "—"}</span>
+                      </span>
+                    </td>
                     <td className="py-1.5 tabular-nums text-[var(--ink-muted)]">{d.symbol}</td>
                     <td className="py-1.5 tabular-nums text-[var(--ink)]">{num(d.price, 2)}</td>
                     <td className="py-1.5 tabular-nums text-[var(--ink)]">{num(d.quantity)}</td>
@@ -154,7 +212,10 @@ export default function SpecialDeals({ onOpen }: { onOpen?: (s: string) => void 
           </div>
 
           <div className="mt-3 flex items-center gap-3 text-[11px] text-[var(--ink-muted)] tabular-nums">
-            <span>{deals.length} صفقة</span>
+            {/* المجموعُ يتبع المعروضَ لا المخزَّن: من بحث عن سهمٍ يقرأ
+                عددَ صفقاته وإجماليَّها، ويُقال إنّ هذا فرزٌ من كلٍّ. */}
+            <span>{deals.length} صفقة{q && all.length !== deals.length
+              ? ` من ${all.length}` : ""}</span>
             <span>
               إجمالي {money(deals.reduce((a, d) => a + (d.value || 0), 0))} ﷼
             </span>

@@ -425,7 +425,10 @@ export const SAUDI_COMPANIES: SaudiCompany[] = [
   { symbol: "9409", name_ar: "صندوق يقين إي إس جي", name_en: "YAQEEN ESG ETF", sector: "صناديق المؤشرات المتداولة" },
 ];
 
-const norm = (s: string) => (s || "").toLowerCase().replace(/[أإآ]/g, "ا").trim();
+/* قاعدةُ تطبيعٍ **واحدة** لكلّ بحثٍ في التطبيق: من كتب «أرامكو» بهمزةٍ
+   ومن كتبها بألفٍ يجد الشيءَ نفسه. وتُصدَّر كي لا تُنسَخ نسخةٌ ثانيةٌ
+   في شاشةٍ أخرى فتفترق القاعدتان بصمت. */
+export const norm = (s: string) => (s || "").toLowerCase().replace(/[أإآ]/g, "ا").trim();
 
 export function searchCompanies(q: string, limit = 8): SaudiCompany[] {
   const n = norm(q);

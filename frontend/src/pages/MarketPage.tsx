@@ -294,7 +294,7 @@ const MARKET_TABS = [
   { id: "screener", name: "فرز السوق", Icon: SlidersHorizontal },
   { id: "news", name: "أخبار السوق", Icon: Newspaper },
   { id: "calendar", name: "مفكرة السوق", Icon: CalendarDays },
-  /* صفقاتٌ خاصةٌ — بأمر المالك، ومصدرُها «أرقام» (D288). */
+  /* صفقاتٌ خاصةٌ — بأمر المالك، ومصدرُها «تداول» الرسميّ (D318). */
   { id: "deals", name: "صفقات خاصة", Icon: Handshake },
 ];
 
