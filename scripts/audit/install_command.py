@@ -48,6 +48,9 @@ check('cat > "$NAME.install.txt"' in PKG,
 check('cat "$NAME.install.txt"' in PKG,
       "٠ب ويُطبع أيضاً مع البناء (شرطُ البند ٢٩)")
 
+check("/spupdate*.install.txt" in (ROOT / ".gitignore").read_text(encoding="utf-8"),
+      "٠د وملفُّ الأمر مخرَجُ بناءٍ لا كودٌ — لا يدخل تاريخَ المستودع")
+
 m = re.search(r"cat > \"\$NAME\.install\.txt\" <<'INSTALL'\n(.*?)\nINSTALL",
               PKG, re.S)
 check(bool(m), "٠ج وكتلةُ الأمر تُقرأ من السكربت")

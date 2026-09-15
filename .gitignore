@@ -30,6 +30,7 @@ backend/.vault/
 # ولا ينبغي أن تدخل تاريخ المستودع.
 /spupdate*.tar.gz
 /spupdate*.zip
+/spupdate*.install.txt
 /current.tar.gz
 
 # سجلُّ تشغيلات التقييم — بياناتُ تشغيلٍ لا شيفرة. دخل الحزمةَ مرّةً من
