@@ -21,7 +21,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const BUILD = join(ROOT, "frontend", "build");
-const PORT = 5219;
+// ══ منفذٌ يُعطاه النظام ══
+// أوّلُ صياغةٍ ثبّتت المنفذ، فسقط الفحصُ في بناء الحزمة بـ`EADDRINUSE`
+// لأن تشغيلاً سابقاً ما زال يحتلّه — وحارسٌ نتيجتُه تتبع ما حول البيئة
+// ليس حارساً (الدرسُ نفسُه الذي تعلّمتُه من الطورِ المقروء من الساعة).
 const CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 
 let fail = 0;
@@ -114,7 +117,8 @@ const srv = createServer((req, res) => {
   res.writeHead(200, { "Content-Type": MIME[extname(f)] || "application/octet-stream" });
   createReadStream(f).pipe(res);
 });
-await new Promise(r => srv.listen(PORT, "127.0.0.1", r));
+await new Promise(r => srv.listen(0, "127.0.0.1", r));
+const PORT = srv.address().port;
 
 const browser = await chromium.launch({
   executablePath: CHROME, args: ["--no-sandbox", "--disable-dev-shm-usage"],
