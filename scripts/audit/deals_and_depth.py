@@ -293,14 +293,22 @@ check(sd.rows_from_html(JUNK) == [],
       str(sd.rows_from_html(JUNK))[:80])
 check(sd.rows_from_html(TBL) and sd.rows_from_html(TBL)[0]["symbol"] == "1010",
       "١٢ب والجدولُ الحقيقيُّ ما زال يُقرأ — لم يُقتل القارئُ بالحراسة")
-_RS = (ROOT / "backend" / "app" / "services"
-       / "special_deals.py").read_text(encoding="utf-8")
-check("_known_symbols" in _RS and "KNOWN and m.group(1) not in KNOWN" in _RS,
-      "١٢ج والرمزُ يُطابَق برموز السوق — لا أيُّ أربعةِ أرقام")
-check("_DATE.search(joined)" in _RS,
-      "١٢د وصفقةٌ بلا تاريخٍ ليست صفقة")
-check("NAV.search(joined)" in _RS,
-      "١٢ه وكلماتُ الواجهة تُستبعَد بأسمائها")
+# والحرّاسُ يُقاسون بسلوكهم لا بنصِّ شيفرتهم: صياغةٌ تتغيّر والقاعدةُ تبقى.
+_GHOST = ("<table><tr><td>شركةٌ غيرُ مدرجة</td><td>7759</td><td>966.00</td>"
+          "<td>92,000</td><td>2026-09-10</td></tr></table>")
+check(sd.rows_from_html(_GHOST) == [],
+      "١٢ج والرمزُ يُطابَق برموز السوق — لا أيُّ أربعةِ أرقام",
+      str(sd.rows_from_html(_GHOST))[:80])
+_NODATE = ("<table><tr><td>بنك الرياض</td><td>1010</td><td>28.50</td>"
+           "<td>2,000,000</td></tr></table>")
+check(sd.rows_from_html(_NODATE) == [],
+      "١٢د وصفقةٌ بلا تاريخٍ ليست صفقة", str(sd.rows_from_html(_NODATE))[:80])
+check(len(sd.rows_from_html(_NODATE, at="2026-09-10")) == 1,
+      "١٢ذ وتاريخُ المقالة يكفي حين أفصح عنه المصدر — لا ساعتُنا")
+_NAVROW = ("<table><tr><td>تسجيل الدخول</td><td>1010</td><td>28.50</td>"
+           "<td>2,000,000</td><td>2026-09-10</td></tr></table>")
+check(sd.rows_from_html(_NAVROW) == [],
+      "١٢ه وكلماتُ الواجهة تُستبعَد بأسمائها", str(sd.rows_from_html(_NAVROW))[:80])
 _no_date = TBL.replace("<td>2026-09-10</td>", "<td></td>")
 check(all(d["symbol"] != "1010" for d in sd.rows_from_html(_no_date)),
       "١٢و وصفٌّ فقد تاريخَه يسقط — الشرطُ يعمل لا يُكتَب")
@@ -345,6 +353,116 @@ check("lastgood.save(SHAPE_KEY" in _SD2,
       "١٣ط والصيغةُ الناجحةُ تُحفَظ فتُجرَّب أوّلاً — القياسُ في الخدمة لا في طرفيّة المالك")
 check(_SD2.count("async def argaam_deals") == 1,
       "١٣ي ودالّةٌ واحدةٌ لا نسختان — الأخيرةُ تغلب الأولى بصمت")
+
+# ── ١٤ · اقرأ كيف ينشر المصدرُ، واجلبها مثله ────────────────────────────
+# قال المالك: «انظر أوّلاً لأرقام كيف يجلبها واجلبها مثله» (D296). وكنتُ
+# أطرق مسارَ صفقاتِ كبار الملّاك بصيغِ نداءٍ مخترَعة، و«أرقام» تنشر
+# الصفقاتَ الخاصة **مقالةً مؤرَّخةً لكلّ جلسة** تحت وسمِ موضوع.
+_TAG_ART = ('<meta property="article:published_time" '
+            'content="{d}T12:00:00+03:00"/>'
+            '<table><tr><th>الشركة</th><th>الكمية</th><th>السعر</th>'
+            '<th>القيمة</th></tr>'
+            '<tr><td>{n}</td><td>{q}</td><td>{p}</td><td>{v}</td></tr></table>')
+
+# ١٤ · جلسةٌ واحدةٌ للخطّة — وهذا ما يفصل «قراءةَ صفحة» عن «قراءةِ موقع»:
+# الكوكيزُ التي تُعطيها الصفحةُ يحملها النداءُ التالي، كما يفعل المتصفّح.
+def _one_session() -> tuple:
+    import http.server
+    import socketserver
+    import threading
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):                                # noqa: D102
+            pass
+
+        def do_GET(self):                                         # noqa: N802
+            if self.path == "/page":
+                self.send_response(200)
+                self.send_header("Set-Cookie", "sp_guard=abc; Path=/")
+                self.end_headers()
+                self.wfile.write(b"<html>ok</html>")
+                return
+            ok = "sp_guard=abc" in (self.headers.get("Cookie") or "")
+            self.send_response(200 if ok else 403)
+            self.end_headers()
+            self.wfile.write(b"ROWS" if ok else b"NOCOOKIE")
+
+    srv = socketserver.TCPServer(("127.0.0.1", 0), H)
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        from app.services.tadawul_http import smart_fetch, smart_flow
+
+        def plan():
+            yield {"url": base + "/page"}
+            s2, b2 = yield {"url": base + "/data", "referer": base + "/page"}
+            return s2, b2
+
+        flow = asyncio.run(smart_flow(plan))
+
+        async def apart():
+            await smart_fetch(base + "/page")
+            return await smart_fetch(base + "/data")
+        return flow, asyncio.run(apart())
+    finally:
+        srv.shutdown()
+
+
+_flow, _apart = _one_session()
+check(_flow[0] == 200 and _flow[1] == "ROWS",
+      "١٤ خطّةُ الجلب في جلسةٍ واحدة: كوكيزُ الصفحة تحملها نداءاتُها",
+      f"{_flow[0]}/{_flow[1]}")
+check(_apart[0] == 403,
+      "١٤ب والنداءُ المنفصلُ يُردّ — فالعطبُ كان بنيوياً لا في المعاملات",
+      f"{_apart[0]}")
+
+# ١٤ج · الفهرسُ يُكتشف من قائمة «أرقام» نفسِها — لا مسارٌ مثبَّتٌ وحدَه
+check(sd._index_from_nav(
+    '<li id="mnu_x"><a href="/ar/tags/id/24779/1/t">الصفقات الخاصة</a></li>')
+    == "https://www.argaam.com/ar/tags/id/24779/1/t",
+    "١٤ج والفهرسُ من قائمة المصدر نفسِه")
+check(len(sd._index_pages("https://www.argaam.com/ar/tags/id/24779/1/t")) > 1,
+      "١٤د وترقيمُ الفهرس بترقيم المصدر")
+
+# ١٤ه · مقالاتُ الصفقات وحدَها تُتبَع — لا كلُّ ما في الفهرس
+_lnk = sd._index_links(
+    '<a href="/ar/article/articledetail/id/1">تاسي: 7 صفقات خاصة بقيمة 157 مليوناً</a>'
+    '<a href="/ar/article/articledetail/id/2">تاسي: الأسهم الأنشط من حيث القيمة</a>')
+check(len(_lnk) == 1 and _lnk[0][0].endswith("/id/1"),
+      "١٤ه ومقالاتُ الصفقات وحدَها تُتبَع", f"{len(_lnk)} رابطاً")
+
+# ١٤و · صفوفُ المقالة تحمل **تاريخَ نشرها** — لا تاريخَ ساعتنا
+_today = _dt2.date.today().isoformat()
+_art = _TAG_ART.format(d=_today, n="الراجحي", q="1,000,000", p="92.50",
+                       v="92,500,000")
+check(sd._article_date(_art) == _dt2.date.today(),
+      "١٤و وتاريخُ المقالة من إفصاحها")
+_got = sd.rows_from_html(_art, at=_today)
+check(len(_got) == 1 and _got[0]["symbol"] == "1120"
+      and _got[0]["at"] == _today and _got[0]["quantity"] == 1_000_000,
+      "١٤ز والاسمُ القصيرُ يُحلّ رمزاً — «أرقام» لا تكتب رمزَ تاسي",
+      str(_got))
+
+# ١٤ح · وترتيبُ الأعمدة ليس عهداً: الكمّيةُ يُصدّقها عمودُ القيمة
+_rev = ('<table><tr><td>الراجحي</td><td>92,500,000</td><td>92.50</td>'
+        '<td>1,000,000</td></tr></table>')
+_r2 = sd.rows_from_html(_rev, at=_today)
+check(len(_r2) == 1 and _r2[0]["quantity"] == 1_000_000,
+      "١٤ح والكمّيةُ يُصدّقها حاصلُ الضرب لا ترتيبُ العمود", str(_r2))
+
+# ١٤ط · ونصُّ المقالة لا يُحصَد: بلا جدولٍ لا صفقةَ — حارسُ D293 باقٍ
+check(sd.rows_from_html(
+    '<div>الراجحي 92.50 ريال بكمية 1,000,000 سهم</div>'
+    '<div>قطاع الطاقة 2222 الإعلام 9615</div>', at=_today) == [],
+    "١٤ط ونصٌّ بلا جدولٍ لا يُقرأ صفقات — لا اختلاقَ من فقرة")
+check(sd._by_name(["شركةٌ لا وجودَ لها في السوق"]) is None,
+      "١٤ي واسمٌ لا يُطابق شركةً يُترك — لا أقربُ شبيه")
+
+# ١٤ك · والقارئُ يستعمل الخطّة فعلاً — لا نداءين منفصلين كما كان
+check("smart_flow" in _SD2 and "_argaam_plan" in _SD2,
+      "١٤ك والصفقاتُ تُقرأ بخطّةٍ في جلسةٍ واحدة")
+check(_SD2.count("def _argaam_plan") == 1 and _SD2.count("def rows_from_html") == 1,
+      "١٤ل ودالّةٌ واحدةٌ لكلّ معنى — لا نسختان تتنازعان")
 
 print(("FAIL" if fail else "PASS") + " D272 · D273 — العمقُ يُعرَض، والصفقاتُ الخاصة تُبنى")
 raise SystemExit(fail)

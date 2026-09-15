@@ -95,6 +95,74 @@ async def fetch(url: str, *, params: dict | None = None,
                         headers={"Referer": referer} if referer else None)
         return r.status_code, r.text or ""
 
+def _blocking_flow(plan, warm: str | None, timeout: int, client: str):
+    """يُشغّل خطّةً متسلسلةً في **جلسةٍ واحدة** — كما يفعل المتصفّح.
+
+    الخطّةُ مولِّدٌ متزامن: يُنتج مواصفةَ طلبٍ ويستقبل (الحالة، النصّ)،
+    فيقرّر الطلبَ التالي من جواب السابق. والكوكيزُ والرمزُ المضادُّ للتحيّل
+    تبقى بين الطلبات — وهذا هو الفرقُ بين قراءةِ صفحةٍ وقراءةِ موقع.
+    """
+    if client == "curl":
+        from curl_cffi import requests as cr
+        sess = cr.Session(impersonate=_IMPERSONATE)
+    else:
+        import httpx
+        sess = httpx.Client(timeout=timeout, follow_redirects=True,
+                            headers={"User-Agent": (
+                                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                "Chrome/124.0.0.0 Safari/537.36"),
+                                "Accept-Language": "ar,en;q=0.8"})
+    with sess as s:
+        if warm:
+            try:
+                s.get(warm, timeout=timeout) if client == "curl" else s.get(warm)
+            except Exception:                                     # noqa: BLE001
+                pass
+        gen = plan()
+        reply = None
+        while True:
+            try:
+                spec = gen.send(reply)
+            except StopIteration as stop:
+                return stop.value
+            h = dict(spec.get("headers") or {})
+            if spec.get("referer"):
+                h["Referer"] = spec["referer"]
+            kw = {"params": spec.get("params"), "headers": h or None}
+            if client == "curl":
+                kw["timeout"] = spec.get("timeout", timeout)
+            try:
+                if str(spec.get("method", "GET")).upper() == "POST":
+                    r = s.post(spec["url"], data=spec.get("data"), **kw)
+                else:
+                    r = s.get(spec["url"], **kw)
+                reply = (r.status_code, r.text or "")
+            except Exception as e:                                # noqa: BLE001
+                # حالةُ صفرٍ تعني «لا جواب» — والخطّةُ تقرّر، ولا تُخفى.
+                logger.debug("خطّةُ الجلب: {} على {}: {}",
+                             type(e).__name__, spec.get("url"), e)
+                reply = (0, "")
+
+
+async def smart_flow(plan, *, warm: str | None = None, timeout: int = 45):
+    """خطّةُ طلباتٍ في جلسةٍ واحدةٍ منتحِلة — وتُرجع ما تُرجعه الخطّة.
+
+    ══ لماذا لا تكفي `smart_fetch` ══
+    كلُّ نداءٍ بها جلسةٌ جديدة: تُجمَع كوكيزُ الحماية ثمّ تُرمى. فقراءةُ
+    موقعٍ ينشر بياناته على مرحلتين (صفحةٌ تُقرأ منها النقطةُ ثمّ نداءٌ
+    ثانٍ يحمل كوكيزَ الصفحة ورمزَها) كانت تفقد المرحلةَ الأولى قبل
+    الثانية. والمصدرُ لا يُلام: هكذا يعمل المتصفّح، وهكذا يجب أن نعمل.
+    """
+    if _have_curl():
+        try:
+            return await asyncio.to_thread(_blocking_flow, plan, warm, timeout, "curl")
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning("خطّةُ الجلب المنتحِلة تعذّرت ({}: {}) — تُجرَّب httpx",
+                           type(e).__name__, e)
+    return await asyncio.to_thread(_blocking_flow, plan, warm, timeout, "httpx")
+
+
 async def smart_fetch(url: str, *, params: dict | None = None,
                       referer: str | None = None, warm: str | None = None,
                       timeout: int = 45, method: str = "GET",

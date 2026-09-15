@@ -42,12 +42,41 @@ PAGE = ("https://www.saudiexchange.sa/wps/portal/saudiexchange/trading/"
 #   · وللشركة:     /ar/shareholder/major-shareholders/company-deals/...
 # فتُقرأ منها. والطبقةُ الأولى تبقى مكتوبةً: إن فُتحت «تداول» يوماً عادت
 # أوّلاً — الترتيبُ لا يتغيّر لأن مصدراً تعثّر، ولكنّ المتعثّرَ لا يُنتظَر.
+ARGAAM_ORIGIN = "https://www.argaam.com"
+ARGAAM_HOME = ARGAAM_ORIGIN + "/ar"
 ARGAAM_MARKET = ("https://www.argaam.com/ar/shareholder/"
                  "shareholders-history-deals?marketid=3&pageno=1")
 ARGAAM_EP = ("https://www.argaam.com/ar/shareholder/"
              "shareholders-history-deals")
 SHAPE_KEY = "market:special_deals:shape"
 DEFAULT_DAYS = 30
+
+# ══ اقرأ كيف ينشر المصدرُ نفسُه، ثمّ اجلبها كما يجلبها ══ (D296)
+# قال المالك: «انظر أوّلاً لأرقام كيف يجلبها واجلبها مثله». وكنتُ أطرق
+# مسارَ `shareholders-history-deals` بصيغِ نداءٍ مخترَعة — وهو أصلاً
+# **صفقاتُ كبار الملّاك**، لا الصفقاتُ الخاصة. و«أرقام» تنشر الصفقاتَ
+# الخاصةَ بالطريقة التي تنشر بها كلَّ سجلٍّ مؤرَّخ: **مقالةٌ لكلّ جلسة**
+# («تاسي: ٧ صفقات خاصة بقيمة ١٥٧٫٢ مليون ريال») في جدولٍ داخلها، ومجموعُها
+# تحت **وسمِ موضوعٍ** واحدٍ مرتَّبٍ بالأحدث. فهذا هو السجلُّ الأسبوعيُّ
+# والشهريُّ الذي طلبه — موجودٌ فعلاً، وكنتُ أسأل البابَ الخطأ.
+#
+# والفهرسُ يُكتشف من قائمة «أرقام» نفسِها (رابطُ «الصفقات الخاصة»)، ولا
+# يُثبَّت إلا سقوطاً: مسارٌ مثبَّتٌ يشيخ بلا إنذار — وهي قاعدةُ الطريقة
+# المسجَّلة في `docs/FETCH_METHOD.md`.
+TAG_INDEX = ("https://www.argaam.com/ar/tags/id/24779/{page}/"
+             "%D8%A7%D9%84%D8%B5%D9%81%D9%82%D8%A7%D8%AA-"
+             "%D8%A7%D9%84%D8%AE%D8%A7%D8%B5%D8%A9")
+NAV_LABEL = re.compile(r"الصفقات\s+الخاصة")
+ART_HREF = re.compile(
+    r'href="([^"]*?/ar/article/articledetail/id/\d+[^"]*)"[^>]*>(.*?)</a>',
+    re.S | re.I)
+DEAL_TITLE = re.compile(r"صفق(?:ة|ات|تان|تين|تا)\s*خاص")
+_META_DATE = re.compile(
+    r'<meta[^>]+(?:article:published_time|datePublished)[^>]*content="([^"]+)"',
+    re.I)
+_DAY = re.compile(r"\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}")
+MAX_INDEX_PAGES = 4
+MAX_ARTICLES = 30
 
 # ══ سجلٌّ تاريخيٌّ لا لقطةٌ لحظية ══ (D295)
 # قال المالك: «ليس شرطاً أن تكون لحظية — سجلُّ عملياتٍ بالتاريخ، أسبوعيٌّ
@@ -181,14 +210,160 @@ async def fetch_rows() -> tuple[list, str | None]:
     return rows, None
 
 
-async def argaam_deals(days: int = DEFAULT_DAYS) -> tuple[list[dict], str | None]:
-    """صفقاتُ «أرقام» لمدى أيّامٍ — بالصيغة التي تنجح، وتُحفَظ (D295).
+def _abs(href: str) -> str:
+    href = str(href or "").strip()
+    if href.startswith("http"):
+        return href
+    return ARGAAM_ORIGIN + ("" if href.startswith("/") else "/") + href
 
-    تُجرَّب الصيغُ بترتيبها، والناجحةُ تُحفَظ فتُجرَّب أوّلاً لاحقاً. وما
-    لم تنجح واحدةٌ بقي المتصفّحُ آخرَ الوسائل — ولا يُفتح بلا حاجة.
+
+def _index_from_nav(html: str) -> str | None:
+    """رابطُ «الصفقات الخاصة» من قائمة «أرقام» — المصدرُ يقول أين ينشر."""
+    from app.services.ownership import _text
+    for m in re.finditer(r'<a\b[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+                         html or "", re.S | re.I):
+        if NAV_LABEL.search(_text(m.group(2))):
+            return _abs(m.group(1))
+    return None
+
+
+def _index_pages(url: str) -> list[str]:
+    """صفحاتُ الفهرس بترقيم المصدر نفسِه — وإلا صفحةٌ واحدة."""
+    m = re.search(r"(/tags/id/\d+/)(\d+)(/|$)", url)
+    if not m:
+        return [url]
+    return [url[:m.start(2)] + str(p) + url[m.end(2):]
+            for p in range(1, MAX_INDEX_PAGES + 1)]
+
+
+def _index_links(html: str) -> list[tuple[str, str]]:
+    """مقالاتُ الصفقات الخاصة من الفهرس — بعنوانها، مرتَّبةً كما نُشرت."""
+    from app.services.ownership import _text
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for m in ART_HREF.finditer(html or ""):
+        href, title = _abs(m.group(1)), _text(m.group(2))
+        if not DEAL_TITLE.search(title) or href in seen:
+            continue
+        seen.add(href)
+        out.append((href, title))
+    return out
+
+
+def _to_date(raw):
+    from datetime import datetime as _dtm
+    raw = str(raw or "").strip()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d", "%d-%m-%Y"):
+        try:
+            return _dtm.strptime(raw[:10], fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _article_date(html: str):
+    """تاريخُ النشر من إفصاح الصفحة نفسِها — لا من ظنٍّ ولا من ساعتنا."""
+    m = _META_DATE.search(html or "")
+    if m:
+        d = _to_date(m.group(1))
+        if d:
+            return d
+    m = _DAY.search(html or "")
+    return _to_date(m.group(0)) if m else None
+
+
+def _argaam_plan(days: int):
+    """خطّةُ قراءةٍ في جلسةٍ واحدة: قائمةٌ ← فهرسٌ ← مقالاتٌ مؤرَّخة.
+
+    وتتوقّف عند أوّل مقالةٍ أقدمَ من المدى: الفهرسُ زمنيٌّ بالأحدث، فما
+    بعدها أقدمُ منها — فلا تُجلَب صفحاتٌ لا تُعرض.
     """
+    from datetime import date, timedelta
+    floor = date.today() - timedelta(days=max(1, days))
+    log: list[str] = []
+    deals: list[dict] = []
+
+    status, body = yield {"url": ARGAAM_HOME}
+    index = _index_from_nav(body) if status == 200 else None
+    log.append(f"القائمة:{status}/" + ("وُجد" if index else "بالوسم"))
+    if not index:
+        index = TAG_INDEX.format(page=1)
+
+    fetched = 0
+    stop = False
+    for page_url in _index_pages(index):
+        if stop:
+            break
+        status, body = yield {"url": page_url, "referer": ARGAAM_HOME}
+        if status != 200 or not body:
+            log.append(f"فهرس:{status}")
+            break
+        # فهرسٌ قد ينشر الجدولَ بنفسِه — يُقرأ قبل افتراضِ أنه قائمةُ مقالات.
+        direct = rows_from_html(body)
+        if direct:
+            log.append(f"جدولٌ مباشر:{len(direct)}")
+            deals.extend(direct)
+            break
+        links = _index_links(body)
+        log.append(f"مقالات:{len(links)}")
+        if not links:
+            break
+        for href, _title in links:
+            if fetched >= MAX_ARTICLES:
+                stop = True
+                break
+            status, art = yield {"url": href, "referer": page_url}
+            fetched += 1
+            if status != 200 or not art:
+                continue
+            at = _article_date(art)
+            if at and at < floor:
+                stop = True
+                break
+            got = rows_from_html(art, at=at.isoformat() if at else None)
+            if got:
+                deals.extend(got)
+    return deals, log, fetched
+
+
+def _dedupe(deals: list[dict]) -> list[dict]:
+    """صفقةٌ واحدةٌ لا نسختان — والمفتاحُ يشمل التاريخ (مقالتان تتقاطعان)."""
+    out: list[dict] = []
+    seen: set[tuple] = set()
+    for d in deals or []:
+        key = (d.get("symbol"), d.get("price"), d.get("quantity"), d.get("at"))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(d)
+        if len(out) >= MAX_ROWS:
+            break
+    return out
+
+
+async def argaam_deals(days: int = DEFAULT_DAYS) -> tuple[list[dict], str | None]:
+    """صفقاتُ «أرقام» لمدى أيّامٍ — كما تنشرها هي (D296)، ثمّ ما دونها.
+
+    الطبقةُ الأولى نشرُ المصدرِ نفسِه: فهرسُ الوسم ومقالاتُه المؤرَّخة، في
+    **جلسةٍ واحدةٍ** منتحِلةٍ تحفظ الكوكيزَ بين الطلبات. وإن لم تُعطِ شيئاً
+    بقيت صيغُ النداء المحفوظةُ (D295) ثمّ المتصفّحُ آخرَ الوسائل.
+    """
+    import functools
+
     from app.services import lastgood
-    from app.services.tadawul_http import smart_fetch
+    from app.services.tadawul_http import smart_fetch, smart_flow
+
+    try:
+        deals, log, fetched = await smart_flow(
+            functools.partial(_argaam_plan, days), warm=ARGAAM_HOME)
+    except Exception as e:                                        # noqa: BLE001
+        deals, log, fetched = [], [f"خطّة:{type(e).__name__}"], 0
+    deals = _dedupe(deals)
+    if deals:
+        logger.info("الصفقاتُ الخاصة: {} صفقة من نشر «أرقام» "
+                    "({} مقالاً · {})", len(deals), fetched, " · ".join(log))
+        return deals, None
+    nav = " · ".join(log)
 
     variants = _variants(days)
     remembered = lastgood.load(SHAPE_KEY)
@@ -218,12 +393,13 @@ async def argaam_deals(days: int = DEFAULT_DAYS) -> tuple[list[dict], str | None
     try:
         pages = await render([ARGAAM_MARKET], settle_ms=9000)
     except BrowserUnavailable as e:
-        return [], f"الصيغُ: {' · '.join(tried)} · المتصفّح: {e}"
+        return [], f"النشرُ: {nav} · الصيغُ: {' · '.join(tried)} · المتصفّح: {e}"
     got = rows_from_html(next(iter(pages.values()), ""))
     if got:
         logger.info("الصفقاتُ الخاصة: بالمتصفّح {} صفقة", len(got))
         return got, None
-    return [], "الصيغُ: " + " · ".join(tried) + " · المتصفّح: بلا صفوفٍ مفهومة"
+    return [], (f"النشرُ: {nav} · الصيغُ: " + " · ".join(tried)
+                + " · المتصفّح: بلا صفوفٍ مفهومة")
 
 
 async def refresh(days: int = DEFAULT_DAYS) -> dict:
@@ -302,7 +478,70 @@ def _known_symbols() -> set:
         return set()
 
 
-def rows_from_html(html: str) -> list[dict]:
+def _norm_ar(s) -> str:
+    """اسمٌ عربيٌّ إلى صورةٍ واحدةٍ تُقارَن — لا تشكيلَ ولا همزاتٍ مختلفة."""
+    s = re.sub(r"[ً-ْـ]", "", str(s or ""))
+    for a, b in (("أ", "ا"), ("إ", "ا"), ("آ", "ا"), ("ى", "ي"),
+                 ("ة", "ه"), ("ؤ", "و"), ("ئ", "ي")):
+        s = s.replace(a, b)
+    s = re.sub(r"[^ء-ي ]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s[2:].strip() if s.startswith("ال") else s
+
+
+_NAME_INDEX: dict[str, str] | None = None
+
+
+def _name_index() -> dict[str, str]:
+    """اسمُ الشركة ← رمزُها، والمتشابهُ يُسقَط: التباسٌ لا يُحسم بالظنّ."""
+    global _NAME_INDEX
+    if _NAME_INDEX is not None:
+        return _NAME_INDEX
+    idx: dict[str, str] = {}
+    dupes: set[str] = set()
+    try:
+        from app.data.market_universe import MARKET_UNIVERSE
+        from app.data.universe import main_market
+        for raw in main_market(MARKET_UNIVERSE):
+            sym = str(raw).replace(".SR", "")
+            key = _norm_ar((MARKET_UNIVERSE.get(sym) or {}).get("name_ar"))
+            if len(key) < 3:
+                continue
+            if key in idx and idx[key] != sym:
+                dupes.add(key)
+            idx[key] = sym
+    except Exception:                                             # noqa: BLE001
+        idx = {}
+    for k in dupes:
+        idx.pop(k, None)
+    _NAME_INDEX = idx
+    return idx
+
+
+def _by_name(cells: list[str]) -> str | None:
+    """رمزٌ من اسمِ شركةٍ في الصفّ — ومطابقةٌ واحدةٌ فقط تُقبَل (D296).
+
+    مقالاتُ «أرقام» تكتب الاسمَ القصيرَ وتربطه بصفحة الشركة بمعرِّفها
+    الداخليّ، لا برمزِ تاسي. فيُقرأ الاسمُ، وما لم يُطابق اسماً واحداً
+    بعينه يُترك الصفّ — فالمطابقةُ المتعدّدةُ اختلاقٌ مؤجَّل.
+    """
+    idx = _name_index()
+    if not idx:
+        return None
+    for c in cells:
+        key = _norm_ar(c)
+        if len(key) < 3:
+            continue
+        if key in idx:
+            return idx[key]
+        hits = {sym for name, sym in idx.items()
+                if len(name) >= 4 and (name in key or key in name)}
+        if len(hits) == 1:
+            return next(iter(hits))
+    return None
+
+
+def rows_from_html(html: str, at: str | None = None) -> list[dict]:
     """صفقاتٌ من صفحة «أرقام» — جدولاً كانت أو حاويات (D281).
 
     ══ سمّيتُ المصدرَ ولم أقرأ منه ══
@@ -335,20 +574,29 @@ def rows_from_html(html: str) -> list[dict]:
     src = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html or "",
                  flags=re.S | re.I)
     rows = re.findall(r"<tr\b[^>]*>(.*?)</tr>", src, re.S | re.I)
-    candidates = rows if rows else sorted(blocks(src), key=len)
+    # ══ مقالةٌ تُقرأ جدولاً فقط ══ (D296)
+    # في وضع المقالة (`at` معلومٌ من إفصاح الصفحة) لا يُلجأ إلى الحاويات:
+    # المقالةُ نصٌّ فيه أرقامٌ كثيرةٌ لا صفقات، وقارئُ الحاويات هو نفسُه
+    # الذي اختلق «الدخول/7759». فإن لم يكن في المقالة جدولٌ فلا شيء.
+    candidates = rows if rows else ([] if at else sorted(blocks(src), key=len))
     for block in candidates:
-        cells = _cells(block if rows else block)
+        cells = _cells(block)
         if len(cells) < 3:
             continue
         joined = " | ".join(cells)
-        m = _SYM.search(joined)
-        if not m:
-            continue
-        if KNOWN and m.group(1) not in KNOWN:
-            continue                      # رمزٌ ليس في السوق ليس شركة
         if NAV.search(joined):
             continue                      # كتلةُ واجهةٍ لا صفَّ صفقة
-        if not _DATE.search(joined):
+        # ══ الرمزُ بالرقم أو بالاسم ══
+        # «أرقام» تكتب في جداول مقالاتها الاسمَ القصيرَ بلا رمزِ تاسي.
+        # فيُقرأ الرقمُ إن كان من رموز السوق، وإلا فالاسمُ — ولا يُقبل
+        # صفٌّ لا تُعرَف شركتُه.
+        m = _SYM.search(joined)
+        code = m.group(1) if m and (not KNOWN or m.group(1) in KNOWN) else None
+        sym = code or _by_name(cells)
+        if not sym:
+            continue
+        row_date = _DAY.search(joined)
+        if not row_date and not at:
             continue                      # صفقةٌ بلا تاريخٍ ليست صفقة
         # ══ التاريخُ ليس كمّية ══
         # «2026-09-11» أعطت كمّيةً قدرُها 2026 في أوّل قياس. فتُنزَع
@@ -363,25 +611,39 @@ def rows_from_html(html: str) -> list[dict]:
         # ══ الرمزُ ليس سعراً ══
         # أوّلُ صيغةٍ قرأت «1010» سعراً: استبعدتُه بمقارنة نصٍّ برقمٍ
         # (`str(1010.0) != "1010"`) فلم تستبعد شيئاً. والمقارنةُ بالقيمة.
-        sym_val = float(m.group(1))
-        pool = [v for v in nums if v != sym_val]
+        pool = [v for v in nums if code is None or v != float(code)]
         # السعرُ يُفضَّل كسريّاً: الصفقةُ تُنفَّذ بسعرٍ ذي هللات.
         # وسقفُ السعر في تاسي ألفُ ريالٍ عملياً — وما فوقه رقمُ قائمةٍ لا سعر.
         price = next((v for v in pool if 0.1 <= v <= 1_000 and v != int(v)), None)
         if price is None:
             price = next((v for v in pool if 0.1 <= v <= 1_000), None)
-        qty = next((v for v in pool if v >= 100 and v == int(v) and v != price), None)
+        # ══ الكمّيةُ يُصدّقها عمودُ القيمة ══ (D296)
+        # ترتيبُ الأعمدة ليس عهداً: جدولٌ يبدأ بالقيمة يجعل أوّلَ صحيحٍ
+        # كبيرٍ «كمّيةً» فتُضاعَف القيمةُ مرّتين. فتُختار الكمّيةُ التي
+        # **حاصلُ ضربها في السعر موجودٌ في الصفّ نفسِه** — تصديقٌ داخليٌّ
+        # لا ترتيبٌ مفترَض. وإن لم يُصدّقها شيءٌ فأوّلُ صحيحٍ معقول.
+        ints = [v for v in pool if v >= 100 and v == int(v) and v != price]
+        qty = None
+        if price:
+            for a in ints:
+                if any(abs(b - a * price) <= max(1.0, 0.02 * a * price)
+                       for b in ints if b != a):
+                    qty = a
+                    break
+        if qty is None:
+            qty = next(iter(ints), None)
         if price is None or qty is None:
             continue
-        key = (m.group(1), price, qty)
+        d = row_date or _DAY.search(joined)
+        when = d.group(0) if d else at
+        key = (sym, price, qty, when)
         if key in seen:
             continue
         seen.add(key)
-        deal = {"symbol": m.group(1), "price": price, "quantity": qty,
+        deal = {"symbol": sym, "price": price, "quantity": qty,
                 "value": round(price * qty, 2)}
-        d = re.search(r"\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}", joined)
-        if d:
-            deal["at"] = d.group(0)
+        if when:
+            deal["at"] = when
         name = next((c for c in cells
                      if len(c) >= 4 and not _NUMS.fullmatch(c.replace(",", ""))
                      and re.search(r"[ء-ي]{3}", c)), None)
@@ -393,15 +655,8 @@ def rows_from_html(html: str) -> list[dict]:
     return out
 
 def _row_date(d: dict):
-    """تاريخُ الصفقة تاريخاً — أو None. للتصفية بالمدى لا للعرض."""
-    from datetime import date, datetime as _dtm
-    raw = str(d.get("at") or "").strip()
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d", "%d-%m-%Y"):
-        try:
-            return _dtm.strptime(raw[:10], fmt).date()
-        except ValueError:
-            continue
-    return None
+    """تاريخُ الصفقة تاريخاً — أو None. وقارئُ التواريخ **واحد**."""
+    return _to_date(d.get("at"))
 
 
 def within(deals: list[dict], days: int) -> list[dict]:
