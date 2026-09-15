@@ -518,10 +518,48 @@ async def cleanup_directory_companies(db: AsyncSession = Depends(get_db)):
     transacted = set((await db.execute(_select(Transaction.company_id).distinct())).scalars().all())
     companies = (await db.execute(_select(Company))).scalars().all()
 
-    ghosts = [
-        c for c in companies
-        if c.id not in transacted and c.symbol.replace(".SR", "") not in CONFIRMED_REAL_SYMBOLS
-    ]
+    # ══ شركةٌ يتعلّق بها صفٌّ للمالك ليست وهماً ══ (D323)
+    # قِيس في سجلّ خادم المالك: `null value in column "company_id" of
+    # relation "allocation" violates not-null constraint` ثمّ
+    # `Startup snapshot skipped`. والسببُ أنّ هذا المنظّف يحذف صفَّ
+    # الملكية (`Holding`) للوهم ولا يحذف بقيّةَ أبنائه، فتُفرَّغ مفاتيحُهم
+    # (nullify) وعمودُها لا يقبل الفراغ — فتُرَدّ المعاملةُ وتسقط معها
+    # لقطةُ الإقلاع وكلُّ ما بعدها.
+    #
+    # والعلاجُ **لا يكون بحذفٍ أوسع**: وزنٌ مستهدفٌ أو توزيعٌ أو قسطٌ
+    # أرقامُ المالك، ولا تُحذف باجتهادٍ من منظّفٍ آليّ (الخطّ الأحمر
+    # الأوّل). فالشركةُ التي يتعلّق بها صفٌّ من هذه **تُستثنى وتُسمّى**:
+    # لا تُحذف، ولا تُسقط الإقلاع.
+    from app.models.market import Allocation
+    from app.models.transaction import BonusShare, Dividend, Installment
+
+    kept: dict[str, str] = {}
+    _held: dict[str, set] = {}
+    for label, model in (("وزنٌ مستهدف", Allocation), ("توزيعٌ", Dividend),
+                         ("أسهمُ منحة", BonusShare), ("قسطٌ", Installment)):
+        _held[label] = set(
+            (await db.execute(
+                _select(model.company_id).distinct())).scalars().all())
+
+    def _attached(cid: int) -> str | None:
+        for label, ids in _held.items():
+            if cid in ids:
+                return label
+        return None
+
+    ghosts = []
+    for c in companies:
+        if c.id in transacted or c.symbol.replace(".SR", "") in CONFIRMED_REAL_SYMBOLS:
+            continue
+        why = _attached(c.id)
+        if why:
+            kept[c.symbol] = why
+            continue
+        ghosts.append(c)
+    if kept:
+        logger.info(
+            "المنظّف أبقى {} شركةً يتعلّق بها صفٌّ للمالك: {}",
+            len(kept), " · ".join(f"{s}({w})" for s, w in kept.items()))
     removed = [c.symbol for c in ghosts]
     ghost_ids = {c.id for c in ghosts}
     if ghost_ids:
@@ -530,6 +568,7 @@ async def cleanup_directory_companies(db: AsyncSession = Depends(get_db)):
             await db.delete(c)
         await db.commit()
     return success_response(
-        data={"removed_count": len(removed), "removed_symbols": removed},
+        data={"removed_count": len(removed), "removed_symbols": removed,
+              "kept_count": len(kept), "kept": kept},
         message=f"أُزيلت {len(removed)} شركة وهمية بلا أي عملية شراء حقيقية — محفظتك الفعلية محمية بقائمة تأكيد صريحة.",
     )

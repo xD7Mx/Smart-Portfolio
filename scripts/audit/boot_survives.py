@@ -223,5 +223,79 @@ _NEWS_SRC = (ROOT / "backend" / "app" / "services"
 check('"company": hit[0] if hit else None' in _NEWS_SRC,
       "٧ز والرمزُ المطابَقُ يُكتب بالمفتاح الذي يقرؤه المستهلِك")
 
+# ── ٨ · سبعُ خطواتٍ لا واحدة، وشركةٌ لها وزنٌ ليست وهماً (D323) ──────────
+# قِيس على خادم المالك: `null value in column "company_id" of relation
+# "allocation"` ثمّ `Startup snapshot skipped` — فخطوةُ تنظيفٍ أسقطت
+# لقطةَ المحفظة والدرجاتِ والأخبارَ والترميماتِ معها، وهي لا تمسّها.
+_MAIN23 = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
+check("_boot_step" in _MAIN23
+      and _MAIN23.count("await _boot_step(_label, _fn)") == 1
+      and _MAIN23.count("_step_") >= 14,
+      "٨ كلُّ خطوةِ إقلاعٍ بجلستها وحراستها — لا سلسلةٌ تنقطع بواحدة")
+check("Startup snapshot skipped" not in _MAIN23,
+      "٨ب ولا سطرٌ واحدٌ يُسمّي سبعَ خطواتٍ باسمِ واحدة")
+
+# ── ٨ج · والمنظّفُ يُقاس سلوكاً: شركةٌ لها وزنٌ تبقى، والوهمُ يُحذف ────
+# جلسةٌ محكومةٌ تردّ ما يردّه المحرّك بالترتيب نفسِه — فيُقاس **قرارُ
+# الدالّة** لا نصُّها.
+class _Co:
+    def __init__(self, cid, sym):
+        self.id, self.symbol = cid, sym
+
+
+class _Res:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def scalars(self):
+        return self
+
+    def all(self):
+        return self._rows
+
+
+class _FakeDB:
+    """تردّ نتائجَ مُصطفّةً، وتسجّل ما حُذف — ولا تلمس قاعدةً."""
+
+    def __init__(self, queued):
+        self.queued, self.deleted, self.commits = list(queued), [], 0
+
+    async def execute(self, _stmt):
+        return _Res(self.queued.pop(0) if self.queued else [])
+
+    async def delete(self, obj):
+        self.deleted.append(obj.symbol)
+
+    async def commit(self):
+        self.commits += 1
+
+
+from app.api.v1.endpoints.settings import (                       # noqa: E402
+    cleanup_directory_companies,
+)
+
+# رمزان خارج قائمة التأكيد قصداً — وإلّا حَمَتهما القائمةُ فقِيس
+# الحارسُ حمايتَها لا استثناءَ الوزن (مزلقةٌ وقعتُ فيها هنا).
+_weighted, _ghost = _Co(11, "9911.SR"), _Co(22, "9922.SR")
+_db23 = _FakeDB([
+    [],                       # لا عملياتٍ قطُّ لأيٍّ منهما
+    [_weighted, _ghost],      # الشركتان
+    [11],                     # وزنٌ مستهدفٌ للأولى
+    [], [], [],               # لا توزيعَ ولا منحةَ ولا قسط
+    [],                       # حذفُ صفوف الملكية
+])
+_out23 = (asyncio.run(cleanup_directory_companies(_db23)) or {}).get("data") or {}
+check(_db23.deleted == ["9922.SR"]
+      and _out23.get("removed_count") == 1
+      and (_out23.get("kept") or {}).get("9911.SR") == "وزنٌ مستهدف",
+      "٨ج وشركةٌ يتعلّق بها وزنٌ مستهدفٌ تبقى، والوهمُ وحدَه يُحذف",
+      f"حُذف {_db23.deleted} · أُبقي {_out23.get('kept')}")
+
+_db23b = _FakeDB([[], [_weighted], [], [], [], [], []])
+_out23b = (asyncio.run(cleanup_directory_companies(_db23b)) or {}).get("data") or {}
+check(_db23b.deleted == ["9911.SR"] and not (_out23b.get("kept") or {}),
+      "٨د وبلا صفٍّ للمالك يبقى الحكمُ كما كان — لا استثناءٌ يُعمَّم",
+      f"حُذف {_db23b.deleted}")
+
 print(("FAIL" if fail else "PASS") + " D271 — الإقلاعُ لا يموت، والحالُ تُقاس")
 raise SystemExit(fail)

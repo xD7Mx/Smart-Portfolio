@@ -137,53 +137,72 @@ async def lifespan(app: FastAPI):
                 logger.info(f"تثبيت تصحيح التكلفة اليدوي لـ {_adopted} حيازة.")
     except Exception as _e:
         logger.warning(f"تثبيت فارق التكلفة تخطّى: {_e}")
-    # Record today's portfolio snapshot if missing (uses cached prices only).
-    try:
+    # ══ خطواتُ الإقلاع سبعٌ لا واحدة ══ (D323)
+    # كانت في `try` واحدةٍ وجلسةٍ واحدة: فخطأُ خطوةٍ يردّ المعاملةَ ويُسقط
+    # **كلَّ ما بعدها** بسطرٍ واحدٍ لا يسمّي الساقط. قِيس على خادم المالك
+    # مرّتين في يومٍ واحد: مرّةً من تاريخِ خبرٍ نصٍّ (D320)، ومرّةً من حذف
+    # شركةٍ وهميةٍ يتعلّق بها وزنٌ مستهدف — وفي المرّتين سقطت لقطةُ
+    # المحفظة والدرجاتُ والأخبارُ والترميماتُ معاً وهي لا تمسّ بعضها.
+    #
+    # فصارت كلُّ خطوةٍ **بجلستها وبحراستها**: الساقطُ يُسمّى باسمه، وما
+    # بعده يعمل. وهو صنفُ D271 نفسُه نُقل من دورة الحياة إلى داخلها.
+    async def _boot_step(label: str, fn) -> None:
         from app.core.database import AsyncSessionLocal
+        try:
+            async with AsyncSessionLocal() as db:
+                note = await fn(db)
+            if note:
+                logger.info("إقلاع · {}: {}", label, note)
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning("إقلاع · {} تعذّرت — وما بعدها يعمل: {}: {}",
+                           label, type(e).__name__, e)
+
+    async def _step_snapshot(db):
         from app.services.snapshots import snapshot_if_missing_today
-        async with AsyncSessionLocal() as db:
-            await snapshot_if_missing_today(db)
-            # Auto-analysis: scores fill themselves in — no manual trigger.
-            from app.services.scores import refresh_company_scores
-            await refresh_company_scores(db)
-            # Populate & persist news / events / notifications so no screen is empty.
-            from app.services.content_engine import refresh_all
-            await refresh_all(db)
-            # Self-heal: create the Dividend row for any historical DIVIDEND/
-            # REINVESTMENT transaction that predates the dividends table wiring.
-            from app.api.v1.endpoints.dividends import backfill_from_transactions
-            backfilled = await backfill_from_transactions(db)
-            if backfilled:
-                logger.info(f"Backfilled {backfilled} dividend record(s) from historical transactions.")
-            # Self-heal: reconstruct realized_gain for SELL transactions
-            # recorded before that column existed, by replaying the ledger.
-            from app.api.v1.endpoints.transactions import backfill_realized_gains
-            gains_backfilled = await backfill_realized_gains(db)
-            if gains_backfilled:
-                logger.info(f"Backfilled realized_gain for {gains_backfilled} historical SELL transaction(s).")
-            # Self-heal: remove any directory-only "ghost" Company rows — a
-            # past logo-lookup feature (since removed) briefly created a bare
-            # Company row for every symbol in the site's market directory
-            # just to resolve a logo, without the Holding row every real
-            # add-to-portfolio flow always creates alongside it. A Company
-            # with NO Holding row at all was never actually added to the
-            # portfolio, so this can never touch a real position — runs
-            # automatically on every boot, no button needed, and is a no-op
-            # once the database is already clean.
-            from app.api.v1.endpoints.settings import cleanup_directory_companies
-            cleanup_result = await cleanup_directory_companies(db)
-            removed = (cleanup_result.get("data") or {}).get("removed_count", 0)
-            if removed:
-                logger.info(f"Startup self-heal: removed {removed} directory-only ghost compan{'y' if removed == 1 else 'ies'}.")
-            # Apply real, committed TradingView logos to portfolio companies
-            # that still lack one — automatic, no button, safe (real
-            # holdings only, see apply_tradingview_logos docstring).
-            from app.api.v1.endpoints.settings import apply_tradingview_logos
-            tv_updated = await apply_tradingview_logos(db)
-            if tv_updated:
-                logger.info(f"Startup: applied {tv_updated} real TradingView logo(s) to portfolio companies.")
-    except Exception as e:
-        logger.warning(f"Startup snapshot skipped: {e}")
+        await snapshot_if_missing_today(db)
+        return None
+
+    async def _step_scores(db):
+        from app.services.scores import refresh_company_scores
+        await refresh_company_scores(db)
+        return None
+
+    async def _step_content(db):
+        from app.services.content_engine import refresh_all
+        await refresh_all(db)
+        return None
+
+    async def _step_dividends(db):
+        from app.api.v1.endpoints.dividends import backfill_from_transactions
+        n = await backfill_from_transactions(db)
+        return f"{n} توزيعاً مُرمَّماً" if n else None
+
+    async def _step_gains(db):
+        from app.api.v1.endpoints.transactions import backfill_realized_gains
+        n = await backfill_realized_gains(db)
+        return f"{n} ربحاً محقَّقاً مُرمَّماً" if n else None
+
+    async def _step_ghosts(db):
+        # شركاتٌ وهميةٌ من ميزةِ شعاراتٍ سابقة: بلا أيّ عمليةٍ قطُّ. وما
+        # يتعلّق به صفٌّ للمالك يُستثنى ويُسمّى (settings.py · D323).
+        from app.api.v1.endpoints.settings import cleanup_directory_companies
+        res = (await cleanup_directory_companies(db)).get("data") or {}
+        n = res.get("removed_count", 0)
+        return f"{n} شركةً وهميةً أُزيلت" if n else None
+
+    async def _step_logos(db):
+        from app.api.v1.endpoints.settings import apply_tradingview_logos
+        n = await apply_tradingview_logos(db)
+        return f"{n} شعاراً" if n else None
+
+    for _label, _fn in (("لقطةُ المحفظة", _step_snapshot),
+                        ("درجاتُ الشركات", _step_scores),
+                        ("الأخبارُ والأحداث", _step_content),
+                        ("ترميمُ التوزيعات", _step_dividends),
+                        ("ترميمُ الأرباح المحقَّقة", _step_gains),
+                        ("تنظيفُ الشركات الوهمية", _step_ghosts),
+                        ("شعاراتُ الشركات", _step_logos)):
+        await _boot_step(_label, _fn)
     # والجدولةُ كذلك لا تُسقط الخادم (D271): في D258 أسقطَ خطأُ تعبيرٍ في
     # `CronTrigger` التطبيقَ كلَّه فرآه المالك فارغاً. أُصلح التعبيرُ يومَها،
     # ولم يُصلَح **الصنف**: خطوةٌ واحدةٌ ما زالت قادرةً على قتل كلّ الشاشات.
