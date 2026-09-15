@@ -29,6 +29,7 @@ _os.environ["SP_STATE_DIR"] = _SANDBOX
 
 import asyncio  # noqa: E402
 import datetime as _dt2  # noqa: E402
+import json  # noqa: E402
 import pathlib  # noqa: E402
 import sys  # noqa: E402
 
@@ -639,6 +640,79 @@ check("RefreshTradeDetailsServlet" in _SD2 or "TD_HELPER" in _SD2,
       "١٦ج والبابُ مكتوبٌ كما قِيس لا كما خُمِّن")
 check("await smart_flow" in _SD2,
       "١٦د ويُنادى بجلسةٍ واحدةٍ تُسخَّن بصفحته — كما تناديه الصفحة")
+
+# ── ١٧ · «الصفقات المتفاوض عليها»: البابُ المقيسُ يُقرأ ────────────────
+# وُجد بالتصفّح على خادم المالك (D314…D317): اسمُ الميزة في «تداول»
+# «الصفقات المتفاوض عليها»، وصفحتُها لكلّ سوقٍ بالنمط
+# `ourmarkets/<السوق>-market-watch/issuers-trading-information`، وخدمتُها
+# `getNegotiatedDetails` تردّ بمدى تاريخٍ (D318). ويُقاس هنا على **الجسم
+# كما وصل بالحرف** — لا على شكلٍ صنعتُه.
+def _neg(payload: dict, market: str = "main") -> tuple[int, dict, str]:
+    import http.server
+    import json as _j
+    import socketserver
+    import threading
+
+    got_qs: dict = {}
+    page = ('<html><head><base href="http://127.0.0.1:{p}/wps/portal/x/!ut/p/z1/A/">'
+            '</head><body><a href="/wps/portal/x/p0/IZ7=CZ6=NJgetNegotiatedDetails=/">'
+            'x</a></body></html>')
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):                                # noqa: D102
+            pass
+
+        def do_GET(self):                                         # noqa: N802
+            port = self.server.server_address[1]
+            if "=NJ" in self.path:
+                from urllib.parse import parse_qs, urlsplit
+                got_qs.update({k: v[0] for k, v in
+                               parse_qs(urlsplit(self.path).query).items()})
+                b = _j.dumps(payload, ensure_ascii=False).encode()
+                ct = "application/json"
+            else:
+                b, ct = page.format(p=port).encode(), "text/html; charset=utf-8"
+            self.send_response(200)
+            self.send_header("Content-Type", ct)
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+
+    srv = socketserver.TCPServer(("127.0.0.1", 0), H)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    keep = sd.NEG_PAGE
+    sd.NEG_PAGE = f"http://127.0.0.1:{port}/{{market}}-page"
+    try:
+        deals, why = asyncio.run(sd.tadawul_negotiated(30, markets=(market,)))
+        return len(deals), (deals[0] if deals else {"why": why}), str(got_qs)
+    finally:
+        sd.NEG_PAGE = keep
+        srv.shutdown()
+
+
+_REAL = {"data": [
+    {"company": "المجموعة السعودية", "tradePrice": 11.62,
+     "tradeVolume": 395000, "tradeVolumeLong": 0, "turnOver": 4589900,
+     "strTime": "14:13:11", "strDate": "15-09-2026", "symbol": "2250",
+     "companyURL": "/wps/portal/x"}]}
+_n, _d, _qs = _neg(_REAL)
+check(_n == 1 and _d.get("symbol") == "2250" and _d.get("price") == 11.62
+      and _d.get("quantity") == 395000 and _d.get("value") == 4589900,
+      "١٧ جسمُ «getNegotiatedDetails» يُقرأ بحقوله كما وصلت",
+      json.dumps(_d, ensure_ascii=False)[:120])
+check(_d.get("at") == "15-09-2026" and _d.get("time") == "14:13:11",
+      "١٧ب والتاريخُ والوقتُ من المصدر لا من ساعتنا",
+      f"{_d.get('at')} · {_d.get('time')}")
+check("fromDate" in _qs and "toDate" in _qs and "sector" in _qs
+      and "requestLocale" in _qs,
+      "١٧ج ويُنادى بمعاملات الصفحة نفسِها (مدًى وقطاعٌ ولغة)", _qs[:110])
+_n0, _d0, _ = _neg({"data": []})
+check(_n0 == 0 and "why" in _d0,
+      "١٧د ويومٌ بلا صفقاتٍ يُقال سببَه ولا يُخترع صفّ", str(_d0)[:90])
+_bad, _db, _ = _neg({"data": [{"company": "شركةٌ", "strDate": "15-09-2026"}]})
+check(_bad == 0,
+      "١٧ه وصفٌّ بلا سعرٍ ولا كمّيةٍ يُترك — لا نصفُ صفقة")
 
 print(("FAIL" if fail else "PASS") + " D272 · D273 — العمقُ يُعرَض، والصفقاتُ الخاصة تُبنى")
 raise SystemExit(fail)

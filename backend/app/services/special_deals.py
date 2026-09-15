@@ -122,13 +122,23 @@ _BASE_RE = re.compile(r"<base[^>]+href=[\"']([^\"']+)", re.I)
 _EP_RE = re.compile(r"p0/[A-Za-z0-9_=]*=NJ(get[A-Za-z]*(?:Special|Negotiat)[A-Za-z]*)=/")
 
 # مرشّحاتُ الأسماء لكلّ حقل، بالترتيب. وما لم يوجد يغيب.
+# ══ الحقولُ كما ردَّها المصدرُ بالحرف ══ (D318)
+# قِيس جسمُ `getNegotiatedDetails` على خادم المالك:
+#   {"company":"المجموعة السعودية","tradePrice":11.62,"tradeVolume":395000,
+#    "turnOver":4589900,"strTime":"14:13:11","strDate":"15-09-2026",
+#    "symbol":"2250","companyURL":"…"}
+# فتُضاف أسماؤه إلى المرشَّحات — لا تُستبدَل: قارئٌ يقبل أكثرَ من شكلٍ
+# يبقى حياً إن غيّر المصدرُ تسميته.
 FIELDS = {
     "symbol": ("symbol", "companySymbol", "tradingName", "companyCode"),
-    "name": ("companyName", "companyFullName", "issuerName"),
-    "price": ("price", "dealPrice", "executionPrice", "tradePrice"),
-    "quantity": ("quantity", "volume", "dealVolume", "numberOfShares"),
-    "value": ("value", "turnover", "dealValue", "totalValue"),
-    "at": ("date", "dealDate", "tradeDate", "executionDate", "dateTime"),
+    "name": ("company", "companyName", "companyFullName", "issuerName"),
+    "price": ("tradePrice", "price", "dealPrice", "executionPrice"),
+    "quantity": ("tradeVolume", "quantity", "volume", "dealVolume",
+                 "numberOfShares"),
+    "value": ("turnOver", "value", "turnover", "dealValue", "totalValue"),
+    "at": ("strDate", "date", "dealDate", "tradeDate", "executionDate",
+           "dateTime"),
+    "time": ("strTime", "time", "tradeTime"),
 }
 
 
@@ -174,6 +184,9 @@ def normalize(rows: list) -> list[dict]:
         at = _pick(r, FIELDS["at"])
         if at:
             deal["at"] = str(at).strip()
+        tm = _pick(r, FIELDS["time"])
+        if tm:
+            deal["time"] = str(tm).strip()
         out.append(deal)
         if len(out) >= MAX_ROWS:
             break
@@ -456,6 +469,82 @@ def td_base(html: str) -> str | None:
     return m.group(1).rstrip("/") if m else None
 
 
+# ══ الاسمُ الرسميُّ والبابُ المقيس ══ (D318)
+# اسمُ الميزة في «تداول»: **«الصفقات المتفاوض عليها»** — وصفحتُها لكلّ
+# سوقٍ بالنمط: `ourmarkets/<السوق>-market-watch/issuers-trading-information`.
+# وخدمتُها `getNegotiatedDetails` تُنادى بمدى تاريخٍ فتردّ:
+#   {"data":[{"company":…,"symbol":"2250","tradePrice":11.62,
+#             "tradeVolume":395000,"turnOver":4589900,
+#             "strDate":"15-09-2026","strTime":"14:13:11"}]}
+# قِيس بمتصفّحٍ حقيقيٍّ على الخادم: ١٨٥ ألفَ حرفٍ لشهرٍ واحد.
+NEG_PAGE = ("https://www.saudiexchange.sa/wps/portal/saudiexchange/ourmarkets/"
+            "{market}-market-watch/issuers-trading-information?locale=ar")
+NEG_MARKETS = ("main", "nomu")
+_NEG_EP = re.compile(r"p0/[A-Za-z0-9_=]*=NJ(get[A-Za-z]*Negotiat[A-Za-z]*)=/")
+
+
+async def tadawul_negotiated(days: int = DEFAULT_DAYS,
+                             markets: tuple[str, ...] = NEG_MARKETS
+                             ) -> tuple[list[dict], str | None]:
+    """«الصفقات المتفاوض عليها» من «تداول» — الاسمُ والبابُ كما قِيسا.
+
+    الصفحةُ تُقرأ لاسمِ خدمتها (لا يُثبَّت مسارٌ مولَّد)، ثمّ تُنادى
+    الخدمةُ بمدى التاريخ. وكلُّ سوقٍ صفحةٌ، فتُجمَع أسواقُها.
+    """
+    import functools
+    from datetime import date, timedelta
+
+    from app.services.tadawul_http import smart_flow
+
+    to_d = date.today()
+    from_d = to_d - timedelta(days=max(1, days))
+    params = {"sector": "All", "company": "All",
+              "fromDate": from_d.strftime("%d-%m-%Y"),
+              "toDate": to_d.strftime("%d-%m-%Y"),
+              "requestLocale": "ar"}
+
+    def plan():
+        out: list[dict] = []
+        log: list[str] = []
+        for mk in markets:
+            page_url = NEG_PAGE.format(market=mk)
+            status, page = yield {"url": page_url}
+            if status != 200 or not page:
+                log.append(f"{mk}:صفحة {status}")
+                continue
+            mb = _BASE_RE.search(page)
+            me = _NEG_EP.search(page)
+            if not (mb and me):
+                log.append(f"{mk}:" + ("لا أساس" if not mb else "لا خدمة"))
+                continue
+            url = mb.group(1).rstrip("/") + "/" + me.group(0)
+            status, body = yield {"url": url, "params": params,
+                                  "referer": page_url}
+            if status != 200 or not body:
+                log.append(f"{mk}:{me.group(1)} {status}")
+                continue
+            try:
+                rows = (json.loads(body) or {}).get("data")
+            except Exception:                                     # noqa: BLE001
+                log.append(f"{mk}:مخرَجٌ غيرُ JSON")
+                continue
+            got = normalize(rows if isinstance(rows, list) else [])
+            log.append(f"{mk}:{len(got)}/"
+                       f"{len(rows) if isinstance(rows, list) else 0}")
+            out.extend(got)
+        return out, log
+
+    try:
+        deals, log = await smart_flow(functools.partial(plan))
+    except Exception as e:                                        # noqa: BLE001
+        return [], f"تداول/متفاوض: {type(e).__name__}: {e}"
+    if deals:
+        logger.info("الصفقاتُ المتفاوض عليها: {} صفقة ({})",
+                    len(deals), " · ".join(log))
+        return _dedupe(deals), None
+    return [], "تداول/متفاوض: " + (" · ".join(log) or "بلا صفوف")
+
+
 async def tadawul_trade_details() -> tuple[list[dict], str | None]:
     """صفقاتُ صفحة «تداول» من خدمتها التي قِيس أن الصفحةَ تناديها.
 
@@ -548,8 +637,14 @@ async def refresh(days: int = DEFAULT_DAYS) -> dict:
     # ══ الترتيبُ تغيّر بالقياس ══ (D308 · D310)
     # قِيس أن صفحةَ «أرقام» مغلقةٌ بالاشتراك (تنادي باقاتَها بدل بياناتها)،
     # فلا تُقدَّم على مصدرٍ عامٍّ يعمل. و«تداول» رسميٌّ أصلاً.
-    deals, why = await tadawul_trade_details()
+    deals, why = await tadawul_negotiated(days)
     src = "تداول"
+    if not deals:
+        got, why2 = await tadawul_trade_details()
+        if got:
+            deals, why = got, None
+        else:
+            why = f"{why} · {why2}"
     if not deals:
         got, why_a = await argaam_deals(days)
         if got:
