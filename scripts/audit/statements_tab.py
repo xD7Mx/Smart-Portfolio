@@ -104,6 +104,81 @@ async def main() -> int:
                           + ("" if nums else f"(بلا رقم: {cells[1:3]})"))
             print(f"     صفوفٌ ذاتُ أرقام: {numeric}")
 
+    # ══ ثمّ مسحٌ للـ82: كم منهم فيه أرقامٌ وما أحدثُ تاريخٍ فيه ══ (D368)
+    # قِيس أن التبويبَ يحمل قائمةَ دخلٍ وتدفّقٍ كاملتَين لبعضهم — لكنّ
+    # تواريخَه **2023-03 و2022-09**، وهو عينُ ما كُتب في وحدتنا يوم
+    # اختيار XBRL: «تبويبُ القوائم متجمّدٌ عند منتصف 2023». فالقرارُ
+    # لا يُتّخذ على عيّنةِ ثلاثٍ: يُقاس **كم منهم** فيه أرقامٌ و**كم
+    # عمرُ أحدثِ تاريخ** — فبينهما يُعرَف هل يُصلح تاريخاً أم لا شيء.
+    if not SYMS:
+        cand = [s for s in sorted(rows)
+                if not X.for_symbol(s, "annual")
+                and not X.for_symbol(s, "quarterly")]
+        by_pfx: dict[str, list[str]] = {}
+        for s_ in cand:
+            by_pfx.setdefault(s_[:1], []).append(s_)
+        pick: list[str] = []
+        i = 0
+        while len(pick) < min(24, len(cand)):
+            added = False
+            for k in sorted(by_pfx):
+                if i < len(by_pfx[k]) and len(pick) < 24:
+                    pick.append(by_pfx[k][i])
+                    added = True
+            if not added:
+                break
+            i += 1
+        print(f"\n═ مسحُ الـ{len(cand)} بعيّنةٍ موزَّعةٍ ({len(pick)}) ═")
+        import re as _re
+        _D = _re.compile(r"20\d{2}-\d{2}-\d{2}")
+        have, empty, newest_all = 0, 0, []
+        sem2 = asyncio.Semaphore(3)
+
+        async def probe(sym: str) -> None:
+            nonlocal have, empty
+            async with sem2:
+                u = (tm.row_for(sym) or {}).get("company_url")
+                if not u:
+                    return
+                f2 = X.ORIGIN + u if u.startswith("/") else u
+                try:
+                    st3, pg = await fetch(f2)
+                    if st3 != 200 or not pg:
+                        return
+                    m2 = X._BASE.search(pg)
+                    e2 = next((m.group(0) for m in X._NJ.finditer(pg)
+                               if m.group(1) == "statementsTabData"), None)
+                    if not (m2 and e2):
+                        return
+                    s4, b4 = await fetch(m2.group(1).rstrip("/") + "/" + e2,
+                                         params={"statementType": "1",
+                                                 "reportType": "1",
+                                                 "requestLocale": "en"},
+                                         referer=f2)
+                except Exception:                                 # noqa: BLE001
+                    return
+                if s4 != 200 or not b4:
+                    return
+                n = sum(1 for tr in X._TR.findall(b4)
+                        if any(X._num(X._clean(c)) is not None
+                               for c in X._TD.findall(tr)[1:]))
+                ds = sorted(set(_D.findall(b4)))
+                if n:
+                    have += 1
+                    if ds:
+                        newest_all.append(ds[-1])
+                    print(f"   {sym}: {n} صفّاً ذا أرقام · أحدثُ تاريخ:"
+                          f" {ds[-1] if ds else '—'}")
+                else:
+                    empty += 1
+                    print(f"   {sym}: بلا أرقام")
+
+        await asyncio.gather(*(probe(s) for s in pick), return_exceptions=True)
+        print(f"\n   فيه أرقامٌ: {have} · بلا أرقام: {empty}"
+              + (f" · أحدثُ تاريخٍ في العيّنة: {max(newest_all)}"
+                 f" · أقدمُ أحدثِ تاريخ: {min(newest_all)}"
+                 if newest_all else ""))
+
     print("\nالحكم: صفوفٌ ذاتُ أرقامٍ وأسماءٍ مقروءةٍ تعني أن القوائمَ"
           " **مرسومةٌ في التبويب** لا مرفوعةً ملفّاً — فتُنقَل أسماؤها"
           " بالحرف إلى خريطةٍ كما فُعل بـXBRL، وتُقرأ لمن لا XBRL له"
