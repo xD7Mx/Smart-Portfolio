@@ -457,7 +457,7 @@ except Exception as _e:                                           # noqa: BLE001
 check(_bp.get("revenue") == 6938847.0
       and _bp.get("interest_expense") == 3562658.0
       and _bp.get("ebit") == 6545174.0,
-      "٩س إيرادُ البنك منقولٌ بالحرف ومصروفُه مشتقٌّ بفرقِ المنشورَين",
+      "٩س١ إيرادُ البنك منقولٌ بالحرف ومصروفُه مشتقٌّ بفرقِ المنشورَين",
       f"إيراد={_bp.get('revenue')} · مصروف={_bp.get('interest_expense')}")
 # ولا يُلبَّس الصافي ثوبَ المصروف: لو نُقل الاسمُ الصافي مباشرةً لخرج
 # المصروفُ 3,376,189 — فيُحرَس أنه ليس كذلك.
@@ -504,7 +504,7 @@ except Exception as _e:                                           # noqa: BLE001
     _p0, _n2 = {"خطأ": type(_e).__name__}, -1
 check(_p0.get("revenue") == 10555662.0
       and "مكتسبةٌ صافية" in str(_p0.get("revenue_source")),
-      "٩ع إيرادُ المؤمِّن = الأقساطُ المكتسبةُ صافيةً — لا «إجماليّ إيرادٍ»",
+      "٩ع١ إيرادُ المؤمِّن = الأقساطُ المكتسبةُ صافيةً — لا «إجماليّ إيرادٍ»",
       f"{_p0.get('revenue')}")
 check(_n2 == 0,
       "٩غ وما وصل باسمه المنشور لا يُسحَب — السحبُ للمطابَقِ الخاطئ وحدَه",
@@ -512,6 +512,36 @@ check(_n2 == 0,
 
 # والمحرّكُ يمتنع للورقة المؤشِّرة **بسببها لا بسبب شركة**
 from app.services.fair_value import compute as _fv                # noqa: E402
+
+# ── ٩ف · العمرُ عمرُ القوائم لا عمرُ الجلب (D380) ───────────────────────
+# قِيس على خادم المالك: 8010 قيمتُها 30.34 مقابل سعرٍ 92.05 ومدخلاتُها
+# فتراتُ 2020–2022، والسطرُ يقول «العمر 2026-09-16 · شائخ=False» —
+# لأن `asof` تاريخُ آخر **جلبٍ** يتجدّد كلَّ ليلةٍ وإن لم تُصدِر الشركةُ
+# قائمةً منذ سنوات. فيُحرَس أن العمرَ من أحدثِ فترةٍ مستعملة، وأن
+# الشيخوخةَ تُعلَن فتتّسع بها ثقةُ التقدير وهامشُه.
+_OLD = [{"as_of": f"{y}-12-31", "year": y, "revenue": 7e9,
+         "net_income": 3.9e8, "eps": 3.1, "equity": 3.3e9,
+         "total_assets": 1.9e10, "total_liabilities": 1.55e10,
+         "shares_outstanding": 1.25e8, "operating_cash_flow": 1.6e8,
+         "capex": 4.6e7, "ending_cash": 1.6e9, "pretax_income": 4.8e8}
+        for y in (2020, 2021, 2022)]
+_IINFO = {"pe_ratio": 20.0, "price_to_book": 3.4, "book_value": 26.8,
+          "return_on_equity": 11.7, "dividend_per_share": 1.0,
+          "beta": 0.47, "sector": "التأمين", "eps": 3.13}
+_FO = _fv(_IINFO, 92.05, sector_avg_pe=18.0, sector_avg_pb=2.5,
+          asof="2026-09-16", periods=_OLD, archetype="insurance",
+          symbol="8010", peer_count=9)
+check((_FO.get("age_days") or 0) > 1000 and _FO.get("stale") is True
+      and "فترةٍ ماليةٍ" in str(_FO.get("age_basis")),
+      "٩ف عمرُ التقدير من أحدثِ فترةٍ ماليةٍ لا من تاريخ الجلب",
+      f"{_FO.get('age_days')} يوماً · شائخ={_FO.get('stale')}")
+check(_FO.get("fetched_at") == "2026-09-16"
+      and str(_FO.get("data_asof") or "").startswith("2022"),
+      "٩ق وتاريخُ الجلب يبقى معروضاً باسمه لا مكانَ العمر",
+      f"جلب={_FO.get('fetched_at')} · بيانات={_FO.get('data_asof')}")
+check(_FO.get("confidence") == "منخفضة",
+      "٩ك‍٢ وشيخوخةُ المدخلات تُترجَم ثقةً منخفضةً فيتّسع هامشُ الأمان",
+      f"ثقة={_FO.get('confidence')}")
 
 _F9 = _fv({}, 34.0, symbol="9400", periods=[])
 _why9 = str((_F9 or {}).get("unavailable_reason") or "")
