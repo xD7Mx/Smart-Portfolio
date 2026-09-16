@@ -258,6 +258,16 @@ def _dcf(periods: list[dict], info: dict, price: float | None,
             base = norm
     shares = None
     for p in reversed(periods or []):
+        # ══ عددٌ يخالف ربحيةَ السهم لا يُقسَم عليه ══ (D347)
+        # قِيس على خادم المالك بعد D339: مدى ‎2290 صار **0.04–0.14** ريالاً،
+        # وهي في قائمة «فرقُ عددٍ أُعلِن». فقد أبقيتُ المنشورَ وسمّيتُ
+        # الفرقَ — وذلك صوابٌ (لا يُستبدَل منشورٌ بمشتقّ) — لكنّي تركتُ
+        # المحرّكَ **يقسم عليه** فخرج سعرُ سهمٍ بأربعِ هللات. فالتسميةُ
+        # وحدَها لا تكفي: رقمٌ للسهم مبنيٌّ على عددٍ يخالف تعريفَ ربحية
+        # السهم اختلاقٌ، والامتناعُ المعلَنُ أصدقُ منه. فتُتخطّى الفترةُ
+        # الموسومةُ إلى فترةٍ متوافقة، وإن لم تكن فلا قيمةَ — ويُعلَن.
+        if p.get("shares_mismatch") or p.get("shares_unit_gap"):
+            continue
         if isinstance(p.get("shares_outstanding"), (int, float)) and p["shares_outstanding"] > 0:
             shares = float(p["shares_outstanding"])
             break

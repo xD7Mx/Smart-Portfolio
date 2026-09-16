@@ -153,7 +153,9 @@ def _derive(p: dict, src: dict) -> None:
     # مرّةٍ يُخرج «0.04 ريالاً» فتَنهار مساراتُ التقييم عليه. والغيابُ
     # أصدقُ من رقمٍ بمقياسٍ خاطئ (الجهلُ ليس صفراً).
     eq, sh2 = p.get("equity"), p.get("shares_outstanding")
-    if (p.get("book_value_per_share") is None and not p.get("shares_unit_gap")
+    if (p.get("book_value_per_share") is None
+            and not p.get("shares_unit_gap")
+            and not p.get("shares_mismatch")        # D347: الفرقُ عددٌ كذلك
             and _pos(eq) and _pos(sh2)):
         p["book_value_per_share"] = round(float(eq) / float(sh2), 4)
         src["book_value_per_share"] = "مشتقّ: حقوقٌ ÷ عددُ الأسهم"

@@ -352,5 +352,33 @@ check(_U6.get("shares_outstanding") == 150000000000.0
       "٩ز وبلا مِرساةٍ كذلك — لا يُستبدَل منشورٌ بمشتقٍّ بحالٍ",
       f"{_U6.get('shares_outstanding')} · {_U6.get('shares_mismatch')}")
 
+# ── ٩ح · ولا رقمَ للسهم على عددٍ مخالف (D347) ────────────────────────────
+# قِيس على خادم المالك بعد D339: مدى 2290 صار 0.04–0.14 ريالاً وهي في
+# قائمة «فرقُ عددٍ أُعلِن». فالتسميةُ لا تكفي — يجب أن يمتنع الحسابُ.
+_U7 = _one(net_income=_NI, equity=_EQ, shares_outstanding=150000000000.0)
+check(_U7.get("shares_mismatch") == 1.62
+      and _U7.get("book_value_per_share") is None,
+      "٩ح وفرقُ العدد يمنع قيمةَ السهم كما يمنعها فرقُ الوحدة",
+      f"{_U7.get('shares_mismatch')} · {_U7.get('book_value_per_share')}")
+
+# والمحرّكُ نفسُه يتخطّى الفترةَ الموسومةَ ولا يقسم عليها
+from app.services.fair_value import _dcf                          # noqa: E402
+
+_FP = [{"year": 2023, "operating_cash_flow": 1.0e9, "capex": 1.0e8,
+        "net_income": 9.0e8, "total_debt": 0.0, "ending_cash": 1.0e8,
+        "shares_outstanding": 1.0e8},
+       {"year": 2024, "operating_cash_flow": 1.1e9, "capex": 1.0e8,
+        "net_income": 9.5e8, "total_debt": 0.0, "ending_cash": 1.0e8,
+        "shares_outstanding": 1.0e8},
+       {"year": 2025, "operating_cash_flow": 1.2e9, "capex": 1.0e8,
+        "net_income": 1.0e9, "total_debt": 0.0, "ending_cash": 1.0e8,
+        "shares_outstanding": 1.0e8}]
+_ok = _dcf([dict(p) for p in _FP], {"beta": 1.0}, 30.0, 0.09)
+_bad = _dcf([dict(p, shares_mismatch=1.6) for p in _FP],
+            {"beta": 1.0}, 30.0, 0.09)
+check(_ok is not None and _bad is None,
+      "٩ط والمحرّكُ يمتنع على عددٍ موسومٍ بدل أن يقسم عليه",
+      f"سليم={None if _ok is None else 'قيمة'} · موسوم={_bad}")
+
 print(("FAIL" if fail else "PASS") + " D255 — ثلاثُ طبقاتٍ بترتيبٍ واحد")
 raise SystemExit(fail)
