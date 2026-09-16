@@ -20,6 +20,29 @@ fail=0
 # ولا مجلَّدُ الواجهة — أي **نقصُ بيئةٍ لا انكسارُ شفرة**، والمخرَجُ يوهم
 # أن اللجنةَ انهارت وهي سليمة. فتُقاس البيئةُ أوّلاً ويُقال صريحاً إن
 # كانت ناقصةً، ولا يُقرأ العددُ حكماً على الشفرة.
+# ══ وشجرةٌ نصفُ محدَّثةٍ تُعلَن قبل أن تُقرأ أحكامُها ══ (D376)
+# قِيس على خادم المالك: اللجنةُ أفشلت D332 وشفرةُ الفرع سليمةٌ خضراءُ —
+# والسببُ أن أوامري كانت تسحب `scripts/audit` و`backend/app` **ولا
+# تسحب `frontend/`** ولا مرّة. فحُكم اللجنةِ صادقٌ على ملفٍّ قديمٍ،
+# ويُقرأ خطأً حكماً على الفرع. فيُطبع تخلّفُ كلّ شجرةٍ عن الأصل صريحاً.
+if [ -d .git ] && command -v git >/dev/null 2>&1; then
+  _HEAD="$(git rev-parse --short HEAD 2>/dev/null || echo '?')"
+  _DIRTY=""
+  for _d in frontend backend scripts; do
+    [ -d "$_d" ] || continue
+    if ! git diff --quiet HEAD -- "$_d" 2>/dev/null; then
+      _DIRTY="${_DIRTY} ${_d}"
+    fi
+  done
+  echo "• الشجرةُ عند ${_HEAD}${_DIRTY:+ · تختلف عن HEAD في:${_DIRTY}}"
+  if [ -n "${_DIRTY}" ]; then
+    echo "  ⚠ أحكامُ اللجنةِ على ما في القرص لا على ما في الفرع —"
+    echo "    فتُسحَب الشجرةُ كاملةً قبل قراءة النتيجة:"
+    echo "        git checkout FETCH_HEAD -- ."
+  fi
+  echo
+fi
+
 _ENV_MISS=""
 command -v node >/dev/null 2>&1 || _ENV_MISS="${_ENV_MISS} node"
 [ -d frontend/src ] || _ENV_MISS="${_ENV_MISS} frontend/src"
