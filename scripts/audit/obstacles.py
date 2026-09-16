@@ -144,6 +144,7 @@ async def main() -> int:
     miss_field: Counter = Counter()
     miss_who: dict[str, list[str]] = {}
     gov_out: list[str] = []
+    src_cnt: Counter = Counter()
     detail: list[str] = []
     probed = 0
 
@@ -166,6 +167,11 @@ async def main() -> int:
             fin = {}
             hit(f"تعذّر: {type(e).__name__}", sym)
         periods = fin.get("periods") or []
+        # ══ ومصدرُ القوائم يُسمّى ══ (D345)
+        # قرأتُ جدولاً يعدّ القوائمَ فاستدللتُ به على **المصدر** فأخطأتُ:
+        # قوائمُ الريتات كانت من ياهو وظننتُها من «تداول». فالعددُ لا
+        # يدلّ على المصدر — والمصدرُ يُطبَع صريحاً.
+        src_cnt[str(fin.get("source") or "لا شيء") if periods else "لا قوائم"] += 1
 
         if not periods:
             saved = X.for_symbol(sym, "annual")
@@ -227,6 +233,10 @@ async def main() -> int:
         cand = CANDIDATE.get(key)
         if cand:
             print(f"    الطبقةُ المرشَّحة: {cand}")
+
+    print("\n═════ مصادرُ القوائم — لا يُستدَلّ عليها بالعدد (D345) ═════")
+    for k, n in src_cnt.most_common():
+        print(f"  {n:>4}  {k}")
 
     print("\n═════ البنودُ الناقصةُ بعد كلّ الطبقات — مرتَّبةً ═════")
     for k, n in miss_field.most_common(14):

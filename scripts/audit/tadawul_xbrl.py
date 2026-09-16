@@ -190,5 +190,32 @@ out = asyncio.run(svc.get_financials("2010.SR"))
 check((out or {}).get("source") == "ياهو",
       "٨ب فيعود البابُ إلى الطبقة التالية", str((out or {}).get("source")))
 
+# ── ٩ · أسماءٌ منقولةٌ بالحرف من ملفّات المالك (D344) ────────────────────
+# قِيس على خادمه أن `interest_expense` يغيب في ٣٤ ورقةً من ٩٠ ومعه
+# `ebit` — وفي الملفّات أسماءٌ منشورةٌ لم تُطابَق. والأسماءُ أدناه
+# **نصُّ المخرَج** لا صياغتي، وقِيمُها من الملفّات المقيسة نفسِها. فلو
+# غُيِّر حرفٌ في الخريطة أو حُذف اسمٌ احمرَّ هذا الفحصُ فوراً.
+_LBL = """<table>
+<tr><td>Level of rounding used in financial statements</td><td>Thousands</td></tr>
+<tr><td>End Date</td><td>2026-06-30</td></tr>
+<tr><td>Profit (loss) from continuing operations before zakat and income tax</td><td>2,982,516</td></tr>
+<tr><td>Adjustments for finance costs</td><td>11,984</td></tr>
+<tr><td>Debt securities, term loan, borrowings and sukuk in issue</td><td>47,583,268</td></tr>
+</table>"""
+_LP = (xb.parse(_LBL).get("periods") or [{}])[0]
+check(_LP.get("pretax_income") == 2_982_516_000.0,
+      "٩ «قبل الزكاة» بترتيب كلماتِ ملفّات البنوك — اسمٌ لا معنى",
+      str(_LP.get("pretax_income")))
+check(_LP.get("interest_expense") == 11_984_000.0,
+      "٩ب وتكلفةُ التمويل من صفّ التسوية المنشور — لا تبقى غائبة",
+      str(_LP.get("interest_expense")))
+check(_LP.get("ebit") == 2_994_500_000.0,
+      "٩ج فيقوم الربحُ التشغيليُّ الذي كان يسقط بسقوطها",
+      str(_LP.get("ebit")))
+check(_LP.get("borrowings_noncurrent") == 47_583_268_000.0
+      and _LP.get("total_debt") == 47_583_268_000.0,
+      "٩د والمفردُ والجمعُ اسمانِ لا اسم — حرفانِ كانا يحجبان الدَّين",
+      str(_LP.get("total_debt")))
+
 print(("FAIL" if fail else "PASS") + " D263 — قوائمُ XBRL الرسمية")
 raise SystemExit(fail)

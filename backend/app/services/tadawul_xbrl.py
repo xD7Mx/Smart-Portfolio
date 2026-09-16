@@ -69,7 +69,13 @@ LABELS: dict[str, tuple[str, ...]] = {
     "total_liabilities": ("total liabilities",),
     "eps": ("total basic earnings (loss) per share",
             "basic earnings (loss) per share from continuing operations"),
-    "interest_expense": ("finance costs",),
+    # ══ وتكلفةُ التمويل باسمها في صفّ التسوية ══ (D344)
+    # قِيس على خادم المالك: `interest_expense` يغيب في ٣٤ ورقةً من ٩٠،
+    # ويسقط معه `ebit` لأنه يُشتقّ منه. وفي الملفّات نفسِها **صفٌّ منشورٌ**
+    # اسمُه `adjustments for finance costs` (‏2030 = 11,984 · 4334 =
+    # 779,941) — تكلفةُ تمويلِ الفترة تُردّ في تسوية التدفّق التشغيليّ.
+    # منقولٌ بالحرف من المخرَج لا مجتهَداً.
+    "interest_expense": ("finance costs", "adjustments for finance costs"),
     # ══ بنودٌ يطلبها محرّكُ التدفّقات ولا يقوم بدونها ══ (D266)
     # كان يخصم درجةَ ثقةٍ لـ«بنودٍ ناقصة» لأن ثلاثةً منها لم تُطابَق:
     # الربحُ قبل الزكاة (يُشتقّ منه التشغيليُّ بجمع تكلفة التمويل)،
@@ -77,6 +83,10 @@ LABELS: dict[str, tuple[str, ...]] = {
     # وأسماؤها هنا **كما وردت في الملفّ الرسميّ المقيس** لا تقريباً.
     "pretax_income": (
         "profit (loss) before zakat and income tax from continuing operations",
+        # وترتيبُ الكلمات يختلف في ملفّات البنوك — والمطابقةُ بالنصّ لا
+        # بالمعنى، فاسمٌ بترتيبٍ آخرَ اسمٌ آخر (‏1010 = 2,982,516 ·
+        # 1080 = 1,679,073). منقولٌ بالحرف (D344).
+        "profit (loss) from continuing operations before zakat and income tax",
         "profit (loss) before tax",
         "profit (loss) before zakat and income tax",
         "profit (loss) for period before zakat and income tax",
@@ -91,7 +101,12 @@ LABELS: dict[str, tuple[str, ...]] = {
     "borrowings_noncurrent": ("non-current borrowings", "long-term borrowings",
                               "noncurrent borrowings",
                               "borrowings - non-current",
-                              "debt securities, term loans, borrowings and sukuks in issue"),
+                              "debt securities, term loans, borrowings and sukuks in issue",
+                              # والمفردُ والجمعُ اسمانِ لا اسم: ملفُّنا
+                              # المقيسُ يقول «term loan» و«sukuk» مفردَين
+                              # (‏1010 = 47,583,268 · 1080 = 461,499)،
+                              # فكان الفرقُ حرفَين يحجب الدَّينَ (D344).
+                              "debt securities, term loan, borrowings and sukuk in issue"),
     "lease_current": ("current lease liabilities", "finance lease, current"),
     "lease_noncurrent": ("non-current lease liabilities",
                          "finance leases, non-current"),
