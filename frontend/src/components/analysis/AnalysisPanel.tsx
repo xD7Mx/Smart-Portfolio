@@ -67,6 +67,8 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
   const up = (data.change_pct ?? 0) >= 0;
 
   const fv = data.fair_value_detail || {};
+  // أصلُ الأرقام وتاريخُها — يصلان من المحرّك ويُعرضان مع الدرجة (D381)
+  const prov: Record<string, any> = data.governance_provenance || {};
   // بطاقةُ النمط وركنُ الحوكمة — يصلان في جذر التحليل أو داخل المالية.
   const gov = data.governance || data.financial?.governance || null;
 
@@ -125,9 +127,23 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
           <div className="rounded-xl px-3 py-2.5" style={{ background: "color-mix(in srgb, var(--brand) 7%, transparent)" }}>
             <div className="text-[10px] text-[var(--ink-muted)] mb-1">درجة الجودة المالية</div>
             {fin.score != null ? (
-              <div className="flex items-baseline gap-1.5">
+              /* ══ ودرجةٌ بلا تاريخٍ تُقرأ حديثةً ══ (D381)
+                 قِيس على خادم المالك: 54 ورقةً في السوق الرئيسيّ قوائمُها
+                 أقدمُ من 200 يوم — 25 شركةَ تأمينٍ أرقامُها 2022، وستُّ
+                 ريتاتٍ بعمر سبعِ سنوات — ودرجتُها تُعرَض رقماً مجرَّداً
+                 كدرجةِ شركةٍ أودعت هذا الربع. فعمرُ الرقم جزءٌ منه لا
+                 حاشيةٌ عنه: يُعرض **في السطر نفسِه** بلونِ التحذير متى
+                 شاخ، فيُقرأ مع الدرجة ولا يُقرأ بعدها. */
+              <div className="flex items-baseline gap-1.5 flex-wrap">
                 <span className="text-xl tabular-nums leading-none" style={{ fontWeight: 800, color: scoreColor(fin.score) }}>{fin.score}</span>
                 <span className="text-[11px] text-[var(--ink-muted)]">/100 · {scoreTier(fin.score)}</span>
+                {prov["تاريخ الأرقام"] && (
+                  <span className="text-[10px] tabular-nums" dir="ltr"
+                    style={{ color: (prov["عمر الأرقام أياماً"] ?? 0) > 200
+                                    ? "var(--warn-ink)" : "var(--ink-muted)" }}>
+                    {String(prov["تاريخ الأرقام"]).slice(0, 7)}
+                  </span>
+                )}
               </div>
             ) : (
               <div className="text-base text-[var(--ink-muted)]" style={{ fontWeight: 700 }}>بانتظار القوائم</div>

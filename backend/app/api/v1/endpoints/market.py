@@ -1584,7 +1584,9 @@ async def fair_value_coverage(scope: str = "portfolio", limit: int = 400,
             "عدد_المسارات": len(fv.get("methods") or []),
             "المسارات": [m["name"] for m in (fv.get("methods") or [])],
             "الثقة": fv.get("confidence"),
-            "تاريخ_الأرقام": fv.get("asof"),
+            # تاريخُ البيانات لا تاريخُ الجلب (D380)
+            "تاريخ_الأرقام": fv.get("data_asof") or fv.get("asof"),
+            "تاريخ_الجلب": fv.get("fetched_at"),
             "عمرها_أياماً": fv.get("age_days"),
             "سبب_التعذّر": fv.get("unavailable_reason"),
         })

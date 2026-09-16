@@ -274,6 +274,25 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
     # ══ النِّسَبُ الرقابية تُجلب لمن تلزمه ══
     # البنكُ والتأمين والمالي وحدها — ونداءٌ واحد لكلٍّ منها، ومخزَّنٌ يوماً
     # كاملاً. وما لم يصل يبقى غائباً صراحةً في `missing`.
+    # تاريخُ أحدثِ فترةٍ ماليةٍ وعمرُها — يُرسَلان مع الدرجة (D381)
+    _stmt_asof, _stmt_age = None, None
+    try:
+        _ds = [str(p.get("as_of") or "") for p in (_periods or [])
+               if p.get("as_of")]
+        if _ds:
+            from datetime import date as _date
+            _stmt_asof = max(_ds)[:10]
+            _stmt_age = (_date.today() - _date.fromisoformat(_stmt_asof)).days
+        elif _periods:
+            _ys = [int(p["year"]) for p in _periods
+                   if str(p.get("year") or "").isdigit()]
+            if _ys:
+                _stmt_asof = f"{max(_ys)}-12-31"
+                from datetime import date as _date
+                _stmt_age = (_date.today()
+                             - _date.fromisoformat(_stmt_asof)).days
+    except Exception:                                             # noqa: BLE001
+        pass
     _std = _scope_for(info.get("sector"), _periods, info)
     if allow_supplement and _std.get("archetype") in ("bank", "insurance", "financial"):
         try:
@@ -530,6 +549,13 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         # مطلقاً وهي حكمٌ ضمن بيانات.
         "governance_provenance": {
             "سنوات القوائم": len(_periods),
+            # ══ ودرجةٌ بلا تاريخٍ تُقرأ حديثةً ══ (D381)
+            # قِيس: 54 ورقةً في السوق الرئيسيّ قوائمُها أقدمُ من 200 يومٍ
+            # (‏25 تأميناً أرقامُها 2022 · 6 ريتاتٍ بعمر سبعِ سنوات)، ودرجةُ
+            # جودتها تُعرَض رقماً مجرَّداً كدرجةِ شركةٍ أرقامُها هذا الربع.
+            # فيُرسَل **تاريخُ أحدثِ فترةٍ وعمرُها** مع الدرجة لتُعرَض معها.
+            "تاريخ الأرقام": _stmt_asof,
+            "عمر الأرقام أياماً": _stmt_age,
             # ══ ومصدرُ الأساسيات يُقرأ لا يُكتَب ══ (D334)
             # كان نصّاً ثابتاً «ياهو»، وقوائمُ تسعٍ من عشرٍ في محفظة المالك
             # تأتي من **«تداول — XBRL»** الرسميّ (مقيسٌ على خادمه). فبندُ
