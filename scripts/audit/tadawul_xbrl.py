@@ -217,5 +217,39 @@ check(_LP.get("borrowings_noncurrent") == 47_583_268_000.0
       "٩د والمفردُ والجمعُ اسمانِ لا اسم — حرفانِ كانا يحجبان الدَّين",
       str(_LP.get("total_debt")))
 
+# ── ١٠ · الحصادُ يجري بتزامنٍ محدودٍ لا ورقةً ورقة (D354) ────────────────
+# قِيس على خادم المالك: ستّون ورقةً في 569 ثانيةً — 9.5 ثانيةً للورقة،
+# فاللقطةُ كلُّها (272) ثلاثٌ وأربعون دقيقةً من الانتظار على شاشته.
+_peak = {"now": 0, "max": 0}
+_real_read = xb.read_symbol
+
+
+async def _slow(sym):
+    _peak["now"] += 1
+    _peak["max"] = max(_peak["max"], _peak["now"])
+    await asyncio.sleep(0.05)
+    _peak["now"] -= 1
+    return {"annual": [{"as_of": "2025-12-31", "year": 2025, "revenue": 1.0}],
+            "quarterly": [], "as_of": _dt.date.today().isoformat()}
+
+
+xb.read_symbol = _slow                                           # type: ignore[assignment]
+import app.services.tadawul_market as _tmk                        # noqa: E402
+_keep_rows = _tmk.usable_rows
+_tmk.usable_rows = lambda: ({f"S{i}": {"company_url": "/x"}       # type: ignore[assignment]
+                             for i in range(12)}, True, "now")
+_rep = asyncio.run(xb.refresh([f"S{i}" for i in range(12)], conc=4))
+xb.read_symbol = _real_read                                      # type: ignore[assignment]
+_tmk.usable_rows = _keep_rows                                    # type: ignore[assignment]
+check(_peak["max"] > 1,
+      "١٠ الحصادُ متزامنٌ — لا ينتظر كلَّ ملفٍّ قبل طلب التالي",
+      f"أعلى تزامنٍ مقيس: {_peak['max']}")
+check(_peak["max"] <= 4,
+      "١٠ب والسقفُ محدودٌ كما أُعلن — لا عشراتُ وصلاتٍ على المصدر",
+      f"{_peak['max']} ≤ 4")
+check(_rep.get("قُرئت") == 12 and sum(_rep.values()) == 12,
+      "١٠ج والتقريرُ يُحصي كلَّ ورقةٍ مرّةً واحدةً تحت التزامن",
+      str(_rep))
+
 print(("FAIL" if fail else "PASS") + " D263 — قوائمُ XBRL الرسمية")
 raise SystemExit(fail)

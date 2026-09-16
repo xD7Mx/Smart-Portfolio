@@ -379,7 +379,7 @@ def for_symbol(symbol, kind: str = "annual") -> list[dict]:
     return rows if isinstance(rows, list) else []
 
 
-async def refresh(symbols: list[str]) -> dict:
+async def refresh(symbols: list[str], conc: int = 4) -> dict:
     """يقرأ مجموعةَ رموزٍ ويحفظ ما فُهم — ويعيد تقريراً بما دخل وما تعذّر.
 
     ══ وشرطٌ مفقودٌ لا يُقال «بلا ملفّات» ══ (D337)
@@ -401,24 +401,47 @@ async def refresh(symbols: list[str]) -> dict:
     except Exception as e:                                        # noqa: BLE001
         logger.warning("XBRL: تعذّر تحضيرُ لقطة السوق: {}", type(e).__name__)
         _snap = {}
-    for sym in symbols:
+    # ══ والحصادُ يجري بتزامنٍ محدود ══ (D354)
+    # قِيس على خادم المالك: حصادُ ستّين ورقةً استغرق **569 ثانية** —
+    # ‎9.5 ثانيةً للورقة، لأن الحلقةَ كانت `for` بـ`await` داخلَها: تنتظر
+    # كلَّ ملفٍّ قبل أن تطلب التالي. فحصادُ اللقطة كلِّها (‏272) ثلاثٌ
+    # وأربعون دقيقةً من الانتظار على شاشة المالك — وهو عطبٌ لا قانونُ
+    # طبيعة: أداةُ المسح تقرأ ‎409 صفحةً في نحو أربع دقائقَ بتزامنِ ستّة.
+    #
+    # والسقفُ **محدودٌ قصداً**: كلُّ ورقةٍ ملفٌّ مستقلٌّ (لا نداءٌ متكرّرٌ
+    # لبابٍ واحدٍ فيقع تحت إيقاع المصدر)، لكنّ الأدبَ مع المصدر يقتضي
+    # ألا نفتح عليه عشراتَ الوصلات. فأربعٌ افتراضاً، ولم أقِس عتبةَ
+    # خنقٍ عنده — فلا أدّعي أنّ أكثرَ منها آمن.
+    import asyncio as _aio
+
+    sem = _aio.Semaphore(max(1, min(8, int(conc or 4))))
+    lock = _aio.Lock()
+
+    async def _one(sym) -> None:
         _b = str(sym).replace(".SR", "").strip()
         if _snap and not (_snap.get(_b) or {}).get("company_url"):
             # لا رابطَ لصفحة هذه الشركة في اللقطة: سببٌ يُقال باسمه.
-            rep["بلا لقطةٍ للسوق"] += 1
-            continue
-        try:
-            rec = await read_symbol(sym)
-        except Exception as e:                                    # noqa: BLE001
-            logger.debug("XBRL {}: {}", sym, e)
-            rec = None
-        if rec is None:
-            rep["بلا ملفّات"] += 1
-            continue
-        if not (rec.get("annual") or rec.get("quarterly")):
-            rep["لم تُفهم"] += 1
-            continue
-        save_symbol(sym, rec)
-        rep["قُرئت"] += 1
+            async with lock:
+                rep["بلا لقطةٍ للسوق"] += 1
+            return
+        async with sem:
+            try:
+                rec = await read_symbol(sym)
+            except Exception as e:                                # noqa: BLE001
+                logger.debug("XBRL {}: {}", sym, e)
+                rec = None
+        async with lock:
+            if rec is None:
+                rep["بلا ملفّات"] += 1
+            elif not (rec.get("annual") or rec.get("quarterly")):
+                rep["لم تُفهم"] += 1
+            else:
+                save_symbol(sym, rec)
+                rep["قُرئت"] += 1
+            _n = sum(rep.values())
+            if _n % 25 == 0:
+                logger.info("XBRL: {} من {}", _n, len(symbols))
+
+    await _aio.gather(*(_one(s) for s in symbols), return_exceptions=True)
     logger.info("XBRL: {}", rep)
     return rep
