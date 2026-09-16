@@ -1418,7 +1418,16 @@ class MarketDataService:
             rows = []
         if rows:
             return {"symbol": symbol, "periods": rows, "source": "تداول — XBRL"}
-        return await self._yahoo().get_financials(symbol, allow_supplement=allow_supplement)
+        # ══ وكلُّ طبقةٍ تَسِمُ مخرَجَها ══ (D334)
+        # قِيس على خادم المالك: شركةٌ قوائمُها **أربعُ فترات** ومصدرُها
+        # يُطبع «لا شيء» — لأن طبقةَ ياهو لا تضع `source` أصلاً. فرقمٌ
+        # بلا نسبةٍ إلى مصدره لا يُبنى عليه قرارٌ ولا يُقاس عمرُه، وهو
+        # نقضُ بند «مصدرٌ يُعلَن مع الصفوف» المكتوب في هذه الدالّة نفسِها.
+        out = await self._yahoo().get_financials(
+            symbol, allow_supplement=allow_supplement)
+        if isinstance(out, dict) and out.get("periods") and not out.get("source"):
+            out["source"] = "ياهو"
+        return out
 
     async def get_quarterly_financials(self, symbol: str):
         """الربعيُّ بالترتيب نفسِه — والرسميُّ أوّلاً (D263).
@@ -1435,7 +1444,10 @@ class MarketDataService:
             return {"symbol": symbol, "periods": rows, "source": "تداول — XBRL"}
         y = self._yahoo()
         fn = getattr(y, "get_quarterly_financials", None)
-        return await fn(symbol) if fn else None
+        out = await fn(symbol) if fn else None
+        if isinstance(out, dict) and out.get("periods") and not out.get("source"):
+            out["source"] = "ياهو"
+        return out
 
     async def get_ownership(self, symbol: str) -> Optional[dict]:
         return await self._yahoo().get_ownership(symbol)
