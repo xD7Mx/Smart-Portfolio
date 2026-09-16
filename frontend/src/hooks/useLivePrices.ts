@@ -87,10 +87,22 @@ function put(sym: string, p: number, c: number | null): boolean {
        للشريط والقوائم لا لمن تنظر إليه.
      · **وأحدثُ قيمةٍ تطرد أقدمَ منها** في الانتظار: لا يُعرض قديمٌ بعد
        جديدٍ أبداً (الانتظارُ خريطةٌ بالرمز لا طابورُ أحداث).
-     · **وسقفُ التأخير معلَنٌ ومحدود** (`REVEAL_MS`)، وما بقي يُفرَغ
-       فوراً عند إغلاق المجرى أو خفاء الصفحة — لا رقمٌ يُحتجَز. */
+     · **وسقفُ التأخير الفاصلُ المقيسُ نفسُه** (انظر D329 أدناه)، وما
+       بقي يُفرَغ فوراً عند خفاء الصفحة — لا رقمٌ يُحتجَز. */
+/* ══ والمدّةُ تُقاس لا تُفترَض ══ (بأمر المالك · D329)
+   قال: «الحركةَ المتّصلةَ أريدها بالثواني تتغيّر». وأربعُ ثوانٍ ثابتةٌ
+   لا تُحقّقها: دفعةٌ كلَّ خمسٍ تُفرَغ في أربعٍ فتسكن الشاشةُ ثانيةً، ودفعةٌ
+   كلَّ خمسَ عشرةَ تُفرَغ في أربعٍ فتسكن إحدى عشرة. فالنافذةُ صارت
+   **قياسَ الفاصل بين دفعتين** (متوسّطٌ متحرّكٌ للفواصل الواصلة)،
+   فيُوزَّع ما وصل على المدّة التي تُتوقَّع حتى الدفعة التالية: حركةٌ في
+   كلّ ثانيةٍ بلا فراغ، وبلا تأخيرٍ يزيد على الفاصل نفسِه. والحدّان
+   يمنعان الشططَ: لا أقلَّ من ثانيةٍ ونصفٍ ولا أكثرَ من عشرين ثانية. */
 const REVEAL_TICK = 250;             // مل.ث بين شريحةٍ وأخرى
-const REVEAL_MS = 4_000;             // أقصى تأخيرٍ لرمزٍ في الدفعة
+const WIN_MIN = 1_500;
+const WIN_MAX = 20_000;
+let arriveAt = 0;                    // زمنُ وصول آخرِ دفعة
+let gapAvg = 5_000;                  // متوسّطُ الفاصل المقيس بين دفعتين
+let deadline = 0;                    // الزمنُ الذي يجب أن يفرُغ عنده الانتظار
 const pending = new Map<string, [number, number | null]>();
 const priority = new Map<string, number>();   // اشتراكاتُ الأولوية بالرمز
 let reveal: number | null = null;
@@ -108,8 +120,10 @@ function tick(): void {
     if (reveal) { window.clearInterval(reveal); reveal = null; }
     return;
   }
-  // حصّةُ الشريحة: ما يُفرِغ الانتظارَ في مدّةٍ لا تتجاوز السقف.
-  const slots = Math.max(1, Math.round(REVEAL_MS / REVEAL_TICK));
+  /* حصّةُ الشريحة: ما يُفرِغ الانتظارَ **عند الموعد** لا قبله — فالحركةُ
+     تمتدّ إلى الدفعة التالية ولا تتوقّف في منتصف المدّة. */
+  const left = Math.max(REVEAL_TICK, deadline - Date.now());
+  const slots = Math.max(1, Math.round(left / REVEAL_TICK));
   const take = Math.max(1, Math.ceil(pending.size / slots));
   let n = 0;
   let any = false;
@@ -124,6 +138,12 @@ function tick(): void {
 
 function apply(q: Record<string, [number, number | null]>): void {
   let now = false;
+  // فاصلُ الوصول يُقاس ويُنعَّم (وزنُ الثلث للجديد): مصدرٌ يتباطأ أو
+  // يتسارع تتبعه النافذةُ بلا إعدادٍ يدويّ.
+  const t = Date.now();
+  if (arriveAt) gapAvg = gapAvg * 0.67 + (t - arriveAt) * 0.33;
+  arriveAt = t;
+  deadline = t + Math.min(WIN_MAX, Math.max(WIN_MIN, gapAvg));
 
   for (const [sym, v] of Object.entries(q || {})) {
     // فورياً: السهمُ المفتوحُ أمام المستخدم، ورمزٌ لا قيمةَ له بعد
