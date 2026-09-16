@@ -332,6 +332,38 @@ def complete(symbol, periods: list[dict], *,
                 last["net_income"] = float(cur) * 1_000_000
                 last["field_sources"]["net_income"] = "أرقام: جدولُ النتائج"
                 _derive(last, last["field_sources"])
+    elif argaam:
+        # ══ و«أرقام» تقوم وحدَها حين لا تُعطي «تداول» فترةً ══ (D352)
+        # قِيس بالمسح الشامل على خادم المالك: «أرقام» تملك صافيَ ربحٍ
+        # لـ**262** ورقةً، و**132** منها لا تملك «تداول» لها صفّاً واحداً
+        # — ومع ذلك كان الشرطُ `if out and argaam`، فإن لم تُعطِ «تداول»
+        # فترةً **رُمي رقمُ أرقام على الأرض**. وهذا نقضٌ لمبدأ المالك:
+        # «اكتشافُ البديل المكمِّل لندمجَه»، فالمكمِّلُ كان يُشترَط له
+        # وجودُ الأصل.
+        # ولا تُختلَق سنةٌ: عمودا الجدول لهما عنوانانِ منشوران، فتُقرأ
+        # السنةُ منهما إن كانت، وإلا بقيت الفترةُ بعنوانها بلا سنة —
+        # فلا تُطابَق بسنتها ولا تُقرأ اتّجاهاً كاذباً.
+        import re as _re
+        src_tbl = (argaam.get("annual") or {}) or (argaam.get("quarter") or {})
+        for _key, _lbl_key in (("prev", "prev_label"),
+                               ("current", "current_label")):
+            v = src_tbl.get(_key)
+            if not isinstance(v, (int, float)):
+                continue
+            lbl = str(src_tbl.get(_lbl_key) or "").strip()
+            m = _re.search(r"20\d{2}", lbl) or _re.search(
+                r"20\d{2}", str(src_tbl.get("date") or ""))
+            p: dict = {"net_income": float(v) * 1_000_000,
+                       "as_of": lbl or None,
+                       "field_sources": {
+                           "net_income": "أرقام: جدولُ النتائج"
+                                         + (f" ({lbl})" if lbl else "")}}
+            if m:
+                p["year"] = int(m.group(0))
+            _derive(p, p["field_sources"])
+            out.append(p)
+        if out:
+            logger.debug("قوائمُ {} من «أرقام» وحدَها: {} فترة", symbol, len(out))
 
     filled = sum(1 for p in out for k, v in (p.get("field_sources") or {}).items()
                  if v != (base_source or _OFFICIAL))

@@ -432,5 +432,31 @@ _MD9 = (ROOT / "backend" / "app" / "services"
 check("SM.missing(rows, symbol)" in _MD9,
       "٩س وبوّابةُ المزوّد تقرأ مسطرةَ الصنف — لا حصّةَ لبندٍ بلا معنى")
 
+# ── ٩ع · و«أرقام» تقوم وحدَها بلا فترةٍ من «تداول» (D352) ────────────────
+# قِيس بالمسح الشامل: «أرقام» تملك صافيَ ربحٍ لـ262 ورقةً، و132 منها لا
+# تملك «تداول» لها صفّاً — وكان الشرطُ `if out and argaam` يرميه.
+_AR = {"annual": {"prev": 1000.0, "current": 1500.0,
+                  "prev_label": "2024", "current_label": "2025",
+                  "date": "2026-03-01"}}
+_S0 = SM.complete("X", [], argaam=_AR)
+check(len(_S0) == 2
+      and _S0[-1].get("net_income") == 1_500_000_000.0
+      and _S0[0].get("year") == 2024 and _S0[-1].get("year") == 2025
+      and "أرقام" in (_S0[-1].get("field_sources") or {}).get("net_income", ""),
+      "٩ع «أرقام» تُنشئ فترتَيها بلا أصلٍ من «تداول» — لا يُرمى المكمِّل",
+      f"{len(_S0)} فترة · {_S0[-1].get('net_income') if _S0 else None}")
+# ولا تُختلَق سنةٌ لعنوانٍ لا يحملها
+_S1 = SM.complete("X", [], argaam={"quarter": {"current": 7.0,
+                                               "current_label": "الربع الثاني"}})
+check(len(_S1) == 1 and _S1[0].get("year") is None
+      and _S1[0].get("as_of") == "الربع الثاني",
+      "٩ف وعنوانٌ بلا سنةٍ يبقى بعنوانه — لا سنةَ تُختلَق فيُقرأ اتّجاهٌ كاذب",
+      str(_S1[0].get("year") if _S1 else "—"))
+# والمنشورُ من «تداول» يبقى مقدَّماً: لا تُضاف فتراتُ «أرقام» فوقه
+_S2 = SM.complete("X", [{"year": 2025, "net_income": 5.0}], argaam=_AR)
+check(len(_S2) == 1 and _S2[0].get("net_income") == 5.0,
+      "٩ص ومع فترةٍ من «تداول» لا تُقحَم فتراتُ «أرقام» — الأصلُ مقدَّم",
+      f"{len(_S2)} فترة · {_S2[0].get('net_income')}")
+
 print(("FAIL" if fail else "PASS") + " D255 — ثلاثُ طبقاتٍ بترتيبٍ واحد")
 raise SystemExit(fail)
