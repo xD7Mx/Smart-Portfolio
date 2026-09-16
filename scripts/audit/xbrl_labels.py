@@ -2,7 +2,7 @@
 """بنودُ الملفّ الرسميّ التي لم نطابقها — تُقرأ بأسمائها (D335).
 
     docker exec sp_backend python /app/scripts/audit/xbrl_labels.py 2222
-    docker exec sp_backend python /app/scripts/audit/xbrl_labels.py 2222 2030 2060
+    docker exec sp_backend python /app/scripts/audit/xbrl_labels.py --sectors 2
 
 قِيس على خادم المالك: صفوفُ أرامكو من «تداول — XBRL» فيها الإيرادُ وصافي
 الربح والتدفّقُ التشغيليُّ وربحيةُ السهم — **ولا مصروفاتٌ رأسمالية ولا
@@ -15,6 +15,14 @@
 التي لم نطابقها ولها أرقام**، فتُقرأ أسماؤها كما وردت وتُضاف إلى
 الخريطة بالحرف. وتُطبع كذلك البنودُ المطابَقةُ لكلّ شركةٍ — فيُعرف
 الناقصُ من الموجود.
+
+══ ومسحٌ شاملٌ لكلّ القطاعات ══ (بأمر المالك: «حتى نكون شاملين»)
+`--sectors N` يأخذ من **كلّ قطاعٍ** في دليل السوق ‎N شركةً (اثنتان
+افتراضاً) ويُخرج لكلّ قطاع: ما نقص من البنود المطلوبة وفي كم شركة، ثمّ
+أسماءَ بنودِ الملفّ غيرِ المطابَقة المتكرّرةَ في ذلك القطاع بمعانيها
+(تدفّقٌ · دَينٌ · أسهمٌ/وحدات · تأمينٌ · صافي أصول). فتُقرأ صناعةُ كلّ
+قطاعٍ بلغتها: التأمينُ أقساطٌ وتعويضاتٌ لا إيرادٌ وتكلفة، والصناديقُ
+وحداتٌ وصافي أصولٍ لا مضاعفاتُ شركة.
 """
 from __future__ import annotations
 
@@ -26,10 +34,105 @@ from collections import Counter
 sys.path.insert(0, "/app")
 sys.path.insert(0, "backend")
 
-SYMS = [a.replace(".SR", "") for a in sys.argv[1:] if a[:1].isdigit()] or ["2222"]
+SECT_N = 2
+if "--sectors" in sys.argv:
+    i = sys.argv.index("--sectors")
+    try:
+        SECT_N = int(sys.argv[i + 1])
+    except (IndexError, ValueError):
+        SECT_N = 2
+SYMS = [a.replace(".SR", "") for a in sys.argv[1:] if a[:1].isdigit()]
+SWEEP = "--sectors" in sys.argv
 WANT = ("capex", "equity", "shares_outstanding", "pretax_income",
         "borrowings_current", "borrowings_noncurrent", "total_assets",
-        "total_liabilities", "ending_cash", "interest_expense")
+        "total_liabilities", "ending_cash", "interest_expense",
+        "operating_cash_flow", "revenue", "net_income", "eps")
+
+# معانٍ تُبحَث في أسماء البنود غير المطابَقة — لا مواضعُ ثابتة
+MEANING = {
+    "تدفّق/رأسماليّ": r"addition|purchase|payments? (?:for|of)|"
+                      r"capital expenditure|acquisi.*(propert|asset)",
+    "دَين/قروض": r"borrow|loan|sukuk|debt securit|financ(e|ing) lease|murabaha",
+    "أسهم/وحدات": r"number of (?:shares|units)|units? in issue|"
+                  r"weighted average number|shares outstanding",
+    "تأمين": r"insurance (?:revenue|service)|premium|claims?|reinsur|"
+             r"combined ratio|loss ratio",
+    "صافي أصول": r"net asset value|nav per|net assets attributable",
+    "حقوق ملكية": r"^total equity|equity attributable",
+}
+
+
+async def _unmatched(X, sym: str):
+    """بنودُ أحدثِ ملفٍّ رسميٍّ غيرُ المطابَقة — (الاسم، القيمة)."""
+    from app.services.tadawul_http import fetch
+    files = await X.filings_for(f"{sym}.SR")
+    if not files:
+        return None, "لا ملفّاتٍ رسمية"
+    url = (files[0] or {}).get("url") or ""
+    if url.startswith("/"):
+        url = X.ORIGIN + url
+    st, html = await fetch(url)
+    if st != 200 or not html:
+        return None, f"HTTP {st}"
+    known = {n for names in X.LABELS.values() for n in names}
+    out = []
+    for tr in X._TR.findall(html):
+        cells = [X._clean(c) for c in X._TD.findall(tr)]
+        if len(cells) < 2 or not cells[0]:
+            continue
+        n = X._norm(cells[0])
+        if n in known or n in X._META.values() or len(n) < 4:
+            continue
+        nums = [c for c in cells[1:] if X._num(c) is not None]
+        if nums:
+            out.append((n, nums[0]))
+    return out, None
+
+
+async def sweep() -> int:
+    from app.data.market_universe import MARKET_UNIVERSE as U
+    from app.services import tadawul_xbrl as X
+
+    by_sec: dict[str, list[str]] = {}
+    for s, m in U.items():
+        sec = str((m or {}).get("sector") or "—")
+        by_sec.setdefault(sec, []).append(str(s))
+    print(f"═ قطاعاتٌ: {len(by_sec)} · من كلٍّ {SECT_N} شركة ═")
+
+    for sec in sorted(by_sec):
+        picks = sorted(by_sec[sec])[:SECT_N]
+        print("\n═════ " + sec + " — " + " · ".join(picks) + " ═════")
+        miss_cnt: Counter = Counter()
+        names: dict[str, Counter] = {k: Counter() for k in MEANING}
+        seen = 0
+        for sym in picks:
+            rows = X.for_symbol(sym, "annual")
+            if rows:
+                seen += 1
+                for k in WANT:
+                    if all(r.get(k) is None for r in rows):
+                        miss_cnt[k] += 1
+            else:
+                miss_cnt["لا صفوفَ محفوظة"] += 1
+            un, err = await _unmatched(X, sym)
+            if un is None:
+                print(f"  · {sym}: تعذّر — {err}")
+                continue
+            for n, v in un:
+                for lbl, pat in MEANING.items():
+                    if re.search(pat, n, re.I):
+                        names[lbl][f"{n}"] += 1
+        print(f"  محفوظٌ لـ{seen} من {len(picks)} · الناقصُ: "
+              + (" · ".join(f"{k}×{c}" for k, c in miss_cnt.most_common())
+                 or "لا شيء"))
+        for lbl, cnt in names.items():
+            if cnt:
+                top = " · ".join(f"«{n}»" for n, _ in cnt.most_common(4))
+                print(f"    [{lbl}] {top}")
+    print("\nالحكم: لكلّ قطاعٍ لغتُه. ما ظهر اسمُه أعلاه يُضاف إلى"
+          " `LABELS` بالحرف، وما لا يُنشَر يبقى معلَناً بغيابه — ولا"
+          " يُلبَّس رقمٌ مصنوعٌ ثوبَ المنشور.")
+    return 0
 
 
 async def main() -> int:
@@ -120,4 +223,4 @@ async def main() -> int:
     return 0
 
 
-raise SystemExit(asyncio.run(main()))
+raise SystemExit(asyncio.run(sweep() if SWEEP else main()))
