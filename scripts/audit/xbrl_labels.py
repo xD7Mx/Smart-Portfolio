@@ -84,11 +84,13 @@ async def _unmatched(X, sym: str):
         if len(cells) < 2 or not cells[0]:
             continue
         n = X._norm(cells[0])
-        if n in known or n in X._META.values() or len(n) < 4:
-            continue
-        nums = [c for c in cells[1:] if X._num(c) is not None]
+        if (n in known or n in X._META.values() or len(n) < 4
+                or "[text block]" in n or len(cells[0]) > 160):
+            continue                                     # D373: كتلةُ نصّ
+        nums = [c for c in cells[1:]
+                if len(c) <= 40 and X._num(c) is not None]
         if nums:
-            out.append((n, nums[0]))
+            out.append((n, nums[0][:40]))
     return out, None
 
 
@@ -189,10 +191,20 @@ async def main() -> int:
             n = X._norm(cells[0])
             if n in known or n in X._META.values():
                 continue
-            nums = [c for c in cells[1:] if X._num(c) is not None]
+            # ══ وكتلةُ النصّ ليست قيمةَ بندٍ ══ (D373)
+            # قِيس في مخرَج المالك: طُبعت **شفرةُ جافاسكربت** (‏boomerang
+            # الخاصّةُ بالقياس) كأنها قيمةُ «مسؤوليات الإدارة» — لأن
+            # صفوفَ `[text block]` تحمل صفحةً كاملةً، و`_num` يجد فيها
+            # رقماً فيمرّ. فأداتي لوّثت مخرَجَها بنفسها، وأُغرقت الأسماءُ
+            # المفيدةُ تحت آلافِ حرفٍ لا تُقرأ. فتُقصَّ الخلايا الطويلةُ
+            # ويُستثنى صفُّ الكتلة النصّية صراحةً.
+            if "[text block]" in n or len(cells[0]) > 160:
+                continue
+            nums = [c for c in cells[1:]
+                    if len(c) <= 40 and X._num(c) is not None]
             if not nums:
                 continue
-            unmatched.append((n, nums[0]))
+            unmatched.append((n, nums[0][:40]))
             miss_names[n] += 1
         print(f"  بنودٌ ذاتُ أرقامٍ لم تُطابَق: {len(unmatched)}")
         # ما يُشبه المطلوبَ يُبرَز أوّلاً — بمعناه لا بموضعه

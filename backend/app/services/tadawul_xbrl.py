@@ -55,7 +55,20 @@ LABELS: dict[str, tuple[str, ...]] = {
     # (أي ٣٥٥ مليار بالمليون) — فنسبةُ المديونية في الحوكمة كانت تُحسب
     # على جزءٍ من الدَّين. والأسماءُ أدناه منقولةٌ من المخرَج لا مجتهَدة.
     "revenue": ("total revenue", "revenue", "total revenues",
-                "revenue from contracts with customers", "external revenue"),
+                "revenue from contracts with customers", "external revenue",
+                # ══ ولغةُ البنك تُنقَل كما نُشرت ══ (D372)
+                # قِيس على خادم المالك: `revenue` غائبٌ في **ثلاثةِ بنوكٍ
+                # من ثلاثة**، وقائمةُ البنك لا تحمل كلمةَ «إيراد» أصلاً.
+                # وفي ملفّ 1010 صفٌّ منشورٌ بهذا الاسم = 6,938,847 — وهو
+                # دخلُه الإجماليُّ من التمويل والاستثمار. منقولٌ بالحرف.
+                # وهو دخلُ العمولة والتمويل: لا يشمل أتعابَ الخدمات، فهو
+                # **أدنى حدٍّ منشورٍ** لا تقديرٌ أعلى منه.
+                "special commission income/ gross financing and investment income"),
+    # ودخلُ العمولة **الصافي** يُقرأ مفتاحاً مساعداً لا إيراداً ولا
+    # مصروفاً: منه وحدَه تُشتقّ تكلفةُ تمويلِ البنك بهويّةٍ حسابية.
+    "_commission_net": (
+        "special commission income (expense)/ financing and investment"
+        " income (expense), net",),
     "net_income": ("profit (loss) for period", "profit (loss)",
                    "profit (loss) for the period",
                    "profit (loss), attributable to equity holders of parent company"),
@@ -234,7 +247,8 @@ def parse(html: str) -> dict:
     money = {"revenue", "net_income", "equity", "total_assets",
              "total_liabilities", "interest_expense", "operating_cash_flow",
              "capex", "ending_cash", "pretax_income", "borrowings_current",
-             "borrowings_noncurrent", "lease_current", "lease_noncurrent"}
+             "borrowings_noncurrent", "lease_current", "lease_noncurrent",
+             "_commission_net"}
     # وعددُ الأسهم عددٌ لا مال: لا يُضرَب في وحدة التقريب (كربحية السهم).
 
     periods: list[dict] = []
@@ -255,6 +269,22 @@ def parse(html: str) -> dict:
         # ══ مشتقّاتٌ من بنودٍ مقروءةٍ لا من تخمين ══
         # الربحُ التشغيليُّ لا يُنشَر باسمه في هذا التصنيف، ويُشتقّ حسابياً:
         # ربحٌ قبل الزكاة + تكلفةُ التمويل. ولا يُشتقّ إن غاب أحدُهما.
+        # ══ تكلفةُ تمويلِ البنك بهويّةٍ حسابيةٍ لا باسمٍ شبيه ══ (D372)
+        # المزلقُ الذي كاد يوقعني: صفُّ «... net = 3,376,189» في ملفّ 1010
+        # **دخلٌ صافٍ لا مصروف**، وربطُه بـ`interest_expense` يُدخل
+        # مصروفاً وهميّاً ويقلب الربحَ التشغيليّ. والمصروفُ لا يُنشَر
+        # مستقلّاً في هذا التصنيف، ويُشتقّ بفرقٍ لا لبسَ فيه:
+        #     مصروفُ العمولة = الدخلُ الإجماليُّ − الدخلُ الصافي
+        # (‏1010: 6,938,847 − 3,376,189 = 3,562,658). وهو طرحٌ من رقمَين
+        # منشورَين، لا تقريبٌ ولا اجتهادٌ في معنى اسم.
+        _gross, _net = p.get("revenue"), p.get("_commission_net")
+        if (p.get("interest_expense") is None
+                and isinstance(_gross, (int, float))
+                and isinstance(_net, (int, float))
+                and _gross > _net > 0):
+            p["interest_expense"] = round(_gross - _net, 2)
+            p["interest_expense_derived"] = "إجماليُّ دخلِ العمولة − صافيه"
+        p.pop("_commission_net", None)
         pre, fin_cost = p.get("pretax_income"), p.get("interest_expense")
         if pre is not None and fin_cost is not None:
             p["ebit"] = round(pre + abs(fin_cost), 2)

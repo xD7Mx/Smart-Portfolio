@@ -436,6 +436,34 @@ check(_EXEMPT == [],
       "٩م‍ب ولا صنفَ مُصدِرٍ معفىً — الإعفاءُ للورقة المؤشِّرة وحدَها",
       f"معفَون={_EXEMPT or 'لا أحد'}")
 
+# ── ٩س · لغةُ البنك: إيرادٌ منقولٌ ومصروفٌ مشتقٌّ بهويّة (D372) ──────
+# قِيس على خادم المالك: `revenue` و`interest_expense` غائبانِ في ثلاثةِ
+# بنوكٍ من ثلاثة. وفي ملفّ 1010 دخلٌ إجماليٌّ منشورٌ (6,938,847) ودخلٌ
+# **صافٍ** (3,376,189) — والثاني ليس مصروفاً، وربطُه بالمصروف يقلب
+# الربحَ التشغيليّ. فالمصروفُ يُشتقّ طرحاً من رقمَين منشورَين.
+_BANK_HTML = ("<table>"
+              "<tr><td>End Date</td><td>2026-06-30</td></tr>"
+              "<tr><td>special commission income/ gross financing and"
+              " investment income</td><td>6,938,847</td></tr>"
+              "<tr><td>special commission income (expense)/ financing and"
+              " investment income (expense), net</td><td>3,376,189</td></tr>"
+              "<tr><td>profit (loss) before zakat and income tax</td>"
+              "<td>2,982,516</td></tr></table>")
+try:
+    from app.services.tadawul_xbrl import parse as _xparse
+    _bp = (_xparse(_BANK_HTML).get("periods") or [{}])[0]
+except Exception as _e:                                           # noqa: BLE001
+    _bp = {"خطأ": type(_e).__name__}
+check(_bp.get("revenue") == 6938847.0
+      and _bp.get("interest_expense") == 3562658.0
+      and _bp.get("ebit") == 6545174.0,
+      "٩س إيرادُ البنك منقولٌ بالحرف ومصروفُه مشتقٌّ بفرقِ المنشورَين",
+      f"إيراد={_bp.get('revenue')} · مصروف={_bp.get('interest_expense')}")
+# ولا يُلبَّس الصافي ثوبَ المصروف: لو نُقل الاسمُ الصافي مباشرةً لخرج
+# المصروفُ 3,376,189 — فيُحرَس أنه ليس كذلك.
+check(_bp.get("interest_expense") != 3376189.0,
+      "٩ش ودخلُ العمولة الصافي لا يُقرأ مصروفاً — مزلقٌ يُمنَع بحارس")
+
 # والمحرّكُ يمتنع للورقة المؤشِّرة **بسببها لا بسبب شركة**
 from app.services.fair_value import compute as _fv                # noqa: E402
 
