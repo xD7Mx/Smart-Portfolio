@@ -64,8 +64,14 @@ def _period_anchors(today, rtype: str):
     if rtype == "DAILY":
         return today - timedelta(days=1), today - timedelta(days=2)
     if rtype == "WEEKLY":
-        # الأسبوع التداولي ينتهي الخميس (weekday()==3). نأخذ آخر خميس ≤ اليوم.
+        # الأسبوع التداولي ينتهي الخميس (‏weekday()==3).
+        # ══ ويوم الخميس نفسُه ليس أسبوعاً مغلقاً ══ (D333)
+        # كانت القاعدةُ «آخر خميس ≤ اليوم»، فتقريرٌ يُنشَأ الخميسَ ظهراً
+        # يُسمّي أسبوعاً «مغلقاً» وجلستُه لم تنتهِ بعد — وهو نقضُ الوصف
+        # الذي كُتب لهذه الدالّة. فالخميسُ يأخذ الأسبوعَ الذي قبله.
         offset = (today.weekday() - 3) % 7
+        if offset == 0:
+            offset = 7
         now_a = today - timedelta(days=offset)
         return now_a, now_a - timedelta(days=7)
     if rtype == "MONTHLY":
@@ -329,7 +335,11 @@ async def generate_report(report_type: str = "WEEKLY", db: AsyncSession = Depend
     total_invested = sum(float(h.invested_amount or 0) for h in holdings)
     market_value = sum(float(h.market_value or 0) for h in holdings)
     dividends = sum(float(h.total_dividends_received or 0) for h in holdings)
-    roi = ((market_value - total_invested) / total_invested * 100) if total_invested else 0
+    # ══ بلا تكلفةٍ لا عائدَ يُقاس ══ (D333)
+    # كان `else 0`: محفظةٌ بلا تكلفةٍ مسجَّلةٍ تُنتج «عائد ٠٪» — وهو حكمٌ
+    # بالتعادل على ما لا يُعرَف. والورقةُ تعرض الغائبَ شرطةً، فيُرسَل
+    # غائباً. (والمحرّكُ التحليليُّ يأخذ صفراً لأنّ حسابَه رقميّ.)
+    roi = ((market_value - total_invested) / total_invested * 100) if total_invested else None
 
     positions = [{
         "name": h.company.company_name if h.company else "",
@@ -346,7 +356,7 @@ async def generate_report(report_type: str = "WEEKLY", db: AsyncSession = Depend
     targets = await _target_weights(db)
     performance = await _performance_context(db, hs)
     capital_recovery = await _capital_recovery_context(db)
-    full = portfolio_analytics.report(hs, cash, {"market_value": market_value, "roi_pct": roi}, targets, performance, capital_recovery)
+    full = portfolio_analytics.report(hs, cash, {"market_value": market_value, "roi_pct": roi or 0}, targets, performance, capital_recovery)
     # النصّ التحليلي **لا يُستدعى هنا**: هو موجودٌ أصلاً في قسم تحليل الذكاء،
     # وتكراره كان يعني انتظار ردّ المزوّد داخل طلب إنشاء التقرير — فيتأخّر
     # التقرير ثوانيَ لأجل نصٍّ يقرأه المالك في مكانٍ آخر. والمحتوى المحسوب
@@ -401,8 +411,8 @@ async def generate_report(report_type: str = "WEEKLY", db: AsyncSession = Depend
             "cagr_pct": _cagr,
             "unrealized_pnl": market_value - total_invested,
             # يبقى للتوافق مع التقارير القديمة، لكن اسمه يقول ما هو بالضبط.
-            "roi_pct": round(roi, 2),
-            "unrealized_roi_pct": round(roi, 2),
+            "roi_pct": round(roi, 2) if roi is not None else None,
+            "unrealized_roi_pct": round(roi, 2) if roi is not None else None,
             "net_profit": _net.get("net_profit"),
             "capital_growth_pct": _net.get("capital_growth_pct"),
             "cost_basis": _net.get("cost_basis"),
@@ -413,7 +423,17 @@ async def generate_report(report_type: str = "WEEKLY", db: AsyncSession = Depend
         "positions": positions,
     }
 
-    r = Report(report_type=rtype, report_period=f"{_PERIOD_AR.get(report_type, report_type)} — {date.today().isoformat()}", summary=content)
+    # ══ وسطرُ الفترة يقول الفترةَ لا يومَ الضغط ══ (D333)
+    # كان: «أسبوعي — 2026-09-16» أي **تاريخُ إنشاء** التقرير، وهو مكتوبٌ
+    # في عمودٍ آخرَ أصلاً (`generated_at`). والفترةُ المغلقةُ محسوبةٌ عندنا
+    # (`_period_anchors`) ولا تُعرض — فصار السطرُ يقول مداها بالحرف:
+    # «أسبوعي · ينتهي 2026-09-10». فيُقرأ التقريرُ بما يُمثّله.
+    _end, _prev = _period_anchors(date.today(), report_type)
+    r = Report(
+        report_type=rtype,
+        report_period=(f"{_PERIOD_AR.get(report_type, report_type)} · "
+                       f"ينتهي {_end.isoformat()}"),
+        summary=content)
     db.add(r)
     await db.commit()
     await db.refresh(r)

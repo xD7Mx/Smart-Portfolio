@@ -24,6 +24,23 @@ const TYPES_MOBILE = [
 
 const REPORT_WIDTH = 794;
 
+/* ══ نوعُ التقرير بالعربية، وتاريخٌ بصيغةٍ واحدةٍ في التطبيق ══ (D333)
+   كان الأرشيفُ يعرض `WEEKLY` و`MONTHLY` نصّاً إنجليزياً في شاشةٍ عربيةٍ
+   كاملة — والخادمُ يملك الترجمةَ ويستعملها في سطر الفترة وحدَه. وكان
+   التاريخُ `en-GB` (‏16/09/2026) في القائمة و`ar-EG…nu-latn` في الورقة:
+   قيمةٌ واحدةٌ بصيغتين في الميزة نفسِها. فصارت الترجمةُ والصيغةُ واحدة. */
+const TYPE_AR: Record<string, string> = {
+  DAILY: "يومي", WEEKLY: "أسبوعي", MONTHLY: "شهري",
+  QUARTERLY: "ربع سنوي", ANNUAL: "سنوي",
+};
+const typeAr = (t?: string | null) => TYPE_AR[String(t || "").toUpperCase()] || t || "—";
+const dateAr = (v?: string | null) => {
+  if (!v) return "—";
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? "—"
+    : d.toLocaleDateString("ar-EG-u-ca-gregory-nu-latn");
+};
+
 // html-to-image's AUTOMATIC font embedding walks document.styleSheets to
 // inline @font-face rules into the exported SVG — a step that fails
 // silently on some devices (notably mobile Safari/Chrome, depending on
@@ -303,16 +320,28 @@ export default function ReportsPage() {
     queryKey: ["reports"],
     queryFn: () => reportsApi.list().then(r => (Array.isArray(r.data.data) ? r.data.data : [])),
   });
+  /* ══ وتعذُّرٌ يُعلَن لا يُبتلع ══ (D333)
+     كان الزرُّ يُضغَط فيرجع بلا تقرير وبلا كلمة: لا `onError` في الإنشاء
+     ولا في الحذف. فعطبُ الخادم يبدو للمالك «زرّاً لا يعمل» — وهو صنفُ
+     الصمت الذي أُسجّله في كل مرّة. */
+  const [failure, setFailure] = useState<string | null>(null);
+  const why = (e: any) =>
+    String(e?.response?.data?.detail || e?.response?.data?.message
+           || e?.message || e).slice(0, 160);
   const genMutation = useMutation({
     mutationFn: (type: string) => reportsApi.generate(type).then(r => r.data),
     onSuccess: (r: any) => {
+      setFailure(null);
       qc.invalidateQueries({ queryKey: ["reports"] });
       if (r?.data?.id) setViewId(r.data.id);
+      else setFailure("أُنشئ التقريرُ ولم يُعَد معرِّفُه — افتحه من الأرشيف.");
     },
+    onError: (e: any) => setFailure(`تعذّر إنشاءُ التقرير: ${why(e)}`),
   });
   const delMutation = useMutation({
     mutationFn: (id: number) => reportsApi.remove(id).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reports"] }),
+    onSuccess: () => { setFailure(null); qc.invalidateQueries({ queryKey: ["reports"] }); },
+    onError: (e: any) => setFailure(`تعذّر حذفُ التقرير: ${why(e)}`),
   });
 
   return (
@@ -351,6 +380,9 @@ export default function ReportsPage() {
           ))}
         </div>
         {genMutation.isPending && <p className="text-xs text-[var(--ink-muted)] mt-2">جارٍ إنشاء التقرير...</p>}
+        {failure && (
+          <p className="text-xs mt-2" style={{ color: "var(--neg-ink)" }}>{failure}</p>
+        )}
       </div>
       )}
 
@@ -371,8 +403,8 @@ export default function ReportsPage() {
               {reports.map((r: any) => (
                 <div key={r.id} className="rounded-xl border border-[var(--hairline)] panel p-3.5">
                   <div className="flex items-center justify-between gap-2 mb-2.5">
-                    <span className="tag-b">{r.type}</span>
-                    <span className="text-[11px] text-[var(--ink-muted)]">{r.generated_at ? new Date(r.generated_at).toLocaleDateString("en-GB") : "—"}</span>
+                    <span className="tag-b">{typeAr(r.type)}</span>
+                    <span className="text-[11px] text-[var(--ink-muted)]">{dateAr(r.generated_at)}</span>
                   </div>
                   <p className="text-[var(--ink)] text-sm font-semibold mb-3">{r.period ?? "—"}</p>
                   <div className="flex items-center gap-2">
@@ -411,9 +443,9 @@ export default function ReportsPage() {
                 <tbody>
                   {reports.map((r: any) => (
                     <tr key={r.id} className="hover:bg-[var(--field)] transition-colors">
-                      <td className="td"><span className="tag-b">{r.type}</span></td>
+                      <td className="td"><span className="tag-b">{typeAr(r.type)}</span></td>
                       <td className="td text-[var(--ink-muted)]">{r.period ?? "—"}</td>
-                      <td className="td text-[var(--ink-muted)]">{r.generated_at ? new Date(r.generated_at).toLocaleDateString("en-GB") : "—"}</td>
+                      <td className="td text-[var(--ink-muted)]">{dateAr(r.generated_at)}</td>
                       <td className="td">
                         <div className="flex items-center gap-1">
                           <button onClick={() => setViewId(r.id)} title="عرض" className="p-1.5 rounded-lg text-[var(--ink-muted)] hover:text-[var(--brand-ink)] transition-all">
@@ -424,7 +456,7 @@ export default function ReportsPage() {
                           </button>
                           {isOwner && (
                             <button onClick={() => {
-                              /* نفس تأكيد نسخة الكمبيوتر — هذه بطاقة الجوال. */
+                              /* نفس تأكيد بطاقة الجوّال — وهذا جدولُ الكمبيوتر. */
                               if (confirm(`حذف تقرير «${r.period ?? r.type}» نهائياً؟ لا يمكن استعادته — وإعادة الإنشاء تُنتج تقريراً بأرقام اليوم لا بأرقامه.`)) delMutation.mutate(r.id);
                             }} title="حذف" disabled={delMutation.isPending} className="p-1.5 rounded-lg text-[var(--ink-muted)] hover:text-[var(--neg-ink)] transition-all">
                               <Trash2 size={15} />

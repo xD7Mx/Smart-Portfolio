@@ -8,6 +8,15 @@ const GOLD = "#d4af37";
 const GOLD_L = "#f3d98b";
 const GREEN = "#0f9d63";
 const RED = "#c0273c";
+/* ══ ورقُ التقرير لوحُه هو ══ (D333)
+   كانت في الورقة ثلاثةُ مواضعَ بلون `var(--ink)` و`var(--ink-muted)` —
+   رموزُ **مظهر التطبيق**. والورقةُ أرضيتُها ثابتةٌ (‏#faf6ee) وترويستُها
+   بنفسجيةٌ ثابتة، فحبرٌ يتبع المظهرَ يعني: في المظهر الفاتح حبرٌ أسودُ
+   على البنفسجيّ (‏1.4:1 — لا يُقرأ)، وفي المصدَّر صورةٌ تختلف باختلاف
+   مظهرِ قارئها. فالورقةُ ألوانُها من لوحها نفسِه لا من التطبيق. */
+const PAPER_INK = "#241f1a";
+const PAPER_MUTED = "#6b6255";
+const ON_NAVY = "#efe7ff";
 
 export interface ReportDocData {
   period?: string;
@@ -29,7 +38,12 @@ export interface ReportDocData {
 
 const ReportDocument = React.forwardRef<HTMLDivElement, { data: ReportDocData }>(({ data }, ref) => {
   const m = data.metrics || {};
-  const genDate = data.generated_at ? new Date(data.generated_at) : new Date();
+  /* ولا يُختلق تاريخُ إصدار (D333): كان الغيابُ يُملأ بـ`new Date()`،
+     فيُطبع في ورقةٍ لا تاريخَ لها **تاريخُ اليوم** — وهو رقمٌ لا مصدرَ
+     له في التقرير. فالغائبُ شرطة. */
+  const genDate = data.generated_at ? new Date(data.generated_at) : null;
+  const genText = genDate && !isNaN(genDate.getTime())
+    ? genDate.toLocaleDateString("ar-EG-u-ca-gregory-nu-latn") : "—";
 
   return (
     <div
@@ -50,9 +64,9 @@ const ReportDocument = React.forwardRef<HTMLDivElement, { data: ReportDocData }>
             <div style={{ color: "#fff", fontSize: 22, fontWeight: 500 }}>المحفظة الذكية</div>
             <div style={{ color: GOLD_L, fontSize: 11.5, fontWeight: 300, marginTop: 2 }}>تقرير أداء المحفظة الاستثمارية</div>
           </div>
-          <div style={{ textAlign: "left", color: "var(--ink)", fontSize: 11 }}>
+          <div style={{ textAlign: "left", color: ON_NAVY, fontSize: 11 }}>
             <div>الفترة: <span style={{ color: "#fff", fontWeight: 300 }}>{data.period || ""}</span></div>
-            <div style={{ marginTop: 3 }}>تاريخ الإصدار: {genDate.toLocaleDateString("ar-EG-u-ca-gregory-nu-latn")}</div>
+            <div style={{ marginTop: 3 }}>تاريخ الإصدار: {genText}</div>
           </div>
         </div>
       </div>
@@ -76,13 +90,18 @@ const ReportDocument = React.forwardRef<HTMLDivElement, { data: ReportDocData }>
             const sgn = (v?: number | null, d = 2) =>
               v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(d)}%`;
             const col = (v?: number | null) => v == null ? NAVY : (v >= 0 ? GREEN : RED);
-            const upnl = m.unrealized_pnl ?? 0, roi = m.roi_pct ?? 0;
+            /* ولا يُصفَّر غائبٌ (D333): جارتاهما في الشبكة نفسِها تعرضان
+               «—» للغائب، وهاتان كانتا تعرضان «+0» و«+0.00%» — فيُقرأ
+               الجهلُ تعادلاً. والقاعدةُ في الميثاق: الغيابُ يُقال. */
+            const upnl = m.unrealized_pnl ?? null, roi = m.roi_pct ?? null;
+            const amt = (v?: number | null) =>
+              v == null ? "—" : `${v >= 0 ? "+" : ""}${money(v)}`;
             return [
               { l: "القيمة السوقية", v: money(m.market_value || 0), c: NAVY },
               { l: "القيمة المدفوعة", v: money(m.total_invested || 0), c: NAVY },
               { l: "إجمالي الثروة", v: m.wealth == null ? "—" : money(m.wealth), c: NAVY },
 
-              { l: "الأرباح غير المحققة", v: `${upnl >= 0 ? "+" : ""}${money(upnl)}`, c: col(upnl) },
+              { l: "الأرباح غير المحققة", v: amt(upnl), c: col(upnl) },
               { l: "نسبة الأرباح غير المحققة", v: sgn(roi), c: col(roi) },
               { l: "صافي الربح", v: m.net_profit == null ? "—" : `${m.net_profit >= 0 ? "+" : ""}${money(m.net_profit)}`, c: col(m.net_profit) },
 
@@ -92,7 +111,7 @@ const ReportDocument = React.forwardRef<HTMLDivElement, { data: ReportDocData }>
             ];
           })().map(k => (
             <div key={k.l} style={{ border: "1px solid #e4dcc2", borderRadius: 8, padding: "10px 12px", background: "#fff" }}>
-              <div style={{ fontSize: 10, color: "var(--ink-muted)", fontWeight: 300 }}>{k.l}</div>
+              <div style={{ fontSize: 10, color: PAPER_MUTED, fontWeight: 300 }}>{k.l}</div>
               <div style={{ fontSize: 16, fontWeight: 300, color: k.c, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{k.v}</div>
             </div>
           ))}
@@ -121,11 +140,12 @@ const ReportDocument = React.forwardRef<HTMLDivElement, { data: ReportDocData }>
                 {data.positions.map((p, i) => (
                   <tr key={p.symbol} style={{ background: i % 2 ? "#f6f2e4" : "#fff", borderBottom: "1px solid #e9e2cc" }}>
                     <td style={{ padding: "6px 10px", fontWeight: 300 }}>{p.name}</td>
-                    <td style={{ padding: "6px 10px", color: "var(--ink-muted)" }}>{p.symbol}</td>
+                    <td style={{ padding: "6px 10px", color: PAPER_MUTED }}>{p.symbol}</td>
                     <td style={{ padding: "6px 10px", fontVariantNumeric: "tabular-nums" }}>{money(p.shares)}</td>
                     <td style={{ padding: "6px 10px", fontVariantNumeric: "tabular-nums" }}>{money(p.market_value)}</td>
                     <td style={{ padding: "6px 10px", color: p.pnl >= 0 ? GREEN : RED, fontVariantNumeric: "tabular-nums" }}>
-                      {p.pnl >= 0 ? "+" : ""}{money(p.pnl)} ({(p.pnl_pct ?? 0).toFixed(1)}%)
+                      {p.pnl >= 0 ? "+" : ""}{money(p.pnl)}
+                      {p.pnl_pct == null ? "" : ` (${p.pnl_pct.toFixed(1)}%)`}
                     </td>
                   </tr>
                 ))}
@@ -152,9 +172,11 @@ const ReportDocument = React.forwardRef<HTMLDivElement, { data: ReportDocData }>
         </div>
       </div>
 
-      {/* Footer */}
-      <div style={{ background: `linear-gradient(135deg, ${NAVY}, ${NAVY_2})`, padding: "16px 44px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      </div>
+      {/* ══ وذيلُ الورقة: شريطُ هويّةٍ لا صندوقٌ خاوٍ ══ (D333)
+          كان `padding: 16px` بتدرّجٍ بنفسجيٍّ **وبلا مضمون** — كتلةُ لونٍ
+          بارتفاع ٥٠px لا تقول شيئاً (بقيّةُ محتوًى أُزيل). فصار شريطاً
+          رقيقاً يُقفل الورقةَ بلون الهويّة: زينةٌ مقصودةٌ لا فراغٌ منسيّ. */}
+      <div style={{ height: 6, background: `linear-gradient(90deg, ${NAVY}, ${NAVY_2}, ${NAVY})` }} />
     </div>
   );
 });

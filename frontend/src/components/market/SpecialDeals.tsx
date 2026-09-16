@@ -116,14 +116,19 @@ export default function SpecialDeals({ onOpen }: { onOpen?: (s: string) => void 
                    onKeyDown={e => { if (e.key === "Escape") close(); }} />
           </div>
         </div>
-        <div className="ms-auto flex rounded-lg border border-[var(--line)] overflow-hidden">
+        {/* ══ مبدِّلُ المدى بهويّة التطبيق ══ (بأمر المالك · D332)
+            كنتُ كتبتُ له إطاراً وأرضيةً وألواناً ثابتةً من عندي، فبان
+            غريباً عن التطبيق. والنمطُ المعتمَدُ قائمٌ ومستعملٌ في ستّة
+            مواضع (`FrameSeg` في السوق · التوزيعُ النسبيّ · الأحداثُ ·
+            تخطيطُ المحفظة): `seg` + `seg-btn` + `on`، ومعه ارتفاعُ
+            اللمس ولونُ الهويّة وحلُّ «القلتش» في التحويم. فالميزةُ
+            تتبع الهويّة لا العكس. */}
+        <div className="seg inline-flex shrink-0 ms-auto">
           {RANGES.map(r => (
             <button key={r.days} onClick={() => setDays(r.days)}
                     aria-pressed={days === r.days}
-                    className="px-2.5 py-1 text-[11px] font-bold min-h-[32px]"
-                    style={days === r.days
-                      ? { background: "var(--brand-ink)", color: "var(--on-brand)" }
-                      : { color: "var(--ink-muted)" }}>
+                    className={"seg-btn whitespace-nowrap"
+                               + (days === r.days ? " on" : "")}>
               {r.label}
             </button>
           ))}
