@@ -286,7 +286,9 @@ _MD2 = (ROOT / "backend" / "app" / "services"
         / "market_data.py").read_text(encoding="utf-8")
 check("self._complete(" in _MD2 and "statement_merge" in _MD2,
       "٨ط والبابُ الواحدُ يُكمِل لكلّ شاشةٍ ومحرّك — لا في مسارٍ واحد")
-check("if SM.missing(rows):" in _MD2,
+# البوّابةُ نفسُها، ووسيطُ المسطرة أُضيف إليها لاحقاً (D349) — فيُقاس
+# الشرطُ بمقدّمته لا بحرفيّة سطرٍ قديم، و٩س يحرس الوسيطَ وحدَه.
+check("if SM.missing(rows" in _MD2,
       "٨ي وياهو لا يُنادى إن لم يبقَ بندٌ ناقص — لا حصّةٌ تُحرَق بلا حاجة")
 
 # ── ٩ · ووحدةُ المال تُسوّى بمِرساةٍ لا بالهويّة وحدَها (D339) ───────────
@@ -379,6 +381,56 @@ _bad = _dcf([dict(p, shares_mismatch=1.6) for p in _FP],
 check(_ok is not None and _bad is None,
       "٩ط والمحرّكُ يمتنع على عددٍ موسومٍ بدل أن يقسم عليه",
       f"سليم={None if _ok is None else 'قيمة'} · موسوم={_bad}")
+
+# ── ٩ي · المسطرةُ القطاعية: ما لا يُنشَر في صنفٍ ليس ناقصاً (D349) ───────
+# قِيس على خادم المالك: `interest_expense` غائبٌ في ٣٢ من ٩٠ ومعه `ebit`،
+# وعشرُ الأولى بنوكٌ لا تنشر البندَ أصلاً (دخلُها عمولةٌ صافية). فالبندُ
+# غيرُ ذي معنى في نموذجها لا ناقصٌ من مصدرها — ولا تُحرَق له حصّةُ مزوّد.
+_ROWS9 = [{"year": 2025, "revenue": 1.0}]
+# والحارسُ يُبلّغ ولا ينفجر: غيابُ الواجهة نفسِها غيابُ السلوك، فيُقرأ
+# أحمرَ مطبوعاً لا انهياراً يُسكِت ما بعده.
+_nm = getattr(SM, "not_meaningful", lambda *_a, **_k: ())
+_ar = getattr(SM, "archetype_of", lambda *_a, **_k: None)
+
+
+def _miss(rows, sym=None):
+    try:
+        return SM.missing(rows, sym) if sym else SM.missing(rows)
+    except TypeError:                     # واجهةٌ بلا وسيط الصنف
+        return SM.missing(rows)
+
+
+_NM_B = _nm("1010")
+check(_ar("1010") == "bank"
+      and "interest_expense" in _NM_B and "ebit" in _NM_B
+      and "interest_expense" not in _miss(_ROWS9, "1010"),
+      "٩ي تكلفةُ تمويلِ بنكٍ تُعلَن غيرَ ذي معنى — لا ناقصةً تُطلَب",
+      f"نمط={_ar('1010')} · غيرُ ذي معنى={len(_NM_B)}")
+check(_ar("9400") == "fund"
+      and _miss(_ROWS9, "9400") == []
+      and len(_nm("9400")) == len(SM.NEEDED),
+      "٩ك وصندوقُ المؤشّر لا يُطلَب منه بندٌ — لا قوائمَ له بطبيعته",
+      f"ناقص={len(_miss(_ROWS9, '9400'))}")
+check(len(_miss(_ROWS9, "2222")) == len(SM.missing(_ROWS9))
+      and _nm("2222") == (),
+      "٩ل وشركةٌ عاديةٌ لا تُعفى من شيءٍ — لا إعفاءَ يتسلّل بالمسطرة",
+      f"{len(_miss(_ROWS9, '2222'))} بنداً")
+check(_ar("4330") == "reit" and "capex" in _nm("4330"),
+      "٩م والريتُ يشتري عقاراتٍ لا آلاتٍ — فالرأسماليُّ غيرُ ذي معنى له")
+
+# والمحرّكُ يمتنع للورقة المؤشِّرة **بسببها لا بسبب شركة**
+from app.services.fair_value import compute as _fv                # noqa: E402
+
+_F9 = _fv({}, 34.0, symbol="9400", periods=[])
+_why9 = str((_F9 or {}).get("unavailable_reason") or "")
+check(_F9.get("value") is None and "ورقةٌ مؤشِّرة" in _why9
+      and "لم تصلنا" not in _why9,
+      "٩ن وامتناعُ الورقة المؤشِّرة بسببها — لا بجملةِ «نقصٍ في وصول قوائم»",
+      _why9[:58])
+_MD9 = (ROOT / "backend" / "app" / "services"
+        / "market_data.py").read_text(encoding="utf-8")
+check("SM.missing(rows, symbol)" in _MD9,
+      "٩س وبوّابةُ المزوّد تقرأ مسطرةَ الصنف — لا حصّةَ لبندٍ بلا معنى")
 
 print(("FAIL" if fail else "PASS") + " D255 — ثلاثُ طبقاتٍ بترتيبٍ واحد")
 raise SystemExit(fail)

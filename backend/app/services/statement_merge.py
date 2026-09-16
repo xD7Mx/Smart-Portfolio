@@ -54,6 +54,53 @@ NEEDED = ("revenue", "net_income", "eps", "equity", "total_assets",
 
 _OFFICIAL = "تداول — XBRL"
 
+# ══ المسطرةُ القطاعية: ما لا يُنشَر في صنفٍ ليس ناقصاً ══ (D349)
+#
+# قِيس على خادم المالك في مسح العقبات: `interest_expense` غائبٌ في ٣٢
+# ورقةً من ٩٠ ومعه `ebit`، وعشرُ الأولى منها **بنوكٌ** (‏1010…1180). وقراءةُ
+# ملفّاتها بأداة الأسماء ردّت السبب: البنكُ لا ينشر «تكلفةَ تمويل» أصلاً،
+# دخلُه عمولةٌ خاصّةٌ **صافية** (`special commission income (expense) …
+# net`). فالبندُ في نموذجه **غيرُ ذي معنى** لا ناقصٌ من مصدره، والربحُ
+# التشغيليُّ الذي يُشتقّ منه كذلك. ومثلُه صناديقُ المؤشرات: لا إيرادَ لها
+# ولا حقوقَ ولا ربحيةَ سهمٍ بطبيعتها — فطلبُ قوائمَ منها خطأُ تصنيف.
+#
+# والفرقُ بين «ناقص» و«غيرِ ذي معنى» ليس لفظاً: الناقصُ يُبحَث له عن
+# طبقةٍ مكمِّلة وتُحرَق له حصّةُ مزوّد، وغيرُ ذي المعنى يُعلَن ويُسكَت
+# عنه — ولا يُخصَم لغيابه ولا يُطلَب من مصدرٍ لا يملكه.
+#
+# والتصنيفُ **لا يُبنى هنا**: يُقرأ من `archetype_for` في
+# `archetype_spec.py` — مسطرةُ الأنماط القائمةُ التي كشف `rank_check.py`
+# بها أن «التمويل» كان يُقاس بمسطرة البنوك. ولا مسطرةَ ثانيةٌ توازيها.
+_NOT_MEANINGFUL: dict[str, tuple[str, ...]] = {
+    # البنكُ: دخلُه صافي عمولةٍ، ولا تدفّقَ حرّاً له (قرارٌ قائمٌ في
+    # `scores.py`) — فلا رأسماليَّ ولا تشغيليَّ مشتقٌّ منهما.
+    "bank": ("interest_expense", "ebit", "capex", "free_cash_flow"),
+    # الصندوقُ المؤشِّر: لا قوائمَ له بطبيعته — لا بنقصِ مصدر.
+    "fund": tuple(NEEDED),
+    # الريتُ: يشتري عقاراتٍ استثماريةً لا آلاتٍ، وقيمتُه صافي أصوله
+    # وتوزيعاتُه (‏`NAV_FACTOR["reit"] = 1.00` في مواصفة الأنماط).
+    "reit": ("capex", "free_cash_flow"),
+}
+
+
+def archetype_of(symbol) -> str | None:
+    """نمطُ الورقة من مسطرة الأنماط القائمة — أو لا شيء."""
+    base = str(symbol or "").replace(".SR", "").strip()
+    if not base:
+        return None
+    try:
+        from app.data.archetype_spec import archetype_for
+        from app.data.market_universe import MARKET_UNIVERSE
+    except Exception:                                             # noqa: BLE001
+        return None
+    meta = MARKET_UNIVERSE.get(base) or MARKET_UNIVERSE.get(f"{base}.SR") or {}
+    return archetype_for((meta or {}).get("sector"))
+
+
+def not_meaningful(symbol) -> tuple[str, ...]:
+    """بنودٌ لا معنى لها في نموذج هذه الورقة — تُعلَن ولا تُطلَب."""
+    return _NOT_MEANINGFUL.get(archetype_of(symbol) or "", ())
+
 
 def _pos(v):
     try:
@@ -294,9 +341,17 @@ def complete(symbol, periods: list[dict], *,
     return out
 
 
-def missing(periods: list[dict]) -> list[str]:
-    """ما بقي غائباً في **كلّ** الفترات بعد الإكمال — يُقال ولا يُختلق."""
+def missing(periods: list[dict], symbol=None) -> list[str]:
+    """ما بقي غائباً في **كلّ** الفترات بعد الإكمال — يُقال ولا يُختلق.
+
+    و«الناقصُ» ما يملكه نموذجُ الورقة ولم يصلنا. فبندٌ لا معنى له في
+    صنفها (تكلفةُ تمويلٍ لبنك · قوائمُ لصندوقٍ مؤشِّر) ليس نقصاً يُبحَث
+    له عن طبقةٍ ولا حصّةٌ تُحرَق لأجله — يُعلَن بـ`not_meaningful`
+    ويُسكَت عنه هنا (‏D349). و`symbol` اختياريٌّ حفظاً للنداءات القائمة:
+    بلا رمزٍ تبقى المسطرةُ العامّةَ كما كانت.
+    """
+    skip = set(not_meaningful(symbol)) if symbol else set()
     if not periods:
-        return list(NEEDED)
+        return [k for k in NEEDED if k not in skip]
     return [k for k in NEEDED
-            if all(p.get(k) is None for p in periods)]
+            if k not in skip and all(p.get(k) is None for p in periods)]

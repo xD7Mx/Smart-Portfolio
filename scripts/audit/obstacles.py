@@ -145,6 +145,7 @@ async def main() -> int:
     miss_who: dict[str, list[str]] = {}
     gov_out: list[str] = []
     src_cnt: Counter = Counter()
+    nomean: Counter = Counter()
     detail: list[str] = []
     probed = 0
 
@@ -186,7 +187,10 @@ async def main() -> int:
             elif not saved:
                 hit("بلا صفوفٍ محفوظةٍ (لم تُسأل في هذه التشغيلة)", sym)
         else:
-            for k in SM.missing(periods):
+            # ومسطرةُ الصنف: الناقصُ ما يملكه نموذجُها ولم يصلنا (D349)
+            for k in SM.not_meaningful(sym):
+                nomean[k] += 1
+            for k in SM.missing(periods, sym):
                 miss_field[k] += 1
                 miss_who.setdefault(k, []).append(sym)
             # ودلائلُ تسويةِ الوحدة كما وقعت فعلاً (‏D339)
@@ -233,6 +237,12 @@ async def main() -> int:
         cand = CANDIDATE.get(key)
         if cand:
             print(f"    الطبقةُ المرشَّحة: {cand}")
+
+    print("\n═════ بنودٌ لا معنى لها في نموذج الورقة — تُعلَن ولا تُطلَب ═════")
+    for k, n in nomean.most_common(10):
+        print(f"  {n:>4}  {k}")
+    if not nomean:
+        print("  لا شيء في هذه العيّنة.")
 
     print("\n═════ مصادرُ القوائم — لا يُستدَلّ عليها بالعدد (D345) ═════")
     for k, n in src_cnt.most_common():
