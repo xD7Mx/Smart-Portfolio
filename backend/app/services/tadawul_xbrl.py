@@ -64,6 +64,18 @@ LABELS: dict[str, tuple[str, ...]] = {
                 # وهو دخلُ العمولة والتمويل: لا يشمل أتعابَ الخدمات، فهو
                 # **أدنى حدٍّ منشورٍ** لا تقديرٌ أعلى منه.
                 "special commission income/ gross financing and investment income"),
+    # ══ وإيرادُ المؤمِّن باسمه المنشور ══ (D378)
+    # قِيس على خادم المالك بكاشف `ifrs17_door.py`: ملفُّ 8010 يحمل صفّاً
+    # منشوراً «net premiums/ contributions earned» = 10,555,662 ومعه
+    # «gross premiums/ contributions written» = 14,349,620. والمكتسبُ
+    # الصافي هو إيرادُ المؤمِّن بالمعيار المهنيّ: المكتوبُ لم يُكتسب
+    # بعدُ (يُؤجَّل منه غيرُ المكتسب)، والإجماليُّ يشمل حصّةَ معيدِ
+    # التأمين. فيُقرأ مفتاحاً مستقلّاً ويُقدَّم على «إجماليّ الإيراد»
+    # الذي كان يُطابَق من **شطر المساهمين** — فيُسدّ الفراغُ باسمٍ
+    # منقولٍ بالحرف لا بتقريب.
+    "_premiums_earned": ("net premiums/ contributions earned",
+                        "net premiums/ contributions earned, net"),
+    "_premiums_written": ("gross premiums/ contributions written",),
     # ودخلُ العمولة **الصافي** يُقرأ مفتاحاً مساعداً لا إيراداً ولا
     # مصروفاً: منه وحدَه تُشتقّ تكلفةُ تمويلِ البنك بهويّةٍ حسابية.
     "_commission_net": (
@@ -248,7 +260,7 @@ def parse(html: str) -> dict:
              "total_liabilities", "interest_expense", "operating_cash_flow",
              "capex", "ending_cash", "pretax_income", "borrowings_current",
              "borrowings_noncurrent", "lease_current", "lease_noncurrent",
-             "_commission_net"}
+             "_commission_net", "_premiums_earned", "_premiums_written"}
     # وعددُ الأسهم عددٌ لا مال: لا يُضرَب في وحدة التقريب (كربحية السهم).
 
     periods: list[dict] = []
@@ -277,6 +289,17 @@ def parse(html: str) -> dict:
         #     مصروفُ العمولة = الدخلُ الإجماليُّ − الدخلُ الصافي
         # (‏1010: 6,938,847 − 3,376,189 = 3,562,658). وهو طرحٌ من رقمَين
         # منشورَين، لا تقريبٌ ولا اجتهادٌ في معنى اسم.
+        # ══ وإيرادُ المؤمِّن يحلّ محلَّ ما طابَق من شطر المساهمين ══
+        # (‏D378) الترتيبُ معلَن: المكتسبُ الصافي أوّلاً، فإن غاب فالمكتوبُ
+        # الإجماليُّ **موسوماً** بأنه إجماليٌّ لا مكتسب. ولا يُجمَع الشطران.
+        _pe, _pw = p.pop("_premiums_earned", None), p.pop("_premiums_written", None)
+        if isinstance(_pe, (int, float)):
+            p["revenue"] = _pe
+            p["revenue_source"] = "أقساطٌ/مساهماتٌ مكتسبةٌ صافية — منشورةً"
+        elif isinstance(_pw, (int, float)):
+            p["revenue"] = _pw
+            p["revenue_source"] = ("أقساطٌ/مساهماتٌ مكتوبةٌ إجمالاً — منشورةً"
+                                   " (لا المكتسبَ الصافي)")
         _gross, _net = p.get("revenue"), p.get("_commission_net")
         if (p.get("interest_expense") is None
                 and isinstance(_gross, (int, float))
@@ -393,6 +416,9 @@ def withhold_unsafe(symbol, periods: list[dict]) -> int:
         return 0
     n = 0
     for p in periods or []:
+        # وما وصل باسمه المنشور لا يُسحَب: السحبُ للمطابَق من شطرٍ خاطئ
+        if p.get("revenue_source"):
+            continue
         if p.pop("revenue", None) is not None:
             n += 1
             p["revenue_withheld"] = (

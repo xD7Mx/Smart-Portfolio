@@ -110,7 +110,16 @@ async def main() -> int:
                     continue
                 docs = _XBRL.findall(b2)
                 pdfs = len(_PDF.findall(b2))
-                ds = sorted(set("-".join(m) for m in _DATE.findall(b2)))
+                # ══ والتاريخُ يُنسَب لصاحبه لا للجواب ══ (D379)
+                # طبعتُ «أحدثُ بابٍ 2026-08» لملفّات XBRL، والتاريخُ كان
+                # **لرابط PDF** في الجواب نفسِه — فبحثتُ عن التاريخ في
+                # الجسم كلِّه ونسبتُه لغير صاحبه. والدليلُ الذي فضحني في
+                # المخرَج: statementType=4 يردّ العشرينَ ملفاً نفسَها
+                # وأحدثُ تاريخٍ فيه 2023-03 لأنه بلا PDF. فيُقرأ التاريخُ
+                # **من نصّ روابط XBRL وحدَها** (‏D367 يتكرّر: أنسب ما
+                # وصل لا ما أتوقّع).
+                ds = sorted({"-".join(m) for d in docs
+                             for m in _DATE.findall(d)})
                 newest = ds[-1] if ds else "—"
                 line.append(f"{stp}:x{len(docs)}/p{pdfs}"
                             + (f"@{newest[:7]}" if docs else ""))

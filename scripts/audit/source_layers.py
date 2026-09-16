@@ -484,6 +484,32 @@ check(_n_com == 0 and _COM[0].get("revenue") == 1.0,
       "٩ض ولا يُسحَب من شركةٍ عاديةٍ شيء — السحبُ مقصورٌ بالقياس",
       f"سُحب={_n_com}")
 
+# ── ٩ع · إيرادُ المؤمِّن باسمه المنشور يحلّ محلَّ المطابَقِ الخاطئ (D378)
+# قِيس بكاشف `ifrs17_door.py`: ملفُّ 8010 يحمل «net premiums/ contributions
+# earned» = 10,555,662 — وهو إيرادُ المؤمِّن بالمعيار المهنيّ. وكان
+# المطابَقُ «total revenue» = 111,604 من **شطر المساهمين**.
+_INS_HTML = ("<table><tr><td>End Date</td><td>2023-03-31</td></tr>"
+             "<tr><td>total revenue</td><td>111,604</td></tr>"
+             "<tr><td>gross premiums/ contributions written</td>"
+             "<td>14,349,620</td></tr>"
+             "<tr><td>net premiums/ contributions earned</td>"
+             "<td>10,555,662</td></tr></table>")
+try:
+    from app.services.tadawul_xbrl import parse as _xp2
+    from app.services.tadawul_xbrl import withhold_unsafe as _wh2
+    _ip = (_xp2(_INS_HTML).get("periods") or [{}])
+    _n2 = _wh2("8010", _ip)
+    _p0 = _ip[0] if _ip else {}
+except Exception as _e:                                           # noqa: BLE001
+    _p0, _n2 = {"خطأ": type(_e).__name__}, -1
+check(_p0.get("revenue") == 10555662.0
+      and "مكتسبةٌ صافية" in str(_p0.get("revenue_source")),
+      "٩ع إيرادُ المؤمِّن = الأقساطُ المكتسبةُ صافيةً — لا «إجماليّ إيرادٍ»",
+      f"{_p0.get('revenue')}")
+check(_n2 == 0,
+      "٩غ وما وصل باسمه المنشور لا يُسحَب — السحبُ للمطابَقِ الخاطئ وحدَه",
+      f"سُحب={_n2}")
+
 # والمحرّكُ يمتنع للورقة المؤشِّرة **بسببها لا بسبب شركة**
 from app.services.fair_value import compute as _fv                # noqa: E402
 
