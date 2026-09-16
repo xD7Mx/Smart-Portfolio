@@ -24,6 +24,7 @@ import {
 } from "../components/market/MarketWidgets";
 import NewsList, { hasNewsIdentity, CATEGORY_STYLE } from "../components/common/NewsList";
 import FlashPrice from "../components/common/FlashPrice";
+import LivePrice from "../components/common/LivePrice";
 import MarketStatusDot from "../components/common/MarketStatusDot";
 
 const fmtTime = (d: string) => d ? new Date(d).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -964,7 +965,9 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                     <div className="text-[10px] text-[var(--ink-muted)] truncate">{r.symbol}{r.sector ? ` · ${r.sector}` : ""}</div>
                   </div>
                   <div className="text-end shrink-0">
-                    <div className="text-[var(--ink)] font-bold tabular-nums text-[15px]">{fmt(r.price)}</div>
+                    <div className="text-[var(--ink)] font-bold tabular-nums text-[15px]">
+                      <LivePrice symbol={r.symbol} fallback={r.price} />
+                    </div>
                     <div className="text-[11px] font-bold tabular-nums"
                       style={{ color: r.change_pct == null ? "var(--ink-muted)" : up ? "var(--pos-ink)" : "var(--neg-ink)" }}>
                       {r.change_pct == null ? "—" : (<><span className="chg-arrow">{up ? "▲" : "▼"}</span> {up ? "+" : ""}{r.change_pct.toFixed(2)}%</>)}
@@ -1109,7 +1112,8 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                     <td className="px-2 py-2 text-center text-[var(--ink)] tabular-nums">
                       {/* سعرُ كلّ شركةٍ في الفرز يومض عند تغيّره — بالمكوّن
                           القائم نفسِه لا بمنطقٍ ثانٍ (D261). */}
-                      <FlashPrice value={r.price}>{fmt(r.price)}</FlashPrice>
+                      {/* صفُّ الفرز يقرأ المجرى كما يقرؤه الشريط (D330) */}
+                      <LivePrice symbol={r.symbol} fallback={r.price} />
                     </td>
                     <td className="px-2 py-2 text-center font-bold" style={{ color: r.change_pct == null ? "var(--ink-muted)" : up ? "var(--pos-ink)" : "var(--neg-ink)" }}>
                       {r.change_pct == null ? "—" : `${up ? "+" : ""}${r.change_pct.toFixed(2)}%`}

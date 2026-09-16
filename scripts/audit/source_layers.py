@@ -137,5 +137,79 @@ check(r2.get("price_source") == "movers" and r2.get("price") == 31.0,
       "٥ب وبغيابها تُقرأ الطبقةُ التالية بترتيبها",
       f"{r2.get('price')} · {r2.get('price_source')}")
 
+# ── ٦ · وسلسلةُ سعرِ الشركة نفسُها: «تداول» أوّلاً (D330) ────────────────
+# قال المالك: «يكون تداول مصدراً أوّلَ وياهو احتياطياً، والتطبيقُ بالكامل
+# يعرض آخرَ سعرٍ لكلّ شركةٍ وما يُبنى عليه». وكانت `get_price` تنادي ياهو
+# وسهمك **فقط** — و«تداول» ليست في السلسلة أصلاً. وقِيس في سجلّ خادمه
+# عشراتُ `daily quota reached` في إقلاعٍ واحدٍ بينما اللقطةُ حاضرةٌ
+# بـ٢٧٢ رمزاً بلا حصّة. ويُقاس هنا **السلوك**: من يُنادى ومن لا يُنادى.
+_asked: list[str] = []
+
+
+class _Prov:
+    """مزوّدٌ محكوم: يسجّل كلَّ نداءٍ ويردّ سعراً مختلفاً عن اللقطة."""
+
+    def __init__(self, tag):
+        self.tag = tag
+
+    async def get_price(self, sym):
+        _asked.append(f"{self.tag}:{sym}")
+
+        class _D:
+            @staticmethod
+            def to_dict():
+                return {"symbol": str(sym), "price": 99.0, "change": 0.0,
+                        "change_pct": 0.0, "volume": 0, "day_low": None,
+                        "day_high": None, "prev_close": None}
+        return _D()
+
+    async def get_prices(self, syms):
+        for s in syms:
+            _asked.append(f"{self.tag}:bulk:{s}")
+        return {s: {"symbol": s, "price": 99.0} for s in syms}
+
+
+# نسخةٌ **حقيقيةٌ** من الخدمة: مخزنُ الوحدة استُبدل بمزيّفٍ أعلاه لقياس
+# المحرّكين، والمقيسُ هنا سلسلةُ السعر نفسُها — فتُبنى الخدمةُ الأصلية
+# ويُستبدل مزوّداها وحدَهما.
+_svc = _md.MarketDataService()
+_keep = (_svc.primary, _svc.secondary)
+_svc.primary, _svc.secondary = _Prov("prim"), _Prov("sec")
+snap({"2010": {"price": 70.5, "change_pct": 0.4, "prev_close": 70.2,
+               "volume": 1234, "day_high": 71.0, "day_low": 70.0}})
+try:
+    _asked.clear()
+    _one = asyncio.run(_svc.get_price("2010"))
+    check(_one and _one.get("price") == 70.5 and _one.get("source") == "تداول"
+          and not _asked,
+          "٦ سعرُ الشركة من لقطة «تداول» أوّلاً — صفرُ نداءٍ للمزوّد",
+          f"{_one and _one.get('price')} · نداءات={_asked}")
+    check(_one and _one.get("prev_close") == 70.2
+          and _one.get("change") == 0.3 and _one.get("day_high") == 71.0,
+          "٦ب ومعه الإغلاقُ السابقُ وحدّا اليوم — لا حقلَ يضيع في النقل",
+          str({k: _one.get(k) for k in ("prev_close", "change", "day_high")}))
+
+    _asked.clear()
+    _miss = asyncio.run(_svc.get_price("9999"))
+    check(_miss and _miss.get("price") == 99.0 and _asked,
+          "٦ج ومن غاب عن اللقطة يُسأل عنه المزوّد — لا «غيرُ متوفّر» بحجّة"
+          " الترتيب", f"نداءات={_asked[:2]}")
+
+    _asked.clear()
+    _idx = asyncio.run(_svc.get_price("^TASI"))
+    check(_asked and all("sec:" not in a for a in _asked),
+          "٦د والمؤشّراتُ والنفطُ تبقى للمزوّد — ليست في لقطة السوق",
+          f"نداءات={_asked[:2]}")
+
+    _asked.clear()
+    _many = asyncio.run(_svc.get_prices(["2010", "9999"]))
+    check(_many.get("2010", {}).get("price") == 70.5
+          and _many.get("9999", {}).get("price") == 99.0
+          and [a for a in _asked if "2010" in a] == [],
+          "٦ه والجمعُ كذلك: اللقطةُ لما تحمله والمزوّدُ لما بقي — لا نداءٌ"
+          " لرمزٍ في اليد", f"نداءات={_asked}")
+finally:
+    _svc.primary, _svc.secondary = _keep
+
 print(("FAIL" if fail else "PASS") + " D255 — ثلاثُ طبقاتٍ بترتيبٍ واحد")
 raise SystemExit(fail)

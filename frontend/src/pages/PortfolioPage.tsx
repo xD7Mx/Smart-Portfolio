@@ -16,6 +16,7 @@ import CompanyLogo from "../components/common/CompanyLogo";
 import { ShariaBadge, NumInput } from "../components/common/UI";
 import { WealthW, WIDGET_MAP } from "../widgets/Widgets";
 import FlashPrice from "../components/common/FlashPrice";
+import LivePrice, { LiveValue } from "../components/common/LivePrice";
 import LiquidityTab from "../components/portfolio/LiquidityTab";
 import PortfolioNewsPage from "./PortfolioNewsPage";
 import PortfolioCalendarPage from "./PortfolioCalendarPage";
@@ -2208,10 +2209,16 @@ export default function PortfolioPage() {
                   {cols.shares && <td className="td text-[var(--ink)]">{h.total_shares?.toLocaleString("en-US") ?? "—"}</td>}
                   {cols.avgCost && <td className="td text-[var(--ink)]">{fmt2(avgCost)}</td>}
                   {cols.lastPrice && <td className="td text-[var(--ink)]">
-                    <FlashPrice value={h.last_price}>{h.last_price ? h.last_price.toLocaleString("en-US", {maximumFractionDigits: 2}) + "" : "—"}</FlashPrice>
+                    {/* آخرُ سعرٍ حيٌّ من المجرى، ورقمُ الاستعلام إن لم
+                        يصل دفعٌ — مكوّنٌ واحدٌ لكلّ الشاشات (D330). */}
+                    <LivePrice symbol={h.company?.symbol || h.symbol}
+                               fallback={h.last_price} />
                   </td>}
                   {cols.marketValue && <td className="td text-[var(--ink)] font-semibold">
-                    <FlashPrice value={h.current_value}>{fmt(h.current_value)}</FlashPrice>
+                    {/* وما يُبنى على السعر يتبعه: أسهمٌ × سعرٌ حيّ (D330) */}
+                    <LiveValue symbol={h.company?.symbol || h.symbol}
+                               shares={h.total_shares}
+                               fallback={h.current_value} />
                   </td>}
                   {/* الربح/الخسارة: سطران بهرمية واضحة — المبلغ هو الرقم
                       الرئيسي، والنسبة تابعٌ أصغر تحته. حُذفت أيقونة الاتجاه
@@ -2366,11 +2373,10 @@ export default function PortfolioPage() {
                             : c > 0 ? "color-mix(in srgb, var(--pos-ink) 8%, transparent)"
                             : "color-mix(in srgb, var(--neg-ink) 8%, transparent)",
                         }}>
-                        <FlashPrice value={h.last_price}
+                        <LivePrice symbol={h.company?.symbol || h.symbol}
+                          fallback={h.last_price}
                           className="hold-price-val block tabular-nums whitespace-nowrap"
-                          style={{ margin: 0, color: ink }}>
-                          {h.last_price ? h.last_price.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "—"}
-                        </FlashPrice>
+                          style={{ margin: 0, color: ink }} />
                         {/* سطر النسبة **لا يغيب**. كان يُحذف حين يتعذّر قياس
                             تغيّر اليوم (‏`change_pct = null`: السهم لم يصل بعد
                             إلى مخزَّن الأسعار ولا إلى لقطة المحرّكين)، فينكمش

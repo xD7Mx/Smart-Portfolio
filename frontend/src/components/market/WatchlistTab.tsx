@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { invalidateWatchlist } from "../../services/watchlistCache";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Star, Search, Plus, X, ChevronDown, Check, Pencil, Trash2 } from "lucide-react";
+import LivePrice from "../common/LivePrice";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { searchCompanies } from "../../data/saudiCompanies";
@@ -80,7 +81,9 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
                   </span>
                 </button>
                 <div className="text-end shrink-0">
-                  <div className="text-[var(--ink)] tabular-nums text-sm">{r.price != null ? r.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}</div>
+                  <div className="text-[var(--ink)] tabular-nums text-sm">
+                    <LivePrice symbol={r.symbol} fallback={r.price} />
+                  </div>
                   {r.change_pct != null && (
                     <div className="text-[11px] font-bold" style={{ color: up ? "var(--pos-ink)" : "var(--neg-ink)" }}>
                       <span className="chg-arrow">{up ? "▲" : "▼"}</span> {up ? "+" : ""}{r.change_pct.toFixed(2)}%

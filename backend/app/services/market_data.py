@@ -1299,10 +1299,54 @@ class MarketDataService:
             return SahmakAdapter()
         return YahooFinanceAdapter()
 
+    @staticmethod
+    def _tadawul_price(base: str) -> Optional[dict]:
+        """سعرُ الشركة من لقطة «تداول» — أو None (D330).
+
+        ══ الرسميُّ أوّلاً، والمزوّدُ احتياطاً ══
+        قال المالك: «يكون تداول مصدراً أوّلَ وياهو احتياطياً». والقياسُ
+        يسنده لا رأيي: في سجلّ خادمه عشراتُ الأسطر `Yahoo: daily quota
+        reached` و`Sahmak: daily quota reached` في إقلاعٍ واحد — حصّةٌ
+        يوميةٌ تنفد فتبقى أسعارٌ بلا سعر، **ولقطةُ «تداول» حاضرةٌ بـ٢٧٢
+        رمزاً بلا حصّةٍ ولا مفتاح**، وهي مصدرُ السوق نفسِه لا وسيطٌ عنه.
+        وتحمل ما يحمله المزوّد: السعرَ والإغلاقَ السابقَ وحدَّي اليوم
+        والكمّية.
+
+        ولا تُستعمل إلا لرمزٍ سعوديٍّ رباعيّ: المؤشّراتُ العالميةُ والنفطُ
+        وغيرُ السعودية ليست فيها، فتبقى لياهو. وما غاب عن اللقطة (رمزٌ
+        جديدٌ أو معلَّق) يسقط إلى المزوّد ولا يُقال عنه «غير متوفّر».
+        """
+        if not base.isdigit():
+            return None
+        from app.services.tadawul_market import row_for
+        row = row_for(base)
+        px = row.get("price")
+        if px is None:
+            return None
+        prev = row.get("prev_close")
+        # التغيّرُ يُحتسَب من الإغلاق السابق إن نشره المصدرُ، ونسبتُه
+        # تُؤخَذ كما نشرها لا محسوبةً — ومصدرٌ واحدٌ للمعنى الواحد.
+        return {
+            "symbol": f"{base}.SR",
+            "price": px,
+            "change": (round(px - prev, 2) if prev else 0.0),
+            "change_pct": row.get("change_pct") if row.get("change_pct") is not None else 0.0,
+            "volume": row.get("volume") or 0,
+            "day_low": row.get("day_low"),
+            "day_high": row.get("day_high"),
+            "prev_close": prev,
+            "source": "تداول",
+        }
+
     async def get_price(self, symbol: str) -> Optional[dict]:
         from app.services.usage_tracker import remaining_fraction
         base = symbol.replace(".SR", "")
         saudi = base.isdigit()
+
+        # الطبقةُ الأولى: «تداول» الرسميّة (D330) — بلا حصّةٍ ولا مفتاح.
+        first = self._tadawul_price(base)
+        if first:
+            return first
 
         # Quota synergy: for Saudi tickers both providers can answer, so route
         # to whichever has more of its daily budget left. A provider under a
@@ -1327,7 +1371,23 @@ class MarketDataService:
         return None
 
     async def get_prices(self, symbols: List[str]) -> dict:
-        return await self.primary.get_prices(symbols)
+        """أسعارُ مجموعةٍ — «تداول» لما تحمله، والمزوّدُ لما بقي (D330).
+
+        وهذا مسارُ المحفظة والفرز: كان يُنادي ياهو لكلّ رمزٍ على حِدة،
+        فينفد النصابُ اليوميُّ ويبقى نصفُ الشاشة بلا سعر. واللقطةُ نداءٌ
+        **واحدٌ** لكلّ السوق، فالباقي وحدَه يُسأل عنه.
+        """
+        out: dict = {}
+        rest: List[str] = []
+        for s in symbols or []:
+            got = self._tadawul_price(str(s).replace(".SR", ""))
+            if got:
+                out[s] = got
+            else:
+                rest.append(s)
+        if rest:
+            out.update(await self.primary.get_prices(rest) or {})
+        return out
 
     def _yahoo(self):
         return self.primary if isinstance(self.primary, YahooFinanceAdapter) else YahooFinanceAdapter()
