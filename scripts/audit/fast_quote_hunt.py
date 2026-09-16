@@ -33,6 +33,9 @@ BASE = "https://www.saudiexchange.sa/tadawul.eportal.theme.helper/"
 DOORS = {
     "RefreshTradeDetails": BASE + "RefreshTradeDetailsServlet",
     "Ticker": BASE + "TickerServlet",
+    # والبابُ الذي كان قارئُ المؤشّر يناديه — يُقاس هو أيضاً لا يُستثنى
+    # (كان موروثاً بلا قياس · D327).
+    "ThemeTASIUtility": BASE + "ThemeTASIUtilityServlet",
 }
 # رقمٌ واحدٌ يُقرأ من الجسم بمعناه — لا بموضعٍ ثابت.
 _NUM = re.compile(r'"?(tasiValue|lastPrice|price|value)"?\s*[:=]\s*"?'

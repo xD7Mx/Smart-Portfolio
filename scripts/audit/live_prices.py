@@ -106,5 +106,82 @@ _blk = css.split("@keyframes mk-flash-up", 1)[-1].split("@keyframes", 1)[0]
 m = re.search(r"100%\s*\{\s*color:\s*(#fff|white)", _blk)
 check(bool(m), "٦ب ويعود الرقمُ أبيضَ بعد الوميض — اللونُ للتغيّر لا للمستوى")
 
+# ── ٧ · بابُ المؤشّر مقيسٌ لا موروث، ورقمُه خامٌ لا نصٌّ (D327) ──────────
+# قِيس على خادم المالك والسوقُ مفتوح: `RefreshTradeDetailsServlet` يقول
+# `max-age=60` وقيمةُ تاسي فيه تغيّرت ثلاثاً في ١٤٠ث (٧ · ٤٨ · ٦١)،
+# و`TickerServlet` لم يتغيّر. وكان القارئُ ينادي باباً ثالثاً بلا قياس.
+# ويُقاس هنا **على الجسم كما وصل بالحرف** من خادمه.
+import asyncio as _aio2  # noqa: E402
+import json as _j2  # noqa: E402
+
+_BODY = {
+    "tasiValue": "10,787.98", "tasiNetChange": "6.36",
+    "tasiPercentageChange": "0.06", "tasiStatus": "2",
+    "mt30IndexValue": "1,450.74", "sukukValue": "905.9",
+    "currentTime": "02:29 PM", "marketStatusCode": 2,
+    "tasiBean": {"symbol": "TASI", "tasiTodaysSummaryBean": {
+        "openPrice": 10782.39, "indexPrice": 10787.98, "netChange": 6.36,
+        "percentChange": 0.06, "previouseIndexPrice": 10781.62,
+        "highPrice": 10820.9, "lowPrice": 10751.02, "status": 2}},
+}
+_asked: list[str] = []
+
+
+async def _door(url, *, params=None, referer=None, timeout=45):
+    _asked.append(url)
+    if url.endswith("RefreshTradeDetailsServlet"):
+        return 200, _j2.dumps(_BODY, ensure_ascii=False)
+    return 500, ""
+
+
+_real_fetch = None
+import app.services.tadawul_http as _TH  # noqa: E402
+_real_fetch = _TH.fetch
+_TH.fetch = _door                                                # type: ignore[assignment]
+try:
+    _idx = _aio2.run(tm.index_quote())
+finally:
+    _TH.fetch = _real_fetch                                      # type: ignore[assignment]
+
+check(bool(_asked) and _asked[0].endswith("RefreshTradeDetailsServlet"),
+      "٧ المؤشّرُ يُنادى من البابِ المقيسِ أوّلاً — لا من موروثٍ بلا قياس",
+      (_asked[0] if _asked else "لا نداء")[-38:])
+check(_idx and _idx.get("price") == 10787.98
+      and _idx.get("change_pct") == 0.06
+      and _idx.get("change") == 6.36,
+      "٧ب ورقمُه من الخامِ في `tasiTodaysSummaryBean` — لا نصٌّ بفاصلة",
+      str(_idx and {k: _idx.get(k) for k in ("price", "change", "change_pct")}))
+check(_idx and _idx.get("prev_close") == 10781.62
+      and _idx.get("high") == 10820.9 and _idx.get("low") == 10751.02,
+      "٧ج ومعه إغلاقُ أمسِ وقمّةُ اليوم وقاعُه — من المصدر لا محتسَبة")
+check(_idx and _idx.get("as_of") == "02:29 PM",
+      "٧د وزمنُه زمنُ المصدر لا ساعتُنا", str(_idx and _idx.get("as_of")))
+
+# والبديلُ يُنادى إن تعذّر الأوّل — لا سكوتٌ لأن باباً واحداً سقط.
+_asked.clear()
+
+
+async def _door2(url, *, params=None, referer=None, timeout=45):
+    _asked.append(url)
+    if url.endswith("ThemeTASIUtilityServlet"):
+        return 200, _j2.dumps({"tasiValue": "10,700.00",
+                               "tasiNetChange": "1.0",
+                               "tasiPercentageChange": "0.01"},
+                              ensure_ascii=False)
+    return 503, ""
+
+
+_TH.fetch = _door2                                               # type: ignore[assignment]
+try:
+    _idx2 = _aio2.run(tm.index_quote())
+finally:
+    _TH.fetch = _real_fetch                                      # type: ignore[assignment]
+check(len(_asked) == 2 and _idx2 and _idx2.get("price") == 10700.0,
+      "٧ه وبابٌ ساقطٌ يُتجاوَز إلى بديله — والنصُّ بفاصلةٍ يُقرأ رقماً",
+      f"{len(_asked)} نداءً · {_idx2 and _idx2.get('price')}")
+check(tm.INDEX_TTL >= 5,
+      "٧و وذاكرتُه بإيقاع بابه لا بنبض شاشتنا — لا ستّون نداءً لنشرةٍ واحدة",
+      f"{tm.INDEX_TTL}ث لبابٍ ينشر كلَّ 60ث")
+
 print(("FAIL" if fail else "PASS") + " D260 — ميزانيةُ الطزاجة")
 raise SystemExit(fail)

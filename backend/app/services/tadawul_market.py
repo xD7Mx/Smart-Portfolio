@@ -314,10 +314,24 @@ def usable_rows() -> tuple[dict[str, dict], bool, str | None]:
     return rec["rows"], False, rec.get("at")
 
 
+# ══ بابُ المؤشّر: المقيسُ لا الموروث ══ (D327)
+# قِيس على خادم المالك والسوقُ مفتوح: `RefreshTradeDetailsServlet` يقول
+# `max-age=60`، وقيمةُ تاسي فيه تغيّرت ثلاثَ مرّاتٍ في ١٤٠ ثانيةً
+# (فواصلُ ٧ · ٤٨ · ٦١) — أي إيقاعُ دقيقة. و`TickerServlet` لم يتغيّر في
+# ١٤٠ ثانية. وكان قارئُ المؤشّر عندي ينادي باباً ثالثاً
+# (`ThemeTASIUtilityServlet`) **لم أقِس إيقاعَه قطّ** — فنُقل إلى المقيس،
+# وبقي الموروثُ بديلاً إن تعذّر الأوّل.
 INDEX_URL = ("https://www.saudiexchange.sa/tadawul.eportal.theme.helper/"
-             "ThemeTASIUtilityServlet")
+             "RefreshTradeDetailsServlet")
+INDEX_URL_ALT = ("https://www.saudiexchange.sa/tadawul.eportal.theme.helper/"
+                 "ThemeTASIUtilityServlet")
 INDEX_KEY = "market:tasi:tadawul"
-INDEX_TTL = 1                 # ثانيةٌ: نبضُ المضخّة نفسُه — والمؤشّرُ معها
+# ══ وذاكرتُه بإيقاع بابه لا بنبض شاشتنا ══ (D327)
+# كانت ثانيةً واحدة: أي ستّون نداءً لكلّ نشرةٍ واحدةٍ من ستّين ثانية،
+# تعود كلُّها بالجسم نفسِه بالحرف — وهو عطبُ D326 بعينه في المؤشّر.
+# فصارت خمسَ عشرةَ ثانية: تأخيرُ الاكتشاف ≤ ١٥ث على إيقاعٍ من ٦٠ث،
+# وأربعُ نداءاتٍ في الدقيقة بدل ستّين.
+INDEX_TTL = 15
 # (كانت ثلاثاً؛ وقد سأل المالك: «بثانيةٍ واحدةٍ أو صفر؟». والأسعارُ تُجدَّد
 #  كلَّ ثانيةٍ في المضخّة، فذاكرةُ المؤشّر ثلاثُ ثوانٍ كانت تُبقيه أبطأَ من
 #  جاره في الدفعة نفسِها. والنداءُ خفيفٌ وواحدٌ في الطريق ولا يُنتظَر.)
@@ -338,23 +352,48 @@ async def index_quote() -> dict | None:
     تعطي القيمةَ والتغيّرَ والنسبةَ وحالةَ السوق ووقتَها.
     """
     from app.services.tadawul_http import fetch
-    status, body = await fetch(INDEX_URL,
-                               referer="https://www.saudiexchange.sa/wps/portal/"
-                                       "saudiexchange/home")
-    if status != 200 or not body:
+    HOME = ("https://www.saudiexchange.sa/wps/portal/saudiexchange/home")
+    d = None
+    for url in (INDEX_URL, INDEX_URL_ALT):
+        try:
+            status, body = await fetch(url, referer=HOME)
+        except Exception as e:                                    # noqa: BLE001
+            logger.debug("المؤشّر: {} تعذّر {}", url[-34:], type(e).__name__)
+            continue
+        if status != 200 or not body:
+            continue
+        try:
+            got = json.loads(body)
+        except Exception:                                         # noqa: BLE001
+            continue
+        if isinstance(got, dict) and got.get("tasiValue") is not None:
+            d = got
+            break
+    if d is None:
         return None
-    try:
-        d = json.loads(body)
-    except Exception:                                             # noqa: BLE001
-        return None
-    px = _pos(d.get("tasiValue"))
+    # ══ الرقمُ الخامُ يُقدَّم على النصِّ المفصول ══ (D327)
+    # في الجسم كما وصل: `"tasiValue": "10,787.98"` نصٌّ بفاصلة، وفي
+    # `tasiBean.tasiTodaysSummaryBean` الرقمُ نفسُه خاماً
+    # (`indexPrice: 10787.98 · percentChange: 0.06`). فيُقرأ الخامُ أوّلاً
+    # — لا كسرَ رقمٍ بفاصلةٍ ولا تقريبَ نصٍّ — والنصُّ بديلٌ إن غاب.
+    _sum = ((d.get("tasiBean") or {}).get("tasiTodaysSummaryBean") or {}) \
+        if isinstance(d.get("tasiBean"), dict) else {}
+    px = _pos(_sum.get("indexPrice")) or _pos(d.get("tasiValue"))
     if px is None:
         return None
     out = {
         "symbol": "^TASI",
         "price": px,
-        "change": _num(d.get("tasiNetChange")),
-        "change_pct": _num(d.get("tasiPercentageChange")),
+        "change": (_num(_sum.get("netChange"))
+                   if _sum.get("netChange") is not None
+                   else _num(d.get("tasiNetChange"))),
+        "change_pct": (_num(_sum.get("percentChange"))
+                       if _sum.get("percentChange") is not None
+                       else _num(d.get("tasiPercentageChange"))),
+        "prev_close": _pos(_sum.get("previouseIndexPrice")),
+        "open": _pos(_sum.get("openPrice")),
+        "high": _pos(_sum.get("highPrice")),
+        "low": _pos(_sum.get("lowPrice")),
         "source": "تداول",
         "as_of": str(d.get("currentTime") or "") or None,
         "market_status_code": d.get("marketStatusCode"),
