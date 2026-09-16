@@ -59,6 +59,7 @@ async def main() -> int:
     why_gov: Counter = Counter()
     src_cnt: Counter = Counter()
     have_else: Counter = Counter()
+    abstain: dict[str, list[str]] = {}
 
     print(f"{'الرمز':<7}{'مصدرُ القوائم':<16}{'فترات':>6}"
           f"{'حوكمة':>8}{'عادل':>8}  سببُ الامتناع")
@@ -92,7 +93,12 @@ async def main() -> int:
             fv_val = det.get("value")
             reason = str(det.get("unavailable_reason") or "")
             if fv_val is None:
-                why_fv[(reason.split("—")[0] or "بلا سبب")[:70].strip()] += 1
+                _why = (reason.split("—")[0] or "بلا سبب")[:70].strip()
+                why_fv[_why] += 1
+                # ══ والممتنعُ يُسمّى برمزه ══ (D339)
+                # عددٌ مجرَّدٌ («٩ من ٦١») لا يُصلَح عليه شيء: الإصلاحُ
+                # التاليّ يُقاس على **هذه** الأوراق بأعيانها لا على متوسّط.
+                abstain.setdefault(_why, []).append(base)
         except Exception as e:                                    # noqa: BLE001
             why_gov[f"تعذّر: {type(e).__name__}"] += 1
             why_fv[f"تعذّر: {type(e).__name__}"] += 1
@@ -113,9 +119,11 @@ async def main() -> int:
     print("\n═ مصادرُ القوائم ═")
     for k, n in src_cnt.most_common():
         print(f"  {n:>4}  {k}")
-    print("\n═ أسبابُ امتناع السعر العادل — مرتَّبةً ═")
+    print("\n═ أسبابُ امتناع السعر العادل — مرتَّبةً ومسمَّاةً بأوراقها ═")
     for k, n in why_fv.most_common():
         print(f"  {n:>4}  {k}")
+        if abstain.get(k):
+            print("        " + " · ".join(abstain[k]))
     print("\n═ أسبابُ امتناع الحوكمة — مرتَّبةً ═")
     for k, n in why_gov.most_common() or [("لا امتناع", 0)]:
         print(f"  {n:>4}  {k}")

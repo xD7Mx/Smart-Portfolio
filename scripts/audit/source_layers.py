@@ -289,5 +289,68 @@ check("self._complete(" in _MD2 and "statement_merge" in _MD2,
 check("if SM.missing(rows):" in _MD2,
       "٨ي وياهو لا يُنادى إن لم يبقَ بندٌ ناقص — لا حصّةٌ تُحرَق بلا حاجة")
 
+# ── ٩ · ووحدةُ المال تُسوّى بمِرساةٍ لا بالهويّة وحدَها (D339) ───────────
+# قِيس على خادم المالك: بعد مطابقة «عدد الأسهم» بالاسم صار مدى حالةٍ
+# **0.04–0.14** ريالاً. والسببُ وحدةٌ غيرُ مسوّاة، والهويّةُ `EPS = الربح
+# ÷ الأسهم` تكشف أن أحدَ الطرفين أخطأ ولا تقول أيَّهما — فأوّلُ صياغةٍ
+# حكمت بها وحدَها فقسمت مالاً مسوّىً على ألف. والفاصلُ مِرساةٌ مستقلّةٌ
+# عن تقريب الملفّ: قيمةُ لقطةِ «تداول» السوقيةُ ÷ السعر.
+_NI, _EPS, _SH = 350210000000.0, 1.44, 243201388889.0
+_EQ, _PX = 1569458000000.0, 25.68
+_SNAP = {"market_cap": _SH * _PX}
+_BASE = {"year": 2025, "eps": _EPS}
+
+
+def _one(**kw):
+    snap, px = kw.pop("snapshot_row", None), kw.pop("price", None)
+    return SM.complete("T", [dict(_BASE, **kw)],
+                       snapshot_row=snap, price=px)[0]
+
+
+_U1 = _one(net_income=_NI / 1000, equity=_EQ / 1000, shares_outstanding=_SH,
+           snapshot_row=_SNAP, price=_PX)
+check(_U1.get("scale_fix") == 1000.0 and _U1.get("net_income") == _NI
+      and _U1.get("equity") == _EQ,
+      "٩ مالٌ بالآلاف تُسوّى وحدتُه بالمِرساة — لا يبقى أصغرَ ألفَ مرّة",
+      f"{_U1.get('scale_fix')} · {_U1.get('net_income')}")
+check(_U1.get("book_value_per_share") == 6.4533,
+      "٩ب وقيمةُ السهم الدفتريةُ تصير رياليةً لا 0.006",
+      str(_U1.get("book_value_per_share")))
+_U2 = _one(net_income=_NI, equity=_EQ, shares_outstanding=_SH / 1000,
+           snapshot_row=_SNAP, price=_PX)
+check(_U2.get("shares_outstanding") == round(_SH, 0)
+      and _U2.get("scale_fix") is None
+      and "وحدةُ العدد سُوّيت" in (_U2.get("field_sources") or {}).get(
+          "shares_outstanding", ""),
+      "٩ج وعددٌ بالآلاف تُسوّيه المِرساةُ — ولا يُقسَم المالُ بدلاً عنه",
+      f"{_U2.get('shares_outstanding')} · {_U2.get('scale_fix')}")
+_U3 = _one(net_income=_NI, equity=_EQ, shares_outstanding=_SH,
+           snapshot_row=_SNAP, price=_PX)
+check(_U3.get("scale_fix") is None and _U3.get("net_income") == _NI
+      and _U3.get("shares_outstanding") == _SH,
+      "٩د وملفٌّ سليمُ الوحدة لا يُمَسّ — لا تسويةَ على غير عطب",
+      f"{_U3.get('net_income')} · {_U3.get('shares_outstanding')}")
+_U4 = _one(net_income=_NI / 1000, equity=_EQ / 1000, shares_outstanding=_SH)
+check(_U4.get("shares_unit_gap") == 1000.0
+      and _U4.get("shares_outstanding") == _SH
+      and _U4.get("book_value_per_share") is None,
+      "٩ه وبلا مِرساةٍ يُعلَن الفرقُ ولا يُختلَق — ولا قيمةَ سهمٍ عليه",
+      f"{_U4.get('shares_unit_gap')} · {_U4.get('book_value_per_share')}")
+# وفرقُ **العدد** ليس فرقَ وحدة: المنشورُ عددُ المُصدَر والقسمةُ تُخرج
+# المتوسّطَ المرجَّح لأساس ربحيةِ السهم، واختلافُهما مشروع. وصياغةٌ لي
+# كانت تستبدل المنشورَ هنا فأحمرَ عليها العقدُ ٧ب في `tadawul_xbrl.py`
+# — فالمنشورُ يبقى بالحرف في الحالين، مع مِرساةٍ وبلا مِرساة.
+_U5 = _one(net_income=_NI, shares_outstanding=150000000000.0,
+           snapshot_row={"market_cap": 150000000000.0 * _PX}, price=_PX)
+check(_U5.get("shares_outstanding") == 150000000000.0
+      and _U5.get("shares_mismatch") == 1.62,
+      "٩و وفرقُ عددٍ لا يُستبدَل به المنشورُ — يُسمّى الخلافُ فقط",
+      f"{_U5.get('shares_outstanding')} · {_U5.get('shares_mismatch')}")
+_U6 = _one(net_income=_NI, shares_outstanding=150000000000.0)
+check(_U6.get("shares_outstanding") == 150000000000.0
+      and _U6.get("shares_mismatch") == 1.62,
+      "٩ز وبلا مِرساةٍ كذلك — لا يُستبدَل منشورٌ بمشتقٍّ بحالٍ",
+      f"{_U6.get('shares_outstanding')} · {_U6.get('shares_mismatch')}")
+
 print(("FAIL" if fail else "PASS") + " D255 — ثلاثُ طبقاتٍ بترتيبٍ واحد")
 raise SystemExit(fail)
