@@ -65,7 +65,12 @@ LABELS: dict[str, tuple[str, ...]] = {
                "total equity attributable to equity holders of company",
                "total equity attributable to equity holders of bank",
                "equity attributable to shareholders of the bank",
-               "total equity attribute to shareholder of the parent company"),
+               "total equity attribute to shareholder of the parent company",
+               # ونُقل من مخرَج السلع الرأسمالية (‏1212 · 1214 · 1302):
+               # صفٌّ منشورٌ بهذا الاسم. و«total equity and liabilities»
+               # الذي ظهر في الإعلام **لا يُنقَل**: مجموعُ طرفِ الميزانية
+               # كلِّه لا حقوقُ الملكية — واسمٌ شبيهٌ لا يُلبَّس معنىً.
+               "equity attributable to shareholders of the company"),
     "total_assets": ("total assets",),
     "total_liabilities": ("total liabilities",),
     "eps": ("total basic earnings (loss) per share",
@@ -91,7 +96,15 @@ LABELS: dict[str, tuple[str, ...]] = {
         "profit (loss) before tax",
         "profit (loss) before zakat and income tax",
         "profit (loss) for period before zakat and income tax",
-        "income before income taxes and zakat"),
+        "income before income taxes and zakat",
+        # ══ ولغةُ التأمين تُنقَل كما نُشرت ══ (D372)
+        # قِيس بمسح القطاعات الثلاثةِ على خادم المالك: `pretax_income`
+        # غائبٌ في **ثلاثِ شركاتِ تأمينٍ من ثلاث** (‏8010 · 8012 · 8020)،
+        # وفي ملفّاتها نفسِها صفّانِ منشوران بهذَين الاسمَين. والمؤمِّنُ
+        # مُلزَمٌ بالإفصاح كغيره، فغيابُ البند كان عجزَ خريطةٍ لا نقصَ
+        # سوق. منقولٌ بالحرف من المخرَج لا مجتهَداً.
+        "income (loss) from continuing operations before zakat and income tax",
+        "net profit (loss) for period (before zakat expenses and income tax)"),
     "borrowings_current": ("current borrowings", "short-term borrowings",
                            "current portion of long-term borrowings",
                            "borrowings - current",
