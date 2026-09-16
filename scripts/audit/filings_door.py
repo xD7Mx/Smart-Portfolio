@@ -131,12 +131,45 @@ async def main() -> int:
             docs = _DOCS.findall(b3 or "")
             if not docs:
                 gates["٥· القائمةُ تُجيب ولا ملفَّ XBRL فيها (لم تودع)"] += 1
-                lines.append(f"  {sym}: ٥ أجابت {len(b3 or '')} حرفاً بلا ملفّ")
+                # ══ وما في القائمة يُطبع ══ (D364)
+                # «بلا ملفّ» وصفٌ لغياب ما نبحثه، لا وصفٌ لما وصل. فقد
+                # تكون القائمةُ مليئةً بروابطَ من نوعٍ آخر (‏PDF · صفحةُ
+                # إفصاح) — وذاك بابٌ يُنقَل لا غيابٌ يُعلَن.
+                _hrefs = re.findall(r"href=[\"']([^\"']+)[\"']", b3 or "")
+                _kinds: Counter = Counter()
+                for _h in _hrefs:
+                    _kinds[(_h.rsplit(".", 1)[-1][:6] if "." in _h[-8:]
+                            else "بلا امتداد")] += 1
+                lines.append(
+                    f"  {sym}: ٥ أجابت {len(b3 or '')} حرفاً · روابطُ="
+                    f"{len(_hrefs)} · أنواعٌ={dict(_kinds.most_common(5))}"
+                    + (f" · مثالٌ: {_hrefs[0][-60:]}" if _hrefs else ""))
             else:
                 gates["٦· ملفّاتٌ موجودةٌ — والعطبُ بعد هذا الباب"] += 1
                 lines.append(f"  {sym}: ٦ **{len(docs)} ملفّاً** — فالمنعُ لاحقٌ")
 
-    await asyncio.gather(*(one(s) for s in cand[:N]), return_exceptions=True)
+    # ══ والعيّنةُ تُطبَّق لا تُقتطَع من الأوّل ══ (D364)
+    # أخذتُ `cand[:60]` مرتَّبةً تصاعدياً فقاستُ رموزَ 1xxx و2xxx وحدَها
+    # ولم تبلغ العيّنةُ رموزَ 9xxx («نمو») إطلاقاً — ثمّ عمّمتُ منها على
+    # الـ82 كلِّها فأخطأتُ. فتُقسَّم العيّنةُ على البادئة بالتساوي.
+    by_pfx: dict[str, list[str]] = {}
+    for s_ in cand:
+        by_pfx.setdefault(s_[:1], []).append(s_)
+    pick: list[str] = []
+    i = 0
+    while len(pick) < min(N, len(cand)):
+        added = False
+        for k in sorted(by_pfx):
+            if i < len(by_pfx[k]) and len(pick) < N:
+                pick.append(by_pfx[k][i])
+                added = True
+        if not added:
+            break
+        i += 1
+    print("  العيّنةُ بالبادئة: "
+          + " · ".join(f"{k}×{sum(1 for x in pick if x[:1] == k)}"
+                       for k in sorted({x[:1] for x in pick})))
+    await asyncio.gather(*(one(s) for s in pick), return_exceptions=True)
 
     print("\n═ البوّابةُ التي أُغلقت — مرتَّبةً ═")
     for k, n in gates.most_common():
