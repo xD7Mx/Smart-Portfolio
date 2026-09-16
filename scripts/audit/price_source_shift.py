@@ -33,9 +33,11 @@ async def main() -> int:
 
     async with AsyncSessionLocal() as db:
         res = await db.execute(
-            select(Company.symbol, Company.company_name, Holding.total_shares)
+            # العمودُ `quantity` لا `total_shares` — قُرئ من النموذج لا
+            # خُمِّن (أوّلُ صياغةٍ سقطت بـ`AttributeError` على خادم المالك).
+            select(Company.symbol, Company.company_name, Holding.quantity)
             .join(Holding, Holding.company_id == Company.id)
-            .where(Holding.total_shares > 0))
+            .where(Holding.quantity > 0))
         held = [(str(s), n, float(q or 0)) for s, n, q in res.all()]
 
     if not held:
