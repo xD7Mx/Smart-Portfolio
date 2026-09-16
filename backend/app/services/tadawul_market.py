@@ -34,6 +34,15 @@ from loguru import logger
 STORE_KEY = "market:tadawul_snapshot"
 PAGE = ("https://www.saudiexchange.sa/wps/portal/saudiexchange/ourmarkets/"
         "main-market-watch")
+# ══ وبابٌ ثانٍ للسوق الموازي «نمو» ══ (D357)
+# قِيس بالكاشف `other_boards.py` على خادم المالك: **الخدمةُ هي هي**
+# (`getMainNomucMarketDetails`) — واسمُها يحمل لفظَ «نمو» — لكنها تُنادى
+# من صفحة «نمو» فتُخرج **124 صفّاً فيها 123 من الـ136 المفقودة**، وتُنادى
+# من الصفحة الرئيسية فتُخرج 272. فالبوّابةُ تُولّد أساساً خاصّاً بكلّ
+# صفحة، والجدولُ يتبع الصفحةَ لا اسمَ الخدمة. وكنّا نطرق باباً واحداً
+# من جهةٍ واحدةٍ فغاب عنّا ثلثُ الدليل.
+NOMU_PAGE = ("https://www.saudiexchange.sa/wps/portal/saudiexchange/ourmarkets/"
+             "nomuc-market-watch")
 _BASE_RE = re.compile(r"<base[^>]+href=[\"']([^\"']+)", re.I)
 _EP_RE = re.compile(r"p0/[A-Za-z0-9_=]*=NJgetMainNomucMarketDetails=/")
 
@@ -107,14 +116,18 @@ def normalize(rows: list) -> dict[str, dict]:
     return out
 
 
-async def fetch_rows() -> tuple[list, str | None]:
-    """صفوفُ مراقبة السوق — أو (فارغ، سببُ التعذّر).
+async def fetch_rows(page: str | None = None) -> tuple[list, str | None]:
+    """صفوفُ مراقبة سوقٍ واحد — أو (فارغ، سببُ التعذّر).
+
+    و`page` يحدّد **أيَّ سوقٍ**: الأساسُ ونداءُ الجدول يُشتقّانِ من
+    الصفحة الممرَّرة، فبابُ «نمو» هو بابُ الرئيسيّ نفسُه من صفحته (D357).
 
     العنوانُ يُشتقّ من الصفحة كما في قارئ الصكوك: «تداول» بوّابةٌ تُولّد
     معرِّفاتٍ في المسار، فتثبيتُها يجعلها تشيخ بلا إنذار.
     """
     from app.services.tadawul_http import fetch
-    status, body = await fetch(PAGE)
+    page = page or PAGE
+    status, body = await fetch(page)
     if status != 200 or not body:
         return [], f"HTTP {status} من صفحة مراقبة السوق"
     mb, me = _BASE_RE.search(body), _EP_RE.search(body)
@@ -125,7 +138,7 @@ async def fetch_rows() -> tuple[list, str | None]:
     status, body = await fetch(mb.group(1).rstrip("/") + "/" + me.group(0),
                                params={"sectorParameter": "All",
                                        "iswatchListSelected": "NO",
-                                       "requestLocale": "en"}, referer=PAGE)
+                                       "requestLocale": "en"}, referer=page)
     if status != 200:
         return [], f"HTTP {status} من نقطة بيانات السوق"
     try:
@@ -149,14 +162,30 @@ async def refresh() -> dict:
         why = f"فُهم {len(table)} رمزاً من {len(rows)} صفّاً (الحدّ {MIN_ROWS})"
         logger.warning("لقطةُ «تداول» مرفوضة: {}", why)
         return {"count": 0, "error": why}
+    # ══ والسوقُ الموازي يُضاف ولا يُشترَط ══ (D357)
+    # حدُّ `MIN_ROWS` للسوق الرئيسيّ وحدَه: «نمو» جدولُه 124 صفّاً بطبعه،
+    # فلو قيس بالحدّ نفسِه رُفض وهو سليم. وتعذّرُه **لا يُسقِط** اللقطةَ:
+    # يُعلَن ويبقى الرئيسيُّ — فبابٌ ثانٍ لا يُجعَل نقطةَ انكسارٍ للأوّل.
+    nomu = 0
+    try:
+        n_rows, n_why = await fetch_rows(NOMU_PAGE)
+        if n_why:
+            logger.warning("جدولُ «نمو» لم يُقرأ: {}", n_why)
+        else:
+            for k, v in normalize(n_rows).items():
+                table.setdefault(k, v)          # لا يُزاح رمزٌ من الرئيسيّ
+            nomu = len(normalize(n_rows))
+            logger.info("جدولُ «نمو»: {} رمزاً", nomu)
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("جدولُ «نمو» تعذّر: {}", type(e).__name__)
     rec = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
            "rows": table}
     from app.services import lastgood
     lastgood.save(STORE_KEY, rec)
     from app.services import cache
     cache.set(STORE_KEY, rec, MAX_AGE_SECONDS)
-    logger.info("لقطةُ «تداول»: {} رمزاً", len(table))
-    return {"count": len(table), "at": rec["at"]}
+    logger.info("لقطةُ «تداول»: {} رمزاً (منها «نمو» {})", len(table), nomu)
+    return {"count": len(table), "nomu": nomu, "at": rec["at"]}
 
 
 CLOSE_MAX_DAYS = 5          # أطولُ عطلةٍ معقولة: عيدٌ متّصلٌ بنهاية أسبوع

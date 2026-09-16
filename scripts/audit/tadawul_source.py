@@ -79,6 +79,7 @@ async def _few():
     return [raw(str(2000 + i)) for i in range(5)], None
 
 
+_REAL_FETCH_ROWS = tm.fetch_rows      # يُستعاد في الفحص ١١ (D357)
 tm.fetch_rows = _few                                             # type: ignore[assignment]
 rec = asyncio.run(tm.refresh())
 check(rec.get("count") == 0 and "الحدّ" in str(rec.get("error")) and not tm.snapshot(),
@@ -180,6 +181,72 @@ check(not _bad,
 _ANN = (_SVC / "tadawul_announcements.py").read_text(encoding="utf-8")
 check("from app.services.tadawul_http import fetch" in _ANN,
       "٨ب وخدمةُ الإفصاحات بعينها تستعمله — وهي التي قِيس ردُّها 403")
+
+# ── ١١ · وسوقانِ في اللقطة: الرئيسيُّ و«نمو» (D357) ──────────────────────
+# قِيس بالكاشف `other_boards.py`: الخدمةُ هي هي، والجدولُ يتبع **الصفحةَ**
+# لا اسمَ الخدمة — فصفحةُ «نمو» تُخرج 124 صفّاً فيها 123 من الـ136 التي
+# لم نكن نسألها. ويُقاس السلوكُ لا النصّ: أيَّ صفحةٍ يطلب · وهل يُدمَج ·
+# وهل يُزاح رمزٌ من الرئيسيّ · وهل يُسقِط تعذّرُ «نمو» اللقطةَ كلَّها.
+_asked_pages: list[str] = []
+
+
+def _mk_rows(pfx: str, n: int) -> list:
+    return [{"symbol": f"{pfx}{i:03d}", "companyName": "ش", "lastTradePrice": "10",
+             "changePercent": "1", "volumeTraded": "5"} for i in range(n)]
+
+
+async def _fake_fetch(url, *, params=None, referer=None, timeout=45):
+    _asked_pages.append(url)
+    if "nomuc-market-watch" in url and params is None:
+        return 200, '<base href="https://x/nomu/"><a>p0/A=NJgetMainNomucMarketDetails=/</a>'
+    if "main-market-watch" in url and params is None:
+        return 200, '<base href="https://x/main/"><a>p0/A=NJgetMainNomucMarketDetails=/</a>'
+    if url.startswith("https://x/nomu/"):
+        return 200, _json.dumps({"data": _mk_rows("9", 124)})
+    if url.startswith("https://x/main/"):
+        return 200, _json.dumps({"data": _mk_rows("1", 272)})
+    return 404, ""
+
+
+import json as _json  # noqa: E402
+import app.services.tadawul_http as _http  # noqa: E402
+
+# ══ ويُستعاد الجالبُ الحقيقيُّ أوّلاً ══
+# فحصٌ سابقٌ أبدل `tm.fetch_rows` ببديلٍ يردّ 220 صفّاً، فلو قِيس
+# التحديثُ فوقه لقِستُ بديلي لا شفرتي — وهو العطبُ الذي وقعتُ فيه
+# مرّاتٍ وسُجّل. فالاستعادةُ شرطُ صدقِ هذا الفحص.
+tm.fetch_rows = _REAL_FETCH_ROWS                                 # type: ignore[assignment]
+_keep_fetch = _http.fetch
+_http.fetch = _fake_fetch                                        # type: ignore[assignment]
+_rep = asyncio.run(tm.refresh())
+_http.fetch = _keep_fetch                                        # type: ignore[assignment]
+check(any("nomuc-market-watch" in u for u in _asked_pages),
+      "١١ صفحةُ «نمو» تُطلَب كما تُطلَب الرئيسية — بابٌ لسوقَين",
+      f"{len(_asked_pages)} طلباً")
+check(_rep.get("count") == 396 and _rep.get("nomu") == 124,
+      "١١ب واللقطةُ تجمع السوقَين — 272 + 124",
+      f"{_rep.get('count')} رمزاً · «نمو» {_rep.get('nomu')}")
+_rows_now = (tm.usable_rows()[0] or {})
+check(any(k.startswith("9") for k in _rows_now)
+      and any(k.startswith("1") for k in _rows_now),
+      "١١ج ورموزُ السوقَين معاً في المحفوظ — لا يُزيح أحدُهما الآخر")
+
+# وبالاتّجاه المعاكس: تعذّرُ «نمو» لا يُسقِط اللقطةَ
+_asked_pages.clear()
+
+
+async def _nomu_dead(url, *, params=None, referer=None, timeout=45):
+    if "nomuc-market-watch" in url:
+        return 500, ""
+    return await _fake_fetch(url, params=params, referer=referer)
+
+
+_http.fetch = _nomu_dead                                         # type: ignore[assignment]
+_rep2 = asyncio.run(tm.refresh())
+_http.fetch = _keep_fetch                                        # type: ignore[assignment]
+check(_rep2.get("count") == 272 and _rep2.get("nomu") == 0,
+      "١١د وتعذّرُ «نمو» يُعلَن ولا يُسقِط الرئيسيَّ — بابٌ ثانٍ لا نقطةُ انكسار",
+      f"{_rep2.get('count')} رمزاً")
 
 print(("FAIL" if fail else "PASS") + " D251 — لقطةُ السوق من مُصدِره")
 raise SystemExit(fail)
