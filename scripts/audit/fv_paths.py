@@ -33,8 +33,14 @@ async def main() -> int:
     print(f"═ {SYM} · السعرُ العادل ═")
     print(f"  القيمةُ المعروضة: {fv.get('value')} · المدى: "
           f"{fv.get('low')}–{fv.get('high')} · تشتُّت: {fv.get('dispersion')}")
-    print(f"  السعرُ الحاليّ: {an.get('price')} · العمر: {fv.get('asof')}"
-          f" · شائخ={fv.get('stale')}")
+    # ══ ويُطبَع عمرُ البيانات لا تاريخُ الجلب ══ (D380)
+    # كان يطبع `asof` وهو تاريخُ آخر جلبٍ — فيُخفي أن المدخلاتَ قديمة.
+    print(f"  السعرُ الحاليّ: {an.get('price')}"
+          f" · بياناتٌ حتى: {fv.get('data_asof') or '—'}"
+          f" · عمرُها: {fv.get('age_days')} يوماً"
+          f" · شائخ={fv.get('stale')}"
+          f" · ثقة={fv.get('confidence') or '—'}"
+          f" · (جُلبت: {fv.get('fetched_at') or fv.get('asof')})")
     if fv.get("unavailable_reason"):
         print(f"  الامتناع: {fv['unavailable_reason']}")
     if fv.get("excluded"):
