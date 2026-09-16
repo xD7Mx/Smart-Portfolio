@@ -1417,7 +1417,15 @@ class MarketDataService:
         except Exception:                                         # noqa: BLE001
             rows = []
         if rows:
-            return {"symbol": symbol, "periods": rows, "source": "تداول — XBRL"}
+            # ══ والنقصُ يُكمَّل لا يُعلَن ══ (بأمر المالك · D336)
+            # «النقصُ ليس اعتذاراً يُعلَن وإنما اكتشافُ البديل المكمِّل
+            # لندمجَه مع المصدر الأساسيّ». فبندٌ غائبٌ عن الملفّ الرسميّ
+            # يُشتقّ بهويّةٍ محاسبيةٍ من منشورٍ في الفترة نفسِها، أو
+            # يُكمَل من ياهو بمطابقة السنة، أو من لقطة السوق — وكلُّ حقلٍ
+            # يحمل مصدرَه. ولا يُستبدَل منشورٌ أبداً.
+            merged = await self._complete(symbol, rows, allow_supplement)
+            return {"symbol": symbol, "periods": merged,
+                    "source": "تداول — XBRL", "completed": True}
         # ══ وكلُّ طبقةٍ تَسِمُ مخرَجَها ══ (D334)
         # قِيس على خادم المالك: شركةٌ قوائمُها **أربعُ فترات** ومصدرُها
         # يُطبع «لا شيء» — لأن طبقةَ ياهو لا تضع `source` أصلاً. فرقمٌ
@@ -1425,9 +1433,50 @@ class MarketDataService:
         # نقضُ بند «مصدرٌ يُعلَن مع الصفوف» المكتوب في هذه الدالّة نفسِها.
         out = await self._yahoo().get_financials(
             symbol, allow_supplement=allow_supplement)
-        if isinstance(out, dict) and out.get("periods") and not out.get("source"):
-            out["source"] = "ياهو"
+        if isinstance(out, dict) and out.get("periods"):
+            if not out.get("source"):
+                out["source"] = "ياهو"
+            out["periods"] = await self._complete(
+                symbol, out["periods"], allow_supplement,
+                base_source="ياهو", with_yahoo=False)
+            out["completed"] = True
         return out
+
+    async def _complete(self, symbol: str, rows: list, allow_supplement: bool,
+                        *, base_source: str | None = None,
+                        with_yahoo: bool = True) -> list:
+        """يجمع طبقاتِ الإكمال ويُسلّمها لـ`statement_merge` (D336)."""
+        from app.services import statement_merge as SM
+        y_rows = None
+        if with_yahoo:
+            # ياهو لا يُنادى إلا إن بقي بندٌ مطلوبٌ غائباً في كلّ الفترات —
+            # فلا تُحرَق حصّةٌ لبندٍ موجودٍ في الرسميّ (بأمر المالك: خفّف
+            # الضغطَ على مصدرٍ واحد).
+            if SM.missing(rows):
+                try:
+                    y = await self._yahoo().get_financials(
+                        symbol, allow_supplement=allow_supplement)
+                    y_rows = (y or {}).get("periods")
+                except Exception as e:                            # noqa: BLE001
+                    logger.debug("إكمالٌ من ياهو تعذّر {}: {}", symbol,
+                                 type(e).__name__)
+        snap = None
+        px = None
+        try:
+            from app.services.tadawul_market import row_for
+            snap = row_for(symbol) or None
+            px = (snap or {}).get("price")
+        except Exception:                                         # noqa: BLE001
+            snap = None
+        arg = None
+        try:
+            from app.services.argaam_results import for_symbol as _arg
+            arg = _arg(symbol) or None
+        except Exception:                                         # noqa: BLE001
+            arg = None
+        return SM.complete(symbol, rows, yahoo_periods=y_rows,
+                           snapshot_row=snap, price=px, argaam=arg,
+                           base_source=base_source)
 
     async def get_quarterly_financials(self, symbol: str):
         """الربعيُّ بالترتيب نفسِه — والرسميُّ أوّلاً (D263).

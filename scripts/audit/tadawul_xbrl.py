@@ -160,13 +160,26 @@ xb.save_symbol("2010", {"annual": P, "quarterly": [{"as_of": "2026-03-31",
                                                     "year": 2026, "revenue": 5.0}],
                         "as_of": _dt.date.today().isoformat()})
 out = asyncio.run(svc.get_financials("2010.SR"))
-check((out or {}).get("source") == "تداول — XBRL"
-      and (out or {}).get("periods") == P,
-      "٧ب ومع الرسميّ يتقدّم ويُعلَن مصدرُه", str((out or {}).get("source")))
+# ══ والعقدُ تغيّر بأمر المالك: تُكمَّل لا تُنسَخ ══ (D336)
+# كان الشرطُ «الفتراتُ **نفسُ الكائن**» (‏`periods == P`)، وطبقةُ الإكمال
+# تُضيف إليها حقولاً مشتقّةً و`field_sources`. فالشرطُ الصحيح: المصدرُ
+# الرسميُّ يتقدّم، و**كلُّ قيمةٍ منشورةٍ تبقى كما وردت بالحرف**،
+# والزيادةُ مسموحةٌ موسومةً بمصدرها. ومقارنةُ الهويّة كانت تحرس
+# «لا يُمَسّ المنشور» فصارت تحرسه بالمعنى لا بالشكل.
+_got = (out or {}).get("periods") or []
+_kept = (len(_got) == len(P)
+         and all(all(_g.get(k) == v for k, v in _p.items())
+                 for _p, _g in zip(P, _got)))
+check((out or {}).get("source") == "تداول — XBRL" and _kept,
+      "٧ب ومع الرسميّ يتقدّم ويُعلَن مصدرُه، وقيمُه تبقى كما وردت",
+      str((out or {}).get("source")))
+check(all(isinstance(_g.get("field_sources"), dict) for _g in _got),
+      "٧ج وكلُّ فترةٍ تحمل مصادرَ حقولها — منشورٌ ومشتقٌّ ومكمَّل",
+      str((_got[0] if _got else {}).get("field_sources"))[:80])
 outq = asyncio.run(svc.get_quarterly_financials("2010.SR"))
 check((outq or {}).get("source") == "تداول — XBRL"
       and len((outq or {}).get("periods") or []) == 1,
-      "٧ج والربعيُّ كذلك — وياهو آخرُ الطبقات لا أوّلُها")
+      "٧د والربعيُّ كذلك — وياهو آخرُ الطبقات لا أوّلُها")
 
 # ── ٨ · إيداعٌ شائخ ─────────────────────────────────────────────────────
 old = (_dt.date.today() - _dt.timedelta(days=xb.MAX_AGE_DAYS + 5)).isoformat()

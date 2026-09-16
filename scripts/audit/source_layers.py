@@ -233,5 +233,61 @@ check('(_stmt or {}).get("source")' in _AN,
 check('"غير متوفّر"' in _AN,
       "٧د وبلا قوائمَ يُقال «غير متوفّر» — لا يُنسَب رقمٌ لمصدرٍ لم يُجب")
 
+# ── ٨ · والنقصُ يُكمَّل لا يُعلَن — بالحقل ومع مصدره (D336) ──────────────
+# بأمر المالك: «النقصُ ليس اعتذاراً يُعلَن وإنما اكتشافُ البديل المكمِّل
+# لندمجَه مع المصدر الأساسيّ». وقِيس على ملفّ أرامكو: أصولٌ والتزاماتٌ
+# بلا «حقوق»، وربحٌ وربحيةُ سهمٍ بلا «عددِ أسهم»، وقروضٌ متداولةٌ وغيرُ
+# متداولةٍ بلا «إجماليّ دَين». والهويّاتُ المحاسبيةُ تُخرجها كلَّها.
+from app.services import statement_merge as SM  # noqa: E402
+
+_ROWS = [{"year": 2025, "net_income": 350210000000.0, "eps": 1.44,
+          "total_assets": 2679259000000.0, "total_liabilities": 1109801000000.0,
+          "operating_cash_flow": 510798000000.0,
+          "pretax_income": 500000000000.0, "interest_expense": 10000000000.0,
+          "borrowings_current": 46871000000.0,
+          "borrowings_noncurrent": 308365000000.0}]
+_M = SM.complete("2222", _ROWS,
+                 yahoo_periods=[{"year": 2025, "capex": 100000000000.0},
+                                {"year": 2024, "capex": 1.0}],
+                 snapshot_row={"market_cap": 6220000000000.0,
+                               "price_to_book": 4.0},
+                 price=25.68)[0]
+_S = _M.get("field_sources") or {}
+check(_M.get("equity") == 1569458000000.0
+      and "أصولٌ − التزامات" in _S.get("equity", ""),
+      "٨ حقوقُ الملكية تُشتقّ بهويّةٍ محاسبية — وهي رقمُ الملفّ بالحرف",
+      f"{_M.get('equity')} ← {_S.get('equity')}")
+check(round(_M.get("shares_outstanding") or 0) == 243201388889
+      and "ربحية السهم" in _S.get("shares_outstanding", ""),
+      "٨ب وعددُ الأسهم من الربح ÷ ربحية السهم — لا من رأس المال ظنّاً",
+      str(_M.get("shares_outstanding")))
+check(_M.get("total_debt") == 355236000000.0,
+      "٨ج وإجماليُّ الدَّين مجموعُ القروض المقروءة — لا جزءٌ منها",
+      str(_M.get("total_debt")))
+check(_M.get("capex") == 100000000000.0 and _S.get("capex") == "ياهو",
+      "٨د وما لا يُنشَر رسمياً يُكمَل من طبقةٍ تملكه — بمطابقة السنة",
+      f"{_M.get('capex')} ← {_S.get('capex')}")
+check(_M.get("free_cash_flow") == 410798000000.0,
+      "٨ه ويُعاد الاشتقاقُ بعد الإكمال — فالتدفّقُ الحرُّ صار ممكناً")
+
+# ولا يُستبدَل منشورٌ بمكمِّل، ولا تُخلَط سنةٌ بأخرى
+_M2 = SM.complete("X", [{"year": 2025, "capex": 7.0, "total_assets": 10.0,
+                         "total_liabilities": 4.0}],
+                  yahoo_periods=[{"year": 2025, "capex": 999.0},
+                                 {"year": 2024, "total_assets": 111.0}])[0]
+check(_M2.get("capex") == 7.0,
+      "٨و والمنشورُ لا يُستبدَل بمكمِّلٍ — الإكمالُ للفراغ وحدَه")
+check(_M2.get("equity") == 6.0,
+      "٨ز والفترةُ تُكمَّل من سنتها لا من جارتها")
+check(SM.missing([{"year": 2025, "revenue": 1.0}]),
+      "٨ح وما بقي غائباً بعد الطبقات يُقال ولا يُختلق",
+      str(SM.missing([{"year": 2025, "revenue": 1.0}]))[:60])
+_MD2 = (ROOT / "backend" / "app" / "services"
+        / "market_data.py").read_text(encoding="utf-8")
+check("self._complete(" in _MD2 and "statement_merge" in _MD2,
+      "٨ط والبابُ الواحدُ يُكمِل لكلّ شاشةٍ ومحرّك — لا في مسارٍ واحد")
+check("if SM.missing(rows):" in _MD2,
+      "٨ي وياهو لا يُنادى إن لم يبقَ بندٌ ناقص — لا حصّةٌ تُحرَق بلا حاجة")
+
 print(("FAIL" if fail else "PASS") + " D255 — ثلاثُ طبقاتٍ بترتيبٍ واحد")
 raise SystemExit(fail)
