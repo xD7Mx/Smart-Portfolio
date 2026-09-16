@@ -81,9 +81,15 @@ class _Closed(_real):
         return _real(2026, 9, 12, 11, 0) if tz is None else _real.now(tz)
 
 
+# الثوابتُ تُصغَّر للقياس، و**قيمتُها الحقيقيةُ تُحفَظ** لتُقاس كما هي
+# في القسم ١٢: حارسٌ يقيس قيمةً صغّرها هو لا يقيس شيئاً.
+_REAL_POLL = LS.SOURCE_POLL
 LS.PUMP_INTERVAL = 0.12
 LS.HEARTBEAT = 0.25
 LS.MAX_STREAM_SECONDS = 2.0
+# صفرٌ هنا: سيناريوهاتُ الدفع تُقاس بمصدرٍ ينشر كلَّ دورة. وبوّابةُ
+# الإيقاع نفسُها تُقاس في القسم ١٢ بقيمتها.
+LS.SOURCE_POLL = 0.0
 
 
 async def _take(n: int) -> list:
@@ -323,12 +329,28 @@ check(NG.count("{") == NG.count("}"),
 # وثلاثةُ أسبابٍ مقيسةٌ في الشيفرة، لا واحد.
 
 
-def _pump_once(refresh_fails: bool, refresh=None) -> tuple[list, list, list]:
-    """دورتا مضخّةٍ مقيستان: ما دُفع · مُدَدُ النوم · ما سُجّل من تحذير."""
+def _pump_once(refresh_fails: bool, refresh=None,
+               stale: bool = True) -> tuple[list, list, list]:
+    """دورتا مضخّةٍ مقيستان: ما دُفع · مُدَدُ النوم · ما سُجّل من تحذير.
+
+    ══ والمحفوظُ يُشيَّخ قبل الدورة ══ (D326)
+    صار النداءُ مشروطاً بشيخوخة المحفوظ بمقدار `SOURCE_POLL` — فدورةٌ
+    تبدأ بمحفوظٍ طازجٍ لا تنادي المصدرَ أصلاً، وسيناريو «المصدرُ يرفض»
+    لا يُقاس إلا بمحفوظٍ شائخ. فيُشيَّخ ما في الذاكرة **بالفرق** لا
+    بتاريخٍ مثبَّت، إلا أن يطلب الفحصُ خلافَه (`stale=False`).
+    """
     import asyncio as _aio
 
     from app.services import cache as _c
     from app.services import tadawul_market as _M
+
+    if stale:
+        _old = (_dt.datetime.now(_dt.timezone.utc)
+                - _dt.timedelta(seconds=max(60.0, LS.SOURCE_POLL * 4)))
+        _rec = _c.get(_M.STORE_KEY)
+        _c.set(_M.STORE_KEY,
+               {**(_rec if isinstance(_rec, dict) else {"rows": {}}),
+                "at": _old.isoformat(timespec="seconds")}, 600)
 
     logs: list[str] = []
     sink = logger.add(lambda m: logs.append(m), level="WARNING")
@@ -426,8 +448,10 @@ check(0.0 <= _gap < 0.15,
 LS.PUMP_INTERVAL = 0.12
 _MPUMP = (ROOT / "backend" / "app" / "services"
           / "live_stream.py").read_text(encoding="utf-8")
-check("قراءةُ المصدر" in _MPUMP,
-      "١١ط٢ والإيقاعُ يُطبع في السجلّ — يُقاس ولا يُوصَف بالكلام")
+check("دفعةً في" in _MPUMP and "نداءً للمصدر" in _MPUMP
+      and "عمرُ المحفوظ" in _MPUMP,
+      "١١ط٢ والإيقاعُ يُطبع في السجلّ: دفعاتٌ ونداءاتٌ وعمرُ المحفوظ —"
+      " يُقاس ولا يُوصَف بالكلام")
 
 _none, _slp2, _warn = _pump_once(refresh_fails=True)
 check(any("التجديدُ تعذّر" in str(m) for m in _warn),
@@ -462,6 +486,59 @@ check("useLiveIndex()" in _TK2,
       "١١ل ولسانُ تاسي كذلك — لا رقمٌ يُسأل عنه كلَّ دقيقةٍ تحت وسمِ «مباشر»")
 
 _MP.market_phase = _real_phase                                   # type: ignore[assignment]
+
+# ── ١٢ · بابٌ لا يُفتَح لا يُطرَق كلَّ نصفِ ثانية (D326) ─────────────────
+# قِيس على خادم المالك والسوقُ مفتوح: «١ دفعةً في ١٠٠ ثانية · قراءةُ
+# المصدر ١١٨٩ مل.ث» — ستّون نداءً كلُّها تعيد الجسمَ نفسَه، لأنّ «تداول»
+# ينشر جدولَه كلَّ أربعِ دقائقَ إلى خمس (`max-age=300`). فالنداءُ صار
+# بإيقاعِ المصدر، والدفعُ بقي لحظةَ التغيّر.
+LS.SOURCE_POLL = 15.0          # تُعاد البوّابةُ لتُقاس بوصفها
+_calls = {"n": 0}
+
+
+async def _counted():
+    _calls["n"] += 1
+    from app.services import cache as _c2
+    from app.services import tadawul_market as _M2
+    _c2.set(_M2.STORE_KEY,
+            {"at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+             "rows": {"2010": {"price": 71.0, "change_pct": 0.9}}}, 600)
+    return {"count": 1}
+
+
+from app.services import cache as _c3  # noqa: E402
+from app.services import tadawul_market as _M3  # noqa: E402
+
+# محفوظٌ **طازجٌ** (عمرُه ثانيتان): لا يُنادى المصدرُ، ويُدفَع من المحفوظ.
+_c3.set(_M3.STORE_KEY,
+        {"at": (_dt.datetime.now(_dt.timezone.utc)
+                - _dt.timedelta(seconds=2)).isoformat(timespec="seconds"),
+         "rows": {"2010": {"price": 70.5, "change_pct": 0.7}}}, 600)
+_calls["n"] = 0
+_p12, _, _ = _pump_once(False, refresh=_counted, stale=False)
+check(_calls["n"] == 0,
+      "١٢ محفوظٌ طازجٌ لا يُستدعى له المصدر — لا مئةُ نداءٍ لجوابٍ واحد",
+      f"{_calls['n']} نداءً")
+check(any(p.get("q") for p in _p12),
+      "١٢ب ومع ذلك يُدفَع ما في المحفوظ — الدفعُ لا يتوقّف على النداء",
+      str(_p12)[:80])
+
+# ومحفوظٌ **شائخٌ** (عمرُه دقيقة): يُنادى المصدرُ.
+_c3.set(_M3.STORE_KEY,
+        {"at": (_dt.datetime.now(_dt.timezone.utc)
+                - _dt.timedelta(seconds=60)).isoformat(timespec="seconds"),
+         "rows": {"2010": {"price": 70.5, "change_pct": 0.7}}}, 600)
+_calls["n"] = 0
+_p12b, _, _ = _pump_once(False, refresh=_counted, stale=False)
+check(_calls["n"] >= 1,
+      "١٢ج وشائخٌ بمقدار إيقاعِ المصدر يُستدعى له — لا جمودٌ بحجّة التوفير",
+      f"{_calls['n']} نداءً")
+check(5.0 <= _REAL_POLL <= 60.0 and _REAL_POLL > 0.5,
+      "١٢د وإيقاعُ النداء المسجَّلُ أوسعُ من دورة الدفع وأضيقُ من دقيقة",
+      f"نداءٌ كلَّ {_REAL_POLL}ث")
+check("max-age=300" in LS.__doc__ and "1:52:23" in LS.__doc__,
+      "١٢ه وسقفُ المصدر مكتوبٌ بقياسه في الوحدة نفسِها — لا وعدُ «صفرِ"
+      " ثانية» بلا سند")
 
 print(("FAIL" if fail else "PASS") + " D290 — دفعٌ لا سؤال، بمضخّةٍ واحدة")
 raise SystemExit(fail)
