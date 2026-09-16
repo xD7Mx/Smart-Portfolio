@@ -66,6 +66,7 @@ def main() -> int:
     def survey(syms: list[str], title: str) -> None:
         print(f"\n╔══ {title} — {len(syms)} ورقة ══")
         have_rows, no_rows = [], []
+        _stale: list[tuple[str, int, str | None]] = []
         cov: Counter = Counter()
         nm_cnt: Counter = Counter()
         ages: list[int] = []
@@ -90,6 +91,8 @@ def main() -> int:
                 g = _age_days(max(ds))
                 if g is not None:
                     ages.append(g)
+                    if g > 200:
+                        _stale.append((s, g, SM.archetype_of(s)))
         n = len(syms) or 1
         print(f"  لها قوائمُ محفوظة: {len(have_rows)} ({100*len(have_rows)//n}%)"
               f" · بلا قوائم: {len(no_rows)}")
@@ -115,6 +118,20 @@ def main() -> int:
                   f" الأحدثُ: {ages[0]} · الأقدمُ: {ages[-1]}")
         else:
             print("  ── لا تواريخَ تُقرأ في المحفوظ (وهذا يُفحَص) ──")
+        # ══ والشائخُ يُنسَب إلى صنفه ══ (D374)
+        # قِيس: 47 ورقةً في الرئيسيّ أحدثُ ملفٍّ لها أقدمُ من 400 يوم
+        # **بعد حصادٍ جديد** — فهي أقدمُ ما أودعته فعلاً لا تقصيرُ حصاد.
+        # و«47» رقمٌ لا يُعمَل به: إن كانت قطاعاً واحداً فالعلاجُ واحد،
+        # وإن تفرّقت فكلُّ ورقةٍ حالةٌ. فتُنسَب إلى صنفها وتُسمّى.
+        if _stale:
+            print(f"  ── الشائخُ (>200 يوماً): {len(_stale)} ورقة ──")
+            _by_a: dict[str, list[str]] = {}
+            for _s2, _g2, _a2 in _stale:
+                _by_a.setdefault(_a2 or "عادية", []).append(f"{_s2}({_g2}ي)")
+            for _k2 in sorted(_by_a, key=lambda x: -len(_by_a[x])):
+                _v2 = _by_a[_k2]
+                print(f"     {_k2:<20} {len(_v2):>3} · "
+                      + " · ".join(_v2[:8]) + (" …" if len(_v2) > 8 else ""))
         print("  ── الأصنافُ ──  "
               + " · ".join(f"{k}×{v}" for k, v in arch.most_common()))
         if nm_cnt:

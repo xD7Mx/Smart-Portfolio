@@ -181,6 +181,31 @@ async def main() -> int:
         if not html:
             continue
 
+        # ══ والمطابَقُ يُطبَع كما يُطبَع غيرُ المطابَق ══ (D374)
+        # قِيس على خادم المالك: `revenue` لشركة التأمين 8010 = 24,332,000
+        # وأقساطُها بالمليارات — أي **اسمٌ طابَق خطأً**، وهو أسوأُ من
+        # الفراغ لأنه يُحسَب ولا يُشتكى منه. وأداتي كانت تطبع الناقصَ
+        # وحدَه فلا تكشف الخطأ المطابَق. فيُطبَع لكلّ بندٍ **الاسمُ الذي
+        # طابقه وقيمتُه** — فيُقرأ الخطأُ بعينه لا بأثره.
+        _hit: dict[str, list[tuple[str, str]]] = {}
+        _key_of = {n: k for k, names in X.LABELS.items() for n in names}
+        for tr in X._TR.findall(html):
+            cells = [X._clean(c) for c in X._TD.findall(tr)]
+            if len(cells) < 2 or not cells[0] or len(cells[0]) > 160:
+                continue
+            k = _key_of.get(X._norm(cells[0]))
+            if not k:
+                continue
+            nums = [c for c in cells[1:]
+                    if len(c) <= 40 and X._num(c) is not None]
+            if nums:
+                _hit.setdefault(k, []).append((X._norm(cells[0]), nums[0]))
+        if _hit:
+            print("  ── الأسماءُ التي طابقت (بندٌ ← اسمُ الملفّ = قيمة) ──")
+            for k in sorted(_hit):
+                for nm, v in _hit[k][:3]:
+                    print(f"     {k:<20} ← «{nm[:64]}» = {v}")
+
         # كلُّ صفٍّ عنوانُه نصٌّ وقيمتُه رقمٌ ولم تُطابقه خريطتُنا
         known = {n for names in X.LABELS.values() for n in names}
         unmatched: list[tuple[str, str]] = []
