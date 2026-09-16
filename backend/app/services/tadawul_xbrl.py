@@ -58,7 +58,13 @@ LABELS: dict[str, tuple[str, ...]] = {
     "net_income": ("profit (loss) for period", "profit (loss)",
                    "profit (loss) for the period",
                    "profit (loss), attributable to equity holders of parent company"),
-    "equity": ("total equity", "equity attributable to owners of parent"),
+    # وحقوقُ الملكية بصياغات القطاعات كما قِيست: البنكُ والشركةُ والأمُّ.
+    "equity": ("total equity", "equity attributable to owners of parent",
+               "total equity attributable to owners of parent",
+               "total equity attributable to equity holders of company",
+               "total equity attributable to equity holders of bank",
+               "equity attributable to shareholders of the bank",
+               "total equity attribute to shareholder of the parent company"),
     "total_assets": ("total assets",),
     "total_liabilities": ("total liabilities",),
     "eps": ("total basic earnings (loss) per share",
@@ -79,21 +85,45 @@ LABELS: dict[str, tuple[str, ...]] = {
                            "current portion of long-term borrowings",
                            "borrowings - current",
                            "current portion of long term loans",
-                           "short term borrowings"),
+                           "short term borrowings",
+                           "loans and borrowings", "borrowings",
+                           "unsecured bank loans"),
     "borrowings_noncurrent": ("non-current borrowings", "long-term borrowings",
                               "noncurrent borrowings",
                               "borrowings - non-current",
                               "debt securities, term loans, borrowings and sukuks in issue"),
-    "lease_current": ("current lease liabilities",),
-    "lease_noncurrent": ("non-current lease liabilities",),
+    "lease_current": ("current lease liabilities", "finance lease, current"),
+    "lease_noncurrent": ("non-current lease liabilities",
+                         "finance leases, non-current"),
+    # ══ أسماءٌ من المسح الشامل لثلاثةٍ وعشرين قطاعاً ══ (D338)
+    # قِيس: «عددُ الأسهم» ينقص في **كلّ** القطاعات تقريباً، وكلُّها تنشره
+    # بصيغة «weighted average number of equity shares outstanding» وما
+    # يشبهها — ولم تكن في الخريطة. والصياغاتُ أدناه منقولةٌ من المخرَج.
     "shares_outstanding": ("number of shares outstanding",
                            "issued capital, number of shares",
-                           "weighted average number of ordinary shares outstanding"),
+                           "weighted average number of ordinary shares outstanding",
+                           "weighted average number of equity shares outstanding",
+                           "weighted average number of ordinary shares",
+                           "weighted average number of shares outstanding",
+                           "weighted average outstanding number of shares",
+                           "weighted average number of shares",
+                           "average number of shares outstanding during the period",
+                           "weighted average number of ordinary shares outstanding (for basic eps)",
+                           "weighted average number of outstanding shares"),
     "operating_cash_flow": (
         "cash flows from (used in) operating activities",
         "net cash flows from (used in) operating activities"),
+    # والمصروفُ الرأسماليُّ في ملفّ أرامكو «capital expenditures = -94,743»
+    # وفي الطاقة «capital expenditures - cash basis»، والبنوكُ والتأمينُ
+    # «purchase of property and equipment» — ثلاثُ صياغاتٍ مقيسةٌ لبندٍ
+    # واحدٍ هو بابُ مسار التدفّق الحرّ (D338). و«additions» تُترك: عامّةٌ
+    # تصلح لأصولٍ غير رأسمالية، فإضافتُها تخمينٌ لا نقل.
     "capex": ("purchase of property, plant and equipment",
-              "purchase of property, plant and equipment, classified as investing activities"),
+              "purchase of property, plant and equipment, classified as investing activities",
+              "capital expenditures",
+              "capital expenditures - cash basis",
+              "purchase of property and equipment",
+              "purchase of property and equipment, insurance/ takaful operations cash flow"),
     "ending_cash": ("cash and cash equivalents at end of period",
                     "cash and cash equivalents", "bank balances and cash"),
 }
