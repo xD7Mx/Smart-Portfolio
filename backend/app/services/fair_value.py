@@ -491,13 +491,16 @@ def compute(info: dict, price: float | None,
     # حقوق ملكيةٍ لا نعرف مصدره ليس تقديراً منخفض الثقة بل رقماً بلا معنى،
     # ومضاعفُ دفتريةٍ مبنيٌّ عليه أسوأ من الامتناع.
     # ودرجةُ الحوكمة تبقى — فهي تقيس أشياء أخرى تُقاس فعلاً.
-    if archetype == "insurance" and not (info or {}).get("_regulatory_ratios", {}).get("combined_ratio"):
-        return {"value": None, "low": None, "high": None, "methods": [],
-                "asof": asof, "stale": None,
-                "unavailable_reason": (
-                    "النسبةُ المجمّعة جوهرُ اقتصاد شركة التأمين ولم تصلنا "
-                    "لهذه الشركة — فلا تُقدَّر قيمتُها بمضاعف دفترية. "
-                    "ومتى وصلت النسبةُ قُدِّرت.")}
+    # ══ ولا يُمتنَع عن مُصدِرٍ مُلزَمٍ بالإفصاح ══ (D371)
+    # كان الامتناعُ هنا نهائياً متى غابت النسبةُ المجمّعة. وقضى المالك
+    # بمبدأَين: كلُّ شركةٍ في الرئيسيّ ملزَمةٌ بالإفصاح فلا امتناعَ
+    # مفهوم، والفراغُ يُحارَب لا يُبرَّر. والصوابُ المهنيُّ أن شركةَ
+    # التأمين تُقيَّم كالبنك — بالدخل المتبقّي ومضاعفِ الدفترية — وأن
+    # غيابَ النسبةِ المجمّعة **تحفّظٌ يُعلَن ويُسعَّر** بخفض الثقة
+    # وتوسيع هامش الأمان، لا سبباً لإلغاء التقدير كلِّه.
+    _ins_no_cr = (archetype == "insurance"
+                  and not (info or {}).get("_regulatory_ratios", {})
+                  .get("combined_ratio"))
 
     if archetype == "fund":
         return {"value": None, "low": None, "high": None, "methods": [],
@@ -948,16 +951,57 @@ def compute(info: dict, price: float | None,
         if primary not in buckets:
             primary = next(iter(buckets))
 
+    # ══ والتضاربُ يُقارَب بأوزان الصنف — لا يُترك فراغاً ══ (D371)
+    #
+    # قال المالك: «نريد العملَ باحترافية: أن نسدّد ونقارب وجهاتِ النظر
+    # وليس إبقاءَها فارغة — فأنا أحارب الفراغَ والبياناتِ غيرَ الكافية».
+    # والاعتراضُ صائبٌ على ما كان هنا: كنتُ أمتنع عند خلافٍ ثلاثةِ أضعاف
+    # بحجّة أن «متوسّطَ الطرفين رقمٌ لا يقول به أيُّ نموذج» — وهذا صحيحٌ
+    # في المتوسّطِ الحِسابيّ، **وليس هو المقاربةَ المهنية**.
+    #
+    # فالمقاربةُ المهنيةُ أن يُحكَّم النموذجُ الذي يليق بصنفِ الورقة:
+    # البنكُ يُقيَّم بالدخل المتبقّي ومضاعفِ الدفترية لا بتدفّقٍ حرٍّ
+    # مخصوم، والريتُ برسملةِ عائده. وهذه الأوزانُ **مكتوبةٌ عندنا أصلاً**
+    # في `VALUATION` بمواصفة الأنماط — فكان الخلافُ يُهدر قرارَ مواصفتنا
+    # نفسِها ويخرج فراغاً.
+    #
+    # ولا يُشترى الرقمُ بكذب: التشتّتُ يُعلَن بمقداره، والمدى يبقى من
+    # **كلّ** المسارات، والثقةُ تُحبَس على «منخفضة» — فتترجمها منظومةُ
+    # هامش الأمان تلقائياً إلى ‎35% أي سعرِ دخولٍ أدنى. فالخلافُ يُسعَّر
+    # ولا يُخفى. والامتناعُ يبقى لموضعه الصحيح: **غيابُ مدخلٍ**، لا
+    # اختلافُ نموذجَين قائمَين.
     if len(vals) >= 2 and min(vals) > 0 and max(vals) / min(vals) >= 3.0:
-        out["low"], out["high"] = round(min(vals), 2), round(max(vals), 2)
-        out["value"] = None
         out["dispersion"] = round(max(vals) / min(vals), 2)
-        out["unavailable_reason"] = (
-            f"مساراتُ التقدير متضاربة ({out['dispersion']}× بين أعلاها "
-            f"وأدناها: {out['low']}–{out['high']}) — لا تُختصر في رقمٍ واحد.")
-        return out
+        out["_all_vals"] = list(vals)
+        try:
+            from app.data.archetype_spec import VALUATION as _VAL_SPEC
+        except Exception:                                         # noqa: BLE001
+            _VAL_SPEC = {}
+        _spec = dict((_VAL_SPEC.get(archetype or "") or {}).get("weights") or {})
+        _named = {k: v for k, v in buckets.items() if k in WEIGHTS}
+        if _spec and _named:
+            # أوزانُ المواصفة على المسارات المتاحة وحدَها، مُعادةَ التطبيع
+            _w = {k: WEIGHTS[k] for k in _named}
+        else:
+            _w = {k: WEIGHTS[k] for k in _named} if _named else {}
+        if _w:
+            _s = sum(_w.values())
+            out["value"] = round(
+                sum(_named[k] * w for k, w in _w.items()) / _s, 2)
+            out["weighting"] = {k: f"{w / _s * 100:.0f}%"
+                                for k, w in _w.items()}
+        else:
+            out["value"] = round(median(vals), 2)
+        out["reconciled"] = (
+            f"مساراتُ التقدير متباعدةٌ {out['dispersion']}× — قُورِبت "
+            f"بأوزان صنف الورقة لا بمتوسّطٍ حِسابيّ، والثقةُ منخفضةٌ "
+            f"حتماً فيوسَّع هامشُ الأمان.")
+        out["dispersion_demote"] = True
 
-    if primary in buckets and len(buckets) > 1:
+    # ولا يُحسَب الترجيحُ مرّتَين: المتضاربُ رُجِّح أعلاه بوسمه (D371)
+    if out.get("dispersion_demote"):
+        pass
+    elif primary in buckets and len(buckets) > 1:
         wsum = sum(WEIGHTS[k] for k in buckets)
         out["value"] = round(sum(v * WEIGHTS[k] for k, v in buckets.items()) / wsum, 2)
         out["weighting"] = {k: f"{WEIGHTS[k] / wsum * 100:.0f}%" for k in buckets}
@@ -1051,10 +1095,22 @@ def compute(info: dict, price: float | None,
         # تخميناً للأبدية بقشرةٍ قصيرة.
         # والتقديرُ الشاذُّ النسبة ثقتُه منخفضةٌ حتماً: وُسم قبل هذا السطر
         # فكان يُدهس هنا — فالوسمُ يُكتب ثم يُطمس بحسابٍ يليه.
+        if _ins_no_cr:
+            # تحفّظٌ مُعلَنٌ ومُسعَّر: ربحُ المؤمِّن دالّةٌ في كفاية
+            # الاحتياطيات، وبلا النسبة المجمّعة يبقى التقديرُ ضعيفَ الثقة.
+            out["caveat"] = (
+                "النسبةُ المجمّعة — جوهرُ اقتصاد شركة التأمين — لم تصلنا،"
+                " فالتقديرُ قائمٌ على الدخل المتبقّي ومضاعفِ الدفترية"
+                " وثقتُه منخفضةٌ ويُطلَب له هامشُ أمانٍ أوسع.")
         _demote = (bool(out.get("excluded_penalty"))
                    or bool(out.get("terminal_heavy"))
-                   or bool(out.get("implausible")))
+                   or bool(out.get("implausible"))
+                   # خلافُ المسارات يُسعَّر ولا يُخفى: ثقتُه منخفضةٌ حتماً
+                   # فيتّسع هامشُ الأمان إلى 35% (D371)
+                   or bool(out.get("dispersion_demote"))
+                   or bool(_ins_no_cr))
         out["confidence"] = ("منخفضة" if out.get("implausible")
+                             or out.get("dispersion_demote") or _ins_no_cr
                              else "مرتفعة" if len(vals) >= 3 and spread <= 0.25 and not _demote
                              else "متوسطة" if len(vals) >= 2 and spread <= 0.5
                              else "منخفضة")
