@@ -65,6 +65,7 @@ const BURST = ["2010", "1120", "2222", "1150", "4190", "7202", "1010", "1020",
                "1050", "1060", "1080", "1140", "1180", "1210", "1211", "1214",
                "1301", "1320", "1810", "1830", "2001", "2020", "2030", "2050"];
 let price = 70.00;
+let pct = 0.42;
 let tasi = 11500.0;
 const env = (data) => JSON.stringify({ success: true, data });
 
@@ -88,7 +89,10 @@ const srv = createServer((req, res) => {
       // نشر. فتُقاس **حركةُ الشاشة**: هل تقع كلُّها في لحظةٍ ثمّ سكون،
       // أم تُوزَّع على الثواني بأرقامها الحقيقية؟
       const q = {};
-      for (const s of BURST) q[s] = [Math.round((price + BURST.indexOf(s)) * 100) / 100, 0.42];
+      // والنسبةُ تتغيّر مع السعر: بطاقاتُ السوق تعرض النسبةَ لا السعر،
+      // فنسبةٌ ثابتةٌ تُخفي جمودَها (D331).
+      pct = Math.round((pct + 0.03) * 100) / 100;
+      for (const s of BURST) q[s] = [Math.round((price + BURST.indexOf(s)) * 100) / 100, pct];
       res.write("data: " + JSON.stringify({
         t: new Date().toTimeString().slice(0, 8),
         q, i: [tasi, 0.31],
@@ -118,6 +122,7 @@ const srv = createServer((req, res) => {
         // وقعتُ فيها: ستّةٌ من ستّةٍ تتغيّر معاً وليس المجرى سببَها).
         gainers: BURST.map((s, i) => ({ symbol: s, name: "شركة " + s,
                                         price: 100 + i, change_pct: 0.42 })),
+        // (النسبةُ في الاستعلام ثابتةٌ قصداً: الحركةُ يجب أن تأتي من المجرى)
         losers: [],
       }));
     }
@@ -279,6 +284,35 @@ const svSrc = await (await import("node:fs/promises"))
                  "StockView.tsx"), "utf-8");
 say(/useLiveQuote\(symbol,\s*\{\s*now:\s*true\s*\}\)/.test(svSrc),
     "٦ وصفحةُ السهم تشترك بأولويةٍ — لا تأخيرَ لمن تنظر إليه");
+
+// ── ٧ · وبطاقاتُ قسم السوق تعرض النسبةَ حيّةً (D331) ────────────────────
+// بأمر المالك: «الشاشاتُ الحيّةُ يجب أن تشمل جميعَ البطاقات في قسم
+// السوق». وهي تعرض **النسبة** لا السعر، والنسبةُ في الاستعلام ثابتةٌ
+// في هذا الفحص قصداً — فكلُّ تغيّرٍ يُرى مصدرُه المجرى لا الاستعلام.
+const pcts = await page.evaluate(async () => {
+  const read = () => {
+    const h = [...document.querySelectorAll("h2, p")]
+      .find(x => (x.textContent || "").includes("الأعلى ارتفاعاً"));
+    const card = h?.closest(".card");
+    return [...(card?.querySelectorAll("button") || [])]
+      .map(b => (b.textContent || "").match(/[-+]?\d+\.\d+%/)?.[0] || "")
+      .filter(Boolean);
+  };
+  let prev = read();
+  let moved = 0;
+  for (let i = 0; i < 40; i++) {
+    await new Promise(r => setTimeout(r, 100));
+    const now = read();
+    if (now.some((v, k) => prev[k] !== undefined && prev[k] !== v)) moved++;
+    prev = now;
+  }
+  return { rows: prev.length, moved, sample: prev.slice(0, 3) };
+});
+console.log(`     بطاقةُ «الأعلى ارتفاعاً»: ${pcts.rows} صفّاً · `
+  + `عيّناتٌ فيها حركة: ${pcts.moved} · ${pcts.sample.join(" ")}`);
+say(pcts.rows >= 3 && pcts.moved >= 2,
+    "٧ ونسبةُ بطاقات السوق تتحرّك من المجرى — لا رقمُ استعلامٍ يجمد",
+    `${pcts.moved} عيّنةً فيها حركة`);
 
 for (const e of errs) console.log(`     خطأٌ في الصفحة: ${e}`);
 say(errs.length === 0, "٣ ولا خطأَ في الصفحة أثناء الدفع");

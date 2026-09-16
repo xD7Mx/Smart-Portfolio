@@ -24,7 +24,7 @@ import {
 } from "../components/market/MarketWidgets";
 import NewsList, { hasNewsIdentity, CATEGORY_STYLE } from "../components/common/NewsList";
 import FlashPrice from "../components/common/FlashPrice";
-import LivePrice from "../components/common/LivePrice";
+import LivePrice, { LivePct } from "../components/common/LivePrice";
 import MarketStatusDot from "../components/common/MarketStatusDot";
 
 const fmtTime = (d: string) => d ? new Date(d).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -213,9 +213,9 @@ function PulseCard({ summary, tasi: tasiQ, brent, movers, onSearch }:
               {(movers?.gainers || []).slice(0, 3).map((x: any) => (
                 <div key={x.symbol || x.name} className="flex items-center justify-between gap-2 text-[12px] leading-6">
                   <span className="truncate">{x.name}</span>
-                  <span className="tabular-nums shrink-0" dir="ltr" style={{ color: tone(1) }}>
-                    +{Number(x.change_pct).toFixed(2)}%
-                  </span>
+                  {/* نسبةٌ حيّةٌ من المجرى — لا رقمُ استعلامٍ يجمد (D331) */}
+                  <LivePct symbol={x.symbol} fallback={x.change_pct}
+                           className="tabular-nums shrink-0" tone={tone} />
                 </div>
               ))}
               {!(movers?.gainers || []).length && <div className="text-[12px] text-[var(--ink-muted)]">—</div>}
@@ -225,9 +225,9 @@ function PulseCard({ summary, tasi: tasiQ, brent, movers, onSearch }:
               {(movers?.losers || []).slice(0, 3).map((x: any) => (
                 <div key={x.symbol || x.name} className="flex items-center justify-between gap-2 text-[12px] leading-6">
                   <span className="truncate">{x.name}</span>
-                  <span className="tabular-nums shrink-0" dir="ltr" style={{ color: tone(-1) }}>
-                    {Number(x.change_pct).toFixed(2)}%
-                  </span>
+                  {/* نسبةٌ حيّةٌ من المجرى — لا رقمُ استعلامٍ يجمد (D331) */}
+                  <LivePct symbol={x.symbol} fallback={x.change_pct}
+                           className="tabular-nums shrink-0" tone={tone} />
                 </div>
               ))}
               {!(movers?.losers || []).length && <div className="text-[12px] text-[var(--ink-muted)]">—</div>}
@@ -278,9 +278,8 @@ function MoversListCard({ title, rows, up }: { title: string; rows: any[]; up: b
                 <span className="text-sm text-[var(--ink)] truncate">{r.name}</span>
                 <span className="tag-b shrink-0" style={{ fontSize: 10 }}>{r.symbol}</span>
               </span>
-              <span className={"text-sm font-bold shrink-0 " + (up ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]")}>
-                {r.change_pct >= 0 ? "+" : ""}{r.change_pct.toFixed(2)}%
-              </span>
+              <LivePct symbol={r.symbol} fallback={r.change_pct}
+                className={"text-sm font-bold shrink-0 " + (up ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]")} />
             </button>
           ))}
         </div>

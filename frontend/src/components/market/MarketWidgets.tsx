@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { LivePct } from "../common/LivePrice";
 import StockSheet from "./StockSheet";
 import { useQuery } from "@tanstack/react-query";
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -191,10 +192,12 @@ export function SectorHeatmapCard({ movers }: { movers: any }) {
                     style={{ background: "transparent" }}>لا ينطبق</span>
                 )}
                 {c.change_pct != null ? (
-                  <span className="text-[12px] font-bold tabular-nums shrink-0 w-14 text-end" dir="ltr"
-                    style={{ color: c.change_pct > 0 ? "var(--pos-ink)" : c.change_pct < 0 ? "var(--neg-ink)" : "var(--ink-muted)" }}>
-                    {c.change_pct >= 0 ? "+" : ""}{c.change_pct.toFixed(2)}%
-                  </span>
+                  /* شركاتُ القطاع تقرأ المجرى كما الشريط (D331) */
+                  <LivePct symbol={c.symbol} fallback={c.change_pct}
+                    className="text-[12px] font-bold tabular-nums shrink-0 w-14 text-end"
+                    tone={(v) => v == null ? "var(--ink-muted)"
+                      : v > 0 ? "var(--pos-ink)"
+                      : v < 0 ? "var(--neg-ink)" : "var(--ink-muted)"} />
                 ) : (
                   <span className="text-[10px] text-[var(--ink-muted)] shrink-0 w-14 text-end">—</span>
                 )}

@@ -72,3 +72,29 @@ export function LiveValue(
     </FlashPrice>
   );
 }
+
+/** نسبةُ تغيّرِ اليوم حيّةً — بطاقاتُ السوق تعرض النسبةَ لا السعر (D331).
+ *
+ *  والمجرى يحمل الاثنين في الدفعة نفسِها (`[سعر، نسبة]`)، فلا نداءَ
+ *  زائدَ ولا اشتراكَ ثانٍ. واللونُ يُحسَب من النسبة الحيّة لا من القديمة،
+ *  وإلا بقي سهمٌ أخضرَ وقد صار سالباً. وبلا دفعٍ تُعرض نسبةُ الاستعلام.
+ */
+export function LivePct(
+  { symbol, fallback, className, style, tone }: {
+    symbol?: string | null;
+    fallback?: number | null;
+    className?: string;
+    style?: React.CSSProperties;
+    tone?: (v: number | null) => string;   // لونٌ بحسب الحكم — اختياريّ
+  },
+) {
+  const live = useLiveQuote(symbol);
+  const v = live?.c ?? fallback ?? null;
+  const color = tone ? tone(v == null ? null : Number(v)) : undefined;
+  return (
+    <FlashPrice value={v} className={className}
+                style={color ? { ...(style || {}), color } : style}>
+      {v == null ? "—" : `${Number(v) > 0 ? "+" : ""}${Number(v).toFixed(2)}%`}
+    </FlashPrice>
+  );
+}
