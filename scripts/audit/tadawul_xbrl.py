@@ -224,7 +224,7 @@ _peak = {"now": 0, "max": 0}
 _real_read = xb.read_symbol
 
 
-async def _slow(sym):
+async def _slow(sym, **_kw):      # **_kw: العقدُ صار يمرّر `reasons` (D362)
     _peak["now"] += 1
     _peak["max"] = max(_peak["max"], _peak["now"])
     await asyncio.sleep(0.05)
@@ -250,6 +250,74 @@ check(_peak["max"] <= 4,
 check(_rep.get("قُرئت") == 12 and sum(_rep.values()) == 12,
       "١٠ج والتقريرُ يُحصي كلَّ ورقةٍ مرّةً واحدةً تحت التزامن",
       str(_rep))
+
+# ── ١١ · «بلا ملفّات» تحمل سببَها من موضعِ وقوعه (D362) ──────────────────
+# قِيس على خادم المالك: الحصادُ ردّ «بلا ملفّات: 82» ثلاثَ مرّاتٍ
+# متطابقة، وبعد تفصيلي مراحلَ **تحميل الملفّات** جاء «تعذّرَ تحميلها: 0»
+# — فالمقياسُ كان في المرحلة الخطأ. وكاشفٌ خارجيٌّ أثبت أن 37 من 40 من
+# هذه الأوراق لها 18 ملفّاً — فالمنعُ في `filings_for` نفسِها، وكانت
+# تعود فارغةً من أربعة مواضعَ بلا أثر.
+import app.services.tadawul_http as _h11  # noqa: E402
+import app.services.tadawul_market as _m11  # noqa: E402
+
+_m11.row_for = lambda sym: {"company_url": "/co/x"}              # type: ignore[assignment]
+_PAGE_OK = ('<base href="https://x/b/">'
+            '<a>p0/A=NJstatementsTabData=/</a>')
+_hits = {"page": 0}
+
+
+def _mk(page_status=200, page_body=_PAGE_OK, svc_status=200, svc_body=""):
+    async def _f(url, *, params=None, referer=None, timeout=45):
+        if "/co/x" in url:
+            _hits["page"] += 1
+            return page_status, page_body
+        return svc_status, svc_body
+    return _f
+
+
+async def _ex_missing(*_a, **_k):
+    return [], None            # غيابُ الواجهةِ يُقرأ أحمرَ لا انهياراً
+
+
+_ex = getattr(xb, "filings_for_ex", _ex_missing)
+_keep11 = _h11.fetch
+_m11.row_for = lambda sym: {}                                    # type: ignore[assignment]
+_f, _w = asyncio.run(_ex("X"))
+check(_f == [] and "لا رابطَ" in (_w or ""),
+      "١١ بلا رابطٍ في اللقطة: السببُ يُسمّى لا يُسكَت", str(_w))
+_m11.row_for = lambda sym: {"company_url": "/co/x"}              # type: ignore[assignment]
+
+_h11.fetch = _mk(page_status=500, page_body="")                  # type: ignore[assignment]
+_hits["page"] = 0
+_f, _w = asyncio.run(_ex("X"))
+check(_f == [] and "صفحةُ الشركة HTTP 500" in (_w or "") and _hits["page"] == 2,
+      "١١ب وصفحةٌ لا تُقرأ: تُعاد المحاولةُ مرّةً ويُسمّى الرمز",
+      f"{_w} · محاولات={_hits['page']}")
+
+_h11.fetch = _mk(page_body='<base href="https://x/b/">')         # type: ignore[assignment]
+_f, _w = asyncio.run(_ex("X"))
+check(_f == [] and "statementsTabData" in (_w or ""),
+      "١١ج وصفحةٌ بلا خدمةِ القائمة: يُسمّى اسمُ الخدمة الغائب", str(_w))
+
+_h11.fetch = _mk(svc_status=500)                                 # type: ignore[assignment]
+_f, _w = asyncio.run(_ex("X"))
+check(_f == [] and "نداءُ قائمةِ الملفّات HTTP 500" in (_w or ""),
+      "١١د ونداءٌ لا يُجيب: يُفصَل عن غيابِ الملفّ", str(_w))
+
+_h11.fetch = _mk(svc_body="<a href='/other/x.html'>x</a>")       # type: ignore[assignment]
+_f, _w = asyncio.run(_ex("X"))
+check(_f == [] and "ولا ملفَّ XBRL" in (_w or ""),
+      "١١ه وقائمةٌ تُجيب بلا ملفّ: هذا وحدَه «لم تودع»", str(_w))
+
+_h11.fetch = _mk(svc_body="<a href='/Resources/XBRL_DOCS/1_X_2026-06-30_a_Eng.html'>x</a>")  # type: ignore[assignment]
+_f, _w = asyncio.run(_ex("X"))
+check(len(_f) == 1 and _w is None and _f[0]["filed"] == "2026-06-30",
+      "١١و وبملفٍّ موجودٍ لا سببَ ولا فراغ — والتاريخُ من اسم الملفّ",
+      f"{len(_f)} · {_w}")
+_old_api = asyncio.run(xb.filings_for("X"))
+check(isinstance(_old_api, list) and len(_old_api) == 1,
+      "١١ز والواجهةُ القديمةُ تعمل كما كانت — لا نداءَ قائمٌ يُكسَر")
+_h11.fetch = _keep11                                             # type: ignore[assignment]
 
 print(("FAIL" if fail else "PASS") + " D263 — قوائمُ XBRL الرسمية")
 raise SystemExit(fail)

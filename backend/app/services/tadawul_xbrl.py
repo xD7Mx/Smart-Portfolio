@@ -276,27 +276,52 @@ def parse(html: str) -> dict:
             "kind": meta.get("period_kind"), "audited": meta.get("audited")}
 
 
-async def filings_for(symbol: str, company_url: str | None = None) -> list[dict]:
-    """روابطُ ملفّات XBRL للشركة، الأحدثُ أوّلاً — أو قائمةٌ فارغة."""
+async def filings_for_ex(symbol: str,
+                         company_url: str | None = None) -> tuple[list[dict], str | None]:
+    """روابطُ ملفّات XBRL **ومعها سببُ الفراغ** إن كان (D362).
+
+    ══ لماذا سببٌ لا قائمةٌ فارغةٌ فقط ══
+    قِيس على خادم المالك: الحصادُ ردّ «بلا ملفّات: ‎82» ثلاثَ مرّاتٍ
+    متطابقةً، وبعد أن فصّلتُ مراحلَ **تحميل الملفّات** جاء «تعذّرَ
+    تحميلها: ‎0» — أي أنّي وضعتُ المِقياسَ في المرحلة الخطأ، والمنعُ قبله
+    في هذه الدالّة. وكانت تعود فارغةً من **أربعة مواضعَ** بلا أثر: لا
+    رابطَ · صفحةٌ لا تُقرأ · لا خدمةَ في الصفحة · نداءٌ لا يُجيب. وكاشفٌ
+    خارجيٌّ (‏`filings_door.py`) أثبت أن ‎37 من ‎40 من هذه الأوراق لها
+    **18 ملفّاً** فعلاً — فالمنعُ عندنا، وبلا سببٍ مطبوعٍ لا يُعرَف أينَ.
+    """
     from app.services.tadawul_http import fetch
     from app.services.tadawul_market import row_for
     url = company_url or (row_for(symbol) or {}).get("company_url")
     if not url:
-        return []
-    status, page = await fetch(ORIGIN + url if url.startswith("/") else url)
+        return [], "لا رابطَ لصفحة الشركة في اللقطة"
+    full = ORIGIN + url if url.startswith("/") else url
+    status, page = await fetch(full)
     if status != 200 or not page:
-        return []
+        # محاولةٌ ثانيةٌ: الصفحةُ ستّمئة كيلوبايت والقراءةُ متزامنة.
+        await asyncio.sleep(1.5)
+        status, page = await fetch(full)
+    if status != 200 or not page:
+        return [], f"صفحةُ الشركة HTTP {status}"
     mb = _BASE.search(page)
     ep = next((m.group(0) for m in _NJ.finditer(page)
                if m.group(1) == "statementsTabData"), None)
-    if not (mb and ep):
-        return []
+    if not mb:
+        return [], "صفحةُ الشركة بلا <base>"
+    if not ep:
+        return [], "لا خدمةَ statementsTabData في الصفحة"
     status, body = await fetch(mb.group(1).rstrip("/") + "/" + ep,
                                params={"statementType": "6", "reportType": "1",
                                        "requestLocale": "en"},
-                               referer=ORIGIN + url)
+                               referer=full)
     if status != 200:
-        return []
+        await asyncio.sleep(1.5)
+        status, body = await fetch(mb.group(1).rstrip("/") + "/" + ep,
+                                   params={"statementType": "6",
+                                           "reportType": "1",
+                                           "requestLocale": "en"},
+                                   referer=full)
+    if status != 200:
+        return [], f"نداءُ قائمةِ الملفّات HTTP {status}"
     out = []
     for href in re.findall(r"href=[\"']([^\"']+)[\"']", body or ""):
         if "XBRL_DOCS" not in href or not href.endswith(".html"):
@@ -304,10 +329,17 @@ async def filings_for(symbol: str, company_url: str | None = None) -> list[dict]
         d = re.search(r"_(\d{4}-\d{2}-\d{2})_", href)
         out.append({"url": href, "filed": d.group(1) if d else None})
     out.sort(key=lambda x: x["filed"] or "", reverse=True)
-    return out
+    return out, (None if out else "القائمةُ تُجيب ولا ملفَّ XBRL فيها")
 
 
-async def read_symbol(symbol: str, *, max_files: int = 8) -> dict | None:
+async def filings_for(symbol: str, company_url: str | None = None) -> list[dict]:
+    """الواجهةُ القديمةُ كما هي — لئلّا ينكسر نداءٌ قائم."""
+    files, _ = await filings_for_ex(symbol, company_url)
+    return files
+
+
+async def read_symbol(symbol: str, *, max_files: int = 8,
+                      reasons: dict | None = None) -> dict | None:
     """أحدثُ قوائمَ رسميةٍ للشركة: سنويةٌ وربعية — أو None.
 
     وتُقرأ ثمانيةُ ملفّاتٍ من الأحدث: الملفُّ يحمل فترتين، وثقةُ الدرجة
@@ -321,8 +353,11 @@ async def read_symbol(symbol: str, *, max_files: int = 8) -> dict | None:
     تاريخه.
     """
     from app.services.tadawul_http import fetch
-    files = await filings_for(symbol)
+    files, why = await filings_for_ex(symbol)
     if not files:
+        # السببُ يُسجَّل حيث يقع — فالحاصدُ يطبعه مصنَّفاً (D362)
+        if reasons is not None and why:
+            reasons[why] = reasons.get(why, 0) + 1
         return None
     annual: list[dict] = []
     quarterly: list[dict] = []
@@ -413,6 +448,7 @@ async def refresh(symbols: list[str], conc: int = 4) -> dict:
     """
     rep = {"قُرئت": 0, "بلا ملفّات": 0, "ملفّاتٌ تعذّرَ تحميلها": 0,
            "لم تُفهم": 0, "بلا لقطةٍ للسوق": 0}
+    why_empty: dict[str, int] = {}      # سببُ «بلا ملفّات» مصنَّفاً (D362)
     try:
         from app.services.tadawul_market import refresh as _mkt
         from app.services.tadawul_market import usable_rows
@@ -449,7 +485,7 @@ async def refresh(symbols: list[str], conc: int = 4) -> dict:
             return
         async with sem:
             try:
-                rec = await read_symbol(sym)
+                rec = await read_symbol(sym, reasons=why_empty)
             except Exception as e:                                # noqa: BLE001
                 logger.debug("XBRL {}: {}", sym, e)
                 rec = None
@@ -471,4 +507,8 @@ async def refresh(symbols: list[str], conc: int = 4) -> dict:
 
     await _aio.gather(*(_one(s) for s in symbols), return_exceptions=True)
     logger.info("XBRL: {}", rep)
+    if why_empty:
+        logger.info("XBRL · سببُ «بلا ملفّات»: {}", why_empty)
+        rep["تفصيلُ بلا ملفّات"] = dict(
+            sorted(why_empty.items(), key=lambda kv: -kv[1]))
     return rep
