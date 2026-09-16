@@ -46,10 +46,19 @@ ORIGIN = "https://www.saudiexchange.sa"
 # ══ أسماءُ IFRS كما وردت في الملفّ الرسميّ — لا تقريبَ ولا اجتهاد ══
 # المفتاحُ حقلُنا، والقيمةُ أسماءٌ مقبولةٌ مرتّبةٌ بالأولوية.
 LABELS: dict[str, tuple[str, ...]] = {
-    "revenue": ("total revenue", "revenue", "total revenues"),
+    # ══ أسماءٌ أُضيفت **بالحرف** من ملفّات المالك ══ (D335)
+    # قِيس بأداة `xbrl_labels.py` على أربع شركاتٍ (‏2222 · 2030 · 2060 ·
+    # 2310): بنودٌ مطلوبةٌ موجودةٌ في الملفّ الرسميّ بأسماءٍ لم تكن في
+    # خريطتنا. وأخطرُ ما كشفه القياس: **دَينُ أرامكو المحفوظُ ٨٫٢ مليار**
+    # وملفُّها يقول `borrowings - current 46,871` + `non-current 308,365`
+    # (أي ٣٥٥ مليار بالمليون) — فنسبةُ المديونية في الحوكمة كانت تُحسب
+    # على جزءٍ من الدَّين. والأسماءُ أدناه منقولةٌ من المخرَج لا مجتهَدة.
+    "revenue": ("total revenue", "revenue", "total revenues",
+                "revenue from contracts with customers", "external revenue"),
     "net_income": ("profit (loss) for period", "profit (loss)",
-                   "profit (loss) for the period"),
-    "equity": ("total equity",),
+                   "profit (loss) for the period",
+                   "profit (loss), attributable to equity holders of parent company"),
+    "equity": ("total equity", "equity attributable to owners of parent"),
     "total_assets": ("total assets",),
     "total_liabilities": ("total liabilities",),
     "eps": ("total basic earnings (loss) per share",
@@ -63,11 +72,18 @@ LABELS: dict[str, tuple[str, ...]] = {
     "pretax_income": (
         "profit (loss) before zakat and income tax from continuing operations",
         "profit (loss) before tax",
-        "profit (loss) before zakat and income tax"),
+        "profit (loss) before zakat and income tax",
+        "profit (loss) for period before zakat and income tax",
+        "income before income taxes and zakat"),
     "borrowings_current": ("current borrowings", "short-term borrowings",
-                           "current portion of long-term borrowings"),
+                           "current portion of long-term borrowings",
+                           "borrowings - current",
+                           "current portion of long term loans",
+                           "short term borrowings"),
     "borrowings_noncurrent": ("non-current borrowings", "long-term borrowings",
-                              "noncurrent borrowings"),
+                              "noncurrent borrowings",
+                              "borrowings - non-current",
+                              "debt securities, term loans, borrowings and sukuks in issue"),
     "lease_current": ("current lease liabilities",),
     "lease_noncurrent": ("non-current lease liabilities",),
     "shares_outstanding": ("number of shares outstanding",
@@ -79,7 +95,7 @@ LABELS: dict[str, tuple[str, ...]] = {
     "capex": ("purchase of property, plant and equipment",
               "purchase of property, plant and equipment, classified as investing activities"),
     "ending_cash": ("cash and cash equivalents at end of period",
-                    "cash and cash equivalents"),
+                    "cash and cash equivalents", "bank balances and cash"),
 }
 
 _META = {
@@ -190,6 +206,20 @@ def parse(html: str) -> dict:
                  if isinstance(p.get(k), (int, float))]
         if _debt:
             p["total_debt"] = round(sum(_debt), 2)
+        # ══ عددُ الأسهم يُشتقّ من رقمَين منشورَين ══ (D335)
+        # قِيس أن البنودَ لا تحمل «عدد الأسهم» في أيٍّ من الملفّات الأربعة
+        # المقروءة، وتحمل **صافي الربح وربحيةَ السهم** معاً. والقسمةُ
+        # بينهما عددُ الأسهم المرجَّح بتعريفه (‏EPS = الربح ÷ الأسهم) —
+        # حسابٌ على منشورٍ لا اختلاق. ولا يُشتقّ من «رأس المال» لأن
+        # القيمةَ الاسمية تختلف بين الشركات فيصير الرقمُ ظنّاً.
+        # ويُوسَم `shares_source` كي لا يُقرأ منشوراً وهو مشتقّ.
+        _ni, _eps = p.get("net_income"), p.get("eps")
+        if (p.get("shares_outstanding") is None and _ni is not None
+                and isinstance(_eps, (int, float)) and abs(_eps) > 1e-9):
+            _sh = _ni / _eps
+            if _sh > 0:
+                p["shares_outstanding"] = round(_sh, 0)
+                p["shares_source"] = "مشتقٌّ: صافي الربح ÷ ربحية السهم"
         if i < len(starts):
             p["period_start"] = starts[i]
         periods.append(p)

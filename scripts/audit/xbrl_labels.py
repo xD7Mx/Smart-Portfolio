@@ -90,6 +90,17 @@ async def main() -> int:
             miss_names[n] += 1
         print(f"  بنودٌ ذاتُ أرقامٍ لم تُطابَق: {len(unmatched)}")
         # ما يُشبه المطلوبَ يُبرَز أوّلاً — بمعناه لا بموضعه
+        # ══ ويُفصَل التدفّقُ عن الميزانية في العرض ══ (D335)
+        # أوّلُ تشغيلٍ أغرق المخرَجَ ببنود الميزانية (أصولٌ والتزامات) فلم
+        # يبلغ **مصروفَ أرامكو الرأسماليّ** وهو المطلوبُ الأوّل. فبنودُ
+        # التدفّق تُطبع في قائمةٍ خاصّةٍ بها.
+        flow = re.compile(r"addition|purchase|payments? (?:for|of)|acquisi|"
+                          r"capital expenditure|proceeds|dividends? paid|"
+                          r"cash flows?|net cash", re.I)
+        fl = [u for u in unmatched if flow.search(u[0])]
+        print(f"  ومن بنود التدفّق غيرِ المطابَقة: {len(fl)}")
+        for n, v in fl[:22]:
+            print(f"      ⤵ «{n}» = {v}")
         hot = re.compile(r"propert|plant|equipment|capital expenditure|invest|"
                          r"equity|share|capital|borrow|loan|debt|zakat|tax|"
                          r"cash and cash|asset|liabilit", re.I)
