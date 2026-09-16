@@ -59,6 +59,9 @@ MEANING = {
              r"combined ratio|loss ratio",
     "صافي أصول": r"net asset value|nav per|net assets attributable",
     "حقوق ملكية": r"^total equity|equity attributable",
+    "تكلفةُ تمويل": r"financ(?:e|ial) (?:cost|charge|expense)|interest expense|"
+                    r"interest on (?:lease|loan|borrow)|bank charges",
+    "قبل الزكاة": r"before zakat|before (?:income )?tax|profit \(loss\) before",
 }
 
 
@@ -204,9 +207,15 @@ async def main() -> int:
         print(f"  ومن بنود التدفّق غيرِ المطابَقة: {len(fl)}")
         for n, v in fl[:22]:
             print(f"      ⤵ «{n}» = {v}")
+        # ══ وتكلفةُ التمويل تُبرَز صريحاً ══ (D343)
+        # قِيس على خادم المالك: `interest_expense` يغيب في **34 ورقةً من
+        # 90**، ويسقط معه `ebit` لأنه يُشتقّ منه — فحقلانِ يحجبهما اسمٌ
+        # واحد. وخريطتُنا تحمل له اسماً واحداً (`finance costs`) فقط.
+        # وكان مُرشَّحُ العرض لا يذكر التمويلَ فلا تظهر صياغاتُه أصلاً.
         hot = re.compile(r"propert|plant|equipment|capital expenditure|invest|"
                          r"equity|share|capital|borrow|loan|debt|zakat|tax|"
-                         r"cash and cash|asset|liabilit", re.I)
+                         r"cash and cash|asset|liabilit|financ|interest|"
+                         r"charges|before zakat|profit \(loss\) before", re.I)
         pick = [u for u in unmatched if hot.search(u[0])]
         for n, v in (pick or unmatched)[:28]:
             print(f"      «{n}» = {v}")
