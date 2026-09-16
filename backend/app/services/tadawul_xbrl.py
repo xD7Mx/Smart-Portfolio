@@ -30,6 +30,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import re
 from datetime import date, datetime, timezone
 
@@ -326,12 +327,28 @@ async def read_symbol(symbol: str, *, max_files: int = 8) -> dict | None:
     annual: list[dict] = []
     quarterly: list[dict] = []
     used: list[dict] = []
+    # ══ ويُفصَل تعذّرُ التحميل عن تعذّرِ الفهم ══ (D360)
+    # قِيس على خادم المالك بالكاشف `filings_door.py`: **37 من 40** ورقةً
+    # قيل فيها «بلا ملفّات» لها **18 ملفّاً** فعلاً. والسببُ أن في هذه
+    # الدالّة موضعَين يعودان بـ`None`، و`refresh` تعدّهما معاً «بلا
+    # ملفّات»: أحدُهما لا قائمةَ له، والآخرُ **قائمتُه موجودةٌ ولم يُحمَّل
+    # منها ملفّ**. فالعبارةُ تكذب على المالك وتُخفي موضعَ العطب.
+    http_fail = 0
+    parse_fail = 0
     for f in files[:max_files]:
         status, html = await fetch(ORIGIN + f["url"])
         if status != 200 or not html:
+            # ومحاولةٌ ثانيةٌ بمهلةٍ قصيرة: الملفُّ ميجاباتٌ عدّة والقراءةُ
+            # متزامنة، فتعذّرٌ عارضٌ أرجحُ من ملفٍّ معطوب. ولا ثالثةَ —
+            # فالإلحاحُ على مصدرٍ يمنع ليس أدباً.
+            await asyncio.sleep(1.5)
+            status, html = await fetch(ORIGIN + f["url"])
+        if status != 200 or not html:
+            http_fail += 1
             continue
         got = parse(html)
         if not got.get("periods"):
+            parse_fail += 1
             continue
         kind = _norm(got.get("kind") or "")
         bucket = annual if kind.startswith("annual") else quarterly
@@ -342,7 +359,12 @@ async def read_symbol(symbol: str, *, max_files: int = 8) -> dict | None:
                      "audited": got.get("audited"), "rounding": got.get("rounding"),
                      "periods": len(got["periods"])})
     if not (annual or quarterly):
-        return None
+        # قائمةُ الملفّات موجودةٌ — فيُعاد سجلٌّ فارغٌ **يحمل سببَه**، ولا
+        # يُقال «بلا ملفّات» لشركةٍ أودعت (D360).
+        return {"symbol": symbol, "annual": [], "quarterly": [],
+                "files": len(files), "http_fail": http_fail,
+                "parse_fail": parse_fail,
+                "as_of": date.today().isoformat()}
     annual.sort(key=lambda p: p["as_of"])
     quarterly.sort(key=lambda p: p["as_of"])
     return {"symbol": symbol, "annual": annual, "quarterly": quarterly,
@@ -389,7 +411,8 @@ async def refresh(symbols: list[str], conc: int = 4) -> dict:
     الإقلاع — فالرسالةُ تصف نتيجةً وسببُها آخر. فتُملأ اللقطةُ أوّلاً إن
     غابت، ويُفصَل «لا لقطة» عن «لا ملفّات» في التقرير.
     """
-    rep = {"قُرئت": 0, "بلا ملفّات": 0, "لم تُفهم": 0, "بلا لقطةٍ للسوق": 0}
+    rep = {"قُرئت": 0, "بلا ملفّات": 0, "ملفّاتٌ تعذّرَ تحميلها": 0,
+           "لم تُفهم": 0, "بلا لقطةٍ للسوق": 0}
     try:
         from app.services.tadawul_market import refresh as _mkt
         from app.services.tadawul_market import usable_rows
@@ -434,7 +457,11 @@ async def refresh(symbols: list[str], conc: int = 4) -> dict:
             if rec is None:
                 rep["بلا ملفّات"] += 1
             elif not (rec.get("annual") or rec.get("quarterly")):
-                rep["لم تُفهم"] += 1
+                # ملفّاتٌ موجودةٌ ولم تُقرأ: تعذّرُ تحميلٍ أم تعذّرُ فهم؟
+                if rec.get("http_fail"):
+                    rep["ملفّاتٌ تعذّرَ تحميلها"] += 1
+                else:
+                    rep["لم تُفهم"] += 1
             else:
                 save_symbol(sym, rec)
                 rep["قُرئت"] += 1

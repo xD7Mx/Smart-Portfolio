@@ -28,6 +28,7 @@ _os.environ["LASTGOOD_PATH"] = _os.path.join(_SANDBOX, "lastgood.json")
 _os.environ["SP_STATE_DIR"] = _SANDBOX
 
 import asyncio  # noqa: E402
+from loguru import logger  # noqa: E402
 import pathlib  # noqa: E402
 import sys  # noqa: E402
 
@@ -247,6 +248,43 @@ _http.fetch = _keep_fetch                                        # type: ignore[
 check(_rep2.get("count") == 272 and _rep2.get("nomu") == 0,
       "١١د وتعذّرُ «نمو» يُعلَن ولا يُسقِط الرئيسيَّ — بابٌ ثانٍ لا نقطةُ انكسار",
       f"{_rep2.get('count')} رمزاً")
+
+# ── ١١ه · ساقُ «نمو» تُعاد محاولتُها، والتقلّصُ يُعلَن (D361) ────────────
+# قِيس على خادم المالك: لقطةٌ 396 عند 18:29 ثمّ 272 عند 18:46 — ساقُ
+# «نمو» سقطت في تجديدٍ لاحقٍ بصمتٍ فضاع ثلثُ السوق.
+_tries = {"n": 0}
+
+
+async def _flaky(url, *, params=None, referer=None, timeout=45):
+    if "nomuc-market-watch" in url and params is None:
+        _tries["n"] += 1
+        if _tries["n"] == 1:
+            return 500, ""                     # أوّلُ محاولةٍ تسقط
+    return await _fake_fetch(url, params=params, referer=referer)
+
+
+_http.fetch = _flaky                                             # type: ignore[assignment]
+_rep3 = asyncio.run(tm.refresh())
+_http.fetch = _keep_fetch                                        # type: ignore[assignment]
+check(_tries["n"] >= 2 and _rep3.get("nomu") == 124,
+      "١١ه سقوطٌ عارضٌ لـ«نمو» تُعاد محاولتُه فتعود 124 — لا يُسلَّم لأوّل تعذّر",
+      f"محاولات={_tries['n']} · «نمو»={_rep3.get('nomu')}")
+_rec3 = (lastgood.load(tm.STORE_KEY) or {})
+check((_rec3.get("boards") or {}).get("nomu") == 124
+      and (_rec3.get("boards") or {}).get("main") == 272,
+      "١١و واللقطةُ تحفظ عددَ كلّ بورصةٍ — فالتقلّصُ يُقارَن لا يُظَنّ",
+      str(_rec3.get("boards")))
+
+# وبالاتّجاه المعاكس: بورصةٌ كانت تُقرأ وسقطت ⇒ تحذيرٌ باسمها
+_warns: list[str] = []
+_sink = logger.add(lambda m: _warns.append(str(m)), level="WARNING")
+_http.fetch = _nomu_dead                                         # type: ignore[assignment]
+asyncio.run(tm.refresh())
+_http.fetch = _keep_fetch                                        # type: ignore[assignment]
+logger.remove(_sink)
+check(any("نمو" in w and "سقطت" in w for w in _warns),
+      "١١ز وبورصةٌ كانت تُقرأ ثمّ سقطت تُسمّى بالاسم — لا نقصٌ يمرّ بصمت",
+      f"{len(_warns)} تحذيراً")
 
 print(("FAIL" if fail else "PASS") + " D251 — لقطةُ السوق من مُصدِره")
 raise SystemExit(fail)

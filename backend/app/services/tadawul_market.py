@@ -170,7 +170,15 @@ async def refresh() -> dict:
     try:
         n_rows, n_why = await fetch_rows(NOMU_PAGE)
         if n_why:
-            logger.warning("جدولُ «نمو» لم يُقرأ: {}", n_why)
+            # ══ ومحاولةٌ ثانيةٌ قبل التسليم ══ (D361)
+            # قِيس على خادم المالك: لقطةٌ صارت ‎396 رمزاً عند 18:29 ثمّ
+            # قُرئت ‎272 عند 18:46 — أي أن ساقَ «نمو» سقطت في تجديدٍ لاحقٍ
+            # **بصمت**، فضاع ثلثُ اللقطة ولم يعلم أحد. وسقوطٌ عارضٌ أرجحُ
+            # من بابٍ أُغلق، فتُعاد المحاولةُ مرّةً واحدةً بمهلةٍ قصيرة.
+            await asyncio.sleep(2.0)
+            n_rows, n_why = await fetch_rows(NOMU_PAGE)
+        if n_why:
+            logger.warning("جدولُ «نمو» لم يُقرأ (بعد محاولتَين): {}", n_why)
         else:
             for k, v in normalize(n_rows).items():
                 table.setdefault(k, v)          # لا يُزاح رمزٌ من الرئيسيّ
@@ -178,8 +186,25 @@ async def refresh() -> dict:
             logger.info("جدولُ «نمو»: {} رمزاً", nomu)
     except Exception as e:                                        # noqa: BLE001
         logger.warning("جدولُ «نمو» تعذّر: {}", type(e).__name__)
+    # ══ وتقلّصُ اللقطة يُعلَن ولا يمرّ ══ (D361)
+    # لقطةٌ فيها سوقانِ ثمّ تصير بسوقٍ واحدٍ ليست «لقطةً أصغر» بل **فقدَ
+    # ثلثِ السوق**. ويُقاس بالمقارنة مع آخرِ سجلٍّ صالح: بورصةٌ كانت
+    # تُقرأ فصارت لا تُقرأ تُسمّى بالاسم. ولا تُنقَل صفوفٌ قديمةٌ تحت زمنٍ
+    # جديدٍ (بند D298): الإعلانُ لا التلبيسُ.
+    boards = {"main": len(table) - nomu, "nomu": nomu}
+    try:
+        from app.services import lastgood as _lg
+        prev = (_lg.load(STORE_KEY) or {}).get("boards") or {}
+        _AR = {"main": "السوقُ الرئيسيّ", "nomu": "نمو"}
+        for _b, _n in (prev or {}).items():
+            if _n and not boards.get(_b):
+                logger.warning("لقطةُ «تداول»: بورصةُ «{}» كانت تُقرأ"
+                               " ({} رمزاً) وسقطت الآن — اللقطةُ أنقصُ",
+                               _AR.get(_b, _b), _n)
+    except Exception:                                             # noqa: BLE001
+        pass
     rec = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-           "rows": table}
+           "rows": table, "boards": boards}
     from app.services import lastgood
     lastgood.save(STORE_KEY, rec)
     from app.services import cache
