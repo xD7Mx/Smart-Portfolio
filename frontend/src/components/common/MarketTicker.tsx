@@ -24,6 +24,54 @@ import TrendArrow from "./TrendArrow";
  * يُقرأ رقمُ أمسٍ كأنه سعر اللحظة، يظهر وسم «إغلاق» في اللسان نفسه — الحركة
  * تبقى، والصدق يبقى معها.
  */
+/* ══ صفُّ الشريط مكوّنٌ في نطاق الوحدة لا داخل الأب ══ (D328)
+   كان معرَّفاً **داخل** `MarketTicker`، فهويّتُه دالّةٌ جديدةٌ في كلّ
+   رسمٍ للأب — ورياكت يرى النوعَ مختلفاً فيُفكّك كلَّ الصفوف ويبنيها.
+   وأثرُ ذلك مقيسٌ لا نظريّ: عدّادُ اشتراك المجرى يهبط إلى صفرٍ لحظةَ كلّ
+   دفعةٍ ثمّ يرتفع، فيُغلَق المجرى ويُعاد فتحُه، **ويُفرَغ انتظارُ التوزيع
+   كلُّه في لحظة** — فلا توزيعَ ولا سلاسة، ومع ذلك «يعمل» ظاهرياً.
+   وهو نقضٌ لسبب وجود المكوّن نفسِه: الاشتراكُ بالرمز كي لا يُعاد رسمُ
+   الشريط كلِّه لأنّ سهماً تحرّك. فرُفع إلى نطاق الوحدة، وصار `tone`
+   و`num` دالّتين نقيّتين هنا يتشاركهما الاثنان. */
+const num = (v: any, d = 2) =>
+  v == null ? "—" : Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const tone = (v: any) =>
+  v == null ? "var(--ink-muted)" : v > 0 ? "var(--pos-ink)" : v < 0 ? "var(--neg-ink)" : "var(--ink)";
+
+/* صفُّ شركةٍ واحد — يقرأ سعرَه من **المجرى** إن وصل، ومن الاستعلام
+   وإلا. ومكوّنٌ مستقلٌّ لأن الاشتراكَ بالرمز: لا يُعاد رسمُ الشريط
+   كلِّه لأن سهماً واحداً تحرّك (D290). */
+function TickerQuote({ row: r }: { row: any }) {
+  const live = useLiveQuote(r.symbol);
+  const price = live?.p ?? r.price;
+  const c = Number(live?.c ?? r.change_pct);
+    const dir = c > 0 ? "up" : c < 0 ? "dn" : "fl";
+    return (
+      <span className="mk-item">
+        {/* السهم انتقل من صدر العنصر إلى **بين السعر ونسبته** (بأمر
+            المالك): موضعه هناك يفصل الكمّية عن تغيّرها، وكان في الصدر
+            يصف العنصر كلَّه فيُقرأ وسماً للشركة لا للحركة. */}
+        <span className="mk-name">{r.name || r.symbol}</span>
+        {/* ══ كلُّ شركةٍ تومض كما تومض في المحفظة ══ (بأمر المالك · D261)
+            «الوميضُ لجميع الشركات، أريده تطبيقياً كتطبيقٍ بنكيّ». وبحثتُ
+            قبل أن أكتب فوجدتُ المكوّنَ قائماً (‏FlashPrice) يعمل في
+            المحفظة وصفحة السهم — فبناءُ ثانٍ مثله هو عينُ العطب الذي
+            نطارده: مُنتِجان لمعنًى واحد. فيُستدعى القائم. */}
+        {price != null && (
+          <FlashPrice value={price} className="mk-price"
+                      style={{ color: tone(c) }}>{num(price)}</FlashPrice>
+        )}
+        <TrendArrow dir={dir as any} size={10}
+          color={dir === "fl" ? "var(--flat-arrow)" : tone(c)} />
+        <span className="mk-pct" dir="ltr" style={{ color: tone(c) }}>
+          {c > 0 ? "+" : ""}{num(c)}%
+        </span>
+      </span>
+    );
+}
+
+
+
 export default function MarketTicker() {
   const isOwner = useAuthStore(s => s.isOwner);
   /* نبضُ الشريط يتبع طورَ السوق (D288): كان خمسَ دقائقَ دائماً — وهي
@@ -182,8 +230,6 @@ export default function MarketTicker() {
 
   if (!isOwner) return null;
 
-  const num = (v: any, d = 2) =>
-    v == null ? "—" : Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
   /* ══ صفرٌ لا مرجع له ليس تعادلاً ══
      يعيد الخادم `prev_close: null` متى غاب الإغلاق السابق عن المزوّد،
      ويبقى `change_pct` صفراً للتوافق الحسابيّ. وصفرٌ كهذا **ليس تعادلاً**
@@ -198,8 +244,6 @@ export default function MarketTicker() {
      على الداكن)، والسهمُ وحده أصفر. (بأمر المالك)
      وهو الصواب دلالةً أيضاً: اللون في هذا التطبيق يقول **اتجاهاً**، ولا
      اتجاه في التعادل. فيحمل السهمُ إشارةَ الحالة، ويبقى الرقم رقماً. */
-  const tone = (v: any) =>
-    v == null ? "var(--ink-muted)" : v > 0 ? "var(--pos-ink)" : v < 0 ? "var(--neg-ink)" : "var(--ink)";
 
   /* ══ حبرُ تاسي: ثلاثةُ ألوانٍ صريحةٍ ثابتة ══
      ثابتةٌ بمعنيين، وكلاهما مقصود:
@@ -235,38 +279,6 @@ export default function MarketTicker() {
       }
       return <TickerQuote key={`${k}-${r.symbol}-${i}`} row={r} />;
     });
-
-  /* صفُّ شركةٍ واحد — يقرأ سعرَه من **المجرى** إن وصل، ومن الاستعلام
-     وإلا. ومكوّنٌ مستقلٌّ لأن الاشتراكَ بالرمز: لا يُعاد رسمُ الشريط
-     كلِّه لأن سهماً واحداً تحرّك (D290). */
-  function TickerQuote({ row: r }: { row: any }) {
-    const live = useLiveQuote(r.symbol);
-    const price = live?.p ?? r.price;
-    const c = Number(live?.c ?? r.change_pct);
-      const dir = c > 0 ? "up" : c < 0 ? "dn" : "fl";
-      return (
-        <span className="mk-item">
-          {/* السهم انتقل من صدر العنصر إلى **بين السعر ونسبته** (بأمر
-              المالك): موضعه هناك يفصل الكمّية عن تغيّرها، وكان في الصدر
-              يصف العنصر كلَّه فيُقرأ وسماً للشركة لا للحركة. */}
-          <span className="mk-name">{r.name || r.symbol}</span>
-          {/* ══ كلُّ شركةٍ تومض كما تومض في المحفظة ══ (بأمر المالك · D261)
-              «الوميضُ لجميع الشركات، أريده تطبيقياً كتطبيقٍ بنكيّ». وبحثتُ
-              قبل أن أكتب فوجدتُ المكوّنَ قائماً (‏FlashPrice) يعمل في
-              المحفظة وصفحة السهم — فبناءُ ثانٍ مثله هو عينُ العطب الذي
-              نطارده: مُنتِجان لمعنًى واحد. فيُستدعى القائم. */}
-          {price != null && (
-            <FlashPrice value={price} className="mk-price"
-                        style={{ color: tone(c) }}>{num(price)}</FlashPrice>
-          )}
-          <TrendArrow dir={dir as any} size={10}
-            color={dir === "fl" ? "var(--flat-arrow)" : tone(c)} />
-          <span className="mk-pct" dir="ltr" style={{ color: tone(c) }}>
-            {c > 0 ? "+" : ""}{num(c)}%
-          </span>
-        </span>
-      );
-  }
 
   return (
     <div className="mk-ticker">

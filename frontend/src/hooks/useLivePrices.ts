@@ -59,15 +59,86 @@ function emitAll(): void {
   globalListeners.forEach(f => f());
 }
 
-function apply(q: Record<string, [number, number | null]>): void {
-  const now = Date.now();
-  for (const [sym, [p, c]] of Object.entries(q || {})) {
-    const prev = quotes.get(sym);
-    if (prev && prev.p === p && prev.c === c) continue;
-    quotes.set(sym, { p, c, at: now });
-    emit(sym);                       // الرمزُ الذي تغيّر وحدَه يُعاد رسمُه
+function put(sym: string, p: number, c: number | null): boolean {
+  const prev = quotes.get(sym);
+  if (prev && prev.p === p && prev.c === c) return false;
+  quotes.set(sym, { p, c, at: Date.now() });
+  emit(sym);                         // الرمزُ الذي تغيّر وحدَه يُعاد رسمُه
+  return true;
+}
+
+/* ══ توزيعُ الدفعة على الثواني — حركةٌ بأرقامٍ حقيقيةٍ لا مختلَقة ══
+   (بأمر المالك · D328)
+
+   قال: «اجمع تغيّراتِ الأسعار فترةً ثمّ اعرضها كأنها تتحرّك كلَّ ثانية».
+   ونصفُ الفكرة مرفوضٌ ونصفُها مبنيّ:
+
+   **المرفوض** حسابُ أرقامٍ وسيطة. لو صار السهمُ من ‎25.64 إلى ‎25.68
+   فعرضُ ‎25.65 و‎25.66 بينهما **أسعارٌ لم تُتداول قطّ** — وقد يُشترى
+   عليها. وذلك اختلاقٌ يخالف الخطَّ الأحمر، فلا يُفعل.
+
+   **والمبنيّ** أنّ الدفعةَ الواصلةَ تحمل عشراتِ الرموز، كلُّها **أسعارٌ
+   حقيقيةٌ نشرها المصدر**. فبدل أن تقع كلُّها في لحظةٍ ثمّ تسكن الشاشةُ
+   خمسَ عشرةَ ثانية، تُعرَض على شرائحَ متتابعةٍ كلَّ رُبع ثانية: فالشاشةُ
+   تتحرّك حقاً، وكلُّ رقمٍ فيها منشورٌ لا محسوب.
+
+   وثلاثةُ قيودٍ تمنعه أن يصير تجميلاً ضارّاً:
+     · **السهمُ المفتوحُ يُعرض فوراً** (اشتراكٌ بأولوية) — التوزيعُ
+       للشريط والقوائم لا لمن تنظر إليه.
+     · **وأحدثُ قيمةٍ تطرد أقدمَ منها** في الانتظار: لا يُعرض قديمٌ بعد
+       جديدٍ أبداً (الانتظارُ خريطةٌ بالرمز لا طابورُ أحداث).
+     · **وسقفُ التأخير معلَنٌ ومحدود** (`REVEAL_MS`)، وما بقي يُفرَغ
+       فوراً عند إغلاق المجرى أو خفاء الصفحة — لا رقمٌ يُحتجَز. */
+const REVEAL_TICK = 250;             // مل.ث بين شريحةٍ وأخرى
+const REVEAL_MS = 4_000;             // أقصى تأخيرٍ لرمزٍ في الدفعة
+const pending = new Map<string, [number, number | null]>();
+const priority = new Map<string, number>();   // اشتراكاتُ الأولوية بالرمز
+let reveal: number | null = null;
+
+function drainAll(): void {
+  let any = false;
+  for (const [sym, [p, c]] of pending) any = put(sym, p, c) || any;
+  pending.clear();
+  if (reveal) { window.clearInterval(reveal); reveal = null; }
+  if (any) emitAll();
+}
+
+function tick(): void {
+  if (!pending.size) {
+    if (reveal) { window.clearInterval(reveal); reveal = null; }
+    return;
   }
-  emitAll();
+  // حصّةُ الشريحة: ما يُفرِغ الانتظارَ في مدّةٍ لا تتجاوز السقف.
+  const slots = Math.max(1, Math.round(REVEAL_MS / REVEAL_TICK));
+  const take = Math.max(1, Math.ceil(pending.size / slots));
+  let n = 0;
+  let any = false;
+  for (const [sym, [p, c]] of pending) {
+    any = put(sym, p, c) || any;
+    pending.delete(sym);
+    if (++n >= take) break;
+  }
+  if (any) emitAll();
+  if (!pending.size && reveal) { window.clearInterval(reveal); reveal = null; }
+}
+
+function apply(q: Record<string, [number, number | null]>): void {
+  let now = false;
+
+  for (const [sym, v] of Object.entries(q || {})) {
+    // فورياً: السهمُ المفتوحُ أمام المستخدم، ورمزٌ لا قيمةَ له بعد
+    // (أوّلُ دفعةٍ كاملةٌ لا تُؤخَّر — وإلا بقيت الشاشةُ فارغةً تنتظر).
+    if (priority.has(sym) || !quotes.has(sym)) {
+      now = put(sym, v[0], v[1]) || now;
+      pending.delete(sym);
+    } else {
+      pending.set(sym, v);           // الأحدثُ يطرد الأقدم
+    }
+  }
+  if (now) emitAll();
+  if (pending.size && reveal === null && typeof window !== "undefined") {
+    reveal = window.setInterval(tick, REVEAL_TICK);
+  }
 }
 
 function open(): void {
@@ -102,6 +173,11 @@ function open(): void {
 }
 
 function close(): void {
+  /* ولا يُفرَغ الانتظارُ هنا: `close` تُنادى في كلّ انقطاعٍ عابرٍ وفي
+     كلّ هبوطٍ لعدّاد الاشتراك، فإفراغُه هنا كان يُلغي التوزيعَ من أصله
+     (قِيس في المتصفّح: `tick` لم يعمل قطّ · D328). والانتظارُ أرقامٌ
+     حقيقيةٌ لا تُفقد: مؤقّتُ التوزيع يُكمل عرضَها. والإفراغُ الفوريُّ
+     موضعُه خفاءُ الصفحة وحدَه — ثمّ لا شاشةَ تنظر. */
   es?.close();
   es = null;
   connected = false;
@@ -129,13 +205,18 @@ function acquire(): () => void {
 }
 
 function onVisibility(): void {
-  if (document.hidden) close();
+  if (document.hidden) { drainAll(); close(); }
   else if (refs > 0) open();
 }
 
-/** سعرُ رمزٍ من المجرى — أو `null` إن لم يصل بعد (فيُقرأ سعرُ الاستعلام). */
-export function useLiveQuote(symbol?: string | null): Quote | null {
+/** سعرُ رمزٍ من المجرى — أو `null` إن لم يصل بعد (فيُقرأ سعرُ الاستعلام).
+ *
+ *  و`now: true` تعني **لا تأخيرَ لهذا الرمز**: صفحةُ السهم المفتوحةُ
+ *  تعرضه لحظةَ وصوله ولا يشملها توزيعُ الدفعة (D328). */
+export function useLiveQuote(symbol?: string | null,
+                             opts?: { now?: boolean }): Quote | null {
   const key = String(symbol || "").replace(".SR", "").trim();
+  const wantNow = !!opts?.now;
   return useSyncExternalStore(
     (cb) => {
       if (!key) return () => {};
@@ -143,7 +224,16 @@ export function useLiveQuote(symbol?: string | null): Quote | null {
       let set = listeners.get(key);
       if (!set) { set = new Set(); listeners.set(key, set); }
       set.add(cb);
-      return () => { set!.delete(cb); release(); };
+      if (wantNow) priority.set(key, (priority.get(key) || 0) + 1);
+      return () => {
+        set!.delete(cb);
+        if (wantNow) {
+          const n = (priority.get(key) || 1) - 1;
+          if (n > 0) priority.set(key, n);
+          else priority.delete(key);
+        }
+        release();
+      };
     },
     () => (key ? quotes.get(key) ?? null : null),
     () => null,

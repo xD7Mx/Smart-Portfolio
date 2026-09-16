@@ -97,7 +97,9 @@ const TABS = [
 export default function StockView({ symbol, onClose }: { symbol: string; onClose?: () => void }) {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("overview");
   /* سعرُ الورقة من المجرى إن وصل — صفرُ تأخيرٍ (D290). */
-  const live = useLiveQuote(symbol);
+  /* صفحةُ السهم لا يشملها توزيعُ الدفعة: من ينظر إلى سهمٍ بعينه يراه
+     لحظةَ وصوله (D328). */
+  const live = useLiveQuote(symbol, { now: true });
 
   const { data, isLoading } = useQuery({
     queryKey: ["analysis", symbol],

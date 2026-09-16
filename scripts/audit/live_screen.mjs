@@ -58,6 +58,8 @@ const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript",
                ".css": "text/css", ".json": "application/json",
                ".woff2": "font/woff2", ".svg": "image/svg+xml",
                ".png": "image/png", ".webmanifest": "application/manifest+json" };
+// رموزٌ تُدفَع معاً — وهي نفسُها صفوفُ الشريط أدناه.
+const BURST = ["2010", "1120", "2222", "1150", "4190", "7202"];
 let price = 70.00;
 let tasi = 11500.0;
 const env = (data) => JSON.stringify({ success: true, data });
@@ -77,12 +79,18 @@ const srv = createServer((req, res) => {
     const t = setInterval(() => {
       price = Math.round((price + 0.05) * 100) / 100;
       tasi = Math.round((tasi + 1.3) * 10) / 10;
+      // ══ دفعةٌ كاملةٌ في لحظةٍ واحدة ══ (D328)
+      // كما يفعل المصدرُ الحقيقيّ: عشراتُ الرموز تتغيّر معاً كلَّ نافذةِ
+      // نشر. فتُقاس **حركةُ الشاشة**: هل تقع كلُّها في لحظةٍ ثمّ سكون،
+      // أم تُوزَّع على الثواني بأرقامها الحقيقية؟
+      const q = {};
+      for (const s of BURST) q[s] = [Math.round((price + BURST.indexOf(s)) * 100) / 100, 0.42];
       res.write("data: " + JSON.stringify({
         t: new Date().toTimeString().slice(0, 8),
-        q: { "2010": [price, 0.42] }, i: [tasi, 0.31],
+        q, i: [tasi, 0.31],
         live: true, at: new Date().toISOString(),
       }) + "\n\n");
-    }, 300);
+    }, 1200);
     req.on("close", () => clearInterval(t));
     return;
   }
@@ -101,8 +109,12 @@ const srv = createServer((req, res) => {
     if (p === "/api/v1/market/movers") {
       return res.end(env({
         advancers: 120, decliners: 80, total: 200, sectors: [],
-        gainers: [{ symbol: "2010", name: "سابك", price, change_pct: 0.42 }],
-        losers: [{ symbol: "1120", name: "الراجحي", price: 65.9, change_pct: -0.3 }],
+        // سعرٌ **ثابتٌ** في الاستعلام: وإلا تغيّرت الصفوفُ كلُّها من
+        // طريق الاستعلام لا من المجرى، فقاس الفحصُ شيئاً آخر (مزلقةٌ
+        // وقعتُ فيها: ستّةٌ من ستّةٍ تتغيّر معاً وليس المجرى سببَها).
+        gainers: BURST.map((s, i) => ({ symbol: s, name: "شركة " + s,
+                                        price: 100 + i, change_pct: 0.42 })),
+        losers: [],
       }));
     }
     if (p === "/api/v1/market/summary") {
@@ -157,13 +169,22 @@ async function watch(sel, label, seconds = 3) {
   return { changes, gap, first: seen[0] ?? null };
 }
 
+// ══ العتبةُ تتبع المصدرَ المقيس لا اعتقادي ══ (D326 · D328)
+// كانت «أربعُ تغيّراتٍ في ثلاث ثوانٍ وفجوةٌ ≤ ثانية»، وهي مبنيّةٌ على
+// مجرًى محكومٍ يدفع كلَّ ‎300 مل.ث — أي على اعتقادِ مصدرٍ ينشر كلَّ
+// ثانية. وقِيس على خادم المالك أن «تداول» ينشر بين ‎16ث و‎4 دقائق
+// للأسعار وكلَّ ‎60ث للمؤشّر. فالذي يُقاس هنا **زمنُ الوصول إلى
+// الشاشة**: كلُّ دفعةٍ تُرسَل يجب أن تُرى، وبفجوةٍ لا تتجاوز فاصلَ
+// الإرسال (‎1200 مل.ث) زائدَ هامشٍ — لا اختلاقَ حركةٍ لا مصدرَ لها.
 const tick = await watch(".mk-item", "شريطُ السوق");
-say(tick.changes >= 4 && tick.gap <= 1000,
-    "٠ رقمُ الشريط يتغيّر على الشاشة فعلاً",
+// الهامشُ ضِعفُ فاصلِ الإرسال: العيّنةُ كلَّ ‎100 مل.ث وفيها اهتزازٌ،
+// وحارسٌ يسقط باهتزازِ عيّنةٍ لا يقيس المعنى الذي وُضع له.
+say(tick.changes >= 2 && tick.gap <= 2400,
+    "٠ رقمُ الشريط يتغيّر على الشاشة فعلاً — كلُّ دفعةٍ تُرى",
     `${tick.changes} تغيّراً في 3 ثوانٍ · أطولُ فجوة ${tick.gap} مل.ث`);
 
 const idx = await watch(".mk-tasi", "لسانُ تاسي");
-say(idx.changes >= 4 && idx.gap <= 1000,
+say(idx.changes >= 2 && idx.gap <= 2400,
     "١ ومؤشّرُ تاسي كذلك — لا رقمٌ يُسأل عنه كلَّ دقيقة",
     `${idx.changes} تغيّراً · أطولُ فجوة ${idx.gap} مل.ث`);
 
@@ -193,6 +214,59 @@ const banned = ["جلسة مباشرة", "السوق مغلق", "بعد الإغ
 say(banned.length === 0,
     "٤ ولا حالةَ سوقٍ في بطاقة «نبض السوق» — لا وسمانِ يتناقضان",
     banned.join(" · ") || "خالية");
+
+// ── ٥ · دفعةٌ واحدةٌ تُعرَض على لحظاتٍ لا في لحظة (D328) ────────────────
+// أمر المالكُ أن تتحرّك الشاشةُ كلَّ ثانية. والاختلاقُ مرفوض، فالمبنيُّ
+// أن الدفعةَ الواصلةَ (ستّةُ رموزٍ معاً هنا) تُعرَض على شرائح. ويُقاس
+// **سلوكُ الشاشة**: كم صفّاً تغيّر في كلّ عيّنةٍ من مئة مل.ث؟ لو وقعت
+// كلُّها معاً لكانت كلُّ التغيّرات في عيّنةٍ واحدة.
+// ══ يُقرأ بالاسم لا بالموضع ══
+// الشريطُ يدوّر عناصرَه، فقراءةُ الصفوف بترتيبها تُحسَب «تغيُّرَ كلّ
+// شيء» في كلّ دورة — وهي مزلقةٌ وقعتُ فيها هنا. فيُبنى قاموسٌ
+// (اسمُ الشركة ← سعرُها) ويُقارَن بالمفتاح.
+const spread = await page.evaluate(async () => {
+  const read = () => {
+    const m = {};
+    for (const e of document.querySelectorAll(".mk-item")) {
+      const n = e.querySelector(".mk-name")?.textContent?.trim();
+      const p = e.querySelector(".mk-price")?.textContent?.trim();
+      if (n && p) m[n] = p;
+    }
+    return m;
+  };
+  let prev = read();
+  const buckets = [];
+  for (let i = 0; i < 40; i++) {
+    await new Promise(r => setTimeout(r, 100));
+    const now = read();
+    let n = 0;
+    for (const k of Object.keys(now))
+      if (prev[k] !== undefined && prev[k] !== now[k]) n++;
+    if (n) buckets.push(n);
+    prev = now;
+  }
+  return { rows: Object.keys(prev).length, buckets };
+});
+const busy = spread.buckets.length;
+const maxAtOnce = Math.max(0, ...spread.buckets);
+console.log(`     صفوفُ الشريط: ${spread.rows} · عيّناتٌ فيها تغيّر: `
+  + `${busy} · أكثرُ ما تغيّر في عيّنةٍ واحدة: ${maxAtOnce}`);
+say(spread.rows >= 4 && busy >= 4,
+    "٥ الدفعةُ الواحدةُ تظهر على لحظاتٍ متعدّدة — حركةٌ لا وميضٌ واحد",
+    `${busy} عيّنةً فيها تغيّر خلال 4 ثوانٍ`);
+say(spread.rows >= 4 && maxAtOnce < spread.rows,
+    "٥ب ولا تقع الصفوفُ كلُّها في عيّنةٍ واحدة — التوزيعُ يعمل فعلاً",
+    `${maxAtOnce} من ${spread.rows} في أكثرِ عيّنة`);
+
+// ── ٦ · والسهمُ المفتوحُ لا يشمله التوزيع ───────────────────────────────
+// التوزيعُ للشريط والقوائم؛ ومن ينظر إلى سهمٍ بعينه يراه لحظةَ وصوله.
+// (يُقاس نصّاً: فتحُ صفحةِ سهمٍ في هذا الفحص يحتاج رحلةً كاملةً، والعقدُ
+//  هنا اشتراكٌ بأولويةٍ لا سلوكُ رسمٍ — وسلوكُ التوزيع نفسُه قِيس أعلاه.)
+const svSrc = await (await import("node:fs/promises"))
+  .readFile(join(ROOT, "frontend", "src", "components", "market",
+                 "StockView.tsx"), "utf-8");
+say(/useLiveQuote\(symbol,\s*\{\s*now:\s*true\s*\}\)/.test(svSrc),
+    "٦ وصفحةُ السهم تشترك بأولويةٍ — لا تأخيرَ لمن تنظر إليه");
 
 for (const e of errs) console.log(`     خطأٌ في الصفحة: ${e}`);
 say(errs.length === 0, "٣ ولا خطأَ في الصفحة أثناء الدفع");
