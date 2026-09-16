@@ -15,6 +15,17 @@ set -u
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 
+# ══ وحكمٌ بلا متّهمٍ لا يُقرأ ══ (D377)
+# قِيس محليّاً: 992 فحصاً ناجحاً و**صفرُ إخفاق**، ومع ذلك خرجت اللجنةُ
+# بـ1 وطبعت «لم يجتز» — أي أن سكربتاً رجع بحالةٍ غيرِ صفريةٍ بلا أن
+# يطبع FAIL (‏شبكةٌ محجوبةٌ · تبعيةٌ ناقصة)، فلا يُعرَف مَن هو. فيُسجَّل
+# **سطرُ نداءِ** كلِّ ساقطٍ ويُطبع في الخاتمة مع اسم سكربته.
+_FAILED_AT=""
+_note() {
+  fail=1
+  _FAILED_AT="${_FAILED_AT} $1"
+}
+
 # ══ وبيئةٌ ناقصةٌ تُعلَن قبل أن تُحسَب فحوصاً ساقطة ══ (D375)
 # شُغّلت اللجنةُ داخل حاوية الخادم فسقط 550 فحصاً من 977: لا `node` فيها
 # ولا مجلَّدُ الواجهة — أي **نقصُ بيئةٍ لا انكسارُ شفرة**، والمخرَجُ يوهم
@@ -61,19 +72,19 @@ fi
 _AUDIT_LOG="$(mktemp -t sp-audit-XXXXXX.log)"
 exec > >(tee "$_AUDIT_LOG") 2>&1
 
-python3 scripts/audit/static.py || fail=1
+python3 scripts/audit/static.py || _note "$LINENO"
 
 # البند ٣٠: لكلّ ميزةٍ في قلب التطبيق غرضٌ مكتوبٌ وفحصٌ للاتّجاه المعاكس —
 # يفشل والشيفرةُ تعمل كما كُتبت. سُنَّ بعد عطب جدول التوزيع: كلُّ فحوصه
 # سألت عن النقص ولا واحدةٌ سألت عن التجاوز. وقاعدةٌ بلا حارسٍ تُنسى.
-python3 scripts/audit/purpose_check.py || fail=1
+python3 scripts/audit/purpose_check.py || _note "$LINENO"
 
 # فحصُ الرتبة — يشغّل المحرّكَ على عشيرةٍ كاملة لكلّ نمطٍ من الأحد عشر
 # ويتحقّق أن الدرجةَ تتصاعد مع الجودة وتستعمل المدى، وأن الخطوطَ
 # الحمراء تشتعل حين يجب وتصمت حين يجب. فحصٌ سلوكيّ لا قراءةَ نصّ:
 # كشف أن «التمويل» كان يُقاس بمسطرة البنوك.
 echo
-python3 scripts/audit/rank_check.py || fail=1
+python3 scripts/audit/rank_check.py || _note "$LINENO"
 
 # اختبارُ القبول القطاعيّ — المادة ٥٢ من المواصفة التنفيذية. يثبت أن
 # كلّ قطاعٍ من الاثنين والعشرين له نموذجُه الاقتصاديّ، وأن مؤشّراً لا
@@ -86,58 +97,58 @@ python3 scripts/audit/rank_check.py || fail=1
 # D146: الحصّةُ والذاكرةُ تعبران إقلاعَ الحاوية. كان العدّادُ في الرام
 # فيعود صفراً مع كلّ بناء، وحدُّ المزوّد على عنوان الخادم لا يعرف ذلك —
 # فنفدت مئةُ نداءٍ في إعادة جلبِ ما كان محفوظاً.
-python3 scripts/audit/state_check.py || fail=1
+python3 scripts/audit/state_check.py || _note "$LINENO"
 
 # D147: رقمان باسم «القيمة العادلة» — قيمتُنا المحسوبة، وهدفُ المحلّلين.
 # فاختلفت صفحةُ الشركة عن صفحة السوق وعن نصّ الذكاء في رقمٍ يُبنى عليه قرار.
-python3 scripts/audit/fv_single_source.py || fail=1
+python3 scripts/audit/fv_single_source.py || _note "$LINENO"
 
 # D148: `total_equity` اسمٌ لا وجودَ له في المصدر — فلم يُحسب roic قطُّ،
 # وسقط قيدُ إعادة الاستثمار إلى العائد على حقوق الملكية. فحصٌ سلوكيّ:
 # يغيّر الرافعةَ ويشترط أن يتغيّر الخصم.
-python3 scripts/audit/fv_inputs.py || fail=1
+python3 scripts/audit/fv_inputs.py || _note "$LINENO"
 
 # D149: منطقُ بطاقة السلامة هو منطقُ الحوكمة في كلّ قسم. كان التحليلُ
 # يستبدل ركنَ الجودة بدرجة المواصفة فتخرج الشركةُ الواحدة بدرجتين
 # (‏67 في البطاقة و74 في صفحة الشركة).
-python3 scripts/audit/gov_one_engine.py || fail=1
+python3 scripts/audit/gov_one_engine.py || _note "$LINENO"
 
 # D152: التحسينُ القطاعيّ لا يتسرّب إلى غير أهله — والمسطرةُ العامّة
 # بلا قطاعٍ تعطي الرقمَ نفسَه الذي كانت تعطيه قبله.
-python3 scripts/audit/sector_tuning.py || fail=1
+python3 scripts/audit/sector_tuning.py || _note "$LINENO"
 
 # D157: اتّجاهُ قراءة المؤشّر يوافق وصفَه في المصدر — ثلاثةُ مقاييسِ
 # تذبذّبٍ كانت تُقرأ صاعدةً فتُعدّ الشركةُ الأكثرُ تذبذباً أفضلَها.
-python3 scripts/audit/panel_direction.py || fail=1
+python3 scripts/audit/panel_direction.py || _note "$LINENO"
 
 # D150: ياهو المزوّد، والمستورَدُ من «إنفستنغ» يملأ الفراغَ ولا يستبدل
 # رقماً منه. وغيابُ الملفّ حالةٌ عادية لا انقطاع.
-python3 scripts/audit/investing_merge.py || fail=1
+python3 scripts/audit/investing_merge.py || _note "$LINENO"
 
 # الاختبارُ العشوائيّ — مئاتُ الشركات بمدخلاتٍ لم تُصمَّم، بعضُها
 # مستحيلٌ عمداً (إيرادٌ صفر · حقوقٌ سالبة · سنةٌ واحدة · بنودٌ ناقصة).
 # يسأل: أيسقط المحرّك؟ أيُخرج رقماً خارج المدى؟ أيُدين على بيانٍ ناقص؟
 # وهو عدسةُ مهندس اختبار الحدود في المجلس: يُختبَر بالمستحيل قبل الممكن.
 echo
-python3 scripts/audit/random_check.py 600 || fail=1
+python3 scripts/audit/random_check.py 600 || _note "$LINENO"
 
 # فحصُ القيمة العادلة — نصفُ الميزة الآخر. يشغّل النموذجَ ويتحقّق أنه
 # يستجيب للربحية والمخاطرة والدَّين استجابةً صحيحة، وأن كلّ مخرَجٍ داخل
 # حدّ العقل، وأن سعر الدخول دون القيمة، وأنه يمتنع حين يجب.
 echo
-python3 scripts/audit/value_check.py || fail=1
+python3 scripts/audit/value_check.py || _note "$LINENO"
 
 # فحصُ القرار — السلسلةُ كاملةً من القوائم إلى الكلمة التي تُقرأ.
 # القرارُ حصيلةُ الدرجة والقيمة معاً، وأوّلُ عطبٍ في هذا المشروع كان
 # من هذا الباب: «شراء» وسعرُ السهم فوق القيمة المعروضة معه.
 echo
-python3 scripts/audit/decision_check.py || fail=1
+python3 scripts/audit/decision_check.py || _note "$LINENO"
 
 # D162 · D163: مقياسُ درجة السلامة يبلغ طرفيه بشركةٍ ممكنةِ الوجود،
 # ولا تُقرأ خسارةٌ نازفةٌ نقداً «تغطيةً ممتازة». فحصٌ سلوكيّ: يبني
 # شركاتٍ بأرقامٍ واقعيةٍ ويطالب الدرجةَ بأن توافق وصفَها.
 echo
-python3 scripts/audit/score_scale.py || fail=1
+python3 scripts/audit/score_scale.py || _note "$LINENO"
 
 # D166: القرارُ يخرج من مُنتِجٍ واحد، والشاشاتُ الثلاثُ تعرضه. كانت
 # البطاقةُ تُخرج حكماً خاماً لم يمرّ على بوّابات الأمان الستّ فاختلفت عن
@@ -145,20 +156,20 @@ python3 scripts/audit/score_scale.py || fail=1
 # بالقرار. والطبقةُ الحيّة على الخادم:
 #   docker exec sp_backend python /app/scripts/audit/one_decision.py --live
 echo
-python3 scripts/audit/one_decision.py || fail=1
+python3 scripts/audit/one_decision.py || _note "$LINENO"
 
 # D167: صفٌّ بلا درجةٍ يُفرَز آخِراً ولا يُسقط تبويبَ السوق كلَّه.
 # `None < None` ترفع TypeError، فمتى تعذّرت الدرجةُ على شركتين انهار
 # المسارُ كلُّه — مقيسٌ على الخادم.
 echo
-python3 scripts/audit/sort_none.py || fail=1
+python3 scripts/audit/sort_none.py || _note "$LINENO"
 
 # D168: الحفظةُ لا تُسلسل المخزنَ كلَّه ولا تحجب حلقةَ الأحداث. قِيست
 # على الخادم ١٫٢٧٧ ثانيةً للحفظة الواحدة على ملفٍّ ٧٫٨ ميجابايت، ومسحُ
 # السوق يحفظ أربعَ مئةِ مرّة. فحصٌ بالزمن: يبني مخزناً ضخماً ويقيس مئةَ
 # حفظة — السلوكُ القديم ٩٠٫٦ ms للحفظة، والجديدُ دونَ ٠٫٠٢ ms.
 echo
-python3 scripts/audit/lastgood_write.py || fail=1
+python3 scripts/audit/lastgood_write.py || _note "$LINENO"
 
 # D160 (عودة): لا فحصَ في اللجنة يكتب في بيانات المالك المتتبَّعة. عولج
 # في أربعة سكربتاتٍ وتخلّف `rank_check` فعاد يلوّث lastgood.json ويمنع
@@ -166,37 +177,37 @@ python3 scripts/audit/lastgood_write.py || fail=1
 # مخزن الحالة **قبل** استيراد المحرّك — والمسابرُ اليدويةُ على الخادم
 # خارج النطاق، فهي تقرأ المخزنَ الحقيقيَّ عن قصد.
 echo
-python3 scripts/audit/audit_sandbox.py || fail=1
+python3 scripts/audit/audit_sandbox.py || _note "$LINENO"
 
 # D170: «نمو» لا تُعرض — الكونُ المعروض ٢٧٣ لا ٤٠٩. وتعريفُ السوق في
 # `universe.py` وحدَه: كان الشرطُ منسوخاً نصّاً في ثلاثةِ مواضعَ وغائباً
 # عن خمسة بينما `main_market` موجودةٌ ولا تُستعمل.
 echo
-python3 scripts/audit/main_market.py || fail=1
+python3 scripts/audit/main_market.py || _note "$LINENO"
 
 # D171: ميزانُ خبراء الحوكمة مكوّنٌ واحدٌ لا نسختان. كان يُرسَم مرّتين —
 # نافذةُ قسم الحوكمة وتبويبُ التقييم — فأُعيد تصميمُ إحداهما وبقيت
 # الأخرى، فرأى المالكُ بطاقتين لِميزانٍ واحد.
 echo
-node scripts/audit/one_board.mjs || fail=1
+node scripts/audit/one_board.mjs || _note "$LINENO"
 
 # D172: نصُّ المالك عربيٌّ رسميّ. كان يُعرض «القاعدة 'hold_decent' تحققت:
 # quality=59، safety=63» — معرّفُ قاعدةٍ وأسماءُ متغيّراتٍ داخلية في شاشةٍ
 # يقرؤها المالك. فحصٌ سلوكيّ: يشغّل المحرّكَ ويفتّش النصَّ الخارج.
 echo
-python3 scripts/audit/owner_text.py || fail=1
+python3 scripts/audit/owner_text.py || _note "$LINENO"
 
 # D174: رقمان لا يحملان اسماً واحداً. «السعر العادل» المعروض هدفُ
 # المحلّلين، وبوّابةُ القرار تحكم بتقديرنا المحسوب — فكانت الشاشةُ تقول
 # «غير متوفّرة» ويقول القرارُ تحتها «فوق القيمة العادلة».
 echo
-python3 scripts/audit/two_values.py || fail=1
+python3 scripts/audit/two_values.py || _note "$LINENO"
 
 # D181: هلالُ الشرعية أسودُ في المظهر الفاتح رغم صحّة ألوانه في المكوّن —
 # `html.light svg { color: inherit }` ترجيحُها أعلى من صنف اللون فابتلعته.
 # قِيس: ‎#111 للأحكام الثلاثة في الفاتح، وصحيحٌ في الداكن.
 echo
-python3 scripts/audit/sharia_ink.py || fail=1
+python3 scripts/audit/sharia_ink.py || _note "$LINENO"
 
 # محرّكُ القيمة العادلة — وحدةٌ خلف مفتاحٍ مغلقٍ لا تُعرض في شاشة. فحصُها
 # تركيبيّ: يثبت أن الرياضيات والحُرّاس تعمل (سقفُ النموّ · قيدُ إعادة
@@ -204,25 +215,25 @@ python3 scripts/audit/sharia_ink.py || fail=1
 # ولا يثبت شيئاً عن كفاية بيانات ياهو — ذاك قياسٌ حيٌّ على الخادم:
 #   docker exec sp_backend python /app/scripts/audit/fair_value_acceptance.py
 echo
-python3 scripts/audit/fv_synthetic.py || fail=1
+python3 scripts/audit/fv_synthetic.py || _note "$LINENO"
 
 # D182: صفُّ المجموع في جدول التوزيع — مجموعٌ مستهدفٌ يكتبه المالك، ومعدّلُ
 # عائد توزيعاتٍ مرجّحٌ بالأوزان. والشركةُ بلا عائدٍ معلوم تخرج من البسط
 # والمقام معاً: عدُّها صفراً يخفض المعدّل برقمٍ لا مصدرَ له.
 echo
-node scripts/audit/alloc_totals.mjs || fail=1
+node scripts/audit/alloc_totals.mjs || _note "$LINENO"
 
 # D198: درجةُ الحوكمة تُقرأ من المحرّك، والعمودُ المخزَّن يملأ الفراغَ ولا
 # يغلبه. كان المخزَّنُ أوّلاً فيُعرض رقمٌ قديمٌ في الفرز وخريطة القطاعات
 # بينما تحسب صفحةُ الشركة حيّاً.
 echo
-python3 scripts/audit/score_source.py || fail=1
+python3 scripts/audit/score_source.py || _note "$LINENO"
 
 # D201: ما امتنع التطبيقُ عن الحكم عليه لا يُرشَّح «فرصة». كان مرشِّحُ الفرص
 # يشترط وجودَ الدرجة وحدَها، وفيها شقٌّ فنّيٌّ يُحسب من السعر — فتظهر شركةٌ
 # تقول صفحتُها «بيانات غير كافية» (رآها المالك في غازكو 2080).
 echo
-python3 scripts/audit/evaluable_gate.py || fail=1
+python3 scripts/audit/evaluable_gate.py || _note "$LINENO"
 
 # D211: الشاشةُ تُرسَم فعلاً لا تُترجَم فحسب. ركّب المالكُ حزمةً فرأى شاشةً
 # سوداء، والبناءُ كان قد نجح: `vite build` يترجم بلا فحصِ أنواع، وفحصُ
@@ -234,56 +245,56 @@ python3 scripts/audit/evaluable_gate.py || fail=1
 # استبعادُ الشركة من وسيط قطاعها — بدونه تُسحَب النتيجةُ نحو السعر الحاليّ
 # فيصير كلُّ سهمٍ «عادلاً»، وهو عيبٌ صامتٌ لا يظهر بالنظر.
 echo
-python3 scripts/audit/relative_value_check.py || fail=1
+python3 scripts/audit/relative_value_check.py || _note "$LINENO"
 
 # D213: القيمةُ النسبيةُ تملأ الفراغَ ولا تستبدل رأيَ محلّل — ولا تُدسّ في
 # خانة «القيمة العادلة» فيُظنّ مضاعفُ القطاع رأيَ بيوت الخبرة.
 echo
-python3 scripts/audit/rel_vs_target.py || fail=1
+python3 scripts/audit/rel_vs_target.py || _note "$LINENO"
 
 # D230: والتغطيةُ تعني كلَّ شاشةٍ تعرض تقييماً — لا الفرزَ وحدَه. رأى المالكُ
 # «غير متاح» في تحليل الذكاء على شركةٍ قيمتُها النسبيةُ محسوبةٌ في يدنا.
 echo
-python3 scripts/audit/rel_everywhere.py || fail=1
+python3 scripts/audit/rel_everywhere.py || _note "$LINENO"
 
 # D231: حاسبةُ الاكتتاب تقيس بالمسطرة نفسِها — أداةٌ جديدةٌ تُغري بنسخ
 # الحساب، وقد تكرّر في هذا التطبيق رقمانِ لقياسٍ واحد أكثرَ من غيره.
 echo
-python3 scripts/audit/ipo_value.py || fail=1
+python3 scripts/audit/ipo_value.py || _note "$LINENO"
 
 # D233: محرّكٌ رئيسيٌّ يُغذّى مُدخَلُه. نداءٌ يعود من الكاش لا يمرّ بحافظ
 # التقييم، فيبقى المضاعفُ في اليد ولا يصل المخزن — وميزةٌ مُدخَلُها متروكٌ
 # للحظّ ليست رئيسية.
 echo
-python3 scripts/audit/relval_feed.py || fail=1
+python3 scripts/audit/relval_feed.py || _note "$LINENO"
 
 # D235: اسمٌ واحدٌ للتقييم النسبيّ في كلّ شاشة. كان يُسمّى بأربعة أسماءٍ
 # بحسب الشاشة والتلميح — وتعدُّدُ الاسم يجعل الأرقامَ تُقرأ أرقاماً مختلفة.
 echo
-node scripts/audit/one_relval_name.mjs || fail=1
+node scripts/audit/one_relval_name.mjs || _note "$LINENO"
 
 # D236: صفُّ الفرز لا يعيش في كوكبٍ آخر — سعرُه سعرُ صفحة السهم، وكلُّ ما
 # اشتُقّ منه يُعاد حسابُه. وعمودٌ عمودٌ على بياناتٍ حقيقيةٍ على الخادم:
 #   docker exec sp_backend python /app/scripts/audit/screener_columns.py
 echo
-python3 scripts/audit/screener_price_fresh.py || fail=1
+python3 scripts/audit/screener_price_fresh.py || _note "$LINENO"
 
 # D240: مُنتِجٌ واحدٌ للسعر العادل — مائدةٌ واحدةٌ ومدخلاتٌ واحدة. كان
 # لكلٍّ من الفرز والصفحة حسابُه، فخرج رقمان لمعنًى واحد في ‎28 شركةً
 # من ‎40 (قِيس على الخادم بمسبار الأعمدة).
 echo
-python3 scripts/audit/one_fair_price.py || fail=1
+python3 scripts/audit/one_fair_price.py || _note "$LINENO"
 
 # D264: محرّكان واسمٌ واحد — «السعر العادل» يحمل الأقوى ويقول أيُّهما،
 # ومحرّكُ خصم التدفّقات يقرأ قوائمَنا من الباب الواحد لا من مصدرٍ رابع.
 echo
-python3 scripts/audit/dcf_serve.py || fail=1
+python3 scripts/audit/dcf_serve.py || _note "$LINENO"
 
 # D263: قوائمُ XBRL الرسمية المدقَّقة تتقدّم المزوّد في الباب الواحد،
 # وبندٌ لا يُخمَّن. والقراءةُ على الخادم:
 #   docker exec sp_backend python /app/scripts/audit/xbrl_probe.py 2010
 echo
-python3 scripts/audit/tadawul_xbrl.py || fail=1
+python3 scripts/audit/tadawul_xbrl.py || _note "$LINENO"
 
 # D270: هيكلُ الملكية بالمتصفّح — أربعةُ بنودٍ مرسومةٍ بجافاسكربت لا يبلغها
 # انتحالُ البصمة. الروابطُ تُكتشَف بأسمائها لا تُحفَظ، وما لم يُفهَم يغيب.
@@ -291,244 +302,244 @@ python3 scripts/audit/tadawul_xbrl.py || fail=1
 #   docker exec sp_backend python /app/scripts/audit/ownership_probe.py 1010
 #   docker exec sp_backend python /app/scripts/audit/ownership_probe.py --market 15 --apply
 echo
-python3 scripts/audit/ownership.py || fail=1
+python3 scripts/audit/ownership.py || _note "$LINENO"
 
 # D271: خطوةٌ واحدةٌ لا تُسقط كلَّ الشاشات — قاعدةٌ متأخّرةٌ أو جدولةٌ
 # متعثّرةٌ تُعلَن ولا تَقتل، والحالُ تُقاس في `/api/health` لا تُكتَب.
 echo
-python3 scripts/audit/boot_survives.py || fail=1
+python3 scripts/audit/boot_survives.py || _note "$LINENO"
 
 # D272 · D273: عمقُ السوق يصل الشاشةَ (جُمع ولم يُعرَض)، والصفقاتُ الخاصة
 # بُنيت بعد سهوٍ عنها. وأسماءُ حقول الصفقات تُقاس على الخادم:
 #   docker exec sp_backend python /app/scripts/audit/deals_probe.py
 echo
-python3 scripts/audit/deals_and_depth.py || fail=1
+python3 scripts/audit/deals_and_depth.py || _note "$LINENO"
 
 # D278: الخلاصةُ الماليةُ بجيمناي ثمّ بمحلّلٍ قاعديّ — وكلُّ رقمٍ في سطر
 # النموذج يُطابَق بما قِيس، وما لم يُطابِق يُرَدُّ السطرُ كلُّه.
 echo
-python3 scripts/audit/financial_brief.py || fail=1
+python3 scripts/audit/financial_brief.py || _note "$LINENO"
 
 # D280: تغطيةٌ جادّةٌ لكلّ شركة — لا امتناعَ بالتصميم، ودفعةُ القوائم
 # تكفي لتغطيةٍ في أيّامٍ لا أسابيع، والباقي يُطبع في السجلّ كلَّ ليلة.
 echo
-python3 scripts/audit/coverage_serious.py || fail=1
+python3 scripts/audit/coverage_serious.py || _note "$LINENO"
 
 # D283: حاكمٌ واحدٌ لطور السوق — «قبل الافتتاح» يومَ السبت كان ساعةً
 # ثانيةً لا تعرف اليوم. رآه المالك في بطاقة نبض السوق.
 echo
-python3 scripts/audit/market_phase_one.py || fail=1
+python3 scripts/audit/market_phase_one.py || _note "$LINENO"
 
 # D287: طريقةُ الجلب مسجَّلةٌ في `docs/FETCH_METHOD.md`، والسجلُّ يُحرَس:
 # خريطتُه صادقةٌ، وبلاغاتُه مسجَّلة، والميثاقُ يُحيل إليه.
 echo
-python3 scripts/audit/fetch_method_doc.py || fail=1
+python3 scripts/audit/fetch_method_doc.py || _note "$LINENO"
 
 # D297: أمرُ التركيب يُنقَل حرفياً عن السكربت، ولا يُكتب من الذاكرة —
 # كلُّ مسارٍ فيه موجودٌ، والتشكيلُ يُنادى حيث هو.
 echo
-python3 scripts/audit/install_command.py || fail=1
+python3 scripts/audit/install_command.py || _note "$LINENO"
 
 # D289: لحظيةٌ في المصدر لا في الشاشة — طزاجةٌ عند الطلب بنداءٍ واحدٍ في
 # الطريق، ولا إيقاظَ والسوقُ مغلق، ولا حبسَ للشاشة في انتظار الشبكة.
 echo
-python3 scripts/audit/live_now.py || fail=1
+python3 scripts/audit/live_now.py || _note "$LINENO"
 
 # D290: دفعٌ لا سؤال — مجرى أحداثٍ يدفع كلَّ سعرٍ يتغيّر، بمضخّةٍ واحدةٍ
 # تتوقّف وحدَها، ولا نداءَ والسوقُ مغلق، ولا دفعةَ إلا للمتغيّر.
 echo
-python3 scripts/audit/live_stream.py || fail=1
+python3 scripts/audit/live_stream.py || _note "$LINENO"
 
 # D260: اللحظيةُ زمنٌ لا لون — ميزانيةُ طزاجةٍ مقيسةٌ لكلّ حلقةٍ في
 # سلسلة التأخير، وعلاقةُ الحلقات ببعضها (عمرٌ مقبولٌ ≥ دورةِ تجديد).
 echo
-python3 scripts/audit/live_prices.py || fail=1
+python3 scripts/audit/live_prices.py || _note "$LINENO"
 
 # D258: الجدولةُ تُقلع — مُطلِقٌ لا يُبنى يُسقط التطبيقَ كلَّه لا نفسَه.
 echo
-python3 scripts/audit/scheduler_boot.py || fail=1
+python3 scripts/audit/scheduler_boot.py || _note "$LINENO"
 
 # D257: بيتا قطاعيةٌ مقيسةٌ من سوقنا لا مستورَدةٌ من جدولٍ أجنبيّ — منزوعةُ
 # الرافعة بهامادا، بوسيطِ قطاعٍ لا متوسّطه. وبناؤها على الخادم:
 #   docker exec sp_backend python /app/scripts/audit/sector_betas_probe.py
 echo
-python3 scripts/audit/sector_betas.py || fail=1
+python3 scripts/audit/sector_betas.py || _note "$LINENO"
 
 # D255: ثلاثُ طبقاتٍ بترتيبٍ واحدٍ معلَن — تداول ثمّ أرقام ثمّ ياهو، ومسحُ
 # السوق يُبنى من لقطة «تداول» فلا نداءَ لياهو إلا لمن غاب عنها.
 echo
-python3 scripts/audit/source_layers.py || fail=1
+python3 scripts/audit/source_layers.py || _note "$LINENO"
 
 # D256: دليلُ الشركات — هويّةٌ من مصدرها، ورابطُ «أرقام» لمن له معرِّفٌ وحدَه.
 echo
-python3 scripts/audit/company_directory.py || fail=1
+python3 scripts/audit/company_directory.py || _note "$LINENO"
 
 # D253: الربعيُّ من مصدرٍ يُرسَم في الخادم، والرمزُ يُقرأ من معرِّف الرابط
 # لا من اسمٍ مقارَب — مطابقةُ الأسماء تُدخل أرباحَ شركةٍ في ملفّ أخرى.
 echo
-python3 scripts/audit/argaam_results.py || fail=1
+python3 scripts/audit/argaam_results.py || _note "$LINENO"
 
 # D252: لسانُ «تاسي» يقول رقمَ السوق الآن — من خدمة المؤشّر نفسِها بدل
 # قراءةٍ متأخّرةٍ عند المزوّد ومخزَّنةٍ ربعَ ساعةٍ فوق تأخيرها.
 echo
-python3 scripts/audit/tasi_live.py || fail=1
+python3 scripts/audit/tasi_live.py || _note "$LINENO"
 
 # D251: لقطةُ السوق من مُصدِره — المكرّرُ ومضاعفُ الدفترية وحدّا العام
 # منشورةً في «تداول» لا مشتقّةً عندنا من سعرٍ ومقياسٍ من ياهو.
 echo
-python3 scripts/audit/tadawul_source.py || fail=1
+python3 scripts/audit/tadawul_source.py || _note "$LINENO"
 
 # D250: مَعبرٌ واحدٌ إلى «تداول» — الحجبُ كان ببصمة TLS لا بالرؤوس،
 # فعُبر بانتحال بصمة كروم فانفتحت صفحاتُ السوق والدليل والصكوك.
 echo
-python3 scripts/audit/tadawul_gateway.py || fail=1
+python3 scripts/audit/tadawul_gateway.py || _note "$LINENO"
 
 # D249: المعدَّلُ الخالي من المخاطر يُقرأ من صكٍّ سياديٍّ عشريٍّ بتاريخه، لا
 # «يُملأ يدوياً». والجلبُ نفسُه لا يُجرَّب في حارسٍ (المضيفُ محجوبٌ عن
 # التطوير، والشبكةُ تُنتج تقلُّباً لا قياساً) — البنيةُ تُثبَّت بمسبار الخادم:
 #   docker exec sp_backend python /app/scripts/audit/risk_free_probe.py
 echo
-python3 scripts/audit/risk_free.py || fail=1
+python3 scripts/audit/risk_free.py || _note "$LINENO"
 
 # D244: سلسلةُ مصادرَ واحدةٌ لحقول العرض — كان كلُّ مسارٍ يكتب سلسلتَه،
 # فاختلف مضاعفُ الدفترية وعائدُ التوزيعات في مسبار الأعمدة.
 echo
-python3 scripts/audit/one_display_fields.py || fail=1
+python3 scripts/audit/one_display_fields.py || _note "$LINENO"
 
 # D241: كلُّ ورقةٍ في السوق لها اسمٌ عربيٌّ وقطاعٌ مصنَّف. ثلاثةُ رموزٍ
 # كانت بلا صفٍّ في الدليل — تُعرض بالإنجليزية ويمتنع عنها السعرُ العادل
 # صامتاً لأن قطاعَها غيرُ مصنّف.
 echo
-python3 scripts/audit/directory_coverage.py || fail=1
+python3 scripts/audit/directory_coverage.py || _note "$LINENO"
 
 # D242: الكونُ ينمو مع السوق ولا يفقد أحداً — مزامنةٌ أسبوعيةٌ مع «تداول»:
 # الجديدُ يُضاف، والغائبُ يُوسَم موقوفاً ولا يُحذف، وقائمةٌ قصيرةٌ تُرفَض.
 # والبنيةُ تُثبَّت بمسبارٍ على الخادم قبل الاعتماد:
 #   docker exec sp_backend python /app/scripts/audit/tadawul_sync_probe.py
 echo
-python3 scripts/audit/directory_sync.py || fail=1
+python3 scripts/audit/directory_sync.py || _note "$LINENO"
 
 # D243: الفرزُ يُفتح بسرعة — يُقاس بالزمن. الإنعاشُ كان يجري مع كلّ طلبٍ
 # على ‎270 صفّاً بتشغيلِ محرّكِ حوكمةٍ لكلّ صفّ.
 echo
-python3 scripts/audit/screener_speed.py || fail=1
+python3 scripts/audit/screener_speed.py || _note "$LINENO"
 
 # D237: من حمل لقبَ «السعر العادل» حكَم به القرار — وإلا عادت صورةُ D174:
 # رقمٌ معروضٌ وقرارٌ يناقضه لأنه يحكم برقمٍ آخر.
 echo
-python3 scripts/audit/decision_fv_gate.py || fail=1
+python3 scripts/audit/decision_fv_gate.py || _note "$LINENO"
 
 # D238: لكلّ مظهرٍ لوحُه، ومقاييسُ الداكن بدرجات الفاتح (أمرٌ مخصّص).
 # ومحاذاةُ أعمدة الفرز تُقاس بالهندسة في user_walk.
 echo
-node scripts/audit/theme_colors.mjs || fail=1
+node scripts/audit/theme_colors.mjs || _note "$LINENO"
 
 # D214: عند تعارض مصدرَي الشرعية يُؤخذ الأشدّ ويُعلَن التعارض. رأى المالكُ
 # «المملكة» مختلطةً وهي غيرُ متوافقةٍ عند أرقام — والأولويةُ صُمّمت للتغطية
 # فاستُعملت للترجيح، فخرج حكمٌ أخفُّ من أحد مصدرَيه في أخطرِ ما يُعرض.
 echo
-python3 scripts/audit/sharia_conflict.py || fail=1
+python3 scripts/audit/sharia_conflict.py || _note "$LINENO"
 
 # D214: وموضعُ البطاقة نفسُه حكمٌ — تحت الهيكلة في صفحة الشركة، ومعدومةٌ في
 # صفحة السهم حيث يكفي الهلال. حارسٌ على الترتيب لا على وجود النصّ.
 echo
-python3 scripts/audit/sharia_place.py || fail=1
+python3 scripts/audit/sharia_place.py || _note "$LINENO"
 
 # D218: شواهدُ «أرقام» بيّنةٌ لا حَكَم. القرارُ يخرج من محرّك القواعد وحدَه
 # (‏D166)، فمصدرٌ جديدٌ لا يصير حكماً ثانياً — ولا يُخفى حين يخالف: الخلافُ
 # يُعلَن بوصفه واقعة.
 echo
-python3 scripts/audit/argaam_evidence_check.py || fail=1
+python3 scripts/audit/argaam_evidence_check.py || _note "$LINENO"
 
 # D222: صقرٌ لا ينفي شركةً في يده. سأل المالكُ عن «العثيم» فنفى وجودَه في
 # محفظته وفي السوق، والسهمُ ظاهرٌ خلف النافذة. واختيارُ صفوف السوق كان
 # مطابقةً نصّيةً خاماً تشترط الاسمَ كاملاً — فلم تصل الشركةُ إليه أصلاً.
 echo
-python3 scripts/audit/saqr_entity.py || fail=1
+python3 scripts/audit/saqr_entity.py || _note "$LINENO"
 
 # D223: عائدُ التوزيعات رقمٌ واحد. رأى المالكُ ‎2.44٪ في الفرز و‎2.56٪ في
 # صفحة السهم — تعريفان تحت اسمٍ واحد: رقمُ المزوّد مقابل توزيعِ ١٢ شهراً ÷
 # السعر. الآن سلسلةٌ واحدةٌ يقرأ منها الطرفان، والمصدرُ يعود مع الرقم.
 echo
-python3 scripts/audit/one_dividend_yield.py || fail=1
+python3 scripts/audit/one_dividend_yield.py || _note "$LINENO"
 
 # D224: رقمٌ واحدٌ باسمٍ واحد. كان `finance_score` يُعرض «درجة السلامة»
 # و«درجة الجودة المالية» و«درجة الحوكمة» في ثماني شاشات — ومن رأى ثلاثة
 # أسماءٍ ظنّها ثلاثة مقاييس.
 echo
-node scripts/audit/one_score_name.mjs || fail=1
+node scripts/audit/one_score_name.mjs || _note "$LINENO"
 
 # D225: إجراءاتُ «أرقام» تدخل ركنَ التخفيف — والمنحةُ ليست تخفيفاً. عدُّ كلّ
 # ازديادٍ في عدد الأسهم تخفيفاً يُنتج حكماً خاطئاً بثقةٍ عالية: المنحةُ
 # والتجزئةُ يأخذ فيهما كلُّ مساهمٍ بنسبته فحصّتُه كما هي.
 echo
-python3 scripts/audit/dilution_actions.py || fail=1
+python3 scripts/audit/dilution_actions.py || _note "$LINENO"
 
 # D226: الجدولُ لا يخالف صفحةَ السهم لأنه أقدمُ منها. الحقولُ المشتقّةُ
 # تُنعَش عند التقديم — ما يكلّف شبكةً يُخزَّن، وما يُقرأ من مخزنٍ يُحسب
 # عند الطلب. وتعذّرُ الإنعاش لا يُفرّغ عموداً كان مملوءاً.
 echo
-python3 scripts/audit/screener_live_fields.py || fail=1
+python3 scripts/audit/screener_live_fields.py || _note "$LINENO"
 
 # D226 (طرفٌ إلى طرف): ما يخرج من النقطة لا ما تعيده الدالّة. تكرّر العطبُ
 # عبر حزمٍ لأنّي كنتُ أقيس دالّةً في معزل — والدالّةُ قد تصحّ والنقطةُ لا
 # تستدعيها. فيُسأل خادمٌ حقيقيٌّ عبر HTTP ويُقارَن الصفُّ بما تحسبه الصفحة.
 echo
-python3 scripts/audit/screener_endpoint_e2e.py || fail=1
+python3 scripts/audit/screener_endpoint_e2e.py || _note "$LINENO"
 
 # D229: الغيابُ يُخزَّن كما يُخزَّن الحضور. قال إسنادُ العدّاد إنّ هيكلةَ
 # الملكية ابتلعت ‎599 نداءً في يوم — لبيانٍ يتغيّر ربعياً. والسبب: غيابُ
 # البيان عند المزوّد لا يُخزَّن، فيُعاد السؤالُ في كلّ تحليلٍ أبداً.
 echo
-python3 scripts/audit/absent_is_cached.py || fail=1
+python3 scripts/audit/absent_is_cached.py || _note "$LINENO"
 
 # D215: أطوارُ الجلسة بحدودها الحقيقية (‏تداول: مستمرٌّ حتى 15:00 ثمّ مزادٌ
 # وسعرُ إغلاقٍ حتى 15:20). كانت 14:30/15:00 في الخادم والواجهة معاً، فقال
 # التطبيقُ «مغلق» والسوقُ يعمل.
 echo
-python3 scripts/audit/market_hours.py || fail=1
+python3 scripts/audit/market_hours.py || _note "$LINENO"
 
 echo
-python3 scripts/audit/ts_undefined.py || fail=1
+python3 scripts/audit/ts_undefined.py || _note "$LINENO"
 echo
-node scripts/audit/render_smoke.mjs || fail=1
+node scripts/audit/render_smoke.mjs || _note "$LINENO"
 
 # D301: الفوريةُ تُقاس على شاشةٍ حقيقية — لا بالشيفرة ولا بالوعد. يُخدَم
 # بناءُ الواجهة ومجرًى يدفع، ويُلتقَط نصُّ الرقم فيُحسَب تغيّرُه وفجواته.
 echo
-node scripts/audit/live_screen.mjs || fail=1
+node scripts/audit/live_screen.mjs || _note "$LINENO"
 
 # D324: وتبويبُ «صفقات خاصة» كذلك يُفتح في متصفّحٍ حقيقيّ — شعارُ كلّ
 # صفٍّ مرسومٌ، وأيقونةُ البحث تتمدّد وتفرز بالرمز وبالاسم الدارج.
 echo
-node scripts/audit/deals_screen.mjs || fail=1
+node scripts/audit/deals_screen.mjs || _note "$LINENO"
 
 # D333: وقسمُ التقارير يُفتح ببياناتٍ ناقصةٍ قصداً — الغائبُ شرطةٌ لا صفر،
 # والنوعُ بالعربية، وحبرُ الورقة من لوحها لا من مظهر التطبيق.
 echo
-node scripts/audit/reports_screen.mjs || fail=1
+node scripts/audit/reports_screen.mjs || _note "$LINENO"
 
 # D332: وهويّةُ التصميم — لا مبدِّلَ مكتوباً باليد ينافس `seg`.
 echo
-python3 scripts/audit/design_identity.py || fail=1
+python3 scripts/audit/design_identity.py || _note "$LINENO"
 
 # D216: لا عنوانَ بطاقةٍ بلا مضمون. رأى المالكُ «ميزان خبراء الحوكمة» فوق
 # فراغٍ حين امتنع المحرّك، وكشف الحارسُ حالةً ثانيةً في «تحليل المخاطر»:
 # شرطُها كان `!risk` و`[]` قيمةٌ صادقةٌ في جافاسكربت.
 echo
-node scripts/audit/empty_sections.mjs || fail=1
+node scripts/audit/empty_sections.mjs || _note "$LINENO"
 
 # أمرُ المالك + البند ٣٢: حارسٌ يتقمّص المستخدم. لا يفحص وحدةً بل **رحلة**:
 # يفتح الشاشاتِ ببياناتٍ تُشبه الواقع ويسأل ما يسأله المالك — خطأٌ يُطفئ
 # الصفحة · قيمةٌ معطوبةٌ تُقرأ · عنوانٌ فوق فراغ · زرٌّ بلا اسم · حكمان
 # لورقةٍ واحدة. فلا يكون المالكُ هو جهازَ الاختبار.
 echo
-node scripts/audit/user_walk.mjs || fail=1
+node scripts/audit/user_walk.mjs || _note "$LINENO"
 
 # البند ٣١: عددُ الفحوص المنفَّذة يُقارَن بالمُسجَّل قبل الحكم بالنظافة.
 # يُشغَّل بعد الجميع، ومخرَجُه لا يدخل الإحصاءَ (يُقرأ الملفُّ قبل كتابته).
 echo
-python3 scripts/audit/check_census.py "$_AUDIT_LOG" || fail=1
+python3 scripts/audit/check_census.py "$_AUDIT_LOG" || _note "$LINENO"
 
 if [ "${1:-}" = "--live" ]; then
   echo
@@ -536,15 +547,15 @@ if [ "${1:-}" = "--live" ]; then
     echo "⚠ الطبقة الحيّة تحتاج SP_TOKEN (وSP_URL إن لم يكن على 8098)."
     fail=1
   else
-    node scripts/audit/browser.mjs || fail=1
+    node scripts/audit/browser.mjs || _note "$LINENO"
     echo
     # B-FADED (D014): نصٌّ يذوب في أرضيته. يُقاس بالتركيب لا بقراءة الرمز
     # — الشفافيةُ والتدرّجُ كلاهما أسقط صياغتين سابقتين لهذا المسح.
-    node scripts/audit/faded.mjs || fail=1
+    node scripts/audit/faded.mjs || _note "$LINENO"
     echo
     # B-FRAMES (D016): تشوّهُ إطار. وُلد من حلقة «رأي الذكاء» التي اختلّت
     # حين رُفع سلّم الاستدارة العامّ — تشوّهٌ أحدثه تعديلٌ في موضعٍ آخر.
-    node scripts/audit/frames.mjs || fail=1
+    node scripts/audit/frames.mjs || _note "$LINENO"
   fi
 fi
 
@@ -553,5 +564,15 @@ if [ "$fail" = "0" ]; then
   echo "✔ اجتاز فحص اللجنة."
 else
   echo "✖ لم يجتز — راجع الملاحظات أعلاه قبل التسليم."
+  if [ -n "${_FAILED_AT}" ]; then
+    echo "  والساقطُ بعينه (سطرُ النداء في run.sh ← السكربت):"
+    for _ln in ${_FAILED_AT}; do
+      _cmd="$(sed -n "${_ln}p" scripts/audit/run.sh \
+              | sed 's/[[:space:]]*||.*//; s/^[[:space:]]*//')"
+      echo "    سطر ${_ln}: ${_cmd:-?}"
+    done
+    echo "  وصفرُ FAIL مع سقوطٍ هنا يعني حالةَ خروجٍ لا ملاحظةَ سلوك —"
+    echo "  فيُقرأ سببُه في مخرَج ذلك السكربت (شبكةٌ · تبعيةٌ · بيئة)."
+  fi
 fi
 exit "$fail"
