@@ -335,9 +335,33 @@ def for_symbol(symbol, kind: str = "annual") -> list[dict]:
 
 
 async def refresh(symbols: list[str]) -> dict:
-    """يقرأ مجموعةَ رموزٍ ويحفظ ما فُهم — ويعيد تقريراً بما دخل وما تعذّر."""
-    rep = {"قُرئت": 0, "بلا ملفّات": 0, "لم تُفهم": 0}
+    """يقرأ مجموعةَ رموزٍ ويحفظ ما فُهم — ويعيد تقريراً بما دخل وما تعذّر.
+
+    ══ وشرطٌ مفقودٌ لا يُقال «بلا ملفّات» ══ (D337)
+    قِيس على خادم المالك: `refresh` بعد إعادة تشغيلٍ ردّ **«بلا ملفّات:
+    ١٠»** لعشرِ شركاتٍ لكلٍّ منها ثمانيةَ عشرَ ملفّاً رسميّاً. والسببُ
+    أن رابطَ صفحة الشركة يُقرأ من **لقطة السوق**، وكانت فارغةً بعد
+    الإقلاع — فالرسالةُ تصف نتيجةً وسببُها آخر. فتُملأ اللقطةُ أوّلاً إن
+    غابت، ويُفصَل «لا لقطة» عن «لا ملفّات» في التقرير.
+    """
+    rep = {"قُرئت": 0, "بلا ملفّات": 0, "لم تُفهم": 0, "بلا لقطةٍ للسوق": 0}
+    try:
+        from app.services.tadawul_market import refresh as _mkt
+        from app.services.tadawul_market import usable_rows
+        if not (usable_rows()[0] or {}):
+            logger.info("XBRL: لقطةُ السوق فارغةٌ — تُقرأ أوّلاً لأخذ روابط"
+                        " صفحات الشركات")
+            await _mkt()
+        _snap = usable_rows()[0] or {}
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("XBRL: تعذّر تحضيرُ لقطة السوق: {}", type(e).__name__)
+        _snap = {}
     for sym in symbols:
+        _b = str(sym).replace(".SR", "").strip()
+        if _snap and not (_snap.get(_b) or {}).get("company_url"):
+            # لا رابطَ لصفحة هذه الشركة في اللقطة: سببٌ يُقال باسمه.
+            rep["بلا لقطةٍ للسوق"] += 1
+            continue
         try:
             rec = await read_symbol(sym)
         except Exception as e:                                    # noqa: BLE001

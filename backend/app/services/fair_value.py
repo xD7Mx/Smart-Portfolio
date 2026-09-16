@@ -423,6 +423,37 @@ def _log_run(symbol: str | None, out: dict, price, r, g) -> None:
         pass
 
 
+def arbitrate(buckets: dict, vals: list) -> tuple[dict, list, str | None]:
+    """تحكيمٌ بين مساراتٍ متضاربة: الأغلبيةُ حولَ الوسيط (D337).
+
+    ══ الامتناعُ عند أوّل خلافٍ اعتذارٌ لا حكم ══
+    قال المالك: «المبدأُ ليس الاعتذارَ إن وُجد نقصٌ وإنما اكتشافُ البديل
+    المكمِّل». وقِيس على خادمه بعد إكمال المدخلات (‏D336) أن الامتناع
+    ارتفع من ٦ إلى ٩ من ٦١: مساراتٌ صارت **قابلةً للحساب** فظهر خلافُها،
+    وأحدُها ‎16.11× (‏5.57–89.71) — وذاك مدخلٌ شاذٌّ لا خلافٌ حقيقيّ.
+
+    فالقاعدةُ **معلَنةٌ ومتناظرةٌ** لا انتقاءٌ بالهوى: يُحسَب وسيطُ
+    المسارات، ويُستبعَد كلُّ ما بَعُد عنه أكثرَ من الضِّعف صعوداً أو
+    نزولاً. فإن بقي مسارانِ فأكثرُ يتّفقون دون ثلاثة أضعاف حُكِّم الباقي
+    وسُمّي المستبعَد وخُفضت الثقة؛ وإن لم تبقَ أغلبيةٌ فلا تحكيمَ —
+    ويبقى الامتناعُ حكماً. ومسارانِ متباعدان لا أغلبيةَ فيهما أصلاً.
+
+    تُعاد: (المساراتُ الباقية، قيمُها، نصُّ الاستبعاد أو None).
+    """
+    if len(vals) < 3 or min(vals) <= 0 or max(vals) / min(vals) < 3.0:
+        return buckets, vals, None
+    med = median(vals)
+    keep = {k: v for k, v in buckets.items() if med / 2.0 <= v <= med * 2.0}
+    drop = {k: v for k, v in buckets.items() if k not in keep}
+    kv = list(keep.values())
+    if not (len(kv) >= 2 and drop and min(kv) > 0 and max(kv) / min(kv) < 3.0):
+        return buckets, vals, None
+    why = ("خارجَ حساب النقطة (شذَّ عن وسيط المسارات بأكثرَ من الضِّعف): "
+           + " · ".join(f"{k} ({round(v, 2)})" for k, v in drop.items())
+           + f" — والوسيطُ {round(med, 2)}.")
+    return keep, kv, why
+
+
 def compute(info: dict, price: float | None,
             sector_avg_pe: float | None = None,
             sector_avg_pb: float | None = None,
@@ -882,6 +913,16 @@ def compute(info: dict, price: float | None,
             out["excluded"] = (
                 f"مضاعفُ القطاع ({by_name[_PE]}) خارجَ حساب النقطة: شذَّ عن "
                 f"المسارات الجوهرية، وهو يقيس سعرَ النظائر لا قيمةَ الشركة.")
+
+    # التحكيمُ قبل الامتناع — القاعدةُ في `arbitrate` لتُقاس وحدَها (D337)
+    _b2, _v2, _why = arbitrate(buckets, vals)
+    if _why:
+        out["_all_vals"] = list(vals)
+        out["excluded_penalty"] = True
+        out["excluded"] = _why
+        buckets, vals = _b2, _v2
+        if primary not in buckets:
+            primary = next(iter(buckets))
 
     if len(vals) >= 2 and min(vals) > 0 and max(vals) / min(vals) >= 3.0:
         out["low"], out["high"] = round(min(vals), 2), round(max(vals), 2)
