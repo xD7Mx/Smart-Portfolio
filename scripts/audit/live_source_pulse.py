@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""هل المصدرُ نفسُه يتحرّك؟ — قياسٌ ببصمةٍ لا بظنّ (D325).
+
+    docker exec sp_backend python /app/scripts/audit/live_source_pulse.py
+
+قِيس في سجلّ المالك، والسوقُ مفتوح: «١ دفعةً في ١٠٠ ثانية · قراءةُ
+المصدر ١١٨٩ مل.ث». فالمضخّةُ تنادي ستّين مرّةً ولا تجد رقماً تغيّر.
+وثلاثةُ احتمالاتٍ لا يجوز الخلطُ بينها:
+
+  ١· المصدرُ يردّ **الجسمَ نفسَه بالحرف** ⇒ ذاكرةٌ بيننا وبينه (بصمةٌ
+     واحدةٌ لجسمين) — العطبُ في طبقةِ النقل لا في السوق.
+  ٢· الجسمُ يتغيّر والأسعارُ ثابتة ⇒ المصدرُ يخدم لقطةَ إغلاقٍ أو جدولاً
+     بطيءَ التحديث — فيُقال ذلك ولا يُوعَد بما لا يُنشَر.
+  ٣· الأسعارُ تتغيّر ⇒ العطبُ عندنا بين القراءة والدفع.
+
+فيُنادى المصدرُ مرّاتٍ متعاقبةً بفاصلٍ مقيس، وتُطبع لكلّ نداءٍ:
+**بصمةُ الجسم**، وزمنُ المصدر إن نشره، وسعرُ ثلاثة رموزٍ نشطة. ثمّ
+يُقال الحكمُ صريحاً.
+"""
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+import re
+import sys
+import time
+
+sys.path.insert(0, "/app")
+sys.path.insert(0, "backend")
+
+ROUNDS = int(sys.argv[1]) if len(sys.argv) > 1 else 5
+GAP = float(sys.argv[2]) if len(sys.argv) > 2 else 3.0
+WATCH = ("2222", "1120", "2010")
+
+
+async def main() -> int:
+    from app.services import tadawul_market as tm
+    from app.services.market_phase import market_phase
+    from datetime import datetime
+
+    now = datetime.now()
+    phase = market_phase((now.weekday() + 1) % 7,
+                         now.hour * 60 + now.minute)
+    print(f"═ ساعةُ الخادم {now:%Y-%m-%d %H:%M:%S} · الطورُ «{phase}» ═")
+    if phase == "closed":
+        print("  (السوقُ مغلقٌ بحسب طورِ التطبيق — فثباتُ الرقم ليس عطباً.)")
+
+    seen: list[dict] = []
+    for i in range(ROUNDS):
+        t0 = time.monotonic()
+        rows, why = await tm.fetch_rows()
+        ms = (time.monotonic() - t0) * 1000
+        if why:
+            print(f"  [{i+1}] تعذّر: {why}")
+            seen.append({})
+            await asyncio.sleep(GAP)
+            continue
+        blob = json.dumps(rows, ensure_ascii=False, sort_keys=True)
+        digest = hashlib.sha256(blob.encode()).hexdigest()[:12]
+        table = tm.normalize(rows)
+        px = {s: (table.get(s) or {}).get("price") for s in WATCH}
+        # زمنُ المصدر إن نشره في أيّ حقلٍ من حقوله — لا من ساعتنا.
+        stamp = None
+        if rows and isinstance(rows[0], dict):
+            for k, v in rows[0].items():
+                if re.search(r"time|date|updat", str(k), re.I) and v:
+                    stamp = f"{k}={v}"
+                    break
+        print(f"  [{i+1}] {ms:,.0f} مل.ث · بصمة {digest} · "
+              f"{len(table)} رمزاً · زمنُ المصدر {stamp or '—'}")
+        print(f"       " + " · ".join(f"{s}:{px[s]}" for s in WATCH))
+        seen.append({"digest": digest, "px": px})
+        if i + 1 < ROUNDS:
+            await asyncio.sleep(GAP)
+
+    good = [s for s in seen if s]
+    print()
+    if len(good) < 2:
+        print("الحكم: لم تُقرأ قراءتان — انظر سببَ التعذّر أعلاه.")
+        return 1
+    digests = {s["digest"] for s in good}
+    prices = {json.dumps(s["px"], sort_keys=True) for s in good}
+    if len(digests) == 1:
+        print("الحكم ١: **جسمٌ واحدٌ بالحرف** في كلّ النداءات — بيننا وبين"
+              " المصدر ذاكرةٌ تُعيد الجواب. العطبُ في طبقة النقل لا في"
+              " السوق: تُقاس رؤوسُ الجواب ومفاتيحُ الكاش.")
+        return 1
+    if len(prices) == 1:
+        print("الحكم ٢: الجسمُ يتغيّر والأسعارُ الثلاثةُ ثابتة — المصدرُ"
+              " يخدم لقطةً بطيئةَ التحديث أو إغلاقاً. يُقال ذلك ولا"
+              f" يُوعَد بما لا يُنشَر. (بصمات: {len(digests)})")
+        return 1
+    print(f"الحكم ٣: الأسعارُ تتغيّر في المصدر ({len(prices)} حالةً مختلفة)"
+          " — فالعطبُ عندنا بين القراءة والدفع، ويُقاس هناك.")
+    return 0
+
+
+raise SystemExit(asyncio.run(main()))
