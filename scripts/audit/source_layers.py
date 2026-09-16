@@ -464,6 +464,26 @@ check(_bp.get("revenue") == 6938847.0
 check(_bp.get("interest_expense") != 3376189.0,
       "٩ش ودخلُ العمولة الصافي لا يُقرأ مصروفاً — مزلقٌ يُمنَع بحارس")
 
+# ── ٩ص · رقمٌ مطابَقٌ خطأً يُسحَب ويُعلَن سببُه (D374) ────────────────
+# قِيس على خادم المالك: `revenue` لـ8010 = 24,332,000 وأقساطُها
+# بالمليارات — وطباعةُ المطابَق كشفت أن قائمةَ المؤمِّن **قائمتان
+# متوازيتان** وقارئَنا يأخذ أوّلَ عمود. والفراغُ المعلَنُ أصدقُ من رقمٍ
+# خاطئٍ تُحسَب عليه النسبُ كلُّها.
+_INS = [{"as_of": "2023-03-31", "revenue": 111604.0, "net_income": 391003.0}]
+_COM = [{"as_of": "2026-06-30", "revenue": 1.0}]
+try:
+    from app.services.tadawul_xbrl import withhold_unsafe as _wh
+    _n_ins, _n_com = _wh("8010", _INS), _wh("2222", _COM)
+except Exception as _e:                                           # noqa: BLE001
+    _n_ins, _n_com = -1, -1
+check(_n_ins == 1 and _INS[0].get("revenue") is None
+      and "قائمتَين متوازيتَين" in str(_INS[0].get("revenue_withheld")),
+      "٩ص إيرادُ المؤمِّن المطابَقُ خطأً يُسحَب ويُعلَن سببُه",
+      f"سُحب={_n_ins}")
+check(_n_com == 0 and _COM[0].get("revenue") == 1.0,
+      "٩ض ولا يُسحَب من شركةٍ عاديةٍ شيء — السحبُ مقصورٌ بالقياس",
+      f"سُحب={_n_com}")
+
 # والمحرّكُ يمتنع للورقة المؤشِّرة **بسببها لا بسبب شركة**
 from app.services.fair_value import compute as _fv                # noqa: E402
 

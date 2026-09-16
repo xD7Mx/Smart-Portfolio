@@ -381,6 +381,39 @@ async def filings_for(symbol: str, company_url: str | None = None) -> list[dict]
     return files
 
 
+def withhold_unsafe(symbol, periods: list[dict]) -> int:
+    """يسحب كلَّ بندٍ قِيس أن مطابقتَه خاطئةٌ في صنف الورقة — ويُعلن سببَه.
+
+    ولا يُترك رقمٌ خاطئٌ يُقدَّم لأن الفراغَ يُكره: الفراغُ المعلَنُ يقول
+    «لا أعرف» وهو صادق، والرقمُ الخاطئُ يقول «أعرف» وهو كاذب — ويُحسَب
+    فيه هامشُ الربح والعائدُ والسعرُ العادل ولا يشتكي أحد. تُعاد عدّةُ
+    ما سُحب.
+    """
+    if _arch_of(symbol) != "insurance":
+        return 0
+    n = 0
+    for p in periods or []:
+        if p.pop("revenue", None) is not None:
+            n += 1
+            p["revenue_withheld"] = (
+                "إجماليُّ إيرادِ المؤمِّن يُنشَر في قائمتَين متوازيتَين"
+                " (عملياتُ تأمينٍ · مساهمون)، وما طابَق كان شطرَ"
+                " المساهمين — فلا يُقدَّم رقمٌ حتى يُنقَل اسمُ الأقساط")
+    return n
+
+
+def _arch_of(symbol) -> str | None:
+    """نمطُ الورقة من مسطرة الأنماط — أو لا شيء (لا مسطرةَ ثانية)."""
+    try:
+        from app.data.archetype_spec import archetype_for
+        from app.data.market_universe import MARKET_UNIVERSE
+    except Exception:                                             # noqa: BLE001
+        return None
+    b = str(symbol or "").replace(".SR", "").strip()
+    meta = MARKET_UNIVERSE.get(b) or MARKET_UNIVERSE.get(f"{b}.SR") or {}
+    return archetype_for((meta or {}).get("sector"))
+
+
 async def read_symbol(symbol: str, *, max_files: int = 8,
                       reasons: dict | None = None) -> dict | None:
     """أحدثُ قوائمَ رسميةٍ للشركة: سنويةٌ وربعية — أو None.
@@ -443,6 +476,22 @@ async def read_symbol(symbol: str, *, max_files: int = 8,
                 "files": len(files), "http_fail": http_fail,
                 "parse_fail": parse_fail,
                 "as_of": date.today().isoformat()}
+    # ══ ورقمٌ مطابَقٌ خطأً أسوأُ من فراغٍ معلَن ══ (D374)
+    #
+    # قِيس على خادم المالك: `revenue` لـ8010 = 24,332,000 وأقساطُها
+    # بالمليارات. وطباعةُ **المطابَق** كشفت السبب: الاسمُ الذي طابق
+    # `«total revenue»` صحيحُ الظاهر، لكنّ **قائمةَ المؤمِّن قائمتان
+    # متوازيتان** — عملياتُ تأمينٍ وعملياتُ مساهمين — وقارئُنا يأخذ أوّلَ
+    # عمودٍ يجده. والدليلُ في المخرَج نفسِه: `ending_cash` طابَق مرّتَين
+    # (‏1,606,362 لعمليات التأمين · 52,981 للمساهمين). فـ«إجماليُّ
+    # الإيراد» في شطر المساهمين دخلُ استثمارٍ لا أقساطاً.
+    #
+    # والمالكُ يحارب الفراغ — وأنا معه — لكنّ الفراغَ المعلَنَ يقول «لا
+    # أعرف» وهو صادق، والرقمُ الخاطئُ يقول «أعرف» وهو كاذب: يُحسَب فيه
+    # هامشُ الربح والعائدُ على الأصول والسعرُ العادل ولا يشتكي أحد. فإلى
+    # أن يُنقَل اسمُ إيراد المؤمِّن بالحرف من شطره الصحيح، **يُسحَب**
+    # ويُعلَن سببُه — ولا يُقدَّم.
+    withhold_unsafe(symbol, annual + quarterly)
     annual.sort(key=lambda p: p["as_of"])
     quarterly.sort(key=lambda p: p["as_of"])
     return {"symbol": symbol, "annual": annual, "quarterly": quarterly,
