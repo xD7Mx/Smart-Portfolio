@@ -83,13 +83,24 @@ async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
     """يحسب الدرجةَ والسعرَ العادل لكلّ رمزٍ ويخزّنهما. يُعاد تقريرٌ مقيس."""
     from app.services.content_engine import _fund_store_put_many
 
+    # ══ الكونُ هو الدليلُ الرسميُّ للسوق الرئيسيّ — لا اللقطة ══ (D387)
+    # قضى المالك: «عند مسح السوق يكون بالمعطيات الرسمية: القطاعات 23
+    # والشركات 273… نمو لا أريده، فدمجُ الاثنين يجعل المحرّكَ ضعيفاً».
+    # وكانت المسحةُ تأخذ رموزَها من **اللقطة** (396 = 272 رئيسيّ + 124
+    # نمو) فتخلط شركاتٍ مُلزَمةً بإفصاحٍ كاملٍ بأوراقِ سوقٍ موازٍ —
+    # فتُقاس مسطرةٌ واحدةٌ على صنفَين، وذاك إضعافٌ لا توسيع.
+    # فالكونُ من `main_market` (‏273 شركةً · 22 قطاعاً · صفرُ رموزِ نمو)،
+    # واللقطةُ تبقى للسعرِ وحدَه. والصناديقُ المتداولة خارجَه بحقّ: أوراقٌ
+    # لا شركاتٌ، إفصاحُها صافي أصولٍ لا قوائمَ ربعية.
     syms = [str(s).replace(".SR", "") for s in (symbols or [])]
     if not syms:
-        from app.services import tadawul_market as tm
-        rows, _, _ = tm.usable_rows()
-        syms = sorted(rows)
+        from app.data.market_universe import MARKET_UNIVERSE
+        from app.data.universe import main_market
+        syms = sorted(main_market(MARKET_UNIVERSE).keys())
+    # ولا يتسلّل رمزُ «نمو» بحالٍ — ولو مُرّر بالوسيط
+    syms = [s for s in syms if not s.startswith("9")]
     if not syms:
-        return {"خطأ": "اللقطةُ فارغة — لا رموزَ تُمسَح"}
+        return {"خطأ": "لا رموزَ في السوق الرئيسيّ — دليلٌ فارغ"}
 
     sem = asyncio.Semaphore(max(1, min(12, conc)))
     done: dict[str, dict] = {}
@@ -112,6 +123,7 @@ async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
     have_sc = sum(1 for v in done.values() if v.get("finance_score") is not None)
     stale = sum(1 for v in done.values() if v.get("fair_value_stale"))
     rep = {
+        "السوقُ": "الرئيسيّ فقط (‏نمو مستثنىً بأمر المالك)",
         "رموزٌ": len(syms),
         "كُتبت": len(done),
         "لها سعرٌ عادل": have_fv,
