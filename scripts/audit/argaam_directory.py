@@ -42,6 +42,7 @@ sys.path.insert(0, "/app")
 sys.path.insert(0, "backend")
 
 SAVE = "--save" in sys.argv
+DUMP = "--dump" in sys.argv
 GIVEN = [a for a in sys.argv[1:] if a.startswith("http")]
 BASE = "https://www.argaam.com"
 HOME = f"{BASE}/ar"
@@ -140,16 +141,38 @@ async def main() -> int:
               f" · رموزٌ رئيسية={len(codes)} · نمو={nomu}"
               f" · قطاعاتٌ مطابقة={len(secs_hit)} · معرِّفاتُ أرقام={len(cids)}"
               f" · وزنٌ={score}")
-        # ══ القطاعُ لكلّ شركة: أقربُ اسمِ قطاعٍ يسبقها في الصفحة ══
-        # (‏أثمنُ ما في الدليل — الخريطةُ تُطبَّق بالقطاع)
-        sec_at: list[tuple[int, str]] = sorted(
-            (m.start(), nm) for nm in our_secs if nm
-            for m in re.finditer(re.escape(nm), body))
+        # ══ ونسبةُ الشركة إلى قطاعها تُقرأ من بنيةِ الصفّ ══ (D395)
+        #
+        # قِيس على خادم المالك أن منهجي الأوّل باطل: أخذتُ «أقربَ اسمِ
+        # قطاعٍ يسبق الشركة» فنُسبت 1201 و2010 و2150 و3002 كلُّها إلى
+        # «الطاقة» وفيها إسمنتٌ وأغذية — لأن الصفحةَ تحمل أسماءَ القطاعات
+        # في **قائمة تصفيةٍ أعلاها**، فما بعد أوّل اسمٍ يُنسَب إليه.
+        # فقرينةُ الموضع لا تصلح، ويُقرأ القطاعُ من **خلايا صفّ الشركة**:
+        # خليّةٌ نصُّها اسمُ قطاعٍ من قطاعاتنا. وما لم يُوجَد في صفّه
+        # يبقى **بلا قطاع** ولا يُخمَّن — فنسبةٌ خاطئةٌ تُقاس بمسطرةٍ
+        # ليست لها، وذاك أسوأُ من غيابها.
         of_sec: dict[str, str] = {}
-        for code, at in pos.items():
-            prev = [nm for st_, nm in sec_at if st_ < at]
-            if prev:
-                of_sec[code] = prev[-1]
+        if DUMP:
+            print("   ── بنيةُ أوّل ثلاثةِ صفوفٍ فيها رابطُ شركة ──")
+        shown = 0
+        for tr in _TR.findall(body):
+            cells = [_txt(c) for c in _TD.findall(tr)]
+            if not cells:
+                continue
+            code = None
+            for m2 in _A.finditer(tr):
+                mm2 = _LABEL_CODE.match(_txt(m2.group(2)))
+                if mm2 and _main_code(mm2.group(1)):
+                    code = mm2.group(1)
+                    break
+            if not code:
+                continue
+            if DUMP and shown < 3:
+                shown += 1
+                print(f"      {code}: {cells[:10]}")
+            sec = next((c for c in cells if c in our_secs), None)
+            if sec:
+                of_sec[code] = sec
         if best is None or score > best[0]:
             best = (score, u, {"codes": codes, "cids": cids,
                                "secs": secs_hit, "of_sec": of_sec,
