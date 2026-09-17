@@ -128,6 +128,25 @@ async def main() -> int:
     print("   ← يُفحَص كلٌّ منها: أُوقف تداولُه؟ اندمج؟ أم عطبُ جلب؟"
           " ولا يُحذَف رمزٌ من الدليل على قياسٍ واحد.")
 
+    # ── ٤ · وأثرُ التصحيح على الصنف الذي يُقاس به ────────────────────
+    # القطاعُ ليس وسماً للعرض: منه يُشتقّ **الصنف**، ومن الصنف خريطةُ
+    # التقييم ومسطرةُ الحوكمة. فيُقاس الأثرُ بالصنف لا بالاسم.
+    from app.data.archetype_spec import archetype_for
+    from app.services.statement_merge import archetype_of
+    moved = []
+    for s_, r in sorted(snap.items()):
+        before = archetype_for((ours.get(s_) or {}).get("sector"))
+        after = archetype_of(s_)
+        if before != after:
+            moved.append((s_, (ours.get(s_) or {}).get("name_ar") or "",
+                          before, after, (r or {}).get("sector_en")))
+    print(f"\n═ أوراقٌ تغيّر صنفُها بقراءة القطاع الرسميّ ═ {len(moved)}")
+    for s_, nm, b, a, en in moved[:40]:
+        print(f"  {s_} {nm[:18]:<20} {b or '—'} → {a or '—'}   ({en})")
+    if moved:
+        print("   ← كلُّ واحدٍ منها كان يُقاس بخريطةٍ ليست له: مسطرةُ"
+              " الحوكمة وأوزانُ السعر العادل تُختاران بالصنف.")
+
     if SAVE:
         p = pathlib.Path("/app/docs/SECTOR_TRUTH.json")
         if not p.parent.exists():
@@ -144,6 +163,8 @@ async def main() -> int:
                                 for s, _e, exp, our in mism],
             "في السوق وليس في دليلنا": ghost,
             "في دليلنا وليس في اللقطة": stale,
+            "تغيّرَ صنفُها": [{"رمز": s_, "من": b, "إلى": a, "قطاعٌ رسميّ": en}
+                            for s_, _n, b, a, en in moved],
         }, ensure_ascii=False, indent=1), "utf-8")
         print(f"\n  حُفظ مرجعاً: {p}")
 

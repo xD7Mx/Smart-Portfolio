@@ -429,15 +429,16 @@ def withhold_unsafe(symbol, periods: list[dict]) -> int:
 
 
 def _arch_of(symbol) -> str | None:
-    """نمطُ الورقة من مسطرة الأنماط — أو لا شيء (لا مسطرةَ ثانية)."""
+    """نمطُ الورقة — من المسطرة الواحدة لا من ثانيةٍ توازيها (D398).
+
+    ويقرأ قطاعَ «تداول» الرسميَّ أوّلاً كما يقرؤه محرّكا الجودة والسعر —
+    فلا يختلف صنفُ الورقة بين وحدةٍ وأخرى في التطبيق نفسه.
+    """
     try:
-        from app.data.archetype_spec import archetype_for
-        from app.data.market_universe import MARKET_UNIVERSE
+        from app.services.statement_merge import archetype_of
     except Exception:                                             # noqa: BLE001
         return None
-    b = str(symbol or "").replace(".SR", "").strip()
-    meta = MARKET_UNIVERSE.get(b) or MARKET_UNIVERSE.get(f"{b}.SR") or {}
-    return archetype_for((meta or {}).get("sector"))
+    return archetype_of(symbol)
 
 
 async def read_symbol(symbol: str, *, max_files: int = 8,

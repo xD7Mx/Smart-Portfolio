@@ -574,6 +574,38 @@ check(_v is None or (_RB.get("low") <= _v <= _RB.get("high")),
       "٩رد والقيمةُ داخلَ مداها دائماً — لا 6.58 في مدى 1.03–1.03",
       f"{_RB.get('low')} ≤ {_v} ≤ {_RB.get('high')}")
 
+# ── ٩ز٢ · الصنفُ من قطاع «تداول» الرسميّ أوّلاً (D398) ──────────────────
+# قِيس: تصنيفُ دليلنا يخالف الرسميَّ في 12 شركةً بإجماعٍ قويّ (‏4030
+# «البحري» نقلٌ عندنا وطاقةٌ عندهم · 8313 «رسن» تقنيةٌ عندنا وتأمينٌ
+# عندهم). والخريطةُ تُطبَّق بالصنف، فالقطاعُ يُقرأ من مُصدِرِه حيّاً.
+from app.services import statement_merge as _SM2                  # noqa: E402
+
+_REAL_ROW = tm.row_for
+try:
+    tm.row_for = lambda s: ({"sector_en": "Energy"}                # type: ignore
+                            if str(s).startswith("4030") else {})
+    _a_off = _SM2.archetype_of("4030")
+    tm.row_for = lambda s: {}                                      # type: ignore
+    _a_dir = _SM2.archetype_of("4030")
+finally:
+    tm.row_for = _REAL_ROW                                         # type: ignore
+check(_a_off == "commodity",
+      "٩ز٢ قطاعُ «تداول» الرسميُّ يقود الصنفَ — 4030 طاقةٌ لا نقل",
+      f"{_a_off}")
+check(_a_dir == "capital_infra",
+      "٩ز٣ وبغياب اللقطة يعود دليلُنا احتياطاً — لا انكسار", f"{_a_dir}")
+_x_off = None
+try:
+    from app.services import tadawul_xbrl as _X2
+    tm.row_for = lambda s: ({"sector_en": "Energy"}                # type: ignore
+                            if str(s).startswith("4030") else {})
+    _x_off = _X2._arch_of("4030")
+finally:
+    tm.row_for = _REAL_ROW                                         # type: ignore
+check(_x_off == _a_off,
+      "٩ز٤ ولا صنفَ يتبدّل بين وحدتَين — مسطرةٌ واحدةٌ للتطبيق كلِّه",
+      f"إكمال={_a_off} · ملفّات={_x_off}")
+
 _F9 = _fv({}, 34.0, symbol="9400", periods=[])
 _why9 = str((_F9 or {}).get("unavailable_reason") or "")
 check(_F9.get("value") is None and "ورقةٌ مؤشِّرة" in _why9

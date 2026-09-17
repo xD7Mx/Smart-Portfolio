@@ -97,8 +97,26 @@ _NOT_MEANINGFUL: dict[str, tuple[str, ...]] = {
 }
 
 
+def official_sector(symbol) -> str | None:
+    """قطاعُ الورقة كما تنشره «تداول» حيّاً — أو لا شيء (D398).
+
+    قِيس على خادم المالك: اللقطةُ تحمل `sector_en` لكلّ رمزٍ في الرئيسيّ
+    (‏272 من 272) بـ22 قطاعاً، وتصنيفُ دليلنا يخالفه في **12 شركةً
+    بإجماعٍ قويّ** وأكثرَ في الخرائط الضعيفة. والقطاعُ يُقرأ من مُصدِرِه
+    لا من دليلٍ يشيخ: هو حيٌّ يتجدّد وهم الذين يصنّفون.
+    """
+    base = str(symbol or "").replace(".SR", "").strip()
+    if not base:
+        return None
+    try:
+        from app.services import tadawul_market as tm
+        return ((tm.row_for(base) or {}).get("sector_en")) or None
+    except Exception:                                             # noqa: BLE001
+        return None
+
+
 def archetype_of(symbol) -> str | None:
-    """نمطُ الورقة من مسطرة الأنماط القائمة — أو لا شيء."""
+    """نمطُ الورقة — من قطاع «تداول» الرسميّ أوّلاً، ثمّ دليلنا (D398)."""
     base = str(symbol or "").replace(".SR", "").strip()
     if not base:
         return None
@@ -107,6 +125,12 @@ def archetype_of(symbol) -> str | None:
         from app.data.market_universe import MARKET_UNIVERSE
     except Exception:                                             # noqa: BLE001
         return None
+    # ترتيبٌ معلَن: المُصدِرُ أوّلاً، ودليلُنا احتياطاً حين تغيب اللقطة
+    en = official_sector(base)
+    if en:
+        a = archetype_for(en)
+        if a:
+            return a
     meta = MARKET_UNIVERSE.get(base) or MARKET_UNIVERSE.get(f"{base}.SR") or {}
     return archetype_for((meta or {}).get("sector"))
 

@@ -125,6 +125,42 @@ SECTOR_ARCHETYPE: dict[str, str] = {
     "Healthcare": "consumer_defensive",
     "Consumer Cyclical": "consumer_cyclical",
     "Technology": "asset_light",
+
+    # ══ أسماءُ «تداول» الرسمية — مصدرُ التصنيف نفسُه ══ (D398)
+    #
+    # قِيس على خادم المالك: لقطةُ «تداول» تحمل `sector_en` لكلّ رمز —
+    # ‎272 رمزاً في الرئيسيّ، ‎100% لها قطاعٌ، و‎22 قطاعاً متمايزاً.
+    # وقِيس أن تصنيفَنا يخالفه في **‎12 شركةً بإجماعٍ قويّ** وأكثرَ في
+    # الخرائط الضعيفة: 4030 «البحري» عندنا نقلٌ وعندهم طاقة · 8313
+    # «رسن» عندنا تقنيةٌ وعندهم تأمين · 2140 «أيان» عندنا خدماتٌ ماليةٌ
+    # وعندهم أغذية. والخريطةُ تُطبَّق بالقطاع، فشركةٌ في قطاعٍ خطأ
+    # تُقاس بمسطرةٍ ليست لها ويفسد حكمُها في المحرّكَين معاً.
+    #
+    # والأسماءُ أدناه **مطابقةٌ لقرارات المسطرة العربية حرفاً بحرف** —
+    # لا تصنيفٌ جديدٌ من عندي: «السلع الرأسمالية» سلعيّةٌ عندنا فـ
+    # `Capital Goods` سلعيّة، و«النقل» كثيفُ أصولٍ فـ`Transportation`
+    # كذلك، و«الخدمات التجارية والمهنية» مقاولاتٌ فـ`Commercial &
+    # Professional Svc` مقاولات. فمن أراد مراجعةَ تصنيفٍ راجع أصلَه
+    # العربيَّ أعلاه، ولا تصنيفَ في موضعَين يختلفان.
+    "Banks ": "bank",                      # احتياطاً لفراغٍ لاحقٍ في الجلب
+    "Insurance ": "insurance",
+    "REITs": "reit",
+    "Real Estate Mgmt & Dev't": "re_developer",
+    "Materials": "commodity",
+    "Capital Goods": "commodity",
+    "Transportation": "capital_infra",
+    "Telecommunication Services": "capital_infra",
+    "Food & Beverages": "consumer_defensive",
+    "Consumer Staples Distribution & Retail": "consumer_defensive",
+    "Household & Personal Products": "consumer_defensive",
+    "Pharma, Biotech & Life Science": "consumer_defensive",
+    "Health Care Equipment & Svc": "consumer_defensive",
+    "Consumer Discretionary Distribution & Retail": "consumer_cyclical",
+    "Consumer Durables & Apparel": "consumer_cyclical",
+    "Consumer Services": "consumer_cyclical",
+    "Media and Entertainment": "consumer_cyclical",
+    "Software & Services": "asset_light",
+    "Commercial & Professional Svc": "contracting",
 }
 
 # إسنادُ ما لم يُدرَج — قواعدُ حتميّة من البيانات نفسها، تُجرَّب بالترتيب.
