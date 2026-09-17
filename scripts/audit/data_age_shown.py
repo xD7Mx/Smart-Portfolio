@@ -64,6 +64,12 @@ _OLD = [{"as_of": f"{y}-12-31", "year": y, "revenue": 7e9, "net_income": 3.9e8,
          "total_liabilities": 1.55e10, "shares_outstanding": 1.25e8,
          "operating_cash_flow": 1.6e8, "capex": 4.6e7, "ending_cash": 1.6e9,
          "pretax_income": 4.8e8} for y in (2020, 2021, 2022)]
+# ══ ونقصُ التبعية يُفرَّق عن عطبِ المحرّك بسببه لا بنتيجته ══ (D383)
+# على المضيف تبعياتُ بايثون غيرُ منصَّبةٍ فتعذّر استيرادُ المحرّك، فطبع
+# الحارسُ أحمرَ كأنّ في المحرّك عطباً. والفرقُ بالسبب: `ModuleNotFoundError`
+# لحزمةٍ خارجيةٍ **نقصُ بيئة** يُعلَن ولا يُحسَب، وأيُّ خطأٍ آخرَ عطبٌ
+# يُطبَع أحمرَ. وبهذا تقيس كلُّ بيئةٍ ما تملكه ولا تكذب على ما لا تملكه.
+_r, _envgap = None, None
 try:
     from app.services.fair_value import compute as _fv
     _r = _fv({"pe_ratio": 20.0, "price_to_book": 3.4, "book_value": 26.8,
@@ -72,15 +78,23 @@ try:
              92.05, sector_avg_pe=18.0, sector_avg_pb=2.5,
              asof="2026-09-16", periods=_OLD, archetype="insurance",
              symbol="8010", peer_count=9)
+except ModuleNotFoundError as e:
+    _envgap = f"حزمةٌ غيرُ منصَّبة: {e.name}"
 except Exception as e:                                            # noqa: BLE001
-    _r = {"خطأ": type(e).__name__}
-check((_r.get("age_days") or 0) > 1000 and _r.get("stale") is True,
-      "١ عمرُ التقدير من أحدثِ فترةٍ ماليةٍ — لا من تاريخ الجلب",
-      f"{_r.get('age_days')} يوماً · شائخ={_r.get('stale')}")
-check(str(_r.get("data_asof") or "").startswith("2022")
-      and _r.get("fetched_at") == "2026-09-16",
-      "١ب وتاريخُ الجلب يبقى باسمه لا مكانَ العمر",
-      f"بيانات={_r.get('data_asof')} · جلب={_r.get('fetched_at')}")
+    _r = {"خطأ": f"{type(e).__name__}: {e}"[:80]}
+if _envgap:
+    print(f"⚠ {_envgap} — فحصُ المحرّك لم يُقَس"
+          " (يُشغَّل داخل حاوية الخادم)")
+else:
+    _r = _r or {}
+    check((_r.get("age_days") or 0) > 1000 and _r.get("stale") is True,
+          "١ عمرُ التقدير من أحدثِ فترةٍ ماليةٍ — لا من تاريخ الجلب",
+          f"{_r.get('age_days')} يوماً · شائخ={_r.get('stale')}"
+          + (f" · {_r.get('خطأ')}" if _r.get("خطأ") else ""))
+    check(str(_r.get("data_asof") or "").startswith("2022")
+          and _r.get("fetched_at") == "2026-09-16",
+          "١ب وتاريخُ الجلب يبقى باسمه لا مكانَ العمر",
+          f"بيانات={_r.get('data_asof')} · جلب={_r.get('fetched_at')}")
 
 # ── ٢ · والأصلُ يحمل تاريخَ الأرقام وعمرَها ─────────────────────────────
 _an = _find("backend/app/services/analysis.py", "app/services/analysis.py")
