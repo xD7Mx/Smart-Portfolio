@@ -255,6 +255,15 @@ def parse(html: str) -> dict:
 
     if not ends:
         return {}
+    # ══ ووسمُ «قائمةِ مؤمِّنٍ بشطرَين» يُقرأ من الملفّ لا من الصنف ══
+    # (‏D399) صنَّفت «تداول» رسن (‏8313) تأميناً — وهي منصّةُ تقنيةٍ تنشر
+    # إيراداً عادياً بعمودٍ واحد. وقاعدةُ سحبِ إيراد المؤمِّن (‏D374) تسحب
+    # على **الصنف**، فكانت ستسحب إيرادَ رسن بلا سبب. والسحبُ إنما شُرّع
+    # لبنيةٍ بعينها: ميزانيةٌ بشطرَين (عملياتُ تأمينٍ · مساهمون) يأخذ
+    # قارئُنا أوّلَ عمودٍ فيها. فيُقاس **وجودُ البنية** في الملفّ نفسِه.
+    _ins_layout = bool(re.search(
+        r"(insurance/\s*takaful operations|takaful operations"
+        r"|premiums/\s*contributions|gross premiums)", html or "", re.I))
     mult = _MULT.get(_norm(meta.get("rounding", "")), 1.0)
     money = {"revenue", "net_income", "equity", "total_assets",
              "total_liabilities", "interest_expense", "operating_cash_flow",
@@ -266,6 +275,8 @@ def parse(html: str) -> dict:
     periods: list[dict] = []
     for i, end in enumerate(ends):
         p: dict = {"as_of": end, "year": int(end[:4])}
+        if _ins_layout:
+            p["insurer_layout"] = True
         for key, series in vals.items():
             v = series[i] if i < len(series) else None
             if v is None:
@@ -418,6 +429,11 @@ def withhold_unsafe(symbol, periods: list[dict]) -> int:
     for p in periods or []:
         # وما وصل باسمه المنشور لا يُسحَب: السحبُ للمطابَق من شطرٍ خاطئ
         if p.get("revenue_source"):
+            continue
+        # ولا يُسحَب إلا من **قائمةِ مؤمِّنٍ بشطرَين** فعلاً (‏D399):
+        # صنفُ «تداول» قد يضع منصّةَ تقنيةٍ في التأمين (‏8313 رسن)،
+        # وإيرادُها عمودٌ واحدٌ صحيح — فالسحبُ على الصنف يُتلف سليماً.
+        if not p.get("insurer_layout"):
             continue
         if p.pop("revenue", None) is not None:
             n += 1
