@@ -83,8 +83,36 @@ async def main() -> int:
             fv = a.get("fair_value_detail") or {}
             fin = a.get("financial") or {}
             prov = a.get("governance_provenance") or {}
+            _f = a.get("fundamentals") or {}
+            _per = ((await __import__("app.services.market_data",
+                                     fromlist=["market_service"])
+                     .market_service.get_financials(f"{sym}.SR",
+                                                    allow_supplement=False))
+                    or {}).get("periods") or [] if a.get("fair_value") is None \
+                else []
             rows.setdefault(sec, []).append({
                 "sym": sym,
+                "miss": ({
+                    # ══ ويُسمّى المدخلُ الغائبُ بعينه ══ (D401)
+                    # «لا تكفي البيانات» وصفٌ لا يُعمَل به: بواباتُ المحرّك
+                    # ثلاثٌ (ربحيةٌ مع مضاعف قطاع · دفتريةٌ مع عائد حقوق ·
+                    # توزيعٌ مستقرّ)، فيُطبَع **أيُّ حقلٍ** غاب من كلٍّ.
+                    "eps": _f.get("eps") if _f else None,
+                    "pe": _f.get("pe_ratio") if _f else None,
+                    "pb": _f.get("price_to_book") if _f else None,
+                    "bv": _f.get("book_value") if _f else None,
+                    "roe": _f.get("roe") if _f else None,
+                    "dps": _f.get("dividend_per_share") if _f else None,
+                    "فترات": len(_per),
+                    "حقوق": next((p.get("equity") for p in reversed(_per)
+                                  if p.get("equity") is not None), None),
+                    "ربح": next((p.get("net_income") for p in reversed(_per)
+                                 if p.get("net_income") is not None), None),
+                    "أسهم": next((p.get("shares_outstanding")
+                                  for p in reversed(_per)
+                                  if p.get("shares_outstanding") is not None),
+                                 None),
+                } if a.get("fair_value") is None else None),
                 "arch": archetype_of(sym),
                 "score": (fin or {}).get("score"),
                 "stmt_asof": prov.get("تاريخ الأرقام"),
@@ -134,6 +162,11 @@ async def main() -> int:
                       + f" · مسارات: {' + '.join(str(p)[:26] for p in r['paths']) or '—'}")
             else:
                 print(f"       عادلٌ=— · السبب: {r.get('why') or 'غير معلَن'}")
+                _m = r.get("miss") or {}
+                if _m:
+                    print("       المدخلاتُ: "
+                          + " · ".join(f"{k}={'—' if v is None else v}"
+                                       for k, v in _m.items()))
                 no_fv[(r.get("arch") or "—") + " | " + (r.get("why") or "غير معلَن")[:70]] += 1
 
     n = tot["n"] or 1
