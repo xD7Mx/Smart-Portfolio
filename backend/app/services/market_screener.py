@@ -364,6 +364,25 @@ async def _enrich_fundamentals(rows: list[dict]) -> None:
         r["fair_value"] = _fv
         r["fair_value_asof"] = stored.get("val_asof")
 
+        # ══ ودرجةُ الجودة تحمل تاريخَ قوائمها ══ (D384)
+        # قِيس: 54 ورقةً في السوق الرئيسيّ قوائمُها أقدمُ من 200 يوم، ودرجةُ
+        # جودتها تُعرَض في جدول السوق **رقماً مجرَّداً** كدرجةِ شركةٍ أودعت
+        # هذا الربع. و`fair_value_asof` الموجودُ هنا تاريخُ **الجلب** لا
+        # تاريخُ القوائم (‏D380) — فلا يصلح دليلاً على حداثة الدرجة.
+        # ويُقرأ التاريخُ من المخزَن الدائم بلا نداءِ شبكةٍ ولا كلفة.
+        try:
+            from app.services import tadawul_xbrl as _X
+            _pp = (_X.for_symbol(sym, "quarterly")
+                   or _X.for_symbol(sym, "annual") or [])
+            _dd = [str(p.get("as_of") or "") for p in _pp if p.get("as_of")]
+            if _dd:
+                r["stmt_asof"] = max(_dd)[:10]
+                from datetime import date as _d
+                r["stmt_age_days"] = (_d.today()
+                                      - _d.fromisoformat(r["stmt_asof"])).days
+        except Exception:                                         # noqa: BLE001
+            pass
+
         # ══ ما لا يغطّيه بيتُ خبرة ══ (D212)
         # ‎124 شركةً من ‎273 بلا هدفِ محلّلين، وقد قِيس أنّ ذلك نقصُ السوق لا
         # نقصُ أنبوبنا: لا مصدرَ ينشر لها هدفاً لأن أحداً لا يُصدره. فتُشتقّ

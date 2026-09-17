@@ -132,6 +132,32 @@ else:
           "٣ج ولونُ التحذير متى تجاوز العمرُ عتبةَ الشيخوخة",
           "رمزٌ من الأنماط لا قيمةٌ ثابتة")
 
+# ── ٤ · وجدولُ السوق كذلك: الدرجةُ تحمل تاريخَ قوائمها (D384) ──────────
+# الدرجةُ تُعرَض في موضعَين في صفحة السوق (بطاقةٌ وجدول)، و`fair_value_asof`
+# الواصلُ إليها تاريخُ **الجلب** لا القوائم — فلا يصلح دليلَ حداثة.
+_scr = _find("backend/app/services/market_screener.py",
+             "app/services/market_screener.py")
+if _scr is None:
+    print("⚠ لا شفرةَ فرزٍ في مسارٍ معروفٍ — فحصُ الفرز لم يُقَس")
+else:
+    SCR = _scr.read_text("utf-8")
+    check('r["stmt_asof"]' in SCR and 'r["stmt_age_days"]' in SCR,
+          "٤ صفوفُ الفرز تحمل تاريخَ القوائم وعمرَها")
+    check('_X.for_symbol' in SCR,
+          "٤ب ويُقرأ من المخزَن الدائم — بلا نداءِ شبكةٍ لكلّ رمز")
+
+MKT = _find("frontend/src/pages/MarketPage.tsx")
+if MKT is None:
+    print("⚠ لا صفحةَ سوقٍ في هذه البيئة — فحصُ الجدول لم يُقَس")
+else:
+    MT = MKT.read_text("utf-8")
+    _n = MT.count("r.stmt_asof")
+    check(_n >= 2,
+          "٤ج والدرجةُ في موضعَيها (بطاقةٌ وجدول) تُعلن تاريخَ قوائمها",
+          f"{_n} موضعاً")
+    check("var(--warn-ink)" in MT and "stmt_age_days ?? 0) > 200" in MT,
+          "٤د ولونُ التحذير متى شاخت — رمزٌ من الأنماط لا قيمةٌ ثابتة")
+
 print(("FAIL" if fail else "PASS")
       + " D380 · D381 — عمرُ الرقم جزءٌ منه لا حاشيةٌ عنه")
 sys.exit(fail)

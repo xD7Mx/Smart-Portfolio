@@ -1034,6 +1034,14 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                           style={{ color: r.finance_score == null ? "var(--ink-muted)" : safeColor(r.finance_score) }}>
                           {r.finance_score == null ? "—" : Math.round(r.finance_score)}
                         </span>
+                        {/* عمرُ الرقم جزءٌ منه (‏D384) */}
+                        {r.stmt_asof && (
+                          <span className="text-[9px] tabular-nums" dir="ltr"
+                            style={{ color: (r.stmt_age_days ?? 0) > 200
+                                            ? "var(--warn-ink)" : "var(--ink-muted)" }}>
+                            {String(r.stmt_asof).slice(0, 7)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1130,9 +1138,22 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                         الشرعيّ لا للجودة**، فيُقرأ العمودُ كأنّ الجميعَ
                         ناجح. فانتقلت العلامةُ إلى هويّة الشركة هلالاً
                         كبقيّة التطبيق، وبقي هنا رقمٌ ملوَّنٌ وحدَه. */}
+                    {/* ══ ودرجةٌ على قوائمَ شائخةٍ تُعلَن شيخوختُها ══ (D384)
+                        قِيس: 54 ورقةً في الرئيسيّ قوائمُها أقدمُ من 200 يوم
+                        (‏25 تأميناً أرقامُها 2022 · ستُّ ريتاتٍ بسبعِ سنوات)،
+                        ودرجتُها تُقرأ ككلّ درجة. فتُوسَم بنقطةٍ بلون التحذير
+                        ويُقال تاريخُها في التلميح — في الخليّة نفسِها، فلا
+                        حاشيةَ أسفل الشاشة ولا عمودٌ جديدٌ يزحم الجدول. */}
                     <td className="px-2 py-2 text-center tabular-nums font-bold"
+                      title={r.stmt_asof ? `قوائمُ ${r.stmt_asof}`
+                             + ((r.stmt_age_days ?? 0) > 200
+                                ? ` · عمرُها ${r.stmt_age_days} يوماً` : "") : undefined}
                       style={{ color: r.finance_score == null ? "var(--ink-muted)" : safeColor(r.finance_score) }}>
                       {r.finance_score == null ? "—" : Math.round(r.finance_score)}
+                      {r.finance_score != null && (r.stmt_age_days ?? 0) > 200 && (
+                        <span className="align-super text-[8px]"
+                          style={{ color: "var(--warn-ink)" }}>•</span>
+                      )}
                     </td>
                     {/* الفجوة عن وسيط القطاع — موجبٌ يعني أرخص من أقرانه.
                         والأساس (مضاعف ربحية أم دفترية) يُعلَن في التلميح كي لا

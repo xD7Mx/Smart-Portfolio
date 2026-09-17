@@ -47,6 +47,10 @@ export interface Company {
   status: CompanyStatus;
   sharia_status: ShariaStatus;
   finance_score: number;
+  /* تاريخُ أحدثِ قائمةٍ ماليةٍ بُنيت عليها الدرجةُ وعمرُها — يُعرضان مع
+     الرقم لا حاشيةً عنه (‏D380 · D384). */
+  stmt_asof?: string;
+  stmt_age_days?: number;
   technical_score: number;
   logo_url?: string;
   color: string;
