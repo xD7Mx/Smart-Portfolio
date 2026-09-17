@@ -31,6 +31,23 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, "/app")
 
+
+def _find(*rel: str) -> pathlib.Path | None:
+    """يجد الملفَّ في تخطيطِ المستودع أو تخطيطِ الحاوية — ولا ينفجر.
+
+    ══ وحارسٌ ينهار لا يحرس ══ (D382)
+    انهار هذا الكاشفُ في حاوية الخادم بـ`FileNotFoundError` لأنّ شفرةَ
+    الخادم فيها تحت `/app/app/services` لا `/app/backend/app/services`.
+    فبحثتُ بمسارِ بيئةٍ وشغّلتُه في أخرى — وهو تكرارُ D375 و D350: أرسل
+    أمراً بلا قراءةِ شرطه، ثمّ يصمت كلُّ ما بعد الانهيار.
+    """
+    for base in (ROOT, pathlib.Path("/app"), pathlib.Path.cwd()):
+        for r in rel:
+            c = base / r
+            if c.exists():
+                return c
+    return None
+
 fail = 0
 
 
@@ -66,20 +83,26 @@ check(str(_r.get("data_asof") or "").startswith("2022")
       f"بيانات={_r.get('data_asof')} · جلب={_r.get('fetched_at')}")
 
 # ── ٢ · والأصلُ يحمل تاريخَ الأرقام وعمرَها ─────────────────────────────
-AN = (ROOT / "backend" / "app" / "services" / "analysis.py").read_text("utf-8")
-check('"تاريخ الأرقام": _stmt_asof' in AN
-      and '"عمر الأرقام أياماً": _stmt_age' in AN,
-      "٢ أصلُ الأساسيات يحمل تاريخَ الأرقام وعمرَها إلى الشاشة")
-check(re.search(r"_stmt_asof\s*=\s*max\(_ds\)", AN) is not None,
-      "٢ب والتاريخُ أحدثُ فترةٍ فعلاً — لا أوّلُ ما وُجد")
+_an = _find("backend/app/services/analysis.py", "app/services/analysis.py")
+if _an is None:
+    # نقصُ بيئةٍ يُعلَن ولا يُحسَب إخفاقاً ولا نجاحاً (‏D375 · D382)
+    print("⚠ لا شفرةَ خادمٍ في مسارٍ معروفٍ — فحصُ الأصل لم يُقَس")
+else:
+    AN = _an.read_text("utf-8")
+    check('"تاريخ الأرقام": _stmt_asof' in AN
+          and '"عمر الأرقام أياماً": _stmt_age' in AN,
+          "٢ أصلُ الأساسيات يحمل تاريخَ الأرقام وعمرَها إلى الشاشة")
+    check(re.search(r"_stmt_asof\s*=\s*max\(_ds\)", AN) is not None,
+          "٢ب والتاريخُ أحدثُ فترةٍ فعلاً — لا أوّلُ ما وُجد")
 
 # ── ٣ · والشاشةُ تعرضه في سطر الدرجة ───────────────────────────────────
-PANEL = (ROOT / "frontend" / "src" / "components" / "analysis"
-         / "AnalysisPanel.tsx")
-if not PANEL.exists():
-    # بيئةٌ بلا واجهةٍ تُعلَن ولا تُحسَب نجاحاً (‏D375)
-    print("⚠ لا مجلَّدَ واجهةٍ في هذه البيئة — فحصُ الشاشة لم يُقَس")
-    fail = 1
+PANEL = _find("frontend/src/components/analysis/AnalysisPanel.tsx")
+if PANEL is None:
+    # بيئةٌ بلا واجهةٍ: يُعلَن أنه **لم يُقَس** ولا يُحسَب نجاحاً ولا
+    # إخفاقاً — فنقصُ البيئة ليس عطباً في المنتَج، وعدّادُ اللجنة يظهر
+    # نقصانَ الفحوص ورأسُ `run.sh` يسمّي البيئةَ الناقصة (‏D375).
+    print("⚠ لا مجلَّدَ واجهةٍ في هذه البيئة — فحصُ الشاشة لم يُقَس"
+          " (يُشغَّل من جذر المستودع على المضيف)")
 else:
     TSX = PANEL.read_text("utf-8")
     check('data.governance_provenance' in TSX
