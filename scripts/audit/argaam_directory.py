@@ -1,134 +1,203 @@
 #!/usr/bin/env python3
-"""دليلُ الشركات من «أرقام» بترتيبه — تاسي وحدَه (D390).
+"""دليلُ «أرقام» — قطاعاتٌ ورموزٌ صحيحة، مرجعٌ إرشاديٌّ لا يُكتب في التطبيق.
 
     docker exec sp_backend python /app/scripts/audit/argaam_directory.py
-    docker exec sp_backend python /app/scripts/audit/argaam_directory.py --url <عنوان>
+    docker exec sp_backend python /app/scripts/audit/argaam_directory.py "<رابط>"
+    docker exec sp_backend python /app/scripts/audit/argaam_directory.py --save
 
-بأمر المالك: «اجعل دليلَ الشركات هو نفسُه بترتيب أرقام… اجلب دليلَ
-الشركات كاملاً من أرقام، سيظهر لك خيارانِ واحدٌ تاسي وواحدٌ نمو —
-اختر تاسي فقط».
+بأمر المالك: «ابحث عن الدليل، وعندما تجده يكون لدينا أسماءُ القطاعات
+والرموزُ الصحيحة، ثمّ نأخذ ما يحتاجه محرّكُ الجودة ومحرّكُ السعر العادل
+من بياناتٍ ماليةٍ من تداول أو أرقام». وقال قبلَها: «اجعل الدليلَ دليلاً
+إرشادياً لك» — فلا يُكتب في `MARKET_UNIVERSE` ولا يمسّ المحفظة.
 
-ودليلُنا اليوم يُقرأ من صفحةِ **المفكرة** في «أرقام» (`_company_index`)
-لا من صفحة الدليل — فترتيبُه ترتيبُ مفكرةٍ لا ترتيبُ دليل، ولا يحمل
-قسمةَ السوقَين. فيُطرَق البابُ الصحيح، ولا يُخمَّن عنوانُه:
+## المنهج: يُحكَم بمعيارٍ لا بحظّ
 
-  ١· تُقرأ صفحةُ «أرقام» ويُبحَث عن كلّ رابطٍ نصُّه أو مسارُه يذكر
-     شركاتٍ أو أسعاراً أو سوقاً — فيُطبَع ما وُجد بنصّه ومساره.
-  ٢· ثمّ يُفتَح المرشَّحُ ويُقاس: كم صفّاً · كم رمزاً رباعياً · هل فيه
-     خيارُ «تاسي» و«نمو» (مسارانِ أو معامِلٌ) · وأوّلُ الصفوف كما هي.
-  ٣· ويُفصَل السوقان: رموزُ ‎9xxx نمو وما دونها تاسي — وتُطبع القسمةُ
-     لتُراجَع لا لتُسلَّم، ويُقارَن عددُ تاسي بدليلنا (‏273).
+محاولتي الأولى دخلت صفحاتَ شركاتٍ فردية (`companyoverview/marketid/3/…`)
+فقرأت عناوينَ أخبارٍ كأنها رموزاً (‏D390) — لأني حكمتُ على الصفحة
+بوجود «رقمٍ رباعيّ» فيها، وذاك يصف الخبرَ كما يصف الرمز. فالمعيارُ
+الآن **ثلاثيٌّ ومعلَن**:
 
-ولا يُكتب دليلٌ من هذا الكاشف: يُقاس البابُ أوّلاً، ثمّ تُنقَل القسمةُ
-والترتيبُ في وحدةِ المزامنة — فالدليلُ هويّةُ السوق، وتغييرُه بلا
-قياسٍ يُربك كلَّ شاشة.
+  ١· الرمزُ يُقرأ من **مسارِ رابطِ شركةٍ** (`/company/…/<رمز>` أو
+     `companyid/<n>`) أو من خليّةٍ **كلُّها** أربعةُ أرقام — لا من نصٍّ
+     طويلٍ فيه رقم.
+  ٢· ويُشترط أن يكون في نطاق السوق الرئيسيّ (‏1000–8999) — ورموزُ
+     ‎9xxx «نمو» تُعَدّ وتُستثنى بأمر المالك.
+  ٣· وتُطابَق أسماءُ القطاعات على أسماء قطاعاتنا الاثنين والعشرين —
+     فصفحةٌ فيها رموزٌ بلا أسماءِ قطاعاتٍ ليست دليلاً بل جدولَ أسعار.
+
+والمرشَّحُ الأعلى في المعيار يُطبَع مفصَّلاً: القطاعُ وأعضاؤه، ثمّ
+يُقارَن بدليلنا **بأسماء الفروق لا بعددها**، ويُحفَظ مرجعاً في `docs/`
+مع تاريخِ جلبه بـ`--save`.
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import sys
+from collections import Counter
+from datetime import date
 
 sys.path.insert(0, "/app")
 sys.path.insert(0, "backend")
 
-HOME = "https://www.argaam.com/ar"
-ARG = [a for a in sys.argv[1:] if a.startswith("http")]
-_SYM = re.compile(r"\b(\d{4})\b")
+SAVE = "--save" in sys.argv
+GIVEN = [a for a in sys.argv[1:] if a.startswith("http")]
+BASE = "https://www.argaam.com"
+HOME = f"{BASE}/ar"
+
+# مساراتٌ مرشَّحةٌ — تُجرَّب كلُّها ويُحكَم بالمعيار لا بالاسم
+PATHS = (
+    "/ar/company/companies-prices/3",
+    "/ar/company/companies-prices/3/",
+    "/ar/companies/3",
+    "/ar/company/sectors/3",
+    "/ar/company/all-companies/3",
+    "/ar/company/companies/3",
+    "/ar/market/tasi",
+    "/ar/tadawul/tasi",
+    "/ar/company/companies-prices",
+)
 _TR = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S | re.I)
 _TD = re.compile(r"<t[dh][^>]*>(.*?)</t[dh]>", re.S | re.I)
 _TAG = re.compile(r"<[^>]+>")
-WORDS = ("شركات", "الشركات", "أسعار", "companies", "market", "تاسي",
-         "نمو", "السوق الرئيسية", "السوق الموازية")
+_A = re.compile(r"""<a\b[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>""",
+                re.S | re.I)
+_CODE_IN_HREF = re.compile(r"/(\d{4})(?:[/?#]|$)")
+_CID = re.compile(r"companyid/(\d+)", re.I)
+_CELL_CODE = re.compile(r"^\(?(\d{4})\)?$")
 
 
 def _txt(x: str) -> str:
     return re.sub(r"\s+", " ", _TAG.sub(" ", x or "")).strip()
 
 
+def _main_code(c: str) -> str | None:
+    """رمزٌ في نطاق السوق الرئيسيّ — و‎9xxx يُعَدّ نمو فيُستثنى."""
+    if not c or len(c) != 4 or not c.isdigit():
+        return None
+    return c if "1000" <= c <= "8999" else None
+
+
 async def main() -> int:
+    from app.data.market_universe import MARKET_UNIVERSE
+    from app.data.universe import main_market
     from app.services.tadawul_http import smart_fetch
 
-    async def get(u: str, warm: str = HOME):
+    ours = main_market(MARKET_UNIVERSE)
+    our_secs = {(m or {}).get("sector") for m in ours.values()}
+    our_secs.discard(None)
+    print(f"═ دليلُ «أرقام» ═ دليلُنا: {len(ours)} شركة · "
+          f"{len(our_secs)} قطاعاً")
+
+    async def get(u: str):
         try:
-            st, body = await smart_fetch(u, warm=warm, timeout=25)
+            st, body = await smart_fetch(u, warm=HOME, timeout=25)
             return st, body or ""
         except Exception as e:                                    # noqa: BLE001
-            print(f"  تعذّر {u[-48:]} — {type(e).__name__}")
-            return 0, ""
+            return 0, f"__ERR__{type(e).__name__}"
 
-    cands = list(ARG)
-    if not cands:
-        st, home = await get(HOME)
-        print(f"═ صفحةُ «أرقام» ═ HTTP {st} · {len(home)} حرفاً")
-        if st != 200 or not home:
-            print("  لا تُقرأ الصفحةُ — لا يُبنى على فراغ.")
-            return 1
-        seen: dict[str, str] = {}
-        for m in re.finditer(r"""<a\b[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>""",
-                             home, re.S | re.I):
-            href, label = m.group(1), _txt(m.group(2))
-            blob = f"{href} {label}".lower()
-            if any(w.lower() in blob for w in WORDS) and "/ar/" in href:
-                if href not in seen:
-                    seen[href] = label
-        print(f"  روابطُ الدليل المرشَّحة: {len(seen)}")
-        for h, l in list(seen.items())[:20]:
-            print(f"   «{l[:40]}» → {h[:78]}")
-        cands = [("https://www.argaam.com" + h if h.startswith("/") else h)
-                 for h in seen if any(k in h.lower() for k in
-                                      ("compan", "prices", "market"))][:4]
-
-    for u in cands:
+    urls = GIVEN or [BASE + p for p in PATHS]
+    best: tuple[int, str, dict] | None = None
+    for u in urls:
         st, body = await get(u)
-        print(f"\n──── {u[-64:]} ──── HTTP {st} · {len(body)} حرفاً")
-        if st != 200 or not body:
+        if body.startswith("__ERR__") or st != 200 or not body:
+            print(f"  ✗ {u[-52:]}: {st}{' · ' + body[7:] if body.startswith('__ERR__') else ''}")
             continue
-        rows = _TR.findall(body)
-        syms: list[str] = []
-        first: list[list[str]] = []
-        for tr in rows:
+        # ١· رموزٌ من مسارات روابط الشركات
+        codes: dict[str, str] = {}          # رمز → اسم
+        cids: dict[str, str] = {}           # رمز → معرِّفُ أرقام
+        for href, label in _A.findall(body):
+            m = _CODE_IN_HREF.search(href)
+            nm = _txt(label)
+            if m and _main_code(m.group(1)) and nm and len(nm) < 60:
+                codes.setdefault(m.group(1), nm)
+                c = _CID.search(href)
+                if c:
+                    cids[m.group(1)] = c.group(1)
+        # ٢· أو من خلايا كلُّها أربعةُ أرقام
+        for tr in _TR.findall(body):
             cells = [_txt(c) for c in _TD.findall(tr)]
-            if not cells:
-                continue
-            m = next((_SYM.search(c) for c in cells if _SYM.search(c)), None)
-            if m:
-                syms.append(m.group(1))
-                if len(first) < 6:
-                    first.append(cells[:6])
-        tasi = [s for s in syms if not s.startswith("9")]
-        nomu = [s for s in syms if s.startswith("9")]
-        # خيارا السوق: مسارٌ أو معامِلٌ يذكر تاسي/نمو
-        opts = sorted({m.group(0) for m in re.finditer(
-            r"""(?:href|value)=["'][^"']*(?:tasi|nomu|main|parallel|market[Ii]d=\d+)[^"']*["']""",
-            body, re.I)})
-        print(f"  صفوفٌ={len(rows)} · رموزٌ={len(syms)}"
-              f" · **تاسي={len(tasi)} · نمو={len(nomu)}**"
-              f" · خياراتُ سوقٍ في الصفحة={len(opts)}")
-        for o in opts[:8]:
-            print(f"    خيار: {o[:88]}")
-        for c in first:
-            print(f"    صفٌّ: {c}")
-        if tasi:
-            print(f"    أوّلُ عشرةٍ بترتيب الصفحة: {tasi[:10]}")
-            try:
-                from app.data.market_universe import MARKET_UNIVERSE
-                from app.data.universe import main_market
-                ours = set(main_market(MARKET_UNIVERSE).keys())
-                miss = [s for s in tasi if s not in ours]
-                extra = [s for s in ours if s not in set(tasi)]
-                print(f"    مقابلَ دليلنا ({len(ours)}): عندهم وليس عندنا"
-                      f"={len(miss)}{' · ' + ' '.join(miss[:10]) if miss else ''}"
-                      f" · عندنا وليس عندهم={len(extra)}"
-                      f"{' · ' + ' '.join(extra[:10]) if extra else ''}")
-            except Exception:                                     # noqa: BLE001
-                pass
+            code = next((_CELL_CODE.match(c).group(1) for c in cells
+                         if _CELL_CODE.match(c)), None)
+            if code and _main_code(code):
+                nm = next((c for c in cells
+                           if re.search(r"[ء-ي]", c) and len(c) < 60), "")
+                if nm:
+                    codes.setdefault(code, nm)
+        nomu = len({m.group(1) for href, _ in _A.findall(body)
+                    for m in [_CODE_IN_HREF.search(href)]
+                    if m and m.group(1).startswith("9")})
+        # ٣· أسماءُ قطاعاتٍ تُطابق قطاعاتنا
+        secs_hit = sorted(s for s in our_secs if s and s in body)
+        score = len(codes) + 10 * len(secs_hit)
+        print(f"  {'★' if score else '·'} {u[-52:]}: {len(body)} حرفاً"
+              f" · رموزٌ رئيسية={len(codes)} · نمو={nomu}"
+              f" · قطاعاتٌ مطابقة={len(secs_hit)} · معرِّفاتُ أرقام={len(cids)}"
+              f" · وزنٌ={score}")
+        if best is None or score > best[0]:
+            best = (score, u, {"codes": codes, "cids": cids,
+                               "secs": secs_hit, "body_len": len(body)})
 
-    print("\nالحكم: الصفحةُ التي تردّ رموزَ تاسي كاملةً بترتيبها هي الدليلُ"
-          " المطلوب — ويُنقَل منها **الترتيبُ والقسمةُ** إلى وحدة المزامنة،"
-          " ورموزُ ‎9xxx تُستثنى بأمر المالك. وفرقُ العدد عن دليلنا يُطبَع"
-          " بأسمائه لا بعدده: وافدٌ جديدٌ يُضاف، ومفقودٌ يُفحَص قبل حذفه —"
-          " فالدليلُ هويّةُ السوق ولا يُغيَّر على مصدرٍ واحدٍ بلا مراجعة.")
+    if not best or not best[2]["codes"]:
+        print("\n✗ لم يُعثَر على دليلٍ يجتاز المعيار. وهذا **ليس نفياً**"
+              " لوجوده: يُجرَّب رابطٌ يُمرَّر بالوسيط، أو يُقرأ من قائمة"
+              " تنقّل الموقع. ولا يُبنى دليلٌ على صفحةٍ لم تجتز.")
+        return 1
+
+    score, url, data = best
+    codes, cids, secs = data["codes"], data["cids"], data["secs"]
+    print(f"\n═ المرشَّحُ الأعلى ═ {url}\n  وزنٌ={score}"
+          f" · رموزٌ={len(codes)} · قطاعاتٌ={len(secs)}")
+    if secs:
+        print("  قطاعاتٌ ظهرت بأسمائها: " + " · ".join(secs[:24]))
+
+    # ── المقارنةُ بدليلنا: بالأسماء لا بالعدد ──────────────────────────
+    theirs = set(codes)
+    mine = set(ours)
+    print(f"\n═ المقارنة ═ عندهم {len(theirs)} · عندنا {len(mine)}")
+    add = sorted(theirs - mine)
+    gone = sorted(mine - theirs)
+    print(f"  عندهم وليس عندنا ({len(add)}): "
+          + (" · ".join(f"{c}={codes[c][:18]}" for c in add[:14]) or "لا شيء"))
+    print(f"  عندنا وليس عندهم ({len(gone)}): "
+          + (" · ".join(f"{c}={(ours[c] or {}).get('name_ar') or ''}"[:22]
+                        for c in gone[:14]) or "لا شيء"))
+    # اختلافُ القطاع لنفس الرمز — أثمنُ ما في الدليل
+    if secs:
+        diff = []
+        for c in sorted(theirs & mine):
+            our_s = (ours[c] or {}).get("sector")
+            if our_s and our_s not in secs:
+                diff.append(f"{c}:{our_s}")
+        print(f"  ولنا قطاعاتٌ لم تظهر في صفحتهم: {len(set(diff))}"
+              + (" · " + " · ".join(sorted({d.split(':')[1] for d in diff})[:6])
+                 if diff else ""))
+
+    if SAVE:
+        import pathlib
+        out = {
+            "المصدر": url,
+            "تاريخُ الجلب": date.today().isoformat(),
+            "ملاحظة": ("مرجعٌ إرشاديٌّ فقط — لا يُكتب في دليل التطبيق"
+                       " ولا يمسّ المحفظة (بأمر المالك)"),
+            "رموزٌ": {c: {"name": n, "argaam_id": cids.get(c)}
+                      for c, n in sorted(codes.items())},
+            "قطاعاتٌ ظهرت": secs,
+        }
+        p = pathlib.Path("/app/docs/ARGAAM_DIRECTORY.json")
+        if not p.parent.exists():
+            p = pathlib.Path("docs/ARGAAM_DIRECTORY.json")
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(out, ensure_ascii=False, indent=1), "utf-8")
+        print(f"\n  حُفظ مرجعاً: {p} ({len(codes)} رمزاً)")
+
+    print("\nالحكم: الدليلُ يُقبَل حين يجتاز المعيارَ الثلاثيَّ — رموزٌ من"
+          " مسارات روابطِ شركاتٍ، في نطاق الرئيسيّ، ومعها أسماءُ قطاعاتٍ."
+          " ويبقى **مرجعاً إرشادياً**: تُقرأ منه أسماءُ القطاعات ونسبةُ"
+          " كلّ شركةٍ إلى قطاعها (وهو أثمنُ ما فيه، لأن الخريطةَ تُطبَّق"
+          " بالقطاع فشركةٌ في قطاعٍ خطأ تُقاس بمسطرةٍ ليست لها)، ولا"
+          " يُكتب في دليل التطبيق إلا بأمرٍ صريح.")
     return 0
 
 
