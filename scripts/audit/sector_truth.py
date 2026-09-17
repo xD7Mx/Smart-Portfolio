@@ -28,6 +28,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import pathlib
 import sys
@@ -40,14 +41,27 @@ sys.path.insert(0, "backend")
 SAVE = "--save" in sys.argv
 
 
-def main() -> int:
+async def main() -> int:
     from app.data.market_universe import MARKET_UNIVERSE
     from app.data.universe import main_market
     from app.services import tadawul_market as tm
 
     rows, live, at = tm.usable_rows()
+    # ══ وعمليةٌ جديدةٌ لا ترث مخزَنَ الخادم ══ (D397)
+    # اللقطةُ في مخزنٍ مؤقّتٍ عمرُه ربعُ ساعة، وكاشفٌ يُشغَّل في عمليةٍ
+    # منفصلةٍ قد يجدها شاخت فيطبع «اللقطةُ فارغة» — وذاك يُقرأ عطباً في
+    # الخادم وهو عطبٌ في الكاشف. و`ensure_fresh` **يوقظ ولا ينتظر**،
+    # فتُجلَب صريحةً هنا ثمّ تُقرأ. ولو تعذّر الجلبُ قيل سببُه.
     if not rows:
-        print("اللقطةُ فارغة — لا قياس. (عطبٌ لا نتيجة.)")
+        print("  اللقطةُ شاخت في هذه العملية — تُجلَب صريحةً…")
+        try:
+            rep = await tm.refresh()
+            print(f"  جلبٌ: {rep if isinstance(rep, dict) else 'تمّ'}")
+        except Exception as e:                                    # noqa: BLE001
+            print(f"  تعذّر الجلبُ — {type(e).__name__}: {e}")
+        rows, live, at = tm.usable_rows()
+    if not rows:
+        print("اللقطةُ فارغةٌ بعد الجلب — عطبٌ لا نتيجة.")
         return 1
     ours = main_market(MARKET_UNIVERSE)
     snap = {s: r for s, r in rows.items() if not s.startswith("9")}
@@ -141,4 +155,4 @@ def main() -> int:
     return 0
 
 
-raise SystemExit(main())
+raise SystemExit(asyncio.run(main()))
