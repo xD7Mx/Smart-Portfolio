@@ -576,6 +576,47 @@ check(_v is None or (_RB.get("low") <= _v <= _RB.get("high")),
       "٩رد والقيمةُ داخلَ مداها دائماً — لا 6.58 في مدى 1.03–1.03",
       f"{_RB.get('low')} ≤ {_v} ≤ {_RB.get('high')}")
 
+# ── ٩و٢ · الخاسرةُ تُقيَّم بأصولها لا بصمتٍ (D401) ──────────────────────
+# قِيس بعيّنةِ كلّ قطاعٍ: الثمانيةُ الممتنعون كلُّهم خاسرون — ربحيةُ
+# السهم سالبةٌ وعائدُ الحقوق سالب. والمحلّلُ يقيّم الخاسرةَ بأصولها
+# ويعلن ذلك؛ والصمتُ يترك المالكَ بلا حكمٍ على شركةٍ تخسر.
+_LOSS = [{"as_of": f"{y}-12-31", "year": y, "equity": 1.38e8,
+          "shares_outstanding": 1.83e7, "revenue": 4e8,
+          "net_income": -8.8e7, "eps": -4.82, "total_assets": 6e8,
+          "total_liabilities": 4.6e8, "operating_cash_flow": -2e7,
+          "capex": 1e7, "ending_cash": 3e7, "pretax_income": -8.5e7,
+          "total_debt": 2e8} for y in (2023, 2024, 2025)]
+_RL = _fv({"price_to_book": 4.17, "book_value": 7.5489,
+           "return_on_equity": -104.34, "beta": 1.0, "eps": -4.82},
+          16.21, sector_avg_pe=14.0, sector_avg_pb=1.8, periods=_LOSS,
+          archetype="consumer_cyclical", symbol="2130", peer_count=8)
+check(_RL.get("value") is not None and _RL.get("asset_based") is True
+      and abs((_RL.get("value") or 0) - 7.55) < 0.05,
+      "٩و٢ شركةٌ خاسرةٌ تُقيَّم بصافي أصولها — لا تُترك بلا حكم",
+      f"قيمة={_RL.get('value')} · سعر=16.21")
+check("سالبة" in str(_RL.get("asset_based_note") or "")
+      and _RL.get("confidence") == "منخفضة",
+      "٩و٣ ويُعلَن سببُ قياسِها بالأصول وثقتُها منخفضةٌ حتماً",
+      str(_RL.get("confidence")))
+# وبدفتريةٍ مرفوضةٍ (‏D392) لا يُبنى مسارُ أصولٍ على رقمٍ معطوب
+_RL2 = _fv({"price_to_book": 2.41, "book_value": 2495.9655,
+            "return_on_equity": -94.39, "beta": 1.0, "eps": -2.98},
+           4.04, sector_avg_pe=14.0, sector_avg_pb=1.8,
+           periods=[{k: v for k, v in p.items() if k != "equity"}
+                    for p in _LOSS],
+           archetype="commodity", symbol="1201", peer_count=8)
+# وقِيس أن السلسلةَ تعمل كما بُنيت: الدفتريةُ المعطوبةُ (‏618× السعر)
+# رُفضت بسببها المعلَن، ثمّ حلّت محلَّها المشتقّةُ من مضاعفِ «تداول»
+# المنشور، وعليها بُني مسارُ الأصول — فالمقيسُ **سلامةُ ما بُني عليه**
+# لا غيابُ المسار: قيمةٌ 618× السعرِ كانت ستمرّ لو لم تُرفَض.
+_v2 = _RL2.get("value") or 0
+check(0 < _v2 < 4.04 * 15 and "618×" in str(_RL2.get("book_value_note") or ""),
+      "٩و٤ ومسارُ الأصول يُبنى على المشتقّ السليم بعد رفض المعطوب",
+      f"قيمة={_v2} · سعر=4.04 · {str(_RL2.get('book_value_note') or '')[:40]}")
+check(any("مضاعفِ الدفترية المنشور" in d
+          for d in (_RL2.get("derived_inputs") or [])),
+      "٩و٥ ويُعلَن أن البديلَ من مضاعفٍ منشورٍ لا من فراغ")
+
 # ── ٩ه٢ · المدخلُ الغائبُ يُشتقّ من منشورٍ لا يُنتظَر (D400) ────────────
 # قِيس بعيّنةِ كلّ قطاعٍ: 13 امتناعاً من 43 سببُها واحدٌ — «يلزم ربحيةُ
 # سهمٍ مع مضاعف قطاع، أو دفتريةٌ مع عائد حقوق». والدفتريةُ نملكها

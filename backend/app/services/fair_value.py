@@ -910,6 +910,47 @@ def compute(info: dict, price: float | None,
         except Exception:                                         # noqa: BLE001
             pass
 
+    # ══ والخاسرةُ تُقيَّم بأصولها لا بأرباحها ══ (D401)
+    #
+    # قِيس بعيّنةِ كلّ قطاعٍ: الثمانيةُ الممتنعون **كلُّهم خاسرون** —
+    # ربحيةُ السهم سالبةٌ (‏-0.36 إلى -4.82) وعائدُ الحقوق سالبٌ (‏-5.5
+    # إلى -296.7) ولا توزيعَ إلا لواحد. فامتناعُ المحرّك صوابٌ في
+    # المبدأ: لا تُقيَّم خاسرةٌ بمضاعفِ ربحيةٍ ولا بعائدٍ على حقوقٍ سالب.
+    #
+    # لكنّ الامتناعَ **ليس جواباً مهنياً**: المحلّلُ يقيّم الخاسرةَ
+    # بأصولها — صافي أصولها للسهم — ويعلن أنها مُقاسةٌ بالأصول لا
+    # بالأرباح. وهو معيارٌ قائمٌ في المواصفة أصلاً (‏`NAV_FACTOR`:
+    # الريتُ 1.00 والمطوّرُ العقاريُّ 0.85 لأن أرضَه بالتكلفة التاريخية).
+    #
+    # ولا يُخترَع خصمٌ من عندي لغير المدرَجَين: المعامِلُ الافتراضيُّ
+    # واحدٌ — أي **الدفتريةُ كما هي** — والثقةُ منخفضةٌ حتماً فيوسَّع
+    # هامشُ الأمان. وشرطُه دفتريةٌ **اجتازت بوّابةَ المعقولية** (‏D392)،
+    # فلا يُبنى على رقمٍ مرفوض.
+    if not out["methods"] and bvps and bvps > 0:
+        try:
+            from app.data.archetype_spec import NAV_FACTOR as _NAVF
+        except Exception:                                         # noqa: BLE001
+            _NAVF = {}
+        _f = float(_NAVF.get(archetype or "", 1.0) or 1.0)
+        _nav = round(bvps * _f, 2)
+        _loss = (eps is not None and eps < 0) or (roe is not None and roe < 0)
+        out["methods"].append({
+            "name": "صافي الأصول للسهم",
+            "value": _nav,
+            "inputs": (f"دفترية السهم {bvps:,.2f}"
+                       + (f" × معامل {_f:.2f}" if _f != 1.0 else "")
+                       + (" — شركةٌ خاسرةٌ فتُقاس بأصولها لا بأرباحها"
+                          if _loss else
+                          " — لا مسارَ أرباحٍ متاحٌ فتُقاس بأصولها")),
+        })
+        out["asset_based"] = True
+        out["asset_based_note"] = (
+            "قُيِّمت بصافي أصولها للسهم: "
+            + ("ربحيتُها سالبةٌ فلا يصحّ فيها مضاعفُ ربحيةٍ ولا عائدٌ"
+               " على حقوق" if _loss else
+               "لم يتوفّر مسارُ أرباحٍ أو توزيعٍ مستقرّ")
+            + " — والثقةُ منخفضةٌ فيوسَّع هامشُ الأمان.")
+
     vals = [m["value"] for m in out["methods"]]
     if not vals:
         out["unavailable_reason"] = (
@@ -1213,9 +1254,11 @@ def compute(info: dict, price: float | None,
                    # خلافُ المسارات يُسعَّر ولا يُخفى: ثقتُه منخفضةٌ حتماً
                    # فيتّسع هامشُ الأمان إلى 35% (D371)
                    or bool(out.get("dispersion_demote"))
-                   or bool(_ins_no_cr))
+                   or bool(_ins_no_cr)
+                   or bool(out.get("asset_based")))
         out["confidence"] = ("منخفضة" if out.get("implausible")
                              or out.get("dispersion_demote") or _ins_no_cr
+                             or out.get("asset_based")
                              else "مرتفعة" if len(vals) >= 3 and spread <= 0.25 and not _demote
                              else "متوسطة" if len(vals) >= 2 and spread <= 0.5
                              else "منخفضة")
