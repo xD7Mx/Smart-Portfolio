@@ -469,7 +469,9 @@ check(_bp.get("interest_expense") != 3376189.0,
 # بالمليارات — وطباعةُ المطابَق كشفت أن قائمةَ المؤمِّن **قائمتان
 # متوازيتان** وقارئَنا يأخذ أوّلَ عمود. والفراغُ المعلَنُ أصدقُ من رقمٍ
 # خاطئٍ تُحسَب عليه النسبُ كلُّها.
-_INS = [{"as_of": "2023-03-31", "revenue": 111604.0, "net_income": 391003.0}]
+# والوسمُ جزءٌ من العيّنة بعد D399: السحبُ لبنيةِ مؤمِّنٍ بشطرَين
+_INS = [{"as_of": "2023-03-31", "revenue": 111604.0,
+         "net_income": 391003.0, "insurer_layout": True}]
 _COM = [{"as_of": "2026-06-30", "revenue": 1.0}]
 try:
     from app.services.tadawul_xbrl import withhold_unsafe as _wh
@@ -582,8 +584,11 @@ check(_v is None or (_RB.get("low") <= _v <= _RB.get("high")),
 try:
     from app.services.tadawul_xbrl import parse as _xp3
     from app.services.tadawul_xbrl import withhold_unsafe as _wh3
+    # وصفٌّ ثانٍ لأن القارئَ لا يُنشئ فترةً من صفٍّ واحد
     _TECH = ("<table><tr><td>End Date</td><td>2026-06-30</td></tr>"
-             "<tr><td>total revenue</td><td>250,000</td></tr></table>")
+             "<tr><td>total revenue</td><td>250,000</td></tr>"
+             "<tr><td>profit (loss) for period</td><td>40,000</td></tr>"
+             "</table>")
     _pt = _xp3(_TECH).get("periods") or [{}]
     _n3 = _wh3("8313", _pt)
     _kept = (_pt[0] if _pt else {}).get("revenue")
