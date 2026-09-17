@@ -605,10 +605,46 @@ def compute(info: dict, price: float | None,
                     f" {price:,.2f} بـ{bvps / price:,.0f}× — خطأُ وحدةٍ"
                     f" أرجحُ من فرصة، فرُفضت ولم يُبنَ عليها مسار")
         bvps = None
+    # ══ والمدخلُ الغائبُ يُشتقّ من منشورٍ لا يُنتظَر ══ (D400)
+    #
+    # قِيس بعيّنةِ كلّ قطاعٍ بعد تصحيح الأصناف: ‎13 امتناعاً من ‎43 سببُها
+    # **واحدٌ** — «يلزم ربحيةُ سهمٍ مع مضاعف قطاع، أو دفتريةٌ مع عائد
+    # حقوق، أو توزيعٌ مستقرّ». أي أن المحرّكَ يمتنع لغياب مدخلٍ **نملكه
+    # منشوراً** ولم نصله به:
+    #
+    #   · **الدفتريةُ للسهم** = السعر ÷ مضاعفِ الدفترية — والمضاعفُ منشورٌ
+    #     في لقطة «تداول» لكلّ ورقة (‏`price_to_book`). وهي الهويّةُ نفسُها
+    #     التي تُشتقّ بها الحقوقُ في طبقة الإكمال، فلا مسطرةَ ثانية.
+    #   · **عائدُ حقوق الملكية** = صافي الربح ÷ الحقوق — من القوائم نفسِها.
+    #
+    # ولا يُستبدَل منشورٌ بمشتقّ: الاشتقاقُ للفراغ وحدَه، ويُعلَن مصدرُه
+    # في `derived_inputs` — فرقمٌ لا يُعرف أصلُه لا يُبنى عليه قرار.
+    _derived_in: list[str] = []
+    if not bvps:
+        _pb = num("price_to_book")
+        if _pb and _pb > 0 and price and price > 0:
+            bvps = round(price / _pb, 4)
+            _derived_in.append(f"دفتريةُ السهم = السعر ÷ مضاعفِ الدفترية"
+                               f" المنشور ({_pb:.2f}) = {bvps:,.2f}")
+    if not bvps and _bv_stmt and _bv_stmt > 0:
+        bvps = _bv_stmt
+        _derived_in.append(f"دفتريةُ السهم = حقوقٌ ÷ أسهمٌ من القوائم"
+                           f" = {bvps:,.2f}")
     # وكلُّ تصحيحٍ يُعلَن — الصامتُ ممنوعٌ في الميثاق
     if _bv_note:
         out["book_value_note"] = _bv_note
     roe = num("roe")
+    if roe is None and bvps:
+        for _p in reversed(periods or []):
+            _ni, _eq = _p.get("net_income"), _p.get("equity")
+            if (isinstance(_ni, (int, float)) and isinstance(_eq, (int, float))
+                    and _eq > 0):
+                roe = round(_ni / _eq * 100, 2)
+                _derived_in.append(f"عائدُ حقوق الملكية = صافي الربح ÷"
+                                   f" الحقوق = {roe:.1f}%")
+                break
+    if _derived_in:
+        out["derived_inputs"] = _derived_in
     dps = num("dividend_per_share")
     growth = num("earnings_growth")
     beta = num("beta")
