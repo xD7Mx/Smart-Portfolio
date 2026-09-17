@@ -543,6 +543,37 @@ check(_FO.get("confidence") == "منخفضة",
       "٩ك‍٢ وشيخوخةُ المدخلات تُترجَم ثقةً منخفضةً فيتّسع هامشُ الأمان",
       f"ثقة={_FO.get('confidence')}")
 
+# ── ٩ر · دفتريةٌ ألفَ ضعفِ السعر تُرفَض لا تُعرَض (D392 · D393) ────────
+# قِيس بعيّنةٍ من كلّ قطاعٍ على خادم المالك: 4003 خرج بسعرٍ «عادلٍ»
+# 108,075 والسعرُ 65.85 · 4040 = 13,474 والسعرُ 11.01 · 4001 = 5,475
+# والسعرُ 4.59 — كلُّها من مسار الدفترية، ونسبُها حول الألف شهادةٌ على
+# خطأِ وحدةٍ لا على فرصة. وحقوقُها غائبةٌ من قوائمنا فلم يُصحَّح
+# ملخَّصُها، فيلزم حدٌّ من السعر. ومعه: القيمةُ داخلَ مداها دائماً.
+_MK = lambda y: {"as_of": f"{y}-12-31", "year": y, "shares_outstanding": 1e8,
+                 "revenue": 2e9, "net_income": 1.1e8, "eps": 1.1,
+                 "total_assets": 3e9, "total_liabilities": 1.7e9,
+                 "operating_cash_flow": 2e8, "capex": 5e7,
+                 "ending_cash": 3e8, "pretax_income": 1.2e8,
+                 "total_debt": 4e8}
+_BAD = {"pe_ratio": 18.0, "price_to_book": 1.2, "book_value": 13160.0,
+        "return_on_equity": 14.0, "dividend_per_share": 0.5,
+        "beta": 0.9, "eps": 1.1}
+_RB = _fv(_BAD, 10.42, sector_avg_pe=16.0, sector_avg_pb=1.5,
+          periods=[_MK(y) for y in (2023, 2024, 2025)],
+          archetype="consumer_cyclical", symbol="2340", peer_count=8)
+_v = _RB.get("value")
+check(_v is not None and _v < 10.42 * 15,
+      "٩ر دفتريةٌ ألفَ ضعفِ السعر تُرفَض — لا تُعرَض قيمةً «عادلة»",
+      f"قيمة={_v} · سعر=10.42")
+check("خطأُ وحدةٍ" in str(_RB.get("book_value_note") or ""),
+      "٩رب ويُعلَن سببُ رفضها بالنسبة المقيسة لا صامتاً",
+      str(_RB.get("book_value_note") or "لم تُعلَن")[:56])
+check(not any("دائم" in str(m.get("name")) for m in _RB.get("methods") or []),
+      "٩رج ولا مسارَ دفتريةٍ يُبنى على رقمٍ مرفوض")
+check(_v is None or (_RB.get("low") <= _v <= _RB.get("high")),
+      "٩رد والقيمةُ داخلَ مداها دائماً — لا 6.58 في مدى 1.03–1.03",
+      f"{_RB.get('low')} ≤ {_v} ≤ {_RB.get('high')}")
+
 _F9 = _fv({}, 34.0, symbol="9400", periods=[])
 _why9 = str((_F9 or {}).get("unavailable_reason") or "")
 check(_F9.get("value") is None and "ورقةٌ مؤشِّرة" in _why9
