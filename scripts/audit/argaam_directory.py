@@ -66,6 +66,8 @@ _A = re.compile(r"""<a\b[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>""",
 _CODE_IN_HREF = re.compile(r"/(\d{4})(?:[/?#]|$)")
 _CID = re.compile(r"companyid/(\d+)", re.I)
 _CELL_CODE = re.compile(r"^\(?(\d{4})\)?$")
+# نصُّ رابطِ الشركة في دليل «أرقام»: «2330 - المتقدمة» (D394)
+_LABEL_CODE = re.compile(r"^\(?(\d{4})\)?\s*[-–—:]\s*(.+)$")
 
 
 def _txt(x: str) -> str:
@@ -104,30 +106,33 @@ async def main() -> int:
         if body.startswith("__ERR__") or st != 200 or not body:
             print(f"  ✗ {u[-52:]}: {st}{' · ' + body[7:] if body.startswith('__ERR__') else ''}")
             continue
-        # ١· رموزٌ من مسارات روابط الشركات
+        # ══ والرمزُ في **نصّ** الرابط لا في مساره ══ (D394)
+        # قِيس على خادم المالك: خرج «1007=2330 - المتقدمة» — فـ1007
+        # معرِّفُ «أرقام» في المسار، والرمزُ الحقيقيُّ 2330 مكتوبٌ في نصّ
+        # الرابط بصيغة «رمز - اسم». فقرأتُ معرِّفاً وظننتُه رمزاً، فخرج
+        # «366 رمزاً» و«120 عندهم وليس عندنا» — وكلُّها وهمُ قراءة.
+        # فالرمزُ يُقرأ من النصّ، والمعرِّفُ من المسار — وكلٌّ يُسمّى باسمه.
         codes: dict[str, str] = {}          # رمز → اسم
         cids: dict[str, str] = {}           # رمز → معرِّفُ أرقام
-        for href, label in _A.findall(body):
-            m = _CODE_IN_HREF.search(href)
-            nm = _txt(label)
-            if m and _main_code(m.group(1)) and nm and len(nm) < 60:
-                codes.setdefault(m.group(1), nm)
+        pos: dict[str, int] = {}            # رمز → موضعُه في الصفحة
+        for m in _A.finditer(body):
+            href, label = m.group(1), _txt(m.group(2))
+            mm = _LABEL_CODE.match(label)
+            if not mm:
+                continue
+            code = _main_code(mm.group(1))
+            if not code:
+                continue
+            nm = mm.group(2).strip()
+            if nm and code not in codes:
+                codes[code] = nm
+                pos[code] = m.start()
                 c = _CID.search(href)
                 if c:
-                    cids[m.group(1)] = c.group(1)
-        # ٢· أو من خلايا كلُّها أربعةُ أرقام
-        for tr in _TR.findall(body):
-            cells = [_txt(c) for c in _TD.findall(tr)]
-            code = next((_CELL_CODE.match(c).group(1) for c in cells
-                         if _CELL_CODE.match(c)), None)
-            if code and _main_code(code):
-                nm = next((c for c in cells
-                           if re.search(r"[ء-ي]", c) and len(c) < 60), "")
-                if nm:
-                    codes.setdefault(code, nm)
-        nomu = len({m.group(1) for href, _ in _A.findall(body)
-                    for m in [_CODE_IN_HREF.search(href)]
-                    if m and m.group(1).startswith("9")})
+                    cids[code] = c.group(1)
+        nomu = len({mm.group(1) for _h, _l in _A.findall(body)
+                    for mm in [_LABEL_CODE.match(_txt(_l))]
+                    if mm and mm.group(1).startswith("9")})
         # ٣· أسماءُ قطاعاتٍ تُطابق قطاعاتنا
         secs_hit = sorted(s for s in our_secs if s and s in body)
         score = len(codes) + 10 * len(secs_hit)
@@ -135,9 +140,20 @@ async def main() -> int:
               f" · رموزٌ رئيسية={len(codes)} · نمو={nomu}"
               f" · قطاعاتٌ مطابقة={len(secs_hit)} · معرِّفاتُ أرقام={len(cids)}"
               f" · وزنٌ={score}")
+        # ══ القطاعُ لكلّ شركة: أقربُ اسمِ قطاعٍ يسبقها في الصفحة ══
+        # (‏أثمنُ ما في الدليل — الخريطةُ تُطبَّق بالقطاع)
+        sec_at: list[tuple[int, str]] = sorted(
+            (m.start(), nm) for nm in our_secs if nm
+            for m in re.finditer(re.escape(nm), body))
+        of_sec: dict[str, str] = {}
+        for code, at in pos.items():
+            prev = [nm for st_, nm in sec_at if st_ < at]
+            if prev:
+                of_sec[code] = prev[-1]
         if best is None or score > best[0]:
             best = (score, u, {"codes": codes, "cids": cids,
-                               "secs": secs_hit, "body_len": len(body)})
+                               "secs": secs_hit, "of_sec": of_sec,
+                               "body_len": len(body)})
 
     if not best or not best[2]["codes"]:
         print("\n✗ لم يُعثَر على دليلٍ يجتاز المعيار. وهذا **ليس نفياً**"
@@ -163,7 +179,20 @@ async def main() -> int:
     print(f"  عندنا وليس عندهم ({len(gone)}): "
           + (" · ".join(f"{c}={(ours[c] or {}).get('name_ar') or ''}"[:22]
                         for c in gone[:14]) or "لا شيء"))
-    # اختلافُ القطاع لنفس الرمز — أثمنُ ما في الدليل
+    # ══ اختلافُ نسبةِ الشركة إلى قطاعها ══ (أثمنُ ما في الدليل)
+    of_sec = data.get("of_sec") or {}
+    if of_sec:
+        cnt: Counter = Counter(of_sec.values())
+        print("\n═ قسمةُ «أرقام» على القطاعات ═")
+        for k, v in cnt.most_common():
+            print(f"  {v:>3}  {k}")
+        mism = [(c, of_sec[c], (ours[c] or {}).get("sector"))
+                for c in sorted(set(of_sec) & set(ours))
+                if (ours[c] or {}).get("sector")
+                and of_sec[c] != (ours[c] or {}).get("sector")]
+        print(f"\n═ شركاتٌ قطاعُها عندنا يخالف «أرقام» ═ {len(mism)}")
+        for c, thr, our in mism[:24]:
+            print(f"  {c} · أرقام: {thr} ≠ عندنا: {our}")
     if secs:
         diff = []
         for c in sorted(theirs & mine):
@@ -184,6 +213,7 @@ async def main() -> int:
             "رموزٌ": {c: {"name": n, "argaam_id": cids.get(c)}
                       for c, n in sorted(codes.items())},
             "قطاعاتٌ ظهرت": secs,
+            "قطاعُ كلّ شركة": data.get("of_sec") or {},
         }
         p = pathlib.Path("/app/docs/ARGAAM_DIRECTORY.json")
         if not p.parent.exists():
