@@ -98,7 +98,11 @@ def resolve_display(symbol: str, price, *, fund: dict | None = None,
             else (round(px / bv, 6) if _pos(bv) else None))
 
     # ── المنقولاتُ من المصدر: تُقرأ بالسلسلة نفسِها ──
-    for key, src in (("fair_value", "target_mean_price"),
+    # ══ والاسمُ يعود لصاحبه في السلسلة الواحدة ══ (D386 · بأمر المالك)
+    # كانت السلسلةُ تكتب `fair_value` من `target_mean_price` — أي تُسمّي
+    # هدفَ ياهو سعراً عادلاً. فصار يُكتب باسمه `analyst_target`، وسعرُنا
+    # العادلُ يأتي من محرّكنا وحدَه ولا يُستعار.
+    for key, src in (("analyst_target", "target_mean_price"),
                      ("high_52w", "week52_high"),
                      ("low_52w", "week52_low")):
         v = pick(src)
@@ -109,8 +113,9 @@ def resolve_display(symbol: str, price, *, fund: dict | None = None,
             out["high_52w"] = round(max(out["high_52w"], px), 3)
         if "low_52w" in out:
             out["low_52w"] = round(min(out["low_52w"], px), 3)
-        if "fair_value" in out:
-            out["upside_pct"] = round((out["fair_value"] - px) / px * 100, 1)
+        if "analyst_target" in out:
+            out["upside_pct"] = round(
+                (out["analyst_target"] - px) / px * 100, 1)
 
     # ── العائد: المُنتِجُ الواحد (‏D223) بالمدخلات نفسِها ──
     # وجوابُه هو الجواب: إن قال «لا عائد» كُتب `None` ولم يُترك رقمُ

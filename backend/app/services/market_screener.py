@@ -360,9 +360,16 @@ async def _enrich_fundamentals(rows: list[dict]) -> None:
         # ══ السعرُ العادل = متوسّطُ تقديرات بيوت الخبرة ══ (بأمر المالك)
         # نفسُ الرقم الذي تعرضه صفحةُ الشركة وتحليلُ الذكاء — مصدرٌ واحد
         # في التطبيق كلِّه، باسمٍ واحد.
-        _fv = pick("target_mean_price")
-        r["fair_value"] = _fv
-        r["fair_value_asof"] = stored.get("val_asof")
+        # ══ الاسمُ يعود لصاحبه في الفرز كذلك ══ (D386 · بأمر المالك)
+        # «هدفُ المحللين شيءٌ من ياهو، والسعرُ العادل شيءٌ آخرُ من صنعنا».
+        # فهذا الحقلُ هدفُ بيوت الخبرة باسمه ومصدرِه، ولا يُسمّى سعراً
+        # عادلاً. وسعرُنا العادل يُكتب في `fair_value` من محرّكنا حين
+        # يكون محسوباً (‏المخزَّنُ الليليّ)، ولا يُستعار من مصدرٍ آخر.
+        r["analyst_target"] = pick("target_mean_price")
+        r["analyst_target_asof"] = stored.get("val_asof")
+        r["fair_value"] = stored.get("fair_value")
+        r["fair_value_conf"] = stored.get("fair_value_conf")
+        r["fair_value_asof"] = stored.get("fair_value_asof")
 
         # ══ ودرجةُ الجودة تحمل تاريخَ قوائمها ══ (D384)
         # قِيس: 54 ورقةً في السوق الرئيسيّ قوائمُها أقدمُ من 200 يوم، ودرجةُ
@@ -476,7 +483,14 @@ def _attach_relative_valuation(rows: list[dict]) -> None:
         # في `_enrich_fundamentals` لا وجودَ له هنا، فيرفع NameError على
         # **كلّ صفّ** فتسقط الفجوةُ عن هدف المحلّلين من الفرز كلِّه. كشفه
         # مسبارٌ شغّل المسارَ على صفٍّ واحد بدل قراءة الشيفرة.
-        fv, px = r.get("fair_value"), r.get("price")
+        # فجوةُ هدفِ المحللين تبقى `upside_pct` كما كانت (لا تُكسَر شاشة)،
+        # وفجوةُ سعرِنا العادل حقلٌ مستقلٌّ باسمه (D386).
+        fv, px = r.get("analyst_target"), r.get("price")
+        _ourfv = r.get("fair_value")
+        r["fair_value_upside_pct"] = (
+            round((float(_ourfv) - float(px)) / float(px) * 100, 1)
+            if isinstance(_ourfv, (int, float)) and _ourfv > 0
+            and isinstance(px, (int, float)) and px > 0 else None)
         r["upside_pct"] = (round((float(fv) - float(px)) / float(px) * 100, 1)
                            if isinstance(fv, (int, float)) and fv > 0
                            and isinstance(px, (int, float)) and px > 0
@@ -747,9 +761,13 @@ async def refresh_derived(rows: list) -> list:
                     r["high_52w"] = round(max(r["high_52w"], px_new), 3)
                 if isinstance(r.get("low_52w"), (int, float)):
                     r["low_52w"] = round(min(r["low_52w"], px_new), 3)
-                _fv = r.get("fair_value")
+                _fv = r.get("analyst_target")
                 if isinstance(_fv, (int, float)) and _fv > 0:
                     r["upside_pct"] = round((_fv - px_new) / px_new * 100, 1)
+                _o = r.get("fair_value")
+                if isinstance(_o, (int, float)) and _o > 0:
+                    r["fair_value_upside_pct"] = round(
+                        (_o - px_new) / px_new * 100, 1)
         except Exception:                                         # noqa: BLE001
             pass
         try:

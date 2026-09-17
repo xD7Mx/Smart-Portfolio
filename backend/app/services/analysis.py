@@ -576,9 +576,35 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         # صفحة الشركة وتحليل الذكاء وسائر الأقسام. وتقديرُنا المحسوب يبقى
         # في `fair_value_detail` بمساراته لمن أراد تفصيلَه، ولا يُعرض رقماً
         # منافساً. ورقمٌ واحدٌ باسمٍ واحد هو المقصود.
-        "fair_value": _shown_fv,
-        "fair_value_source": _fv_source,
-        "fair_value_upside_pct": _analyst_up,
+        # ══ الاسمُ يعود لصاحبه ══ (D386 · بأمر المالك)
+        # قال: «هدفُ المحللين شيءٌ من ياهو، والسعرُ العادل شيءٌ آخرُ من
+        # صنعنا». وكان الاسمانِ ملتبسَين: `fair_value` = متوسّطُ أهداف
+        # بيوت الخبرة، وتقديرُ محرّكنا محجوبٌ في `fair_value_detail`،
+        # واسمُ «السعر العادل» معلَّقٌ على **أضعف** الثلاثة (المقارنةُ
+        # بمضاعفات القطاع). قِيس على 1120: نسبيٌّ 32.13 · محللون 74.95 ·
+        # محرّكُنا 104.72 — ثلاثةُ أحكامٍ متعارضةٍ باسمٍ واحد.
+        #
+        # فصار: **السعرُ العادل = تقديرُ محرّكنا** من قوائم الشركة ومعه
+        # مداه وثقتُه وتاريخُ أرقامه؛ وهدفُ المحللين حقلٌ مستقلٌّ باسمه
+        # ومصدرِه؛ والنسبيُّ إلى القطاع لا يلبس اسمَ السعر العادل.
+        "fair_value": _fv.get("value"),
+        "fair_value_source": ("محرّكُنا — قوائمُ الشركة"
+                              if _fv.get("value") is not None else None),
+        "fair_value_upside_pct": (
+            round((_fv["value"] - _px_now) / _px_now * 100, 1)
+            if _fv.get("value") and isinstance(_px_now, (int, float))
+            and _px_now else None),
+        "fair_value_low": _fv.get("low"),
+        "fair_value_high": _fv.get("high"),
+        "fair_value_conf": _fv.get("confidence"),
+        "fair_value_asof": _fv.get("data_asof"),
+        "fair_value_age_days": _fv.get("age_days"),
+        "fair_value_stale": _fv.get("stale"),
+        "fair_value_unavailable_reason": _fv.get("unavailable_reason"),
+        # وهدفُ بيوت الخبرة باسمه ومصدرِه — مسانِدٌ لا منافس
+        "analyst_target": _shown_fv,
+        "analyst_target_source": _fv_source,
+        "analyst_target_upside_pct": _analyst_up,
         # ══ حيث لا هدفَ لبيوت الخبرة ══ (D212 · D213)
         # ‎124 شركةً من ‎273 لا يُصدر لها أحدٌ توصية، فيبقى `fair_value`
         # فارغاً بحقّ. وتُشتقّ لها قيمةٌ نسبيةٌ إلى القطاع — حقلٌ مستقلٌّ

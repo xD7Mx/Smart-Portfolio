@@ -154,12 +154,25 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
             {/* العنوانُ يتبدّل مع مصدره: حيث لا هدفَ لبيوت الخبرة تُعرض
                 القيمةُ النسبيةُ إلى القطاع باسمها — لا يُقرأ مضاعفُ قطاعٍ
                 رأيَ محلّل (‏D213). */}
+            {/* ══ ثلاثةُ أرقامٍ لا يتزاحم اثنانِ منها على اسم ══ (D386)
+                قال المالك: «هدفُ المحللين شيءٌ من ياهو، والسعرُ العادل
+                شيءٌ آخرُ من صنعنا». وقِيس على 1120 أن الاسمَ الأثمنَ كان
+                معلَّقاً على أضعف الثلاثة: نسبيٌّ 32.13 · محللون 74.95 ·
+                محرّكُنا 104.72. فالترتيبُ معلَنٌ هنا صراحةً: سعرُنا العادل
+                أوّلاً باسمه ومعه ثقتُه وتاريخُ أرقامه، فإن امتنع محرّكُنا
+                فهدفُ المحللين **باسمه ومصدرِه**، فإن غاب فالنسبيُّ إلى
+                القطاع باسمه — ولا يلبس أحدُهما ثوبَ الآخر. */}
             <div className="text-[10px] text-[var(--ink-muted)] mb-1">
-              {data.fair_value == null && data.rel_value != null ? "السعر العادل" : "هدف المحللين"}
+              {data.fair_value != null ? "السعر العادل"
+               : data.analyst_target != null ? "هدف المحللين (ياهو)"
+               : data.rel_value != null ? "نسبيٌّ إلى القطاع" : "السعر العادل"}
             </div>
             {data.fair_value != null ? (
               <>
-                <div className="flex items-baseline gap-1.5">
+                <div className="flex items-baseline gap-1.5 flex-wrap"
+                  title={`محرّكُنا من قوائم الشركة · المدى ${fmt(data.fair_value_low)} – ${fmt(data.fair_value_high)}`
+                         + (data.fair_value_conf ? ` · ثقة ${data.fair_value_conf}` : "")
+                         + (data.fair_value_asof ? ` · أرقامٌ حتى ${data.fair_value_asof}` : "")}>
                   <span className="text-xl tabular-nums leading-none text-[var(--ink)]" style={{ fontWeight: 800 }}>{fmt(data.fair_value)}</span>
                   {data.fair_value_upside_pct != null && (
                     <span className="text-[11px] tabular-nums" dir="ltr"
@@ -167,8 +180,27 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                       {data.fair_value_upside_pct > 0 ? "+" : ""}{data.fair_value_upside_pct}%
                     </span>
                   )}
+                  {/* عمرُ الرقم جزءٌ منه (‏D380) */}
+                  {data.fair_value_asof && (
+                    <span className="text-[10px] tabular-nums" dir="ltr"
+                      style={{ color: data.fair_value_stale
+                                      ? "var(--warn-ink)" : "var(--ink-muted)" }}>
+                      {String(data.fair_value_asof).slice(0, 7)}
+                    </span>
+                  )}
                 </div>
               </>
+            ) : data.analyst_target != null ? (
+              <div className="flex items-baseline gap-1.5"
+                title="متوسّطُ أهداف بيوت الخبرة من ياهو — رأيُ محلّلين لا تقديرَ محرّكنا">
+                <span className="text-xl tabular-nums leading-none text-[var(--ink)]" style={{ fontWeight: 800 }}>{fmt(data.analyst_target)}</span>
+                {data.analyst_target_upside_pct != null && (
+                  <span className="text-[11px] tabular-nums" dir="ltr"
+                    style={{ color: data.analyst_target_upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
+                    {data.analyst_target_upside_pct > 0 ? "+" : ""}{data.analyst_target_upside_pct}%
+                  </span>
+                )}
+              </div>
             ) : (
               /* ══ الغيابُ يُذكر بسببه ══ (بأمر المالك · D200)
                  «غير متوفّرة» وحدَها تُقرأ عطباً في التطبيق. والسببُ هنا
@@ -182,7 +214,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                    مشتقّةٌ لا منقولة، ومعها نطاقُها ودرجةُ ثقتها. */
                 <>
                   <div className="flex items-baseline gap-1.5"
-                    title={`السعر العادل ${fmt(data.rel_low)} – ${fmt(data.rel_high)} · ثقة ${data.rel_conf} — لا هدفَ محلّلين لهذه الورقة`}>
+                    title={`نسبيٌّ إلى القطاع ${fmt(data.rel_low)} – ${fmt(data.rel_high)} · ثقة ${data.rel_conf} — مقارنةٌ بمضاعفات النظائر، لا تقديرُ محرّكنا ولا هدفُ محلّلين`}>
                     <span className="text-xl tabular-nums leading-none text-[var(--ink-muted)]" style={{ fontWeight: 800 }}>
                       {fmt(data.rel_value)}
                     </span>

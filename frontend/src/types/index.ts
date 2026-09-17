@@ -50,6 +50,19 @@ export interface Company {
   /* تاريخُ أحدثِ قائمةٍ ماليةٍ بُنيت عليها الدرجةُ وعمرُها — يُعرضان مع
      الرقم لا حاشيةً عنه (‏D380 · D384). */
   stmt_asof?: string;
+  /* الاسمُ يعود لصاحبه (‏D386): سعرُنا العادل من محرّكنا، وهدفُ
+     المحللين من ياهو حقلٌ مستقلٌّ باسمه ومصدرِه. */
+  analyst_target?: number | null;
+  analyst_target_source?: string | null;
+  analyst_target_upside_pct?: number | null;
+  analyst_target_asof?: string | null;
+  fair_value_low?: number | null;
+  fair_value_high?: number | null;
+  fair_value_conf?: string | null;
+  fair_value_asof?: string | null;
+  fair_value_age_days?: number | null;
+  fair_value_stale?: boolean | null;
+  fair_value_upside_pct?: number | null;
   stmt_age_days?: number;
   technical_score: number;
   logo_url?: string;
