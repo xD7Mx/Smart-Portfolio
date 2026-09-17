@@ -203,6 +203,22 @@ async def job_sector_betas():
         logger.error(f"Sector betas failed: {e}")
 
 
+async def job_valuation_sweep():
+    """درجةُ جودةٍ وسعرٌ عادلٌ لكلّ ورقةٍ في السوق — ليلياً (D387).
+
+    بأمر المالك: «جميعُ شركات السوق اجعل لها درجةً للجودة ودرجةً للسعر
+    العادل». ولا نداءَ خارجيّ: تُقرأ القوائمُ من الباب الواحد المخزَّن
+    واللقطةُ للسعر، فتكتمل أعمدةُ الفرز من عملنا لا من رقمٍ مستعار.
+    """
+    logger.info("🧮 Scheduler: market-wide quality + fair value sweep...")
+    try:
+        from app.services.market_valuation_sweep import sweep
+        rep = await sweep()
+        logger.info(f"🧮 مسحةُ التقييم: {rep}")
+    except Exception as e:                                        # noqa: BLE001
+        logger.error(f"Valuation sweep failed: {e}")
+
+
 async def job_risk_free():
     """المعدَّلُ الخالي من المخاطر بالريال — أسبوعياً (D249).
 
@@ -571,6 +587,15 @@ def start_scheduler():
     # المعدَّلُ الخالي من المخاطر — الجمعةَ بعد مزامنة الدليل بنصف ساعة:
     # نفسُ المضيفِ ونفسُ الجلسةِ المسخَّنة، وعائدُ صكٍّ عشريٍّ لا يتحرّك
     # في اليوم حركةً تُغيّر تقييماً.
+    # مسحةُ التقييم — بعد الإغلاق بساعةٍ ونصف في أيام التداول: القوائمُ
+    # والأسعارُ مستقرّةٌ، ولا تُزاحم نبضَ السوق أثناء الجلسة (D387).
+    _scheduler.add_job(
+        job_valuation_sweep,
+        CronTrigger(hour=17, minute=30, day_of_week=TRADING_DAYS),
+        id="valuation_sweep_daily",
+        replace_existing=True,
+    )
+
     _scheduler.add_job(
         job_risk_free,
         CronTrigger(day_of_week="fri", hour=4, minute=30),
