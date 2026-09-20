@@ -1,0 +1,72 @@
+# ─────────────────────────────────────────────────────────────────────────
+# تشغيلُ عملياتِ الخادم من المستودع — للمالك حين يكون بعيداً.
+#
+# لا يعمل هذا الملفُّ إلا على **عاملٍ مستضافٍ على خادم المالك**
+# (‏self-hosted runner)، فلا يصل أحدٌ إلى بياناته من خارجه. وما يُشغَّل
+# هو ما في هذا الملفّ وحدَه — يُراجَع في المستودع قبل أيّ تشغيل.
+#
+# ولا يبني حزمةً ولا يسلّم: البناءُ بإذنٍ صريحٍ من المالك وحدَه (بند
+# الميثاق الثالث)، واسمُها `spupdatechanged.tar.gz` بـ`scripts/package.sh`.
+# ─────────────────────────────────────────────────────────────────────────
+name: عملياتُ الخادم
+
+on:
+  workflow_dispatch:
+    inputs:
+      المهمة:
+        description: "ما الذي يُشغَّل على الخادم"
+        required: true
+        default: chain
+        type: choice
+        options:
+          - chain        # سلسلةُ المعلومة حلقةً حلقةً — قراءةٌ فقط
+          - audit        # لجنةُ كشف الأعطال — قراءةٌ فقط
+          - sample       # عيّنةُ كلّ قطاعٍ تُحاكم المحرّكَين
+          - sweep        # مسحةُ التقييم: درجةٌ وسعرٌ عادلٌ للـ273
+          - complete     # الدورةُ كاملةً بالترتيب
+      الحاوية:
+        description: "اسمُ حاوية الخادم"
+        required: false
+        default: sp_backend
+
+concurrency:
+  group: sp-ops
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: [self-hosted, smart-portfolio]
+    timeout-minutes: 60
+    steps:
+      - name: تسويةُ الشجرة على الفرع
+        run: |
+          cd ~/Smart-Portfolio
+          git fetch origin "${GITHUB_REF_NAME}"
+          git checkout FETCH_HEAD -- .
+          echo "الشجرةُ عند $(git rev-parse --short FETCH_HEAD)"
+
+      - name: التنفيذ
+        env:
+          C: ${{ inputs.الحاوية }}
+          T: ${{ inputs.المهمة }}
+        run: |
+          cd ~/Smart-Portfolio
+          set -u
+          case "$T" in
+            chain)
+              docker exec "$C" python /app/scripts/audit/chain_integrity.py ;;
+            audit)
+              bash scripts/audit/run.sh ;;
+            sample)
+              docker exec "$C" python \
+                /app/scripts/audit/sector_quality_sample.py --n 2 ;;
+            sweep)
+              docker exec "$C" python -c "
+import asyncio, sys; sys.path.insert(0,'/app')
+from app.services.market_valuation_sweep import sweep
+print(asyncio.run(sweep()))
+" ;;
+            complete)
+              bash scripts/ops/complete.sh ;;
+            *) echo "مهمّةٌ غيرُ معروفة: $T"; exit 2 ;;
+          esac
