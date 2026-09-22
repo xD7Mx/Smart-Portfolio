@@ -1113,17 +1113,15 @@ def compute(info: dict, price: float | None,
     if len(vals) >= 2 and min(vals) > 0 and max(vals) / min(vals) >= 3.0:
         out["dispersion"] = round(max(vals) / min(vals), 2)
         out["_all_vals"] = list(vals)
-        try:
-            from app.data.archetype_spec import VALUATION as _VAL_SPEC
-        except Exception:                                         # noqa: BLE001
-            _VAL_SPEC = {}
-        _spec = dict((_VAL_SPEC.get(archetype or "") or {}).get("weights") or {})
+        # ══ مصدرُ الأوزان واحدٌ: `WEIGHTS` أعلاه ══ (D405)
+        # كان هنا `_spec` يُقرأ من `VALUATION` ثمّ **لا يُستعمل**: فرعان
+        # متطابقان كلاهما يأخذ `WEIGHTS`. فالسلوكُ صحيحٌ — `WEIGHTS`
+        # مفرَّعةٌ بالنمط فوقَه — لكنّ الدعوى كاذبةٌ وتُضلّل من يقرأ:
+        # قارئٌ يحسب أنّ تعديلَ ملفّ المواصفة يغيّر الترجيح، ولا يغيّره.
+        # فحُذف الميّت، والمواصفةُ تبقى **وثيقةَ الهيكلة** يجب أن تُطابق
+        # ما هنا حرفاً — وحارسُها يقيس التطابق لا يأخذه تسليماً.
         _named = {k: v for k, v in buckets.items() if k in WEIGHTS}
-        if _spec and _named:
-            # أوزانُ المواصفة على المسارات المتاحة وحدَها، مُعادةَ التطبيع
-            _w = {k: WEIGHTS[k] for k in _named}
-        else:
-            _w = {k: WEIGHTS[k] for k in _named} if _named else {}
+        _w = {k: WEIGHTS[k] for k in _named} if _named else {}
         if _w:
             _s = sum(_w.values())
             out["value"] = round(
