@@ -464,6 +464,103 @@ def arbitrate(buckets: dict, vals: list) -> tuple[dict, list, str | None]:
     return keep, kv, why
 
 
+def risk_flags(archetype: str | None, periods: list[dict] | None,
+               info: dict | None = None) -> tuple[list[dict], list[str]]:
+    """شروطُ الخطر المُعلَنة — تُقاس وتُخفض الثقةَ ولا تمنع التقدير (‏D408).
+
+    ══ لماذا ══
+    في `archetype_spec.VALUATION` اثنتا عشرةَ قائمةِ `abstain_if`: رافعةٌ
+    فوق اثني عشر · خسارةُ سنتين · ريتٌ بلا توزيع · حقوقٌ سالبة · تغطيةُ
+    فوائدَ دون واحد… وقِيس أنّها **لا يقرؤها محرّكٌ واحد** (‏D405). فشركةٌ
+    حقوقُها سالبةٌ تخرج اليومَ بسعرٍ عادلٍ ثقتُه «مرتفعة» كأنّها سليمة —
+    وذاك أخطرُ من الامتناع: **رقمٌ واثقٌ على أرضٍ رخوة**، والقرارُ يُبنى
+    على الثقةِ لا على الرقم وحدَه.
+
+    ══ ولماذا خافضةً لا مانعة ══
+    قضى المالك: «جميعُ الشركات مُلزَمةٌ بالإفصاح فلا امتناعَ مفهوم»،
+    و«غيرُ متوفّر عجزُ بناءٍ من طرفك». فالخطرُ **يُسعَّر** لا يُسكَت عنه
+    ولا يُفرِّغ الخانة: يُعلَن باسمه، وتنزل الثقة، فيتّسع هامشُ الأمان
+    تلقائياً — أي **سعرُ دخولٍ أدنى**، وهو ترجمةُ الخطر التي تُفيد قراراً.
+
+    ══ وما لا يُقاس يُقال ══
+    شرطٌ لا تصله مدخلاتُه لا يُعَدّ سليماً ولا مخالفاً: يُعاد في القائمة
+    الثانية «غيرُ مقيس»، فلا تُقرأ الخضرةُ على أنّها شهادة.
+    """
+    try:
+        from app.data.archetype_spec import VALUATION as _V
+    except Exception:                                             # noqa: BLE001
+        return [], []
+    want = list((_V.get(archetype or "") or {}).get("abstain_if") or [])
+    if not want:
+        return [], []
+    ps = [p for p in (periods or []) if isinstance(p, dict)]
+    ps.sort(key=lambda p: str(p.get("as_of") or ""), reverse=True)
+    last = ps[0] if ps else {}
+    info = info or {}
+
+    def _n(src: dict, *keys):
+        for k in keys:
+            v = src.get(k)
+            if isinstance(v, (int, float)):
+                return float(v)
+        return None
+
+    eq = _n(last, "equity")
+    assets = _n(last, "total_assets")
+    ebit = _n(last, "ebit")
+    intx = _n(last, "interest_expense")
+    ni = [_n(p, "net_income") for p in ps[:3]]
+    div = _n(info, "dividend_rate", "dividend_yield", "trailing_annual_dividend_rate")
+
+    hit: list[dict] = []
+    unmeasured: list[str] = []
+
+    def _judge(code: str, bad: bool | None, text: str) -> None:
+        if bad is None:
+            unmeasured.append(code)
+        elif bad:
+            hit.append({"code": code, "نصّ": text})
+
+    for c in want:
+        if c == "negative_equity":
+            _judge(c, None if eq is None else eq < 0,
+                   "حقوقُ الملكية سالبة — الأساسُ الذي يُقاس عليه مفقود")
+        elif c == "no_roe":
+            _judge(c, (eq is None or ni[0] is None) or eq == 0,
+                   "لا عائدَ على الحقوق يُحسب — مدخلُه غائب")
+        elif c == "loss_last_year":
+            _judge(c, None if ni[0] is None else ni[0] < 0,
+                   "خسارةٌ في أحدث فترة")
+        elif c in ("two_loss_years", "three_years_negative_ccr"):
+            _vals = [v for v in ni[:2] if v is not None]
+            _judge(c, None if len(_vals) < 2 else all(v < 0 for v in _vals),
+                   "خسارةٌ في فترتين متتاليتين")
+        elif c in ("leverage_gt_12", "leverage_gt_9"):
+            lim = 12.0 if c.endswith("12") else 9.0
+            _lev = (assets / eq) if (assets and eq and eq > 0) else None
+            _judge(c, None if _lev is None else _lev > lim,
+                   f"الرافعةُ {_lev:.1f}× فوق حدّ الصنف {lim:.0f}×"
+                   if _lev else "")
+        elif c == "coverage_lt_1":
+            _cov = (ebit / intx) if (ebit is not None and intx) else None
+            _judge(c, None if _cov is None else _cov < 1.0,
+                   f"تغطيةُ الفوائد {_cov:.2f}× دون واحد" if _cov else "")
+        elif c == "no_dividend":
+            _judge(c, None if div is None else div <= 0,
+                   "ريتٌ بلا توزيعٍ — وتوزيعُه جوهرُ عائده")
+        elif c in ("negative_normalized_eps",):
+            _vals = [v for v in ni if v is not None]
+            _judge(c, None if not _vals else (sum(_vals) / len(_vals)) < 0,
+                   "متوسّطُ الأرباح سالبٌ عبر الفترات")
+        elif c == "negative_avg_profit":
+            _vals = [v for v in ni if v is not None]
+            _judge(c, None if not _vals else (sum(_vals) / len(_vals)) < 0,
+                   "متوسّطُ الربح سالب")
+        else:
+            unmeasured.append(c)
+    return hit, unmeasured
+
+
 def compute(info: dict, price: float | None,
             sector_avg_pe: float | None = None,
             sector_avg_pb: float | None = None,
@@ -1246,7 +1343,22 @@ def compute(info: dict, price: float | None,
                 "النسبةُ المجمّعة — جوهرُ اقتصاد شركة التأمين — لم تصلنا،"
                 " فالتقديرُ قائمٌ على الدخل المتبقّي ومضاعفِ الدفترية"
                 " وثقتُه منخفضةٌ ويُطلَب له هامشُ أمانٍ أوسع.")
-        _demote = (bool(out.get("excluded_penalty"))
+        # ══ شروطُ الخطر المُعلَنة تُقرأ أخيراً ══ (D408)
+        # كانت في الميثاق ولا يقرؤها محرّك. فتُقاس هنا، وتُعلَن بأسمائها،
+        # وتُخفض الثقةَ — ولا تمنع التقدير. والخطرُ يُسعَّر في هامش
+        # الأمان: ثقةٌ منخفضةٌ تعني سعرَ دخولٍ أدنى، وتلك ترجمتُه المفيدة.
+        _rf, _rf_unmeasured = risk_flags(archetype, periods, info)
+        if _rf:
+            out["risk_flags"] = _rf
+            out["risk_note"] = " · ".join(
+                x["نصّ"] for x in _rf if x.get("نصّ"))
+        if _rf_unmeasured:
+            # شرطٌ لا تصله مدخلاتُه لا يُعَدّ سليماً: يُعلَن غيرَ مقيس
+            # فلا تُقرأ الخضرةُ شهادةً.
+            out["risk_unmeasured"] = _rf_unmeasured
+
+        _demote = (bool(_rf)
+                   or bool(out.get("excluded_penalty"))
                    or bool(out.get("terminal_heavy"))
                    or bool(out.get("implausible"))
                    # خلافُ المسارات يُسعَّر ولا يُخفى: ثقتُه منخفضةٌ حتماً
@@ -1256,7 +1368,7 @@ def compute(info: dict, price: float | None,
                    or bool(out.get("asset_based")))
         out["confidence"] = ("منخفضة" if out.get("implausible")
                              or out.get("dispersion_demote") or _ins_no_cr
-                             or out.get("asset_based")
+                             or out.get("asset_based") or _rf
                              else "مرتفعة" if len(vals) >= 3 and spread <= 0.25 and not _demote
                              else "متوسطة" if len(vals) >= 2 and spread <= 0.5
                              else "منخفضة")
