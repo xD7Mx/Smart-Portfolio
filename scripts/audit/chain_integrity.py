@@ -106,7 +106,16 @@ async def main() -> int:
 
     # ── ٣ · الصنفُ من القطاع الرسميّ ──────────────────────────────────
     from app.services.statement_merge import archetype_of, official_sector
-    _probe = [s for s in (rows or {}) if not s.startswith("9")][:60]
+    # ══ وعيّنةٌ لا تمثّل ليست عيّنة ══ (D406)
+    # كانت `[:60]` تأخذ أوّلَ ستّين رمزاً بترتيب اللقطة — وهي من مطلع
+    # الترقيم، أي قطاعٌ أو قطاعان. فخرجت الحلقةُ الرابعةُ خضراءَ بـ
+    # «أصنافٌ=1»: تدّعي أنّ لكلّ صنفٍ **مستعمَلٍ** خريطةً وهي لم ترَ إلا
+    # صنفاً واحداً من اثني عشر. فالعيّنةُ تُؤخذ **بخطوةٍ ممتدّةٍ على
+    # الكون** لتمسّ مطلعَه ووسطَه وآخرَه — وهي ثابتةٌ لا عشوائية، فيُعاد
+    # القياسُ فيُعطي الجوابَ نفسه.
+    _all = sorted(s for s in (rows or {}) if not s.startswith("9"))
+    _step = max(1, len(_all) // 60)
+    _probe = _all[::_step][:60]
     # ══ ونجاحٌ على عيّنةٍ فارغةٍ ليس نجاحاً ══ (D402)
     # مرّت حلقاتُ 3 و4 و5 خضراءَ على «0/0» في بيئةٍ بلا لقطة — وذاك
     # ادّعاءُ سلامةٍ على لا شيء. فما لا عيّنةَ له يُعلَن «لم يُقَس».
@@ -128,10 +137,16 @@ async def main() -> int:
     nomap = [a for a in used if not (VALUATION.get(a) or {}).get("weights")
              and a != "fund"]
     if _probe:
-        (ok if not nomap else bad)(
+        import collections as _c
+        _dist = _c.Counter(archetype_of(s) for s in _probe)
+        # وعيّنةٌ تمسّ صنفاً واحداً لا تشهد لاثني عشر: تُعلَن ضيّقةً.
+        _narrow = len(used) < 4
+        (ok if (not nomap and not _narrow) else bad)(
             "٤ خريطةُ تقييمٍ لكلّ صنفٍ مستعمَل",
-            f"أصنافٌ={len(used)}"
-            + (f" · بلا خريطة: {nomap}" if nomap else ""))
+            f"أصنافٌ={len(used)} · التوزيع="
+            + "،".join(f"{a}:{n}" for a, n in _dist.most_common())
+            + (f" · بلا خريطة: {nomap}" if nomap else "")
+            + (" · عيّنةٌ ضيّقةٌ لا تشهد للكون" if _narrow else ""))
 
     # ── ٥ · القوائمُ المحفوظة ─────────────────────────────────────────
     from app.services import statement_merge as SM
