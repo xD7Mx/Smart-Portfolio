@@ -24,6 +24,13 @@ on:
           - sample       # عيّنةُ كلّ قطاعٍ تُحاكم المحرّكَين
           - sweep        # مسحةُ التقييم: درجةٌ وسعرٌ عادلٌ للـ273
           - complete     # الدورةُ كاملةً بالترتيب
+          - probe        # كاشفٌ واحدٌ باسمه من scripts/audit — قراءةٌ فقط
+      الكاشف:
+        description: >-
+          اسمُ ملفِّ الكاشف حين تكون المهمّةُ probe — من `scripts/audit`
+          وحدَها، بلا مسارٍ ولا معاملات. مثال: filing_types_door.py
+        required: false
+        default: ""
       الحاوية:
         description: "اسمُ حاوية الخادم"
         required: false
@@ -49,6 +56,7 @@ jobs:
         env:
           C: ${{ inputs.الحاوية }}
           T: ${{ inputs.المهمة }}
+          P: ${{ inputs.الكاشف }}
         run: |
           cd ~/Smart-Portfolio
           set -u
@@ -61,12 +69,25 @@ jobs:
               docker exec "$C" python \
                 /app/scripts/audit/sector_quality_sample.py --n 2 ;;
             sweep)
-              docker exec "$C" python -c "
-import asyncio, sys; sys.path.insert(0,'/app')
-from app.services.market_valuation_sweep import sweep
-print(asyncio.run(sweep()))
-" ;;
+              # أسطرُ بايثون تبقى **داخلَ** إزاحة كتلة YAML: كانت تبدأ من
+              # العمود صفر فتُنهي الكتلةَ، فلا يُحلَّل الملفُّ ولا يعمل
+              # سيرُ العمل أصلاً — عطبٌ صامتٌ لا يظهر إلا عند أوّل تشغيل.
+              docker exec "$C" python -c "$(printf '%s\n' \
+                "import asyncio, sys; sys.path.insert(0,'/app')" \
+                "from app.services.market_valuation_sweep import sweep" \
+                "print(asyncio.run(sweep()))")" ;;
             complete)
               bash scripts/ops/complete.sh ;;
+            probe)
+              # اسمٌ مجرّدٌ من `scripts/audit` وحدَها: لا مسارَ ولا معاملاتٍ
+              # ولا صَدَفة. فما يُشغَّل ملفٌّ مراجَعٌ في المستودع لا أمرٌ
+              # يُمرَّر من خارجه.
+              case "$P" in
+                ""|*/*|*' '*|*';'*|*'&'*|*'|'*|*'$'*|*'`'*)
+                  echo "اسمُ كاشفٍ غيرُ مقبول: [$P]"; exit 2 ;;
+              esac
+              [ -f "scripts/audit/$P" ] || {
+                echo "لا كاشفَ بهذا الاسم: $P"; exit 2; }
+              docker exec "$C" python "/app/scripts/audit/$P" ;;
             *) echo "مهمّةٌ غيرُ معروفة: $T"; exit 2 ;;
           esac
