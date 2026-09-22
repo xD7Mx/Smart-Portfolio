@@ -13,7 +13,11 @@ name: عملياتُ الخادم
 on:
   workflow_dispatch:
     inputs:
-      المهمة:
+      # ══ أسماءُ المُدخَلات لاتينيةٌ حتماً ══ (D407-ب)
+      # لغةُ تعابير GitHub (`inputs.x`) لا تقبل محرفاً غيرَ لاتينيّ،
+      # فاسمٌ عربيٌّ يُبطل الملفَّ كلَّه عند التشغيل لا عند الدفع.
+      # فالأسماءُ لاتينيةٌ والوصفُ عربيٌّ — وهو ما يراه المالك.
+      task:
         description: "ما الذي يُشغَّل على الخادم"
         required: true
         default: chain
@@ -25,13 +29,13 @@ on:
           - sweep        # مسحةُ التقييم: درجةٌ وسعرٌ عادلٌ للـ273
           - complete     # الدورةُ كاملةً بالترتيب
           - probe        # كاشفٌ واحدٌ باسمه من scripts/audit — قراءةٌ فقط
-      الكاشف:
+      probe_name:
         description: >-
           اسمُ ملفِّ الكاشف حين تكون المهمّةُ probe — من `scripts/audit`
           وحدَها، بلا مسارٍ ولا معاملات. مثال: filing_types_door.py
         required: false
         default: ""
-      الحاوية:
+      container:
         description: "اسمُ حاوية الخادم"
         required: false
         default: sp_backend
@@ -54,9 +58,9 @@ jobs:
 
       - name: التنفيذ
         env:
-          C: ${{ inputs.الحاوية }}
-          T: ${{ inputs.المهمة }}
-          P: ${{ inputs.الكاشف }}
+          C: ${{ inputs.container }}
+          T: ${{ inputs.task }}
+          P: ${{ inputs.probe_name }}
         run: |
           cd ~/Smart-Portfolio
           set -u

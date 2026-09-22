@@ -73,13 +73,38 @@ for f in files:
     check(not bad, f"٢ {f.name}: نحوُ صَدَفةِ كلّ خطوةٍ سليم",
           " · ".join(bad) if bad else f"{len(steps)} خطوةً")
 
-    # ── ٣ · وكلُّ مهمّةٍ معروضةٍ لها فرعٌ يُنفّذها ─────────────────────
+    # ── ٣ · وأسماءُ المُدخَلات لاتينيةٌ حتماً ──────────────────────────
+    # (‏D407-ب) لغةُ تعابير GitHub (`inputs.x`) لا تقبل محرفاً غيرَ
+    # لاتينيّ. واسمٌ عربيٌّ **يُحلَّل في YAML بلا شكوى** ثمّ يُبطل الملفَّ
+    # كلَّه عند أوّل تشغيل — فالحارسُ الذي يقف عند التحليل وحدَه يمرّره.
+    # قِيس: `inputs.المهمة` ردّ «Unexpected symbol» عند أوّل نداء.
     _on = doc.get("on") or doc.get(True) or {}
-    opts = (((_on.get("workflow_dispatch") or {}).get("inputs") or {})
-            .get("المهمة") or {}).get("options") or []
+    _ins = ((_on.get("workflow_dispatch") or {}).get("inputs") or {})
+    _nonascii = [k for k in _ins if not str(k).isascii()]
+    check(not _nonascii, f"٣ {f.name}: أسماءُ المُدخَلات لاتينية",
+          "، ".join(_nonascii) if _nonascii else f"{len(_ins)} مُدخَلاً")
+    # وكذلك كلُّ تعبيرٍ `${{ … }}` في الخطوات
+    _bad_expr = []
+    for s in steps:
+        for _seg in str(s.get("run", "")).split("${{")[1:]:
+            _e = _seg.split("}}")[0]
+            if not _e.isascii():
+                _bad_expr.append(_e.strip()[:40])
+    for _j in (doc.get("jobs") or {}).values():
+        for _s in (_j.get("steps") or []):
+            for _v in (_s.get("env") or {}).values():
+                for _seg in str(_v).split("${{")[1:]:
+                    _e = _seg.split("}}")[0]
+                    if not _e.isascii():
+                        _bad_expr.append(_e.strip()[:40])
+    check(not _bad_expr, f"٣ب {f.name}: كلُّ تعبيرٍ لاتينيٌّ يُقبَل في التنفيذ",
+          "، ".join(sorted(set(_bad_expr))) if _bad_expr else "")
+
+    # ── ٤ · وكلُّ مهمّةٍ معروضةٍ لها فرعٌ يُنفّذها ─────────────────────
+    opts = (_ins.get("task") or _ins.get("المهمة") or {}).get("options") or []
     body = "\n".join(s["run"] for s in steps)
     orphan = [o for o in opts if f"{o})" not in body]
-    check(not orphan, f"٣ {f.name}: كلُّ مهمّةٍ معروضةٍ لها فرعٌ ينفّذها",
+    check(not orphan, f"٤ {f.name}: كلُّ مهمّةٍ معروضةٍ لها فرعٌ ينفّذها",
           "، ".join(orphan) if orphan else f"{len(opts)} مهمّةً")
 
 print(("FAIL" if fail else "PASS")
