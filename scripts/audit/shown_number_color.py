@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""اللونُ يتبع الرقمَ المعروضَ لا حقلاً آخر (‏D404).
+
+    python3 scripts/audit/shown_number_color.py
+
+كان صفُّ التقييم في صفحة السهم يُبدّل **الرقمَ** والوسمَ بين حقلَين —
+سعرِنا العادل وهدفِ المحللين — ولا يُبدّل **نسبةَ الفرق** التي يُشتقّ
+منها اللون. فحين يُعرض هدفُ المحللين يُقرأ `fair_value_upside_pct` وهو
+غائب، فيخرج الرقمُ رمادياً محايداً ولو كان الهدفُ أعلى السعرَ بعشرين
+في المئة. لونٌ يكذب على قارئه، وهو أخطرُ من رقمٍ ناقص: الرقمُ الناقصُ
+يُرى، واللونُ الكاذبُ يُصدَّق بلا قراءة.
+
+ومعه بندٌ من الميثاق: حين يغيب الرقمان لا يُحذف الصفُّ صامتاً — يُقال
+«غير متوفّر». فالفراغُ الصامتُ يُقرأ «لا فرق»، والمالكُ يحارب الفراغ.
+
+## ما يُقاس
+
+  ١ · لا سطرَ يعرض رقمَ المحللين احتياطاً ويقرأ نسبةَ حقلنا وحدَها.
+  ٢ · وصفُّ التقييم يُعلن «غير متوفّر» حين يغيب الرقمان.
+  ٣ · والمعروضُ ونسبتُه يُحسبان مرّةً واحدةً — لا تعبيرٌ شرطيٌّ مكرّرٌ
+      ثلاثَ مرّاتٍ في سطر، فذاك ما سهّل نسيانَ أحدِها.
+"""
+from __future__ import annotations
+
+import pathlib
+import re
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+
+fail = 0
+
+
+def check(ok: bool, label: str, detail: str = "") -> None:
+    global fail
+    if not ok:
+        fail = 1
+    print(f"{'PASS' if ok else 'FAIL'} {label}" + (f" — {detail}" if detail else ""))
+
+
+def _front() -> pathlib.Path | None:
+    for base in (ROOT, pathlib.Path("/app"), pathlib.Path.cwd()):
+        c = base / "frontend" / "src"
+        if c.is_dir():
+            return c
+    return None
+
+
+FRONT = _front()
+if FRONT is None:
+    print("⚠ لا شجرةَ واجهةٍ في هذه البيئة — لم يُقَس")
+    sys.exit(0)
+
+
+def _strip_comments(text: str) -> str:
+    text = re.sub(r"/\*.*?\*/", lambda m: "\n" * m.group(0).count("\n"), text, flags=re.S)
+    return re.sub(r"//[^\n]*", "", text)
+
+
+# ── ١ · لا لونَ من حقلٍ غيرِ الحقلِ المعروض ────────────────────────────
+# واستثناءٌ **مُعلَنٌ في الشفرة** لا مسكوتٌ عنه: خانةُ «الفرصة» في صفحة
+# الذكاء تُخفّف لونَها بقصدٍ حين تعرض النسبةَ النسبيةَ بعلامة «≈» (‏D230
+# بأمر المالك: لا خانةً فارغة). فمن أراد استثناءً كتب `D404-مُعلَن` فوق
+# السطر، فيُرى الاستثناءُ في مراجعةِ الفرق ولا يمرّ صامتاً.
+MARK = "D404-مُعلَن"
+
+_mismatch = []
+for _f in sorted(FRONT.rglob("*.tsx")):
+    _raw = _f.read_text("utf-8").splitlines()
+    for _i, _ln in enumerate(_strip_comments(_f.read_text("utf-8")).splitlines(), 1):
+        if any(MARK in _raw[_j] for _j in range(max(0, _i - 4), min(len(_raw), _i))):
+            continue
+        # سطرٌ يعرض هدفَ المحللين (احتياطاً أو أصلاً) ويقرأ نسبةَ حقلنا
+        # وحدَها: لونٌ من حقلٍ لا يُعرض رقمُه.
+        # الجذرُ لا اللفظ: تعبيرُ اللون (`className` فيه `pos-ink`/`neg-ink`)
+        # لا يجوز أن يقرأ نسبةَ **حقلٍ بعينه**. يُحسَب المعروضُ ونسبتُه في
+        # متغيّرٍ واحدٍ فوقَ الصفّ، ويُلوّن منه. وكان الفحصُ السابقُ يقارن
+        # الحقلَين في السطر الواحد فمرّ العطبُ: السطرُ الطويلُ يحمل
+        # الحقلَين معاً، أحدُهما للون وأحدُهما للرقم.
+        if "className" not in _ln:
+            continue
+        if ("pos-ink" not in _ln) and ("neg-ink" not in _ln):
+            continue
+        for _fld in ("fair_value_upside_pct", "analyst_target_upside_pct",
+                     "rel_upside_pct"):
+            if _fld in _ln:
+                _mismatch.append((_f.name, _i, f"لونٌ من `{_fld}` مباشرةً: "
+                                               + _ln.strip()[:60]))
+                break
+for _n, _i, _t in _mismatch[:8]:
+    print(f"     {_n}:{_i}  {_t}")
+check(not _mismatch, "١ لا لونَ يتبع حقلاً غيرَ الرقمِ المعروض",
+      f"{len(_mismatch)} موضعاً")
+
+# ── ٢ · وغيابُ الرقمَين يُعلَن لا يُحذف ────────────────────────────────
+_sv = FRONT / "components" / "market" / "StockView.tsx"
+if not _sv.exists():
+    print("⚠ لا صفحةَ سهمٍ في هذه البيئة — لم يُقَس")
+else:
+    T = _sv.read_text("utf-8")
+    _at = T.find("هدف المحللين (ياهو)")
+    _blk = T[max(0, _at - 2000): _at + 2000] if _at >= 0 else ""
+    check("غير متوفّر" in _blk,
+          "٢ صفحةُ السهم: غيابُ الرقمَين يُعلَن «غير متوفّر» لا يُحذف صامتاً")
+
+    # ── ٣ · والمعروضُ ونسبتُه يُحسبان مرّةً واحدة ──────────────────────
+    _reps = sum(1 for _ln in _strip_comments(T).splitlines()
+                if _ln.count("data.fair_value != null ?") >= 2)
+    check(_reps == 0,
+          "٣ ولا تعبيرَ شرطياً مكرّراً في سطرٍ واحدٍ يفرّق الرقمَ عن لونه",
+          f"{_reps} سطراً" if _reps else "")
+
+print(("FAIL" if fail else "PASS")
+      + " D404 — اللونُ يتبع الرقمَ المعروض، والغيابُ يُعلَن")
+sys.exit(fail)

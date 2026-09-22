@@ -109,7 +109,10 @@ function PortfolioInsight() {
                       : c.analyst_target != null ? c.analyst_target.toFixed(2)
                       : c.rel_value != null ? c.rel_value.toFixed(2) : "—"}</div></div>
                   {/* والفرصةُ كالقيمة: حيث لا هدفَ محلّلين تُقاس عن القيمة
-                      النسبية بعلامة «≈» ولونٍ خافت — لا خانةً فارغة (D230). */}
+                      النسبية بعلامة «≈» ولونٍ خافت — لا خانةً فارغة (D230).
+                      D404-مُعلَن: خفوتُ اللون هنا **مقصودٌ** ويعني «تقديرٌ
+                      نسبيٌّ لا هدفٌ منشور» — لا نسيانَ حقلٍ كما في عطب
+                      صفحة السهم. والاستثناءُ مكتوبٌ ليُرى في الفرق. */}
                   <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">الفرصة</div><div className="font-bold text-xs" style={{ color: c.upside_pct != null ? (c.upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)") : "var(--ink-muted)" }}>{c.upside_pct != null ? `${c.upside_pct >= 0 ? "+" : ""}${c.upside_pct}%` : c.rel_upside_pct != null ? `≈${c.rel_upside_pct >= 0 ? "+" : ""}${c.rel_upside_pct}%` : "—"}</div></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 pt-1 border-t border-[var(--hairline)]">

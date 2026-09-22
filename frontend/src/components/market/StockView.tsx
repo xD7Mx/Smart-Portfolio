@@ -229,16 +229,32 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
               {/* الاسمُ يعود لصاحبه (‏D386): هذا حقلُ **سعرِنا العادل** من
                   محرّكنا، فيُسمّى باسمه؛ وهدفُ المحللين من ياهو حقلٌ آخر
                   يُعرض باسمه ومصدرِه حين يوجد. */}
-              {(data.fair_value != null || data.analyst_target != null) && (
-                <div className="flex items-center gap-2 flex-wrap text-[11px]">
-                  <span className="text-[var(--ink-muted)]">
-                    {data.fair_value != null ? "السعر العادل" : "هدف المحللين (ياهو)"}
-                  </span>
-                  <span className={"font-bold tabular-nums " + ((data.fair_value_upside_pct ?? 0) > 0 ? "text-[var(--pos-ink)]" : (data.fair_value_upside_pct ?? 0) < 0 ? "text-[var(--neg-ink)]" : "text-[var(--ink-muted)]")}>
-                    {fmt(data.fair_value ?? data.analyst_target)} ﷼{(data.fair_value != null ? data.fair_value_upside_pct : data.analyst_target_upside_pct) != null && ` (${(data.fair_value != null ? data.fair_value_upside_pct! : data.analyst_target_upside_pct!) > 0 ? "+" : ""}${data.fair_value != null ? data.fair_value_upside_pct : data.analyst_target_upside_pct}%)`}
-                  </span>
-                </div>
-              )}
+              {/* واللونُ يتبع الرقمَ المعروضَ لا حقلاً آخر (‏D404): كان
+                  الصفُّ يلوّن بـ`fair_value_upside_pct` حتى حين يكون
+                  المعروضُ هدفَ المحللين، فيخرج رمادياً محايداً ولو كان
+                  الهدفُ أعلى السعرَ — لونٌ يكذب على قارئه. وحين يغيب
+                  الرقمان لا يُحذف الصفُّ صامتاً: يُقال «غير متوفّر». */}
+              {(() => {
+                const ours = data.fair_value != null;
+                const shown = ours ? data.fair_value : data.analyst_target;
+                const up = ours ? data.fair_value_upside_pct : data.analyst_target_upside_pct;
+                if (shown == null) return (
+                  <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                    <span className="text-[var(--ink-muted)]">السعر العادل</span>
+                    <span className="font-bold text-[var(--ink-muted)]">غير متوفّر</span>
+                  </div>
+                );
+                return (
+                  <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                    <span className="text-[var(--ink-muted)]">
+                      {ours ? "السعر العادل" : "هدف المحللين (ياهو)"}
+                    </span>
+                    <span className={"font-bold tabular-nums " + ((up ?? 0) > 0 ? "text-[var(--pos-ink)]" : (up ?? 0) < 0 ? "text-[var(--neg-ink)]" : "text-[var(--ink-muted)]")}>
+                      {fmt(shown)} ﷼{up != null && ` (${up > 0 ? "+" : ""}${up}%)`}
+                    </span>
+                  </div>
+                );
+              })()}
               {/* متوسط السعر المتحرّك أُسقط من هنا بأمر المالك: لا يعنيه،
                   ووجودُه بجانب القيمة العادلة يُغري بالخلط بينهما. وهو
                   باقٍ في «التحليل الفني» حيث يخصّ. */}

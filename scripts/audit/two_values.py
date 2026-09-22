@@ -74,12 +74,25 @@ def _strip_comments(text: str) -> str:
     return re.sub(r"//[^\n]*", "", text)
 
 
+# ── والحارسُ نفسُه شاخ مع الإصلاح ─────────────────────────────── (D403)
+# كان شرطُه `_analyst = "fair_value" in _ln`، وكان صحيحاً **قبل D386**
+# يومَ كان الحقلُ `fair_value` يحمل رقمَ المحلّلين المستعار. فلمّا أُعيد
+# الاسمُ لصاحبه صار الحقلُ رقمَنا، فانقلب الحارس: يُدين الصوابَ
+# (`fair_value != null ? "السعر العادل" : "هدف المحللين (ياهو)"`) ويصمت
+# عن الخطأ. وقِيس: ثلاثةُ مواضعَ سليمةٍ تُدان، فطارد المصلحُ طيفاً.
+#
+# والمخالفةُ بشكلها لا بلفظها: سطرٌ ينطق باللقب ويُسنده إلى حقل **الهدف**
+# (‏`analyst_target` · `target_mean_price`) **بلا** ذكرِ حقلنا على السطر
+# نفسه — أي بلا مبدِّلٍ يفصل الرقمَين. فذكرُ حقلنا هو الفصلُ عينُه.
+_ANALYST_FIELDS = ("analyst_target", "target_mean_price")
+_OURS = "fair_value"
+
 _bad = []
 for _f in FRONT.rglob("*.tsx"):
     for _i, _ln in enumerate(_strip_comments(_f.read_text(encoding="utf-8")).splitlines(), 1):
         _titled = "السعر العادل" in _ln or "القيمة العادلة" in _ln
-        _analyst = ("fair_value" in _ln or "target_mean_price" in _ln)
-        _declares = "rel_" in _ln
+        _analyst = any(_k in _ln for _k in _ANALYST_FIELDS)
+        _declares = ("rel_" in _ln) or (_OURS in _ln)
         if _titled and _analyst and not _declares:
             _bad.append((_f.name, _i, _ln.strip()[:70]))
         # و«القيمة العادلة» تبقى محجوزةً للمحرّك المغلق: لا تُعرض لفظاً.
