@@ -236,6 +236,10 @@ python3 scripts/audit/one_fair_value_shown.py || _note "$LINENO"
 # وللسوق الرئيسيّ وحدَه.
 python3 scripts/audit/sector_map_all_scores.py || _note "$LINENO"
 
+# D433: لكلّ نمطٍ في المواصفة أركانٌ في مجلس الخبراء — `consumer_cyclical`
+# كان غائباً فحُبست درجاتُ خمسَ عشرةَ شركةً قوائمُها كاملة.
+python3 scripts/audit/every_archetype_has_pillars.py || _note "$LINENO"
+
 # D160 (عودة): لا فحصَ في اللجنة يكتب في بيانات المالك المتتبَّعة. عولج
 # في أربعة سكربتاتٍ وتخلّف `rank_check` فعاد يلوّث lastgood.json ويمنع
 # بناءَ الحزمة. فالحارسُ يقرأ قائمةَ اللجنة من run.sh نفسِه ويشترط تحويلَ

@@ -144,8 +144,13 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                   </span>
                 )}
               </div>
-            ) : (
+            ) : fin.has_statements === false ? (
               <div className="text-base text-[var(--ink-muted)]" style={{ fontWeight: 700 }}>بانتظار القوائم</div>
+            ) : (
+              /* ══ القوائمُ وصلت والدرجةُ لم تُمنح: «—» لا «بانتظار القوائم» ══
+                 (‏D433) رآه المالك في 4071: سعرٌ عادلٌ من قوائمها وبجانبه
+                 «بانتظار القوائم» — وصفٌ كاذبٌ لسببٍ آخر. */
+              <div className="text-xl tabular-nums leading-none text-[var(--ink-muted)]" style={{ fontWeight: 800 }}>—</div>
             )}
           </div>
 
@@ -187,9 +192,6 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
             سعرُ الدخول مشتقٌّ من هامش أمانٍ يخصّ محرّكاً لا يُعرض، وحكمُه
             («دون سعر الدخول» · «فوق القيمة العادلة») يقول ما يقوله القرارُ
             نفسُه بلفظٍ آخر. والقرارُ باقٍ في موضعه من البطاقة أعلاه. */}
-        {data.evaluable === false && (
-          <div className="text-[11px] text-[var(--ink-muted)] mt-2 px-1">بانتظار وصول القوائم</div>
-        )}
       </div>
 
       {/* ══ أرقامٌ وعناوين — لا شرحَ ولا تبرير ══ (بأمر المالك)

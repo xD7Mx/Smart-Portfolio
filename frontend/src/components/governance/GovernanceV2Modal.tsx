@@ -89,7 +89,7 @@ export default function GovernanceV2Modal({ symbol, name, onClose }: { symbol: s
                 <div className="flex items-center justify-between p-2.5 rounded-xl"
                      style={{ background: "transparent", border: "1px solid var(--hairline)" }}>
                   <span className="text-[11px] text-[var(--ink-muted)]">خلاصة المجلس</span>
-                  <span className="text-sm font-medium text-[var(--ink-muted)]">بانتظار القوائم</span>
+                  <span className="text-sm font-medium text-[var(--ink-muted)]">—</span>
                 </div>
                 <p className="text-[11px] text-[var(--ink-muted)] leading-relaxed mt-2">{data.decision?.reason || "البيانات المتاحة لا تكفي لحكم موثوق بمعايير الخبراء."}</p>
               </div>

@@ -205,7 +205,7 @@ function HoldingsHeatmap({ rows, onOpenV2 }: { rows: any[]; onOpenV2: (symbol: s
                     {r.sharia_status === "NON_COMPLIANT" && <span className="tag-r shrink-0">غير متوافقة</span>}
                   </div>
                   {r.insufficient_data ? (
-                    <div className="mt-1.5 text-[10px] text-[var(--ink-muted)]">بانتظار وصول القوائم</div>
+                    <div className="mt-1.5 text-[10px] text-[var(--ink-muted)]">—</div>
                   ) : (
                     <div className="h-1.5 rounded-full bg-[var(--surface)] mt-1.5">
                       <div className="h-1.5 rounded-full" style={{ width: `${r.finance_score ?? 0}%`, background: scoreColor(r.finance_score) }} />
