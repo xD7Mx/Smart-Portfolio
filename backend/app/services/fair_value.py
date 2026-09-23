@@ -676,32 +676,6 @@ def compute(info: dict, price: float | None,
     # (‏`_ttm_from`): أرباعُ سنةٍ كاملةٍ تُقارَن بسنويّها المنشور، فإن
     # تطابقا في حدود العُشر فالأرباعُ منفصلةٌ وجمعُها صحيح. وما لم
     # يُتحقَّق منه لا يُستعمَل — ويُقال لماذا.
-    _ttm = ttm if isinstance(ttm, dict) else None
-    if _ttm and not _ttm.get("unverified"):
-        _te = _ttm.get("eps")
-        # ══ وبوّابةُ معقوليةٍ على الربحية نفسِها ══ (D415)
-        # قِيس على الكون: المسارُ نال ‎3 من ‎273، وأحدُ الثلاثة خرج
-        # بربحيةِ سهمٍ **7,184.76 ريالاً** — مستحيلٌ في سهمٍ سعرُه عشرات.
-        # وسببُه عددُ أسهمٍ بوحدةٍ مغلوطةٍ في صفّ الربع. فالتحقّقُ من
-        # **الجمع** لا يكفي: رقمٌ صحيحُ الجمعِ قد يكون معطوبَ المقام.
-        # فتُقاس الربحيةُ بالسعر: ما يفوقه ثلاثةَ أضعافٍ ليس ربحيةَ سهمٍ
-        # بل خطأُ وحدة، ويُرفَض ويُسمّى — ولا يُستعمل في مضاعفٍ ولا قيمة.
-        if (isinstance(_te, (int, float)) and price and price > 0
-                and abs(_te) > price * 3):
-            out["eps_ttm_rejected"] = (
-                f"ربحيةُ اثني عشرَ شهراً {_te:,.2f} تفوق السعرَ "
-                f"{price:,.2f} بـ{abs(_te) / price:,.0f}× — خطأُ وحدةٍ في "
-                f"عدد الأسهم لا ربحيةٌ، فلم تُستعمل")
-            _te = None
-        if isinstance(_te, (int, float)) and _te != 0:
-            out["eps_ttm"] = round(_te, 4)
-            out["eps_ttm_quarters"] = _ttm.get("quarters")
-            out["eps_source"] = (
-                f"اثنا عشرَ شهراً حتى {_ttm.get('as_of')} — "
-                f"مُتحقَّقٌ بسنة {_ttm.get('verified_on')}")
-            eps = _te
-    elif _ttm and _ttm.get("note"):
-        out["eps_ttm_note"] = _ttm["note"]
     bvps = num("book_value")
     # ══ ودفتريةٌ ألفَ ضعفِ السعر ليست فرصةً بل خطأُ وحدة ══ (D392)
     #
@@ -724,6 +698,7 @@ def compute(info: dict, price: float | None,
     # ويُقال إنه رُفض ولماذا. والرفضُ هنا أصدقُ من وسمٍ على رقمٍ يُعرَض.
     _bv_note = None
     _bv_stmt = None
+    _sh_ok = None            # عددُ الأسهم الذي اجتاز شروطَ القوائم
     # ══ والميزانيةُ من أحدثِ إفصاحٍ لا من أحدثِ سنة ══ (D412-ب)
     # حقوقُ الملكية **رقمٌ عند لحظة** لا مجموعُ فترة، فأحدثُ ربعٍ منشورٍ
     # أصدقُ من ختام سنةٍ مضى عليها ثلاثةُ أرباع. وقِيس أنّ ‎25 من ‎30
@@ -739,6 +714,7 @@ def compute(info: dict, price: float | None,
                 and not _lq.get("shares_unit_gap")
                 and not _lq.get("shares_mismatch")):
             _bv_stmt = _eq / _sh
+            _sh_ok = _sh
             out["book_value_from_quarter"] = str(_lq.get("as_of") or "")[:10]
     for _p in ([] if _bv_stmt else reversed(periods or [])):
         _eq, _sh = _p.get("equity"), _p.get("shares_outstanding")
@@ -747,6 +723,7 @@ def compute(info: dict, price: float | None,
                 and not _p.get("shares_unit_gap")
                 and not _p.get("shares_mismatch")):
             _bv_stmt = _eq / _sh
+            _sh_ok = _sh
             break
     if bvps and _bv_stmt and _bv_stmt > 0 and out.get("book_value_from_quarter"):
         # ══ والرسميُّ المدقَّق يتقدّم المزوّد بلا عتبة ══ (D412-ب)
@@ -799,6 +776,48 @@ def compute(info: dict, price: float | None,
     # وكلُّ تصحيحٍ يُعلَن — الصامتُ ممنوعٌ في الميثاق
     if _bv_note:
         out["book_value_note"] = _bv_note
+
+    _ttm = ttm if isinstance(ttm, dict) else None
+    if _ttm and not _ttm.get("unverified"):
+        _te = _ttm.get("eps")
+        # ══ والمقامُ من مصدرٍ مُتحقَّقٍ لا من صفٍّ كما جاء ══ (D418-ب)
+        # قِيس بعد أوّل إصلاح: **34 من 195** ربحيةً ما زالت بالمئات، بل
+        # ساء أحدُها (‎1050: من ‎1.95 إلى ‎2,210) — فعددُ الأسهم مغلوطٌ في
+        # **السنويّ أيضاً**، والسقوطُ إليه زاد العطب. فالمخزَنُ نفسُه
+        # غيرُ موثوقٍ في هذا الحقل لهذه الرموز.
+        # والمحرّكُ يملك مقاماً **اجتاز شروطَ القوائم** أصلاً: ذاك الذي
+        # بُنيت عليه الدفترية (‏حقوقٌ موجبةٌ · أسهمٌ موجبةٌ · لا فجوةَ
+        # وحدةٍ ولا تضارب). فيُعاد حسابُ الربحية عليه، ولا يُؤخذ رقمٌ
+        # حسبه غيرُنا من مقامٍ لم يُتحقَّق منه.
+        _tni = _ttm.get("net_income")
+        if (isinstance(_tni, (int, float)) and isinstance(_sh_ok, (int, float))
+                and _sh_ok > 0):
+            _te = _tni / _sh_ok
+            out["eps_ttm_denominator"] = "المقامُ المُتحقَّقُ من القوائم"
+        # ══ وبوّابةُ معقوليةٍ على الربحية نفسِها ══ (D415)
+        # قِيس على الكون: المسارُ نال ‎3 من ‎273، وأحدُ الثلاثة خرج
+        # بربحيةِ سهمٍ **7,184.76 ريالاً** — مستحيلٌ في سهمٍ سعرُه عشرات.
+        # وسببُه عددُ أسهمٍ بوحدةٍ مغلوطةٍ في صفّ الربع. فالتحقّقُ من
+        # **الجمع** لا يكفي: رقمٌ صحيحُ الجمعِ قد يكون معطوبَ المقام.
+        # فتُقاس الربحيةُ بالسعر: ما يفوقه ثلاثةَ أضعافٍ ليس ربحيةَ سهمٍ
+        # بل خطأُ وحدة، ويُرفَض ويُسمّى — ولا يُستعمل في مضاعفٍ ولا قيمة.
+        if (isinstance(_te, (int, float)) and price and price > 0
+                and abs(_te) > price * 3):
+            out["eps_ttm_rejected"] = (
+                f"ربحيةُ اثني عشرَ شهراً {_te:,.2f} تفوق السعرَ "
+                f"{price:,.2f} بـ{abs(_te) / price:,.0f}× — خطأُ وحدةٍ في "
+                f"عدد الأسهم لا ربحيةٌ، فلم تُستعمل")
+            _te = None
+        if isinstance(_te, (int, float)) and _te != 0:
+            out["eps_ttm"] = round(_te, 4)
+            out["eps_ttm_quarters"] = _ttm.get("quarters")
+            out["eps_source"] = (
+                f"اثنا عشرَ شهراً حتى {_ttm.get('as_of')} — "
+                f"مُتحقَّقٌ بسنة {_ttm.get('verified_on')}")
+            eps = _te
+    elif _ttm and _ttm.get("note"):
+        out["eps_ttm_note"] = _ttm["note"]
+
     roe = num("roe")
     if roe is None and bvps:
         for _p in reversed(periods or []):

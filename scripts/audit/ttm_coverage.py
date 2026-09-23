@@ -61,11 +61,12 @@ def main() -> int:
             # لا بالمئات. فما تجاوز المئةَ مقامُه معطوبٌ على الأرجح —
             # وهو غربالٌ **تقريبيّ** لا حكم، والبوّابةُ الحقيقيةُ في
             # المحرّك تقيس بالسعر لا بعتبةٍ عامّة.
-            _e = t.get("eps")
-            if isinstance(_e, (int, float)) and abs(_e) > 100:
-                tally["منها: ربحيةٌ مشبوهةُ المقام"] += 1
+            # والربحيةُ لا تُحسب هنا (‏D418-ب): تُحسب في المحرّك بمقامٍ
+            # واحدٍ مُتحقَّقٍ منه. فيُقاس هنا **صافي الربح** وحدَه.
+            if not isinstance(t.get("net_income"), (int, float)):
+                tally["منها: بلا صافي ربحٍ مجموع"] += 1
             ok_rows.append((s, t.get("as_of"), t.get("verified_on"),
-                            t.get("eps")))
+                            t.get("net_income")))
 
     print(f"الكون: {len(syms)} رمزاً في السوق الرئيسيّ\n")
     for k, v in tally.most_common():
@@ -75,7 +76,7 @@ def main() -> int:
           f" ({got * 100 // max(1, len(syms))}٪)")
     for s, a, y, e in ok_rows[:15]:
         print(f"    {s}  حتى {a}  · مُتحقَّقٌ بسنة {y}"
-              + (f" · ربحيةُ سهم {e:,.3f}" if isinstance(e, (int, float)) else ""))
+              + (f" · صافي ربحٍ {e:,.0f}" if isinstance(e, (int, float)) else ""))
     if got == 0:
         print("\nالحكم: المسارُ **لا يعمل على أحد** — شرطُ التحقّق صارمٌ"
               " والمخزَنُ لا يحمل ما يُتحقَّق به. فلا يُدَّعى عاملاً،"

@@ -176,9 +176,13 @@ def _ttm_from(quarters: list[dict], annual: list[dict]) -> dict | None:
         out["shares_outstanding"] = _sh
         out["shares_from"] = _name
         break
-    _ni, _sh = out.get("net_income"), out.get("shares_outstanding")
-    if isinstance(_ni, (int, float)) and isinstance(_sh, (int, float)) and _sh > 0:
-        out["eps"] = _ni / _sh
+    # ══ ولا تُحسب الربحيةُ هنا ══ (D418-ب)
+    # حُسبت هنا أوّلاً بمقامٍ من صفّ الربع، فخرجت ‎34 من ‎195 بالمئات —
+    # وعلاجُها بالسقوط إلى السنويّ **زادها** (‏1050: من ‎1.95 إلى
+    # ‎2,210). فالمخزَنُ غيرُ موثوقٍ في هذا الحقل، والمحرّكُ يملك مقاماً
+    # اجتاز شروطَ القوائم أصلاً — ذاك الذي بُنيت عليه الدفترية.
+    # فيُسلَّم **صافي الربح** وحدَه، وتُحسب الربحيةُ هناك بمقامٍ واحدٍ
+    # مُتحقَّقٍ منه. ورقمان لمعنًى واحدٍ يتناقضان حتماً.
     return out
 
 
