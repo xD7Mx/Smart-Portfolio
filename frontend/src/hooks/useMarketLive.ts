@@ -41,7 +41,25 @@ export function useMarketPhase(): Phase {
     staleTime: 10_000,
   });
   const st = String(data?.market_status || "closed");
+  // و«عطلة» ليست طوراً في جدول المهل: نبضُها نبضُ المغلق (لا استطلاعَ
+  // متسارعٌ في يومٍ بلا جلسة)، والتمييزُ بينهما للعرض لا للمهلة.
   return (["pre", "open", "preclose", "closed"].includes(st) ? st : "closed") as Phase;
+}
+
+/** الحالةُ كما يقولها الخادمُ **بلا تحويل** — ومعها سببُها إن زاد على
+ *  ما يعرفه التقويم. تقرؤها الشاشاتُ التي تَعرض الحالةَ نفسَها (الساعةُ
+ *  والنبض) من هذا الاستعلام الواحد — لا نداءَ ثانٍ ولا مصدرَ ثانٍ. */
+export function useMarketStatus(): { status: string | null; why: string | null } {
+  const { data } = useQuery({
+    queryKey: ["server-time"],
+    queryFn: () => settingsApi.serverTime().then(r => r.data.data),
+    refetchInterval: 20_000,
+    staleTime: 10_000,
+  });
+  return {
+    status: (data?.market_status as string) ?? null,
+    why: (data?.market_status_evidence as string) ?? null,
+  };
 }
 
 /** مهلةُ التحديث المناسبةُ للطور الحاضر — تُمرَّر إلى `refetchInterval`. */

@@ -11,7 +11,8 @@ import StockSheet from "../components/market/StockSheet";
 import InlineStockSearch from "../components/market/InlineStockSearch";
 import CompanyDirectory from "../components/market/CompanyDirectory";
 import SpecialDeals from "../components/market/SpecialDeals";
-import { useLiveInterval } from "../hooks/useMarketLive";
+import { useLiveInterval, useMarketStatus } from "../hooks/useMarketLive";
+import { statusView } from "../lib/marketStatus";
 import { useLiveIndex } from "../hooks/useLivePrices";
 import CompanyLogo from "../components/common/CompanyLogo";
 import { FairValueBar, SafetyBar, fairValueTier, safeColor } from "../components/common/ValueBars";
@@ -126,6 +127,8 @@ function PulseCard({ summary, tasi: tasiQ, brent, movers, onSearch }:
      تُبطئ الشاشةُ سؤالَها — فيتجمّد الرقمُ تحت وسمٍ يقول إنه مباشر.
      فالمؤشّرُ يُقرأ مدفوعاً حين يصل، ومن الاستعلام حين لا يصل. */
   const liveIdx = useLiveIndex();
+  const { status: pulseStatus, why: pulseWhy } = useMarketStatus();
+  const pulseSt = statusView(pulseStatus);
   const tasi = liveIdx
     ? { ...(tasiQ || {}), price: liveIdx[0],
         change_pct: liveIdx[1] ?? tasiQ?.change_pct }
@@ -159,12 +162,22 @@ function PulseCard({ summary, tasi: tasiQ, brent, movers, onSearch }:
         {/* دليلُ الشركات — بجانب علامة البحث (بأمر المالك · D256).
             البحثُ لمن يعرف ما يريد، والدليلُ لمن يتصفّح السوق. */}
         {onSearch && <CompanyDirectory onPick={onSearch} />}
-        {/* ══ حالةُ السوق تُحذف من هذه البطاقة ══ (بأمر المالك · D302)
-            كانت حالتان في بطاقةٍ واحدة: وسمٌ مشتقٌّ من طورِ خلاصة الذكاء
-            («جلسة مباشرة») ونقطةُ حالةٍ من حاكم الأطوار («السوق مغلق»).
-            ومصدرانِ لمعنًى واحدٍ يتناقضان حتماً — وقد رآهما المالكُ
-            يتناقضان بعينه. والحالةُ معروضةٌ أصلاً في لسان الشريط من
-            الحاكم الواحد، فلا تُعاد هنا بمصدرٍ ثانٍ. */}
+        {/* ══ وعادت الحالةُ — من الحاكم الواحد ══ (بأمر المالك)
+            حُذفت من هنا في D302 لأنّها كانت من **مصدرَين** يتناقضان:
+            وسمٌ مشتقٌّ من طور خلاصة الذكاء ونقطةٌ من حاكم الأطوار. ثم
+            أمر المالكُ بإعادتها «مثل الساعة»، والإعادةُ صوابٌ الآن لأنّ
+            المصدرَ صار واحداً: `/settings/server-time` ← `market_state`
+            الذي يسأل تداولَ نفسَها. والأسماءُ والألوانُ من `marketStatus`
+            وحدَه فلا تُنسَخ فتختلف. و«عطلة» حالٌ مستقلّةٌ عن «مغلق». */}
+        {pulseSt && (
+          <span className="flex items-center gap-1.5" title={pulseWhy || undefined}>
+            <span className="inline-block rounded-full"
+              style={{ width: 7, height: 7, background: pulseSt.color }} />
+            <span className="text-[11px] font-bold" style={{ color: pulseSt.color }}>
+              {pulseSt.label}
+            </span>
+          </span>
+        )}
         {summary?.generated_at && (
           <span className="text-[10px] text-[var(--ink-muted)] mr-auto">
             {new Date(summary.generated_at).toLocaleTimeString("ar-SA-u-ca-gregory-nu-latn", { hour: "2-digit", minute: "2-digit" })}

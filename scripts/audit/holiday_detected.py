@@ -90,7 +90,7 @@ except Exception as e:                                            # noqa: BLE001
     print(f"⚠ تعذّر حسابُ الحالة ({type(e).__name__}) — لم يُقَس")
     st = None
 if isinstance(st, dict):
-    check(st.get("status") in ("open", "pre", "preclose", "closed"),
+    check(st.get("status") in ("open", "pre", "preclose", "closed", "holiday"),
           "٤ الحالةُ من المفردات المعروفة", str(st.get("status")))
     check(bool(st.get("source")), "٤ب ومعها مصدرُها", str(st.get("source")))
     check(bool(st.get("evidence")), "٤ج ودليلُها", str(st.get("evidence")))
@@ -99,6 +99,40 @@ if isinstance(st, dict):
     if st.get("holiday_suspected"):
         print(f"    ← يومُ عطلةٍ مُكتشَفٌ من المصدر: {st.get('evidence')}")
 
+# ── ٥ · و«عطلة» حالٌ مستقلّةٌ عن «مغلق» ───────────────────────────────
+# قال المالك: «هناك فرقٌ بين مغلق وعطلة». والمغلقُ يفتح بعد ساعات،
+# والعطلةُ يومٌ كاملٌ بلا جلسة — وخلطُهما يُفقد المستثمرَ خبراً.
+_ms = ROOT / "backend" / "app" / "services" / "market_state.py"
+if not _ms.exists():
+    _ms = pathlib.Path("/app/app/services/market_state.py")
+if _ms.exists():
+    S = _ms.read_text("utf-8")
+    check('"status": "holiday"' in S,
+          "٥ التغذيةُ المتجمّدةُ تُسمّى «عطلة» لا «مغلق»")
+
+# ── ٦ · وأسماءُ الحالات من موضعٍ واحدٍ تقرؤه الشاشتان ─────────────────
+# عادت الحالةُ إلى «نبض السوق» بأمر المالك بعد أن حُذفت في D302 لأنّها
+# كانت من مصدرَين متناقضَين. فالخطرُ يعود لو نُسخت الأسماءُ في كلّ شاشة.
+_lib = ROOT / "frontend" / "src" / "lib" / "marketStatus.ts"
+if not _lib.exists():
+    print("⚠ لا حاكمَ عرضٍ في هذه البيئة — لم يُقَس")
+else:
+    L = _lib.read_text("utf-8")
+    check("holiday:" in L, "٦ حاكمُ العرض يعرف «عطلة» حالاً مستقلّة")
+    _dup = []
+    for _rel in ("frontend/src/components/common/LiveClock.tsx",
+                 "frontend/src/pages/MarketPage.tsx"):
+        _f = ROOT / _rel
+        if not _f.exists():
+            continue
+        T = _f.read_text("utf-8")
+        if "statusView" not in T:
+            _dup.append(_rel.split("/")[-1] + ": لا يقرأ الحاكم")
+        if '"السوق مفتوح"' in T or '"السوق مغلق"' in T:
+            _dup.append(_rel.split("/")[-1] + ": ينسخ الأسماء")
+    check(not _dup, "٦ب والشاشتان تقرآن منه ولا تنسخان الأسماء",
+          " · ".join(_dup) if _dup else "")
+
 print(("FAIL" if fail else "PASS")
-      + " D413 — العطلةُ من المصدر، والمعجمُ لا يُخمَّن")
+      + " D413 — العطلةُ من المصدر، ومصدرُ الأسماء واحد")
 sys.exit(fail)

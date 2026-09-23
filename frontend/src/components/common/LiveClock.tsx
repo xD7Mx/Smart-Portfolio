@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { settingsApi } from "../../services/api";
+import { statusView } from "../../lib/marketStatus";
 import { useAppStore } from "../../store/appStore";
 
 /**
@@ -135,13 +136,9 @@ export default function LiveClock() {
   }, [clockHour12, clockSeconds]);
 
   // حالة السوق: من الخادم (المرجع) متى توفّرت، وإلا حساب محلّي بتوقيت مكة.
-  const STATUS_MAP: Record<string, Status> = {
-    open: { key: "open", label: "السوق مفتوح", color: "var(--st-open)" },
-    pre: { key: "pre", label: "قبل الافتتاح", color: "var(--st-pre)" },
-    preclose: { key: "preclose", label: "قبل الإغلاق", color: "var(--st-preclose)" },
-    closed: { key: "closed", label: "السوق مغلق", color: "var(--st-idle)" },
-  };
-  const st = (serverStatus && STATUS_MAP[serverStatus]) || marketStatus(now);
+  // الأسماءُ والألوانُ من موضعٍ واحدٍ تقرؤه الساعةُ والنبضُ معاً — فلا
+  // تُنسَخ فتختلف (‏D302). و«عطلة» حالٌ مستقلّةٌ عن «مغلق».
+  const st = (statusView(serverStatus) as Status | null) || marketStatus(now);
   const cd = countdown(now);
   let hijri = "";
   try { hijri = fmt.hijri.format(now).replace(/\s*هـ?$/, "") + " هـ"; } catch { /* بعض المتصفحات بلا تقويم أم القرى */ }
