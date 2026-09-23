@@ -145,11 +145,37 @@ def _ttm_from(quarters: list[dict], annual: list[dict]) -> dict | None:
             out[k] = a - sum(prev) + sum(cur)
 
     last = cur_q[max(pairs)]
-    for k in ("shares_outstanding", "equity", "total_assets",
-              "total_liabilities", "total_debt"):
+    for k in ("equity", "total_assets", "total_liabilities", "total_debt"):
         v = last.get(k)
         if isinstance(v, (int, float)):
             out[k] = v
+
+    # ══ وعددُ الأسهم يُختار بتحقّقٍ لا يُؤخذ كما جاء ══ (D418)
+    # قِيس بعد رفع التغطية إلى ‎71%: أرباحٌ صحيحةُ الحساب وربحيةُ سهمٍ
+    # مستحيلة — ‎1030 بـ‎1,975.73 و‎1201 بـ‎−2,990.28 لأسهمٍ بعشرات
+    # الريالات. والبسطُ سليمٌ والمقامُ معطوب: عددُ أسهمٍ بوحدةٍ مغلوطةٍ
+    # في صفّ الربع (ألفاً بدل وحدة، أو حقلٌ لم يُفهَم).
+    # فبوّابةُ السعر ترفض الناتجَ لاحقاً — لكنّها تُسقِط الرمزَ إلى
+    # السنويّ **صامتاً**، والعلاجُ أن يُصحَّح المقامُ لا أن يُرمى الرقم.
+    #
+    # والقاعدة: عددُ الأسهم لا يتغيّر إلا بإجراءِ شركةٍ معلَن، فقفزةٌ
+    # تتجاوز النصفَ بين الربع وسنةِ الأساس ليست نموّاً بل خطأُ وحدة.
+    # فيُقدَّم صفٌّ **غيرُ موسومٍ بعيبٍ** ويطابق سنةَ الأساس، وإلا
+    # فأسهمُ السنة نفسِها — ويُعلَن أيُّهما استُعمل.
+    _base_sh = ann[base_yr].get("shares_outstanding")
+    _cands = [("الربع", last), ("سنةُ الأساس", ann[base_yr])]
+    for _name, _row in _cands:
+        _sh = _row.get("shares_outstanding")
+        if not isinstance(_sh, (int, float)) or _sh <= 0:
+            continue
+        if _row.get("shares_unit_gap") or _row.get("shares_mismatch"):
+            continue
+        if (_name == "الربع" and isinstance(_base_sh, (int, float))
+                and _base_sh > 0 and abs(_sh - _base_sh) / _base_sh > 0.5):
+            continue                      # قفزةٌ لا يفسّرها إجراءُ شركة
+        out["shares_outstanding"] = _sh
+        out["shares_from"] = _name
+        break
     _ni, _sh = out.get("net_income"), out.get("shares_outstanding")
     if isinstance(_ni, (int, float)) and isinstance(_sh, (int, float)) and _sh > 0:
         out["eps"] = _ni / _sh
