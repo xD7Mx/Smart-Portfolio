@@ -13,6 +13,7 @@ import CompanyDirectory from "../components/market/CompanyDirectory";
 import SpecialDeals from "../components/market/SpecialDeals";
 import { useLiveInterval, useMarketStatus } from "../hooks/useMarketLive";
 import { statusView } from "../lib/marketStatus";
+import StatusMark from "../components/common/StatusMark";
 import { useLiveIndex } from "../hooks/useLivePrices";
 import CompanyLogo from "../components/common/CompanyLogo";
 import { FairValueBar, SafetyBar, fairValueTier, safeColor } from "../components/common/ValueBars";
@@ -171,8 +172,7 @@ function PulseCard({ summary, tasi: tasiQ, brent, movers, onSearch }:
             وحدَه فلا تُنسَخ فتختلف. و«عطلة» حالٌ مستقلّةٌ عن «مغلق». */}
         {pulseSt && (
           <span className="flex items-center gap-1.5" title={pulseWhy || undefined}>
-            <span className="inline-block rounded-full"
-              style={{ width: 7, height: 7, background: pulseSt.color }} />
+            <StatusMark status={pulseStatus} size={9} />
             <span className="text-[11px] font-bold" style={{ color: pulseSt.color }}>
               {pulseSt.label}
             </span>

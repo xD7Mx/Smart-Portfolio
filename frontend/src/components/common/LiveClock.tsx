@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { settingsApi } from "../../services/api";
 import { statusView } from "../../lib/marketStatus";
+import { HolidayStar } from "./StatusMark";
 import { useAppStore } from "../../store/appStore";
 
 /**
@@ -186,6 +187,10 @@ export default function LiveClock() {
    * لا نصّ بجانب الساعة إطلاقاً — التفاصيل مكانها النافذة المنبثقة.
    */
   const Dot = ({ size = 5 }: { size?: number }) => {
+    // العطلةُ نجمةٌ رماديةٌ لا حلقة (بأمر المالك): يومٌ خارج الجدول
+    // فعلامتُه مختلفةُ **الشكل** لا اللون فقط — تُقرأ بلمحةٍ بلا نصّ.
+    // والشكلُ من `StatusMark` وحدَه فلا يُنسَخ فيختلف.
+    if (st.key === "holiday") return <HolidayStar size={size + 3} color={st.color} />;
     const ring = Math.max(1, size * 0.22);             // سماكة الحلقة (نسبية، بحدٍّ أدنى يُبقي الفجوة مرئية)
     const filled = st.key === "open";
     return (

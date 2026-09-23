@@ -133,6 +133,27 @@ else:
     check(not _dup, "٦ب والشاشتان تقرآن منه ولا تنسخان الأسماء",
           " · ".join(_dup) if _dup else "")
 
+# ── ٧ · وللعطلة علامةٌ مختلفةُ الشكل لا اللون فقط ─────────────────────
+# «اعتمد أيقونة العطلة نجمةً رماديةً مثل تريدنق فيو». والعطلةُ يومٌ خارج
+# الجدول، فعلامتُها تُقرأ بلمحةٍ بلا نصّ — ومن موضعٍ واحدٍ لا يُنسَخ.
+_mk = ROOT / "frontend" / "src" / "components" / "common" / "StatusMark.tsx"
+if not _mk.exists():
+    print("⚠ لا علامةَ حالةٍ في هذه البيئة — لم يُقَس")
+else:
+    M = _mk.read_text("utf-8")
+    check("HolidayStar" in M and "<svg" in M,
+          "٧ للعطلة نجمةٌ مرسومةٌ لا نقطة")
+    check("--st-idle" in M, "٧ب رماديةٌ من رموز المظهر لا لونٍ ثابت")
+    _uses = []
+    for _rel in ("frontend/src/components/common/LiveClock.tsx",
+                 "frontend/src/pages/MarketPage.tsx"):
+        _f = ROOT / _rel
+        if _f.exists() and ("HolidayStar" in _f.read_text("utf-8")
+                            or "StatusMark" in _f.read_text("utf-8")):
+            _uses.append(_rel.split("/")[-1])
+    check(len(_uses) == 2,
+          "٧ج والساعةُ والنبضُ يرسمان منها معاً", "، ".join(_uses))
+
 print(("FAIL" if fail else "PASS")
       + " D413 — العطلةُ من المصدر، ومصدرُ الأسماء واحد")
 sys.exit(fail)
