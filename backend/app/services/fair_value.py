@@ -945,7 +945,7 @@ def compute(info: dict, price: float | None,
     try:
         d = None if archetype in NO_DCF else _dcf(
             periods or [], info, price, r,
-            cyclical=(archetype == "cyclical"),
+            cyclical=(archetype in ("cyclical", "commodity", "contracting")),
             roe_for_reinv=(roe / 100.0 if roe else None))
     except Exception:                                             # noqa: BLE001
         d = None

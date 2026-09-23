@@ -258,6 +258,7 @@ python3 scripts/audit/global_chart_native.py || _note "$LINENO"
 python3 scripts/audit/stock_fields_official.py || _note "$LINENO"
 python3 scripts/audit/dividends_official.py || _note "$LINENO"
 python3 scripts/audit/audit_shares_unit.py || _note "$LINENO"
+python3 scripts/audit/sector_method_applied.py || _note "$LINENO"
 node scripts/audit/mobile_walk.mjs || _note "$LINENO"
 
 # D160 (عودة): لا فحصَ في اللجنة يكتب في بيانات المالك المتتبَّعة. عولج

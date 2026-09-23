@@ -1108,7 +1108,9 @@ def check_peak_value() -> None:
                  f"لا {why} مع القيمة — تقديرٌ بلا قاعدةِ دخول لا يُقرَّر به")
     # والنمط يجب أن يصل فعلاً، وإلا فالتسوية معطَّلة صامتةً
     a = (ROOT / "backend/app/services/analysis.py").read_text(encoding="utf-8")
-    if not re.search(r"archetype=_std\.get", a):
+    # ‏D446: النمطُ صار من قطاع «تداول» الرسميّ (`_arch`) واحتياطُه `_std` —
+    # ويحرسه سلوكياً `sector_method_applied.py`.
+    if not re.search(r"archetype=(_std\.get|_arch\b)", a):
         note("S-PEAKVALUE", "backend/app/services/analysis.py",
              "النمط القطاعيّ لا يصل محرّك القيمة العادلة — تسويةُ الدورة "
              "مكتوبةٌ ولا تعمل")

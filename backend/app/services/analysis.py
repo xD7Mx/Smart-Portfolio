@@ -310,7 +310,21 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
                              - _date.fromisoformat(_stmt_asof)).days
     except Exception:                                             # noqa: BLE001
         pass
-    _std = _scope_for(info.get("sector"), _periods, info)
+    # ══ قطاعٌ واحدٌ للمحرّكَين: نمطُ «تداول» الرسميّ ══ (D446)
+    # كان المعيارُ يُختار بقطاع ياهو الإنجليزيّ خاماً، فعشرون من خمسةٍ
+    # وعشرين قطاعاً رسمياً تقع في «general» (المصارف والتأمين والنقل…).
+    from app.services.statement_merge import archetype_of as _arch_of0
+    _GOV_SECTOR = {"bank": "البنوك", "insurance": "التأمين",
+                   "financial": "الخدمات المالية", "reit": "ريت",
+                   "fund": "صناديق المؤشرات المتداولة",
+                   "commodity": "المواد الأساسية", "capital_infra": "المرافق",
+                   "re_developer": "العقارات", "contracting": "المقاولات",
+                   "consumer_defensive": "الأغذية",
+                   "consumer_cyclical": "السلع الكمالية", "asset_light": "التقنية"}
+    from app.services.four_scores import resolve_sector as _rs0
+    _gov_sector = (_GOV_SECTOR.get(_arch_of0(symbol) or "")
+                   or _rs0(info.get("sector"), symbol))
+    _std = _scope_for(_gov_sector, _periods, info)
     if allow_supplement and _std.get("archetype") in ("bank", "insurance", "financial"):
         try:
             from app.services import cache as _c
@@ -352,13 +366,33 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         from loguru import logger as _lg2
         _lg2.warning(f"حقولُ العرض {symbol}: {type(_e).__name__}: {_e}")
 
+    # ══ نمطُ الورقة ومضاعفا قطاعها من المُصدِر لا من المزوّد ══ (D446)
+    # قِيس: كلُّ العيّنة «general» — لأن القطاعَ يصل بالإنجليزية من ياهو
+    # فلا يطابق خريطةَ الأنماط، فلا تُطبَّق طريقةُ تقييم القطاع أصلاً. ومضاعفا
+    # القطاع من نظائر المحفظة وحدَها، فيغيب مسارُ القطاع عن أكثر السوق.
+    # فالنمطُ من قطاع «تداول» الرسميّ (‏`archetype_of` — ما تقيسه السلسلة)،
+    # والمضاعفان من وسيط نظائر النمط في لقطة السوق كلِّه متى غاب نظيرُ المحفظة.
+    from app.services.statement_merge import archetype_of as _arch_of
+    _arch = _arch_of(symbol) or _std.get("archetype")
+    _spe = (valuation or {}).get("sector_avg_pe")
+    _spb = (valuation or {}).get("sector_avg_pb")
+    _pc = (valuation or {}).get("peer_count")
+    if _spe is None or _spb is None:
+        try:
+            from app.services.sector_multiples import for_symbol as _smul
+            _m = _smul(symbol) or {}
+            _spe = _spe if _spe is not None else _m.get("pe")
+            _spb = _spb if _spb is not None else _m.get("pb")
+            _pc = _pc or _m.get("peers")
+        except Exception:                                         # noqa: BLE001
+            pass
     _fv = _fvmod.compute(info, (price or {}).get("price"),
-                         (valuation or {}).get("sector_avg_pe"),
-                         (valuation or {}).get("sector_avg_pb"),
+                         _spe,
+                         _spb,
                          asof=_asof,
                          periods=_periods,
-                         peer_count=(valuation or {}).get("peer_count"),
-                         archetype=_std.get("archetype"),
+                         peer_count=_pc,
+                         archetype=_arch,
                          # أحدثُ ربعٍ منشورٍ — لعمرِ الأرقام والميزانية
                          # (‏D412): السلسلةُ السنويةُ تبقى للنماذج، وهذا
                          # يقول **متى** آخرُ ما أفصحت عنه الشركة.
@@ -463,7 +497,7 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
     # sector never matches the map, so resolve it (DB sector via symbol lookup,
     # else English→Arabic) exactly as governance_engine does.
     fin = await _financial_from_statements(
-        symbol, sector=resolve_sector(info.get("sector"), symbol),
+        symbol, sector=_gov_sector or resolve_sector(info.get("sector"), symbol),
         valuation_snapshot=valuation_to_snapshot(info, valuation),
         timing_snapshot=technical_to_timing_snapshot(tech),
         info=info, allow_supplement=allow_supplement,
