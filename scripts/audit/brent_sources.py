@@ -25,8 +25,11 @@ except Exception:                                                  # noqa: BLE00
 
 TV_COLS = ["name", "description", "close", "change", "change_abs",
            "update_mode", "currency", "exchange"]
+_BRENT = ["TVC:UKOIL", "ICEEUR:BRN1!", "NYMEX:BZ1!", "OANDA:BCOUSD",
+          "CAPITALCOM:OILBRENT", "FX:UKOIL", "PEPPERSTONE:UKOIL"]
 CANDIDATES = [
-    ("TradingView · برنت", "tv", "cfd", ["TVC:UKOIL", "ICEEUR:BRN1!"]),
+    *[(f"TradingView · برنت · {m}", "tv", m, _BRENT)
+      for m in ("cfd", "futures", "global", "forex")],
     ("TradingView · تاسي", "tv", "ksa", ["TADAWUL:TASI"]),
     ("TradingView · تاسي (global)", "tv", "global", ["TADAWUL:TASI"]),
     ("Yahoo chart · برنت", "yahoo", "BZ=F", None),
