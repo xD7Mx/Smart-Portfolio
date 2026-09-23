@@ -41,5 +41,8 @@ for k in ("week52_high", "week52_low", "pe_ratio", "price_to_book", "market_cap"
     ok = f.get(k) == ROW[k]
     fail |= not ok
     print(f"{'PASS' if ok else 'FAIL'} «{k}» يصل صفحةَ السهم من «تداول» وياهو صامت — {f.get(k)!r}")
+ok = abs((f.get("eps") or 0) - 35.54 / 13.5) < 0.01
+fail |= not ok
+print(f"{'PASS' if ok else 'FAIL'} «eps» من السعر ÷ مكرّر «تداول» حين يغيب ياهو (D452) — {f.get('eps')!r}")
 print(("FAIL" if fail else "PASS") + " D440 — حقولُ السوق من «تداول»")
 sys.exit(fail)

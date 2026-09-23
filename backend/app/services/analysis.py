@@ -276,6 +276,17 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
                            ("week52_high", "week52_low", "pe_ratio",
                             "price_to_book", "market_cap")
                            if isinstance(_tw.get(k), (int, float))}}
+        # ══ وربحيةُ السهم من مكرّر «تداول» حين يغيب ياهو ══ (D452)
+        # قِيس: سبعون ورقةً محجوبةُ السعر العادل وليس لأيٍّ منها مسارُ
+        # «مضاعف الربحية العادل» — لأنه يحتاج `eps` وهو من ملخّص ياهو وحدَه
+        # (والحصّةُ نافدة). و«تداول» تنشر المكرّرَ لكلّ ورقة، والسعرُ ÷
+        # المكرّر ربحيةُ الاثني عشر شهراً الأخيرة كما يحسبها المُصدِر.
+        _pe_o, _px_o = _tw.get("pe_ratio"), _tw.get("price")
+        if (not isinstance(info.get("eps"), (int, float))
+                and isinstance(_pe_o, (int, float)) and _pe_o > 0
+                and isinstance(_px_o, (int, float)) and _px_o > 0):
+            info["eps"] = round(_px_o / _pe_o, 4)
+            info["eps_source"] = f"السعر ÷ مكرّر «تداول» ({_pe_o:.2f})"
     except Exception:                                             # noqa: BLE001
         pass
     history = await market_service.get_history(symbol, "1y")
