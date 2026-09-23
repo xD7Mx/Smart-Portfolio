@@ -209,6 +209,12 @@ python3 scripts/audit/lastgood_write.py || _note "$LINENO"
 echo
 python3 scripts/audit/lastgood_no_clobber.py || _note "$LINENO"
 
+# D424: تقريرُ المسحة يُسمّي سببَ التعذّر. خرجت «تعذّرت 268 من 273»
+# بخطأٍ واحدٍ في سطرٍ واحدٍ مُمسَكٍ في مستوى debug، فلم يظهر سببُه في
+# سجلّ الدورة. محرّكٌ يرفع في كلّ ورقة ⇒ التقريرُ يحمل اسمَ الخطأ ونصَّه.
+echo
+python3 scripts/audit/sweep_names_failure.py || _note "$LINENO"
+
 # D160 (عودة): لا فحصَ في اللجنة يكتب في بيانات المالك المتتبَّعة. عولج
 # في أربعة سكربتاتٍ وتخلّف `rank_check` فعاد يلوّث lastgood.json ويمنع
 # بناءَ الحزمة. فالحارسُ يقرأ قائمةَ اللجنة من run.sh نفسِه ويشترط تحويلَ

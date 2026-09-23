@@ -40,13 +40,24 @@ from loguru import logger
 CONC = 6
 
 
+# ══ والتعذّرُ يُسمّى سببُه في التقرير ══ (D424)
+# كانت `_one` تمسك كلَّ استثناءٍ وتُسجّله في مستوى **debug** ثمّ تُعيد
+# `None`. فسقط المحرّكُ في 268 ورقةً من 273 بخطأٍ واحدٍ في سطرٍ واحد،
+# وخرج التقريرُ «تعذّرت 268» بلا اسمِ خطأٍ ولا موضع — واحتاج كشفُه
+# كاشفاً مستقلّاً. فصار صنفُ الخطأ ونصُّه يُجمعان ويخرجان في التقرير
+# نفسِه، فيُقرأ سببُ السقوط الجماعيّ من سطرٍ واحد.
+_FAIL_KINDS: dict[str, int] = {}
+
+
 async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
     async with sem:
         try:
             from app.services.analysis import analyze_company
             a = await analyze_company(f"{sym}.SR", allow_supplement=False)
         except Exception as e:                                    # noqa: BLE001
-            logger.debug(f"مسحةُ التقييم {sym}: {type(e).__name__}: {e}")
+            _k = f"{type(e).__name__}: {str(e)[:120]}"
+            _FAIL_KINDS[_k] = _FAIL_KINDS.get(_k, 0) + 1
+            logger.warning(f"مسحةُ التقييم {sym}: {_k}")
             return None
         if not a:
             return None
@@ -103,6 +114,7 @@ async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
         return {"خطأ": "لا رموزَ في السوق الرئيسيّ — دليلٌ فارغ"}
 
     sem = asyncio.Semaphore(max(1, min(12, conc)))
+    _FAIL_KINDS.clear()
     done: dict[str, dict] = {}
     failed = 0
     t0 = asyncio.get_event_loop().time()
@@ -132,5 +144,8 @@ async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
         "تعذّرت": failed,
         "ثوانٍ": round(asyncio.get_event_loop().time() - t0, 1),
     }
+    if _FAIL_KINDS:
+        rep["أسبابُ التعذّر"] = dict(sorted(_FAIL_KINDS.items(),
+                                            key=lambda x: -x[1])[:5])
     logger.info(f"مسحةُ التقييم انتهت: {rep}")
     return rep

@@ -28,7 +28,6 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, "/app")
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 GAP_FIELDS = ("total_debt", "ebit", "interest_expense")
 MAX_SYMS = 40           # يكفي لترتيب الأسماء بتكرارها، ويحدُّ الشبكة
@@ -42,13 +41,45 @@ LOOK = {
 }
 
 
+async def _unmatched(X, sym: str):
+    """صفوفُ أحدثِ ملفٍّ رسميٍّ غيرُ المطابَقة — (الاسم، القيمة).
+
+    منقولةٌ من `xbrl_labels.py` لا مستورَدة: تلك أداةٌ تعمل عند استيرادها
+    (لا حارسَ `__main__` فيها)، فاستيرادُها يُشغّلها داخل حلقة أحداثٍ قائمة.
+    """
+    from app.services.tadawul_http import fetch
+    files = await X.filings_for(f"{sym}.SR")
+    if not files:
+        return None, "لا ملفّاتٍ رسمية"
+    url = (files[0] or {}).get("url") or ""
+    if url.startswith("/"):
+        url = X.ORIGIN + url
+    st, html = await fetch(url)
+    if st != 200 or not html:
+        return None, f"HTTP {st}"
+    known = {n for names in X.LABELS.values() for n in names}
+    out = []
+    for tr in X._TR.findall(html):
+        cells = [X._clean(c) for c in X._TD.findall(tr)]
+        if len(cells) < 2 or not cells[0]:
+            continue
+        n = X._norm(cells[0])
+        if (n in known or n in X._META.values() or len(n) < 4
+                or "[text block]" in n or len(cells[0]) > 160):
+            continue
+        nums = [c for c in cells[1:]
+                if len(c) <= 40 and X._num(c) is not None]
+        if nums:
+            out.append((n, nums[0][:40]))
+    return out, None
+
+
 async def main() -> int:
     try:
         from app.data.market_universe import MARKET_UNIVERSE
         from app.data.universe import main_market
         from app.services import tadawul_xbrl as X
         from app.services.market_data import market_service
-        from xbrl_labels import _unmatched
     except ModuleNotFoundError as e:
         print(f"⚠ بيئةٌ ناقصة ({e.name}) — لم يُقَس")
         return 0
