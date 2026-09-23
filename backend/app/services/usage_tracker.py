@@ -114,6 +114,42 @@ def limit_for(provider: str) -> int:
     return _limits().get(provider, 0)
 
 
+# ══ احتياطٌ للمستخدم لا تبلغه المهامُّ الخلفية ══ (D436)
+# قِيس على خادم المالك: 10,000 من 10,000 في يومٍ واحد، أكثرُها مسحاتٌ وبناءُ
+# جداول في الخلفية (`get_history` ‏29٪ · `get_company_info` ‏28٪ ·
+# `get_ownership` ‏22٪). فلمّا نفدت أظلم أوّلاً ما يراه المستخدم: برنت
+# ورسما المؤشّرين. فالمهامُّ الخلفيةُ تُوسَم بـ`background()` وتقف عند
+# ‎90٪، ويبقى العُشرُ الأخيرُ لطلبٍ آتٍ من شاشة. والوسمُ `contextvar`
+# يتبع المهمّةَ عبر `await` ولا يتسرّب إلى طلبٍ آخر.
+import contextlib as _ctxlib
+import contextvars as _ctxvars
+
+_BACKGROUND = _ctxvars.ContextVar("sp_usage_background", default=False)
+BACKGROUND_SHARE = 0.90
+
+
+@_ctxlib.contextmanager
+def background():
+    """يَسِم ما بداخله مهمّةً خلفيةً للحصّة — تقف عند ‎90٪."""
+    tok = _BACKGROUND.set(True)
+    try:
+        yield
+    finally:
+        _BACKGROUND.reset(tok)
+
+
+def background_task(fn):
+    """مزخرِفٌ لدالّةٍ غير متزامنة: كلُّ ما تستدعيه يُحسب خلفياً (‏D436)."""
+    import functools
+
+    @functools.wraps(fn)
+    async def _w(*a, **k):
+        with background():
+            return await fn(*a, **k)
+    _w.__sp_background__ = True
+    return _w
+
+
 def can_call(provider: str) -> bool:
     """True if the provider still has quota left today. Call BEFORE a request."""
     with _lock:
@@ -121,6 +157,8 @@ def can_call(provider: str) -> bool:
         limit = _limits().get(provider, 0)
         if limit <= 0:
             return True  # no cap configured
+        if _BACKGROUND.get():
+            limit = int(limit * BACKGROUND_SHARE)
         return _counts.get(provider, 0) < limit
 
 

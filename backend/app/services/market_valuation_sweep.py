@@ -32,6 +32,8 @@
 """
 from __future__ import annotations
 
+from app.services.usage_tracker import background_task as _background_task
+
 import asyncio
 from datetime import date
 
@@ -95,6 +97,7 @@ async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
         return sym, out
 
 
+@_background_task   # D436: مهمّةٌ خلفية تقف عند 90٪ من حصّة ياهو
 async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
     """يحسب الدرجةَ والسعرَ العادل لكلّ رمزٍ ويخزّنهما. يُعاد تقريرٌ مقيس."""
     from app.services.content_engine import _fund_store_put_many

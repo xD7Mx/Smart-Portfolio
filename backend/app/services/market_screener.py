@@ -18,6 +18,7 @@ import asyncio
 import logging
 
 from app.services import cache
+from app.services.usage_tracker import background_task as _background_task
 
 logger = logging.getLogger(__name__)
 
@@ -542,6 +543,7 @@ def _attach_relative_valuation(rows: list[dict]) -> None:
         r["verdict"] = v
 
 
+@_background_task   # D436: مهمّةٌ خلفية تقف عند 90٪ من حصّة ياهو
 async def compute_screener() -> list | None:
     """Full-market technical scan → cached screener dataset. Enriches each row
     with today's change% / traded value / sector from the movers snapshot when

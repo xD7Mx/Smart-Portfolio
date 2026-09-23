@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.portfolio import Holding
 from app.services import maqasid
+from app.services.usage_tracker import background_task as _background_task
 
 # A single sector holding more than this share of the portfolio's value is
 # flagged as a concentration risk — a common, reasonable rule-of-thumb
@@ -312,6 +313,7 @@ async def get_sector_map(db) -> dict:
     return {"has_data": True, "sectors": sectors}
 
 
+@_background_task   # D436: مهمّةٌ خلفية تقف عند 90٪ من حصّة ياهو
 async def get_market_governance(db, compute: bool = True) -> dict | None:
     """السوق mode — the SAME weighted, disciplined methodology (real
     multi-year financial-statement score + شرعية status), but scanning the
