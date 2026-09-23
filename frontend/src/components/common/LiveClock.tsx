@@ -86,6 +86,9 @@ export default function LiveClock() {
   const [open, setOpen] = useState(false);   // نافذة التفاصيل المنبثقة
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [serverStatus, setServerStatus] = useState<string | null>(null);
+  // ودليلُ الحالة معها (‏D413): يومَ العطلة يقول الخادمُ «مغلق» بشاهدٍ
+  // من المصدر لا من التقويم — فيُعرض السببُ في تلميح الزرّ لا حاشيةً.
+  const [statusWhy, setStatusWhy] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -99,6 +102,7 @@ export default function LiveClock() {
         if (alive && d?.epoch_ms) {
           setDrift(d.epoch_ms + rtt - Date.now());     // تعويض زمن الشبكة
           setServerStatus(d.market_status ?? null);
+          setStatusWhy(d.market_status_evidence ?? null);
         }
       } catch { /* الخادم غير متاح → نبقى على توقيت الجهاز (fallback) */ }
     };
@@ -218,7 +222,8 @@ export default function LiveClock() {
       {/* الساعة في مكانها تماماً (سطر أول)، وحالة السوق **أسفلها** كحاشية
           صغيرة لا تُزحزح الساعة بأي شكل: العمود مركزي والحالة absolute تحت
           الساعة فلا تدخل في حساب ارتفاع الصفّ ولا تغيّر موضعها. */}
-      <button onClick={flash} title={`${fmt.greg.format(now)} — ${st.label}`}
+      <button onClick={flash} title={`${fmt.greg.format(now)} — ${st.label}`
+             + (statusWhy ? ` · ${statusWhy}` : "")}
         aria-label={`التوقيت — ${st.label}`}
         className="relative flex items-center gap-[9px] px-1 py-1 active:scale-95 transition-transform">
         {/* المؤشّر أوّل عنصر في ترتيب DOM ⇒ يمين الساعة بصريًّا في RTL،

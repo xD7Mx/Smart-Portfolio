@@ -111,11 +111,27 @@ async def get_server_time():
     # بدل أوقاتٍ مكتوبةٍ في نقطةٍ لا تُستدعى إلا عبر الشبكة (‏D215).
     from app.services.market_phase import market_phase
     status = market_phase(dow_sun0, mins)
+    # ══ والعطلةُ لا تعرفها الساعة ══ (D413 · بأمر المالك)
+    # «اليومَ كان عطلةً للسوق ولم يكتشف التطبيقُ ذلك». والساعةُ تقول
+    # الأحدَ إلى الخميس «مفتوح» في أوقاته، فالأعيادُ والعطلُ الرسميةُ
+    # والإغلاقاتُ الطارئةُ خارجَ حسابها. فتُسأل حالةُ السوق من مصدرها
+    # أوّلاً (‏`market_state`)، وتبقى الساعةُ احتياطاً **مُعلَناً**.
+    _src, _ev = "ساعةُ الخادم", None
+    try:
+        from app.services.market_state import market_state
+        _st = await market_state()
+        status = _st.get("status") or status
+        _src, _ev = _st.get("source"), _st.get("evidence")
+    except Exception:                                             # noqa: BLE001
+        pass
     return success_response(data={
         "epoch_ms": int(now_utc.timestamp() * 1000),  # UTC، تُحوّلها الواجهة لمكة
         "offset_minutes": 180,                          # مكة = UTC+3 ثابت
         "iso_local": local.strftime("%Y-%m-%dT%H:%M:%S"),
         "market_status": status,
+        # ولا كلمةَ بلا سندها: من قال، وبأيّ دليل.
+        "market_status_source": _src,
+        "market_status_evidence": _ev,
     })
 
 
