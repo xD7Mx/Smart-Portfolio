@@ -170,19 +170,26 @@ function PulseCard({ summary, tasi: tasiQ, brent, movers, onSearch }:
             المصدرَ صار واحداً: `/settings/server-time` ← `market_state`
             الذي يسأل تداولَ نفسَها. والأسماءُ والألوانُ من `marketStatus`
             وحدَه فلا تُنسَخ فتختلف. و«عطلة» حالٌ مستقلّةٌ عن «مغلق». */}
-        {pulseSt && (
-          <span className="flex items-center gap-1.5" title={pulseWhy || undefined}>
-            <StatusMark status={pulseStatus} size={9} />
-            <span className="text-[11px] font-bold" style={{ color: pulseSt.color }}>
-              {pulseSt.label}
+
+        {/* ══ الحالةُ يسارَ البطاقة بجانب الساعة ══ (بأمر المالك)
+            `mr-auto` يدفع المجموعةَ إلى أقصى اليسار في RTL، فتقف الحالةُ
+            وزمنُ التحديث معاً — قراءةٌ واحدةٌ في طرفٍ واحدٍ بدل وسمٍ عند
+            العنوان وزمنٍ عند الطرف. */}
+        <span className="flex items-center gap-2 mr-auto">
+          {pulseSt && (
+            <span className="flex items-center gap-1.5" title={pulseWhy || undefined}>
+              <StatusMark status={pulseStatus} size={9} />
+              <span className="text-[11px] font-bold" style={{ color: pulseSt.color }}>
+                {pulseSt.label}
+              </span>
             </span>
-          </span>
-        )}
-        {summary?.generated_at && (
-          <span className="text-[10px] text-[var(--ink-muted)] mr-auto">
-            {new Date(summary.generated_at).toLocaleTimeString("ar-SA-u-ca-gregory-nu-latn", { hour: "2-digit", minute: "2-digit" })}
-          </span>
-        )}
+          )}
+          {summary?.generated_at && (
+            <span className="text-[10px] text-[var(--ink-muted)]">
+              {new Date(summary.generated_at).toLocaleTimeString("ar-SA-u-ca-gregory-nu-latn", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+        </span>
       </div>
 
       {noData ? (

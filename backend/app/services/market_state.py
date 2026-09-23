@@ -55,7 +55,25 @@ CODE_MAP: dict[str, str] = {}
 
 
 def _mecca_now() -> datetime:
-    return datetime.now()          # عمليةُ الخادم مضبوطةٌ على مكة
+    """توقيتُ مكة **صراحةً** لا بحسب ضبط العملية (‏D416).
+
+    كان يقرأ `datetime.now()` اتّكالاً على أنّ عمليةَ الخادم مضبوطةٌ على
+    مكة. وهي كذلك في التطبيق، **لكن الكواشفَ تُشغَّل بـ`docker exec`**
+    في عمليةٍ لا تمرّ بذلك الضبط فتقرأ UTC. فقارنتُ ساعةَ UTC بزمنِ
+    مصدرٍ بتوقيت مكة، فخرج فرقُ ثلاثِ ساعاتٍ **ثابتاً** وقرأتُه
+    «تغذيةً متجمّدةً ‎180 دقيقة» — فحكمتُ بالعطلة من فرقِ منطقةٍ زمنية.
+    وصادف يومَ عطلةٍ فبدا الحكمُ صائباً، وهو أخطرُ ما يكون: دليلٌ كاذبٌ
+    يؤيّده واقعٌ صادفَه.
+
+    فالمنطقةُ تُسمّى صراحةً، وما لا يُعرف يسقط إلى الإزاحة الثابتة —
+    ومكةُ لا تُغيّر توقيتَها موسمياً فالإزاحةُ ثابتةٌ حقّاً.
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Asia/Riyadh")).replace(tzinfo=None)
+    except Exception:                                             # noqa: BLE001
+        from datetime import timedelta, timezone as _tz
+        return (datetime.now(_tz.utc) + timedelta(hours=3)).replace(tzinfo=None)
 
 
 def _parse_feed_time(raw) -> datetime | None:
