@@ -677,6 +677,31 @@ async def portfolio_risk(holdings: list[dict], cash: float) -> dict | None:
     return await _generate_obj(prompt, key, ANALYSIS_TTL)
 
 
+def value_lines(analysis: dict) -> list[str]:
+    """سطرا القيمة في توجيه النموذج — كلُّ رقمٍ باسمه ومصدرِه (‏D428).
+
+    كان السطرُ يقول للنموذج «هدف المحللين (متوسط تقديرات بيوت الخبرة)»
+    ويُمرّر إليه `fair_value` — وهو منذ D386 **سعرُ محرّكنا** من قوائم
+    الشركة لا إجماعُ المحللين. فيكتب النموذجُ أنّ المحللين يرون رقماً
+    لم يقله محلّل: الخلطُ الذي أمر المالكُ بإصلاحه في الشاشات الثلاث،
+    باقياً في رابعةٍ لا تُرى. وحارسُه كان يطابق **العبارةَ** نفسَها فبقي
+    أخضرَ على الخطأ.
+    """
+    a = analysis or {}
+    out: list[str] = []
+    fv = a.get("fair_value")
+    if fv is not None:
+        up = a.get("fair_value_upside_pct")
+        out.append(f"السعر العادل (تقديرُ محرّك التطبيق من قوائم الشركة): {fv}"
+                   + (f" · الفجوة {up}%" if up is not None else ""))
+    at = a.get("analyst_target")
+    if at is not None:
+        up = a.get("analyst_target_upside_pct")
+        out.append(f"هدف المحللين (متوسط تقديرات بيوت الخبرة): {at}"
+                   + (f" · الفجوة {up}%" if up is not None else ""))
+    return out
+
+
 async def stock_opinion(symbol: str, name: str, analysis: dict,
                         headlines: list[str] | None = None,
                         evidence_lines_ar: list[str] | None = None) -> dict | None:
@@ -691,7 +716,9 @@ async def stock_opinion(symbol: str, name: str, analysis: dict,
     # قبله — وإلّا بقي رأيُ اليوم يناقض القرارَ رغم إصلاح التوجيه.
     # نسخةُ التوجيه ‎v3: دخلت شواهدُ «أرقام»، فرأيٌ مخزَّنٌ كُتب قبلها لا
     # يعرفها — والمفتاحُ القديم كان سيُبقيه يوماً كاملاً.
-    key = f"ai:opinion:v3:{date.today().isoformat()}:{symbol}"
+    # ‎v4 (‏D428): كان التوجيهُ يُسمّي سعرَنا العادل «هدفَ المحللين»، فرأيٌ
+    # كُتب به يحمل الخلطَ نفسَه — يُبطَل ولا يُخدَم بقيّةَ اليوم.
+    key = f"ai:opinion:v4:{date.today().isoformat()}:{symbol}"
     f = analysis.get("fundamentals") or {}
     t = analysis.get("technical") or {}
     lines = [
@@ -704,14 +731,7 @@ async def stock_opinion(symbol: str, name: str, analysis: dict,
         # **متوسطاً متحرّكاً للسعر**. فيبني رأيه على وصفٍ كاذب للرقم —
         # ويخرج التناقض الذي رآه المالك بين الشاشات. صار كلٌّ باسمه:
         f"متوسط السعر المتحرّك (SMA200): {t.get('mean_basis')} ({t.get('pct_from_avg')}%)" if t.get("mean_basis") else "",
-        # ══ السعرُ العادل = متوسّطُ تقديرات بيوت الخبرة ══ (بأمر المالك)
-        # ويُقرأ من `analysis` لا من `fundamentals`، فيكون الرقمُ الذي
-        # يكتبه النموذجُ هو عينَ الرقم المعروض في بطاقة صفحة الشركة.
-        f"هدف المحللين (متوسط تقديرات بيوت الخبرة): "
-        f"{analysis.get('fair_value')}"
-        + (f" · الفجوة {analysis.get('fair_value_upside_pct')}%"
-           if analysis.get("fair_value_upside_pct") is not None else "")
-        if analysis.get("fair_value") is not None else "",
+        *value_lines(analysis),
         f"مكرر الربحية P/E: {f.get('pe_ratio')}" if f.get("pe_ratio") else "",
         f"نمو ربحية السهم EPS: {f.get('earnings_growth')}%" if f.get("earnings_growth") is not None else "",
         f"العائد على حقوق المساهمين ROE: {f.get('roe')}%" if f.get("roe") is not None else "",

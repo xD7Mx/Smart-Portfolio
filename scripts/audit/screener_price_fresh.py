@@ -79,7 +79,14 @@ STALE = {
     "dist_sma50": 4.17, "dist_sma200": 25.0,
     "above_sma50": True, "above_sma200": True,
     "high_52w": 28.0, "low_52w": 22.0,
-    "fair_value": 36.0, "upside_pct": 44.0,
+    # ══ حقلان باسمَين ══ (D386 · بأمر المالك)
+    # «هدفُ المحللين شيءٌ من ياهو، والسعرُ العادل شيءٌ آخرُ من صنعنا».
+    # فـ`upside_pct` فجوةُ **هدف المحللين**، و`fair_value_upside_pct`
+    # فجوةُ **سعرِنا العادل**. وكانت العيّنةُ تحمل `fair_value` وحدَه
+    # وتنتظر أن تتبعه `upside_pct` — المعنى القديمُ قبل الفصل — فسقط
+    # الفحصُ على شفرةٍ صحيحة (‏D428). فالعيّنةُ تحمل الاثنين ويُقاسان معاً.
+    "fair_value": 36.0, "fair_value_upside_pct": 44.0,
+    "analyst_target": 36.0, "upside_pct": 44.0,
 }
 
 out = asyncio.run(ms.refresh_derived([dict(STALE)]))[0]
@@ -94,8 +101,12 @@ check(out["dist_sma50"] == 25.0 and out["dist_sma200"] == 50.0,
 check(out["high_52w"] == 30.0 and out["low_52w"] == 22.0,
       "٤ وقمّةُ العام تتّسع للسعر إن تجاوزها — لا حدٌّ أقلُّ من الواقع",
       f"قمّة {out['high_52w']} · قاع {out['low_52w']}")
+check(out["fair_value_upside_pct"] == 20.0,
+      "٥ والفجوةُ عن سعرنا العادل تُقاس من السعر الحاضر",
+      f"‏(36 − 30) ÷ 30 = {out['fair_value_upside_pct']}٪"
+      f" — كانت {STALE['fair_value_upside_pct']}٪")
 check(out["upside_pct"] == 20.0,
-      "٥ والفجوةُ عن السعر العادل تُقاس من السعر الحاضر",
+      "٥ب والفجوةُ عن هدف المحللين كذلك، كلٌّ باسمه",
       f"‏(36 − 30) ÷ 30 = {out['upside_pct']}٪ — كانت {STALE['upside_pct']}٪")
 
 # ── ٦ · الاتّجاه المعاكس: لا كاشَ ⇒ لا اختلاق ────────────────────────────

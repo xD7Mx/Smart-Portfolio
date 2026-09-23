@@ -113,8 +113,10 @@ async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
         from app.data.market_universe import MARKET_UNIVERSE
         from app.data.universe import main_market
         syms = sorted(main_market(MARKET_UNIVERSE).keys())
-    # ولا يتسلّل رمزُ «نمو» بحالٍ — ولو مُرّر بالوسيط
-    syms = [s for s in syms if not s.startswith("9")]
+    # ولا يتسلّل رمزُ «نمو» بحالٍ — ولو مُرّر بالوسيط. والتعريفُ من
+    # موضعه الواحد (`is_nomu`) لا نسخةٌ يدويةٌ للبادئة (‏D387 · main_market ٥).
+    from app.data.universe import is_nomu
+    syms = [s for s in syms if not is_nomu(s)]
     if not syms:
         return {"خطأ": "لا رموزَ في السوق الرئيسيّ — دليلٌ فارغ"}
 

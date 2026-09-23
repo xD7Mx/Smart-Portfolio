@@ -222,6 +222,12 @@ python3 scripts/audit/sweep_names_failure.py || _note "$LINENO"
 echo
 python3 scripts/audit/finance_cost_labels.py || _note "$LINENO"
 
+# D428: لا اسمَ يُقرأ بعد حذفه. `_fv` حُذف في D386 وبقي قارئُه فسقط بناءُ
+# جدول السوق ستّةَ أيام، ومعه ثلاثةٌ من العائلة نفسِها. صنفٌ لا تكشفه
+# الفحوصُ السلوكيةُ إلا إن مرّت بالسطر عينِه — فيُمسَح الخادمُ كلُّه ساكناً.
+echo
+python3 scripts/audit/undefined_names.py || _note "$LINENO"
+
 # D160 (عودة): لا فحصَ في اللجنة يكتب في بيانات المالك المتتبَّعة. عولج
 # في أربعة سكربتاتٍ وتخلّف `rank_check` فعاد يلوّث lastgood.json ويمنع
 # بناءَ الحزمة. فالحارسُ يقرأ قائمةَ اللجنة من run.sh نفسِه ويشترط تحويلَ

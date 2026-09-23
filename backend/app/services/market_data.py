@@ -186,6 +186,21 @@ def _ttm_from(quarters: list[dict], annual: list[dict]) -> dict | None:
     return out
 
 
+# ══ قارئُ حقولِ ياهو واحدٌ للمسارَين ══ (D428)
+# كان دالّةً محلّيةً في `get_financials` وحدَها، ويُناديها
+# `_quarterly_from_summary` كذلك — فيرفع `NameError` كلّما وصلها التنفيذ،
+# ويسقط الربعيُّ من ملخّص الاقتباس بلا خبر. فصار تعريفاً واحداً للمسارَين.
+def _raw(d, *path):
+    cur = d
+    for p in path:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(p)
+    if isinstance(cur, dict):
+        cur = cur.get("raw")
+    return cur if isinstance(cur, (int, float)) else None
+
+
 def _set_book_value(p: dict) -> None:
     """القيمة الدفترية للسهم = حقوق الملكية ÷ عدد الأسهم.
 
@@ -1128,16 +1143,6 @@ class YahooFinanceAdapter:
             return disk
         if not can_call("yahoo"):
             return None
-
-        def _raw(d, *path):
-            cur = d
-            for p in path:
-                if not isinstance(cur, dict):
-                    return None
-                cur = cur.get(p)
-            if isinstance(cur, dict):
-                cur = cur.get("raw")
-            return cur if isinstance(cur, (int, float)) else None
 
         try:
             record("yahoo")

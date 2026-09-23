@@ -398,7 +398,13 @@ async def _enrich_fundamentals(rows: list[dict]) -> None:
         # وهي حقلٌ مستقلٌّ لا يمسّ `fair_value`: لا تستبدل رأيَ محلّلٍ حيث
         # وُجد، ولا تُخلط به في العرض. تُحسب فقط حيث لا هدفَ أصلاً.
         r["rel_value"] = r["rel_conf"] = r["rel_why"] = None
-        if _fv is None and _sector_table is not None:
+        # ══ اسمٌ حُذف وبقي من يقرؤه ══ (D428)
+        # في D386 صار `_fv = pick("target_mean_price")` حقلاً باسمه
+        # (`analyst_target`)، وبقي هذا الشرطُ يقرأ `_fv` المحذوف. فرفع
+        # `NameError` في **كلّ صفّ**، و`_enrich_fundamentals` تُنادى بلا
+        # مِمْسَك — فسقط بناءُ الفرز كلُّه ستّةَ أيامٍ وخُدم آخرُ نسخةٍ
+        # سليمةٍ قبلها. والشرطُ هو هو: القيمةُ النسبيةُ حيث لا هدفَ محلّلين.
+        if r["analyst_target"] is None and _sector_table is not None:
             try:
                 _rv = _relative_value(
                     sector=r.get("sector"), price=r.get("price"),

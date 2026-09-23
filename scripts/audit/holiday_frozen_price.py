@@ -25,6 +25,16 @@
 """
 from __future__ import annotations
 
+# ══ لا فحصَ يكتب في بيانات المالك ══ (D160 · D429)
+# يُحوَّل مخزنُ الحالة إلى مجلّدٍ مؤقّت **قبل** أيّ استيرادٍ من `app`،
+# فالوحداتُ تقرأ مسارَها عند تحميلها. وسجلُّ مشاهداتِ حالة السوق معه:
+# حكمُ العطلة يقرأ مشاهداتِ اليوم، فمشاهدةُ فحصٍ تدخله تُفسد دليلَه.
+import os as _os, tempfile as _tf
+_SANDBOX = _tf.mkdtemp(prefix="sp-audit-")
+_os.environ["LASTGOOD_PATH"] = _os.path.join(_SANDBOX, "lastgood.json")
+_os.environ["SP_STATE_DIR"] = _SANDBOX
+_os.environ["SP_STATUS_LOG"] = _os.path.join(_SANDBOX, "status_codes.jsonl")
+
 import pathlib
 import sys
 from datetime import datetime, timedelta

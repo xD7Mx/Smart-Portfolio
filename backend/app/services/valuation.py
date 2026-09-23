@@ -113,25 +113,3 @@ async def get_valuation_context(db: AsyncSession, symbol: str, sector: str | Non
     # مقارنةَ نظائر لهذه الشركة، ويسقط مسارُ المضاعف من القيمة العادلة
     # ويبقى الخصم وحده — وهو الأدقّ أصلاً.
     return None
-
-    verdict = None
-    if pe is not None and pe > 0 and sector_avg_pe:
-        diff_pct = (pe - sector_avg_pe) / sector_avg_pe * 100
-        if diff_pct <= -15:
-            verdict = "أرخص من متوسط القطاع"
-        elif diff_pct >= 15:
-            verdict = "أغلى من متوسط القطاع"
-        else:
-            verdict = "قريب من متوسط القطاع"
-
-    result = {
-        "pe": pe,
-        "pb": pb,
-        "sector": sector,
-        "sector_avg_pe": sector_avg_pe,
-        "sector_avg_pb": sector_avg_pb,
-        "peer_count": len(peer_pes) or len(peer_pbs),
-        "verdict": verdict,
-    }
-    cache.set(ck, result, VALUATION_TTL)
-    return result

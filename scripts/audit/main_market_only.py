@@ -15,6 +15,16 @@
 """
 from __future__ import annotations
 
+# ══ لا فحصَ يكتب في بيانات المالك ══ (D160 · D429)
+# يُحوَّل مخزنُ الحالة إلى مجلّدٍ مؤقّت **قبل** أيّ استيرادٍ من `app`،
+# فالوحداتُ تقرأ مسارَها عند تحميلها. وسجلُّ مشاهداتِ حالة السوق معه:
+# حكمُ العطلة يقرأ مشاهداتِ اليوم، فمشاهدةُ فحصٍ تدخله تُفسد دليلَه.
+import os as _os, tempfile as _tf
+_SANDBOX = _tf.mkdtemp(prefix="sp-audit-")
+_os.environ["LASTGOOD_PATH"] = _os.path.join(_SANDBOX, "lastgood.json")
+_os.environ["SP_STATE_DIR"] = _SANDBOX
+_os.environ["SP_STATUS_LOG"] = _os.path.join(_SANDBOX, "status_codes.jsonl")
+
 import pathlib
 import sys
 
@@ -62,8 +72,11 @@ else:
     T = _sw.read_text("utf-8")
     check("main_market(MARKET_UNIVERSE)" in T and "usable_rows()" not in T,
           "٢ كونُ المسحة من الدليل الرسميّ — لا من اللقطة (التي تحمل نمو)")
-    check('if not s.startswith("9")' in T,
-          "٢ب ورمزُ «نمو» لا يتسلّل ولو مُرّر بالوسيط")
+    # كان يشترط نصَّ `startswith("9")` حرفياً — أي النسخةَ اليدويةَ التي
+    # يمنعها `main_market.py` (٥): حارسان يتناقضان على سطرٍ واحد (‏D428).
+    # والسلوكُ يقيسه (٣) أدناه؛ وهنا يُشترط أن يُقرأ التعريفُ من موضعه.
+    check("is_nomu(" in T,
+          "٢ب ورمزُ «نمو» يُستبعَد بتعريفه الواحد لا بنسخةٍ يدوية")
 
 # ── ٣ · وسلوكُ المسحة يُقاس لا يُقرأ نصّاً ─────────────────────────────
 try:

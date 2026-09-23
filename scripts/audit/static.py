@@ -1148,12 +1148,41 @@ def check_flat_page() -> None:
                       ("m.band", "النطاق المرجعيّ تحت كل ركن"),
                       ("m.note", "ملاحظةُ الركن"),
                       ("m.inputs", "مدخلات كل مسار"),
-                      ("governance_provenance", "بيان مصدر الدرجة"),
                       ("assumptions", "الافتراضات تحت القيمة"),
                       ("age_days", "عمر الأرقام تحت القيمة")):
         if frag in body:
             note("S-FLATPAGE", "frontend/src/components/analysis/AnalysisPanel.tsx",
                  f"عاد «{why}» — تبريرٌ تحت رقمٍ لا يحتاج تبريراً")
+    # ══ «بيانُ مصدر الدرجة» يُمنَع، و«عمرُ الرقم» معه لا يُمنَع ══ (D428)
+    # كان يُمنع **اسمُ الكائن** `governance_provenance` كلُّه. ثمّ أمر
+    # المالكُ أن يُعرض تاريخُ القوائم **في سطر الدرجة نفسِه** (‏D380 ·
+    # D381: «عمرُ الرقم جزءٌ منه لا حاشيةٌ عنه») — ومصدرُه ذلك الكائن.
+    # فتعارض حارسان على شفرةٍ واحدة: هذا يُسقطها و`data_age_shown` يشترطها.
+    # والمقصودُ هنا منعُ **الفقرة المبرِّرة** لا قراءةُ التاريخ. فالمسموحُ
+    # مفتاحا العمر وحدَهما؛ وأيُّ مفتاحٍ آخرَ يُقرأ منه، أو مرورٌ عليه
+    # كلِّه (‏`Object.entries` · `.map`)، عودةٌ للبيان.
+    if "governance_provenance" in body:
+        _AGE_KEYS = {"تاريخ الأرقام", "عمر الأرقام أياماً"}
+        _names = set(re.findall(
+            r"(\w+)\s*(?::[^=]*)?=\s*data\.governance_provenance", body))
+        _keys = set()
+        _whole = False
+        for _n in _names | {"data.governance_provenance"}:
+            _e = re.escape(_n)
+            _keys |= set(re.findall(_e + r"\[\s*[\"']([^\"']+)[\"']\s*\]", body))
+            _keys |= set(re.findall(_e + r"(?:\?\.|\.)(\w+)", body))
+            if re.search(r"Object\.(?:entries|keys|values)\(\s*" + _e + r"\s*\)",
+                         body):
+                _whole = True
+        _bad = sorted(k for k in _keys if k not in _AGE_KEYS)
+        if _whole or _bad or not _names and "data.governance_provenance" in body \
+                and not _keys:
+            note("S-FLATPAGE", "frontend/src/components/analysis/AnalysisPanel.tsx",
+                 "عاد «بيان مصدر الدرجة» — "
+                 + ("يُمَرّ على الكائن كلِّه" if _whole
+                    else f"يُقرأ منه غيرُ العمر: {_bad}" if _bad
+                    else "يُعرَض الكائنُ بلا مفتاح")
+                 + " — تبريرٌ تحت رقمٍ لا يحتاج تبريراً")
 
 
 # ── S-TWOFAIR — قيمةٌ عادلة ثانية بمصدرٍ آخر (D037) ───────────────────────

@@ -119,7 +119,11 @@ async def _financial_from_statements(
             _actions = (_pg.get("calendar") or []) + (_pg.get("disclosures") or [])
             _c.set(_ak, _actions, 24 * 3600)
     except Exception as e:                                        # noqa: BLE001
-        logger.debug(f"إجراءات أرقام {symbol}: {type(e).__name__}: {e}")
+        # و`logger` اسمٌ محلّيٌّ في هذه الدالّة (يُستورَد فيها لاحقاً)،
+        # فالإشارةُ إليه هنا كانت ترفع خطأً **داخل مِمْسَك الخطأ**: يفشل
+        # «أرقام» فيسقط تحليلُ السهم كلُّه بدل أن يبقى الركنُ أعمى (‏D428).
+        from loguru import logger as _lg1
+        _lg1.debug(f"إجراءات أرقام {symbol}: {type(e).__name__}: {e}")
         _actions = None
     gov_pillar = _gp.build(features, periods, _own, _actions)
 
