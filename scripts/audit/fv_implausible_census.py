@@ -17,6 +17,10 @@ for sym, r in st.items():
         q = fv / px
         if not (0.4 <= q <= 2.5):
             bad.append((sym, round(fv, 2), px, round(q, 2)))
-print(f"مخزن: {len(st)} · خارج النطاق: {len(bad)}")
-for b in sorted(bad, key=lambda x: -abs(x[3] - 1)):
+lo = sum(1 for b in bad if b[3] < 0.4); hi = len(bad) - lo
+print(f"مخزن: {len(st)} · خارج النطاق: {len(bad)} · تحت 0.4: {lo} · فوق 2.5: {hi}")
+import collections
+
+print("حسب القطاع:", collections.Counter((TM.row_for(b[0]) or {}).get("sector") for b in bad).most_common())
+for b in sorted(bad, key=lambda x: x[3])[:80]:
     print("  ", b)
