@@ -57,6 +57,13 @@ def audit(info: dict, periods: list[dict] | None) -> dict:
     net_income = _num(last.get("net_income"))
     equity = _num(last.get("equity"))
     shares = _num(last.get("shares_outstanding"))
+    # ══ عددُ أسهمٍ مطعونٌ فيه لا يُشتقّ منه رقمٌ للسهم ══ (D445)
+    # قِيس: 1050 و7202 و3002 عددُ أسهمها في الإفصاح بالآلاف في كلّ سنة،
+    # وطبقةُ الدمج وسمته (‏`shares_mismatch` 1096×) — لكنّ التدقيقَ هنا
+    # تجاهل الوسم فاشتقّ ربحيةَ سهمٍ 2,159 بدل 2.00 واعتمدها، فخرج
+    # «السعرُ العادل» 17,717 على سعر 21.18.
+    if last.get("shares_unit_gap") or last.get("shares_mismatch"):
+        shares = None
 
     def _check(field: str, derived: float | None, label: str) -> None:
         """يقارن حقلاً بمشتقّه من القوائم، ويُصحّح عند الاختلاف الجوهريّ."""
@@ -69,6 +76,13 @@ def audit(info: dict, periods: list[dict] | None) -> dict:
             out["corrected"].append(f"{label}: استُخرج من القوائم ({derived:,.2f})")
             return
         d = _pct_diff(raw, derived)
+        _r = max(raw, derived) / min(raw, derived)
+        if _r >= 100:
+            # فارقُ مئةِ ضعفٍ فأكثر خطأُ وحدةٍ لا تصحيح: لا يُستبدَل به شيء.
+            out["notes"].append(
+                f"{label}: الملخَّص {raw:,.2f} والمشتقّ {derived:,.2f} — فارقُ "
+                f"{_r:,.0f}× خطأُ وحدةٍ في القوائم، فبقي الملخَّص")
+            return
         if d >= MATERIAL:
             info[field] = round(derived, 4)
             out["corrected"].append(

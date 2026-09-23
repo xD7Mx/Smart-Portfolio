@@ -381,6 +381,8 @@ async def get_company_dividends(symbol: str):
         "yearly": yearly,
         "recent": data.get("history", [])[-8:][::-1],
         "note": note,
+        "source": data.get("source"),
+        "official": data.get("official"),
     })
 
 

@@ -151,6 +151,15 @@ rows = (json.loads(raw) or {}).get("data")
 | `historicalBoardMembersWithDates` | أعضاءُ مجلس الإدارة |
 | `ThemeTASIUtilityServlet` | مؤشّرُ تاسي مباشرةً (خدمةُ ترويسةٍ لا بوّابة) |
 
+### توزيعاتُ الشركة: جدولُ صفحتها الرسمية (D444)
+
+صفحةُ الشركة (رابطُها من لقطة السوق) تحمل جدولَ `id="companyDividends"` مرسوماً
+في HTML نفسِه: تاريخُ الإعلان · الأحقية · التوزيع · الطريقة · المبلغ (آخرُ خمسة).
+والخدمةُ `getCorporateAction` في الصفحة نفسِها تحتاج `indexSymbol` و`language`
+و`issueType` (فارغاً تعود بلا جسم؛ `ALL` تعيد المنحَ وتغيّرَ رأس المال).
+وخدمةُ تقويم التوزيعات العامّ `getDividendsDetails` تعود `{"data":[]}` بلا مرشِّحات.
+والقراءةُ في `backend/app/services/tadawul_dividends.py`.
+
 ### تاريخُ المؤشّر: مولّدُ رسم «تداول» (D438)
 
 اكتُشف من الصفحة الرئيسية بكاشف `tasi_history_door.py`، وقِيس شكلُه بـ`tasi_chart_shape.py`:

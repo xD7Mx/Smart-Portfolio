@@ -1677,7 +1677,19 @@ class MarketDataService:
         return await self._yahoo().get_ownership(symbol)
 
     async def get_dividends(self, symbol: str) -> Optional[dict]:
-        return await self._yahoo().get_dividends(symbol)
+        # الرسميُّ أوّلاً: جدولُ توزيعات الشركة في «تداول»، وياهو يُكمل الأقدم (D444).
+        from app.services import tadawul_dividends as _td
+        off = None
+        try:
+            off = await _td.read(symbol)
+        except Exception:                                         # noqa: BLE001
+            off = None
+        y = None
+        try:
+            y = await self._yahoo().get_dividends(symbol)
+        except Exception:                                         # noqa: BLE001
+            y = None
+        return _td.merge(off, y)
 
     async def get_earnings_dates(self, symbol: str) -> Optional[dict]:
         return await self._yahoo().get_earnings_dates(symbol)
