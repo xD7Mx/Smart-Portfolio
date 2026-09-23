@@ -74,5 +74,13 @@ check(any("مضاعف" in (n or "") for n in seen.get("methods") or []),
 from app.services import governance_rules as G
 check(G.archetype_for(_got.get("sector")) == "bank",
       "٤ ومعيارُ درجة الجودة معيارُ المصارف لا العامّ", str(_got.get("sector")))
+# ── ٥ · ولقطةٌ بلا مكرّرات — كما قِيست على الخادم (D453) ──
+import app.services.tadawul_xbrl as _X
+from app.services import sector_multiples as _SM
+_BARE = {s: {"price": 20.0, "sector_en": "Banks"} for s in PE}
+_X.for_symbol = lambda sym, kind="annual": [{"eps": 20.0 / PE.get(str(sym), 10.0),
+                                            "equity": 1.4e10, "shares_outstanding": 1e9}]
+_m = _SM.for_symbol("1050", rows=_BARE) or {}
+check(_m.get("pe") == 11.5, "٥ ولقطةٌ بلا مكرّرات: يُحسب مكرّرُ القطاع من إفصاح XBRL", str(_m))
 print(("FAIL" if fail else "PASS") + " D446 — طريقةُ تقييم القطاع مطبَّقة")
 sys.exit(fail)
