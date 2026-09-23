@@ -178,6 +178,15 @@ def _derive(p: dict, src: dict) -> None:
     if p.get("equity") is None and ta is not None and tl is not None:
         p["equity"] = round(float(ta) - float(tl), 2)
         src["equity"] = "مشتقّ: أصولٌ − التزامات"
+    # ══ والمعادلةُ تُقرأ في الاتّجاهين ══ (D420)
+    # كانت تُشتقّ الحقوقُ من الأصول والالتزامات، ولا تُشتقّ الالتزاماتُ
+    # من الأصول والحقوق — وهي المعادلةُ نفسُها مقلوبة. وقِيس على الكون:
+    # `total_liabilities` ناقصٌ في **22 ورقة**، و`equity` و`total_assets`
+    # **غيرُ ناقصَين في أيّ ورقة**. فالطرفان حاضران والناتجُ متروك.
+    if p.get("total_liabilities") is None and ta is not None \
+            and p.get("equity") is not None:
+        p["total_liabilities"] = round(float(ta) - float(p["equity"]), 2)
+        src["total_liabilities"] = "مشتقّ: أصولٌ − حقوق"
 
     # ══ وتسويةٌ بين المنشور والمشتقّ ══ (D339)
     # قِيس على خادم المالك: بعد مطابقة «عدد الأسهم» بالاسم، حالةٌ صار
@@ -220,6 +229,18 @@ def _derive(p: dict, src: dict) -> None:
     if p.get("free_cash_flow") is None and ocf is not None and capex is not None:
         p["free_cash_flow"] = round(float(ocf) - abs(float(capex)), 2)
         src["free_cash_flow"] = "مشتقّ: تشغيليٌّ − رأسماليّ"
+
+    # ══ ولا دَينَ ⇒ لا تكلفةَ تمويل ══ (D420)
+    # قِيس: `interest_expense` ناقصٌ في ‎32 ورقةً و`ebit` في ‎34. وكثيرٌ
+    # منها ليس **نقصَ إفصاح** بل **غيابَ البند**: شركةٌ بلا دَينٍ لا
+    # تكلفةَ تمويلٍ لها، فالصوابُ صفرٌ لا فراغ. والفراغُ يُسقط تغطيةَ
+    # الفوائد ومعها `ebit`، فيُحرَم المحرّكُ مسارَه لسببٍ غيرِ قائم.
+    # ولا يُفترَض الصفرُ إلا حين يكون الدَّينُ **صفراً مقيساً** لا غائباً.
+    _td = p.get("total_debt")
+    if (p.get("interest_expense") is None
+            and isinstance(_td, (int, float)) and abs(_td) < 1e-9):
+        p["interest_expense"] = 0.0
+        src["interest_expense"] = "مشتقّ: لا دَينَ ⇒ لا تكلفةَ تمويل"
 
     pre, fin = p.get("pretax_income"), p.get("interest_expense")
     if p.get("ebit") is None and pre is not None and fin is not None:
