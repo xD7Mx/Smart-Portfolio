@@ -234,27 +234,40 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
                   المعروضُ هدفَ المحللين، فيخرج رمادياً محايداً ولو كان
                   الهدفُ أعلى السعرَ — لونٌ يكذب على قارئه. وحين يغيب
                   الرقمان لا يُحذف الصفُّ صامتاً: يُقال «غير متوفّر». */}
-              {(() => {
-                const ours = data.fair_value != null;
-                const shown = ours ? data.fair_value : data.analyst_target;
-                const up = ours ? data.fair_value_upside_pct : data.analyst_target_upside_pct;
-                if (shown == null) return (
-                  <div className="flex items-center gap-2 flex-wrap text-[11px]">
-                    <span className="text-[var(--ink-muted)]">السعر العادل</span>
-                    <span className="font-bold text-[var(--ink-muted)]">غير متوفّر</span>
-                  </div>
-                );
-                return (
-                  <div className="flex items-center gap-2 flex-wrap text-[11px]">
-                    <span className="text-[var(--ink-muted)]">
-                      {ours ? "السعر العادل" : "هدف المحللين (ياهو)"}
-                    </span>
-                    <span className={"font-bold tabular-nums " + ((up ?? 0) > 0 ? "text-[var(--pos-ink)]" : (up ?? 0) < 0 ? "text-[var(--neg-ink)]" : "text-[var(--ink-muted)]")}>
-                      {fmt(shown)} ﷼{up != null && ` (${up > 0 ? "+" : ""}${up}%)`}
-                    </span>
-                  </div>
-                );
-              })()}
+              {/* ══ أرقامٌ بأسمائها الثابتة — بلا مواربة ══ (بأمر المالك)
+                  «واجهةُ صفحة السهم رسميةٌ بلا فلسفة… فقط أرقامٌ تظهر
+                  والخلفيةُ تعمل كلَّ ما بوسعها».
+                  وكان الصفُّ **يبدّل الاسم** إلى «هدف المحللين» حين يغيب
+                  رقمُنا، ويكتب «غير متوفّر». وكلاهما مواربة: الاسمُ
+                  المتبدّل يجعل القارئَ يظنّ رقماً مكانَ آخر، والعبارةُ
+                  اعتذارٌ في موضع رقم.
+                  فالسطران ثابتان بأسمائهما: سعرُنا العادل أوّلاً، وهدفُ
+                  المحللين تحته حين يوجد — وما غاب يُكتب شَرطةً لا جملة.
+                  والاجتهادُ كلُّه خلف الشاشة لا عليها. */}
+              <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                <span className="text-[var(--ink-muted)]">السعر العادل</span>
+                <span className={"font-bold tabular-nums " + (
+                  (data.fair_value_upside_pct ?? 0) > 0 ? "text-[var(--pos-ink)]"
+                  : (data.fair_value_upside_pct ?? 0) < 0 ? "text-[var(--neg-ink)]"
+                  : "text-[var(--ink)]")}>
+                  {data.fair_value != null ? `${fmt(data.fair_value)} ﷼` : "—"}
+                  {data.fair_value != null && data.fair_value_upside_pct != null
+                    && ` (${data.fair_value_upside_pct > 0 ? "+" : ""}${data.fair_value_upside_pct}%)`}
+                </span>
+              </div>
+              {data.analyst_target != null && (
+                <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                  <span className="text-[var(--ink-muted)]">هدف المحللين</span>
+                  <span className={"font-bold tabular-nums " + (
+                    (data.analyst_target_upside_pct ?? 0) > 0 ? "text-[var(--pos-ink)]"
+                    : (data.analyst_target_upside_pct ?? 0) < 0 ? "text-[var(--neg-ink)]"
+                    : "text-[var(--ink)]")}>
+                    {fmt(data.analyst_target)} ﷼
+                    {data.analyst_target_upside_pct != null
+                      && ` (${data.analyst_target_upside_pct > 0 ? "+" : ""}${data.analyst_target_upside_pct}%)`}
+                  </span>
+                </div>
+              )}
               {/* متوسط السعر المتحرّك أُسقط من هنا بأمر المالك: لا يعنيه،
                   ووجودُه بجانب القيمة العادلة يُغري بالخلط بينهما. وهو
                   باقٍ في «التحليل الفني» حيث يخصّ. */}
