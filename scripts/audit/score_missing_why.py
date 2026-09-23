@@ -59,16 +59,15 @@ async def main() -> int:
             sc = gov.get("score")
         if isinstance(sc, (int, float)):
             continue
-        why = (fin.get("unavailable_reason") or fin.get("why")
-               or fin.get("note") or fin.get("reason")
-               or (a.get("governance") or {}).get("reason")
-               if isinstance(a.get("governance"), dict) else None)
-        keys = sorted(k for k in fin.keys())[:10] if fin else []
-        n_per = len(((a.get("financials") or {}).get("periods") or [])) \
-            if isinstance(a.get("financials"), dict) else "?"
+        # السببُ في القرار (‏`decision.reason`) وفي المواصفة (‏`spec`)
+        _d = a.get("decision") if isinstance(a.get("decision"), dict) else {}
+        _sp = fin.get("spec") if isinstance(fin.get("spec"), dict) else {}
+        why = _d.get("reason") or _sp.get("abstain_reason")
+        rule = _d.get("matched_rule_id") or _d.get("raw") or "?"
+        miss = _sp.get("missing")
         missing.append((s, archetype_of(s) or "?",
-                        f"قوائم={n_per} · سبب={why!s:.90} · مفاتيح={keys}"))
-        kinds[str(why)[:60]] += 1
+                        f"قاعدة={rule} · سبب={why!s:.110} · ناقص={miss}"))
+        kinds[f"{rule} | {str(why)[:70]}"] += 1
 
     print(f"الكون: {len(syms)} · بلا درجةِ جودة: **{len(missing)}**\n")
     for s, arch, d in missing[:40]:
