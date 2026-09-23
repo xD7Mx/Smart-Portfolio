@@ -244,6 +244,9 @@ python3 scripts/audit/every_archetype_has_pillars.py || _note "$LINENO"
 # بارداً)، والخادمُ في الإنتاج بلا --reload.
 python3 scripts/audit/screener_serve_no_engine.py || _note "$LINENO"
 
+# D435: برنت مباشرٌ من مصدرٍ مقيس بطبقاتٍ مرتَّبة، والمؤجَّلُ موسوم، والغيابُ يُقال.
+python3 scripts/audit/brent_live.py || _note "$LINENO"
+
 # D160 (عودة): لا فحصَ في اللجنة يكتب في بيانات المالك المتتبَّعة. عولج
 # في أربعة سكربتاتٍ وتخلّف `rank_check` فعاد يلوّث lastgood.json ويمنع
 # بناءَ الحزمة. فالحارسُ يقرأ قائمةَ اللجنة من run.sh نفسِه ويشترط تحويلَ

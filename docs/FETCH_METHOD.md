@@ -151,6 +151,26 @@ rows = (json.loads(raw) or {}).get("data")
 | `historicalBoardMembersWithDates` | أعضاءُ مجلس الإدارة |
 | `ThemeTASIUtilityServlet` | مؤشّرُ تاسي مباشرةً (خدمةُ ترويسةٍ لا بوّابة) |
 
+### مصدرٌ ثانويٌّ مقيس: مسحُ «TradingView» العامّ (D435)
+
+نقطةُ JSON عامّةٌ بلا مفتاح، تُطلب بـ`POST` وبانتحال البصمة نفسِه:
+
+```
+POST https://scanner.tradingview.com/{cfd|futures|global|ksa}/scan
+{"symbols":{"tickers":["FX:UKOIL"],"query":{"types":[]}},
+ "columns":["close","change","change_abs","update_mode"]}
+```
+
+| الرمز · السوق | ما قِيس (2026-09-23) |
+|---|---|
+| `FX:UKOIL` · `cfd` | برنت **مباشر** — `update_mode = streaming` |
+| `ICEEUR:BRN1!` · `futures` | عقودُ برنت — **مؤجَّلٌ عشر دقائق** (`delayed_streaming_600`) |
+| `TADAWUL:TASI` · `ksa` | تاسي — **مؤجَّلٌ ربعَ ساعة** (`delayed_streaming_900`)؛ فخدمةُ «تداول» أحدث ولا يُقدَّم عليها |
+| رمزٌ في سوقٍ غيرِ سوقه | `200` بصفوفٍ فارغة — **ليس حكماً على المصدر**، بل خطأُ رمزٍ أو سوق |
+
+و`update_mode` يُقرأ ويُعلَن مع الرقم: المؤجَّلُ يُوسَم مؤجَّلاً ولا يُعرض
+كأنّه مباشر. والجلبُ في `backend/app/services/commodity_quote.py`.
+
 > **قيدٌ مقيس:** بعضُ المسارات محجوبةٌ **عند الحافّة** لا بالمصافحة —
 > `.../participants-and-deals/special-deals` تعود 200 بقشرةٍ بلا جدول
 > للجلب المنتحِل، و**403 Access Denied** لمتصفّحٍ حقيقيّ. فليست مسألةَ

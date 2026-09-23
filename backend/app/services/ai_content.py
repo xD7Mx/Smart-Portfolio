@@ -352,10 +352,11 @@ async def refresh_market_brief(db=None) -> dict:
     from app.services.market_data import market_service
     from app.services.news_fetcher import fetch_weekly_foreign_flow
     from app.services import lastgood
+    from app.services.commodity_quote import brent_quote
 
     tasi, brent, flow = await _aio.gather(
         market_service.get_price("^TASI.SR"),
-        market_service.get_price("BZ=F"),
+        brent_quote(),   # D435 — مصدرٌ مباشرٌ مقيس
         fetch_weekly_foreign_flow(),
     )
     tasi = tasi or lastgood.load("market:tasi", max_age_seconds=7 * 24 * 3600)

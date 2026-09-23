@@ -83,6 +83,15 @@ def main() -> int:
             m = (((d.get("chart") or {}).get("result") or [{}])[0] or {}).get("meta") or {}
             print(f"   سعر={m.get('regularMarketPrice')} · زمن={m.get('regularMarketTime')}"
                   f" · عملة={m.get('currency')} · خطأ={(d.get('chart') or {}).get('error')}")
+    # ── والطريقُ المُقدَّمُ نفسُه على الخادم (‏D435) ─────────────────
+    try:
+        import asyncio
+        import sys as _s
+        _s.path.insert(0, "/app")
+        from app.services.commodity_quote import brent_quote
+        print(f"\n═ brent_quote() المُقدَّم: {asyncio.run(brent_quote())}")
+    except Exception as e:                                        # noqa: BLE001
+        print(f"\n⚠ brent_quote() لم يُقَس: {type(e).__name__}: {e}")
     return 0
 
 

@@ -448,9 +448,12 @@ async def market_overview(db: AsyncSession = Depends(get_db)):
     _ensure()
     from app.services.market_data import market_service
     from app.services.news_fetcher import fetch_weekly_foreign_flow
+    from app.services.commodity_quote import brent_quote
     tasi, brent, flow = await _aio.gather(
         market_service.get_price("^TASI.SR"),
-        market_service.get_price("BZ=F"),   # Brent crude futures (USD)
+        # برنت مباشراً من مصدرٍ مقيس بطبقاتٍ مرتَّبة (‏D435) — كان من ياهو
+        # وحدَه، محكوماً بحصّتنا الداخلية ومتأخّراً عن السوق نحو 5٪.
+        brent_quote(),
         fetch_weekly_foreign_flow(),
     )
     # Real traded value = real price × real share volume from the same Yahoo
