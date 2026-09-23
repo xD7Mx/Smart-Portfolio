@@ -66,51 +66,88 @@ class PriceData:
 
 
 def _ttm_from(quarters: list[dict], annual: list[dict]) -> dict | None:
-    """أرباحُ اثني عشرَ شهراً من أربعةِ أرباعٍ **بعد التحقّق**."""
+    """أرباحُ اثني عشرَ شهراً — بصيغةٍ تناسب نمطَ الإفصاح السعوديّ (‏D417).
+
+    ══ الشرطُ الأوّلُ كان لا يتحقّق أصلاً ══
+    اشترطتُ «سنةً كاملةً بأربعةِ أرباع» يُتحقَّق بها من أنّ الصفوفَ
+    منفصلة. وقِيس أثرُه: **3 من 273** فقط. والسببُ أنّ المُصدِرَ السعوديَّ
+    يُفصح **ثلاثةَ أرباعٍ ثمّ قائمةً سنوية** — لا ربعَ رابعاً مستقلّاً.
+    فبنيتُ حارساً على نمطِ إفصاحٍ غيرِ نمطِ هذا السوق، فامتنع عن الجميع.
+
+    ══ والصيغةُ التي تناسبه ══
+        اثنا عشرَ شهراً = السنويُّ الأخير
+                        − أرباعُ العام الماضي المقابلة
+                        + أرباعُ العام الجاري
+    أي: نطرح من السنة ما مضى من نظيره ونضيف ما تحقّق. وهي الصيغةُ
+    المعتادةُ في التحليل حيث لا يُفصَح الربعُ الرابع.
+
+    ══ والتحقّقُ يبقى صارماً ══
+    الخطرُ الأصليُّ باقٍ: لو كانت الصفوفُ **تراكميةً** من أوّل السنة
+    لضاعف الطرحُ والجمعُ الرقمَ. فيُقاس على سنةِ الأساس نفسِها: مجموعُ
+    أرباعها يجب أن يكون **دون** سنويّها — فالثلاثةُ أرباعٍ أقلُّ من
+    السنة. وإن تجاوزه فالصفوفُ تراكميةٌ ويُرفَض الحساب بسببٍ مكتوب.
+    """
     FLOW = ("revenue", "net_income", "operating_cash_flow", "capex",
             "free_cash_flow", "pretax_income", "ebit")
-    qs = sorted((r for r in quarters if r.get("as_of")),
-                key=lambda r: str(r.get("as_of")))
-    if len(qs) < 4:
+    qs = [r for r in (quarters or []) if r.get("as_of")]
+    if not qs:
         return None
-    by_year: dict[str, list[dict]] = {}
-    for r in qs:
-        by_year.setdefault(str(r["as_of"])[:4], []).append(r)
-    ann = {str(r.get("as_of") or "")[:4]: r.get("net_income")
-           for r in (annual or []) if r.get("as_of")}
-
-    # ── التحقّق: سنةٌ كاملةٌ أرباعُها أربعةٌ ولها سنويٌّ منشور ──────────
-    verified_on = None
-    for yr in sorted(by_year, reverse=True):
-        rows = by_year[yr]
-        a = ann.get(yr)
-        if len(rows) != 4 or not isinstance(a, (int, float)) or not a:
-            continue
-        vals = [r.get("net_income") for r in rows]
-        if not all(isinstance(v, (int, float)) for v in vals):
-            continue
-        if abs(sum(vals) - a) / abs(a) <= 0.10:
-            verified_on = yr
-        break
-    if not verified_on:
+    ann = {}
+    for r in (annual or []):
+        d = str(r.get("as_of") or "")[:10]
+        if d:
+            ann[d[:4]] = r
+    if not ann:
         return {"unverified": True,
-                "note": ("لم تُجمَع أرباحُ اثني عشرَ شهراً: لا سنةٌ كاملةٌ "
-                         "بأربعةِ أرباعٍ وسنويٍّ منشورٍ يُتحقَّق بها من "
-                         "أنّ الأرباعَ منفصلةٌ لا تراكمية")}
+                "note": "لا قائمةَ سنويةً يُبنى عليها حسابُ اثني عشرَ شهراً"}
 
-    last4 = qs[-4:]
-    if len({str(r["as_of"])[:10] for r in last4}) != 4:
-        return None
-    out: dict = {"as_of": str(last4[-1]["as_of"])[:10],
-                 "quarters": [str(r["as_of"])[:10] for r in last4],
-                 "verified_on": verified_on}
+    by_year: dict[str, dict[str, dict]] = {}
+    for r in qs:
+        d = str(r["as_of"])[:10]
+        by_year.setdefault(d[:4], {})[d[5:10]] = r
+
+    base_yr = max(ann)                       # أحدثُ سنةٍ منشورة
+    cur_yr = str(int(base_yr) + 1)
+    base_q = by_year.get(base_yr) or {}
+    cur_q = by_year.get(cur_yr) or {}
+
+    # ── التحقّق: أرباعُ سنةِ الأساس دون سنويّها (منفصلةٌ لا تراكمية) ──
+    _bn = ann[base_yr].get("net_income")
+    _qn = [v.get("net_income") for v in base_q.values()]
+    if not isinstance(_bn, (int, float)) or not _bn or not _qn \
+            or not all(isinstance(v, (int, float)) for v in _qn):
+        return {"unverified": True,
+                "note": (f"لم يُتحقَّق من انفصال الأرباع: سنةُ {base_yr} "
+                         f"بلا صافي ربحٍ مقارَنٍ في أرباعها")}
+    if sum(_qn) > abs(_bn) * 1.05:
+        return {"unverified": True,
+                "note": (f"أرباعُ {base_yr} مجموعُها {sum(_qn):,.0f} يتجاوز "
+                         f"سنويَّها {_bn:,.0f} — صفوفٌ تراكميةٌ لا تُجمَع")}
+
+    # ── الأرباعُ المتقابلة: ما نُشر هذا العامَ وله نظيرٌ في سنة الأساس ──
+    pairs = sorted(k for k in cur_q if k in base_q)
+    if not pairs:
+        return {"unverified": True,
+                "note": (f"لا ربعَ من {cur_yr} له نظيرٌ في {base_yr} — "
+                         f"فلا يُطرَح نظيرٌ ولا يُضاف")}
+
+    out: dict = {"as_of": f"{cur_yr}-{max(pairs)}",
+                 "basis": (f"سنويُّ {base_yr} − أرباعُ {base_yr} المقابلة "
+                           f"+ أرباعُ {cur_yr}"),
+                 "quarters": [f"{cur_yr}-{k}" for k in pairs],
+                 "verified_on": base_yr}
     for k in FLOW:
-        vals = [r.get(k) for r in last4]
-        if all(isinstance(v, (int, float)) for v in vals):
-            out[k] = sum(vals)
+        a = ann[base_yr].get(k)
+        cur = [cur_q[q].get(k) for q in pairs]
+        prev = [base_q[q].get(k) for q in pairs]
+        if isinstance(a, (int, float)) \
+                and all(isinstance(v, (int, float)) for v in cur + prev):
+            out[k] = a - sum(prev) + sum(cur)
+
+    last = cur_q[max(pairs)]
     for k in ("shares_outstanding", "equity", "total_assets",
               "total_liabilities", "total_debt"):
-        v = last4[-1].get(k)
+        v = last.get(k)
         if isinstance(v, (int, float)):
             out[k] = v
     _ni, _sh = out.get("net_income"), out.get("shares_outstanding")
