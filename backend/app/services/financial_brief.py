@@ -226,8 +226,24 @@ async def brief(periods: list[dict], *, kind: str = "annual",
     hit = cache.get(ck)
     if isinstance(hit, dict):
         return hit
-    line = await ai_line(sig, kind, name)
-    out = {"line": line or rule_line(sig, kind),
-           "by": "جيمناي" if line else "قاعدي", "signals": sig}
-    cache.set(ck, out, CACHE_TTL)
-    return out
+    # ══ الصفحةُ لا تنتظر النموذج ══ (D447 · بأمر المالك: «سلس وسريع»)
+    # قِيس: القوائمُ تستغرق نحو خمس ثوانٍ في أوّل فتح — ونداءُ النموذج هنا
+    # كان ينتظره الطلبُ كلُّه. فيُردّ القاعديُّ فوراً، ويُكتب سطرُ النموذج
+    # في الخلفية فيظهر في الفتح التالي. والرقمُ واحدٌ في الحالين.
+    import asyncio
+
+    async def _fill() -> None:
+        try:
+            line = await ai_line(sig, kind, name)
+        except Exception:                                         # noqa: BLE001
+            line = None
+        if line:
+            cache.set(ck, {"line": line, "by": "جيمناي", "signals": sig}, CACHE_TTL)
+    _busy = f"{ck}:busy"
+    if not cache.get(_busy):
+        cache.set(_busy, 1, 120)
+        try:
+            asyncio.get_running_loop().create_task(_fill())
+        except RuntimeError:
+            pass
+    return {"line": rule_line(sig, kind), "by": "قاعدي", "signals": sig}
