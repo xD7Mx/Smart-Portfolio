@@ -215,6 +215,12 @@ python3 scripts/audit/lastgood_no_clobber.py || _note "$LINENO"
 echo
 python3 scripts/audit/sweep_names_failure.py || _note "$LINENO"
 
+# D425: تكلفةُ التمويل بأسمائها المنشورة — «finance cost» مفرداً في 11
+# ورقةً والخريطةُ تعرف الجمعَ وحدَه. ويقيس الاتّجاهين: ما يُقرأ، وما يشبهه
+# اسماً ويخالفه معنىً (مدفوعٌ نقداً · جزءُ الإيجار · صكوكٌ مملوكة) فلا يُقرأ.
+echo
+python3 scripts/audit/finance_cost_labels.py || _note "$LINENO"
+
 # D160 (عودة): لا فحصَ في اللجنة يكتب في بيانات المالك المتتبَّعة. عولج
 # في أربعة سكربتاتٍ وتخلّف `rank_check` فعاد يلوّث lastgood.json ويمنع
 # بناءَ الحزمة. فالحارسُ يقرأ قائمةَ اللجنة من run.sh نفسِه ويشترط تحويلَ

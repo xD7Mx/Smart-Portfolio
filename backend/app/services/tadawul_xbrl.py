@@ -106,7 +106,19 @@ LABELS: dict[str, tuple[str, ...]] = {
     # اسمُه `adjustments for finance costs` (‏2030 = 11,984 · 4334 =
     # 779,941) — تكلفةُ تمويلِ الفترة تُردّ في تسوية التدفّق التشغيليّ.
     # منقولٌ بالحرف من المخرَج لا مجتهَداً.
-    "interest_expense": ("finance costs", "adjustments for finance costs"),
+    "interest_expense": ("finance costs", "adjustments for finance costs",
+                         # ══ والمفردُ والجمعُ اسمانِ لا اسم ══ (D425)
+                         # قِيس بكاشف `debt_label_gap.py` على ملفّات
+                         # الأوراق الناقصة: «finance cost» مفرداً في ‎11
+                         # ورقة (‏2250 · 8170 …) والخريطةُ تعرف الجمعَ
+                         # وحدَه، فيسقط البندُ ومعه `ebit` وتغطيةُ الفوائد.
+                         # منقولةٌ بالحرف. **ولا يُنقَل** «finance cost
+                         # paid» (مدفوعٌ نقداً) ولا «…on lease liabilities»
+                         # (جزءُ الإيجار وحدَه) ولا «accrued» (رصيد) —
+                         # فالشبيهُ اسماً ليس المعنى.
+                         "finance cost", "interest expense",
+                         "financial costs", "finance cost for the year",
+                         "adjustment for finance cost"),
     # ══ بنودٌ يطلبها محرّكُ التدفّقات ولا يقوم بدونها ══ (D266)
     # كان يخصم درجةَ ثقةٍ لـ«بنودٍ ناقصة» لأن ثلاثةً منها لم تُطابَق:
     # الربحُ قبل الزكاة (يُشتقّ منه التشغيليُّ بجمع تكلفة التمويل)،
@@ -136,7 +148,12 @@ LABELS: dict[str, tuple[str, ...]] = {
                            "current portion of long term loans",
                            "short term borrowings",
                            "loans and borrowings", "borrowings",
-                           "unsecured bank loans"),
+                           "unsecured bank loans",
+                           # قرضُ هامشٍ مستحقّ — دَينٌ بمعناه (‏8200 ·
+                           # D425). وما عداه في مسح الدَّين ودائعُ وصكوكٌ
+                           # **مملوكة** وتدفّقاتُ سداد — أصولٌ لا دَين،
+                           # فلا تُنقَل: الرافعةُ تُقاس بما على الشركة.
+                           "margin loan payable"),
     "borrowings_noncurrent": ("non-current borrowings", "long-term borrowings",
                               "noncurrent borrowings",
                               "borrowings - non-current",
