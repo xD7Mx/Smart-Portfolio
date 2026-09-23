@@ -574,6 +574,7 @@ def compute(info: dict, price: float | None,
             periods: list[dict] | None = None,
             peer_count: int | None = None,
             archetype: str | None = None,
+            latest_quarter: dict | None = None,
             symbol: str | None = None) -> dict:
     """القيمة العادلة بمساراتها. تُعاد دائماً بنية كاملة حتى عند التعذّر.
 
@@ -999,6 +1000,16 @@ def compute(info: dict, price: float | None,
     _per_dates = [str(p.get("as_of") or "")
                   for p in (periods or []) if p.get("as_of")]
     _newest = max(_per_dates) if _per_dates else None
+    # ══ وعمرُ الأرقام من أحدثِ إفصاحٍ لا من أحدثِ سنةٍ مستعمَلة ══ (D412)
+    # قِيس: ‎25 من ‎30 ورقةً تملك ربعيّاً أحدثَ من سنويّها — وسيطُ
+    # المستعمَل ‎266 يوماً ووسيطُ المتاح ‎85. فالسلسلةُ السنويةُ تبقى
+    # للنماذج (‏لا يُخلط أساسان في نموٍّ مركّب)، لكنّ **متى آخرُ ما
+    # أفصحت عنه الشركة** يُقرأ من أحدثِ ربعٍ منشور. فكنّا نَصِمُ السوقَ
+    # بالشيخوخة بحقٍّ والعلّةُ عندنا: أرقامٌ نملك أحدثَ منها ولا نقرؤه.
+    _lq_asof = str((latest_quarter or {}).get("as_of") or "")[:10] or None
+    if _lq_asof and (not _newest or _lq_asof > _newest):
+        _newest = _lq_asof
+        out["asof_from_quarter"] = True
     _basis = _newest or asof
     out["fetched_at"] = asof
     out["data_asof"] = _newest
