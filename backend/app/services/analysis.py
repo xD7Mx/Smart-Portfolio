@@ -29,6 +29,32 @@ from app.services import cache
 ANALYSIS_TTL = 24 * 60 * 60
 
 
+def with_ttm(periods: list[dict], ttm: dict | None) -> list[dict]:
+    """الدرجةُ تتفاعل مع آخر النتائج: آخرُ اثني عشرَ شهراً فترةً أخيرة (D450).
+
+    قال المالك: «أريد الدرجةَ ذكيةً وتتفاعل حسب آخر النتائج». وقِيس أنّ
+    الدرجةَ تُبنى من السلسلة السنوية وحدَها — والشركةُ تُفصح ثلاثةَ أرباعٍ
+    قبل سنويّها، فيبقى أثرُ ربعٍ قويٍّ أو ضعيفٍ خارجَ الدرجة حتى تسعةَ
+    أشهر. و`_ttm_from` يحسب الاثني عشرَ شهراً مُتحقَّقاً منها أصلاً
+    ويستعملها محرّكُ السعر العادل وحدَه. فتُلحق بالسلسلة فترةً أخيرةً متى
+    كانت أحدثَ من آخر سنة، وما لا تحمله (الأسهمُ والتوزيعُ) يُؤخذ من آخر سنة.
+    """
+    if not periods or not isinstance(ttm, dict) or ttm.get("unverified"):
+        return periods
+    if not all(isinstance(ttm.get(k), (int, float)) for k in ("revenue", "net_income")):
+        return periods
+    last = periods[-1]
+    t_asof = str(ttm.get("as_of") or "")[:10]
+    l_asof = str(last.get("as_of") or f"{last.get('year')}-12-31")[:10]
+    if not t_asof or t_asof <= l_asof:
+        return periods
+    row = {**last, **{k: v for k, v in ttm.items() if v is not None},
+           "year": int(t_asof[:4]), "as_of": t_asof, "ttm": True}
+    if int(t_asof[:4]) == int(last.get("year") or 0):
+        return periods[:-1] + [row]
+    return periods + [row]
+
+
 async def _financial_from_statements(
     symbol: str, sector: str | None = None,
     valuation_snapshot: dict | None = None, timing_snapshot: dict | None = None,
@@ -52,6 +78,7 @@ async def _financial_from_statements(
 
     data = await market_service.get_financials(symbol, allow_supplement=allow_supplement)
     periods = (data or {}).get("periods") or []
+    periods = with_ttm(periods, (data or {}).get("ttm"))
     # المصدرُ الواحد للسمات — هو نفسه الذي يقرأ منه محرّك الحوكمة، فلا
     # تختلف الشركةُ الواحدة بين شاشتين.
     from app.services.four_scores import build_company_features
