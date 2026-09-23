@@ -34,6 +34,9 @@ git fetch origin "$BR" && git checkout FETCH_HEAD -- . && \
   { echo "✘ تعذّرت التسوية — تُراجَع الشبكةُ أو الصلاحيات"; exit 1; }
 
 say "٢ · إعادةُ الخادم"
+# ‏D434: `up -d` يُطبّق إعداد الحاوية إن تغيّر (أمرُ التشغيل بلا --reload)،
+# ثمّ الإعادةُ تقرأ الشفرةَ الجديدة — فالخادمُ لا يُعاد إلا هنا.
+docker compose up -d --no-deps backend >/dev/null 2>&1 || true
 docker restart "$C" >/dev/null 2>&1 && sleep 12 && echo "أُعيد $C" || \
   echo "⚠ تعذّرت إعادةُ $C — يُراجَع اسمُ الحاوية (SP_CONTAINER=…)"
 

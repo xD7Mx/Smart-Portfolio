@@ -115,7 +115,18 @@ def flush() -> None:
     try:
         lf = open(lock_path, "a+")
         fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
-        merged = _read_disk()
+        # ══ والقراءةُ من القرص حين كتب غيرُنا وحدَه ══ (D434)
+        # قِيس بالمُحلِّل: قراءةُ الملفّ كلِّه في كلّ إفراغٍ ‎0.66 ثانية، وهي
+        # لازمةٌ فقط إن كتبت عمليةٌ أخرى بعد آخر ما رأيناه. وزمنُ تعديل
+        # الملفّ يقول ذلك — وإلا فنسختُنا هي الملفُّ نفسُه.
+        try:
+            _m_now = os.stat(_PATH).st_mtime
+        except OSError:
+            _m_now = None
+        with _lock:
+            _same = (_mem is not None and _m_now is not None and _m_now == _mtime)
+            base = dict(_mem) if _same else None
+        merged = base if base is not None else _read_disk()
         merged.update(mine)
         tmp = f"{_PATH}.tmp.{os.getpid()}"
         with open(tmp, "w", encoding="utf-8") as f:

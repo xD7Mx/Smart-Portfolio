@@ -79,8 +79,13 @@ async def _engine(ysym, sector):
     return 88.0
 
 
-ms._governance_score = _engine
+# ‏D434: حكمُ المحرّك يصل التقديمَ **محفوظاً** (يُكتب عند بناء الجدول)،
+# لا بتشغيل المحرّك لكلّ صفٍّ في كلّ فتحة — كان ذلك 285.8 ثانية بارداً.
+# والمبدأُ باقٍ: حكمُ المحرّك يغلب المخزَّن.
+_GK = "screener:gov:8210.SR"
+ms.cache.get = lambda k: 88.0 if k == _GK else None
 rows2 = asyncio.run(ms.refresh_derived([dict(r) for r in FROZEN]))
+ms.cache.get = lambda k: None
 check(rows2[0]["finance_score"] == 88.0,
       "٤ وحين ينطق المحرّكُ يغلب المخزَّن", f"81 ⇐ {rows2[0]['finance_score']}")
 
@@ -107,14 +112,13 @@ async def _cannot(*_a, **_k):
     return None                     # لا قوائمَ مخزَّنة: لم يُشغَّل
 
 
-_keep = ms._governance_score
-ms._governance_score = _abstains
+# ‏D434: الحكمُ المحفوظُ «-» امتناعٌ صريح؛ وغيابُ أيّ حكمٍ جهلٌ يُبقي.
+ms.cache.get = lambda k: "-" if k == _GK else None
 _row_a = asyncio.run(ms.refresh_derived([{"symbol": "8210", "sector": "التأمين",
                                           "finance_score": 43}]))[0]
-ms._governance_score = _cannot
+ms.cache.get = lambda k: None
 _row_c = asyncio.run(ms.refresh_derived([{"symbol": "8210", "sector": "التأمين",
                                           "finance_score": 43}]))[0]
-ms._governance_score = _keep
 check(_row_a.get("finance_score") is None,
       "٦ب امتناعُ المحرّك يُفرّغ العمود — كما تقول الصفحة «غير متاحة»",
       f"{_row_a.get('finance_score')}")

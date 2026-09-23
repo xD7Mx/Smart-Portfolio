@@ -79,7 +79,7 @@ except Exception:                                                 # noqa: BLE001
 client = TestClient(app)
 
 
-def served_row():
+def served_row(verdict=None):
     # ══ كلُّ قياسٍ يبدأ من صفر ══ (بعد D243)
     # مخرَجُ الإنعاش محفوظٌ تسعين ثانيةً ودرجةُ كلّ رمزٍ ساعةً — وهو مقصود.
     # وموضوعُ هذا الفحص سلسلةُ الإنتاج، فيُبطَل المحفوظُ قبل كلّ طلبٍ كي
@@ -88,6 +88,10 @@ def served_row():
     from app.services import cache as _c2
     _c2.set(ms.REFRESHED_KEY, None, 0)
     _c2.set("screener:gov:8210.SR", None, 0)
+    # ‏D434: حكمُ المحرّك يصل التقديمَ محفوظاً — يُكتب عند بناء الجدول
+    # (‏`_enrich_fundamentals`) لا بتشغيل المحرّك لكلّ صفٍّ في كلّ فتحة.
+    if verdict is not None:
+        _c2.set("screener:gov:8210.SR", verdict, 60)
     r = client.get("/api/v1/market/screener")
     if r.status_code != 200:
         return None, r.status_code
@@ -125,15 +129,13 @@ check(row.get("dividend_yield_source") == page_src,
 # مقصودٌ (الفتحةُ الثانية بلا حساب). وموضوعُ هذا الفحص سلسلةُ الإنتاج لا
 # دلالةُ الحفظ، فيُبطَل المحفوظُ صراحةً ثمّ يُقاس. ولو تُرك، لقاس الفحصُ
 # جوابَ الطلب السابق وسمّاه عطباً — وهو خطأُ قياسٍ لا عطبُ تطبيق.
-ms._governance_score = _speaks
-row2, _ = served_row()
+row2, _ = served_row(verdict=88.0)
 check(row2 is not None and row2.get("finance_score") == 88.0,
       "٥ درجةُ المحرّك تخرج من النقطة لا المخزَّنة",
       f"مخزَّن 81 ⇐ {None if row2 is None else row2.get('finance_score')}")
 
 # ── ٦ · وامتناعُ المحرّك يُبقي المخزَّنة ولا يُفرّغ العمود ───────────
-ms._governance_score = _abstain
-row3, _ = served_row()
+row3, _ = served_row()                   # لا حكمَ محفوظ: جهلٌ يُبقي
 check(row3 is not None and row3.get("finance_score") == 81.0,
       "٦ وامتناعُه يُبقي المخزَّنة — لا عمودَ يُفرَّغ",
       str(None if row3 is None else row3.get("finance_score")))

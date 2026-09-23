@@ -794,14 +794,23 @@ async def refresh_derived(rows: list) -> list:
                            store_row=store.get(sym) or {}))
         except Exception:                                         # noqa: BLE001
             pass
-        # درجةُ الجودة: المحرّكُ أوّلاً كما في البناء (D198) — ويمتنع بلا
-        # قوائمَ مخزَّنةٍ فيبقى المخزَّنُ في الصفّ، فلا يُفرَّغ عمودٌ كان مملوءاً.
+        # ══ درجةُ الجودة من المحفوظ — لا تشغيلَ للمحرّك عند التقديم ══ (D434)
+        # قِيس على خادم المالك: الجدولُ بارداً ‎285.8 ثانية، لأنّ هذا السطرَ
+        # كان يُنادي `_governance_score` لكلّ صفّ فيُشغَّل تحليلُ السهم كاملاً
+        # (ومعه نداءُ «أرقام») — ‎6.8 ثانيةٍ للصفّ، ونتيجتُه في الذاكرة
+        # وحدَها فيدفعها أوّلُ زائرٍ بعد كلّ إقلاع. والدرجةُ نفسُها حسبتها
+        # مسحةُ التقييم بالمحرّك نفسِه وحفظتها. فالترتيب: حكمٌ محفوظٌ في
+        # الذاكرة (ومنه الامتناعُ «-») ثمّ مخزنُ المسحة — ولا حسابَ هنا.
         try:
-            fs = await _governance_score(f"{sym}.SR", r.get("sector"))
+            fs = cache.get(f"screener:gov:{sym}.SR")
             if fs == "-":
                 r["finance_score"] = None     # امتناعٌ صريح: كالصفحة
-            elif fs:
+            elif isinstance(fs, (int, float)):
                 r["finance_score"] = fs
+            else:
+                _st = (store.get(sym) or {}).get("finance_score")
+                if isinstance(_st, (int, float)):
+                    r["finance_score"] = _st
         except Exception:                                         # noqa: BLE001
             pass
         # ══ ودائمٌ كما في صفحة السهم ══ (D239)
