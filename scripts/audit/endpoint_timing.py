@@ -34,7 +34,7 @@ STOCK = (f"/market/company/{SYM}", f"/market/history/{SYM}?range=1y",
 async def main() -> int:
     try:
         import httpx
-        from app.main import app
+        from main import app
         from app.core import auth as _auth, portfolio_context as _pc
     except ModuleNotFoundError as e:
         print(f"⚠ بيئةٌ ناقصة ({e.name}) — لم يُقَس")
