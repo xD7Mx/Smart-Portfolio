@@ -232,6 +232,24 @@ async def get_sector_map(db) -> dict:
     except Exception as e:
         from loguru import logger
         logger.debug(f"sector-map: market governance unavailable: {e}")
+    # ══ مسحةُ التقييم مصدرٌ شاملٌ للسوق كلِّه ══ (D432 · بأمر المالك)
+    # «عدمُ ظهور جميع درجات الحوكمة لكامل الشركات لكامل القطاعات، وإنّما
+    # جزئياتٌ على مزاجه». وكانت المصادرُ الثلاثةُ أدناه جزئيةً كلُّها:
+    # المسحُ يستثني ما يملكه المالك ويُبطَل مع القواعد، وعمودُ القاعدة
+    # لشركات المحفظة، ومخزنُ `governance:deep` يُملأ **عند فتح الصفحة**.
+    # فظهرت الدرجةُ لما فُتح أو مُلك وغابت عن غيره. ومخزنُ مسحة التقييم
+    # يحمل درجةَ المحرّك نفسِه لكلّ شركةٍ في السوق الرئيسيّ (270 من 273)
+    # — فيُقرأ بعد المسح الحيّ وقبل غيره.
+    try:
+        from app.services.content_engine import fund_store_load
+        for sym, row in (fund_store_load() or {}).items():
+            key = str(sym).replace(".SR", "")
+            fs = (row or {}).get("finance_score")
+            if key not in score and isinstance(fs, (int, float)):
+                score[key] = float(fs)
+    except Exception as e:                                        # noqa: BLE001
+        from loguru import logger
+        logger.warning(f"sector-map: مخزنُ مسحة التقييم تعذّر: {type(e).__name__}: {e}")
     # ══ المخزَّنُ لا يغلب الحيّ ══ (D198)
     # كان عمودُ قاعدة البيانات يُكتب فوق درجةِ المسح الحيّ لشركات المالك،
     # فتخالف الخريطةُ صفحةَ الشركة كلّما تقادمت النسخة المحفوظة. الآن
@@ -259,8 +277,15 @@ async def get_sector_map(db) -> dict:
     stocks = (get_cached_market_movers() or {}).get("stocks", {}) or {}
 
     # 3) group the WHOLE directory by sector.
+    # ══ السوقُ الرئيسيُّ وحدَه ══ (D387 · D432)
+    # كانت الخريطةُ تجمع الدليلَ كلَّه — ومعه 136 ورقةَ «نمو» أخرجها المالكُ
+    # من عرض السوق، ولا درجةَ لها (المسحةُ تستثنيها) فتظهر «لا ينطبق»
+    # وتُحسب في عدد القطاع. والتعريفُ من موضعه الواحد.
+    from app.data.universe import is_nomu
     by_sector: dict[str, list] = defaultdict(list)
     for sym, v in SAUDI_DIRECTORY.items():
+        if is_nomu(sym):
+            continue
         sec = v.get("sector") or "غير مصنّف"
         by_sector[sec].append({
             "symbol": sym,
