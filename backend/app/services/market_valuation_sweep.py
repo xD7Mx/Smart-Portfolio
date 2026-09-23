@@ -60,6 +60,11 @@ async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
             logger.warning(f"مسحةُ التقييم {sym}: {_k}")
             return None
         if not a:
+            # والردُّ الفارغُ سببٌ يُسمّى أيضاً لا صمت (‏D424): قِيس أنّ
+            # «تعذّرت 3» خرجت بلا «أسبابُ التعذّر» لأنّها لم تمرّ بالاستثناء.
+            _k = "التحليلُ ردّ فارغاً بلا استثناء"
+            _FAIL_KINDS[_k] = _FAIL_KINDS.get(_k, 0) + 1
+            logger.warning(f"مسحةُ التقييم {sym}: {_k}")
             return None
         fv = a.get("fair_value_detail") or {}
         out: dict = {

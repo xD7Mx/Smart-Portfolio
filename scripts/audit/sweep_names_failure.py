@@ -57,6 +57,17 @@ check(any("ValueError" in k and "unpack" in k for k in _why),
 check(sum(_why.values()) == 3 if _why else False,
       "٢ج وعددُ كلِّ سببٍ يطابق ما تعذّر")
 
+# ── ٣ · والردُّ الفارغُ يُسمّى سببُه أيضاً ─────────────────────────
+async def _empty(*_a, **_k):
+    return None
+
+analysis.analyze_company = _empty
+rep2 = asyncio.run(M.sweep(["1010", "2222"]))
+_why2 = rep2.get("أسبابُ التعذّر") or {}
+check(rep2.get("تعذّرت") == 2 and sum(_why2.values()) == 2,
+      "٣ والردُّ الفارغُ بلا استثناءٍ يُسمّى سببُه لا يُعَدّ صامتاً",
+      str(_why2)[:120])
+
 print(("FAIL" if fail else "PASS")
       + " D424 — التعذّرُ الجماعيُّ يُسمّى سببُه في تقرير المسحة")
 sys.exit(fail)
