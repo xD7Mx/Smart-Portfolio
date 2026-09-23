@@ -44,7 +44,7 @@ async def main() -> int:
         print(f"⚠ تعذّر تحديثُ اللقطة: {type(e).__name__}: {e}")
 
     idx = None
-    for _name in ("index", "tasi_index", "index_row"):
+    for _name in ("index_quote", "index", "tasi_index"):
         _f = getattr(TM, _name, None)
         if _f is None:
             continue
