@@ -225,7 +225,13 @@ def main() -> int:
         from app.services.fair_value import compute as _c
         o = _c(info=info(), price=p, sector_avg_pe=15, periods=periods(),
                archetype="asset_light", symbol="1111.SR")
-        seen[p] = o.get("value")
+        # ‏D449 (بأمر المالك): الشاذُّ لا يُنشر «سعراً عادلاً» ويُحفظ في
+        # `implausible_value`. فالمقيسُ **التقديرُ المحسوب** أنشِر أم حُجب:
+        # يجب أن يكون واحداً عند كلّ سعر، والحجبُ يُعلَن سببُه.
+        seen[p] = o.get("value") if o.get("value") is not None else o.get("implausible_value")
+        if o.get("value") is None and o.get("implausible_value") is not None \
+                and not o.get("unavailable_reason"):
+            fails.append(f"تقديرٌ حُجب عند سعر {p} بلا سببٍ معلَن")
     print(f"  القيمةُ عند أسعارٍ مختلفة: {seen}")
     vs = {v for v in seen.values() if v is not None}
     if len(vs) > 1:
@@ -233,7 +239,7 @@ def main() -> int:
     if not vs:
         fails.append("امتناعٌ عن شركةٍ كاملة البنود في كل الأسعار")
     if any(v is None for v in seen.values()):
-        fails.append(f"القيمةُ تُمحى عند بعض الأسعار بدل أن تُوسَم: {seen}")
+        fails.append(f"التقديرُ يُمحى عند بعض الأسعار ولا يُحفظ: {seen}")
 
     # ── ٩) «نمو» تُخصم ──
     from app.services.fair_value import compute

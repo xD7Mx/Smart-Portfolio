@@ -45,7 +45,7 @@ for _p in ("/app", os.path.join(_ROOT, "backend"), _ROOT, _HERE):
         sys.path.insert(0, _p)
 
 TARGET = 88.5
-PRICE = 60.0
+PRICE = 35.0   # D449: سعرٌ يقع التقديرُ (20.46) ضمن مداه المعقول فيُنشر
 
 
 def _stub() -> None:

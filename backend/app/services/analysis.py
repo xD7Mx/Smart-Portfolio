@@ -198,9 +198,37 @@ async def _financial_from_statements(
     }
 
 
+# ══ بصمةُ المحرّك في مفتاح الكاش ══ (D448)
+# قِيس: المفتاحُ يتغيّر بتعديل ملفّ القواعد وحدَه، والكاشُ يبقى يوماً ويعبر
+# إعادةَ التشغيل. فكلُّ إصلاحٍ في شيفرة المحرّك لا يصل الشاشةَ ولا المسحةَ
+# أربعاً وعشرين ساعة — نُشر إصلاحُ نمط القطاع (D446) وبقيت 2082 على 11.24.
+# فالبصمةُ من نصّ ملفّات المحرّكَين نفسِها: أيُّ تعديلٍ يُبطل القديم فوراً.
+_ENGINE_FILES = ("analysis.py", "fair_value.py", "data_quality.py",
+                 "statement_merge.py", "scores.py", "expert_panel.py",
+                 "sector_multiples.py", "governance_rules.py",
+                 "valuation_fields.py", "four_scores.py")
+
+
+def engine_version() -> str:
+    import hashlib
+    import pathlib
+    h = hashlib.sha1()
+    here = pathlib.Path(__file__).resolve().parent
+    for f in _ENGINE_FILES + ("../data/archetype_spec.py",):
+        try:
+            h.update((here / f).read_bytes())
+        except OSError:
+            h.update(f.encode())
+    return h.hexdigest()[:10]
+
+
+_ENGINE_V = engine_version()
+
+
 async def analyze_company(symbol: str, name: str | None = None, db=None, allow_supplement: bool = True) -> Optional[dict]:
     from app.services.governance_rules import rules_version
-    ck = f"analysis:{symbol}:{rules_version()}"  # auto-busts on any rules edit
+    # يتبدّل بتعديل القواعد أو شيفرة المحرّك (D448)
+    ck = f"analysis:{symbol}:{rules_version()}:{_ENGINE_V}"
     cached = cache.get(ck)
     if cached is not None:
         return cached
