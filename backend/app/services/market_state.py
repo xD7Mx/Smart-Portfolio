@@ -26,10 +26,11 @@
   ١· **معجمُ تداولَ المُتعلَّم**: يُسجَّل كلُّ رمزٍ يُشاهَد مع طور
      الساعة وتاريخه (`observed_codes`). وما لم يثبت معناه بمشاهدةٍ في
      يومٍ **حيٍّ** لا يُترجَم — فلا يُبنى حكمٌ على رقمٍ لا نعرفه.
-  ٢· **التغذيةُ المتجمّدة** — شاهدٌ لا يحتاج معجماً: زمنُ المؤشّر
-     (‏`as_of`) يتقدّم مع الجلسة الحيّة. فإن قالت الساعةُ «مفتوح» أو
-     «ما قبل الافتتاح» وزمنُ المصدر متخلّفٌ عن الآن بأكثرَ من نافذةٍ
-     معقولة، فالسوقُ **لا يتداول اليوم** مهما قال التقويم.
+  ٢· **المؤشّرُ الذي لا يتحرّك** — شاهدٌ لا يحتاج معجماً: قيمةُ «تاسي»
+     تتحرّك كلَّ دقيقةٍ في جلسةٍ حيّة. فإن بقيت ثابتةً في طور «مفتوح»
+     نافذةً كاملة، فالسوقُ **لا يتداول اليوم** مهما قال التقويم (‏D426).
+     وكان هذا الشاهدُ يقرأ `as_of` — فقِيس يومَ العطلة أنّه `currentTime`
+     أي **الوقتُ الحاليّ** لا زمنُ آخرِ صفقة، فلا يتجمّد أبداً.
   ٣· **الساعة** — احتياطٌ أخيرٌ يُعلَن مصدرُه، لا حاكمٌ أوّل.
 
 ويُعاد مع الحالةِ **دليلُها** دائماً، فلا تُقرأ كلمةٌ بلا سندها.
@@ -43,8 +44,9 @@ from datetime import datetime
 
 from loguru import logger
 
-# نافذةُ تخلّفٍ مقبولةٌ لزمن المصدر داخل الجلسة. التغذيةُ تُحدَّث كلَّ
-# دقائق، فتخلّفٌ يتجاوز هذا يعني توقّفاً لا بطئاً.
+# نافذةُ الثبات: مؤشّرٌ لم يتحرّك داخل الجلسة هذه الدقائقَ كلَّها لا
+# يتداول. والمؤشّرُ في جلسةٍ حيّةٍ يتحرّك كلَّ دقيقة، فالنافذةُ واسعةٌ
+# بما يكفي ألّا تحكم بعطلةٍ على هدوءٍ عابر.
 FEED_LAG_MIN = 25
 
 _OBS = os.getenv("SP_STATUS_LOG", "/app/data/market_status_codes.jsonl")
@@ -91,7 +93,7 @@ def _parse_feed_time(raw) -> datetime | None:
     return n.replace(hour=h % 24, minute=mi, second=0, microsecond=0)
 
 
-def _observe(code, phase: str, feed_at) -> None:
+def _observe(code, phase: str, feed_at, price=None) -> None:
     """يسجّل المشاهدةَ ليُبنى المعجمُ من القياس. والفشلُ لا يُسقط الحكم."""
     try:
         os.makedirs(os.path.dirname(_OBS), exist_ok=True)
@@ -99,9 +101,78 @@ def _observe(code, phase: str, feed_at) -> None:
             f.write(json.dumps({
                 "at": _mecca_now().isoformat(timespec="minutes"),
                 "code": code, "clock_phase": phase, "feed_at": feed_at,
+                "price": price,
             }, ensure_ascii=False) + "\n")
     except Exception as e:                                        # noqa: BLE001
         logger.debug(f"تسجيلُ حالةِ السوق تعذّر: {type(e).__name__}: {e}")
+
+
+def _today_obs(now: datetime, tail: int = 800) -> list[dict]:
+    """مشاهداتُ اليوم من آخر السجلّ — لا يُقرأ الملفُّ كلُّه في كلّ سؤال."""
+    day = now.date().isoformat()
+    try:
+        with open(_OBS, encoding="utf-8") as f:
+            lines = f.readlines()[-tail:]
+    except OSError:
+        return []
+    out = []
+    for ln in lines:
+        try:
+            r = json.loads(ln)
+        except Exception:                                         # noqa: BLE001
+            continue
+        if str(r.get("at") or "").startswith(day):
+            out.append(r)
+    return out
+
+
+def frozen_index_verdict(obs: list[dict], now: datetime,
+                         phase: str) -> dict | None:
+    """«عطلة» إن ثبت مؤشّرُ اليوم داخل الجلسة نافذةً كاملة — وإلا None.
+
+    ══ الشاهدُ قيمةُ المؤشّر لا «الوقتُ الحاليّ» ══ (D426)
+    قِيس يومَ اليوم الوطنيّ — أوّلِ عطلةٍ حقيقيةٍ يُختبر عليها الكشف:
+    «زمنُ التغذية» تغيّر ‎32 مرّةً داخل ساعات الجلسة، لأنّ الحقلَ
+    `currentTime` هو الوقتُ الحاليُّ للخادم لا زمنُ آخرِ صفقة. فقال
+    التطبيقُ «السوق مفتوح» طوالَ جلسةِ يومِ عطلة.
+
+    فالحكمُ هنا على **قيمة المؤشّر** في مشاهداتِ **اليوم** وفي طور
+    «مفتوح» وحدَه (ما قبل الافتتاح ثابتٌ في كلّ يومٍ بطبعه): إن تحرّكت
+    فهو يومُ تداول، وإن ثبتت ‎`FEED_LAG_MIN` دقيقةً فأكثرَ فلا جلسةَ اليوم.
+    وبعد الجرس يبقى الحكمُ «عطلة» ليومٍ ثبتت عطلتُه — فالمغلقُ يفتح غداً
+    بعد ساعات، والعطلةُ يومٌ لم يُفتح أصلاً.
+    """
+    day = now.date().isoformat()
+    sel = []
+    for o in obs or []:
+        at = str(o.get("at") or "")
+        px = o.get("price")
+        if (at.startswith(day) and o.get("clock_phase") == "open"
+                and isinstance(px, (int, float)) and px > 0):
+            try:
+                sel.append((datetime.fromisoformat(at), round(float(px), 2)))
+            except ValueError:
+                continue
+    if len(sel) < 2:
+        return None
+    if len({p for _, p in sel}) > 1:
+        return None                           # المؤشّرُ تحرّك: يومُ تداول
+    sel.sort()
+    span = (sel[-1][0] - sel[0][0]).total_seconds() / 60.0
+    if span < FEED_LAG_MIN:
+        return None                           # ثباتٌ أقصرُ من النافذة
+    if phase not in ("open", "preclose", "closed"):
+        return None
+    return {
+        "status": "holiday",
+        "source": "مؤشّرُ تداولَ ثابتٌ داخل الجلسة",
+        "evidence": (f"«تاسي» {sel[0][1]:,.2f} لم يتحرّك من "
+                     f"{sel[0][0]:%I:%M %p} إلى {sel[-1][0]:%I:%M %p} "
+                     f"({span:.0f} دقيقةً في {len(sel)} مشاهدة) — "
+                     f"فلا جلسةَ اليوم"),
+        "clock_phase": phase,
+        "holiday_suspected": True,
+    }
 
 
 async def market_state() -> dict:
@@ -121,8 +192,9 @@ async def market_state() -> dict:
 
     code = idx.get("market_status_code")
     feed_at = idx.get("as_of")
-    if code is not None:
-        _observe(code, phase, feed_at)
+    price = idx.get("price")
+    if code is not None or price is not None:
+        _observe(code, phase, feed_at, price)
 
     # ── ١ · معجمُ المصدر، إن ثبت ──────────────────────────────────────
     mapped = CODE_MAP.get(str(code)) if code is not None else None
@@ -131,32 +203,20 @@ async def market_state() -> dict:
                 "evidence": f"رمزُ الحالة {code}",
                 "clock_phase": phase, "code": code}
 
-    # ── ٢ · التغذيةُ المتجمّدة — شاهدٌ بلا معجم ───────────────────────
-    if phase in ("pre", "open", "preclose"):
-        ft = _parse_feed_time(feed_at)
-        if ft is not None:
-            lag = abs((now - ft).total_seconds()) / 60.0
-            if lag > FEED_LAG_MIN:
-                # ══ وفرقٌ بين «مغلق» و«عطلة» ══ (بأمر المالك)
-                # «مغلق» حالٌ طبيعيةٌ في يومِ تداولٍ بعد الجرس أو قبله.
-                # و«عطلة» **لا جلسةَ فيها أصلاً** — والفرقُ يعني للمستثمر
-                # شيئاً: المغلقُ يفتح بعد ساعات، والعطلةُ يومٌ كاملٌ لا
-                # سعرَ فيه ولا صفقة. فخلطُهما في كلمةٍ واحدةٍ يُفقده خبراً
-                # يحتاجه. وهذا الفرعُ لا يُبلَغ إلا **داخلَ ساعات الجلسة**
-                # ومع تغذيةٍ متجمّدة — أي يومٌ كان يجب أن يتداول ولم يفعل.
-                return {
-                    "status": "holiday",
-                    "source": "تغذيةُ تداولَ متجمّدة",
-                    "evidence": (f"زمنُ المصدر {feed_at} والآن "
-                                 f"{now:%I:%M %p} — تخلّفٌ {lag:.0f} دقيقة، "
-                                 f"فلا جلسةَ اليوم"),
-                    "clock_phase": phase, "code": code,
-                    "holiday_suspected": True,
-                }
+    # ── ٢ · المؤشّرُ الذي لا يتحرّك — شاهدٌ بلا معجم ─────────────────
+    # ══ وفرقٌ بين «مغلق» و«عطلة» ══ (بأمر المالك)
+    # «مغلق» حالٌ طبيعيةٌ في يومِ تداولٍ بعد الجرس أو قبله. و«عطلة»
+    # **لا جلسةَ فيها أصلاً** — المغلقُ يفتح بعد ساعات، والعطلةُ يومٌ
+    # كاملٌ لا سعرَ فيه ولا صفقة. فخلطُهما يُفقد المستثمرَ خبراً.
+    v = frozen_index_verdict(_today_obs(now), now, phase)
+    if v:
+        v["code"] = code
+        return v
 
     # ── ٣ · الساعةُ احتياطاً مُعلَناً ─────────────────────────────────
     return {"status": phase, "source": "ساعةُ الخادم (احتياط)",
-            "evidence": ("لم يثبت معنى رمزِ الحالة بعدُ ولا تجمّدت التغذية"
+            "evidence": ("لم يثبت معنى رمزِ الحالة بعدُ ولم يثبت مؤشّرٌ"
+                         " ثابتٌ داخل الجلسة"
                          if code is not None
                          else "لم يصل رمزُ الحالة من المصدر"),
             "clock_phase": phase, "code": code}
