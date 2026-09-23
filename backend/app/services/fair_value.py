@@ -679,6 +679,20 @@ def compute(info: dict, price: float | None,
     _ttm = ttm if isinstance(ttm, dict) else None
     if _ttm and not _ttm.get("unverified"):
         _te = _ttm.get("eps")
+        # ══ وبوّابةُ معقوليةٍ على الربحية نفسِها ══ (D415)
+        # قِيس على الكون: المسارُ نال ‎3 من ‎273، وأحدُ الثلاثة خرج
+        # بربحيةِ سهمٍ **7,184.76 ريالاً** — مستحيلٌ في سهمٍ سعرُه عشرات.
+        # وسببُه عددُ أسهمٍ بوحدةٍ مغلوطةٍ في صفّ الربع. فالتحقّقُ من
+        # **الجمع** لا يكفي: رقمٌ صحيحُ الجمعِ قد يكون معطوبَ المقام.
+        # فتُقاس الربحيةُ بالسعر: ما يفوقه ثلاثةَ أضعافٍ ليس ربحيةَ سهمٍ
+        # بل خطأُ وحدة، ويُرفَض ويُسمّى — ولا يُستعمل في مضاعفٍ ولا قيمة.
+        if (isinstance(_te, (int, float)) and price and price > 0
+                and abs(_te) > price * 3):
+            out["eps_ttm_rejected"] = (
+                f"ربحيةُ اثني عشرَ شهراً {_te:,.2f} تفوق السعرَ "
+                f"{price:,.2f} بـ{abs(_te) / price:,.0f}× — خطأُ وحدةٍ في "
+                f"عدد الأسهم لا ربحيةٌ، فلم تُستعمل")
+            _te = None
         if isinstance(_te, (int, float)) and _te != 0:
             out["eps_ttm"] = round(_te, 4)
             out["eps_ttm_quarters"] = _ttm.get("quarters")
