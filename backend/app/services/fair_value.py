@@ -495,10 +495,20 @@ def risk_flags(archetype: str | None, periods: list[dict] | None,
     try:
         from app.data.archetype_spec import VALUATION as _V
     except Exception:                                             # noqa: BLE001
-        return [], []
+        return [], [], []
     want = list((_V.get(archetype or "") or {}).get("abstain_if") or [])
+    # ══ وعددُ المخرَجات واحدٌ في كلّ مسار ══ (D424)
+    # أُضيفت السلّةُ الثالثةُ (‏فجواتُ البيان · D422) إلى مخرَج النهاية
+    # وحدَه، وبقي المخرَجانِ المبكّرانِ بقيمتَين. وكلُّ نمطٍ لا
+    # `abstain_if` له يمرّ بهما — وهو أكثرُ السوق. فرفع `compute`
+    # `ValueError` في **كلّ** ورقةٍ تقريباً: «تعذّرت 268 من 273» وصفرُ
+    # سعرٍ عادلٍ للسوق كلِّه.
+    #
+    # وحارسي لم يمسّ هذا المسار: اختبر `bank` و`capital_infra` و`reit`
+    # — وكلُّها ذاتُ شروط — فخرج أخضرَ على شفرةٍ تسقط في الأغلبية.
+    # فالحارسُ الذي لا يمرّ بالمسار الخالي يشهد لما لم يره.
     if not want:
-        return [], []
+        return [], [], []
     ps = [p for p in (periods or []) if isinstance(p, dict)]
     ps.sort(key=lambda p: str(p.get("as_of") or ""), reverse=True)
     last = ps[0] if ps else {}
