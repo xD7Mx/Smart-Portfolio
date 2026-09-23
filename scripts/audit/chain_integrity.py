@@ -232,7 +232,9 @@ async def main() -> int:
         t1, t2 = _mk.read_text("utf-8"), _pn.read_text("utf-8")
         need = [("عمرُ الدرجة في السوق", "r.stmt_asof" in t1),
                 ("عمرُ الأرقام في التحليل", 'prov["تاريخ الأرقام"]' in t2),
-                ("اسمُ السعر العادل لصاحبه", "analyst_target" in t2)]
+                # ‏D431: سعرٌ عادلٌ واحدٌ من المحرّك — لا نسبيٌّ ينافسه
+                ("سعرٌ عادلٌ واحدٌ من المحرّك",
+                 "data.fair_value" in t2 and "rel_value" not in t2)]
         badl = [n for n, c in need if not c]
         (ok if not badl else bad)("١٠ الشاشةُ تحمل العمرَ والاسمَ",
                                   " · ".join(badl) or "الثلاثةُ حاضرة")
