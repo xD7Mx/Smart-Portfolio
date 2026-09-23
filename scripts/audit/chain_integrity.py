@@ -28,6 +28,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import pathlib
 import sys
 
@@ -56,7 +57,9 @@ def skip(label: str, why: str) -> None:
 
 
 def _find(*rel: str) -> pathlib.Path | None:
-    for base in (ROOT, pathlib.Path("/app"), pathlib.Path.cwd()):
+    # وجذرٌ مُعلَنٌ للواجهة حين تُنسخ إلى الحاوية (‏D427)
+    _extra = [pathlib.Path(p) for p in (os.environ.get("SP_FRONT_ROOT"),) if p]
+    for base in (*_extra, ROOT, pathlib.Path("/app"), pathlib.Path.cwd()):
         for r in rel:
             c = base / r
             if c.exists():

@@ -68,7 +68,17 @@ else
 fi
 
 say "٦ · سلسلةُ المعلومة حلقةً حلقةً"
-docker exec "$C" python /app/scripts/audit/chain_integrity.py 2>&1 | grep -vE "INFO|DEBUG"
+# ══ والحلقةُ العاشرةُ تُقاس على الخادم لا «لم تُقَس» ══ (D427)
+# حلقةُ الشاشة قراءةٌ ساكنةٌ لملفّات الواجهة، والحاويةُ لا تحملها —
+# فخرجت «لم يُقَس» في كلّ دورة، وسلسلةٌ «متّصلةٌ» فيها حلقةٌ لم تُرَ.
+# فتُنسخ ملفّاتُ الواجهة من شجرة الخادم — وهي التي تُبنى منها الواجهةُ
+# المنشورة — إلى مجلّدٍ مؤقّتٍ في الحاوية، وتُدلّ السلسلةُ عليه.
+docker exec "$C" rm -rf /tmp/sp_front >/dev/null 2>&1 || true
+tar cf - frontend/src 2>/dev/null \
+  | docker exec -i "$C" sh -c 'mkdir -p /tmp/sp_front && tar xf - -C /tmp/sp_front' \
+  || echo "⚠ تعذّر نسخُ الواجهة إلى الحاوية — الحلقةُ العاشرةُ لن تُقاس"
+docker exec -e SP_FRONT_ROOT=/tmp/sp_front "$C" \
+  python /app/scripts/audit/chain_integrity.py 2>&1 | grep -vE "INFO|DEBUG"
 
 say "٧ · لجنةُ كشف الأعطال (من جذر المستودع)"
 bash scripts/audit/run.sh 2>&1 | tail -14
