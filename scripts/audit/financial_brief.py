@@ -104,7 +104,13 @@ async def _good(sig_, kind, name):
 
 
 fb.ai_line = _good                                               # type: ignore[assignment]
-out2 = asyncio.run(fb.brief(WEAK, kind="annual", symbol="T2"))
+# ‏D447: الطلبُ لا ينتظر النموذج — سطرُه يُكتب في الخلفية ويُقرأ في الفتح
+# التالي. فيُنادى مرّتين في حلقةٍ واحدة، والثانيةُ هي ما يراه القارئ.
+async def _twice():
+    await fb.brief(WEAK, kind="annual", symbol="T2")
+    await asyncio.sleep(0.2)
+    return await fb.brief(WEAK, kind="annual", symbol="T2")
+out2 = asyncio.run(_twice())
 check(out2["by"] == "جيمناي" and "16.7" in out2["line"],
       "٥ب ومع جيمناي يُعلَن أنه كاتبُها", str(out2)[:80])
 
