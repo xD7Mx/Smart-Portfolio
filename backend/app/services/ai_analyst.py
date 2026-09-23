@@ -294,9 +294,20 @@ async def company_analysis(db, ent: dict, ctx: dict) -> str:
     price_note = ""
     if symbol and not held:
         try:
-            from app.services.market_data import market_service
-            live = await market_service.get_price(f"{symbol}.SR")
-            lp = getattr(live, "price", None) if live else None
+            # ══ السعرُ من لقطة «تداول» الرسمية أوّلاً ══ (D437)
+            # كان من ياهو وحدَه — محكوماً بالحصّة ومتأخّراً — والتطبيقُ يملك
+            # لقطةَ «تداول» الحيّة بلا حصّة، وهي ما تعرضه شاشاتُه. فصقرُ يقرأ
+            # ما تقرؤه الشاشة، وياهو احتياطٌ بعدها.
+            lp = None
+            try:
+                from app.services.tadawul_market import row_for
+                lp = (row_for(symbol) or {}).get("price")
+            except Exception:                                     # noqa: BLE001
+                lp = None
+            if not lp:
+                from app.services.market_data import market_service
+                live = await market_service.get_price(f"{symbol}.SR")
+                lp = getattr(live, "price", None) if live else None
             if lp:
                 price = float(lp)
                 price_note = ""
@@ -320,7 +331,14 @@ async def company_analysis(db, ent: dict, ctx: dict) -> str:
             upside = (float(target) - float(price)) / float(price) * 100
         except Exception:
             upside = None
+    # ══ السعرُ العادل من المحرّك باسمه في التطبيق ══ (D437)
+    _fv = g("السعر العادل", "fair_value")
+    _fv_up = g("الفجوة عن السعر العادل٪", "fair_value_upside_pct")
+    _fv_cf = g("ثقة السعر العادل", "fair_value_conf")
     parts.append(_sec("التقييم:", [
+        (f"• السعر العادل {_f(_fv)} ريال"
+         + (f"، أي {_pm(_fv_up)} عن السعر" if _fv_up is not None else "")
+         + (f" · ثقة {_fv_cf}" if _fv_cf else "")) if _fv else None,
         f"• مكرّر الربحية {_f(pe)}" + (f" · العائد على حقوق الملكية {_f(g('roe'))}%" if g("roe") else ""),
         f"• القيمة السوقية {_big(g('market_cap'))}" if g("market_cap") else None,
         (f"• متوسط هدف المحللين {_f(target)} ريال، أي {_pm(upside)} عن السعر الحالي."
@@ -336,9 +354,11 @@ async def company_analysis(db, ent: dict, ctx: dict) -> str:
         gov_lines.append("• بيانات القوائم غير كافية لإصدار درجة — التطبيق يمتنع "
                          "عن الدرجة بدل اختلاقها.")
     else:
-        sc = gov.get("score") or g("درجة الحوكمة", "finance_score")
+        # الاسمُ كما في التطبيق (‏D437): كانت «درجة المتانة» هنا و«درجة
+        # الحوكمة» في السياق و«درجة الجودة المالية» في الشاشة — ثلاثةُ أسماء.
+        sc = gov.get("score") or g("درجة الجودة المالية", "درجة الحوكمة", "finance_score")
         if sc is not None:
-            gov_lines.append(f"• درجة المتانة {_f(sc, d=0)}/100"
+            gov_lines.append(f"• درجة الجودة المالية {_f(sc, d=0)}/100"
                              + (f" · القرار المحسوب: {gov.get('decision')}" if gov.get("decision") else ""))
         if gov.get("narrative"):
             gov_lines.append(f"• {str(gov['narrative']).strip()}")
@@ -534,7 +554,7 @@ def _verdict(held, row, pe, upside, gov, rsi, d200, fundamentals=None) -> str:
             f"هدف المحللين {'أعلى' if upside > 0 else 'أدنى'} من السعر بـ{_f(abs(upside))}%")
     sc = gov.get("score")
     if sc is not None:
-        (pos if float(sc) >= 60 else neg).append(f"درجة المتانة {_f(sc, d=0)}/100")
+        (pos if float(sc) >= 60 else neg).append(f"درجة الجودة المالية {_f(sc, d=0)}/100")
     if rsi is not None:
         if float(rsi) >= 70:
             neg.append("المؤشر الفنّي في تشبّع شرائي")

@@ -250,6 +250,9 @@ python3 scripts/audit/brent_live.py || _note "$LINENO"
 # D436: حصّةُ ياهو — احتياطٌ للمستخدم لا تبلغه المهامُّ الخلفية.
 python3 scripts/audit/yahoo_reserve.py || _note "$LINENO"
 
+# D437: صقرُ يدُ التطبيق — يرى خلاصةَ المحرّكَين بأسمائها في التطبيق.
+python3 scripts/audit/saqr_sees_engines.py || _note "$LINENO"
+
 # D160 (عودة): لا فحصَ في اللجنة يكتب في بيانات المالك المتتبَّعة. عولج
 # في أربعة سكربتاتٍ وتخلّف `rank_check` فعاد يلوّث lastgood.json ويمنع
 # بناءَ الحزمة. فالحارسُ يقرأ قائمةَ اللجنة من run.sh نفسِه ويشترط تحويلَ
