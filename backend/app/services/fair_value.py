@@ -575,6 +575,7 @@ def compute(info: dict, price: float | None,
             peer_count: int | None = None,
             archetype: str | None = None,
             latest_quarter: dict | None = None,
+            ttm: dict | None = None,
             symbol: str | None = None) -> dict:
     """القيمة العادلة بمساراتها. تُعاد دائماً بنية كاملة حتى عند التعذّر.
 
@@ -669,6 +670,24 @@ def compute(info: dict, price: float | None,
     # المستقبلية (`forward_eps`) من النافذة. وانحيازُه التفاؤليّ موثَّق
     # وأشدُّ في الأسواق الناشئة. فالمحقَّقةُ وحدها.
     eps = num("eps")
+    # ══ وربحيةُ السهم من اثني عشرَ شهراً لا من سنةٍ مضت ══ (D414)
+    # مضاعفُ الربحية يقرأ ربحيةَ سنةٍ ختامُها قد يكون قبل ثلاثةِ أرباع،
+    # وعندنا أرباعٌ أحدث. والجمعُ **مُتحقَّقٌ منه لكلّ رمزٍ على حدة**
+    # (‏`_ttm_from`): أرباعُ سنةٍ كاملةٍ تُقارَن بسنويّها المنشور، فإن
+    # تطابقا في حدود العُشر فالأرباعُ منفصلةٌ وجمعُها صحيح. وما لم
+    # يُتحقَّق منه لا يُستعمَل — ويُقال لماذا.
+    _ttm = ttm if isinstance(ttm, dict) else None
+    if _ttm and not _ttm.get("unverified"):
+        _te = _ttm.get("eps")
+        if isinstance(_te, (int, float)) and _te != 0:
+            out["eps_ttm"] = round(_te, 4)
+            out["eps_ttm_quarters"] = _ttm.get("quarters")
+            out["eps_source"] = (
+                f"اثنا عشرَ شهراً حتى {_ttm.get('as_of')} — "
+                f"مُتحقَّقٌ بسنة {_ttm.get('verified_on')}")
+            eps = _te
+    elif _ttm and _ttm.get("note"):
+        out["eps_ttm_note"] = _ttm["note"]
     bvps = num("book_value")
     # ══ ودفتريةٌ ألفَ ضعفِ السعر ليست فرصةً بل خطأُ وحدة ══ (D392)
     #

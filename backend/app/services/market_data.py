@@ -46,6 +46,79 @@ class PriceData:
         }
 
 
+# ══ أرباحُ اثني عشرَ شهراً — بجمعٍ **مُتحقَّقٍ منه لكلّ رمز** ══ (D414)
+# المحرّكُ يقرأ ربحيةَ سنةٍ ماضيةٍ في مضاعف الربحية وعندنا أرباعٌ أحدث.
+# وجمعُ الأرباع صحيحٌ **إن كانت منفصلة**؛ فإن كانت تراكميةً من أوّل
+# السنة (‏3M · 6M · 9M · 12M) ضاعف الجمعُ الربحَ مرّتين ونصفاً وأنتج
+# مضاعفاً كاذباً ثمّ سعراً عادلاً كاذباً **يبدو سليماً** — وذاك أسوأُ
+# من الامتناع.
+#
+# وقِيس على الكون بشاهدَين: النسبةُ المباشرةُ (‏ربعُ الختام ÷ السنويّ)
+# ردّت ‎0.25 و‎0.40 وصفرَ تراكمية، والشاهدُ الثاني (تصاعدُ الأرباع داخل
+# السنة) ردّ ‎371 غيرَ متصاعدةٍ مقابل ‎110 — والتراكميةُ متصاعدةٌ حتماً.
+# لكنّ الشاهدَ المباشرَ لم يبلغ إلا ثلاثةَ رموز، فلا يُعمَّم حكمٌ على
+# ‎273 من ثلاثة.
+#
+# فالتحقّقُ **لكلّ رمزٍ على حدة**: تُجمع أرباعُ سنةٍ كاملةٍ مضت
+# وتُقارَن بسنويّها المنشور. فإن تطابقا في حدود العُشر فجمعُ هذا الرمز
+# صحيحٌ ويُستعمل؛ وإلا فلا مجموعَ له ويبقى على السنويّ — ويُعلَن
+# السببُ لا يُسكَت عنه.
+
+
+def _ttm_from(quarters: list[dict], annual: list[dict]) -> dict | None:
+    """أرباحُ اثني عشرَ شهراً من أربعةِ أرباعٍ **بعد التحقّق**."""
+    FLOW = ("revenue", "net_income", "operating_cash_flow", "capex",
+            "free_cash_flow", "pretax_income", "ebit")
+    qs = sorted((r for r in quarters if r.get("as_of")),
+                key=lambda r: str(r.get("as_of")))
+    if len(qs) < 4:
+        return None
+    by_year: dict[str, list[dict]] = {}
+    for r in qs:
+        by_year.setdefault(str(r["as_of"])[:4], []).append(r)
+    ann = {str(r.get("as_of") or "")[:4]: r.get("net_income")
+           for r in (annual or []) if r.get("as_of")}
+
+    # ── التحقّق: سنةٌ كاملةٌ أرباعُها أربعةٌ ولها سنويٌّ منشور ──────────
+    verified_on = None
+    for yr in sorted(by_year, reverse=True):
+        rows = by_year[yr]
+        a = ann.get(yr)
+        if len(rows) != 4 or not isinstance(a, (int, float)) or not a:
+            continue
+        vals = [r.get("net_income") for r in rows]
+        if not all(isinstance(v, (int, float)) for v in vals):
+            continue
+        if abs(sum(vals) - a) / abs(a) <= 0.10:
+            verified_on = yr
+        break
+    if not verified_on:
+        return {"unverified": True,
+                "note": ("لم تُجمَع أرباحُ اثني عشرَ شهراً: لا سنةٌ كاملةٌ "
+                         "بأربعةِ أرباعٍ وسنويٍّ منشورٍ يُتحقَّق بها من "
+                         "أنّ الأرباعَ منفصلةٌ لا تراكمية")}
+
+    last4 = qs[-4:]
+    if len({str(r["as_of"])[:10] for r in last4}) != 4:
+        return None
+    out: dict = {"as_of": str(last4[-1]["as_of"])[:10],
+                 "quarters": [str(r["as_of"])[:10] for r in last4],
+                 "verified_on": verified_on}
+    for k in FLOW:
+        vals = [r.get(k) for r in last4]
+        if all(isinstance(v, (int, float)) for v in vals):
+            out[k] = sum(vals)
+    for k in ("shares_outstanding", "equity", "total_assets",
+              "total_liabilities", "total_debt"):
+        v = last4[-1].get(k)
+        if isinstance(v, (int, float)):
+            out[k] = v
+    _ni, _sh = out.get("net_income"), out.get("shares_outstanding")
+    if isinstance(_ni, (int, float)) and isinstance(_sh, (int, float)) and _sh > 0:
+        out["eps"] = _ni / _sh
+    return out
+
+
 def _set_book_value(p: dict) -> None:
     """القيمة الدفترية للسهم = حقوق الملكية ÷ عدد الأسهم.
 
@@ -1434,17 +1507,18 @@ class MarketDataService:
             # — فإقحامُ ربعٍ يخلط أساسَين ويكسر كلَّ نموٍّ محسوب. فيُسلَّم
             # **حقلاً مستقلّاً** يقرؤه من يعنيه: عمرُ الأرقام، والميزانيةُ
             # (حقوقٌ · أصول)، وأرباحُ اثني عشرَ شهراً.
-            _lq = None
+            _lq, _ttm = None, None
             try:
                 _q = await self.get_quarterly_financials(symbol)
                 _qr = [r for r in ((_q or {}).get("periods") or [])
                        if r.get("as_of")]
                 if _qr:
                     _lq = max(_qr, key=lambda r: str(r.get("as_of")))
+                    _ttm = _ttm_from(_qr, merged)
             except Exception:                                     # noqa: BLE001
-                _lq = None
+                _lq = _ttm = None
             return {"symbol": symbol, "periods": merged,
-                    "latest_quarter": _lq,
+                    "latest_quarter": _lq, "ttm": _ttm,
                     "source": "تداول — XBRL", "completed": True}
         # ══ وكلُّ طبقةٍ تَسِمُ مخرَجَها ══ (D334)
         # قِيس على خادم المالك: شركةٌ قوائمُها **أربعُ فترات** ومصدرُها

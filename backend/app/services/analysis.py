@@ -346,6 +346,7 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
                          # (‏D412): السلسلةُ السنويةُ تبقى للنماذج، وهذا
                          # يقول **متى** آخرُ ما أفصحت عنه الشركة.
                          latest_quarter=(_stmt or {}).get("latest_quarter"),
+                         ttm=(_stmt or {}).get("ttm"),
                          symbol=symbol)
 
     _analyst_fv = (info or {}).get("target_mean_price")

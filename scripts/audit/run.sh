@@ -102,6 +102,7 @@ python3 scripts/audit/deployed_code_is_current.py || _note "$LINENO"
 python3 scripts/audit/confidence_calibrated.py || _note "$LINENO"
 python3 scripts/audit/holiday_detected.py || _note "$LINENO"
 python3 scripts/audit/latest_quarter_reaches_engine.py || _note "$LINENO"
+python3 scripts/audit/ttm_verified_before_use.py || _note "$LINENO"
 
 # السوقُ الرئيسيُّ وحدَه بمعطياته الرسمية (‏D387 · بأمر المالك):
 # 273 شركةً و22 قطاعاً، و«نمو» مستثنىً — فدمجُ سوقٍ موازٍ بالرئيسيّ
