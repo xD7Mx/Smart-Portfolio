@@ -12,6 +12,7 @@ never an invented number.
 """
 
 import atexit
+import fcntl
 import json
 import os
 import time
@@ -22,17 +23,38 @@ _PATH = os.environ.get("LASTGOOD_PATH") or (
     "/app/data/lastgood.json" if os.path.isdir("/app/data") else
     os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "lastgood.json")
 )
-_mem: dict | None = None  # write-through memory copy — disk read only once
+_mem: dict | None = None  # نسخةُ الذاكرة — تُنعَش متى تغيّر الملفّ
+_mtime: float | None = None    # زمنُ الملفّ حين قُرئ إلى الذاكرة
 
 
+def _read_disk() -> dict:
+    try:
+        with open(_PATH, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:                                             # noqa: BLE001
+        return {}
+
+
+# ══ ونسخةُ الذاكرة تُنعَش متى تغيّر الملفّ ══ (D423)
+# كانت تُقرأ **مرّةً واحدةً** ثمّ تخدم عمرَ العملية كلَّه. فعمليةٌ
+# طويلةُ العمر لا ترى شيئاً كتبته عمليةٌ أخرى بعد إقلاعها — تقرأ غياباً
+# حيث المفتاحُ موجودٌ على القرص. وفحصُ زمنِ التعديل رخيصٌ (‏`stat`
+# واحدة) وينعش دون أن يُلغي تجميعَ الكتابة.
 def _load() -> dict:
-    global _mem
-    if _mem is None:
-        try:
-            with open(_PATH, encoding="utf-8") as f:
-                _mem = json.load(f)
-        except Exception:
-            _mem = {}
+    global _mem, _mtime
+    try:
+        m = os.stat(_PATH).st_mtime
+    except OSError:
+        m = None
+    if _mem is None or (m is not None and m != _mtime):
+        disk = _read_disk()
+        if _mem is not None and _dirty_keys:
+            # وما لم يُكتب بعدُ من هذه العملية لا يُفقَد بالإنعاش
+            for k in _dirty_keys:
+                if k in _mem:
+                    disk[k] = _mem[k]
+        _mem, _mtime = disk, m
     return _mem
 
 
@@ -54,29 +76,68 @@ def _load() -> dict:
 # **احتياطيّ** يُعاد بناؤه من المزوّد. ولا يُفقد شيءٌ عند الإغلاق
 # المنتظم — `atexit` يُفرِغ ما تبقّى.
 _FLUSH_INTERVAL = 5.0
-_dirty = False
+_dirty_keys: set[str] = set()
 _wake = Event()
 _flusher_started = False
 
 
+# ══ والكتابةُ تدمج ولا تحلّ محلّ ══ (D423)
+# قِيس على خادم المالك: حصادُ القوائم أعلن «قُرئت 176»، ثمّ قرأ كاشفُ
+# `xbrl_store_census.py` القرصَ فوجد **صفرَ رمزٍ** تحت `market:xbrl` —
+# والملفُّ سليمٌ قابلٌ للكتابة وفيه ‎273 مفتاحاً أخرى. فالحصادُ كُتب
+# ثمّ مُحي.
+#
+# وسببُه هنا بعينه: `flush` كانت تكتب نسخةَ **هذه** العملية كاملةً فوق
+# الملفّ. والخادمُ الطويلُ العمر يقرأ المخزَنَ عند إقلاعه — قبل الحصاد —
+# ثمّ يكتب لقطةَ أسعارٍ كلَّ خمسِ ثوانٍ، فتنزل نسختُه القديمةُ فوق
+# الملفّ وتمحو كلَّ مفتاحٍ كتبته عمليةٌ أخرى بعده.
+#
+# وأثرُه لم يكن مفتاحاً ضائعاً: **مسحةُ التقييم تعذّرت في ‎269 من ‎273**،
+# والسلسلةُ «لها قوائمُ = 0/60»، وصفرُ سعرٍ عادلٍ للسوق كلِّه. أي أنّ
+# المحرّكَين يعملان على قوائمَ تُمحى من تحتهما بلا تنبيه.
+#
+# فصارت تُكتب **المفاتيحُ المتّسخةُ وحدَها**: يُقرأ الملفُّ من القرص
+# لحظةَ الكتابة، وتُركَّب عليه، ويُستبدَل. وقفلٌ على ملفٍّ جانبيّ يمنع
+# تشابكَ عمليتين بين القراءة والاستبدال — فالنافذةُ ملّي ثانيةٍ لكنّها
+# تكفي لمحوٍ صامت.
 def flush() -> None:
     """يكتب ما تراكم إن كان ثمّة تراكم. آمنٌ للنداء في أيّ وقت."""
-    global _dirty
+    global _mem, _mtime
     with _lock:
-        if not _dirty:
+        if not _dirty_keys:
             return
-        store = dict(_load())
-        _dirty = False
+        mine = {k: _mem[k] for k in _dirty_keys if _mem and k in _mem}
+        _dirty_keys.clear()
+    if not mine:
+        return
+    lock_path = f"{_PATH}.lock"
+    lf = None
     try:
+        lf = open(lock_path, "a+")
+        fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+        merged = _read_disk()
+        merged.update(mine)
         tmp = f"{_PATH}.tmp.{os.getpid()}"
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(store, f, ensure_ascii=False)
+            json.dump(merged, f, ensure_ascii=False)
         os.replace(tmp, _PATH)
+        with _lock:
+            _mem = merged
+            try:
+                _mtime = os.stat(_PATH).st_mtime
+            except OSError:
+                _mtime = None
     except Exception:
         # النسخةُ في الذاكرة ما تزال تخدم عمرَ هذه العملية، وتُعاد
         # المحاولةُ في الدورة التالية — فلا يضيع شيءٌ بصمت.
         with _lock:
-            _dirty = True
+            _dirty_keys.update(mine)
+    finally:
+        if lf is not None:
+            try:
+                fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
+            finally:
+                lf.close()
 
 
 def _flush_loop() -> None:
@@ -99,11 +160,10 @@ def save(key: str, data) -> None:
     """Persist a successful payload (no-op on falsy data)."""
     if not data:
         return
-    global _dirty
     with _lock:
         store = _load()
         store[key] = {"data": data, "saved_at": time.time()}
-        _dirty = True
+        _dirty_keys.add(key)
     _ensure_flusher()
 
 
