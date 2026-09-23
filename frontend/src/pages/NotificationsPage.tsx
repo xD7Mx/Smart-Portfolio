@@ -90,7 +90,8 @@ export default function NotificationsPage() {
                       الإطار وحده — إشارةٌ لا تُقرأ إلا لمن يحفظ الاصطلاح،
                       ولا يراها من لا يميّز الألوان أصلاً. فصارت كلمةً. */}
                   <p className="notif-title flex items-center gap-2 flex-wrap">
-                    <span className="ev-tag" style={{
+                    <span className="min-w-0">{n.title}</span>
+                    <span className="ev-tag ms-auto shrink-0" style={{
                       color: "var(--tag-ink)",
                       background: ({CRITICAL:"var(--tag-split)", HIGH:"var(--tag-results)",
                                MEDIUM:"var(--tag-rights)", LOW:"var(--tag-dividend)",
@@ -98,7 +99,6 @@ export default function NotificationsPage() {
                       {({CRITICAL:"عاجل", HIGH:"مهم", MEDIUM:"متابعة",
                          LOW:"معلومة", INFO:"إشعار"} as any)[n.priority] || "إشعار"}
                     </span>
-                    <span>{n.title}</span>
                   </p>
                   <p className="notif-msg">{n.message}</p>
                   <p className="notif-time">{n.created_at ? new Date(n.created_at).toLocaleString("en-US") : "—"}</p>

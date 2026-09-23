@@ -210,6 +210,19 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
 
     price = await market_service.get_price(symbol)
     info = await market_service.get_company_info(symbol) or {}
+    # ══ حقولُ السوق من لقطة «تداول» الرسمية أوّلاً ══ (D440)
+    # قِيس: أعلى وأدنى 52 أسبوعاً وغيرُها تغيب عن صفحة السهم متى عجز
+    # ياهو (الحصّة)، ولقطةُ «تداول» تحملها لكلّ ورقة (272/272). فالرسميُّ
+    # يتقدّم، وياهو يسدّ ما لا تحمله اللقطة.
+    try:
+        from app.services.tadawul_market import row_for as _row_for
+        _tw = _row_for(str(symbol).replace(".SR", "")) or {}
+        info = {**info, **{k: _tw[k] for k in
+                           ("week52_high", "week52_low", "pe_ratio",
+                            "price_to_book", "market_cap")
+                           if isinstance(_tw.get(k), (int, float))}}
+    except Exception:                                             # noqa: BLE001
+        pass
     history = await market_service.get_history(symbol, "1y")
 
     if not price and not info and not history:

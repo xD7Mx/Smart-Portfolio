@@ -171,8 +171,8 @@ function EventDetailModal({ e, onClose }: { e: any; onClose: () => void }) {
           <button onClick={onClose} title="إغلاق" aria-label="إغلاق" className="text-[var(--ink-muted)] hover:text-[var(--ink)] p-1"><X size={18} /></button>
         </div>
         <div className="flex items-center gap-2 flex-wrap mb-2.5">
-          <span className="ev-tag" style={{ background: meta.bg, color: meta.fg }}>{meta.label}</span>
           {name && <span className="tag-b" style={{ fontSize: 10 }}>{name}{e.symbol ? ` (${e.symbol})` : ""}</span>}
+          <span className="ev-tag ms-auto" style={{ background: meta.bg, color: meta.fg }}>{meta.label}</span>
         </div>
         <h2 className="text-lg font-bold text-[var(--ink)] leading-snug mb-2">{title}</h2>
         <p className="text-xs text-[var(--ink-muted)] flex items-center gap-1.5 mb-4">
@@ -230,9 +230,10 @@ function EventRow({ e, onOpen }: { e: any; onOpen: () => void }) {
         {e.symbol ? <CompanyLogo symbol={e.symbol} size={32} /> : null}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="ev-tag shrink-0" style={{ background: meta.bg, color: meta.fg }}>{meta.label}</span>
+            {/* الوسمُ بعد الرمز يساراً (بأمر المالك) — لا يزاحم الاسمَ والرمز. */}
             {name && <span className="text-[var(--ink)] text-[13px] font-semibold truncate">{name}</span>}
             {e.symbol && <span className="tag-b shrink-0" style={{ fontSize: 10 }}>{e.symbol}</span>}
+            <span className="ev-tag shrink-0 ms-auto" style={{ background: meta.bg, color: meta.fg }}>{meta.label}</span>
           </div>
           <p className="text-[var(--ink-muted)] text-xs mt-1 leading-snug">{e.title || e.headline || meta.label}</p>
           <p className="text-[var(--ink-muted)] text-[11px] mt-0.5">{fmtDate(e.date)}</p>
