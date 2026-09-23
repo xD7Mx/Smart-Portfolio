@@ -32,9 +32,8 @@ async def get_price_history(symbol: str, range: str = "3mo"):
     from app.services.market_data import market_service
     if range not in ("1mo", "3mo", "6mo", "1y", "2y", "5y"):
         range = "6mo"
-    points = None
-    if hasattr(market_service.primary, "get_history"):
-        points = await market_service.primary.get_history(_normalize_symbol(symbol), range)
+    # البابُ الواحد: `market_service.get_history` يختار المصدرَ لكلّ رمز (D438).
+    points = await market_service.get_history(_normalize_symbol(symbol), range)
     return success_response(data=points or [])
 
 

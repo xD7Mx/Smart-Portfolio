@@ -1543,6 +1543,12 @@ class MarketDataService:
         return None
 
     async def get_history(self, symbol: str, range_: str = "3mo") -> Optional[list]:
+        # «تاسي»: ياهو لا يملك له إلا يوماً — فالمصدرُ مولّدُ رسم «تداول» (D438).
+        from app.services import tasi_history as _th
+        if symbol.upper() in _th.SYMBOLS:
+            pts = await _th.history(range_)
+            if pts:
+                return pts
         return await self._yahoo().get_history(symbol, range_)
 
     async def get_financials(self, symbol: str, allow_supplement: bool = True) -> Optional[dict]:

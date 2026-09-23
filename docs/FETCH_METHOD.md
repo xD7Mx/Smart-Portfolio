@@ -151,6 +151,20 @@ rows = (json.loads(raw) or {}).get("data")
 | `historicalBoardMembersWithDates` | أعضاءُ مجلس الإدارة |
 | `ThemeTASIUtilityServlet` | مؤشّرُ تاسي مباشرةً (خدمةُ ترويسةٍ لا بوّابة) |
 
+### تاريخُ المؤشّر: مولّدُ رسم «تداول» (D438)
+
+اكتُشف من الصفحة الرئيسية بكاشف `tasi_history_door.py`، وقِيس شكلُه بـ`tasi_chart_shape.py`:
+
+```
+GET /tadawul.eportal.charts.v2/ChartGenerator?methodType=parsingMethod
+    &chart-type=SQL_MI_MSPV&chart-parameter=tasi&format=json&pageName=MarketStatusHomeGraph
+```
+
+يردّ مصفوفةَ `{dateTime, indexPrice}` لجلسة آخرِ يوم تداولٍ وحدَها (311 نقطة لتاسي،
+و`mt30` بالمعامل نفسِه). فلا تاريخَ طويلاً منه مباشرة: يُحفظ إغلاقُ كلّ جلسةٍ في
+`lastgood` تحت `market:tasi_daily` فيطول اليوميُّ مع الأيام. والجلبُ في
+`backend/app/services/tasi_history.py`، وياهو لا يملك لتاسي إلا يوماً.
+
 ### مصدرٌ ثانويٌّ مقيس: مسحُ «TradingView» العامّ (D435)
 
 نقطةُ JSON عامّةٌ بلا مفتاح، تُطلب بـ`POST` وبانتحال البصمة نفسِه:
