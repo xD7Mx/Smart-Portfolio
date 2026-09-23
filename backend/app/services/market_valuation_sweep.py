@@ -158,4 +158,21 @@ async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
         rep["أسبابُ التعذّر"] = dict(sorted(_FAIL_KINDS.items(),
                                             key=lambda x: -x[1])[:5])
     logger.info(f"مسحةُ التقييم انتهت: {rep}")
+    # ══ وتوزيعاتُ كلّ شركةٍ تُحضَّر مسبقاً ══ (D451)
+    # قِيس: `/market/dividends` يستغرق 3.2 ثانيةً في أوّل فتح لأنه يقرأ صفحةَ
+    # الشركة في «تداول» (نحو ميغابايت). فتُقرأ هنا للجميع، وتقرأ الصفحةُ المخزَّن.
+    try:
+        from app.services import tadawul_dividends as _td
+        _sem2 = asyncio.Semaphore(4)
+
+        async def _warm(sym):
+            async with _sem2:
+                try:
+                    await _td.read(sym)
+                except Exception:                                 # noqa: BLE001
+                    pass
+        await asyncio.gather(*(_warm(s_) for s_ in done))
+        rep["توزيعاتٌ مُحضَّرة"] = len(done)
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"تحضيرُ التوزيعات: {type(e).__name__}")
     return rep

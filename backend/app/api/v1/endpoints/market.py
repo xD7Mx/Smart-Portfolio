@@ -1438,8 +1438,8 @@ async def get_company_recommendations(symbol: str):
     if got is None:
         from app.services.argaam_calendar import fetch_company_recommendations
         got = await fetch_company_recommendations(symbol)
-        if got.get("rows"):
-            cache.set(ck, got, 7 * 24 * 60 * 60)      # أسبوع
+        # والفراغُ يُخزَّن نصفَ يوم (D451): كان يُعاد جلبُه في كلّ فتحٍ (3.3 ثانية).
+        cache.set(ck, got, 7 * 24 * 60 * 60 if got.get("rows") else 12 * 60 * 60)
     return success_response(data={
         "rows": got.get("rows") or [],
         "url": got.get("url"),
