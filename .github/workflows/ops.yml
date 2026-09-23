@@ -29,6 +29,7 @@ on:
           - sweep        # مسحةُ التقييم: درجةٌ وسعرٌ عادلٌ للـ273
           - complete     # الدورةُ كاملةً بالترتيب
           - probe        # كاشفٌ واحدٌ باسمه من scripts/audit — قراءةٌ فقط
+          - web          # بناءُ الواجهة ونشرُها — داخلَ دوكر لا على المضيف
       probe_name:
         description: >-
           اسمُ ملفِّ الكاشف حين تكون المهمّةُ probe — من `scripts/audit`
@@ -82,6 +83,18 @@ jobs:
                 "print(asyncio.run(sweep()))")" ;;
             complete)
               bash scripts/ops/complete.sh ;;
+            web)
+              # ══ بناءُ الواجهة داخلَ دوكر ══
+              # `npm` غيرُ مثبَّتٍ على المضيف، والواجهةُ تُبنى أصلاً من
+              # `frontend/Dockerfile`. فلا يُثبَّت شيءٌ على الخادم: يُبنى
+              # الصورةَ ويُرفع، فتنزل كلُّ تعديلات الواجهة دفعةً واحدة.
+              # ودورةُ `complete.sh` لا تفعل هذا لأنّ البناءَ دقائقُ
+              # والخادمَ وحدَه يكفي لأكثر التغييرات.
+              df -h / | tail -1
+              docker compose build frontend
+              docker compose up -d frontend
+              docker restart sp_nginx >/dev/null
+              echo "الواجهةُ بُنيت ونُشرت" ;;
             probe)
               # اسمٌ مجرّدٌ من `scripts/audit` وحدَها: لا مسارَ ولا معاملاتٍ
               # ولا صَدَفة. فما يُشغَّل ملفٌّ مراجَعٌ في المستودع لا أمرٌ

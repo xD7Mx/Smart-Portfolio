@@ -121,7 +121,13 @@ async def get_server_time():
         from app.services.market_state import market_state
         _st = await market_state()
         status = _st.get("status") or status
-        _src, _ev = _st.get("source"), _st.get("evidence")
+        _src = _st.get("source")
+        # والسببُ يُرسَل حين **يزيد** على ما يعرفه التقويم — يومَ عطلةٍ
+        # أو إغلاقٍ طارئٍ أو حين ينطق المصدرُ بحالته. أمّا اليومُ العاديُّ
+        # الذي حكمته الساعةُ احتياطاً فلا سببَ يُعرَض: سطرٌ لا يضيف حشوٌ،
+        # والميثاقُ يمنع الحواشي التي تُقرأ ولا تُفيد.
+        _ev = (_st.get("evidence")
+               if _st.get("source") != "ساعةُ الخادم (احتياط)" else None)
     except Exception:                                             # noqa: BLE001
         pass
     return success_response(data={
