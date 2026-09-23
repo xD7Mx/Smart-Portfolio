@@ -691,7 +691,23 @@ def compute(info: dict, price: float | None,
     # ويُقال إنه رُفض ولماذا. والرفضُ هنا أصدقُ من وسمٍ على رقمٍ يُعرَض.
     _bv_note = None
     _bv_stmt = None
-    for _p in reversed(periods or []):
+    # ══ والميزانيةُ من أحدثِ إفصاحٍ لا من أحدثِ سنة ══ (D412-ب)
+    # حقوقُ الملكية **رقمٌ عند لحظة** لا مجموعُ فترة، فأحدثُ ربعٍ منشورٍ
+    # أصدقُ من ختام سنةٍ مضى عليها ثلاثةُ أرباع. وقِيس أنّ ‎25 من ‎30
+    # ورقةً تملك ربعيّاً أحدثَ — فكنّا نبني الدفتريةَ على ميزانيةٍ
+    # عمرُها ‎266 يوماً وعندنا واحدةٌ عمرُها ‎85.
+    # ولا يُقاس بغير شروط القوائم نفسِها: الأسهمُ موجبةٌ، والحقوقُ
+    # موجبة، ولا فجوةَ وحدةٍ ولا تضاربَ في عدد الأسهم.
+    _lq = latest_quarter if isinstance(latest_quarter, dict) else None
+    if _lq:
+        _eq, _sh = _lq.get("equity"), _lq.get("shares_outstanding")
+        if (isinstance(_eq, (int, float)) and isinstance(_sh, (int, float))
+                and _sh > 0 and _eq > 0
+                and not _lq.get("shares_unit_gap")
+                and not _lq.get("shares_mismatch")):
+            _bv_stmt = _eq / _sh
+            out["book_value_from_quarter"] = str(_lq.get("as_of") or "")[:10]
+    for _p in ([] if _bv_stmt else reversed(periods or [])):
         _eq, _sh = _p.get("equity"), _p.get("shares_outstanding")
         if (isinstance(_eq, (int, float)) and isinstance(_sh, (int, float))
                 and _sh > 0 and _eq > 0
@@ -699,7 +715,20 @@ def compute(info: dict, price: float | None,
                 and not _p.get("shares_mismatch")):
             _bv_stmt = _eq / _sh
             break
-    if bvps and _bv_stmt and _bv_stmt > 0:
+    if bvps and _bv_stmt and _bv_stmt > 0 and out.get("book_value_from_quarter"):
+        # ══ والرسميُّ المدقَّق يتقدّم المزوّد بلا عتبة ══ (D412-ب)
+        # كانت العتبةُ رُبعاً: يُعتمد ملخّصُ المزوّد ما لم يتباعدا ‎25٪.
+        # وهي صوابٌ حين يكون البديلُ ختامَ سنةٍ مضى عليها ثلاثةُ أرباع —
+        # فالفارقُ قد يكون **نموّاً حقيقياً** لا خطأً. أمّا حين يكون
+        # البديلُ إفصاحَ الشركة نفسِها عن أحدثِ ربع، فهو أحدثُ وأوثقُ
+        # معاً، وترتيبُ المصادر المُعلَن يقضي بتقدّمه: تداول ← أرقام ←
+        # ياهو. فيُعتمَد ويُسمّى — ولا يُبدَّل رقمٌ صامتاً.
+        if abs(bvps - _bv_stmt) / _bv_stmt > 0.001:
+            _bv_note = (f"القيمة الدفترية للسهم: الملخَّص {bvps:,.2f}"
+                        f" وإفصاحُ {out['book_value_from_quarter']}"
+                        f" {_bv_stmt:,.2f} — اعتُمد الرسميُّ الأحدث")
+            bvps = _bv_stmt
+    elif bvps and _bv_stmt and _bv_stmt > 0:
         if abs(bvps - _bv_stmt) / _bv_stmt > 0.25:
             _bv_note = (f"القيمة الدفترية للسهم: الملخَّص {bvps:,.2f}"
                         f" والقوائم {_bv_stmt:,.2f} — اعتُمدت القوائم")
