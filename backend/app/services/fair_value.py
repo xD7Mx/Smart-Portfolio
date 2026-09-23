@@ -742,6 +742,20 @@ def compute(info: dict, price: float | None,
     # ولا يُقاس بغير شروط القوائم نفسِها: الأسهمُ موجبةٌ، والحقوقُ
     # موجبة، ولا فجوةَ وحدةٍ ولا تضاربَ في عدد الأسهم.
     _lq = latest_quarter if isinstance(latest_quarter, dict) else None
+    # ══ عددُ أسهمٍ بوحدةٍ غيرِ وحدة السلسلة يُرفض ══ (D439)
+    # قِيس على البحري 4030: ربعٌ أو سنةٌ تحمل عددَ الأسهم بالآلاف (‏738,281
+    # بدل ‎738 مليوناً) — فتخرج الدفتريةُ للسهم ألفَ ضعف، ويخرج «السعرُ
+    # العادل» ‎58,303 على سعر ‎35.54. فالعددُ يُقارن بوسيط أعداد السلسلة،
+    # وما بعُد عنه خمسين ضعفاً خطأُ وحدةٍ لا تغيّرُ رأسمال.
+    _shs = sorted(float(x.get("shares_outstanding")) for x in (periods or [])
+                  if isinstance(x.get("shares_outstanding"), (int, float))
+                  and x.get("shares_outstanding") > 0)
+    _sh_ref = _shs[len(_shs) // 2] if _shs else None
+
+    def _sh_unit_ok(_n) -> bool:
+        return not _sh_ref or (_sh_ref / 50 <= _n <= _sh_ref * 50)
+    if _lq and not _sh_unit_ok(_lq.get("shares_outstanding") or 0):
+        _lq = None
     if _lq:
         _eq, _sh = _lq.get("equity"), _lq.get("shares_outstanding")
         if (isinstance(_eq, (int, float)) and isinstance(_sh, (int, float))
@@ -756,7 +770,8 @@ def compute(info: dict, price: float | None,
         if (isinstance(_eq, (int, float)) and isinstance(_sh, (int, float))
                 and _sh > 0 and _eq > 0
                 and not _p.get("shares_unit_gap")
-                and not _p.get("shares_mismatch")):
+                and not _p.get("shares_mismatch")
+                and _sh_unit_ok(_sh)):
             _bv_stmt = _eq / _sh
             _sh_ok = _sh
             break
@@ -778,7 +793,7 @@ def compute(info: dict, price: float | None,
             _bv_note = (f"القيمة الدفترية للسهم: الملخَّص {bvps:,.2f}"
                         f" والقوائم {_bv_stmt:,.2f} — اعتُمدت القوائم")
             bvps = _bv_stmt
-    elif bvps and price and price > 0 and bvps > price * 15:
+    if bvps and price and price > 0 and bvps > price * 15:
         _bv_note = (f"القيمة الدفترية للسهم {bvps:,.2f} تفوق السعر"
                     f" {price:,.2f} بـ{bvps / price:,.0f}× — خطأُ وحدةٍ"
                     f" أرجحُ من فرصة، فرُفضت ولم يُبنَ عليها مسار")
