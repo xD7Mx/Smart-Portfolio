@@ -138,6 +138,12 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         rightPriceScale: { borderColor: tok("--hairline", "#dcdcdc"), scaleMargins: { top: 0.06, bottom: (ind.rsi || ind.macd) ? 0.28 : 0.14 } },
         timeScale: { borderColor: tok("--hairline", "#dcdcdc"), timeVisible: false },
         crosshair: { mode: 0 },
+        /* ══ الإصبعُ العموديُّ للصفحة لا للرسم ══ (بأمر المالك)
+           «عند تمرير الشاشة تتوقّف الصفحة ويظهر التعليق»: كان الرسمُ يأسر
+           كلَّ لمسةٍ وعجلة. فالسحبُ الأفقيُّ يحرّك الرسم، والعموديُّ
+           والعجلةُ يمرّران الصفحة، والقرصُ يكبّر. */
+        handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+        handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true },
       });
       // الاحتياطيّ يُحدَّث مع الرمز لا يُترك خلفه: هو الذي يظهر لو غاب
       // الرمز، فبقاؤه على درجةٍ قديمة يعني شمعةً بلونٍ هجره التطبيق.

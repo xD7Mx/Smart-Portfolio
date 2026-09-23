@@ -254,6 +254,9 @@ python3 scripts/audit/yahoo_reserve.py || _note "$LINENO"
 python3 scripts/audit/saqr_sees_engines.py || _note "$LINENO"
 python3 scripts/audit/tasi_history_source.py || _note "$LINENO"
 python3 scripts/audit/fv_shares_unit.py || _note "$LINENO"
+python3 scripts/audit/global_chart_native.py || _note "$LINENO"
+python3 scripts/audit/stock_fields_official.py || _note "$LINENO"
+node scripts/audit/mobile_walk.mjs || _note "$LINENO"
 
 # D160 (عودة): لا فحصَ في اللجنة يكتب في بيانات المالك المتتبَّعة. عولج
 # في أربعة سكربتاتٍ وتخلّف `rank_check` فعاد يلوّث lastgood.json ويمنع

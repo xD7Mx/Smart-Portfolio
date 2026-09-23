@@ -1404,16 +1404,18 @@ export default function MarketPage() {
       </div>
 
       {/* Tabs — أيقونة + اسم، تملأ العرض بالتساوي */}
-      <div className="flex gap-2">
+      <div className="flex gap-1 md:gap-2">
         {MARKET_TABS.map(mt => (
           <button key={mt.id} onClick={() => setTab(mt.id)} aria-pressed={tab === mt.id}
             /* بلا إطار — انظر تعليق تبويبات المحفظة في PortfolioPage. */
-            className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 px-2 md:px-3 py-2 md:py-2.5 rounded-xl text-[11px] md:text-sm transition-colors"
+            /* على الجوال: الأيقونةُ فوق الاسم فتتّسع الخمسةُ لعرض الشاشة — كانت
+               443px في 366 فتنزلق الصفحةُ أفقياً (بأمر المالك). */
+            className="flex-1 min-w-0 flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-1 md:px-3 py-2 md:py-2.5 min-h-[44px] rounded-xl text-[10.5px] md:text-sm transition-colors"
             style={tab === mt.id
               ? { background: "color-mix(in srgb, var(--brand) 12%, transparent)", color: "var(--brand-ink)", fontWeight: 700 }
               : { background: "transparent", color: "var(--ink-muted)" }}>
             <mt.Icon size={16} className="shrink-0" />
-            <span className="whitespace-nowrap">{mt.name}</span>
+            <span className="whitespace-nowrap leading-tight">{mt.name}</span>
           </button>
         ))}
       </div>

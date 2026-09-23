@@ -246,7 +246,7 @@ export const marketApi = {
   // الصفقاتُ الخاصة — كلُّ السوق أو لشركةٍ (D288).
   specialDeals: (days = 30, symbol?: string) => api.get<APIResponse>(
     `/market/special-deals?days=${days}` + (symbol ? `&symbol=${symbol}` : "")),
-  history:  (symbol: string, range = "3mo") => api.get<APIResponse>(`/market/history/${symbol}?range=${range}`),
+  history:  (symbol: string, range = "3mo") => api.get<APIResponse>(`/market/history/${encodeURIComponent(symbol)}?range=${range}`),
   recommendations: (symbol: string) => api.get<APIResponse>(`/market/recommendations/${symbol}`),
   financials: (symbol: string, period: "annual" | "quarterly" = "annual") =>
     api.get<APIResponse>(`/market/financials/${symbol}?period=${period}`),

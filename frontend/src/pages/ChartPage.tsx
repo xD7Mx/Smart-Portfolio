@@ -2,11 +2,15 @@ import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CandlestickChart, Search, ChevronDown } from "lucide-react";
 import NativeChart from "../components/analysis/NativeChart";
-import TradingViewChart from "../components/analysis/TradingViewChart";
 import CompanyLogo from "../components/common/CompanyLogo";
 import { searchCompanies, SaudiCompany } from "../data/saudiCompanies";
 import { holdingsApi } from "../services/api";
 import { useAppStore } from "../store/appStore";
+
+const GLOBAL: [string, string][] = [
+  ["^GSPC", "S&P 500"], ["^IXIC", "ناسداك"], ["^DJI", "داو جونز"],
+  ["BZ=F", "برنت"], ["GC=F", "الذهب"], ["BTC-USD", "بتكوين"],
+];
 
 export default function ChartPage() {
   const { theme } = useAppStore();
@@ -15,6 +19,11 @@ export default function ChartPage() {
   const [chosen, setChosen] = useState<string | null>(null);
   const [engine, setEngine] = useState<"native" | "tv">("native");
   const [picksOpen, setPicksOpen] = useState(false);
+  // ══ السوقُ العالميّ بمحرّك الرسم نفسِه ══ (بأمر المالك: لا تطبيقَ مختلف)
+  // كان تبويبُه إطاراً من TradingView لا يدعم «تداول» ويخالف تصميمَ التطبيق.
+  // فصار الرسمُ الأصليَّ نفسَه على رموزٍ عالمية من باب التاريخ الواحد.
+  const [gsym, setGsym] = useState("^GSPC");
+  const [gq, setGq] = useState("");
 
   // الأزرار السريعة من حيازات المحفظة النشطة (معزولة بالمحفظة) — تتفاعل مع
   // تبديل المحافظ ووضع التوحيد تلقائيًا عبر إبطال الكاش.
@@ -71,7 +80,7 @@ export default function ChartPage() {
             <ChevronDown size={14} className={"text-[var(--ink-muted)] transition-transform duration-200 " + (picksOpen ? "rotate-180" : "")} />
           </button>
         )}
-        {symbol && (
+        {(
           <>
             <button onClick={() => setEngine("native")}
               className={"px-3 py-1.5 rounded-xl text-xs font-bold border transition-all " + (engine === "native" ? " text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)] hover:text-[var(--ink)]")}>
@@ -103,19 +112,30 @@ export default function ChartPage() {
         </div>
       )}
 
-      {symbol ? (
+      {(symbol || engine === "tv") ? (
         <>
 
           {engine === "native" ? (
             <div className="card chart-lock">
-              <NativeChart symbol={symbol} theme={theme === "light" ? "light" : "dark"} />
+              <NativeChart symbol={symbol!} theme={theme === "light" ? "light" : "dark"} />
             </div>
           ) : (
-            <>
-              <div className="card chart-lock p-0 overflow-hidden" style={{ height: "72vh", minHeight: 480 }}>
-                <TradingViewChart symbol={symbol} theme={theme === "light" ? "light" : "dark"} />
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {GLOBAL.map(([s, lbl]) => (
+                  <button key={s} onClick={() => setGsym(s)}
+                    className={"min-h-[32px] px-3 py-1.5 rounded-xl text-xs font-bold border transition-all " + (gsym === s ? " text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)] hover:text-[var(--ink)]")}>
+                    {lbl}
+                  </button>
+                ))}
+                <input className="input w-36 text-xs" dir="ltr" placeholder="AAPL" value={gq}
+                  onChange={e => setGq(e.target.value.toUpperCase())}
+                  onKeyDown={e => { if (e.key === "Enter" && gq.trim()) { setGsym(gq.trim()); setGq(""); } }} />
               </div>
-            </>
+              <div className="card chart-lock">
+                <NativeChart symbol={gsym} theme={theme === "light" ? "light" : "dark"} />
+              </div>
+            </div>
           )}
         </>
       ) : (

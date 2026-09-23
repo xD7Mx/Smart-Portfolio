@@ -986,8 +986,10 @@ html.light .login-card {
 
 /* الرسم البياني: يستحوذ على لمسه فلا تتحرّك الصفحة خلفه (كان سحب الإصبع
    على الرسم يُمرّر التطبيق كلّه). none تمنع التمرير والتكبير معاً داخله. */
-.chart-lock { touch-action: none; overscroll-behavior: contain; }
-.chart-lock canvas, .chart-lock iframe { touch-action: none; }
+/* ‏pan-y: التمريرُ العموديُّ للصفحة دائماً — كان `none` فتتجمّد الصفحةُ
+   متى وقع الإصبعُ على رسم (بأمر المالك). */
+.chart-lock { touch-action: pan-y pinch-zoom; }
+.chart-lock canvas, .chart-lock iframe { touch-action: pan-y pinch-zoom; }
 
 
 /* إشعار التحديث — يعمل على المظهرين */

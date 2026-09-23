@@ -43,7 +43,7 @@ export default function PriceChart({ symbol }: { symbol: string }) {
       {points.length >= 2 ? (
         <div style={{ height: 220 }} dir="ltr">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={points} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+            <AreaChart data={points} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="pcFill" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={color} stopOpacity={0.3} />
@@ -52,7 +52,7 @@ export default function PriceChart({ symbol }: { symbol: string }) {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,.12)" />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--ink-muted)" }} tickFormatter={(d: string) => d.slice(5)} minTickGap={28} />
-              <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10, fill: "var(--ink-muted)" }} width={48} />
+              <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10, fill: "var(--ink-muted)" }} orientation="right" mirror width={1} tickLine={false} axisLine={false} />
               <Tooltip contentStyle={{ background: "var(--pop)", border: "1px solid var(--line)", color: "var(--tip-text)", borderRadius: 10, fontSize: 12 }}
                 labelStyle={{ color: "var(--tip-text)", fontWeight: 300, marginBottom: 4 }}
                 itemStyle={{ color: "var(--tip-text)" }}
