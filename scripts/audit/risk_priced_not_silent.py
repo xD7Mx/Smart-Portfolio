@@ -40,23 +40,23 @@ except ModuleNotFoundError as e:
     sys.exit(0)
 
 # ── ١ · الشرطُ المخالفُ يُوسَم باسمه ───────────────────────────────────
-_hit, _ = risk_flags("bank", [{"as_of": "2026-06-30", "equity": 1000.0,
+_hit, _, _ = risk_flags("bank", [{"as_of": "2026-06-30", "equity": 1000.0,
                                "total_assets": 15000.0, "net_income": 50.0}])
 check(any(x["code"] == "leverage_gt_12" for x in _hit),
       "١ رافعةُ ‎15× في بنكٍ تُوسَم باسم شرطها")
 
-_ok, _ = risk_flags("bank", [{"as_of": "2026-06-30", "equity": 1000.0,
+_ok, _, _ = risk_flags("bank", [{"as_of": "2026-06-30", "equity": 1000.0,
                               "total_assets": 8000.0, "net_income": 50.0}])
 check(not _ok, "١ب ورافعةُ ‎8× لا تُوسَم — لا إنذارَ كاذب")
 
-_cov, _ = risk_flags("capital_infra", [{"as_of": "2026-06-30", "equity": 900.0,
+_cov, _, _ = risk_flags("capital_infra", [{"as_of": "2026-06-30", "equity": 900.0,
                                         "ebit": 50.0, "interest_expense": 80.0,
                                         "net_income": 5.0}])
 check(any(x["code"] == "coverage_lt_1" for x in _cov),
       "١ج وتغطيةُ فوائدَ ‎0.6× تُوسَم")
 
 # ── ٢ · وما لا تصله مدخلاتُه يُعلَن غيرَ مقيس ─────────────────────────
-_h2, _u2 = risk_flags("reit", [{"as_of": "2026-06-30", "equity": 500.0,
+_h2, _u2, _ = risk_flags("reit", [{"as_of": "2026-06-30", "equity": 500.0,
                                 "net_income": 20.0}], {})
 check("no_dividend" in _u2 and not any(x["code"] == "no_dividend" for x in _h2),
       "٢ شرطٌ بلا مدخلٍ يُعلَن «غيرَ مقيس» لا سليماً", f"{_u2}")
@@ -87,6 +87,29 @@ if _has and _out.get("value") is not None:
           str(_out.get("value")))
 elif _has:
     print("⚠ لم تُنتج العيّنةُ قيمةً — لم يُقَس أثرُ الوسم على الثقة")
+
+# ── ٥ · ونقصُ حقلٍ فجوةُ بيانٍ مُعلَنة لا «لم يُقَس» ───────── (D422)
+# `total_debt` ناقصٌ في ‎40 ورقة، وشرطُ `no_debt_field` يعني هذا النقصَ
+# بعينه. فكان يسقط في سلّة «لم يُقَس» فيُخصم من ثقة الرقم بلا بيان.
+# فصار يُعلَن **باسمه ونصِّه**، ويُخصم خصماً مقدَّراً لا يحبس الدرجة —
+# فالورقةُ ليست خطرةً، إنّما لم يصلنا أحدُ حقولها.
+_gh, _gu, _gg = risk_flags("capital_infra", [{"as_of": "2026-06-30",
+                                              "equity": 900.0,
+                                              "total_assets": 5000.0,
+                                              "net_income": 50.0}])
+check(any(x["code"] == "no_debt_field" for x in _gg),
+      "٥ نقصُ حقلِ الدَّين يُعلَن فجوةَ بيانٍ باسمها")
+check("no_debt_field" not in _gu,
+      "٥ب ولا يُعَدّ «لم يُقَس» فيُخصم بلا بيان")
+check(all(x.get("نصّ") for x in _gg),
+      "٥ج ولكلّ فجوةٍ نصٌّ يقول ما لم يصلنا")
+_dh, _du, _dg = risk_flags("capital_infra", [{"as_of": "2026-06-30",
+                                              "equity": 900.0,
+                                              "total_assets": 5000.0,
+                                              "total_debt": 400.0,
+                                              "net_income": 50.0}])
+check(not any(x["code"] == "no_debt_field" for x in _dg),
+      "٥د وحين يصل الحقلُ لا فجوةَ — لا إنذارَ كاذب")
 
 print(("FAIL" if fail else "PASS")
       + " D408 — الخطرُ مقيسٌ ومُسعَّرٌ لا مسكوتٌ عنه")

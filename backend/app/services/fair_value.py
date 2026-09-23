@@ -518,8 +518,28 @@ def risk_flags(archetype: str | None, periods: list[dict] | None,
     ni = [_n(p, "net_income") for p in ps[:3]]
     div = _n(info, "dividend_rate", "dividend_yield", "trailing_annual_dividend_rate")
 
+    # ══ ونقصُ حقلٍ شرطٌ لا «لم يُقَس» ══ (D422)
+    # قِيس على الكون: `total_debt` ناقصٌ في ‎40 ورقة. وشرطُ `no_debt_field`
+    # في أربعةِ أنماطٍ **يعني هذا النقصَ بعينه** — فلا هو مخالفةٌ تُدين
+    # الشركةَ ولا هو «شرطٌ لم تصله مدخلاتُه». وكان يسقط في سلّة
+    # «لم يُقَس» فيُخصم من **ثقة الرقم** (‏D411) بلا بيانٍ لسببه.
+    #
+    # وأوّلُ ما جرّبتُه كان أسوأ: جدولُ «لا ينطبق» لشروطٍ ظننتُها على
+    # البنوك، فقِيس أنّ `coverage_lt_1` **ليست في شروط البنك أصلاً** —
+    # فرضيةٌ سقطت، ولا يُبقى جدولٌ ميّتٌ بعدها (درسُ D405).
+    #
+    # فالصوابُ أن يُقال ما هو: **فجوةُ بيانٍ مُعلَنةٌ باسمها**، تُخصم
+    # خصماً مقدَّراً ولا تحبس الدرجةَ دون النصف — فالورقةُ ليست خطرةً،
+    # إنّما لم يصلنا أحدُ حقولها.
+    _DATA_GAP = {
+        "no_debt_field": ("total_debt", "حقلُ الدَّين لم يصلنا — فلا رافعةَ"
+                                        " تُقاس ولا تغطيةَ فوائد"),
+        "no_published_nav": ("nav_per_unit", "صافي أصولِ الوحدة لم يُنشَر"),
+    }
+
     hit: list[dict] = []
     unmeasured: list[str] = []
+    data_gaps: list[dict] = []
 
     def _judge(code: str, bad: bool | None, text: str) -> None:
         if bad is None:
@@ -528,6 +548,11 @@ def risk_flags(archetype: str | None, periods: list[dict] | None,
             hit.append({"code": code, "نصّ": text})
 
     for c in want:
+        if c in _DATA_GAP:
+            _fld, _txt = _DATA_GAP[c]
+            if not isinstance(last.get(_fld), (int, float)):
+                data_gaps.append({"code": c, "نصّ": _txt})
+            continue
         if c == "negative_equity":
             _judge(c, None if eq is None else eq < 0,
                    "حقوقُ الملكية سالبة — الأساسُ الذي يُقاس عليه مفقود")
@@ -564,7 +589,7 @@ def risk_flags(archetype: str | None, periods: list[dict] | None,
                    "متوسّطُ الربح سالب")
         else:
             unmeasured.append(c)
-    return hit, unmeasured
+    return hit, unmeasured, data_gaps
 
 
 def compute(info: dict, price: float | None,
@@ -1463,7 +1488,12 @@ def compute(info: dict, price: float | None,
         # كانت في الميثاق ولا يقرؤها محرّك. فتُقاس هنا، وتُعلَن بأسمائها،
         # وتُخفض الثقةَ — ولا تمنع التقدير. والخطرُ يُسعَّر في هامش
         # الأمان: ثقةٌ منخفضةٌ تعني سعرَ دخولٍ أدنى، وتلك ترجمتُه المفيدة.
-        _rf, _rf_unmeasured = risk_flags(archetype, periods, info)
+        _rf, _rf_unmeasured, _rf_gaps = risk_flags(archetype, periods, info)
+        if _rf_gaps:
+            # فجوةُ بيانٍ تُعلَن باسمها: ليست خطراً يُدين الورقةَ ولا
+            # شرطاً سليماً — حقلٌ لم يصلنا، وأثرُه خصمٌ مقدَّرٌ لا سقف.
+            out["data_gaps"] = _rf_gaps
+            out["data_gap_note"] = " · ".join(x["نصّ"] for x in _rf_gaps)
         if _rf:
             out["risk_flags"] = _rf
             out["risk_note"] = " · ".join(
@@ -1539,6 +1569,9 @@ def compute(info: dict, price: float | None,
             _cut(10, "شاهدٌ محذوفٌ أو اتّكاءٌ على قيمةٍ نهائية", 89)
         if out.get("derived_inputs"):
             _cut(8, "مدخلاتٌ مشتقّةٌ لا منشورة")
+        if out.get("data_gaps"):
+            _cut(8, "فجوةُ بيانٍ: " + ("، ".join(
+                x["code"] for x in out["data_gaps"])))
         if out.get("risk_unmeasured"):
             _cut(5, "شروطُ خطرٍ لم تصلها مدخلاتُها: "
                     + "، ".join(out["risk_unmeasured"]))
