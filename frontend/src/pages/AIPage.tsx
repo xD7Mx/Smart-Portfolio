@@ -27,37 +27,21 @@ function PortfolioInsight() {
           <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm min-w-[640px]">
               <thead><tr className="border-b border-[var(--hairline)]">
-                {["الشركة", "السعر", "هدف المحللين", "الفرصة", "التقييم", "درجة الجودة المالية"].map(h => <th key={h} className="th text-start">{h}</th>)}
+                {["الشركة", "السعر", "السعر العادل", "الفرصة", "التقييم", "درجة الجودة المالية"].map(h => <th key={h} className="th text-start">{h}</th>)}
               </tr></thead>
               <tbody>
                 {companies.map((c: any) => (
                   <tr key={c.symbol} className="border-b border-[var(--hairline)]/40 hover:bg-[var(--field)]">
                     <td className="td"><span className="text-[var(--ink)] font-semibold text-[13px]">{c.name}</span> <span className="tag-b ms-1" style={{ fontSize: 10 }}>{c.symbol}</span></td>
                     <td className="td tabular-nums">{c.price != null ? c.price.toFixed(2) : "—"}</td>
-                    {/* ══ التغطيةُ شاملة ══ (بأمر المالك · D228)
-                        حيث لا هدفَ لبيوت الخبرة تُعرض القيمةُ النسبيةُ إلى
-                        القطاع — بلونٍ خافتٍ وعلامة «≈» لأنها مشتقّةٌ لا
-                        منقولة، وبتلميحٍ يحمل نطاقَها وثقتَها. فلا تُقرأ
-                        رأيَ محلّلٍ ولا يبقى الصفُّ فارغاً. */}
-                    <td className="td tabular-nums"
-                      title={c.fair_value != null
-                        ? `محرّكُنا من قوائم الشركة${c.fair_value_conf ? " · ثقة " + c.fair_value_conf : ""}${c.fair_value_asof ? " · أرقامٌ حتى " + c.fair_value_asof : ""}`
-                        : c.analyst_target != null
-                        ? "متوسّطُ أهداف بيوت الخبرة من ياهو — رأيُ محلّلين"
-                        : c.rel_value != null
-                        ? `نسبيٌّ إلى القطاع ${c.rel_low}–${c.rel_high} · ثقة ${c.rel_conf}`
-                        : ""}
-                      style={{ color: c.fair_value == null ? "var(--ink-muted)" : undefined }}>
-                      {c.fair_value != null ? c.fair_value.toFixed(2)
-                        : c.analyst_target != null ? c.analyst_target.toFixed(2)
-                        : c.rel_value != null ? c.rel_value.toFixed(2) : "—"}
-                    </td>
+                    {/* ══ سعرٌ عادلٌ واحد: تقديرُ المحرّك ══ (بأمر المالك · D431)
+                        لا يحلّ محلَّه هدفُ المحللين ولا النسبيُّ إلى القطاع،
+                        والفجوةُ فجوتُه هو. وحيث يمتنع المحرّكُ «—». */}
+                    <td className="td tabular-nums">{c.fair_value != null ? c.fair_value.toFixed(2) : "—"}</td>
                     <td className="td">{c.upside_pct != null
                       ? <span style={{ color: c.upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }} className="text-xs font-bold">{c.upside_pct >= 0 ? "+" : ""}{c.upside_pct}%</span>
-                      : c.rel_upside_pct != null
-                        ? <span className="text-xs font-bold text-[var(--ink-muted)]">≈{c.rel_upside_pct >= 0 ? "+" : ""}{c.rel_upside_pct}%</span>
-                        : "—"}</td>
-                    <td className="td"><FairValueBar upside={c.upside_pct ?? c.rel_upside_pct ?? null} /></td>
+                      : "—"}</td>
+                    <td className="td"><FairValueBar upside={c.upside_pct ?? null} /></td>
                     <td className="td">
                       {/* ══ الدرجةُ غائبةٌ حقّاً أحياناً ══
                           كانت تُستبدَل بـ50 فلم يقع الغياب. ولمّا صارت
@@ -100,27 +84,15 @@ function PortfolioInsight() {
                 </div>
                 <div className="grid grid-cols-3 gap-1 text-center">
                   <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">السعر</div><div className="text-[var(--ink)] font-semibold tabular-nums text-xs">{c.price != null ? c.price.toFixed(2) : "—"}</div></div>
-                  <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">{c.fair_value != null ? "السعر العادل"
-                     : c.analyst_target != null ? "هدف المحللين (ياهو)"
-                     : c.rel_value != null ? "نسبيٌّ إلى القطاع" : "السعر العادل"}</div><div className="font-semibold tabular-nums text-xs" style={{ color: c.fair_value == null && c.rel_value != null ? "var(--ink-muted)" : "var(--ink)" }} title={c.fair_value != null
-        ? `محرّكُنا من قوائم الشركة${c.fair_value_conf ? " · ثقة " + c.fair_value_conf : ""}${c.fair_value_asof ? " · أرقامٌ حتى " + c.fair_value_asof : ""}`
-        : c.analyst_target != null ? "متوسّطُ أهداف بيوت الخبرة من ياهو"
-        : c.rel_value != null ? `نسبيٌّ إلى القطاع ${c.rel_low}–${c.rel_high} · ثقة ${c.rel_conf}` : ""}>{c.fair_value != null ? c.fair_value.toFixed(2)
-                      : c.analyst_target != null ? c.analyst_target.toFixed(2)
-                      : c.rel_value != null ? c.rel_value.toFixed(2) : "—"}</div></div>
-                  {/* والفرصةُ كالقيمة: حيث لا هدفَ محلّلين تُقاس عن القيمة
-                      النسبية بعلامة «≈» ولونٍ خافت — لا خانةً فارغة (D230).
-                      D404-مُعلَن: خفوتُ اللون هنا **مقصودٌ** ويعني «تقديرٌ
-                      نسبيٌّ لا هدفٌ منشور» — لا نسيانَ حقلٍ كما في عطب
-                      صفحة السهم. والاستثناءُ مكتوبٌ ليُرى في الفرق. */}
-                  <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">الفرصة</div><div className="font-bold text-xs" style={{ color: c.upside_pct != null ? (c.upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)") : "var(--ink-muted)" }}>{c.upside_pct != null ? `${c.upside_pct >= 0 ? "+" : ""}${c.upside_pct}%` : c.rel_upside_pct != null ? `≈${c.rel_upside_pct >= 0 ? "+" : ""}${c.rel_upside_pct}%` : "—"}</div></div>
+                  <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">السعر العادل</div><div className="font-semibold tabular-nums text-xs text-[var(--ink)]">{c.fair_value != null ? c.fair_value.toFixed(2) : "—"}</div></div>
+                  <div><div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">الفرصة</div><div className="font-bold text-xs" style={{ color: c.upside_pct != null ? (c.upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)") : "var(--ink-muted)" }}>{c.upside_pct != null ? `${c.upside_pct >= 0 ? "+" : ""}${c.upside_pct}%` : "—"}</div></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 pt-1 border-t border-[var(--hairline)]">
                   <div className="space-y-1.5">
-                    <div className="text-[10px] text-[var(--ink-muted)]">{c.upside_pct == null && c.rel_upside_pct != null ? "التقييم مقابل وسيط القطاع" : "التقييم مقابل هدف المحللين"}</div>
+                    <div className="text-[10px] text-[var(--ink-muted)]">التقييم مقابل السعر العادل</div>
                     <div className="flex items-center gap-2">
-                      <FairValueBar upside={c.upside_pct ?? c.rel_upside_pct ?? null} hideLabel width={64} />
-                      <span className="text-[11px] font-semibold" style={{ color: fairValueTier(c.upside_pct ?? c.rel_upside_pct ?? null).color }}>{fairValueTier(c.upside_pct ?? c.rel_upside_pct ?? null).label}</span>
+                      <FairValueBar upside={c.upside_pct ?? null} hideLabel width={64} />
+                      <span className="text-[11px] font-semibold" style={{ color: fairValueTier(c.upside_pct ?? null).color }}>{fairValueTier(c.upside_pct ?? null).label}</span>
                     </div>
                   </div>
                   {/* درجة الجودة المالية: سطران منفصلان كعمود القيمة تمامًا — سطر العنوان

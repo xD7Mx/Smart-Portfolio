@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import pathlib
+import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -96,8 +97,11 @@ for _rel, _nm in (("frontend/src/components/analysis/AnalysisPanel.tsx",
             in T) or ('c.fair_value == null && c.rel_value != null ? "السعر العادل"'
                       in T)
     check(not _bad, f"٢ {_nm}: لا وسمَ ملتبساً بين الحقلَين")
-    check("analyst_target" in T,
-          f"٢ب {_nm}: تعرف هدفَ المحللين حقلاً مستقلّاً")
+    # ‏D431: صار السعرُ العادلُ رقماً واحداً، وقد لا تعرض صفحةٌ هدفَ
+    # المحللين أصلاً. فالشرطُ: **حيث يُعرض الاسمُ** فمن حقله المستقلّ.
+    _shows = "هدف المحللين" in re.sub(r"/\*.*?\*/", "", T, flags=re.S)
+    check((not _shows) or ("analyst_target" in T),
+          f"٢ب {_nm}: حيث يُعرض «هدف المحللين» فمن حقله المستقلّ")
 
 print(("FAIL" if fail else "PASS")
       + " D386 — رقمٌ واحدٌ باسمٍ واحد، والاسمُ لصاحبه")

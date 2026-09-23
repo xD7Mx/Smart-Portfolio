@@ -258,37 +258,29 @@ for (const [name, path] of STOPS) {
       say(geo.dx < 40, "وفي عمود العنوان لا في الطرف المقابل",
           `فرقُ الحافّتين ${Math.round(geo.dx)}px`);
     }
-    say(text.includes("السعر العادل"),
-        "والتقييمُ النسبيُّ في تبويب مقارنة القطاع أيضاً");
 
-    /* ══ خانةٌ دائمةٌ في بطاقة «البيانات المالية» ══ (بأمر المالك · D234)
-       لا في جدول السنوات: موضعُها البطاقةُ التي فيها المكرّرُ وهدفُ
-       المحلّلين — أي مُدخَلاها والرقمُ الذي تُقرأ بجانبه. ويُقاس أنها
-       **داخل تلك البطاقة** لا في أخرى، وأن رقمَها هو المعروضُ فيها. */
-    const kpi = await page.evaluate(() => {
+    /* ══ سعرٌ عادلٌ واحدٌ في الصفحة ══ (بأمر المالك · D431)
+       «هناك سعران عادلان… لا أريد تناقضات، أريد رقماً واحداً للسعر
+       العادل يكون هو الأجدرَ بهذه الثقة والاسم، لا واحداً فوق والثاني
+       تحت». وكانت هذه الخطوةُ تشترط العكسَ بأمرٍ سابق (‏D234): خانةَ
+       «السعر العادل» من القيمة النسبية داخل «البيانات المالية». فيُعَدّ
+       الآن كلُّ عنصرٍ نصُّه «السعر العادل» في الصفحة، ويُشترط أن يكون
+       **واحداً**، وألّا يكون في بطاقة «البيانات المالية». */
+    const fvLabels = await page.evaluate(() => {
+      const all = [...document.querySelectorAll("div,span,p,th")]
+        .filter(e => e.children.length === 0
+                && (e.textContent || "").trim() === "السعر العادل");
       const card = [...document.querySelectorAll(".card")].find(c => {
         const t = c.querySelector(".card-title");
         return t && (t.textContent || "").trim() === "البيانات المالية";
       });
-      if (!card) return null;
-      const cell = [...card.querySelectorAll(".kpi")].find(k =>
-        ((k.querySelector(".kpi-lbl") || {}).textContent || "").trim()
-          === "السعر العادل");
-      if (!cell) return { found: false };
-      const val = (cell.querySelector(".kpi-val") || {}).textContent || "";
-      const peers = [...card.querySelectorAll(".kpi-lbl")]
-        .map(l => (l.textContent || "").trim());
-      return { found: true, val: val.trim(),
-               withPE: peers.some(l => l.includes("مكرر الربحية")),
-               withTarget: peers.some(l => l.includes("تقدير المحللين")) };
+      return { n: all.length,
+               inFin: card ? all.filter(e => card.contains(e)).length : 0 };
     });
-    say(!!kpi && kpi.found === true,
-        "خانةُ التقييم النسبيّ داخل بطاقة «البيانات المالية»");
-    if (kpi && kpi.found) {
-      say(kpi.val.includes("28.4"), "ورقمُها هو المعروضُ فيها", kpi.val);
-      say(kpi.withPE && kpi.withTarget,
-          "وبجانبِ المكرّر وهدفِ المحلّلين — لا في بطاقةٍ أخرى");
-    }
+    say(fvLabels.n === 1, "«السعر العادل» اسمٌ لرقمٍ واحدٍ في الصفحة",
+        `عددُه ${fvLabels.n}`);
+    say(fvLabels.inFin === 0,
+        "ولا سعرَ عادلاً ثانياً داخل «البيانات المالية»");
   }
 
   /* ══ خيارا الدورية: سنويٌّ وربعيّ ══ (بأمر المالك · D259)
@@ -337,23 +329,25 @@ for (const [name, path] of STOPS) {
     }
   }
 
-  /* والدوامُ يُقاس في حالة الامتناع أيضاً: خانةٌ تُطوى عند الغياب تُخفي
-     الميزةَ ويظنّها المستخدمُ خاصّةً ببعض الشركات. */
+  /* ══ وحين يمتنع المحرّك: «—» لا بديلٌ يسدّ الخانة ══ (D431)
+     كان هذا الفحصُ يشترط خانةَ قيمةٍ نسبيةٍ باقيةً حيث يمتنع التقييم
+     (‏D234). ونقض المالكُ ذلك: رقمٌ واحدٌ للسعر العادل. فيُقاس هنا أنّ
+     الاسمَ واحدٌ في الصفحة حتى في الامتناع، ولا يُملأ بغير المحرّك. */
   if (name === "مقارنة القطاع (بلا نظائر)") {
-    const bareCell = await page.evaluate(() => {
+    const bare = await page.evaluate(() => {
+      const all = [...document.querySelectorAll("div,span,p,th")]
+        .filter(e => e.children.length === 0
+                && (e.textContent || "").trim() === "السعر العادل");
       const card = [...document.querySelectorAll(".card")].find(c => {
         const t = c.querySelector(".card-title");
         return t && (t.textContent || "").trim() === "البيانات المالية";
       });
-      if (!card) return null;
-      const cell = [...card.querySelectorAll(".kpi")].find(k =>
-        ((k.querySelector(".kpi-lbl") || {}).textContent || "").trim()
-          === "السعر العادل");
-      return cell ? ((cell.querySelector(".kpi-val") || {}).textContent || "").trim() : null;
+      return { n: all.length,
+               inFin: card ? all.filter(e => card.contains(e)).length : 0 };
     });
-    say(!!bareCell, "الخانةُ باقيةٌ حيث يمتنع التقييم — لا تُطوى");
-    say(!!bareCell && bareCell.includes("لا نظائر"),
-        "وتقول سببَ امتناعها لا رقماً ضعيفاً", String(bareCell));
+    say(bare.n <= 1 && bare.inFin === 0,
+        "وفي الامتناع: لا سعرَ عادلاً بديلاً يسدّ الخانة",
+        `عددُه ${bare.n} · في البيانات المالية ${bare.inFin}`);
   }
 
   /* ══ محورُ العمود: العنوانُ والرقمُ على خطٍّ واحد ══ (بأمر المالك · D238)

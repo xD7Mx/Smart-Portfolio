@@ -4,7 +4,6 @@ import {
   CheckCircle, XCircle, TrendingUp, Activity, Sparkles, ShieldCheck
 } from "lucide-react";
 import { marketApi } from "../../services/api";
-import { RelativeValueStrip } from "./FinancialsTable";
 import { lookupCompany } from "../../data/saudiCompanies";
 import { TrendBar } from "../common/ValueBars";
 
@@ -151,93 +150,34 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
           </div>
 
           <div className="rounded-xl px-3 py-2.5" style={{ background: "color-mix(in srgb, var(--brand) 7%, transparent)" }}>
-            {/* العنوانُ يتبدّل مع مصدره: حيث لا هدفَ لبيوت الخبرة تُعرض
-                القيمةُ النسبيةُ إلى القطاع باسمها — لا يُقرأ مضاعفُ قطاعٍ
-                رأيَ محلّل (‏D213). */}
-            {/* ══ ثلاثةُ أرقامٍ لا يتزاحم اثنانِ منها على اسم ══ (D386)
-                قال المالك: «هدفُ المحللين شيءٌ من ياهو، والسعرُ العادل
-                شيءٌ آخرُ من صنعنا». وقِيس على 1120 أن الاسمَ الأثمنَ كان
-                معلَّقاً على أضعف الثلاثة: نسبيٌّ 32.13 · محللون 74.95 ·
-                محرّكُنا 104.72. فالترتيبُ معلَنٌ هنا صراحةً: سعرُنا العادل
-                أوّلاً باسمه ومعه ثقتُه وتاريخُ أرقامه، فإن امتنع محرّكُنا
-                فهدفُ المحللين **باسمه ومصدرِه**، فإن غاب فالنسبيُّ إلى
-                القطاع باسمه — ولا يلبس أحدُهما ثوبَ الآخر. */}
-            <div className="text-[10px] text-[var(--ink-muted)] mb-1">
-              {data.fair_value != null ? "السعر العادل"
-               : data.analyst_target != null ? "هدف المحللين (ياهو)"
-               : data.rel_value != null ? "نسبيٌّ إلى القطاع" : "السعر العادل"}
-            </div>
+            {/* ══ سعرٌ عادلٌ واحد: تقديرُ المحرّك ══ (بأمر المالك · D431)
+                «أريد رقماً واحداً للسعر العادل يكون هو الأجدرَ بهذه الثقة
+                والاسم». فالاسمُ ثابتٌ والرقمُ من المحرّك وحدَه، وحيث يمتنع
+                «—». لا يحلّ محلَّه هدفُ المحللين ولا النسبيُّ إلى القطاع. */}
+            <div className="text-[10px] text-[var(--ink-muted)] mb-1">السعر العادل</div>
             {data.fair_value != null ? (
-              <>
-                <div className="flex items-baseline gap-1.5 flex-wrap"
-                  title={`محرّكُنا من قوائم الشركة · المدى ${fmt(data.fair_value_low)} – ${fmt(data.fair_value_high)}`
-                         + (data.fair_value_conf ? ` · ثقة ${data.fair_value_conf}` : "")
-                         + (data.fair_value_asof ? ` · أرقامٌ حتى ${data.fair_value_asof}` : "")}>
-                  <span className="text-xl tabular-nums leading-none text-[var(--ink)]" style={{ fontWeight: 800 }}>{fmt(data.fair_value)}</span>
-                  {data.fair_value_upside_pct != null && (
-                    <span className="text-[11px] tabular-nums" dir="ltr"
-                      style={{ color: data.fair_value_upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
-                      {data.fair_value_upside_pct > 0 ? "+" : ""}{data.fair_value_upside_pct}%
-                    </span>
-                  )}
-                  {/* عمرُ الرقم جزءٌ منه (‏D380) */}
-                  {data.fair_value_asof && (
-                    <span className="text-[10px] tabular-nums" dir="ltr"
-                      style={{ color: data.fair_value_stale
-                                      ? "var(--warn-ink)" : "var(--ink-muted)" }}>
-                      {String(data.fair_value_asof).slice(0, 7)}
-                    </span>
-                  )}
-                </div>
-              </>
-            ) : data.analyst_target != null ? (
-              <div className="flex items-baseline gap-1.5"
-                title="متوسّطُ أهداف بيوت الخبرة من ياهو — رأيُ محلّلين لا تقديرَ محرّكنا">
-                <span className="text-xl tabular-nums leading-none text-[var(--ink)]" style={{ fontWeight: 800 }}>{fmt(data.analyst_target)}</span>
-                {data.analyst_target_upside_pct != null && (
+              <div className="flex items-baseline gap-1.5 flex-wrap"
+                title={`المدى ${fmt(data.fair_value_low)} – ${fmt(data.fair_value_high)}`
+                       + (data.fair_value_conf ? ` · ثقة ${data.fair_value_conf}` : "")
+                       + (data.fair_value_asof ? ` · أرقامٌ حتى ${data.fair_value_asof}` : "")}>
+                <span className="text-xl tabular-nums leading-none text-[var(--ink)]" style={{ fontWeight: 800 }}>{fmt(data.fair_value)}</span>
+                {data.fair_value_upside_pct != null && (
                   <span className="text-[11px] tabular-nums" dir="ltr"
-                    style={{ color: data.analyst_target_upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
-                    {data.analyst_target_upside_pct > 0 ? "+" : ""}{data.analyst_target_upside_pct}%
+                    style={{ color: data.fair_value_upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
+                    {data.fair_value_upside_pct > 0 ? "+" : ""}{data.fair_value_upside_pct}%
+                  </span>
+                )}
+                {/* عمرُ الرقم جزءٌ منه (‏D380) */}
+                {data.fair_value_asof && (
+                  <span className="text-[10px] tabular-nums" dir="ltr"
+                    style={{ color: data.fair_value_stale
+                                    ? "var(--warn-ink)" : "var(--ink-muted)" }}>
+                    {String(data.fair_value_asof).slice(0, 7)}
                   </span>
                 )}
               </div>
             ) : (
-              /* ══ الغيابُ يُذكر بسببه ══ (بأمر المالك · D200)
-                 «غير متوفّرة» وحدَها تُقرأ عطباً في التطبيق. والسببُ هنا
-                 واحدٌ معلوم: المعروضُ هدفُ بيوت الخبرة، ولا تغطّي بيوتُ
-                 الخبرة كلَّ ورقة — والصناديقُ العقارية أقلُّها تغطيةً.
-                 فيُقال ما هو، ولا يُخترع رقمٌ ليملأ الفراغ. */
-              data.rel_value != null ? (
-                /* ══ الفراغُ يُملأ باشتقاقٍ معلَنٍ لا برقمٍ مُنتحِل ══ (D212)
-                   ‎124 شركةً لا يُصدر لها أحدٌ توصية — نقصُ السوق لا نقصُنا.
-                   فتُشتقّ قيمةٌ من مضاعفات نظائرها، بلونٍ خافتٍ يقول إنها
-                   مشتقّةٌ لا منقولة، ومعها نطاقُها ودرجةُ ثقتها. */
-                <>
-                  <div className="flex items-baseline gap-1.5"
-                    title={`نسبيٌّ إلى القطاع ${fmt(data.rel_low)} – ${fmt(data.rel_high)} · ثقة ${data.rel_conf} — مقارنةٌ بمضاعفات النظائر، لا تقديرُ محرّكنا ولا هدفُ محلّلين`}>
-                    <span className="text-xl tabular-nums leading-none text-[var(--ink-muted)]" style={{ fontWeight: 800 }}>
-                      {fmt(data.rel_value)}
-                    </span>
-                    {data.rel_upside_pct != null && (
-                      <span className="text-[11px] tabular-nums" dir="ltr"
-                        style={{ color: data.rel_upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
-                        ≈{data.rel_upside_pct > 0 ? "+" : ""}{data.rel_upside_pct}%
-                      </span>
-                    )}
-                  </div>
-                  {/* ══ النطاقُ والثقةُ إلى التلميح ══ (بأمر المالك)
-                      سطران تحت الرقم يشرحانه — والتطبيقُ رسميٌّ لا مدوّنة.
-                      ولا تضيع المعلومة: تُقرأ بالمرور على الرقم أعلاه، فيبقى
-                      المصدرُ مصحوباً بالرقم كما يوجب الميثاق. */}
-                </>
-              ) : (
-              <>
-                <div className="text-base text-[var(--ink-muted)]" style={{ fontWeight: 700 }}>غير متوفّر</div>
-                <div className="text-[9.5px] text-[var(--ink-muted)] leading-tight mt-1">
-                  {data.rel_why ? `لا هدفَ محلّلين، ولا قيمةَ نسبية: ${data.rel_why}` : "لا يصلنا هدفُ محلّلين لهذه الورقة"}
-                </div>
-              </>
-              )
+              <div className="text-xl tabular-nums leading-none text-[var(--ink-muted)]" style={{ fontWeight: 800 }}>—</div>
             )}
           </div>
         </div>
@@ -404,16 +344,10 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
               </div>
             )}
           </div>
-          {/* ══ وموضعُ القيمة النسبية الثاني ══ (بأمر المالك · D233)
-              هذا تبويبُ «مقارنة السهم بقطاعه»، والقيمةُ النسبيةُ هي تلك
-              المقارنةُ مترجَمةً إلى ريالاتٍ للسهم — فمكانُها هنا كمكانها
-              في القوائم. والمكوّنُ واحدٌ لا نسختان تتباعدان. */}
-          <RelativeValueStrip symbol={symbol} />
         </div>
       )}
 
-      {/* Fundamentals grid — تُرسَم دائماً لأن خانةَ القيمة النسبية فيها
-          دائمةٌ بأمر المالك: بطاقةٌ تُطوى تُخفي الخانةَ معها. */}
+      {/* Fundamentals grid */}
       {(
         <div className="card">
           <p className="card-title mb-2">البيانات المالية</p>
@@ -421,42 +355,6 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
             {kpis.map(([lbl, v]) => (
               <div key={lbl} className="kpi"><div className="kpi-lbl">{lbl}</div><div className="kpi-val">{v}</div></div>
             ))}
-            {/* ══ القيمةُ النسبيةُ خانةٌ دائمةٌ هنا ══ (بأمر المالك · D234)
-                موضعُها هذه البطاقةُ بعينها: فيها المكرّرُ ومضاعفُ الدفترية
-                وهدفُ المحلّلين — أي مُدخَلاها والرقمُ الذي تُقرأ بجانبه.
-                ودائمةٌ تعني أن الخانةَ لا تُطوى: حيث تمتنع تقول سببَ
-                امتناعها، فلا يظنّها المستخدمُ ميزةً تظهر لبعض الشركات.
-                وعلامةُ «≈» ولونٌ خافتٌ يقولان إنها مشتقّةٌ لا منقولة. */}
-            <div className="kpi" title={data.rel_value != null
-              ? `نطاق ${data.rel_low}–${data.rel_high} · ثقة ${data.rel_conf}`
-                + ((data.rel_confidence_why || []).length
-                   ? ` · ${(data.rel_confidence_why || []).join(" · ")}` : "")
-              : "تُشتقّ من وسيط مضاعفات القطاع — وتمتنع حيث لا نظائر كافية"}>
-              <div className="kpi-lbl">السعر العادل</div>
-              {data.rel_value != null ? (
-                <>
-                  {/* سطرانِ لا سطرٌ مزدحم: الرقمُ وفرقُه أوّلاً — وهو ما
-                      تقرؤه العين — والنطاقُ والثقةُ سطراً خافتاً تحته. */}
-                  <div className="kpi-val" dir="ltr">
-                    ≈{fmt(data.rel_value)}
-                    {data.rel_upside_pct != null && (
-                      <span className="text-xs font-normal ms-1.5"
-                        style={{ color: data.rel_upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
-                        {data.rel_upside_pct >= 0 ? "+" : ""}{data.rel_upside_pct}%
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-[var(--ink-muted)] tabular-nums mt-0.5" dir="ltr">
-                    {fmt(data.rel_low, 1)}–{fmt(data.rel_high, 1)}
-                    {data.rel_conf && <span dir="rtl"> · ثقة {data.rel_conf}</span>}
-                  </div>
-                </>
-              ) : (
-                <div className="kpi-val text-[var(--ink-muted)]" style={{ fontSize: 12 }}>
-                  {data.rel_why || "غير متوفّرة"}
-                </div>
-              )}
-            </div>
           </div>
         </div>
       )}

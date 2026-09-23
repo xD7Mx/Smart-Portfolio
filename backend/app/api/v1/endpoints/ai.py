@@ -285,26 +285,16 @@ async def get_portfolio_insight(db: AsyncSession = Depends(get_db)):
         safety_label = ("غير متاحة" if safety is None
                         else "ممتازة" if safety >= 80 else "جيدة" if safety >= 65
                         else "متوسطة" if safety >= 45 else "ضعيفة")
-        # ══ التغطيةُ شاملة: لا «غير متاح» حيث تتوفّر قيمةٌ نسبية ══ (D230)
-        # `analyze_company` — المُنتِجُ الواحد — يحسب القيمةَ النسبيةَ إلى
-        # القطاع حيث لا هدفَ لبيوت الخبرة، وكانت هذه الشاشةُ تُسقطها من
-        # مخرَجها فتعرض «—» و«غير متاح» على شركةٍ لها تقييمٌ في يدنا.
-        # فتُمرَّر بحقولها المستقلّة (لا تُدسّ في `fair_value`)، ويُبنى
-        # وصفُ التقييم على الفرق المتاح أيّاً كان مصدرُه — ويُعلَن مصدرُه.
-        rel_up = a.get("rel_upside_pct")
-        eff_up = upside if upside is not None else rel_up
-        valuation = ("مقيّم بأقل من قيمته" if (eff_up is not None and eff_up >= 8)
-                     else "مقيّم بأعلى من قيمته" if (eff_up is not None and eff_up <= -8)
-                     else "قريب من القيمة العادلة" if eff_up is not None else "غير متاح")
+        # ══ سعرٌ عادلٌ واحد: تقديرُ المحرّك ══ (بأمر المالك · D431)
+        # «أريد رقماً واحداً للسعر العادل يكون هو الأجدرَ بهذه الثقة
+        # والاسم». وكانت هذه الشاشةُ تسدّ غيابَه بالقيمة النسبية إلى القطاع
+        # (‏D230) وتسمّي أساسَها «أهداف بيوت الخبرة» — وهو تقديرُ المحرّك.
+        # فالوصفُ يُبنى على فجوة المحرّك وحدَها، وحيث يمتنع «غير متاح».
+        valuation = ("مقيّم بأقل من قيمته" if (upside is not None and upside >= 8)
+                     else "مقيّم بأعلى من قيمته" if (upside is not None and upside <= -8)
+                     else "قريب من القيمة العادلة" if upside is not None else "غير متاح")
         companies.append({
-            "rel_value": a.get("rel_value"),
-            "rel_low": a.get("rel_low"),
-            "rel_high": a.get("rel_high"),
-            "rel_conf": a.get("rel_conf"),
-            "rel_basis": a.get("rel_basis"),
-            "rel_upside_pct": rel_up,
-            "valuation_basis": ("أهداف بيوت الخبرة" if upside is not None
-                                else a.get("rel_basis") if rel_up is not None else None),
+            "valuation_basis": "محرّكُ التطبيق" if upside is not None else None,
             "symbol": h.company.symbol,
             "name": h.company.company_name,
             "price": price,

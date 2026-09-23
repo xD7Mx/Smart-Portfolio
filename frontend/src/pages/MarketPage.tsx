@@ -370,7 +370,7 @@ const VerdictTag = ({ v, small = false, gap, basis }:
 };
 
 const SORT_OPTS: [string, string][] = [
-  ["upside_pct", "الفرق عن هدف المحللين"],
+  ["fair_value_upside_pct", "الفرق عن السعر العادل"],
   ["value_gap_pct", "الفجوة عن القطاع"],
   ["dividend_yield", "عائد التوزيعات"],
   ["change_pct", "التغيّر اليومي"],
@@ -627,7 +627,7 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
   const [minScore, setMinScore] = useState("");
   // التقييم النسبي: فجوة السعر عن وسيط القطاع + الحكم المركّب.
   const [minGap, setMinGap] = useState("");
-  // الفرق عن القيمة العادلة (تقدير المحللين) — مقياسٌ ثانٍ مستقلّ عن القطاع.
+  // الفرق عن السعر العادل (تقدير المحرّك · D431) — مقياسٌ ثانٍ مستقلّ عن القطاع.
   const [minUpside, setMinUpside] = useState("");
   const [verdict, setVerdict] = useState("");
   // الافتراضي: عائد التوزيعات تنازلياً — سؤال المستثمر الأول في هذا التطبيق.
@@ -682,7 +682,7 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
       if (!isNaN(yMin) && !(r.dividend_yield != null && r.dividend_yield >= yMin)) return false;
       if (!isNaN(sMin) && !(r.finance_score != null && r.finance_score >= sMin)) return false;
       if (!isNaN(gMin) && !(r.value_gap_pct != null && r.value_gap_pct >= gMin)) return false;
-      if (!isNaN(uMin) && !(r.upside_pct != null && r.upside_pct >= uMin)) return false;
+      if (!isNaN(uMin) && !(r.fair_value_upside_pct != null && r.fair_value_upside_pct >= uMin)) return false;
       if (verdict && r.verdict !== verdict) return false;
       return true;
     });
@@ -921,7 +921,7 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                   <input value={minGap} onChange={e => setMinGap(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-16 border border-[var(--hairline)] rounded-lg px-2 py-1 text-[12px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]"
                     style={{ background: "var(--field)" }} />
-                  <span className="text-[10px] text-[var(--ink-muted)]">تحت هدف المحللين ≥</span>
+                  <span className="text-[10px] text-[var(--ink-muted)]">تحت السعر العادل ≥</span>
                   <input value={minUpside} onChange={e => setMinUpside(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-16 border border-[var(--hairline)] rounded-lg px-2 py-1 text-[12px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]"
                     style={{ background: "var(--field)" }} />
@@ -1009,10 +1009,10 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                     رأسياً بالنظر بين بطاقةٍ وأخرى.
                     والحكم شريطٌ تحتها لأنه خلاصةُ الثلاثة لا رابعُها. */}
                 {/* صفّ الذكاء — ثلاث قوائم بلغة بطاقة «رؤية الذكاء» على الجوال:
-                    التقييم يميناً · هدف المحللين رقماً في المنتصف · درجة
+                    التقييم يميناً · السعر العادل رقماً في المنتصف · درجة
                     السلامة يساراً. والعناوين في سطرٍ واحد فوق، والقيم في سطرٍ
                     واحد تحت، فتُقارَن الشركات رأسياً بين بطاقةٍ وأخرى. */}
-                {(r.upside_pct != null || r.fair_value != null || r.finance_score != null) && (
+                {(r.fair_value_upside_pct != null || r.fair_value != null || r.finance_score != null) && (
                   <div className="grid grid-cols-3 gap-2 mt-2.5 pt-2.5" style={{ borderTop: "1px solid var(--line)" }}>
                     <div className="space-y-1.5 min-w-0">
                       <div className="text-[9.5px] text-[var(--ink-muted)]">التقييم</div>
@@ -1020,30 +1020,18 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                           (شريط + نصٌّ مقطوع «تقييم مبخ…» + وسمٌ أسفل البطاقة).
                           والنسبة رقمٌ يُقرأ، والوسم يبقى في صفّ الوسوم. */}
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <FairValueBar upside={r.upside_pct ?? null} hideLabel width={44} />
+                        <FairValueBar upside={r.fair_value_upside_pct ?? null} hideLabel width={44} />
                         <span className="text-[10.5px] font-semibold tabular-nums shrink-0" dir="ltr"
-                          style={{ color: fairValueTier(r.upside_pct ?? null).color }}>
-                          {r.upside_pct == null ? "—" : `${r.upside_pct >= 0 ? "+" : ""}${Math.round(r.upside_pct)}%`}
+                          style={{ color: fairValueTier(r.fair_value_upside_pct ?? null).color }}>
+                          {r.fair_value_upside_pct == null ? "—" : `${r.fair_value_upside_pct >= 0 ? "+" : ""}${Math.round(r.fair_value_upside_pct)}%`}
                         </span>
                       </div>
                     </div>
-                    {/* ══ رقمان لا يُخلطان ══ (D213)
-                        حيث لا هدفَ لبيوت الخبرة — و‏124 شركةً كذلك، لأن أحداً
-                        لا يُصدر لها توصية — تُعرض قيمةٌ نسبيةٌ إلى القطاع
-                        مكانه. والعنوانُ نفسُه يتبدّل، فلا يُقرأ مضاعفُ قطاعٍ
-                        على أنه رأيُ محلّل. ولونُها خافتٌ لأنها مشتقّةٌ لا
-                        منقولة. */}
+                    {/* ══ سعرٌ عادلٌ واحد: تقديرُ المحرّك ══ (بأمر المالك · D431) */}
                     <div className="space-y-1.5 text-center">
-                      <div className="text-[9.5px] text-[var(--ink-muted)]">
-                        {r.fair_value == null && r.rel_value != null ? "السعر العادل" : "هدف المحللين"}
-                      </div>
-                      <div className="text-[12px] font-bold tabular-nums" dir="ltr"
-                        title={r.fair_value == null && r.rel_value != null
-                          ? `السعر العادل ${r.rel_low}–${r.rel_high} · ثقة ${r.rel_conf}`
-                          : ""}
-                        style={{ color: r.fair_value == null && r.rel_value != null ? "var(--ink-muted)" : "var(--ink)" }}>
-                        {r.fair_value != null ? Number(r.fair_value).toFixed(2)
-                          : r.rel_value != null ? Number(r.rel_value).toFixed(2) : "—"}
+                      <div className="text-[9.5px] text-[var(--ink-muted)]">السعر العادل</div>
+                      <div className="text-[12px] font-bold tabular-nums text-[var(--ink)]" dir="ltr">
+                        {r.fair_value != null ? Number(r.fair_value).toFixed(2) : "—"}
                       </div>
                     </div>
                     <div className="space-y-1.5 min-w-0">
@@ -1109,7 +1097,7 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                 {/* رأسُ العمود بالاسم الموحَّد — كان «السلامة»، وهو ثالثُ اسمٍ للرقم نفسِه (D224). */}
                 {th("finance_score", "الجودة")}
                 {th("value_gap_pct", "عن القطاع")}
-                {th("upside_pct", "عن السعر العادل")}
+                {th("fair_value_upside_pct", "عن السعر العادل")}
                 <th className="px-2 py-2 text-center text-[var(--ink-muted)] font-semibold whitespace-nowrap">الحكم</th>
                 {th("high_52w", "قمة 52أ")}
                 {th("low_52w", "قاع 52أ")}
@@ -1183,21 +1171,13 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                       style={{ color: r.value_gap_pct == null ? "var(--ink-muted)" : r.value_gap_pct >= 20 ? "var(--pos-ink)" : r.value_gap_pct <= -20 ? "var(--neg-ink)" : "var(--ink-muted)" }}>
                       {r.value_gap_pct == null ? "—" : `${r.value_gap_pct > 0 ? "+" : ""}${Math.round(r.value_gap_pct)}%`}
                     </td>
-                    {/* الفرق عن تقدير المحللين — مقياسٌ آخر لا امتداد للأول:
-                        مصدره آراء بشر لا مقارنة أرقام، فيُعرض مستقلاً. */}
+                    {/* الفرق عن السعر العادل — تقديرُ المحرّك وحدَه (‏D431) */}
                     <td className="px-2 py-2 text-center tabular-nums" dir="ltr"
-                      title={r.fair_value ? `هدف المحللين ${r.fair_value}${r.fair_value_asof ? " · " + r.fair_value_asof : ""}`
-                        : r.rel_value != null ? `السعر العادل ${r.rel_value} (${r.rel_low}–${r.rel_high}) · ثقة ${r.rel_conf} — لا هدفَ محلّلين لهذه الشركة`
-                        : ""}
-                      style={{ color: r.upside_pct == null ? "var(--ink-muted)" : r.upside_pct >= 15 ? "var(--pos-ink)" : r.upside_pct <= -15 ? "var(--neg-ink)" : "var(--ink-muted)" }}>
-                      {/* ولا يُدسّ المشتقُّ في خانة المنقول: علامةُ «≈» ولونٌ
-                          خافتٌ يقولان إن هذا فرقٌ عن قيمةٍ نسبيةٍ لا عن هدفِ
-                          محلّل (‏D213). */}
-                      {r.upside_pct != null
-                        ? `${r.upside_pct > 0 ? "+" : ""}${Math.round(r.upside_pct)}%`
-                        : r.rel_value != null && r.price
-                          ? <span className="text-[var(--ink-muted)]">{`≈${Math.round((r.rel_value - r.price) / r.price * 100) > 0 ? "+" : ""}${Math.round((r.rel_value - r.price) / r.price * 100)}%`}</span>
-                          : "—"}
+                      title={r.fair_value != null ? `السعر العادل ${r.fair_value}` : ""}
+                      style={{ color: r.fair_value_upside_pct == null ? "var(--ink-muted)" : r.fair_value_upside_pct >= 15 ? "var(--pos-ink)" : r.fair_value_upside_pct <= -15 ? "var(--neg-ink)" : "var(--ink-muted)" }}>
+                      {r.fair_value_upside_pct != null
+                        ? `${r.fair_value_upside_pct > 0 ? "+" : ""}${Math.round(r.fair_value_upside_pct)}%`
+                        : "—"}
                     </td>
                     <td className="px-2 py-2 text-center"><VerdictTag v={r.verdict} gap={r.value_gap_pct} basis={r.value_basis} /></td>
                     <td className="px-2 py-2 text-center text-[var(--ink-muted)] tabular-nums">{fmt(r.high_52w)}</td>
@@ -1289,7 +1269,7 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                   <input value={minGap} onChange={e => setMinGap(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-20 bg-[var(--field)] border border-[var(--hairline)] rounded-lg px-2 py-1.5 text-[13px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]" />
                 </SheetRow>
-                <SheetRow label="تحت هدف المحللين ≥">
+                <SheetRow label="تحت السعر العادل ≥">
                   <input value={minUpside} onChange={e => setMinUpside(e.target.value)} inputMode="decimal" placeholder="٪"
                     className="w-20 bg-[var(--field)] border border-[var(--hairline)] rounded-lg px-2 py-1.5 text-[13px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]" />
                 </SheetRow>
