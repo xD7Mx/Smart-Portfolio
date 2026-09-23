@@ -39,12 +39,21 @@ def main() -> int:
         print(f"⚠ بيئةٌ ناقصة ({e.name}) — لم يُقَس")
         return 0
 
-    syms = sorted(main_market(MARKET_UNIVERSE).keys())
-    probe = syms[::max(1, len(syms) // 20)][:20]
+    # ══ الكونُ كلُّه لا عيّنة ══
+    # أوّلُ تشغيلٍ ردّ **شاهداً واحداً**، وحكمٌ على الكون من واحدٍ هو
+    # عينُ ما أُصلح في D402 (نجاحٌ على عيّنةٍ فارغة) وD406 (عيّنةٌ لا
+    # تمثّل). والقراءةُ من مخزنٍ محليٍّ بلا نداءٍ خارجيّ، فلا عذرَ
+    # للاختصار.
+    probe = sorted(main_market(MARKET_UNIVERSE).keys())
 
     print(f"  {'رمز':6s} {'سنةُ الأساس':12s} {'سنويّ':>14s} "
           f"{'ربعُ الختام':>14s} {'نسبة':>7s}  الحكم")
     verdicts = {"تراكمية": 0, "منفصلة": 0, "غيرُ حاسم": 0}
+    no_match = 0
+    # وشاهدٌ ثانٍ مستقلٌّ: في الصفوف التراكمية يتصاعد المقدارُ داخل
+    # السنة (‏Q1 < Q2 < Q3 < Q4) لأنّ كلَّ صفٍّ يضمّ ما قبله. فتُقاس
+    # نسبةُ السنوات المتصاعدةِ تصاعداً تامّاً — وهي في المنفصلة نادرة.
+    rising = {"متصاعدة": 0, "غيرُ متصاعدة": 0}
     for s in probe:
         try:
             ann = X.for_symbol(s, "annual") or []
@@ -62,7 +71,16 @@ def main() -> int:
                     and isinstance(_q[d], (int, float)) and _a[d]:
                 base = d
                 break
+        # الشاهدُ الثاني: تصاعدُ الأرباع داخل السنة الواحدة
+        for _yr in {d[:4] for d in _q}:
+            _in = sorted((d, _q[d]) for d in _q if d.startswith(_yr)
+                         and isinstance(_q[d], (int, float)))
+            if len(_in) >= 3:
+                _v = [abs(v) for _, v in _in]
+                rising["متصاعدة" if all(a < b for a, b in zip(_v, _v[1:]))
+                       else "غيرُ متصاعدة"] += 1
         if not base:
+            no_match += 1
             continue
         ratio = _q[base] / _a[base]
         v = ("تراكمية" if ratio > 0.75 else
@@ -71,7 +89,9 @@ def main() -> int:
         print(f"  {s:6s} {base:12s} {_a[base]:>14,.0f} "
               f"{_q[base]:>14,.0f} {ratio:>7.2f}  {v}")
 
-    print(f"\nالحصيلة: {verdicts}")
+    print(f"\nالحصيلة (ربعُ الختام ÷ السنويّ): {verdicts}"
+          f" · بلا سنةِ أساسٍ مشتركة: {no_match} من {len(probe)}")
+    print(f"الشاهدُ الثاني (تصاعدُ الأرباع داخل السنة): {rising}")
     if verdicts["تراكمية"] and not verdicts["منفصلة"]:
         print("الحكم: **تراكمية** — فلا تُجمَع الأرباعُ أبداً؛ أرباحُ اثني"
               " عشرَ شهراً = ربعُ الختام، أو سنويٌّ + فرقُ تراكميَّين.")
