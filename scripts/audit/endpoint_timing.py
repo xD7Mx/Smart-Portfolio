@@ -35,17 +35,14 @@ async def main() -> int:
     try:
         import httpx
         from app.main import app
-        from app.core import security as _sec
+        from app.core import auth as _auth, portfolio_context as _pc
     except ModuleNotFoundError as e:
         print(f"⚠ بيئةٌ ناقصة ({e.name}) — لم يُقَس")
         return 0
 
     # تجاوزُ المصادقة في هذه النسخة داخل الذاكرة وحدَها
-    for name in ("require_auth", "scope_portfolio", "require_owner"):
-        for mod in list(sys.modules.values()):
-            dep = getattr(mod, name, None) if mod else None
-            if callable(dep):
-                app.dependency_overrides[dep] = lambda: None
+    for dep in (_auth.require_auth, _auth.require_owner, _pc.scope_portfolio):
+        app.dependency_overrides[dep] = lambda: None
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport,
