@@ -5,7 +5,7 @@
 """
 import sys
 sys.path.insert(0, "/app")
-from app.services.market_screener import fund_store_load
+from app.services.content_engine import fund_store_load
 from app.services import tadawul_market as TM
 st = fund_store_load() or {}
 bad = []
