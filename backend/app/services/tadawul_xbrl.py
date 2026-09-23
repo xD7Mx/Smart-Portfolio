@@ -97,6 +97,14 @@ LABELS: dict[str, tuple[str, ...]] = {
                # كلِّه لا حقوقُ الملكية — واسمٌ شبيهٌ لا يُلبَّس معنىً.
                "equity attributable to shareholders of the company"),
     "total_assets": ("total assets",),
+    # ══ والمخزونُ باسمه المنشور ══ (D430)
+    # قِيس بكاشف `inventory_label_gap.py`: «inventories» في ملفّات ‎15 ورقةً
+    # من ‎16 أسقطت درجةَ جودتها لنقص «دوران المخزون» (‏1810 = 4,752,090).
+    # ولم يكن للمخزون اسمٌ هنا أصلاً، فكان يأتي من ياهو وحدَه ويسقط
+    # بنفاد حصّته اليومية. منقولٌ بالحرف. **ولا تُنقَل** تسوياتُ التدفّق
+    # ولا التحويلاتُ ولا المخصّصات ولا «inventory real estate properties»
+    # (أرضُ مطوّرٍ معروضةٌ للبيع لا بضاعةُ تاجر).
+    "inventory": ("inventories",),
     "total_liabilities": ("total liabilities",),
     "eps": ("total basic earnings (loss) per share",
             "basic earnings (loss) per share from continuing operations"),
@@ -286,7 +294,8 @@ def parse(html: str) -> dict:
              "total_liabilities", "interest_expense", "operating_cash_flow",
              "capex", "ending_cash", "pretax_income", "borrowings_current",
              "borrowings_noncurrent", "lease_current", "lease_noncurrent",
-             "_commission_net", "_premiums_earned", "_premiums_written"}
+             "_commission_net", "_premiums_earned", "_premiums_written",
+             "inventory"}
     # وعددُ الأسهم عددٌ لا مال: لا يُضرَب في وحدة التقريب (كربحية السهم).
 
     periods: list[dict] = []

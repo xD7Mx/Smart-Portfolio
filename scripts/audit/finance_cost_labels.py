@@ -121,6 +121,21 @@ for n in ("fixed rate sukuks", "murabaha deposits",
 _v = _field("Margin loan payable", "borrowings_current")
 check(_v is not None, "٤ «margin loan payable» قرضٌ يُقرأ دَيناً", str(_v))
 
+# ── ٥ · والمخزونُ باسمه المنشور ─────────────────────────────── (D430)
+# قِيس بكاشف `inventory_label_gap.py`: «inventories» في ملفّات ‎15 ورقةً
+# من ‎16 أسقطت درجتَها لنقص «دوران المخزون» — والخريطةُ لا اسمَ فيها
+# للمخزون أصلاً، فكان يأتي من ياهو وحدَه ويسقط بنفاد حصّته.
+_inv = _field("Inventories", "inventory")
+check(_inv is not None, "٥ «inventories» يُقرأ مخزوناً", str(_inv))
+# والتدفّقُ والتسويةُ والمخصّصُ وأرضُ المطوّر ليست رصيدَ المخزون
+for n in ("adjustments for decrease (increase) in inventories",
+          "transferred to inventory",
+          "adjustment for provision for slow moving items and inventory shortage",
+          "inventory real estate properties",
+          "less: allowance for slow moving and obsolete inventory"):
+    v = _field(n.capitalize(), "inventory")
+    check(v is None, f"٥ب «{n[:48]}» ليس رصيدَ المخزون", str(v))
+
 print(("FAIL" if fail else "PASS")
-      + " D425 — تكلفةُ التمويل بأسمائها المنشورة، والشبيهُ لا يُلبَّس معناها")
+      + " D425 · D430 — التمويلُ والمخزونُ بأسمائهما المنشورة، والشبيهُ لا يُلبَّس معناهما")
 sys.exit(fail)
