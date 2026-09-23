@@ -597,6 +597,14 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         "fair_value_low": _fv.get("low"),
         "fair_value_high": _fv.get("high"),
         "fair_value_conf": _fv.get("confidence"),
+        # والثقةُ تُبرَّر لا تُعلَن (‏D411): درجةٌ من مئة، وسلّمُها،
+        # وسببُ كلّ خصمٍ باسمه — فيزن المالكُ ثقةً بأخرى ويرى ما نقصها.
+        "fair_value_conf_score": _fv.get("confidence_score"),
+        "fair_value_conf_scale": _fv.get("confidence_scale"),
+        "fair_value_conf_why": _fv.get("confidence_why"),
+        "fair_value_risk_note": _fv.get("risk_note"),
+        "fair_value_risk_flags": _fv.get("risk_flags"),
+        "fair_value_stale_basis": _fv.get("stale_basis"),
         "fair_value_asof": _fv.get("data_asof"),
         "fair_value_age_days": _fv.get("age_days"),
         "fair_value_stale": _fv.get("stale"),

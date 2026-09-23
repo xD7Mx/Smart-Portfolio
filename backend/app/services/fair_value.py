@@ -1394,15 +1394,68 @@ def compute(info: dict, price: float | None,
                    or bool(out.get("dispersion_demote"))
                    or bool(_ins_no_cr)
                    or bool(out.get("asset_based")))
-        out["confidence"] = ("منخفضة" if out.get("implausible")
-                             or out.get("dispersion_demote") or _ins_no_cr
-                             or out.get("asset_based") or _rf
-                             # والمتأخّرُ عن دورة إفصاحه ثقتُه منخفضة:
-                             # `_demote` وحدَه يمنع «مرتفعة» ولا يُنزل
-                             # «متوسطة»، فكان الوسمُ بلا أثرٍ عملياً.
-                             or out.get("stale")
-                             else "مرتفعة" if len(vals) >= 3 and spread <= 0.25 and not _demote
-                             else "متوسطة" if len(vals) >= 2 and spread <= 0.5
+        # ══ الثقةُ تُعايَر وتُبرَّر — والكلمةُ تُشتَقّ من الدرجة ══ (D411)
+        # القرارُ الاستثماريُّ يقوم على الثقة لا على الرقم وحدَه، وكانت
+        # تخرج **كلمةً** واحدةً بلا أن يعرف المالكُ لماذا ولا كم — فلا
+        # يزن ثقةً بأخرى ولا يرى ما نقصها.
+        #
+        # وأوّلُ ما جرّبتُه كان عطباً بنفسه: درجةٌ تُحسب **بجانب** الكلمة
+        # فتناقضها — ‎88/100 تُسمّى «متوسطة» و‎73 تُسمّى «منخفضة». رقمان
+        # يختلفان على معنىً واحد، وهو ما يحاربه هذا الملفُّ كلُّه. فصارت
+        # الكلمةُ **مشتقّةً من الدرجة** حتماً: مصدرٌ واحدٌ لا اثنان.
+        #
+        # والموانعُ الجوهريةُ **سقوفٌ** لا خصومات: مسارٌ واحدٌ، أو تباعدٌ
+        # فوق النصف، أو تأخّرٌ عن دورة الإفصاح، أو شرطُ خطرٍ قائم — كلٌّ
+        # منها يحبس الدرجةَ دون ‎50 مهما حسُن ما سواه. فلا تُشترى ثقةٌ
+        # بتكديس محاسنَ فوق عيبٍ جوهريّ.
+        _sc, _why, _cap = 100, [], 100
+
+        def _cut(n: int, txt: str, cap: int | None = None) -> None:
+            nonlocal _sc, _cap
+            _sc -= n
+            if cap is not None:
+                _cap = min(_cap, cap)
+            _why.append({"خصم": n, "السبب": txt,
+                         **({"سقف": cap} if cap is not None else {})})
+
+        _np = len(vals)
+        if _np <= 1:
+            _cut(25, "مسارُ تقديرٍ واحدٌ — لا شاهدَ يكذّبه أو يؤيّده", 49)
+        elif _np == 2:
+            _cut(12, "مساران فقط")
+        if spread > 0.5:
+            _cut(25, f"تباعدُ المسارات {spread * 100:.0f}٪", 49)
+        elif spread > 0.25:
+            _cut(12, f"تباعدُ المسارات {spread * 100:.0f}٪")
+        _age = out.get("age_days") or 0
+        if out.get("stale"):
+            _cut(25, f"تأخّرٌ عن دورة الإفصاح — {_age} يوماً", 49)
+        if _rf:
+            _cut(min(30, 15 * len(_rf)),
+                 "شروطُ خطرٍ قائمة: " + "، ".join(x["code"] for x in _rf), 49)
+        if out.get("dispersion_demote"):
+            _cut(20, f"مساراتٌ متعارضةٌ {out.get('dispersion')}× قُورِبت "
+                     f"بالأوزان", 49)
+        if out.get("asset_based"):
+            _cut(20, "قُيِّمت بأصولها — لا ربحَ يُقاس عليه", 49)
+        if _ins_no_cr:
+            _cut(15, "النسبةُ المجمّعة غائبةٌ في مؤمِّن", 49)
+        if out.get("implausible"):
+            _cut(40, "التقديرُ خارج النطاق المعقول", 30)
+        if _demote and _cap > 89:
+            # ما يمنع «مرتفعة» دون أن يكون جوهرياً: يحبسها تحت عتبتها.
+            _cut(10, "شاهدٌ محذوفٌ أو اتّكاءٌ على قيمةٍ نهائية", 89)
+        if out.get("derived_inputs"):
+            _cut(8, "مدخلاتٌ مشتقّةٌ لا منشورة")
+        if out.get("risk_unmeasured"):
+            _cut(5, "شروطُ خطرٍ لم تصلها مدخلاتُها: "
+                    + "، ".join(out["risk_unmeasured"]))
+
+        out["confidence_score"] = max(0, min(_cap, _sc))
+        out["confidence_why"] = _why
+        out["confidence_scale"] = "مرتفعة ≥ 90 · متوسطة ≥ 50 · دونها منخفضة"
+        out["confidence"] = ("مرتفعة" if out["confidence_score"] >= 90
+                             else "متوسطة" if out["confidence_score"] >= 50
                              else "منخفضة")
 
         # ══ هامشُ الأمان — من تقديرٍ إلى قاعدةِ دخول ══ (بأمر المالك)
