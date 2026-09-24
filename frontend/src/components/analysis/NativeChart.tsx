@@ -1,4 +1,6 @@
-import { autoFib, autoChannel } from "./d7m";
+import { autoFib, autoChannel, autoTrend, vwapAnchored, ema as ema7, dashboard, macdSmart, tradeTool,
+  bar10, D7M_DEFAULTS, D7MSettings } from "./d7m";
+import D7MPanel from "./D7MPanel";
 import React, { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { marketApi } from "../../services/api";
@@ -96,6 +98,21 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
   const [range, setRange] = useState("5y");
   const [ind, setInd] = useState({ sma20: true, sma50: true, sma200: false, macd: true, rsi: false, d7m: false });
   const [err, setErr] = useState(false);
+  // ══ إعداداتُ مؤشّر D7M — تُحفظ في المتصفّح (بأمر المالك: زرُّ إعدادات) ══
+  const [cfg, setCfg] = useState<D7MSettings>(() => {
+    try { return { ...D7M_DEFAULTS, ...JSON.parse(localStorage.getItem("sp_d7m_cfg") || "{}") }; }
+    catch { return D7M_DEFAULTS; }
+  });
+  const saveCfg = (c: D7MSettings) => { setCfg(c); try { localStorage.setItem("sp_d7m_cfg", JSON.stringify(c)); } catch {} };
+  const [showCfg, setShowCfg] = useState(false);
+  const [zones, setZones] = useState<{ y: number; title: string }[]>([]);
+  // ══ الرسمُ اليدويّ: خطُّ ترند وقناة — محفوظان لكلّ رمز ══
+  const dKey = `sp_draw_${symbol}`;
+  const [draws, setDraws] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem(dKey) || "[]"); } catch { return []; } });
+  const [tool, setTool] = useState<null | "line" | "channel">(null);
+  const pending = useRef<any[]>([]);
+  useEffect(() => { try { setDraws(JSON.parse(localStorage.getItem(dKey) || "[]")); } catch { setDraws([]); } }, [dKey]);
+  const saveDraws = (d: any[]) => { setDraws(d); try { localStorage.setItem(dKey, JSON.stringify(d)); } catch {} };
 
   const { data: bars = [], isLoading } = useQuery({
     queryKey: ["ohlc", symbol, range],
@@ -103,6 +120,35 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
     enabled: !!symbol,
     retry: 0,
   });
+
+  // VIX للأسواق الأمريكية وحدَها — كما في السكربت
+  const isUS = !!symbol && !/^\d{4}(\.SR)?$/.test(symbol) && !/TASI/i.test(symbol);
+  const { data: vixBars = [] } = useQuery({
+    queryKey: ["ohlc", "^VIX", "1mo"],
+    queryFn: () => marketApi.history("^VIX", "1mo").then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
+    enabled: ind.d7m && isUS, staleTime: 15 * 60 * 1000,
+  });
+  const vix = isUS && vixBars.length ? vixBars[vixBars.length - 1].close : null;
+  const today = new Date().toISOString().slice(0, 10);
+  const newsDay = isUS && cfg.news && cfg.newsDates.split(",").map((x: string) => x.trim()).includes(today);
+  const dash = ind.d7m && cfg.dashboard ? dashboard(bars as any, { bull: cfg.bull, bear: cfg.bear, vix,
+    vixWarn: cfg.vixWarn, vixBlock: cfg.vixBlock, newsDates: newsDay ? [today] : [], today }) : null;
+  const msmart = ind.d7m && cfg.macdDash && bars.length > 40 ? macdSmart(bars as any) : null;
+  const tt = ind.d7m && cfg.tradeTool ? tradeTool(bars as any, vix, newsDay) : null;
+  const alertsSt = (() => {
+    if (!ind.d7m || !cfg.alertsDash || bars.length < 40) return null;
+    const vw = vwapAnchored(bars as any, cfg.vwapAnchor).vwap, i = bars.length - 1;
+    const m = macdSmart(bars as any); const h = m?.hist[i] ?? 0;
+    const c = bars[i].close;
+    const f = autoFib(bars as any, cfg.fibDev, cfg.fibDepth, cfg.fibReverse);
+    const f0 = f?.lines.find(x => x.level === 0)?.price, f1 = f?.lines.find(x => x.level === 1)?.price;
+    const longUp = dash ? dash.rows[0].up : null;
+    return {
+      mom: c > vw[i] && h > 0 ? "شراء" : c < vw[i] && h < 0 ? "بيع" : "انتظار",
+      rev: dash ? (dash.score >= cfg.bull ? "شراء" : dash.score <= cfg.bear ? "بيع" : "انتظار") : "انتظار",
+      bounce: f1 != null && longUp === false && bars[i].low <= f1 ? "شراء" : f0 != null && longUp === true && bars[i].high >= f0 ? "بيع" : "انتظار",
+    };
+  })();
 
   useEffect(() => {
     if (!el.current || !bars.length) return;
@@ -202,34 +248,105 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
          المظهرين، والأصفرُ يبقى كما هو. */
       if (ind.d7m) {
         const ink = tok("--ink", "#e5e7eb");
-        const fib = autoFib(bars);
+        const yellow = tok("--gauge-warn", "#d97706");
+        const T = (i: number) => tkey(bars[Math.max(0, Math.min(i, bars.length - 1))].date);
+        const addLine = (pts: [number, number][], color: string, width = 1, style = 0) => {
+          const l = chart.addLineSeries({ color, lineWidth: width, lineStyle: style, priceLineVisible: false,
+            lastValueVisible: false, crosshairMarkerVisible: false });
+          const seen = new Set();
+          l.setData(pts.filter(([i]) => { const k = String(T(i)); if (seen.has(k)) return false; seen.add(k); return true; })
+            .map(([i, v]) => ({ time: T(i), value: v })));
+          return l;
+        };
+        // ١) الفيبوناتشي التلقائي
+        const fib = cfg.fib ? autoFib(bars, cfg.fibDev, cfg.fibDepth, cfg.fibReverse) : null;
         if (fib) {
           for (const l of fib.lines) {
-            candle.createPriceLine({
-              price: l.price, color: l.color === "yellow" ? tok("--gauge-warn", "#d97706") : ink, lineWidth: 1,
-              lineStyle: 0, axisLabelVisible: true, title: l.title,
-            });
-          }
-          for (const z of fib.zones) {
-            candle.createPriceLine({ price: z.price, color: ink, lineVisible: false,
-              axisLabelVisible: false, title: z.title });
+            if (cfg.fibLevels[String(l.level)] === false) continue;
+            candle.createPriceLine({ price: l.price, color: l.color === "yellow" ? yellow : ink, lineWidth: 1,
+              lineStyle: 0, axisLabelVisible: true, title: l.title });
           }
         }
-        const ch = autoChannel(bars);
-        if (ch) {
-          for (const seg of [ch.base, ch.parallel]) {
-            const s2 = chart.addLineSeries({ color: tokA("--ink", "#e5e7eb", .55), lineWidth: 1,
-              priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
-            s2.setData(seg.map(([i, v]) => ({ time: tkey(bars[i].date), value: v })));
+        const zoneList = fib && cfg.fibZones ? fib.zones : [];
+        const placeZones = () => {
+          // لا تتراكب النصوص: يُسقَط ما يقع على بُعد أقلّ من 14px من نصٍّ ظاهر
+          const shown: { y: number; title: string }[] = [];
+          zoneList.map(z => ({ y: candle.priceToCoordinate(z.price) ?? -999, title: z.title }))
+            .sort((a, b) => a.y - b.y)
+            .forEach(z => { if (z.y > 0 && shown.every(o => Math.abs(o.y - z.y) >= 14)) shown.push(z); });
+          setZones(shown);
+        };
+        chart.timeScale().subscribeVisibleLogicalRangeChange(() => requestAnimationFrame(placeZones));
+        setTimeout(placeZones, 60);
+        // ٢) الترند التلقائي
+        if (cfg.trend) {
+          const tr = autoTrend(bars, cfg.trendPP);
+          for (const l of tr.lines) if (l.x2 > l.x1) addLine([[l.x1, l.y1], [l.x2, l.y2]], ink, l.major ? 2 : 1, 0);
+          if (cfg.trendShapes && tr.signals.length) {
+            candle.setMarkers(tr.signals.map(sg => ({ time: T(sg.index),
+              position: sg.kind === "breakDown" || sg.kind === "reactDown" ? "aboveBar" : "belowBar",
+              shape: sg.kind === "breakDown" || sg.kind === "reactDown" ? "arrowDown" : "arrowUp", color: ink }))
+              .sort((a: any, b: any) => (a.time > b.time ? 1 : -1)));
           }
         }
+        // ٣) القناة السعرية التلقائية
+        const ch = cfg.channel ? autoChannel(bars, cfg.chDev, cfg.chDepth) : null;
+        if (ch) for (const seg of [ch.base, ch.parallel]) addLine(seg as any, tokA("--ink", "#e5e7eb", .55));
+        // ٤) VWAP ونطاقه
+        if (cfg.vwap || cfg.vwapBand) {
+          const vw = vwapAnchored(bars, cfg.vwapAnchor, cfg.vwapMult);
+          if (cfg.vwap) addLine(vw.vwap.map((v, i) => [i, v]) as any, tok("--chart-1", "#2962FF"), 1);
+          if (cfg.vwapBand) { addLine(vw.upper.map((v, i) => [i, v]) as any, tok("--pos-ink", "#16a34a"), 1);
+            addLine(vw.lower.map((v, i) => [i, v]) as any, tok("--pos-ink", "#16a34a"), 1); }
+        }
+        // ٥) المتوسّطات الأسية
+        const cl = bars.map((b: any) => b.close);
+        ([["ema20", 20, "--chart-1"], ["ema50", 50, "--pos-ink"], ["ema100", 100, "--gauge-warn"],
+          ["ema200", 200, "--neg-ink"], ["ema400", 400, "--ink"]] as const).forEach(([k, n, c]) => {
+          if (!(cfg as any)[k] || bars.length < n) return;
+          addLine(ema7(cl, n).map((v, i) => v == null ? null : [i, v]).filter(Boolean) as any, tok(c, "#000"), 2);
+        });
+        // ٦) مستوياتُ اليوم السابق
+        ([["pdh", (i: number) => bars[i - 1]?.high, "--neg-ink"], ["pdl", (i: number) => bars[i - 1]?.low, "--pos-ink"],
+          ["pdc", (i: number) => bars[i - 1]?.close, "--ink-muted"], ["dOpen", (i: number) => bars[i]?.open, "--gauge-warn"]] as const)
+          .forEach(([k, f, c]) => {
+            if (!(cfg as any)[k]) return;
+            const s3 = chart.addLineSeries({ color: tok(c, "#000"), lineVisible: false, pointMarkersVisible: true,
+              pointMarkersRadius: 1.5, priceLineVisible: false, lastValueVisible: false });
+            s3.setData(bars.map((_: any, i: number) => f(i)).map((v: any, i: number) => v == null ? null : { time: T(i), value: v }).filter(Boolean));
+          });
+      }
+      // ══ الرسمُ اليدويّ (خطٌّ · قناة) ══
+      const tIndex = (t: any) => bars.findIndex((b: any) => String(tkey(b.date)) === String(t));
+      for (const d of draws) {
+        const a = tIndex(d.a.t), b = tIndex(d.b.t);
+        if (a < 0 || b < 0 || a === b) continue;
+        const [i1, v1, i2, v2] = a < b ? [a, d.a.p, b, d.b.p] : [b, d.b.p, a, d.a.p];
+        const mk = (y1: number, y2: number) => { const l = chart.addLineSeries({ color: tok("--brand-ink", "#5b52d3"), lineWidth: 2,
+          priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+          l.setData([{ time: tkey(bars[i1].date), value: y1 }, { time: tkey(bars[i2].date), value: y2 }]); };
+        mk(v1, v2);
+        if (d.c) { const ci = tIndex(d.c.t); if (ci >= 0) { const slope = (v2 - v1) / (i2 - i1);
+          const off = d.c.p - (v1 + slope * (ci - i1)); mk(v1 + off, v2 + off); } }
+      }
+      if (tool) {
+        chart.subscribeClick((param: any) => {
+          if (!param?.time || !param.point) return;
+          const p = candle.coordinateToPrice(param.point.y); if (p == null) return;
+          pending.current.push({ t: param.time, p });
+          const need = tool === "line" ? 2 : 3;
+          if (pending.current.length >= need) {
+            const [a, b, c] = pending.current; pending.current = [];
+            saveDraws([...draws, tool === "line" ? { a, b } : { a, b, c }]); setTool(null);
+          }
+        });
       }
       chart.timeScale().fitContent();
       ro = new ResizeObserver(() => chart && chart.applyOptions({}));
       ro.observe(el.current);
     }).catch(() => setErr(true));
     return () => { cancelled = true; try { ro && ro.disconnect(); chart && chart.remove(); } catch {} };
-  }, [bars, theme, ind, range]);
+  }, [bars, theme, ind, range, cfg, draws, tool]);
 
   const toggle = (k: keyof typeof ind) => setInd(s => ({ ...s, [k]: !s[k] }));
 
@@ -239,7 +356,7 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         <div className="flex gap-1.5 flex-wrap">
           {RANGES.map(([id, lbl]) => (
             <button key={id} onClick={() => setRange(id)}
-              className={"px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all " +
+              className={"px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border transition-all " +
                 (range === id ? " text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)] hover:text-[var(--ink)]")}>
               {lbl}
             </button>
@@ -248,7 +365,7 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         <div className="flex gap-1.5 flex-wrap">
           {([["sma20", "SMA20", "var(--chart-1)"], ["sma50", "SMA50", "var(--warn-ink)"], ["sma200", "SMA200", "var(--chart-4)"], ["macd", "MACD", "var(--chart-1)"], ["rsi", "RSI", "var(--chart-5)"], ["d7m", "D7M", "var(--brand-ink)"]] as const).map(([k, lbl, c]) => (
             <button key={k} onClick={() => toggle(k)}
-              className={"px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all " + (ind[k] ? "text-[var(--ink)]" : "text-[var(--ink-muted)]")}
+              className={"px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border transition-all " + (ind[k] ? "text-[var(--ink)]" : "text-[var(--ink-muted)]")}
               /* ══ لا تُلحَق شفافيةٌ برمز ══
                  كان `c + "22"` ينتج `var(--chart-1)22` — نصٌّ غير صالح
                  يسقطه المتصفّح، فتظهر الشارة المفعَّلة بلا أرضيةٍ ولا
@@ -261,8 +378,28 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
               {lbl}
             </button>
           ))}
+          {ind.d7m && (
+            <button onClick={() => setShowCfg(true)} title="إعدادات المؤشّر" aria-label="إعدادات المؤشّر"
+              className="px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border border-[var(--hairline)] text-[var(--ink)]">⚙ إعدادات D7M</button>
+          )}
+          <button onClick={() => { pending.current = []; setTool(tool === "line" ? null : "line"); }}
+            className={"px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border transition-all " + (tool === "line" ? "text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)]")}>
+            ╱ خطّ</button>
+          <button onClick={() => { pending.current = []; setTool(tool === "channel" ? null : "channel"); }}
+            className={"px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border transition-all " + (tool === "channel" ? "text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)]")}>
+            ▱ قناة</button>
+          {draws.length > 0 && (
+            <button onClick={() => saveDraws([])}
+              className="px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border border-[var(--hairline)] text-[var(--ink-muted)]">مسح الرسم</button>
+          )}
         </div>
       </div>
+      {tool && (
+        <p className="text-[11px] text-[var(--brand-ink)]">
+          {tool === "line" ? "انقر نقطتين على الرسم لخطّ الترند" : "انقر نقطتين للخطّ ثمّ نقطةً ثالثة للموازي"}
+        </p>
+      )}
+      {showCfg && <D7MPanel cfg={cfg} onChange={saveCfg} onClose={() => setShowCfg(false)} />}
       {err ? (
         <div className="h-[420px] flex items-center justify-center text-[var(--ink-muted)] text-sm">تعذّر تحميل مكتبة الرسم — تأكد من الاتصال بالإنترنت.</div>
       ) : isLoading ? (
@@ -270,7 +407,71 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
       ) : !bars.length ? (
         <div className="h-[420px] flex items-center justify-center text-[var(--ink-muted)] text-sm">لا توجد بيانات سعرية تاريخية لهذا الرمز حالياً.</div>
       ) : (
-        <div ref={el} style={{ height: "62vh", minHeight: 420, width: "100%" }} />
+        <div className="relative">
+        <div className="relative" style={{ height: "62vh", minHeight: 420, width: "100%" }}>
+          <div ref={el} style={{ position: "absolute", inset: 0 }} />
+          {ind.d7m && zones.filter(z => z.y > 0).map((z, k) => (
+            <div key={k} className="d7m-zone" style={{ top: z.y - 8 }}>{z.title}</div>
+          ))}
+        </div>
+          {ind.d7m && (dash || msmart || tt || alertsSt) && (
+            <div className="d7m-panels" dir="rtl">
+              {dash && (
+                <table className="d7m-table">
+                  <thead><tr><th>الإطار</th><th>الحالة</th><th>المؤشرات الفنية</th></tr></thead>
+                  <tbody>
+                    {dash.rows.map((r, k) => (
+                      <tr key={k}><td>{r.tf}</td>
+                        <td className={r.up == null ? "" : r.up ? "d7m-pos" : "d7m-neg"}>{r.up == null ? "—" : r.up ? "صعود" : "هبوط"}</td>
+                        <td className={k === 0 ? "" : k === 1 ? `d7m-${dash.liq.color}` : `d7m-${dash.trend.tone}`}>
+                          {k === 0 ? "راصد الحيتان" : k === 1 ? dash.liq.state : `قوة الاتجاه: ${dash.trend.state}`}</td></tr>
+                    ))}
+                    {dash.vixWarn && <tr><td colSpan={3} className="d7m-warnrow">{dash.vixWarn}</td></tr>}
+                    {dash.newsWarn && <tr><td colSpan={3} className="d7m-warnrow">⚠ يوم خبر اقتصادي</td></tr>}
+                    <tr><th colSpan={3}>قرار الدخول</th></tr>
+                    <tr><td colSpan={3} className={`d7m-${dash.tone} d7m-decision`}>
+                      {dash.decision}<br /><span className="d7m-bar">{bar10(dash.power)}</span><br />
+                      <span className="d7m-bar">{bar10(dash.trust)}</span><br />الثقة</td></tr>
+                  </tbody>
+                </table>
+              )}
+              {msmart && (
+                <table className="d7m-table">
+                  <thead><tr><th>المحلل الذكي</th></tr></thead>
+                  <tbody>
+                    <tr><td className={`d7m-${msmart.readingTone}`}>{msmart.reading}</td></tr>
+                    <tr><td>{msmart.divergence}</td></tr>
+                    <tr><td className={msmart.summary === "صعود" ? "d7m-pos" : msmart.summary === "هبوط" ? "d7m-neg" : "d7m-warn"}>{msmart.summary}</td></tr>
+                  </tbody>
+                </table>
+              )}
+              {alertsSt && (
+                <table className="d7m-table">
+                  <thead><tr><th colSpan={2}>التنبيهات</th></tr></thead>
+                  <tbody>
+                    {([["الزخم", alertsSt.mom], ["انعكاس", alertsSt.rev], ["ارتداد", alertsSt.bounce]] as const).map(([k, v]) => (
+                      <tr key={k}><td>{k}</td><td className={v === "شراء" ? "d7m-pos" : v === "بيع" ? "d7m-neg" : ""}>{v}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {tt && (
+                <table className="d7m-table">
+                  <thead><tr><th colSpan={2}>أداة الصفقة 📋</th></tr></thead>
+                  <tbody>
+                    <tr><td>القرار</td><td className={tt.call ? "d7m-pos" : tt.put ? "d7m-neg" : "d7m-warn"}>{tt.dec}<br /><span className="d7m-bar">{bar10(tt.conf)}</span></td></tr>
+                    <tr><td>السترايك</td><td>{tt.call || tt.put ? `$${Math.round(tt.strike)}` : "—"}</td></tr>
+                    <tr><td>الهدف</td><td className="d7m-pos">{tt.call || tt.put ? `$${tt.target.toFixed(2)}` : "—"}</td></tr>
+                    <tr><td>الوقف</td><td className="d7m-neg">{tt.call || tt.put ? `$${tt.stop.toFixed(2)}` : "—"}</td></tr>
+                    <tr><td>R : R</td><td>{tt.call || tt.put ? `1 : ${tt.rr.toFixed(1)}` : "—"}</td></tr>
+                    <tr><td>الدخول</td><td>{tt.entry}</td></tr>
+                    <tr><td>Gap اليوم</td><td className={tt.gap > 0.2 ? "d7m-pos" : tt.gap < -0.2 ? "d7m-neg" : ""}>{(tt.gap >= 0 ? "+" : "") + tt.gap.toFixed(2)}%</td></tr>
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

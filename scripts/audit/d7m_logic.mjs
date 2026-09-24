@@ -37,5 +37,29 @@ say(!!f && f.lines.find(x => x.level === 0.5)?.title === "دعــم قـوي" &
 say(!!f && f.lines.length === 14, "٥ والمستوياتُ الظاهرةُ افتراضاً في السكربت أربعَ عشرة", String(f && f.lines.length));
 say(!!f && f.zones.some(z => z.title === "الــمــقــاومــة") && f.zones.some(z => z.title === "الـــدعـــم"),
     "٦ ومناطقُ المقاومة والدعم بأسمائها");
-console.log((fail ? "FAIL" : "PASS") + " D463 — مؤشّرُ D7M يطابق سكربتَ المالك");
+
+// ٧–١٠ (D464): المتوسط الأسّي والاتجاه ولوحة القرار وإعداداتٌ لكلّ مدخل
+const e = M.ema([1, 2, 3, 4, 5], 3);
+say(e[1] === null && Math.abs(e[2] - 2) < 1e-9 && Math.abs(e[4] - 4) < 1e-9, "٧ EMA يبدأ بمتوسط أوّل len كما في Pine", JSON.stringify(e));
+const up = [], dn = [];
+for (let i = 0; i < 300; i++) {
+  const u = 100 + i * 0.5 + Math.sin(i / 6) * 4, d = 300 - i * 0.5 + Math.sin(i / 6) * 4;
+  up.push({ date: new Date(Date.UTC(2024, 0, 1 + i)).toISOString().slice(0, 10), open: u - 0.3, high: u + 1, low: u - 1, close: u, volume: 1000 });
+  dn.push({ date: up[i].date, open: d + 0.3, high: d + 1, low: d - 1, close: d, volume: 1000 });
+}
+// مسارٌ صاعدٌ بقيعانٍ حادّة (V) وشموعٍ بلا ذيول — كتاسي اليوميّ: الإغلاقُ = القمّة عند المحور
+const vb = []; let pv = 100;
+for (let i = 0; i < 600; i++) { const ph = i % 60, c = 100 + i * 0.3 + 10 * Math.abs(ph - 30) / 30;
+  vb.push({ date: `v${i}`, open: pv, high: Math.max(pv, c), low: Math.min(pv, c), close: c }); pv = c; }
+const t = M.autoTrend(vb, 15);
+say(t.lines.some(l => l.up), "٨ يرسم الاتجاهُ التلقائيّ خطَّ القيعان الصاعدة ولو بلا ذيول", String(t.lines.length));
+const du = M.dashboard(up), dd = M.dashboard(dn);
+say(!!du && !!dd && du.score > 0 && dd.score < 0 && du.rows[0].up === true && dd.rows[0].up === false && du.power === Math.abs(du.score),
+    "٩ لوحةُ القرار: الصاعدُ فوق EMA200 بنقاطٍ موجبة والهابطُ سالبة", du && dd ? `${du.score} · ${dd.score}` : "null");
+const keys = Object.keys(M.D7M_DEFAULTS);
+const { readFileSync } = await import("node:fs");
+const panel = readFileSync(join(ROOT, "frontend/src/components/analysis/D7MPanel.tsx"), "utf8");
+const miss = keys.filter(k => !new RegExp(`["']${k}["']`).test(panel));
+say(miss.length === 0, "١٠ لوحةُ الإعدادات تتحكّم في كلّ مدخلٍ للمؤشّر", miss.join(","));
+console.log((fail ? "FAIL" : "PASS") + " D463/D464 — مؤشّرُ D7M يطابق سكربتَ المالك");
 process.exit(fail);

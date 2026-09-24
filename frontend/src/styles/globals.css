@@ -2903,3 +2903,45 @@ html.light {
   font-size: 10.5px; font-weight: 700; line-height: 1.1; letter-spacing: .02em;
   white-space: nowrap;
 }
+
+/* مؤشّرُ D7M — المناطق واللوحات والإعدادات (D464) */
+.d7m-zone { position: absolute; left: 8px; transform: translateY(-50%); pointer-events: none;
+  font-size: 11px; font-weight: 700; color: var(--ink-muted); white-space: nowrap; z-index: 2; }
+.d7m-panels { position: absolute; top: 6px; left: 6px; display: flex; flex-direction: column; gap: 6px;
+  z-index: 3; max-width: calc(100% - 70px); pointer-events: none; }
+.d7m-table { background: var(--panel); border: 1px solid var(--hairline); border-radius: 8px;
+  padding: 5px 7px; font-size: 10.5px; color: var(--ink); text-align: right;
+  font-variant-numeric: tabular-nums; opacity: .94; }
+.d7m-table table { border-collapse: collapse; }
+.d7m-table td, .d7m-table th { padding: 1px 5px; }
+.d7m-pos { color: var(--pos-ink); }
+.d7m-neg { color: var(--neg-ink); }
+.d7m-warn { color: var(--warn-ink); }
+.d7m-muted { color: var(--ink-muted); }
+.d7m-decision { font-weight: 800; color: var(--fg-strong); }
+.d7m-bar { font-family: monospace; letter-spacing: -1px; }
+.d7m-warnrow { background: var(--neg-fill); color: var(--neg-ink); font-weight: 700; }
+.d7m-modal { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--bg) 70%, transparent);
+  display: flex; align-items: flex-end; justify-content: center; }
+.d7m-sheet { background: var(--card); color: var(--ink); border: 1px solid var(--hairline);
+  border-radius: 14px 14px 0 0; width: min(560px, 100%); max-height: 85vh; overflow-y: auto;
+  padding: 12px 16px 20px; display: flex; flex-direction: column; gap: 10px; text-align: right; }
+.d7m-head { display: flex; align-items: center; gap: 8px; }
+.d7m-head strong { margin-inline-end: auto; font-size: 15px; color: var(--fg-strong); }
+.d7m-btn { min-height: 32px; min-width: 32px; padding: 0 10px; border-radius: 8px;
+  border: 1px solid var(--hairline); background: var(--raised); color: var(--ink); }
+.d7m-sheet fieldset { border: 1px solid var(--hairline); border-radius: 10px; padding: 6px 10px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; }
+.d7m-sheet legend { padding: 0 6px; font-weight: 700; color: var(--fg-strong); font-size: 13px; }
+.d7m-row { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  min-height: 32px; font-size: 13px; }
+.d7m-row input[type="checkbox"] { width: 18px; height: 18px; }
+.d7m-row input[type="number"], .d7m-row select, .d7m-row textarea { background: var(--field);
+  color: var(--ink); border: 1px solid var(--hairline); border-radius: 6px; padding: 3px 6px; width: 80px; }
+.d7m-col { grid-column: 1 / -1; flex-direction: column; align-items: stretch; }
+.d7m-col textarea { width: 100%; font-size: 11px; }
+.d7m-levels { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 0 8px; }
+@media (max-width: 640px) {
+  .d7m-panels { position: static; max-width: none; flex-direction: row; flex-wrap: wrap; margin-top: 8px; pointer-events: auto; }
+  .d7m-table { flex: 1 1 160px; opacity: 1; }
+}
