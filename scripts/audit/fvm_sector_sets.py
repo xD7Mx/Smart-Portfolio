@@ -68,5 +68,24 @@ _bl = F.blend({"value": 8.0, "low": 6.0, "high": 10.0, "price": 5.0, "families":
                "rates": {"ke": 0.10}}, {"value": 4.0, "low": 3.0, "high": 5.0}, "_full_share", 0.0)
 F.BLEND_ALPHA.pop("_full_share", None)
 check(all(f["weight"] > 0 for f in _bl["families"]), "١١ D473 عائلةٌ حصّتُها صفرٌ لا تُعرض", str([(f["family"], f["weight"]) for f in _bl["families"]]))
+# ══ D474 ══
+_g = _insp.getsource(F.gather)
+check("k != sym" in _g and "members" in _g and "_peer_multiples(sym, members" in _g,
+      "١٢ D474 جدولُ القطاع يُبنى لكلّ أعضائه ويُحذف صاحبُ الطلب عند كلّ قراءة — لا يقارن السهمُ نفسَه")
+_A = [dict(A[0], net_income=4e7), dict(A[1], net_income=4.3e8 * 1.05 * 10), dict(A[2], net_income=4e7 * 1.1)]
+_b = F.base_of(F.Inputs(symbol="X", price=5.0, shares=1e9, annual=_A, ttm=dict(_A[-1]), balance={"equity": 4e9},
+                        ttm_source="t", archetype="consumer_defensive"))
+check(_b and _b.margin_n < 0.06, "١٣ D474 سنةٌ استثنائيةٌ واحدة لا ترفع الهامشَ المطبَّع (وسيطٌ لا متوسّط)", f"{_b.margin_n:.3f}")
+def _run2(**kw):
+    i = F.Inputs(symbol="X", price=5.0, shares=1e9, annual=A, ttm=dict(A[-1]), balance={"equity": 4e9, "total_debt": 1e9, "ending_cash": 1e8},
+                 ttm_source="سنةُ 2021", archetype=kw.get("arch", "commodity"), sector=kw.get("sector", "Materials"),
+                 dps_ttm=kw.get("dps"), peers=peers, stale_days=kw.get("stale"))
+    return F.value(i)
+_old = _run2(stale=600)
+check(_old.get("value") is None and "خمسة عشر" in (_old.get("reason") or ""), "١٤ D474 قوائمُ أقدمُ من خمسة عشر شهراً لا تُنتج قيمة", _old.get("reason"))
+check(_run2(stale=300).get("uncertainty") == "مرتفع", "١٥ D474 وأقدمُ من تسعة أشهرٍ ترفع عدمَ اليقين")
+_few = _run2(arch="insurance", sector="Insurance", dps=None)
+check(_few.get("count", 0) >= 3 and not ({m["key"] for m in _few["models"]} & F.FIN_BAN),
+      "١٦ D474 لا قيمةَ من نموذجٍ أو اثنين — تُستكمل ثلاثةً ضمن حدود النظرية", f"{_few.get('count')} · {[m['key'] for m in _few.get('models', [])]}")
 print(f"{'FAIL' if fail else 'PASS'} D470 — كلُّ قطاعٍ بما يليق به")
 sys.exit(fail)

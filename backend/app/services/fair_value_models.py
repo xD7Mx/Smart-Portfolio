@@ -163,6 +163,12 @@ class Inputs:
     peers: dict = field(default_factory=dict)  # اسمُ المضاعف ← قائمةُ قيم الأقران
     peer_symbols: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    stale_days: int | None = None            # عمرُ أحدث قوائم منشورة بالأيام
+
+
+STALE_WARN, STALE_STOP = 274, 456            # تسعةُ أشهرٍ للتحذير وخمسةَ عشرَ للامتناع
+FIN_BAN = {"dcf_gordon_5", "dcf_gordon_10", "dcf_exit_5", "dcf_exit_10", "epv",
+           "peer_ev_ebit", "peer_ev_sales", "peer_pocf"}   # المصرفُ والتأمينُ لا تدفّقَ حرٌّ ولا قيمةَ منشأة
 
 
 def _n(x) -> Optional[float]:
@@ -224,17 +230,19 @@ def base_of(i: Inputs) -> Base | None:
     def margin(key):
         ms = [p[key] / p["revenue"] for p in a
               if _n(p.get(key)) is not None and _n(p.get("revenue")) and p["revenue"] > 0]
-        return statistics.mean(ms) if ms else None
+        # الوسيطُ لا المتوسّط: سنةٌ استثنائيةٌ واحدة (ربحُ توزيعِ حصّةٍ أو بيعِ أصل) لا
+        # تُعمَّم على الأبد — قِيس: صافولا 2024 رفع المتوسّطَ إلى 17٪ والوسيطُ 4٪ (D474).
+        return statistics.median(ms) if ms else None
 
     m_ni, m_ebit = margin("net_income"), margin("ebit")
     fcfs = [(_n(p.get("operating_cash_flow")) or 0) - (_n(p.get("capex")) or 0) for p in a
             if _n(p.get("operating_cash_flow")) is not None]
-    m_fcf = (statistics.mean([f / p["revenue"] for f, p in zip(fcfs, a) if _n(p.get("revenue"))])
+    m_fcf = (statistics.median([f / p["revenue"] for f, p in zip(fcfs, a) if _n(p.get("revenue"))])
              if fcfs else None)
     ttm_m = (_n(i.ttm.get("net_income")) or 0) / rev
     if m_ni is not None and abs(ttm_m - m_ni) > max(0.02, abs(m_ni) * 0.5):
         notes.append(f"هامشُ صافي الربح لاثني عشر شهراً {ttm_m*100:.1f}٪ يبعد عن متوسّط ثلاث "
-                     f"سنوات {m_ni*100:.1f}٪ — طُبِّع على المتوسّط كي لا تُسعَّر سنةٌ استثنائيةٌ أبدياً")
+                     f"سنوات {m_ni*100:.1f}٪ — طُبِّع على الوسيط كي لا تُسعَّر سنةٌ استثنائيةٌ أبدياً")
     # كلفةُ حقوق الملكية وكلفةُ رأس المال
     ke = _required_return(i.beta)
     b = i.balance
@@ -250,7 +258,7 @@ def base_of(i: Inputs) -> Base | None:
     bvps = eq / i.shares if eq and eq > 0 else None
     rois = [p["net_income"] / p["equity"] for p in a
             if _n(p.get("net_income")) is not None and _n(p.get("equity")) and p["equity"] > 0]
-    roe_n = statistics.mean(rois) if rois else None
+    roe_n = statistics.median(rois) if rois else None
     revs = [p["revenue"] for p in a if _n(p.get("revenue")) and p["revenue"] > 0]
     g = ((revs[-1] / revs[0]) ** (1 / (len(revs) - 1)) - 1) if len(revs) >= 2 else 0.03
     g = min(max(g, 0.0), 0.12)
@@ -480,20 +488,39 @@ def value(i: Inputs) -> dict:
     bs = base_of(i)
     if not bs:
         return {"value": None, "reason": "لا إيرادَ أو لا عددَ أسهمٍ موثوق في الإفصاح"}
+    # ══ قوائمُ قديمة لا تُقيَّم بها ورقةٌ اليوم (D474) ══ (قِيس: 1320 بقوائم 2021)
+    if i.stale_days is not None and i.stale_days > STALE_STOP:
+        return {"value": None, "reason": f"أحدثُ قوائم منشورة لدينا ({i.ttm_source}) أقدمُ من خمسة عشر شهراً — "
+                                         "لا تُقيَّم ورقةٌ اليوم بقوائمَ قديمة", "price": i.price}
     set_name, allowed = model_set(i.sector, i.archetype)
-    models = [m for m in cashflow_models(i, bs) + equity_models(i, bs) + multiple_models(i, bs)
-              if m["key"] in allowed]
+    every = cashflow_models(i, bs) + equity_models(i, bs) + multiple_models(i, bs)
     # ══ نموذجٌ بعشرة أضعاف السعر أو عُشره خطأُ مدخلاتٍ لا رأيٌ ══
     # (قِيس: 1321 خرج بخمسة ملياراتٍ للسهم — عددُ أسهمٍ بوحدةٍ مغلوطة)
-    bad = [m for m in models if not (i.price / 10 <= m["value"] <= i.price * 10)]
+    sane = lambda m: i.price / 10 <= m["value"] <= i.price * 10    # noqa: E731
+    models = [m for m in every if m["key"] in allowed]
+    bad = [m for m in models if not sane(m)]
     models = [m for m in models if m not in bad]
+    extra_notes = []
+    # ══ لا قيمةَ من نموذجٍ أو اثنين (D474) ══ (قِيس: 2070 بنموذجٍ واحد، و8313 بلا نموذج)
+    # إن لم تُنتج مجموعةُ القطاع ثلاثةَ نماذجَ صالحة تُستكمل من النموذج الكامل
+    # ضمن حدود النظرية، ويُعلَن ذلك.
+    if len(models) < 3:
+        pool = _ALL - (FIN_BAN if i.archetype in FIN_TYPES else set())
+        more = [m for m in every if m["key"] in pool and m["key"] not in allowed and sane(m)]
+        if more:
+            models = models + more
+            extra_notes.append(f"مجموعةُ القطاع أنتجت {len(models) - len(more)} نموذجاً صالحاً فقط — "
+                               f"استُكملت بـ{len(more)} من النموذج الكامل")
     agg = aggregate(models, i.price, i.archetype)
-    if any(n.startswith(("إدراجٌ حديث", "سجلٌّ قصير")) for n in i.notes):
+    if any(n.startswith(("إدراجٌ حديث", "سجلٌّ قصير")) for n in i.notes) or extra_notes:
         agg["uncertainty"] = "مرتفع"
+    if i.stale_days is not None and i.stale_days > STALE_WARN:
+        agg["uncertainty"] = "مرتفع"
+        extra_notes.append(f"أحدثُ قوائم منشورة ({i.ttm_source}) أقدمُ من تسعة أشهر — الثقةُ أدنى")
     agg["excluded"] = agg.get("excluded", []) + [
         {**m, "excluded": "يبعد عن السعر عشرةَ أضعاف — خطأُ مدخلاتٍ أرجحُ من رأي"} for m in bad]
     return {**agg, "price": i.price, "models": models, "count": len(models),
-            "notes": bs.notes + i.notes, "peers": i.peer_symbols, "sector": i.sector, "model_set": set_name,
+            "notes": bs.notes + i.notes + extra_notes, "peers": i.peer_symbols, "sector": i.sector, "model_set": set_name,
             "ttm_source": i.ttm_source,
             "rates": {"ke": round(bs.ke, 4), "wacc": round(bs.wacc, 4), "tax": round(bs.tax, 3)}}
 
@@ -529,12 +556,12 @@ def _ttm_of(quarterly: list[dict], annual: list[dict]) -> tuple[dict, str]:
     return ({k: _n(a.get(k)) for k in keys}, f"سنةُ {a.get('year')}")
 
 
-async def _peer_yields(peers: list[str], rows: dict) -> list[float]:
+async def _peer_yields(peers: list[str], rows: dict) -> dict[str, float]:
     """عائدُ توزيع الأقران لاثني عشر شهراً من جدول «تداول» الرسميّ."""
     from app.services.tadawul_dividends import read as _div
     from datetime import date, timedelta
     cut = (date.today() - timedelta(days=365)).isoformat()
-    out = []
+    out: dict[str, float] = {}
     for s in peers:
         px = _n((rows.get(s) or rows.get(s + ".SR") or {}).get("price"))
         try:
@@ -543,7 +570,7 @@ async def _peer_yields(peers: list[str], rows: dict) -> list[float]:
             continue
         amt = sum(h["amount"] for h in (d.get("history") or []) if str(h.get("date")) >= cut)
         if px and amt > 0 and 0 < amt / px < 0.25:
-            out.append(round(amt / px, 5))
+            out[s] = round(amt / px, 5)
     return out
 
 
@@ -619,21 +646,34 @@ async def gather(symbol: str) -> Inputs | None:
     if not shares:
         return None
     ttm, src = _ttm_of(quarterly, annual)
+    stale = None
+    try:
+        from datetime import date
+        last = max(str(x.get("as_of") or f"{x.get('year')}-12-31")[:10] for x in (quarterly[-1:] + annual[-1:]))
+        stale = (date.today() - date.fromisoformat(last)).days
+    except Exception:                                              # noqa: BLE001
+        pass
     sector = me.get("sector_en")
     try:
         from app.data.universe import is_main
     except Exception:                                              # noqa: BLE001
         is_main = lambda s: True                                   # noqa: E731
-    peers = sorted(str(s).replace(".SR", "") for s, r in rows.items()
-                   if (r or {}).get("sector_en") == sector and str(s).replace(".SR", "") != sym
-                   and is_main(str(s).replace(".SR", "")))
+    # ══ جدولُ القطاع يُبنى لكلّ أعضائه ويُحذف منه صاحبُ الطلب عند كلّ قراءة (D474) ══
+    # كان يُبنى باستثناء أوّلِ طالبٍ وحده ثمّ يُخزَّن للقطاع، فوجد كلُّ من بعده
+    # نفسَه بين أقرانه — وبوزن التشابه (١ مقابل ٠٫٠٥) صار مضاعفُه هو «الوسيط»
+    # فخرجت القيمةُ مساويةً لسعره تماماً (قِيس: 2330 و1201).
+    members = sorted(str(s).replace(".SR", "") for s, r in rows.items()
+                     if (r or {}).get("sector_en") == sector and is_main(str(s).replace(".SR", "")))
+    peers = [p for p in members if p != sym]
     from app.services import cache
-    ck = f"fvm:peers:v3:{sector}"
-    pm = cache.get(ck)
-    if pm is None:
-        pm = _peer_multiples(sym, peers, rows)
-        pm["yield"] = await _peer_yields(peers, rows)
-        cache.set(ck, pm, 6 * 60 * 60)
+    ck = f"fvm:peers:v4:{sector}"
+    table = cache.get(ck)
+    if table is None:
+        table = _peer_multiples(sym, members, rows)
+        table["_yield"] = await _peer_yields(members, rows)
+        cache.set(ck, table, 6 * 60 * 60)
+    pm = {"_rec": {k: v for k, v in (table.get("_rec") or {}).items() if k != sym},
+          "yield": [v for k, v in (table.get("_yield") or {}).items() if k != sym]}
     # ══ الأقرانُ بتشابه النشاط لا بالقطاع وحده ══ (بأمر المالك: «قارنتَ العثيم بالأدوية»)
     # «تداول» تضع الصيدلياتِ مع البقالة في مجموعةٍ واحدة (معيار GICS) — وهو
     # تصنيفٌ رسميٌّ لا نخالفه؛ لكنّ هامشَ الصيدلية غيرُ هامش البقالة. فيُوزن
@@ -673,7 +713,8 @@ async def gather(symbol: str) -> Inputs | None:
         pass
     return Inputs(symbol=sym, price=price, shares=shares, annual=annual, ttm=ttm,
                   balance=(quarterly or annual)[-1], ttm_source=src, archetype=archetype_of(sym),
-                  sector=sector, beta=beta, dps_ttm=dps, peers=pm, peer_symbols=peers, notes=notes)
+                  sector=sector, beta=beta, dps_ttm=dps, peers=pm, peer_symbols=peers, notes=notes,
+                  stale_days=stale)
 
 
 def blend(res: dict, calibrated: dict | None, archetype: str | None, dy: float | None) -> dict:
@@ -722,7 +763,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v10:{sym}"
+    ck = f"fvm:v11:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
