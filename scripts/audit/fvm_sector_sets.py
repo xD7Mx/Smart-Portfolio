@@ -53,5 +53,11 @@ check("لم يُصنَّف" in n and st == F._ALL, "٦ قطاعٌ جديدٌ ل�
 check(F.model_set("Consumer Discretionary Distribution & Re", None)[0].startswith("تجزئة السلع الكمالية"),
       "٧ واسمُ «تداول» المختصرُ يُطابَق بالبادئة")
 check(abs(F._wq([(10, 1.0), (20, 0.05), (30, 0.05)], .5) - 10) < 1e-9, "٨ والأقرانُ الأقربُ نشاطاً يحملون الوزنَ الأكبر (وسيطٌ مرجَّح)")
+import re as _re, inspect as _insp
+_src = _insp.getsource(F.gather)
+_ls = _src.splitlines()
+_guards = [_ls[k - 1] for k, l in enumerate(_ls) if "math.log(rev0" in l] + [l for l in _ls if "ni0 / rev0" in l]
+check(_guards and all("rev0 > 0" in l for l in _guards),
+      "٩ D472 إيرادٌ سالبٌ للورقة لا يُسقط المحرّكَ كلَّه (لوغاريتمُ عددٍ سالب)")
 print(f"{'FAIL' if fail else 'PASS'} D470 — كلُّ قطاعٍ بما يليق به")
 sys.exit(fail)

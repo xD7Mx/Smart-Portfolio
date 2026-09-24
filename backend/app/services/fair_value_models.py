@@ -621,12 +621,12 @@ async def gather(symbol: str) -> Inputs | None:
     # تصنيفٌ رسميٌّ لا نخالفه؛ لكنّ هامشَ الصيدلية غيرُ هامش البقالة. فيُوزن
     # كلُّ قرينٍ بقربه في الحجم (الإيراد) والهامش: الأقربُ يحمل الوزنَ الأكبر.
     rev0, ni0 = _n(ttm.get("revenue")), _n(ttm.get("net_income"))
-    m0 = (ni0 / rev0) if (ni0 is not None and rev0) else None
+    m0 = (ni0 / rev0) if (ni0 is not None and rev0 and rev0 > 0) else None
     import math
     weights = {}
     for p_sym, rec in (pm.get("_rec") or {}).items():
         w = 1.0
-        if rev0 and rec.get("rev") and rec["rev"] > 0:
+        if rev0 and rev0 > 0 and rec.get("rev") and rec["rev"] > 0:
             w *= math.exp(-abs(math.log(rev0 / rec["rev"])) / 1.5)
         if m0 is not None and rec.get("margin") is not None:
             w *= math.exp(-abs(m0 - rec["margin"]) / 0.06)
