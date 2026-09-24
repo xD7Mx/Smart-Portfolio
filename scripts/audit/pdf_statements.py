@@ -52,5 +52,13 @@ _a = [{"as_of": "2025-12-31", "year": 2025, "revenue": 9.0, "net_income": 3.0, "
 _t, _src = FV._ttm_of(_q, _a)
 check(_t.get("revenue") == 9.0 and "2025" in _src, "١٣ أرباعُ 2022 لا تُحسب «آخرَ اثني عشر شهراً» وسنةُ 2025 منشورة", _src)
 check(FV._latest(_q, _a).get("equity") == 5.0, "١٤ وأحدثُ ميزانيةٍ هي الأحدثُ تاريخاً لا الربعيّة")
+from app.services import tadawul_xbrl as XB
+_old = {"annual": [{"as_of": "2021-12-31", "revenue": 5.0}], "quarterly": []}
+_new = {"annual": [], "quarterly": [{"as_of": "2026-06-30", "revenue": 1.0}]}
+_m = XB._merge_old(_old, _new)
+check([p["as_of"] for p in _m["annual"]] == ["2021-12-31"] and len(_m["quarterly"]) == 1,
+      "١٥ حصادٌ أفقرُ لا يمحو سنواتٍ محفوظةً لم يقرأها", str(_m))
+_m2 = XB._merge_old({"annual": [{"as_of": "2025-12-31", "revenue": 5.0}]}, {"annual": [{"as_of": "2025-12-31", "revenue": 7.0}]})
+check(_m2["annual"][0]["revenue"] == 7.0, "١٦ والقراءةُ الجديدةُ للتاريخ نفسِه تغلب")
 print(f"{'FAIL' if fail else 'PASS'} D476 — قوائمُ «تداول» PDF حين تقف XBRL")
 sys.exit(fail)

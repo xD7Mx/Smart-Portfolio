@@ -600,9 +600,27 @@ def _store() -> dict:
     return rec if isinstance(rec, dict) else {}
 
 
+def _merge_old(old: dict | None, rec: dict) -> dict:
+    """سجلٌّ جديدٌ لا يمحو فتراتٍ محفوظةً لم يقرأها هو (D476).
+
+    قِيس: حصادٌ قرأ أرباعاً ولم يقرأ السنويّ (ملفٌّ تعذّر أو ممسوح) فحلّ
+    سجلُّه الأفقرُ محلَّ سنواتٍ محفوظة (‏1320 فقد 2021). فالفتراتُ تُدمج
+    بتاريخها: الجديدُ يغلب في التاريخ نفسِه، والقديمُ يبقى فيما لم يُقرأ.
+    """
+    if not isinstance(old, dict):
+        return rec
+    out = dict(rec)
+    for kind in ("annual", "quarterly"):
+        by = {p.get("as_of"): p for p in (old.get(kind) or []) if isinstance(p, dict)}
+        by.update({p.get("as_of"): p for p in (rec.get(kind) or []) if isinstance(p, dict)})
+        out[kind] = sorted(by.values(), key=lambda p: str(p.get("as_of")))
+    return out
+
+
 def save_symbol(symbol: str, rec: dict) -> None:
     from app.services import lastgood
     st = _store()
+    rec = _merge_old(st.get(str(symbol)), rec)
     st[str(symbol)] = rec
     lastgood.save(STORE_KEY, st)
 
