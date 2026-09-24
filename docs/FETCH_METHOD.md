@@ -160,6 +160,21 @@ rows = (json.loads(raw) or {}).get("data")
 وخدمةُ تقويم التوزيعات العامّ `getDividendsDetails` تعود `{"data":[]}` بلا مرشِّحات.
 والقراءةُ في `backend/app/services/tadawul_dividends.py`.
 
+### نصُّ إفصاح الشركة: «إعلانات المصدرين» (D467)
+
+صفحةُ `newsandreports/issuer-news/issuer-announcements` تنادي خدمةً اسمُها
+`getAnnouncementListData` — **POST** بنموذجٍ لا بمعاملاتِ رابط (GET يعيد السوقَ
+كلَّه ويتجاهل الرمز). حقولُه كما في شيفرة الصفحة: `annoucmentType` (‏`1_-1`
+للكلّ) · `symbol` · `sectorDpId` · `searchType` · `fromDate` · `toDate` ·
+`datePeriod` · `productType` · `advisorsList` · `textSearch` · `pageNumberDb` ·
+`pageSize`، مع ترويسة `X-Requested-With: XMLHttpRequest`. فيعود
+`announcementList` بـ`PR_DATE` و`announcementUrl` (قِيس: 4001 = 300 إفصاح).
+وصفحةُ التفاصيل (`issuer-announcements-details/?anId=…&cs=…&locale=ar`) تحمل
+المتنَ في HTML نفسِه بلا نداءٍ ثانٍ: `class="announcementBox"` ← `<h3>` العنوان
+ثمّ جداولُ «بند | توضيح» (قِيس بتتبّع الشبكة: لا خدمةَ للمتن). والقراءةُ في
+`backend/app/services/tadawul_disclosure.py`، و«أرقام» مكمِّلٌ لما لا يطابقه
+إفصاح (والمقفلُ للمشتركين يُعرض ملخّصُه المعلنُ وحده — `article_body.py`).
+
 ### تاريخُ المؤشّر: مولّدُ رسم «تداول» (D438)
 
 اكتُشف من الصفحة الرئيسية بكاشف `tasi_history_door.py`، وقِيس شكلُه بـ`tasi_chart_shape.py`:

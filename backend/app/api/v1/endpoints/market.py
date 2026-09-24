@@ -702,6 +702,25 @@ async def get_event_detail(detail_id: str):
     return success_response(data={"text": await fetch_detail(detail_id)})
 
 
+@router.get("/announcement-text")
+async def get_announcement_text(symbol: str = "", title: str = "", date: str = "", u: str = "", name: str = ""):
+    """نصُّ الإعلان في النافذة (D467): «تداول» أوّلاً، و«أرقام» مكمِّلاً."""
+    from app.services.tadawul_disclosure import match
+    from app.services.article_body import read
+    if symbol and title:
+        try:
+            t = await match(symbol, title, date, name)
+        except Exception as e:                                     # noqa: BLE001
+            logger.debug("مطابقةُ تداول: {}", e)
+            t = None
+        if t:
+            return success_response(data={"text": t["text"], "source": "تداول", "full": True})
+    a = await read(u) if u else None
+    if a:
+        return success_response(data={**a, "source": "أرقام"})
+    return success_response(data=None)
+
+
 @router.get("/article-body")
 async def get_article_body(u: str):
     """نصُّ إعلان «أرقام» داخل النافذة (D466) — المفتوحُ كاملاً، والمقفلُ ملخّصُه المعلن."""

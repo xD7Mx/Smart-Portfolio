@@ -141,16 +141,17 @@ function EventDetailModal({ e, onClose }: { e: any; onClose: () => void }) {
     return () => { alive = false; };
   }, [e.detail_id]);
 
-  /* محتوى المصدر داخل النافذة (D466) — بأمر المالك: لا خروجَ من التطبيق.
+  /* محتوى المصدر داخل النافذة (D466 · D467) — بأمر المالك: لا خروجَ من التطبيق.
      مقالُ «أرقام» يُقرأ بالجلب الذكيّ في الخادم؛ وما ليس مقالاً (صفحةُ
      شركة) لا نصَّ له فلا يظهر مربّعٌ فارغ. */
   const [body, setBody] = useState<{ s: "off" | "load" | "ok"; t?: string }>(
-    !e.detail_id && /argaam\.com\/ar\/article\/articledetail\//.test(e.url || "") ? { s: "load" } : { s: "off" }
+    !e.detail_id && (e.symbol || /argaam\.com\/ar\/article\/articledetail\//.test(e.url || "")) ? { s: "load" } : { s: "off" }
   );
   React.useEffect(() => {
     if (body.s !== "load") return;
     let alive = true;
-    marketApi.articleBody(e.url)
+    // «تداول» أوّلاً (الإفصاحُ الرسميّ) و«أرقام» مكمِّلاً — بأمر المالك (D467)
+    marketApi.announcementText({ symbol: e.symbol || "", title, date: e.date || "", u: e.url || "", name: name || "" })
       .then(r => { const t = r.data?.data?.text; if (alive) setBody(t ? { s: "ok", t } : { s: "off" }); })
       .catch(() => { if (alive) setBody({ s: "off" }); });
     return () => { alive = false; };
