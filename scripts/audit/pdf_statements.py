@@ -106,5 +106,7 @@ _ocr = ["CONSOLIDATED STATEMENT OF INCOME", "Revenue 27 116,525,214 117,736,492"
 o = P._pairs(_ocr, P._KIND["income"])
 check(o.get("revenue") == (116525214.0, 117736492.0) and o.get("net_income") == (1258302.0, -345652.0) and o.get("eps") == (2.47, 1.10),
       "٢٨ سطرُ القراءة الضوئية: البندُ وأرقامُه في سطرٍ واحد يُفصلان", str(o))
+check(P.valid(dict(p, shares_outstanding=100018598), 40000, 100103313) is None,
+      "٢٩ مرجعٌ مختلٌّ (40,000 سهم) لا يرفض ملفّاً اتّسقت سنواتُه على 100 مليون (8230)")
 print(f"{'FAIL' if fail else 'PASS'} D476 — قوائمُ «تداول» PDF حين تقف XBRL")
 sys.exit(fail)

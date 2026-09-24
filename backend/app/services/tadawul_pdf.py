@@ -135,10 +135,10 @@ def _toks(lines: list[str]) -> list[str]:
     return out
 
 
-def _page_text(pg, idx: int) -> str:
-    """نصُّ الصفحة — وإن كانت صورةً ممسوحةً في مقدّمة الملف تُقرأ ضوئياً (Tesseract في الحاوية)."""
+def _page_text(pg, idx: int, ocr: bool = True) -> str:
+    """نصُّ الصفحة — وإن كانت صورةً ممسوحةً في مقدّمة ملفٍّ سنويّ تُقرأ ضوئياً (Tesseract في الحاوية)."""
     t = pg.get_text()
-    if len(t.strip()) >= 40 or idx >= 20:
+    if len(t.strip()) >= 40 or idx >= 12 or not ocr:
         return t
     try:
         tp = pg.get_textpage_ocr(language="eng", dpi=220, full=True, tessdata=_tessdata())
@@ -252,7 +252,7 @@ def parse_pdf(data: bytes) -> dict:
     as_of = None
     found_pages = 0
     for idx, pg in enumerate(doc):
-        text = _page_text(pg, idx)
+        text = _page_text(pg, idx, ocr=annual)          # الربعيُّ لا يُقرأ ضوئياً — السنويُّ هو المطلوب
         if found_pages and "notes to the" in text[:900].lower():
             break                                  # القوائمُ الأساسيةُ قبل الإيضاحات — وما بعدها قطاعاتٌ وأجزاء
         kind = _kind_of(text)
@@ -317,7 +317,8 @@ def valid(p: dict, ref_shares: float | None, peer_shares: float | None = None) -
         if p.get(k) is None:
             return f"بندٌ أساسيٌّ غائب: {k}"
     sh = p.get("shares_outstanding")
-    unit_off = bool(ref_shares and sh and any(0.5 <= sh / (ref_shares * f) <= 2 for f in (1e3, 1e-3, 1e6)))
+    unit_off = bool(ref_shares and sh and (any(0.5 <= sh / (ref_shares * f) <= 2 for f in (1e3, 1e-3, 1e6))
+                                           or not (0.1 <= sh / ref_shares <= 10)))    # مرجعٌ مختلٌّ لا تجزئةَ أسهمٍ حقيقية
     self_ok = bool(sh and peer_shares and 0.8 <= sh / peer_shares <= 1.25)
     if ref_shares and sh and not (ref_shares / 2 <= sh <= ref_shares * 2) and not (unit_off and self_ok):
         return f"صافي الربح ÷ ربحية السهم = {sh:,.0f} سهماً والمعروف {ref_shares:,.0f} — وحدةٌ أو بندٌ خاطئ"
