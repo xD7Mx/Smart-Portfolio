@@ -702,6 +702,20 @@ async def get_event_detail(detail_id: str):
     return success_response(data={"text": await fetch_detail(detail_id)})
 
 
+@router.get("/fair-value-models/{symbol}")
+async def get_fair_value_models(symbol: str):
+    """المحرّكُ متعدّدُ النماذج (D468): نماذجُ ثلاث عائلاتٍ بنطاقاتها وأقرانٍ سعوديين."""
+    from app.services.fair_value_models import for_symbol
+    return success_response(data=await for_symbol(_normalize_symbol(symbol).replace(".SR", "")))
+
+
+@router.get("/health/{symbol}")
+async def get_financial_health(symbol: str):
+    """السلامةُ الماليةُ بخمسة محاور داخل قطاع «تداول» الرسميّ (D469)."""
+    from app.services.financial_health import for_symbol
+    return success_response(data=await for_symbol(_normalize_symbol(symbol).replace(".SR", "")))
+
+
 @router.get("/announcement-text")
 async def get_announcement_text(symbol: str = "", title: str = "", date: str = "", u: str = "", name: str = ""):
     """نصُّ الإعلان في النافذة (D467): «تداول» أوّلاً، و«أرقام» مكمِّلاً."""
