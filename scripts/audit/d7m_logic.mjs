@@ -53,13 +53,24 @@ for (let i = 0; i < 600; i++) { const ph = i % 60, c = 100 + i * 0.3 + 10 * Math
   vb.push({ date: `v${i}`, open: pv, high: Math.max(pv, c), low: Math.min(pv, c), close: c }); pv = c; }
 const t = M.autoTrend(vb, 15);
 say(t.lines.some(l => l.up), "٨ يرسم الاتجاهُ التلقائيّ خطَّ القيعان الصاعدة ولو بلا ذيول", String(t.lines.length));
-const du = M.dashboard(up), dd = M.dashboard(dn);
-say(!!du && !!dd && du.score > 0 && dd.score < 0 && du.rows[0].up === true && dd.rows[0].up === false && du.power === Math.abs(du.score),
-    "٩ لوحةُ القرار: الصاعدُ فوق EMA200 بنقاطٍ موجبة والهابطُ سالبة", du && dd ? `${du.score} · ${dd.score}` : "null");
+// ٩ (D465): صفوفُ اللوحة كما في السكربت — 1D (EMA200 يومي) و4H · 1H · 15M (VWAP الجلسة من شموع 15د)
+const m15Up = [], m15Dn = [];
+for (let k = 0; k < 20; k++) { const u = 10 + k * 0.1, d = 12 - k * 0.1;
+  m15Up.push({ date: "s", open: u - 0.05, high: u + 0.02, low: u - 0.06, close: u, volume: 100 });
+  m15Dn.push({ date: "s", open: d + 0.05, high: d + 0.06, low: d - 0.02, close: d, volume: 100 }); }
+const du = M.dashboard(up, { daily: up, m15: m15Up }), dd = M.dashboard(dn, { daily: dn, m15: m15Dn });
+const mix = M.dashboard(dn, { daily: dn, m15: m15Up });
+say(!!du && du.rows.map(r => r.tf).join() === "1D,4H,1H,15M" && du.score === 10 && dd.score === -10 && mix.score === -4 + 3 + 2 + 1,
+    "٩ اللوحة: 1D · 4H · 1H · 15M بأوزان 4 · 3 · 2 · 1 كما في السكربت", du && dd && mix ? `${du.score} · ${dd.score} · ${mix.score}` : "null");
+say(M.D7M_DEFAULTS.bull === 6 && M.D7M_DEFAULTS.bear === -6 && mix.summary === "محايد" && mix.decision !== undefined,
+    "٩ب وحدّا الاتجاه 6 / −6 من عشرة (قيمةُ السكربت)", `${M.D7M_DEFAULTS.bull} · ${M.D7M_DEFAULTS.bear}`);
 const keys = Object.keys(M.D7M_DEFAULTS);
 const { readFileSync } = await import("node:fs");
 const panel = readFileSync(join(ROOT, "frontend/src/components/analysis/D7MPanel.tsx"), "utf8");
 const miss = keys.filter(k => !new RegExp(`["']${k}["']`).test(panel));
 say(miss.length === 0, "١٠ لوحةُ الإعدادات تتحكّم في كلّ مدخلٍ للمؤشّر", miss.join(","));
+const nc = readFileSync(join(ROOT, "frontend/src/components/analysis/NativeChart.tsx"), "utf8");
+const usedColors = M.D7M_COLORS.map(c => c[0]).filter(k => !new RegExp(`C\\("${k}"\\)|colors\\?\\.${k}\\b|colors\\?\\.\\[k\\]`).test(nc));
+say(/type="color"/.test(panel) && usedColors.length === 0, "١١ ألوانُ المؤشّر تُختار من الإعدادات وتصل إلى الرسم", usedColors.join(","));
 console.log((fail ? "FAIL" : "PASS") + " D463/D464 — مؤشّرُ D7M يطابق سكربتَ المالك");
 process.exit(fail);

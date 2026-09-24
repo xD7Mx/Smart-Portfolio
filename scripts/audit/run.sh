@@ -269,6 +269,7 @@ python3 scripts/audit/sector_weights_applied.py || _note "$LINENO"
 python3 scripts/audit/gauge_dot_plain.py || _note "$LINENO"
 python3 scripts/audit/screener_fv_from_store.py || _note "$LINENO"
 node scripts/audit/d7m_logic.mjs || _note "$LINENO"
+python3 scripts/audit/saudi_weekly_sunday.py || _note "$LINENO"
 node scripts/audit/mobile_walk.mjs || _note "$LINENO"
 
 # D160 (عودة): لا فحصَ في اللجنة يكتب في بيانات المالك المتتبَّعة. عولج

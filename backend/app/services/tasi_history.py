@@ -125,6 +125,7 @@ def weekly(rows: list) -> list:
             b = out[-1]
             b["high"], b["low"] = max(b["high"], r["high"]), min(b["low"], r["low"])
             b["close"], b["date"] = r["close"], r["date"][:10]
+            b["volume"] = (b.get("volume") or 0) + (r.get("volume") or 0)
         else:
             out.append({**r, "date": r["date"][:10], "_wk": wk})
     for b in out:

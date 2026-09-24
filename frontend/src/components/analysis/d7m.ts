@@ -1,11 +1,8 @@
 /* ══ مؤشّر D7M — ترجمةُ سكربت المالك (Pine v6) إلى حسابٍ على شموع التطبيق ══
  *
- * يُنقل منه ما يُبنى على شموع السهم نفسِها:
- *   · الفيبوناتشي التلقائي من الزجزاج (انحرافٌ = ATR(10)÷السعر×100×3 · عمق 7)
- *     بمستوياته وألوانه ونصوص مناطقه كما في السكربت.
- *   · القناة السعرية التلقائية (آخرُ ثلاث قممٍ/قيعانٍ للزجزاج بعمق 20).
- * ولا يُنقل ما يحتاج إطاراتٍ لحظيةً أو بياناتٍ أمريكية (لوحةُ الاتجاه وأداةُ
- * الصفقة وVIX والأخبار) — لا تُختلق بياناتٌ لا نملكها.
+ * الفيبوناتشي التلقائيّ ومناطقُه · الاتجاهُ التلقائيّ · القناة · VWAP · EMA ·
+ * مستوياتُ اليوم السابق · لوحةُ الاتجاه (1D · 4H · 1H · 15M من `/market/frames`)
+ * · المحلّلُ الذكيّ · التنبيهات · أداةُ الصفقة وVIX (للسوق الأمريكي).
  */
 
 export type Bar = { date: string; open: number; high: number; low: number; close: number };
@@ -437,54 +434,84 @@ export function autoTrend(bars: Bar[], PP = 15): { lines: TLine[]; signals: TSig
   return { lines, signals };
 }
 
-/* ══ لوحةُ ملخّص اتجاه السوق (المستثمر) على الإطارات المتاحة من شموعٍ يومية ══
- * السكربت للمستثمر: يوميٌّ EMA200 (4) · 4H VWAP (3) · 1H VWAP (2) · 15M VWAP (1).
- * ولا شموعَ لحظيةً عندنا، فتُستعمل الإطاراتُ المحسوبةُ من اليوميّ نفسِه:
- * يوميٌّ EMA200 (4) · شهريٌّ VWAP (3) · أسبوعيٌّ VWAP (2) — ويُذكر ذلك في اللوحة. */
+export type IBar = VBar & { time?: number; day?: string };
 export type Dash = {
   rows: { tf: string; up: boolean | null }[]; score: number; liq: ReturnType<typeof liquidity>;
   trend: { state: string; tone: string; adx: number | null }; decision: string; tone: string;
-  power: number; trust: number; vixWarn: string | null; newsWarn: boolean; summary: string;
+  power: number; trust: number; vixWarn: string | null; newsWarn: boolean; summary: string; intraday: boolean;
 };
 
+/** VWAP الجلسة على إطارٍ مجمَّعٍ من شموع 15د (‏ta.vwap(hlc3) على 4س · 1س · 15د). */
+export function sessionUp(m15: IBar[], group: number): boolean | null {
+  if (!m15.length) return null;
+  let pv = 0, v = 0, n = 0, sum = 0;
+  for (let k = 0; k < m15.length; k += group) {
+    const ch = m15.slice(k, k + group);
+    const h = Math.max(...ch.map(x => x.high)), l = Math.min(...ch.map(x => x.low)), c = ch[ch.length - 1].close;
+    const tp = (h + l + c) / 3, vol = ch.reduce((a, x) => a + (x.volume || 0), 0);
+    pv += tp * vol; v += vol; sum += tp; n++;
+  }
+  const vw = v > 0 ? pv / v : sum / n;
+  return m15[m15.length - 1].close > vw;
+}
+
+/**
+ * لوحةُ الاتجاه وقرارُ الدخول — ملفُّ «المستثمر» في السكربت حرفاً (D465):
+ *   1D: الإغلاقُ فوق EMA200 اليومي (4) · 4H · 1H · 15M: الإغلاقُ فوق VWAP الجلسة (3 · 2 · 1)
+ *   المجموعُ من 10 وحدّاه 6 / −6 · القرارُ الخامُ من 1D و4H وقوّةِ الاتجاه (ADX/DMI)
+ *   والثقةُ: 1H(2) + 15M(2) + EMA200 صاعد(3) + تراكمُ حجمٍ ثلاثاً(2) + فوق قمّة أمس(1)
+ *   وذاكرةُ شمعتين تمنع التذبذب.
+ * الإطاراتُ من `/market/frames`: يوميٌّ لسنةٍ وشموعُ 15د لآخر جلسة. وللشموع
+ * السابقة في الذاكرة يُقرأ VWAP جلستِها من يومها (hlc3) إذ لا تاريخَ لحظيّ لها.
+ */
 export function dashboard(bars: VBar[], opts: { bull?: number; bear?: number; vix?: number | null;
-  vixWarn?: number; vixBlock?: number; newsDates?: string[]; today?: string } = {}): Dash | null {
+  vixWarn?: number; vixBlock?: number; newsDates?: string[]; today?: string;
+  daily?: VBar[]; m15?: IBar[] } = {}): Dash | null {
   if (bars.length < 30) return null;
+  const daily = (opts.daily && opts.daily.length ? opts.daily : bars), m15 = opts.m15 || [];
+  const dc = daily.map(b => b.close), dE = ema(dc, 200), di = daily.length - 1;
+  const up1D = dE[di] == null ? false : dc[di] > dE[di]!;          // na في Pine ⇒ ليس صعوداً
+  const dLast = daily[di];
+  const dayUp = dLast ? dLast.close > (dLast.high + dLast.low + dLast.close) / 3 : null;
+  const intraday = m15.length > 0;
+  const up4H = intraday ? sessionUp(m15, 16) : dayUp;
+  const up1H = intraday ? sessionUp(m15, 4) : dayUp;
+  const up15 = intraday ? sessionUp(m15, 1) : dayUp;
+  const w = (u: boolean | null, k: number) => (u ? k : -k);
+  const score = w(up1D, 4) + w(up4H, 3) + w(up1H, 2) + w(up15, 1);
+  const bull = opts.bull ?? 6, bear = opts.bear ?? -6;
   const c = bars.map(b => b.close), i = bars.length - 1;
-  const e200 = ema(c, Math.min(200, bars.length - 1));
-  const upD = e200[i] == null ? null : c[i] > e200[i]!;
-  const vwM = vwapAnchored(bars, "Month").vwap[i], vwW = vwapAnchored(bars, "Week").vwap[i];
-  const upM = c[i] > vwM, upW = c[i] > vwW;
-  const score = (upD ? 4 : -4) + (upM ? 3 : -3) + (upW ? 2 : -2);
-  const bull = opts.bull ?? 5, bear = opts.bear ?? -5;           // 6/−6 من 10 ⇒ 5/−5 من 9
+  const e200 = ema(c, 200);
   const { plus, minus, adx } = dmi(bars, 14, 14);
-  const A = adx[i], P = plus[i], M = minus[i];
   const vols = bars.map(b => b.volume || 0), avgV = sma(vols, 20);
-  const volAccum3 = [0, 1, 2].every(k => avgV[i - k] != null && vols[i - k] > avgV[i - k]!);
-  const e200Rising = e200[i] != null && e200[i - 1] != null && e200[i]! > e200[i - 1]!;
-  const adxWeak = A == null ? true : (A < 20 && !(e200Rising || volAccum3));
-  const tUp = !adxWeak && (P ?? 0) > (M ?? 0), tDn = !adxWeak && (M ?? 0) > (P ?? 0);
-  const trend = adxWeak ? { state: "ضعيف", tone: "warn", adx: A } : tUp ? { state: "صاعد", tone: "pos", adx: A }
-    : { state: "هابط", tone: "neg", adx: A };
+  const accumAt = (j: number) => [0, 1, 2].every(k => avgV[j - k] != null && vols[j - k] > avgV[j - k]!);
+  const risingAt = (j: number) => e200[j] != null && e200[j - 1] != null && e200[j]! > e200[j - 1]!;
+  const weakAt = (j: number) => adx[j] == null ? true : (adx[j]! < 20 && !(risingAt(j) || accumAt(j)));
+  const A = adx[i], P = plus[i] ?? 0, M = minus[i] ?? 0;
+  const tUp = !weakAt(i) && P > M, tDn = !weakAt(i) && M > P;
+  const trend = weakAt(i) ? { state: "ضعيف", tone: "warn", adx: A } : tUp ? { state: "صاعد", tone: "pos", adx: A }
+    : tDn ? { state: "هابط", tone: "neg", adx: A } : { state: "ضعيف", tone: "warn", adx: A };
   const liq = liquidity(bars, 20, false);
-  const hi1 = i > 0 ? bars[i - 1].high : bars[i].high, lo1 = i > 0 ? bars[i - 1].low : bars[i].low;
-  const trustBull = (upW ? 2 : 0) + (upM ? 2 : 0) + (e200Rising ? 3 : 0) + (volAccum3 ? 2 : 0) + (c[i] > hi1 ? 1 : 0);
-  const trustBear = (!upW ? 2 : 0) + (!upM ? 2 : 0) + (!e200Rising ? 3 : 0) + (volAccum3 ? 2 : 0) + (c[i] < lo1 ? 1 : 0);
-  // القرارُ الخامُ على كلّ شمعةٍ للذاكرة (تأكيدُ شمعتين)
+  const pd = daily.length > 1 ? daily[daily.length - 2] : null;
+  // حالُ كلِّ شمعةٍ سابقة: EMA200 اليومي وVWAP جلسةِ يومها من اليومية بتاريخها
+  const dIdx = (d: string) => { let k = -1; for (let x = 0; x < daily.length; x++) if (daily[x].date.slice(0, 10) <= d.slice(0, 10)) k = x; return k; };
   const rawAt = (j: number): [string, number] => {
-    const cj = c[j], ej = e200[j]; if (ej == null) return ["انتظار", 0];
-    const uD = cj > ej, uM = cj > vwapAnchored(bars.slice(0, j + 1), "Month").vwap[j];
-    const Aj = adx[j], Pj = plus[j] ?? 0, Mj = minus[j] ?? 0;
-    const eR = e200[j - 1] != null && ej > e200[j - 1]!;
-    const weak = Aj == null ? true : (Aj < 20 && !eR);
-    const dry = liquidity(bars.slice(0, j + 1), 20, false).dry;
-    if (weak || dry) return ["انتظار", 0];
-    if (uD && uM && Pj > Mj) return ["صعود", j === i ? trustBull : 0];
-    if (!uD && !uM && Mj > Pj) return ["هبوط", j === i ? trustBear : 0];
+    const liqJ = liquidity(bars.slice(0, j + 1), 20, false);
+    if (weakAt(j) || liqJ.dry) return ["انتظار", 0];
+    let uD: boolean | null, u4: boolean | null, u1: boolean | null, u15: boolean | null, pdhJ: number | null, pdlJ: number | null;
+    if (j === i) { uD = up1D; u4 = up4H; u1 = up1H; u15 = up15; pdhJ = pd?.high ?? null; pdlJ = pd?.low ?? null; }
+    else {
+      const k = dIdx(bars[j].date); if (k < 1) return ["انتظار", 0];
+      const d = daily[k]; uD = dE[k] == null ? false : dc[k] > dE[k]!;
+      u4 = u1 = u15 = d.close > (d.high + d.low + d.close) / 3; pdhJ = daily[k - 1].high; pdlJ = daily[k - 1].low;
+    }
+    const Pj = plus[j] ?? 0, Mj = minus[j] ?? 0, cj = c[j];
+    if (uD && u4 && Pj > Mj) return ["صعود", (u1 ? 2 : 0) + (u15 ? 2 : 0) + (risingAt(j) ? 3 : 0) + (accumAt(j) ? 2 : 0) + (pdhJ != null && cj > pdhJ ? 1 : 0)];
+    if (!uD && !u4 && Mj > Pj) return ["هبوط", (!u1 ? 2 : 0) + (!u15 ? 2 : 0) + (!risingAt(j) ? 3 : 0) + (accumAt(j) ? 2 : 0) + (pdlJ != null && cj < pdlJ ? 1 : 0)];
     return ["محايد", 0];
   };
   let stable = "انتظار", pending = "", pend = 0, trust = 0;
-  for (let j = Math.max(0, i - 60); j <= i; j++) {
+  for (let j = Math.max(1, i - 60); j <= i; j++) {
     const [d, tr] = rawAt(j);
     if (d === stable) { pending = ""; pend = 0; trust = tr; }
     else if (d === pending) { pend++; if (pend >= 2) { stable = d; trust = tr; pending = ""; pend = 0; } }
@@ -499,8 +526,8 @@ export function dashboard(bars: VBar[], opts: { bull?: number; bear?: number; vi
   }
   const newsWarn = !!(opts.today && (opts.newsDates || []).includes(opts.today));
   const summary = score >= bull ? "صعود" : score <= bear ? "هبوط" : "محايد";
-  return { rows: [{ tf: "يومي · EMA200", up: upD }, { tf: "شهري · VWAP", up: upM }, { tf: "أسبوعي · VWAP", up: upW }],
-    score, liq, trend, decision, tone, power: Math.min(Math.abs(score), 10), trust: Math.min(trust, 10), vixWarn, newsWarn, summary };
+  return { rows: [{ tf: "1D", up: up1D }, { tf: "4H", up: up4H }, { tf: "1H", up: up1H }, { tf: "15M", up: up15 }],
+    score, liq, trend, decision, tone, power: Math.min(Math.abs(score), 10), trust: Math.min(trust, 10), vixWarn, newsWarn, summary, intraday };
 }
 
 /** شريطُ السكربت البصريّ █░ من 0 إلى 10 */
@@ -530,7 +557,18 @@ export function tradeTool(bars: Bar[], vix: number | null, newsDay: boolean) {
 }
 
 /* ── إعداداتُ المؤشّر الافتراضية (قيمُ السكربت) ─────────────────────────── */
+/** ألوانُ المؤشّر القابلةُ للتغيير: [المفتاح، الاسم، رمزُ المظهر الافتراضيّ]. الفارغُ = لونُ المظهر. */
+export const D7M_COLORS: [string, string, string][] = [
+  ["fib", "مستويات فيبوناتشي", "--ink"], ["fibGold", "المستويات الذهبية", "--gauge-warn"], ["zone", "نصوص المناطق", "--ink-muted"],
+  ["trendUp", "اتجاه صاعد", "--pos-ink"], ["trendDown", "اتجاه هابط", "--neg-ink"], ["channel", "القناة", "--ink"],
+  ["vwap", "VWAP", "--chart-1"], ["band", "نطاقات VWAP", "--pos-ink"],
+  ["ema20", "EMA 20", "--chart-1"], ["ema50", "EMA 50", "--pos-ink"], ["ema100", "EMA 100", "--gauge-warn"],
+  ["ema200", "EMA 200", "--neg-ink"], ["ema400", "EMA 400", "--ink"], ["draw", "الرسم اليدوي", "--brand-ink"],
+];
+
 export const D7M_DEFAULTS = {
+  colors: {} as Record<string, string>,
+  dashPos: "tr" as "tr" | "tl" | "br" | "bl",
   fib: true, fibDev: 3, fibDepth: 7, fibReverse: false, fibZones: true,
   fibLevels: Object.fromEntries(FIB_LEVELS.map(([lv]) => [String(lv), true])) as Record<string, boolean>,
   trend: true, trendPP: 15, trendShapes: false,
@@ -538,7 +576,7 @@ export const D7M_DEFAULTS = {
   vwap: true, vwapAnchor: "Session" as "Session" | "Week" | "Month" | "Year", vwapBand: false, vwapMult: 1,
   ema20: false, ema50: false, ema100: false, ema200: false, ema400: false,
   pdh: false, pdl: false, pdc: false, dOpen: false,
-  dashboard: true, bull: 5, bear: -5,
+  dashboard: true, bull: 6, bear: -6,
   macdDash: false, alertsDash: false, tradeTool: false,
   vixWarn: 25, vixBlock: 35, news: false,
   newsDates: "2026-01-28, 2026-03-18, 2026-04-29, 2026-06-17, 2026-07-29, 2026-09-16, 2026-10-28, 2026-12-09, 2026-01-13, 2026-02-11, 2026-03-11, 2026-04-10, 2026-05-12, 2026-06-10, 2026-07-14, 2026-08-12, 2026-09-11, 2026-10-14, 2026-11-10, 2026-12-10",

@@ -467,7 +467,7 @@ class YahooFinanceAdapter:
         symbol per day at most)."""
         from app.services.usage_tracker import record, can_call
         from app.services import cache
-        ck = f"hist:yahoo:{symbol}:{range_}:v4"
+        ck = f"hist:yahoo:{symbol}:{range_}:v5"
         cached = cache.get(ck)
         if cached is not None:
             return cached
@@ -483,10 +483,20 @@ class YahooFinanceAdapter:
         default_interval = "1wk" if range_ in ("2y", "5y") else "1mo" if range_ in ("10y", "max") else "1d"
         candidates = {"1d": ["1d", "1wk", "1mo"], "1wk": ["1wk", "1mo"], "1mo": ["1mo"]}[default_interval]
         points: list = []
-        for interval in candidates:
-            points = await self._fetch_chart_points(symbol, range_, interval)
-            if len(points) >= 5:
-                break
+        # D465: أسبوعُ ياهو للسوق السعودي من الإثنين إلى الأحد بتوقيت الرياض،
+        # فتقع جلسةُ الأحد في الأسبوع السابق، ويُكرَّر الأسبوعُ الجاري شمعةً
+        # جزئيةً ثانية. فتُبنى الأسبوعيةُ من اليومية: الأحدُ إلى الخميس —
+        # أسبوعُ تداول وتريدنق فيو نفسُه.
+        if default_interval == "1wk" and symbol.upper().endswith(".SR"):
+            from app.services.tasi_history import weekly as _weekly
+            daily = await self._fetch_chart_points(symbol, range_, "1d")
+            if len(daily) >= 20:
+                points = _weekly(daily)
+        if len(points) < 5:
+            for interval in candidates:
+                points = await self._fetch_chart_points(symbol, range_, interval)
+                if len(points) >= 5:
+                    break
         # Some symbols (confirmed live for ^TASI.SR) only ever have a single
         # day of history on Yahoo's free chart API across every range and
         # interval — a real data-availability limit, not something a coarser
@@ -496,6 +506,57 @@ class YahooFinanceAdapter:
             return None
         cache.set(ck, points, cache.HISTORY_TTL)
         return points
+
+    async def get_intraday(self, symbol: str) -> list:
+        """شموعُ 15 دقيقة لآخر جلسة (D465) — لصفوف لوحة D7M: 4س · 1س · 15د.
+
+        سكربتُ المالك يقرأ هذه الإطاراتِ بـ`request.security`، والشموعُ
+        اليوميةُ لا تُغني عنها. ياهو يسلّمها للأسهم السعودية وتاسي (15د لخمسة
+        أيام). تُردّ جلسةُ آخر يومٍ بتوقيت الرياض وحدها، وتُخبَّأ خمسَ دقائق.
+        """
+        from app.services.usage_tracker import record, can_call
+        from app.services import cache
+        from datetime import datetime, timezone, timedelta
+        ck = f"intraday:yahoo:{symbol}:15m:v1"
+        hit = cache.get(ck)
+        if hit is not None:
+            return hit
+        if not can_call("yahoo"):
+            return []
+        record("yahoo")
+        res = None
+        try:
+            async with httpx.AsyncClient(timeout=12, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}) as client:
+                for host in ("query1", "query2"):
+                    try:
+                        r = await client.get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{symbol}?range=5d&interval=15m")
+                        if r.status_code == 200 and (r.json().get("chart", {}).get("result")):
+                            res = r.json()["chart"]["result"][0]
+                            break
+                    except Exception:
+                        continue
+        except Exception:
+            return []
+        if not res:
+            return []
+        ts = res.get("timestamp") or []
+        q = (res.get("indicators", {}).get("quote") or [{}])[0]
+        riyadh = timezone(timedelta(hours=3))
+        rows = []
+        cols = {k: q.get(k) or [] for k in ("open", "high", "low", "close", "volume")}
+        for i, t in enumerate(ts):
+            vals = [cols[k][i] if i < len(cols[k]) else None for k in ("open", "high", "low", "close", "volume")]
+            if any(v is None for v in vals[:4]):
+                continue
+            rows.append({"time": int(t), "day": datetime.fromtimestamp(t, tz=riyadh).date().isoformat(),
+                         "open": float(vals[0]), "high": float(vals[1]), "low": float(vals[2]),
+                         "close": float(vals[3]), "volume": float(vals[4] or 0)})
+        if not rows:
+            return []
+        last = rows[-1]["day"]
+        out = [r for r in rows if r["day"] == last]
+        cache.set(ck, out, 300)
+        return out
 
     # Yahoo quoteSummary now needs a cookie + crumb pair; we fetch it once and
     # reuse it (cached ~1h). This unlocks the full fundamentals + statements.
@@ -1541,6 +1602,9 @@ class MarketDataService:
         if hasattr(self.primary, "get_company_info"):
             return await self.primary.get_company_info(symbol)
         return None
+
+    async def get_intraday(self, symbol: str) -> list:
+        return await self._yahoo().get_intraday(symbol)
 
     async def get_history(self, symbol: str, range_: str = "3mo") -> Optional[list]:
         # «تاسي»: ياهو لا يملك له إلا يوماً — فالمصدرُ مولّدُ رسم «تداول» (D438).

@@ -1,6 +1,7 @@
 import { autoFib, autoChannel, autoTrend, vwapAnchored, ema as ema7, dashboard, macdSmart, tradeTool,
-  bar10, D7M_DEFAULTS, D7MSettings } from "./d7m";
+  D7M_DEFAULTS, D7MSettings } from "./d7m";
 import D7MPanel from "./D7MPanel";
+import { D7M_COLORS } from "./d7m";
 import React, { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { marketApi } from "../../services/api";
@@ -92,6 +93,16 @@ const tkey = (d: string): any =>
 
 const RANGES: [string, string][] = [["1mo", "شهر"], ["3mo", "3 أشهر"], ["6mo", "6 أشهر"], ["1y", "سنة"], ["2y", "سنتان"], ["5y", "5 سنوات"]];
 
+/** شريطُ السكربت █░: عشرُ خاناتٍ، الممتلئةُ بلون القرار والباقيةُ منقَّطة. */
+function Meter({ v, solid = false }: { v: number; solid?: boolean }) {
+  const f = Math.min(Math.round(Math.abs(v)), 10);
+  return (
+    <div className={"d7m-meter" + (solid ? " d7m-meter-solid" : "")} role="img" aria-label={`${f} من 10`}>
+      {Array.from({ length: 10 }, (_, k) => <span key={k} className={k < f ? "on" : ""} />)}
+    </div>
+  );
+}
+
 export default function NativeChart({ symbol, theme = "dark" }: { symbol: string; theme?: "dark" | "light" }) {
   const el = useRef<HTMLDivElement>(null);
   // المدّةُ الافتراضيّةُ خمسُ سنوات للسوقين (بأمر المالك)
@@ -100,12 +111,15 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
   const [err, setErr] = useState(false);
   // ══ إعداداتُ مؤشّر D7M — تُحفظ في المتصفّح (بأمر المالك: زرُّ إعدادات) ══
   const [cfg, setCfg] = useState<D7MSettings>(() => {
-    try { return { ...D7M_DEFAULTS, ...JSON.parse(localStorage.getItem("sp_d7m_cfg") || "{}") }; }
+    // v2: حدّا اللوحة صارا 6 / −6 كما في السكربت، فلا تُورَث قيمُ النسخة السابقة
+    try { const sv = JSON.parse(localStorage.getItem("sp_d7m_cfg_v2") || "{}");
+      return { ...D7M_DEFAULTS, ...sv, colors: { ...D7M_DEFAULTS.colors, ...(sv.colors || {}) } }; }
     catch { return D7M_DEFAULTS; }
   });
-  const saveCfg = (c: D7MSettings) => { setCfg(c); try { localStorage.setItem("sp_d7m_cfg", JSON.stringify(c)); } catch {} };
+  const saveCfg = (c: D7MSettings) => { setCfg(c); try { localStorage.setItem("sp_d7m_cfg_v2", JSON.stringify(c)); } catch {} };
   const [showCfg, setShowCfg] = useState(false);
-  const [zones, setZones] = useState<{ y: number; title: string }[]>([]);
+  const [zones, setZones] = useState<{ y: number; x: number; title: string }[]>([]);
+  const [psw, setPsw] = useState(64);   // عرضُ محور الأسعار — تجلس اللوحةُ بجانبه كما في تريدنق فيو
   // ══ الرسمُ اليدويّ: خطُّ ترند وقناة — محفوظان لكلّ رمز ══
   const dKey = `sp_draw_${symbol}`;
   const [draws, setDraws] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem(dKey) || "[]"); } catch { return []; } });
@@ -129,10 +143,18 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
     enabled: ind.d7m && isUS, staleTime: 15 * 60 * 1000,
   });
   const vix = isUS && vixBars.length ? vixBars[vixBars.length - 1].close : null;
+  // إطاراتُ اللوحة كما يطلبها السكربت: يوميٌّ لـEMA200 وشموعُ 15د لـ4H · 1H · 15M
+  const { data: frames } = useQuery({
+    queryKey: ["frames", symbol],
+    queryFn: () => marketApi.frames(symbol).then(r => r.data?.data || null),
+    enabled: ind.d7m && (cfg.dashboard || cfg.alertsDash) && !!symbol,
+    staleTime: 5 * 60 * 1000, refetchInterval: 5 * 60 * 1000, retry: 0,
+  });
   const today = new Date().toISOString().slice(0, 10);
   const newsDay = isUS && cfg.news && cfg.newsDates.split(",").map((x: string) => x.trim()).includes(today);
   const dash = ind.d7m && cfg.dashboard ? dashboard(bars as any, { bull: cfg.bull, bear: cfg.bear, vix,
-    vixWarn: cfg.vixWarn, vixBlock: cfg.vixBlock, newsDates: newsDay ? [today] : [], today }) : null;
+    vixWarn: cfg.vixWarn, vixBlock: cfg.vixBlock, newsDates: newsDay ? [today] : [], today,
+    daily: frames?.daily, m15: frames?.m15 }) : null;
   const msmart = ind.d7m && cfg.macdDash && bars.length > 40 ? macdSmart(bars as any) : null;
   const tt = ind.d7m && cfg.tradeTool ? tradeTool(bars as any, vix, newsDay) : null;
   const alertsSt = (() => {
@@ -247,8 +269,10 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
          «الأبيض» في السكربت مصمَّمٌ لخلفيةٍ داكنة؛ فيُرسم بحبر النصّ ليُقرأ في
          المظهرين، والأصفرُ يبقى كما هو. */
       if (ind.d7m) {
-        const ink = tok("--ink", "#e5e7eb");
-        const yellow = tok("--gauge-warn", "#d97706");
+        // لونُ المالك من الإعدادات إن اختاره، وإلا لونُ المظهر
+        const C = (k: string) => cfg.colors?.[k] || tok((D7M_COLORS.find(x => x[0] === k) || ["", "", "--ink"])[2], "#000");
+        const ink = C("fib");
+        const yellow = C("fibGold");
         const T = (i: number) => tkey(bars[Math.max(0, Math.min(i, bars.length - 1))].date);
         const addLine = (pts: [number, number][], color: string, width = 1, style = 0) => {
           const l = chart.addLineSeries({ color, lineWidth: width, lineStyle: style, priceLineVisible: false,
@@ -270,8 +294,12 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         const zoneList = fib && cfg.fibZones ? fib.zones : [];
         const placeZones = () => {
           // لا تتراكب النصوص: يُسقَط ما يقع على بُعد أقلّ من 14px من نصٍّ ظاهر
-          const shown: { y: number; title: string }[] = [];
-          zoneList.map(z => ({ y: candle.priceToCoordinate(z.price) ?? -999, title: z.title }))
+          const shown: { y: number; x: number; title: string }[] = [];
+          // في منتصف امتداد الفيبوناتشي أفقياً — موضعُها في تريدنق فيو
+          const mid = fib ? (fib.startIndex + bars.length - 1) / 2 : bars.length / 2;
+          const x = chart.timeScale().logicalToCoordinate(mid) ?? 200;
+          try { setPsw(chart.priceScale("right").width() || 64); } catch {}
+          zoneList.map(z => ({ y: candle.priceToCoordinate(z.price) ?? -999, x, title: z.title }))
             .sort((a, b) => a.y - b.y)
             .forEach(z => { if (z.y > 0 && shown.every(o => Math.abs(o.y - z.y) >= 14)) shown.push(z); });
           setZones(shown);
@@ -281,7 +309,7 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         // ٢) الترند التلقائي
         if (cfg.trend) {
           const tr = autoTrend(bars, cfg.trendPP);
-          for (const l of tr.lines) if (l.x2 > l.x1) addLine([[l.x1, l.y1], [l.x2, l.y2]], ink, l.major ? 2 : 1, 0);
+          for (const l of tr.lines) if (l.x2 > l.x1) addLine([[l.x1, l.y1], [l.x2, l.y2]], l.up ? C("trendUp") : C("trendDown"), l.major ? 2 : 1, l.major ? 0 : 2);
           if (cfg.trendShapes && tr.signals.length) {
             candle.setMarkers(tr.signals.map(sg => ({ time: T(sg.index),
               position: sg.kind === "breakDown" || sg.kind === "reactDown" ? "aboveBar" : "belowBar",
@@ -291,20 +319,20 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         }
         // ٣) القناة السعرية التلقائية
         const ch = cfg.channel ? autoChannel(bars, cfg.chDev, cfg.chDepth) : null;
-        if (ch) for (const seg of [ch.base, ch.parallel]) addLine(seg as any, tokA("--ink", "#e5e7eb", .55));
+        if (ch) for (const seg of [ch.base, ch.parallel]) addLine(seg as any, C("channel"), 1, 2);
         // ٤) VWAP ونطاقه
         if (cfg.vwap || cfg.vwapBand) {
           const vw = vwapAnchored(bars, cfg.vwapAnchor, cfg.vwapMult);
-          if (cfg.vwap) addLine(vw.vwap.map((v, i) => [i, v]) as any, tok("--chart-1", "#2962FF"), 1);
-          if (cfg.vwapBand) { addLine(vw.upper.map((v, i) => [i, v]) as any, tok("--pos-ink", "#16a34a"), 1);
-            addLine(vw.lower.map((v, i) => [i, v]) as any, tok("--pos-ink", "#16a34a"), 1); }
+          if (cfg.vwap) addLine(vw.vwap.map((v, i) => [i, v]) as any, C("vwap"), 1);
+          if (cfg.vwapBand) { addLine(vw.upper.map((v, i) => [i, v]) as any, C("band"), 1);
+            addLine(vw.lower.map((v, i) => [i, v]) as any, C("band"), 1); }
         }
         // ٥) المتوسّطات الأسية
         const cl = bars.map((b: any) => b.close);
         ([["ema20", 20, "--chart-1"], ["ema50", 50, "--pos-ink"], ["ema100", 100, "--gauge-warn"],
           ["ema200", 200, "--neg-ink"], ["ema400", 400, "--ink"]] as const).forEach(([k, n, c]) => {
           if (!(cfg as any)[k] || bars.length < n) return;
-          addLine(ema7(cl, n).map((v, i) => v == null ? null : [i, v]).filter(Boolean) as any, tok(c, "#000"), 2);
+          addLine(ema7(cl, n).map((v, i) => v == null ? null : [i, v]).filter(Boolean) as any, cfg.colors?.[k] || tok(c, "#000"), 2);
         });
         // ٦) مستوياتُ اليوم السابق
         ([["pdh", (i: number) => bars[i - 1]?.high, "--neg-ink"], ["pdl", (i: number) => bars[i - 1]?.low, "--pos-ink"],
@@ -322,7 +350,7 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         const a = tIndex(d.a.t), b = tIndex(d.b.t);
         if (a < 0 || b < 0 || a === b) continue;
         const [i1, v1, i2, v2] = a < b ? [a, d.a.p, b, d.b.p] : [b, d.b.p, a, d.a.p];
-        const mk = (y1: number, y2: number) => { const l = chart.addLineSeries({ color: tok("--brand-ink", "#5b52d3"), lineWidth: 2,
+        const mk = (y1: number, y2: number) => { const l = chart.addLineSeries({ color: cfg.colors?.draw || tok("--brand-ink", "#5b52d3"), lineWidth: 2,
           priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
           l.setData([{ time: tkey(bars[i1].date), value: y1 }, { time: tkey(bars[i2].date), value: y2 }]); };
         mk(v1, v2);
@@ -411,27 +439,33 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         <div className="relative" style={{ height: "62vh", minHeight: 420, width: "100%" }}>
           <div ref={el} style={{ position: "absolute", inset: 0 }} />
           {ind.d7m && zones.filter(z => z.y > 0).map((z, k) => (
-            <div key={k} className="d7m-zone" style={{ top: z.y - 8 }}>{z.title}</div>
+            <div key={k} className="d7m-zone" style={{ top: z.y - 8, left: z.x, color: cfg.colors?.zone || undefined }}>{z.title}</div>
           ))}
         </div>
           {ind.d7m && (dash || msmart || tt || alertsSt) && (
-            <div className="d7m-panels" dir="rtl">
+            <div className={`d7m-panels d7m-at-${cfg.dashPos}`} dir="rtl"
+              style={{ ["--d7m-axis" as any]: `${psw + 6}px` }}>
               {dash && (
-                <table className="d7m-table">
+                <table className="d7m-table d7m-dash">
                   <thead><tr><th>الإطار</th><th>الحالة</th><th>المؤشرات الفنية</th></tr></thead>
                   <tbody>
                     {dash.rows.map((r, k) => (
-                      <tr key={k}><td>{r.tf}</td>
-                        <td className={r.up == null ? "" : r.up ? "d7m-pos" : "d7m-neg"}>{r.up == null ? "—" : r.up ? "صعود" : "هبوط"}</td>
-                        <td className={k === 0 ? "" : k === 1 ? `d7m-${dash.liq.color}` : `d7m-${dash.trend.tone}`}>
-                          {k === 0 ? "راصد الحيتان" : k === 1 ? dash.liq.state : `قوة الاتجاه: ${dash.trend.state}`}</td></tr>
+                      <tr key={r.tf}>
+                        <td className="d7m-tf" dir="ltr">{r.tf}</td>
+                        <td className={r.up == null ? "d7m-muted" : r.up ? "d7m-pos" : "d7m-neg"}>{r.up == null ? "—" : r.up ? "صعود" : "هبوط"}</td>
+                        <td className={k === 1 ? `d7m-${dash.liq.color}` : k === 3 ? `d7m-${dash.trend.tone}` : "d7m-muted"}>
+                          {k === 0 ? "راصد الحيتان" : k === 1 ? dash.liq.state : k === 2 ? "قوة الاتجاه" : dash.trend.state}</td>
+                      </tr>
                     ))}
                     {dash.vixWarn && <tr><td colSpan={3} className="d7m-warnrow">{dash.vixWarn}</td></tr>}
                     {dash.newsWarn && <tr><td colSpan={3} className="d7m-warnrow">⚠ يوم خبر اقتصادي</td></tr>}
                     <tr><th colSpan={3}>قرار الدخول</th></tr>
-                    <tr><td colSpan={3} className={`d7m-${dash.tone} d7m-decision`}>
-                      {dash.decision}<br /><span className="d7m-bar">{bar10(dash.power)}</span><br />
-                      <span className="d7m-bar">{bar10(dash.trust)}</span><br />الثقة</td></tr>
+                    <tr><td colSpan={3} className={`d7m-decision d7m-tone-${dash.tone}`}>
+                      <div className="d7m-dec-text">{dash.decision}</div>
+                      <Meter v={dash.power} solid />
+                      <Meter v={dash.trust} />
+                      <div className="d7m-dec-cap">الثقة</div>
+                    </td></tr>
                   </tbody>
                 </table>
               )}
@@ -459,7 +493,7 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
                 <table className="d7m-table">
                   <thead><tr><th colSpan={2}>أداة الصفقة 📋</th></tr></thead>
                   <tbody>
-                    <tr><td>القرار</td><td className={tt.call ? "d7m-pos" : tt.put ? "d7m-neg" : "d7m-warn"}>{tt.dec}<br /><span className="d7m-bar">{bar10(tt.conf)}</span></td></tr>
+                    <tr><td>القرار</td><td className={tt.call ? "d7m-pos" : tt.put ? "d7m-neg" : "d7m-warn"}>{tt.dec}<Meter v={tt.conf} solid /></td></tr>
                     <tr><td>السترايك</td><td>{tt.call || tt.put ? `$${Math.round(tt.strike)}` : "—"}</td></tr>
                     <tr><td>الهدف</td><td className="d7m-pos">{tt.call || tt.put ? `$${tt.target.toFixed(2)}` : "—"}</td></tr>
                     <tr><td>الوقف</td><td className="d7m-neg">{tt.call || tt.put ? `$${tt.stop.toFixed(2)}` : "—"}</td></tr>

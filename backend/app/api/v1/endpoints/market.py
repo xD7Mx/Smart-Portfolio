@@ -37,6 +37,16 @@ async def get_price_history(symbol: str, range: str = "3mo"):
     return success_response(data=points or [])
 
 
+@router.get("/frames/{symbol}")
+async def get_d7m_frames(symbol: str):
+    """إطاراتُ لوحة D7M (D465): يوميٌّ لسنةٍ (EMA200) وشموعُ 15د لآخر جلسة."""
+    from app.services.market_data import market_service
+    sym = _normalize_symbol(symbol)
+    daily = await market_service.get_history(sym, "1y") or []
+    m15 = await market_service.get_intraday(sym) or []
+    return success_response(data={"daily": daily, "m15": m15})
+
+
 @router.get("/library")
 async def get_market_library():
     """Sahmak monthly company library (empty until API paths confirmed)."""

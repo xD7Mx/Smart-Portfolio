@@ -1,4 +1,14 @@
-import { D7M_DEFAULTS, FIB_LEVELS, type D7MSettings } from "./d7m";
+import { D7M_COLORS, D7M_DEFAULTS, FIB_LEVELS, type D7MSettings } from "./d7m";
+
+/** لونُ الرمز الحاليّ بصيغة #rrggbb ليظهر في منتقي اللون. */
+function tokenHex(name: string): string {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (/^#[0-9a-f]{6}$/i.test(v)) return v;
+  if (/^#[0-9a-f]{3}$/i.test(v)) return "#" + v.slice(1).split("").map(c => c + c).join("");
+  const m = v.match(/\d+(\.\d+)?/g);
+  if (m && m.length >= 3) return "#" + m.slice(0, 3).map(n => Math.round(+n).toString(16).padStart(2, "0")).join("");
+  return "#000000";
+}
 
 type K = keyof D7MSettings;
 type Props = { cfg: D7MSettings; onChange: (c: D7MSettings) => void; onClose: () => void };
@@ -27,6 +37,24 @@ export default function D7MPanel({ cfg, onChange, onClose }: Props) {
           <button type="button" className="d7m-btn" onClick={() => onChange({ ...D7M_DEFAULTS })}>الافتراضي</button>
           <button type="button" className="d7m-btn" onClick={onClose} aria-label="إغلاق">✕</button>
         </div>
+
+        <fieldset><legend>الألوان</legend>
+          <div className="d7m-colors">
+            {D7M_COLORS.map(([k, label, token]) => (
+              <label key={k} className="d7m-row">
+                <span>{label}</span>
+                <span className="flex items-center gap-1">
+                  <input type="color" aria-label={`لون ${label}`} value={cfg.colors[k] || tokenHex(token)}
+                    onChange={e => set("colors", { ...cfg.colors, [k]: e.target.value })} />
+                  {cfg.colors[k] && (
+                    <button type="button" className="d7m-reset" title="لونُ المظهر" aria-label={`إرجاع لون ${label}`}
+                      onClick={() => { const c = { ...cfg.colors }; delete c[k]; set("colors", c); }}>↺</button>
+                  )}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         <fieldset><legend>فيبوناتشي تلقائي</legend>
           <Check k="fib" label="إظهار" />
@@ -82,6 +110,12 @@ export default function D7MPanel({ cfg, onChange, onClose }: Props) {
 
         <fieldset><legend>اللوحات</legend>
           <Check k="dashboard" label="لوحة الاتجاه" />
+          <label className="d7m-row"><span>مكان اللوحة</span>
+            <select value={cfg.dashPos} onChange={e => set("dashPos", e.target.value)}>
+              <option value="tr">أعلى اليمين</option><option value="tl">أعلى اليسار</option>
+              <option value="br">أسفل اليمين</option><option value="bl">أسفل اليسار</option>
+            </select>
+          </label>
           <Num k="bull" label="حدّ الصعود" /><Num k="bear" label="حدّ الهبوط" />
           <Check k="macdDash" label="المحلّل الذكي" />
           <Check k="alertsDash" label="التنبيهات" />
