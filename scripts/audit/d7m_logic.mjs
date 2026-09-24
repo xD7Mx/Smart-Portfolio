@@ -1,0 +1,41 @@
+// ─────────────────────────────────────────────────────────────────────────
+// مؤشّرُ D7M (سكربت المالك) — حسابُ الفيبوناتشي والقناة يطابق منطق Pine (D463).
+// يُترجَم `d7m.ts` بـesbuild ويُنادى على مسارٍ معلومِ القمم والقيعان:
+// صعودٌ من 100 إلى 200 ثمّ تراجع — فمستوى 0 عند القمّة (200) و1 عند القاع
+// (100) و0.5 عند 150 و0.618 عند 138.2، كما يحسبها السكربت بلا عكس.
+// ─────────────────────────────────────────────────────────────────────────
+import { existsSync, mkdtempSync } from "node:fs";
+import { join, resolve, dirname } from "node:path";
+import { tmpdir } from "node:os";
+import { fileURLToPath, pathToFileURL } from "node:url";
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const ES = join(ROOT, "frontend/node_modules/esbuild/lib/main.js");
+if (!existsSync(ES)) { console.log("… لم يُقَس: esbuild غيرُ مثبّت"); process.exit(0); }
+const esbuild = await import(pathToFileURL(ES).href);
+const out = join(mkdtempSync(join(tmpdir(), "d7m-")), "d7m.mjs");
+await (esbuild.build || esbuild.default.build)({ entryPoints: [join(ROOT, "frontend/src/components/analysis/d7m.ts")],
+  bundle: true, format: "esm", outfile: out, platform: "neutral", logLevel: "silent" });
+const M = await import(pathToFileURL(out).href);
+let fail = 0;
+const say = (ok, l, d = "") => { if (!ok) fail = 1; console.log(`${ok ? "PASS" : "FAIL"} ${l}${d ? " — " + d : ""}`); };
+
+// مسار: قاعٌ 100 عند 30 · قمّةٌ 200 عند 60 · تراجعٌ بعدها
+const bars = [];
+for (let i = 0; i < 80; i++) {
+  const c = i <= 30 ? 130 - i : i <= 60 ? 100 + (i - 30) * (100 / 30) : 200 - (i - 60) * 2;
+  const h = i === 60 ? 200 : c + 1, l = i === 30 ? 100 : c - 1;
+  bars.push({ date: `d${i}`, open: c, high: Math.max(h, c), low: Math.min(l, c), close: c });
+}
+bars[30].high = 101; bars[60].low = 199;
+const f = M.autoFib(bars, 1, 7);
+const at = lv => f && f.lines.find(x => Math.abs(x.level - lv) < 1e-9)?.price;
+say(!!f, "١ يُبنى فيبوناتشي من آخر ضلعٍ للزجزاج");
+say(!!f && Math.abs(at(0) - 200) < 0.01 && Math.abs(at(1) - 100) < 0.01, "٢ المستوى 0 عند القمّة و1 عند القاع (بلا عكس)", `${at(0)} · ${at(1)}`);
+say(!!f && Math.abs(at(0.5) - 150) < 0.01 && Math.abs(at(0.618) - 138.2) < 0.01, "٣ و0.5 = 150 و0.618 = 138.2", `${at(0.5)} · ${at(0.618)}`);
+say(!!f && f.lines.find(x => x.level === 0.5)?.title === "دعــم قـوي" && f.lines.find(x => x.level === 0.618)?.title === "اتجاه معاكس",
+    "٤ ونصّا المستويين كما في السكربت");
+say(!!f && f.lines.length === 14, "٥ والمستوياتُ الظاهرةُ افتراضاً في السكربت أربعَ عشرة", String(f && f.lines.length));
+say(!!f && f.zones.some(z => z.title === "الــمــقــاومــة") && f.zones.some(z => z.title === "الـــدعـــم"),
+    "٦ ومناطقُ المقاومة والدعم بأسمائها");
+console.log((fail ? "FAIL" : "PASS") + " D463 — مؤشّرُ D7M يطابق سكربتَ المالك");
+process.exit(fail);

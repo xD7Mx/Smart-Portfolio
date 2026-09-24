@@ -1,3 +1,4 @@
+import { autoFib, autoChannel } from "./d7m";
 import React, { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { marketApi } from "../../services/api";
@@ -93,7 +94,7 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
   const el = useRef<HTMLDivElement>(null);
   // المدّةُ الافتراضيّةُ خمسُ سنوات للسوقين (بأمر المالك)
   const [range, setRange] = useState("5y");
-  const [ind, setInd] = useState({ sma20: true, sma50: true, sma200: false, macd: true, rsi: false });
+  const [ind, setInd] = useState({ sma20: true, sma50: true, sma200: false, macd: true, rsi: false, d7m: false });
   const [err, setErr] = useState(false);
 
   const { data: bars = [], isLoading } = useQuery({
@@ -196,6 +197,33 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         const signalLine = chart.addLineSeries({ color: tok("--warn-ink", "#92400e"), lineWidth: 1.3, priceScaleId: "macd", priceLineVisible: false, lastValueVisible: false });
         signalLine.setData(signal.map((v, i) => v == null ? null : ({ time: tkey(bars[i].date), value: v })).filter(Boolean));
       }
+      /* ══ مؤشّرُ D7M — فيبوناتشي تلقائيّ وقناةٌ سعرية (سكربت المالك) ══
+         «الأبيض» في السكربت مصمَّمٌ لخلفيةٍ داكنة؛ فيُرسم بحبر النصّ ليُقرأ في
+         المظهرين، والأصفرُ يبقى كما هو. */
+      if (ind.d7m) {
+        const ink = tok("--ink", "#e5e7eb");
+        const fib = autoFib(bars);
+        if (fib) {
+          for (const l of fib.lines) {
+            candle.createPriceLine({
+              price: l.price, color: l.color === "yellow" ? tok("--gauge-warn", "#d97706") : ink, lineWidth: 1,
+              lineStyle: 0, axisLabelVisible: true, title: l.title,
+            });
+          }
+          for (const z of fib.zones) {
+            candle.createPriceLine({ price: z.price, color: ink, lineVisible: false,
+              axisLabelVisible: false, title: z.title });
+          }
+        }
+        const ch = autoChannel(bars);
+        if (ch) {
+          for (const seg of [ch.base, ch.parallel]) {
+            const s2 = chart.addLineSeries({ color: tokA("--ink", "#e5e7eb", .55), lineWidth: 1,
+              priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+            s2.setData(seg.map(([i, v]) => ({ time: tkey(bars[i].date), value: v })));
+          }
+        }
+      }
       chart.timeScale().fitContent();
       ro = new ResizeObserver(() => chart && chart.applyOptions({}));
       ro.observe(el.current);
@@ -218,7 +246,7 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
           ))}
         </div>
         <div className="flex gap-1.5 flex-wrap">
-          {([["sma20", "SMA20", "var(--chart-1)"], ["sma50", "SMA50", "var(--warn-ink)"], ["sma200", "SMA200", "var(--chart-4)"], ["macd", "MACD", "var(--chart-1)"], ["rsi", "RSI", "var(--chart-5)"]] as const).map(([k, lbl, c]) => (
+          {([["sma20", "SMA20", "var(--chart-1)"], ["sma50", "SMA50", "var(--warn-ink)"], ["sma200", "SMA200", "var(--chart-4)"], ["macd", "MACD", "var(--chart-1)"], ["rsi", "RSI", "var(--chart-5)"], ["d7m", "D7M", "var(--brand-ink)"]] as const).map(([k, lbl, c]) => (
             <button key={k} onClick={() => toggle(k)}
               className={"px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all " + (ind[k] ? "text-[var(--ink)]" : "text-[var(--ink-muted)]")}
               /* ══ لا تُلحَق شفافيةٌ برمز ══
