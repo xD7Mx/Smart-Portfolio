@@ -114,7 +114,9 @@ else:
     _blk = _vis[max(0, _at - 600): _at + 1800] if _at >= 0 else ""
     check("غير متوفّر" not in _blk,
           "٢ صفحةُ السهم: لا عبارةَ اعتذارٍ في موضع رقم")
-    check('data.fair_value != null ? `${fmt(data.fair_value)} ﷼` : "—"' in _vis,
+    # ‏D471: الصفُّ صار يعرض قيمةَ المحرّك متعدّد النماذج (`fvVal`) وتسقط إلى المنشور؛
+    # والقاعدةُ واحدة: الغيابُ شَرطة.
+    check(bool(re.search(r'(data\.fair_value|fvVal) != null \? `\$\{fmt\((data\.fair_value|fvVal)\)\} ﷼` : "—"', _vis)),
           "٢ب والغيابُ شَرطةٌ في مكان الرقم")
     check('? "السعر العادل" : "هدف المحللين' not in _vis,
           "٢ج ولا يُبدَّل اسمُ الصفّ فيَظنّ القارئُ رقماً مكانَ آخر")

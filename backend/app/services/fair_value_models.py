@@ -91,12 +91,40 @@ MODEL_SETS = {
     "Health Care Equipment & Svc": ("الرعاية الصحية: الأرباحُ والتدفّق", _DCF | {"epv", "peer_pe", "peer_ev_ebit", "peer_ps", "peer_pocf"}),
     "Pharma, Biotech & Life Science": ("الأدوية: الأرباحُ والتدفّق", _DCF | {"epv", "peer_pe", "peer_ev_ebit", "peer_ps", "peer_pocf"}),
 }
+_FULL = _ALL - {"peer_yield"}
+MODEL_SETS.update({
+    "Capital Goods": ("السلع الرأسمالية: التدفّقُ والربحُ التشغيليّ والأصول",
+                      _DCF | {"epv", "peer_ev_ebit", "peer_pe", "peer_pb", "peer_pocf", "residual_income"}),
+    "Commercial & Professional": ("الخدمات التجارية والمهنية: أصولٌ خفيفة — الأرباحُ والتدفّق",
+                                  _DCF | {"epv", "peer_pe", "peer_ev_ebit", "peer_pocf", "peer_ps"}),
+    "Transportation": ("النقل: كثيفُ الأصول — مضاعفاتُ المنشأة والتدفّق",
+                       _DCF | {"peer_ev_ebit", "peer_ev_sales", "peer_pb", "peer_pe", "residual_income"}),
+    "Consumer Durables": ("السلع المعمّرة والملابس: النموذجُ الكامل", _FULL),
+    "Consumer Services": ("الخدمات الاستهلاكية: الأرباحُ والتدفّق", _DCF | {"epv", "peer_ev_ebit", "peer_pe", "peer_ps", "peer_pocf"}),
+    "Media": ("الإعلام والترفيه: الأرباحُ والمبيعات", _DCF | {"peer_ev_ebit", "peer_pe", "peer_ps", "peer_pocf"}),
+    "Consumer Discretionary": ("تجزئة السلع الكمالية: النموذجُ الكامل", _FULL),
+    "Consumer Staples": ("تجزئة السلع الأساسية: النموذجُ الكامل وعائدُ التوزيع", _ALL),
+    "Food & Beverages": ("الأغذية والمشروبات: دفاعيٌّ — كاملٌ مع التوزيع", _ALL),
+    "Household & Personal": ("المنتجات المنزلية والشخصية: كاملٌ مع التوزيع", _ALL),
+    "Technology Hardware": ("أجهزة التقنية: الأرباحُ والمبيعات", _DCF | {"peer_pe", "peer_ev_ebit", "peer_ps"}),
+})
+for _k in ("Banks", "Utilities", "Telecommunication Services", "Energy"):
+    MODEL_SETS[_k] = (MODEL_SETS[_k][0], MODEL_SETS[_k][1] | {"peer_yield"})
+
 ARCH_SETS = {"bank": MODEL_SETS["Banks"], "insurance": MODEL_SETS["Insurance"],
              "financial": MODEL_SETS["Financial Services"], "reit": MODEL_SETS["REITs"]}
 
 
 def model_set(sector: str | None, archetype: str | None) -> tuple[str, set]:
-    return MODEL_SETS.get(sector or "") or ARCH_SETS.get(archetype or "") or ("النموذجُ الكامل", _ALL)
+    """المجموعةُ بالاسم الرسميّ (ومطابقةِ البادئة: «تداول» تختصر بعضَ الأسماء)،
+    ثمّ بالنمط، ثمّ الكاملُ لقطاعٍ جديدٍ لم يُعرَف — ولا تُظلَم ورقةٌ لغياب اسمها."""
+    sec = (sector or "").strip()
+    if sec in MODEL_SETS:
+        return MODEL_SETS[sec]
+    for k, v in MODEL_SETS.items():
+        if sec and (sec.startswith(k) or k.startswith(sec)):
+            return v
+    return ARCH_SETS.get(archetype or "") or ("النموذجُ الكامل (قطاعٌ لم يُصنَّف بعد)", _ALL)
 
 
 FAMILY_NAMES = {"cashflow": "التدفّقات المخصومة", "equity": "الأرباح والحقوق",
@@ -132,6 +160,22 @@ def _pct(xs: list[float], q: float) -> float:
     k = (len(xs) - 1) * q
     lo, hi = int(k), min(int(k) + 1, len(xs) - 1)
     return xs[lo] + (xs[hi] - xs[lo]) * (k - lo)
+
+
+def _wq(xs: list, q: float) -> float:
+    """كمّيةٌ مرجَّحة: القيمُ أزواجُ (قيمة، وزن) أو أرقامٌ بوزنٍ واحد."""
+    pts = sorted((x if isinstance(x, tuple) else (x, 1.0)) for x in xs)
+    tot = sum(w for _, w in pts) or 1.0
+    acc = 0.0
+    for v, w in pts:
+        acc += w
+        if acc / tot >= q:
+            return v
+    return pts[-1][0]
+
+
+def _vals(xs: list) -> list[float]:
+    return [x[0] if isinstance(x, tuple) else x for x in xs]
 
 
 # ══ الأسسُ المشتركة ═══════════════════════════════════════════════════════
@@ -245,7 +289,7 @@ def cashflow_models(i: Inputs, bs: Base) -> list[dict]:
                            ("نموُّ الإيراد الابتدائيّ", f"{bs.growth*100:.1f}%", "يتلاشى إلى النهائيّ"),
                            ("النموُّ النهائيّ", f"{TERMINAL_G*100:.1f}%", "")]))
         if len(ev_s) >= MIN_PEERS:
-            m, q1, q3 = statistics.median(ev_s), _pct(ev_s, .25), _pct(ev_s, .75)
+            m, q1, q3 = _wq(ev_s, .5), _wq(ev_s, .25), _wq(ev_s, .75)
             v = _fcff_value(bs, i.shares, years, bs.growth, bs.wacc, tv_mult=m)
             lo = _fcff_value(bs, i.shares, years, bs.growth, bs.wacc + 0.005, tv_mult=q1)
             hi = _fcff_value(bs, i.shares, years, bs.growth, bs.wacc - 0.005, tv_mult=q3)
@@ -336,12 +380,12 @@ def multiple_models(i: Inputs, bs: Base) -> list[dict]:
         xs = i.peers.get(key) or []
         if not base or base <= 0 or len(xs) < MIN_PEERS:
             continue
-        m, q1, q3 = statistics.median(xs), _pct(xs, .25), _pct(xs, .75)
+        m, q1, q3 = _wq(xs, .5), _wq(xs, .25), _wq(xs, .75)
         out.append(_model(f"peer_{key}", "multiples", name, base * m, base * q1, base * q3,
                           [(label, f"{base:.2f}", ""), ("وسيطُ الأقران", f"{m:.2f}x", f"{q1:.2f}–{q3:.2f}x · {len(xs)} أقران")]))
     ys = i.peers.get("yield") or []
     if i.dps_ttm and i.dps_ttm > 0 and len(ys) >= MIN_PEERS:
-        m, q1, q3 = statistics.median(ys), _pct(ys, .25), _pct(ys, .75)
+        m, q1, q3 = _wq(ys, .5), _wq(ys, .25), _wq(ys, .75)
         out.append(_model("peer_yield", "multiples", "عائدُ التوزيع مقابل الأقران", i.dps_ttm / m,
                           i.dps_ttm / q3, i.dps_ttm / q1,
                           [("توزيعاتُ 12 شهراً", f"{i.dps_ttm:.2f}", "جدولُ توزيعات «تداول»"),
@@ -351,7 +395,7 @@ def multiple_models(i: Inputs, bs: Base) -> list[dict]:
         xs = i.peers.get(key) or []
         if not base or base <= 0 or len(xs) < MIN_PEERS:
             continue
-        m, q1, q3 = statistics.median(xs), _pct(xs, .25), _pct(xs, .75)
+        m, q1, q3 = _wq(xs, .5), _wq(xs, .25), _wq(xs, .75)
         f = lambda mult: (base * mult - bs.net_debt) / sh
         out.append(_model(f"peer_{key}", "multiples", name, f(m), f(q1), f(q3),
                           [(label, f"{base/1e6:,.0f} مليون", ""),
@@ -426,6 +470,8 @@ def value(i: Inputs) -> dict:
     bad = [m for m in models if not (i.price / 10 <= m["value"] <= i.price * 10)]
     models = [m for m in models if m not in bad]
     agg = aggregate(models, i.price, i.archetype)
+    if any(n.startswith(("إدراجٌ حديث", "سجلٌّ قصير")) for n in i.notes):
+        agg["uncertainty"] = "مرتفع"
     agg["excluded"] = agg.get("excluded", []) + [
         {**m, "excluded": "يبعد عن السعر عشرةَ أضعاف — خطأُ مدخلاتٍ أرجحُ من رأي"} for m in bad]
     return {**agg, "price": i.price, "models": models, "count": len(models),
@@ -485,7 +531,8 @@ async def _peer_yields(peers: list[str], rows: dict) -> list[float]:
 
 def _peer_multiples(sym: str, peers: list[str], rows: dict) -> dict:
     from app.services.tadawul_xbrl import for_symbol as X
-    out: dict[str, list[float]] = {k: [] for k in ("pe", "pb", "ps", "pocf", "ev_ebit", "ev_sales")}
+    out: dict[str, list] = {k: [] for k in ("pe", "pb", "ps", "pocf", "ev_ebit", "ev_sales")}
+    out["_rec"] = {}
     for s in peers:
         px = _n((rows.get(s) or rows.get(s + ".SR") or {}).get("price"))
         if not px:
@@ -513,6 +560,7 @@ def _peer_multiples(sym: str, peers: list[str], rows: dict) -> dict:
                              ("ev_sales", ev / rev if rev and rev > 0 else None, 0, 20)):
             if v is not None and lo < v <= hi:
                 out[k].append(round(v, 3))
+                out["_rec"].setdefault(s, {"rev": rev, "margin": (ni / rev) if (ni is not None and rev) else None})[k] = round(v, 3)
     return out
 
 
@@ -531,6 +579,22 @@ async def gather(symbol: str) -> Inputs | None:
     me = rows.get(sym) or rows.get(sym + ".SR") or {}
     price = _n(me.get("price"))
     annual, quarterly = X(sym, "annual") or [], X(sym, "quarterly") or []
+    notes: list[str] = []
+    # ══ الإدراجُ الحديثُ لا يُظلَم ══ (بأمر المالك: «محرّكٌ يستوعب الاكتتابات»)
+    # شركةٌ أُدرجت قبل أن تُصدر قوائمَ سنوية: تُبنى سنتُها من أحدث أرباعها
+    # بدل الامتناع، ويُعلَن قصرُ السجلّ ويرتفع عدمُ اليقين — لا تُسعَّر بسجلٍّ لا تملكه.
+    if not annual and len(quarterly) >= 2:
+        q = quarterly[-4:]
+        k = 4 / len(q)
+        syn = {key: sum(_n(x.get(key)) or 0 for x in q) * k
+               for key in ("revenue", "net_income", "ebit", "operating_cash_flow", "capex", "interest_expense", "pretax_income")}
+        syn.update({key: q[-1].get(key) for key in ("equity", "total_debt", "ending_cash", "total_assets", "shares_outstanding", "as_of")})
+        syn["eps"] = (syn["net_income"] / _n(q[-1].get("shares_outstanding"))) if _n(q[-1].get("shares_outstanding")) else None
+        syn["year"] = str(q[-1].get("as_of"))[:4]
+        annual = [syn]
+        notes.append(f"إدراجٌ حديث: لا قوائمَ سنويةً بعد — بُنيت السنةُ من {len(q)} أرباع")
+    elif 0 < len(annual) < 3:
+        notes.append(f"سجلٌّ قصير: {len(annual)} سنةٌ منشورة فقط — المتوسّطاتُ أقلُّ ثباتاً")
     if not price or not annual:
         return None
     shares = _shares_of(annual, quarterly)
@@ -546,12 +610,32 @@ async def gather(symbol: str) -> Inputs | None:
                    if (r or {}).get("sector_en") == sector and str(s).replace(".SR", "") != sym
                    and is_main(str(s).replace(".SR", "")))
     from app.services import cache
-    ck = f"fvm:peers:v2:{sector}"
+    ck = f"fvm:peers:v3:{sector}"
     pm = cache.get(ck)
     if pm is None:
         pm = _peer_multiples(sym, peers, rows)
         pm["yield"] = await _peer_yields(peers, rows)
         cache.set(ck, pm, 6 * 60 * 60)
+    # ══ الأقرانُ بتشابه النشاط لا بالقطاع وحده ══ (بأمر المالك: «قارنتَ العثيم بالأدوية»)
+    # «تداول» تضع الصيدلياتِ مع البقالة في مجموعةٍ واحدة (معيار GICS) — وهو
+    # تصنيفٌ رسميٌّ لا نخالفه؛ لكنّ هامشَ الصيدلية غيرُ هامش البقالة. فيُوزن
+    # كلُّ قرينٍ بقربه في الحجم (الإيراد) والهامش: الأقربُ يحمل الوزنَ الأكبر.
+    rev0, ni0 = _n(ttm.get("revenue")), _n(ttm.get("net_income"))
+    m0 = (ni0 / rev0) if (ni0 is not None and rev0) else None
+    import math
+    weights = {}
+    for p_sym, rec in (pm.get("_rec") or {}).items():
+        w = 1.0
+        if rev0 and rec.get("rev") and rec["rev"] > 0:
+            w *= math.exp(-abs(math.log(rev0 / rec["rev"])) / 1.5)
+        if m0 is not None and rec.get("margin") is not None:
+            w *= math.exp(-abs(m0 - rec["margin"]) / 0.06)
+        weights[p_sym] = max(w, 0.05)
+    pw = {k: [(rec[k], weights[ps]) for ps, rec in (pm.get("_rec") or {}).items() if k in rec]
+          for k in ("pe", "pb", "ps", "pocf", "ev_ebit", "ev_sales")}
+    pw["yield"] = pm.get("yield") or []
+    peers = sorted(peers, key=lambda x: -weights.get(x, 0))
+    pm = pw
     dps = None
     try:
         from app.services.tadawul_dividends import read as _div
@@ -571,7 +655,7 @@ async def gather(symbol: str) -> Inputs | None:
         pass
     return Inputs(symbol=sym, price=price, shares=shares, annual=annual, ttm=ttm,
                   balance=(quarterly or annual)[-1], ttm_source=src, archetype=archetype_of(sym),
-                  sector=sector, beta=beta, dps_ttm=dps, peers=pm, peer_symbols=peers)
+                  sector=sector, beta=beta, dps_ttm=dps, peers=pm, peer_symbols=peers, notes=notes)
 
 
 def blend(res: dict, calibrated: dict | None, archetype: str | None, dy: float | None) -> dict:
@@ -619,7 +703,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v5:{sym}"
+    ck = f"fvm:v6:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

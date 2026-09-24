@@ -142,7 +142,9 @@ def score(sym: str, table: dict[str, dict], archetype: str | None = None) -> dic
     me = table.get(sym)
     if not me:
         return None
-    skip = FIN_SKIP if archetype in FIN_TYPES else set()
+    # والصندوقُ العقاريُّ لا يُقاس بربحٍ تشغيليٍّ ولا تغطيةِ فوائد — دخلُه إيجارٌ يُوزَّع
+    skip = (FIN_SKIP if archetype in FIN_TYPES else
+            {"ev_ebit", "ebit_margin", "ebit_growth", "interest_cover", "ocf_to_ni"} if archetype == "reit" else set())
     pillars: dict[str, list[dict]] = {k: [] for k in PILLARS}
     for key, name, pil, higher in METRICS:
         if key in skip:
@@ -177,7 +179,7 @@ async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     from app.services import tadawul_market as TM
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"health:v3:{sym}"
+    ck = f"health:v4:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

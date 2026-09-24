@@ -48,5 +48,10 @@ check(soft and "peer_pb" not in soft and soft & F._DCF, "٣ البرمجياتُ
 cons, cn = run("Consumer Staples Distribution & Retail", "consumer_defensive")
 check(len(cons) > len(reit) and cons & F._DCF and "peer_pb" in cons, "٤ والتجزئةُ الاستهلاكيةُ بالنموذج الكامل", f"{len(cons)} · {cn}")
 check(len({frozenset(reit), frozenset(bank), frozenset(soft), frozenset(cons)}) == 4, "٥ أربعةُ قطاعاتٍ بأربع مجموعاتِ نماذج مختلفة")
+n, st = F.model_set("Brand New Industry Group", None)
+check("لم يُصنَّف" in n and st == F._ALL, "٦ قطاعٌ جديدٌ لم يُعرَف يُقيَّم بالكامل ويُسمّى — لا تُظلَم ورقةٌ لغياب اسمها", n)
+check(F.model_set("Consumer Discretionary Distribution & Re", None)[0].startswith("تجزئة السلع الكمالية"),
+      "٧ واسمُ «تداول» المختصرُ يُطابَق بالبادئة")
+check(abs(F._wq([(10, 1.0), (20, 0.05), (30, 0.05)], .5) - 10) < 1e-9, "٨ والأقرانُ الأقربُ نشاطاً يحملون الوزنَ الأكبر (وسيطٌ مرجَّح)")
 print(f"{'FAIL' if fail else 'PASS'} D470 — كلُّ قطاعٍ بما يليق به")
 sys.exit(fail)

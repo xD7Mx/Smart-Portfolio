@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { X, Shield, Sparkles, ShieldCheck } from "lucide-react";
+import { X, Shield, Sparkles, ShieldCheck, ChevronDown } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { lookupCompany } from "../../data/saudiCompanies";
 import { isTasiOpen } from "../../utils/marketHours";
@@ -90,8 +90,6 @@ function DayRangeRow({ low, high }: { low: number; high: number }) {
 const TABS = [
   { id: "overview", label: "نظرة عامة", short: "نظرة" },
   { id: "analysis", label: "تقييم الأداء", short: "الأداء" },
-  { id: "fairvalue", label: "القيمة العادلة", short: "العادلة" },
-  { id: "health", label: "السلامة المالية", short: "السلامة" },
   { id: "financials", label: "القوائم المالية", short: "القوائم" },
   { id: "dividends", label: "التوزيعات", short: "التوزيعات" },
   { id: "calendar", label: "المفكرة", short: "المفكرة" },
@@ -100,6 +98,10 @@ const TABS = [
 
 export default function StockView({ symbol, onClose }: { symbol: string; onClose?: () => void }) {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("overview");
+  const [open, setOpen] = useState<null | "fv" | "hl">(null);
+  const sym4 = symbol.replace(".SR", "");
+  const { data: fvm } = useQuery({ queryKey: ["fvm", sym4], queryFn: () => marketApi.fairValueModels(sym4).then(x => x.data?.data || null), staleTime: 30 * 60 * 1000 });
+  const { data: hl } = useQuery({ queryKey: ["health", sym4], queryFn: () => marketApi.health(sym4).then(x => x.data?.data || null), staleTime: 30 * 60 * 1000 });
   /* سعرُ الورقة من المجرى إن وصل — صفرُ تأخيرٍ (D290). */
   /* صفحةُ السهم لا يشملها توزيعُ الدفعة: من ينظر إلى سهمٍ بعينه يراه
      لحظةَ وصوله (D328). */
@@ -116,6 +118,9 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
   const gov = data?.governance;
   const sector = sectorAr(symbol, data?.sector);
   const up = (data?.change_pct ?? 0) >= 0;
+  // السعرُ العادلُ من المحرّك متعدّد النماذج (D468)، والمنشورُ القديمُ احتياطٌ إن لم يصل
+  const fvVal: number | null = fvm?.value ?? data?.fair_value ?? null;
+  const fvUp: number | null = fvm?.upside ?? data?.fair_value_upside_pct ?? null;
 
   return (
     <div className="space-y-4">
@@ -248,17 +253,31 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
                   فالسطران ثابتان بأسمائهما: سعرُنا العادل أوّلاً، وهدفُ
                   المحللين تحته حين يوجد — وما غاب يُكتب شَرطةً لا جملة.
                   والاجتهادُ كلُّه خلف الشاشة لا عليها. */}
-              <div className="flex items-center gap-2 flex-wrap text-[11px]">
+              {/* ══ الرقمُ في الظاهر والتفاصيلُ في الداخل ══ (بأمر المالك — D471)
+                  السعرُ العادلُ من المحرّك متعدّد النماذج، والسلامةُ الماليةُ
+                  بدرجتها؛ والضغطُ يفتح نماذجهما ومحاورهما تحتهما. */}
+              <button type="button" onClick={() => setOpen(open === "fv" ? null : "fv")} aria-expanded={open === "fv"}
+                      className="w-full min-h-[32px] flex items-center gap-2 flex-wrap text-[11px] text-right">
                 <span className="text-[var(--ink-muted)]">السعر العادل</span>
-                <span className={"font-bold tabular-nums " + (
-                  (data.fair_value_upside_pct ?? 0) > 0 ? "text-[var(--pos-ink)]"
-                  : (data.fair_value_upside_pct ?? 0) < 0 ? "text-[var(--neg-ink)]"
-                  : "text-[var(--ink)]")}>
-                  {data.fair_value != null ? `${fmt(data.fair_value)} ﷼` : "—"}
-                  {data.fair_value != null && data.fair_value_upside_pct != null
-                    && ` (${data.fair_value_upside_pct > 0 ? "+" : ""}${data.fair_value_upside_pct}%)`}
+                <span className={"font-bold tabular-nums " + (fvUp > 0 ? "text-[var(--pos-ink)]" : fvUp < 0 ? "text-[var(--neg-ink)]" : "text-[var(--ink)]")}>
+                  {fvVal != null ? `${fmt(fvVal)} ﷼` : "—"}
+                  {fvVal != null && fvUp != null && ` (${fvUp > 0 ? "+" : ""}${fvUp.toFixed(1)}%)`}
                 </span>
-              </div>
+                <ChevronDown size={14} className={"text-[var(--ink-muted)] transition-transform " + (open === "fv" ? "rotate-180" : "")} />
+              </button>
+              {open === "fv" && (
+                <FairValuePanel symbol={symbol} analystTarget={data?.analyst_target}
+                                week52={{ low: data?.week52_low, high: data?.week52_high }} />
+              )}
+              <button type="button" onClick={() => setOpen(open === "hl" ? null : "hl")} aria-expanded={open === "hl"}
+                      className="w-full min-h-[32px] flex items-center gap-2 flex-wrap text-[11px] text-right">
+                <span className="text-[var(--ink-muted)]">السلامة المالية</span>
+                <span className="font-bold tabular-nums text-[var(--ink)]">
+                  {hl?.score != null ? `${hl.score.toFixed(2)} من 5 · ${hl.label}` : "—"}
+                </span>
+                <ChevronDown size={14} className={"text-[var(--ink-muted)] transition-transform " + (open === "hl" ? "rotate-180" : "")} />
+              </button>
+              {open === "hl" && <HealthPanel symbol={symbol} />}
               {data.analyst_target != null && (
                 <div className="flex items-center gap-2 flex-wrap text-[11px]">
                   <span className="text-[var(--ink-muted)]">هدف المحللين</span>
@@ -292,11 +311,6 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
       )}
 
       {tab === "analysis" && <AnalysisPanel symbol={symbol} name={data?.name} />}
-      {tab === "fairvalue" && (
-        <FairValuePanel symbol={symbol} analystTarget={data?.analyst_target}
-                        week52={{ low: data?.week52_low, high: data?.week52_high }} />
-      )}
-      {tab === "health" && <HealthPanel symbol={symbol} />}
       {tab === "financials" && <FinancialsTable symbol={symbol} />}
       {tab === "dividends" && <DividendProfile symbol={symbol} />}
       {tab === "calendar" && <StockCalendar symbol={symbol} name={data?.name} />}

@@ -232,7 +232,6 @@ export const marketApi = {
   portfolioNews: () => api.get<APIResponse>("/market/news", { params: { portfolio_only: true } }),
   resolveNewsUrl: (u: string) => api.get<APIResponse>("/market/news/resolve", { params: { u } }),
   eventDetail: (id: string) => api.get<APIResponse>(`/market/event-detail/${id}`),
-  articleBody: (u: string) => api.get<APIResponse>("/market/article-body", { params: { u } }),
   announcementText: (p: { symbol: string; title: string; date: string; u: string; name: string }) =>
     api.get<APIResponse>("/market/announcement-text", { params: p }),
   argaamIds: () => api.get<APIResponse>("/market/argaam-ids"),

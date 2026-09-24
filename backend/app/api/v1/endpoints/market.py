@@ -735,13 +735,6 @@ async def get_announcement_text(symbol: str = "", title: str = "", date: str = "
     return success_response(data=None)
 
 
-@router.get("/article-body")
-async def get_article_body(u: str):
-    """نصُّ إعلان «أرقام» داخل النافذة (D466) — المفتوحُ كاملاً، والمقفلُ ملخّصُه المعلن."""
-    from app.services.article_body import read
-    return success_response(data=await read(u))
-
-
 @router.get("/argaam-ids")
 async def get_argaam_ids():
     """خريطة رمز تداول ← رابط صفحة الشركة في «أرقام».
