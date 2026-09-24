@@ -778,6 +778,24 @@ async def refresh_derived(rows: list) -> list:
                         (_o - px_new) / px_new * 100, 1)
         except Exception:                                         # noqa: BLE001
             pass
+        # ══ السعرُ العادلُ من المخزن الذي تكتبه المسحة — عند كلّ تقديم ══ (D458)
+        # قِيس: الجدولُ يعرض 4030 بـ58,303 و1030 بـ24,163 و7200 بـ62 مليوناً
+        # بعد إصلاحها في المحرّك والمخزن — لأنّ الصفَّ يحمل نسخةَ آخر بناءٍ
+        # كامل. فيُقرأ من المخزن كما تُقرأ الدرجة (D434)، والمحجوبُ فارغ.
+        try:
+            _st = store.get(sym) or {}
+            if "fair_value" in _st:
+                _fvs = _st.get("fair_value")
+                r["fair_value"] = _fvs if isinstance(_fvs, (int, float)) and _fvs > 0 else None
+                for _k in ("fair_value_conf", "fair_value_low", "fair_value_high"):
+                    if _k in _st:
+                        r[_k] = _st.get(_k)
+                _pxr = r.get("price")
+                r["fair_value_upside_pct"] = (
+                    round((r["fair_value"] - _pxr) / _pxr * 100, 1)
+                    if r["fair_value"] and isinstance(_pxr, (int, float)) and _pxr > 0 else None)
+        except Exception:                                         # noqa: BLE001
+            pass
         try:
             fund = cache.get(f"fund:yahoo:{sym}.SR") or {}
             dy, src = _dy_resolve(sym, r.get("price"), fund, store.get(sym) or {})
