@@ -69,6 +69,23 @@ def _blocking_fetch(url: str, params: dict | None, referer: str | None,
         return r.status_code, r.text or ""
 
 
+def _blocking_bytes(url: str, referer: str | None, timeout: int) -> tuple[int, bytes]:
+    from curl_cffi import requests as cr
+    with cr.Session(impersonate=_IMPERSONATE) as s:
+        try:
+            s.get(HOME, timeout=timeout)
+        except Exception:                                         # noqa: BLE001
+            pass
+        r = s.get(url, headers={"Referer": referer} if referer else None, timeout=timeout)
+        return r.status_code, r.content or b""
+
+
+async def fetch_bytes(url: str, *, referer: str | None = None,
+                      timeout: int = 90) -> tuple[int, bytes]:
+    """ملفٌّ ثنائيٌّ من «تداول» (قوائمُ PDF) بالبصمة نفسِها — (الحالة، البايتات)."""
+    return await asyncio.to_thread(_blocking_bytes, url, referer, timeout)
+
+
 async def fetch(url: str, *, params: dict | None = None,
                 referer: str | None = None, timeout: int = 45) -> tuple[int, str]:
     """صفحةُ «تداول» أو نقطةُ بياناتها — (الحالة، النصّ).
