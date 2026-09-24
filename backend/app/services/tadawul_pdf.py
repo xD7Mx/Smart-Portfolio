@@ -141,11 +141,23 @@ def _page_text(pg, idx: int) -> str:
     if len(t.strip()) >= 40 or idx >= 20:
         return t
     try:
-        tp = pg.get_textpage_ocr(language="eng", dpi=220, full=True)
+        tp = pg.get_textpage_ocr(language="eng", dpi=220, full=True, tessdata=_tessdata())
         return pg.get_text(textpage=tp)
     except Exception as e:                                         # noqa: BLE001
-        logger.debug("OCR ص{}: {}", idx + 1, type(e).__name__)
+        logger.info("OCR ص{}: {}: {}", idx + 1, type(e).__name__, str(e)[:160])
         return t
+
+
+def _tessdata() -> str | None:
+    """مسارُ ملفّات لغات Tesseract في الحاوية — PyMuPDF لا يجده بلا TESSDATA_PREFIX."""
+    import glob, os
+    env = os.environ.get("TESSDATA_PREFIX")
+    if env and os.path.isdir(env):
+        return env
+    for d in sorted(glob.glob("/usr/share/tesseract-ocr/*/tessdata")) + ["/usr/share/tessdata"]:
+        if os.path.exists(os.path.join(d, "eng.traineddata")):
+            return d
+    return None
 
 
 _PARENT = re.compile(r"^[•\-–]?\s*(?:the )?(?:equity holders|shareholders|owners) of the (?:parent|company)(?: company)?$")
