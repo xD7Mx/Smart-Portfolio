@@ -129,7 +129,10 @@ async def detail(url: str) -> dict | None:
     return res
 
 
-_STOP = set("تعلن يعلن اعلن اعلان شركه عن على في من الى مع او ثم الشركه تداول السعوديه بشان حول بخصوص لها له عبد الله".split())
+# كلماتٌ تتكرّر في كلّ إفصاحٍ فلا تميّز واحداً من آخر (قِيس: «مجلس الإدارة» ألبس
+# «موافقةَ العمومية على التفويض» نصَّ «قرار المجلس بالتوزيع»)
+_STOP = set(("تعلن يعلن اعلن اعلان شركه عن على في من الى مع او ثم الشركه تداول السعوديه بشان حول بخصوص "
+             "لها له عبد الله مجلس اداره اداراتها ادارتها قرار المساهمين مساهمي").split())
 
 
 def _tokens(s: str) -> set[str]:
@@ -165,4 +168,5 @@ async def match(symbol: str, title: str, date: str | None, name: str = "") -> di
         s = similar(title, d["title"], name)
         if s > score:
             best, score = {**d, "url": r["url"]}, s
-    return best if best and score >= 0.5 else None
+    # بلا تاريخٍ يُطابَق به (بعضُ إفصاحات «أرقام» تصل بلا تاريخ) يُشدَّد الحدّ
+    return best if best and score >= (0.5 if d0 else 0.6) else None
