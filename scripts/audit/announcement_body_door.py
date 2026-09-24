@@ -69,6 +69,16 @@ async def main():
             title = (x.get("title") or "")[:25]
             print(f"  {label}: HTTP {st} · {len(html or '')} حرف · متن {len(t)} حرف · العنوانُ في الصفحة: {bool(title and title[:15] in (html or ''))}")
             print(f"  أوّل المتن: {t[:260]}")
+            H = html or ""
+            for pat in (r"<title>(.*?)</title>", r'property="og:title" content="([^"]*)"', r'property="og:description" content="([^"]*)"',
+                        r'"articleBody"\s*:\s*"(.{0,200})', r"(اشترك|الاشتراك|مشتركين|subscribe|premium|paywall)", r"(__NEXT_DATA__|window\.__INITIAL|ng-app|data-reactroot)",
+                        r"(captcha|cf-chl|Just a moment|Access Denied)"):
+                m = re.search(pat, H, re.S | re.I)
+                print(f"  [{pat[:28]}] → {(m.group(1)[:200] if m else '—')!r}")
+            ids = re.findall(r"1936139", H)
+            print(f"  ذِكرُ رقم المقال في الصفحة: {len(ids)} مرّة")
+            i = H.find("1936139")
+            print(f"  حولَ أوّل ذِكر: {H[max(0,i-200):i+300]!r}" if i >= 0 else "")
     return 0
 
 sys.exit(asyncio.run(main()))
