@@ -45,7 +45,7 @@ def zigzag(b, mult=3, depth=7):
     return piv
 
 
-def zigzag7(b, mult=3, depth=7):
+def zigzag7(b, mult=3, depth=7, scale=1.0):
     """مكتبةُ TradingView ZigZag/7 حرفاً: عتبةُ الانحراف عند شمعة الاكتشاف، ويمينُ المحور
     صارمٌ بلا مساواة ويسارُه يقبلها، وATR ببذرة SMA."""
     n, L = 10, max(2, depth // 2)
@@ -58,7 +58,7 @@ def zigzag7(b, mult=3, depth=7):
     piv = []
     for t in range(len(b)):
         if a[t] is None or t - 2 * L < 0: continue
-        dev = a[t] / b[t]["close"] * 100 * mult
+        dev = a[t] * scale / b[t]["close"] * 100 * mult
         for hi in (True, False):
             src = (lambda k: b[t-k]["high"]) if hi else (lambda k: b[t-k]["low"])
             p0 = src(L)
@@ -116,6 +116,9 @@ async def main():
         p7 = zigzag7(w)
         if len(p7) >= 2:
             print(f"ZigZag/7 حرفاً:    ضلعٌ {p7[-2][1]}@{w[p7[-2][0]]['date']} → {p7[-1][1]}@{w[p7[-1][0]]['date']} · آخرُ ستّة محاور: {[(x[1], w[x[0]]['date']) for x in p7[-6:]]}")
+        for sc in (1.02, 1.04, 1.06, 1.08, 1.10, 1.15):
+            q = zigzag7(w, scale=sc)
+            print(f"  ATR×{sc}: ضلعٌ {q[-2][1]} → {q[-1][1]}")
         print("تريدنق فيو:       0=5.75 · 1=12.50 · 1.1=13.18 · -0.1=5.08 · 0.5=9.13 · 0.618=9.92 · -0.5=2.38 · -0.618=1.58")
     from app.api.v1.endpoints.market import get_d7m_frames
     r = await get_d7m_frames("4001")
