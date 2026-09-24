@@ -21,18 +21,25 @@ def within(xs):
 
 async def main():
     from app.services import fair_value_models as F
+    F.MIN_MODELS = 0          # تُقاس المجموعةُ وحدَها — لا يستكملها حدُّ النشر
     from app.services.market_screener import get_cached_screener
     rows = [x for x in (get_cached_screener() or [])
             if isinstance(x.get("analyst_target"), (int, float)) and x["analyst_target"] > 0]
     by = collections.defaultdict(list)
+    why = collections.Counter()
     for x in rows:
         try:
             i = await F.gather(x["symbol"])
         except Exception as e:                                     # noqa: BLE001
             print(f"✗ {x['symbol']}: {e}")
             continue
-        if i:
-            by[i.sector or "?"].append((x, i))
+        if not i:
+            why["لا مدخلات (gather)"] += 1
+            continue
+        by[i.sector or "?"].append((x, i))
+        r0 = F.value(i)
+        if not (r0 or {}).get("value"):
+            why[f"{i.sector}: {(r0 or {}).get('reason') or 'لا نموذجَ صالحاً'} · عمرُ القوائم {i.stale_days}"] += 1
     orig = F.model_set
 
     def ratios(items, keys):
@@ -105,6 +112,9 @@ async def main():
         cvr = loo(items, pool(sec)) if cv else []
         return cur, full, single, chosen, best, cvr
 
+    print("أسبابُ غياب القيمة:")
+    for k, v in why.most_common():
+        print(f"   {v:3} × {k}")
     PROPOSE = {}
     allitems = [p for v in by.values() for p in v]
     print(f"أوراقٌ لها هدف: {len(allitems)} في {len(by)} قطاعاً\n")

@@ -167,6 +167,7 @@ class Inputs:
 
 
 STALE_WARN, STALE_STOP = 274, 456            # تسعةُ أشهرٍ للتحذير وخمسةَ عشرَ للامتناع
+MIN_MODELS = 3                               # أدنى عددٍ من النماذج الصالحة لنشر قيمة
 FIN_BAN = {"dcf_gordon_5", "dcf_gordon_10", "dcf_exit_5", "dcf_exit_10", "epv",
            "peer_ev_ebit", "peer_ev_sales", "peer_pocf"}   # المصرفُ والتأمينُ لا تدفّقَ حرٌّ ولا قيمةَ منشأة
 
@@ -504,7 +505,7 @@ def value(i: Inputs) -> dict:
     # ══ لا قيمةَ من نموذجٍ أو اثنين (D474) ══ (قِيس: 2070 بنموذجٍ واحد، و8313 بلا نموذج)
     # إن لم تُنتج مجموعةُ القطاع ثلاثةَ نماذجَ صالحة تُستكمل من النموذج الكامل
     # ضمن حدود النظرية، ويُعلَن ذلك.
-    if len(models) < 3:
+    if len(models) < MIN_MODELS:
         pool = _ALL - (FIN_BAN if i.archetype in FIN_TYPES else set())
         more = [m for m in every if m["key"] in pool and m["key"] not in allowed and sane(m)]
         if more:
