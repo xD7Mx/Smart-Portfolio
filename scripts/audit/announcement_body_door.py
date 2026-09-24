@@ -75,6 +75,26 @@ async def main():
                         r"(captcha|cf-chl|Just a moment|Access Denied)"):
                 m = re.search(pat, H, re.S | re.I)
                 print(f"  [{pat[:28]}] → {(m.group(1)[:200] if m else '—')!r}")
+            import html as _h
+            lds = re.findall(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>', H, re.S)
+            body = ""
+            for blk in lds:
+                try:
+                    j = json.loads(blk)
+                except Exception:
+                    continue
+                for o in (j if isinstance(j, list) else [j]):
+                    if isinstance(o, dict) and o.get("articleBody"):
+                        body = o["articleBody"]
+                        print(f"  ld+json: @type={o.get('@type')} · isAccessibleForFree={o.get('isAccessibleForFree')} · hasPart={str(o.get('hasPart'))[:120]}")
+            plain = re.sub(r"<[^>]+>", " ", _h.unescape(body))
+            plain = re.sub(r"\s+", " ", plain).strip()
+            print(f"  طولُ المتن المنشور: {len(plain)} حرف · أوّله: {plain[:300]}")
+            outside = re.sub(r'<script[^>]*application/ld\+json[^>]*>.*?</script>', "", H, flags=re.S)
+            probe = plain[40:90]
+            print(f"  المتنُ ظاهرٌ خارج البيانات المنظّمة: {bool(probe and probe in re.sub(r'<[^>]+>', ' ', _h.unescape(outside)).replace(chr(10),' '))}")
+            for mk in ("argaamplus", "Argaam Plus", "أرقام بلس", "للمشتركين", "premium", "paywall", "lock", "subscriber"):
+                print(f"  علامة «{mk}»: {len(re.findall(re.escape(mk), outside, re.I))}")
             ids = re.findall(r"1936139", H)
             print(f"  ذِكرُ رقم المقال في الصفحة: {len(ids)} مرّة")
             i = H.find("1936139")
