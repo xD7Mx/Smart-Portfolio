@@ -57,7 +57,15 @@ async def main():
     print("  خدماتُ صفحة التفاصيل:", sorted(eps2))
     base2 = (re.search(r"<base[^>]+href=[\"']([^\"']+)", h or "") or [None, ""])[1].rstrip("/")
     for k in [i.start() for i in re.finditer("getAnnouncementListData", h or "")][:3]:
-        print(f"  سياق: {(h or '')[max(0,k-300):k+900]!r}")
+        print(f"  سياق: {(h or '')[max(0,k-1500):k-250]!r}")
+    from app.services.tadawul_http import smart_fetch
+    for anid, cs in (("98270", "1030"),):
+        du = f"{O}/wps/portal/saudiexchange/newsandreports/issuer-news/issuer-announcements/issuer-announcements-details/?anId={anid}&anCat=1&cs={cs}&locale=ar"
+        st3, h3 = await fetch(du)
+        v3 = vis(h3)
+        i = v3.find("يعلن") if "يعلن" in v3 else v3.find("تعلن")
+        print(f"  تفاصيلُ إعلانٍ ({anid}): HTTP {st3} · {len(h3 or '')} · …{v3[max(0,i-200):i+900] if i>=0 else v3[:300]}…")
+        print("  خدماتُ صفحة التفاصيل:", sorted(set(m.group(1) for m in _SVC.finditer(h3 or ""))))
     ep = eps2.get("getAnnouncementListData")
     if ep:
         for params in ({"symbol": "4001"}, {"company": "4001"}, {}):
