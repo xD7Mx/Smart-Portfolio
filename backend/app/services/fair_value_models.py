@@ -168,6 +168,7 @@ class Inputs:
 
 STALE_WARN, STALE_STOP = 274, 456            # تسعةُ أشهرٍ للتحذير وخمسةَ عشرَ للامتناع
 MIN_MODELS = 3                               # أدنى عددٍ من النماذج الصالحة لنشر قيمة
+SIM_FLOOR = 0.5                              # حصّةُ القرين الثابتة؛ والباقي بتشابهه (fvm_sim_floor.py)
 FIN_BAN = {"dcf_gordon_5", "dcf_gordon_10", "dcf_exit_5", "dcf_exit_10", "epv",
            "peer_ev_ebit", "peer_ev_sales", "peer_pocf"}   # المصرفُ والتأمينُ لا تدفّقَ حرٌّ ولا قيمةَ منشأة
 
@@ -689,7 +690,8 @@ async def gather(symbol: str) -> Inputs | None:
             w *= math.exp(-abs(math.log(rev0 / rec["rev"])) / 1.5)
         if m0 is not None and rec.get("margin") is not None:
             w *= math.exp(-abs(m0 - rec["margin"]) / 0.06)
-        weights[p_sym] = max(w, 0.05)
+        # كلُّ قرينٍ يحمل حصّةً ثابتة والتشابهُ يزيدها — لا يحكم قرينٌ واحدٌ القطاعَ (D475)
+        weights[p_sym] = SIM_FLOOR + (1 - SIM_FLOOR) * w
     pw = {k: [(rec[k], weights[ps]) for ps, rec in (pm.get("_rec") or {}).items() if k in rec]
           for k in ("pe", "pb", "ps", "pocf", "ev_ebit", "ev_sales")}
     pw["yield"] = pm.get("yield") or []
