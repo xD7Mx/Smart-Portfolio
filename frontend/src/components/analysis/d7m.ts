@@ -8,48 +8,48 @@
 export type Bar = { date: string; open: number; high: number; low: number; close: number };
 export type Pivot = { index: number; price: number; isHigh: boolean };
 
-/** ATR بطريقة Pine (RMA لمدى الحقيقيّ). */
-export function atr(bars: Bar[], len = 10): number[] {
-  const out: number[] = [];
-  let prev: number | null = null;
-  bars.forEach((b, i) => {
-    const pc = i > 0 ? bars[i - 1].close : b.close;
-    const tr = Math.max(b.high - b.low, Math.abs(b.high - pc), Math.abs(b.low - pc));
-    prev = prev == null ? tr : (prev * (len - 1) + tr) / len;
-    out.push(prev);
-  });
+/** ta.atr بطريقة Pine: RMA لمدى الحقيقيّ، بذرتُه متوسّطُ أوّل `len` (null قبلها). */
+export function atr(bars: Bar[], len = 10): (number | null)[] {
+  const tr = bars.map((b, i) => i === 0 ? b.high - b.low
+    : Math.max(b.high - b.low, Math.abs(b.high - bars[i - 1].close), Math.abs(b.low - bars[i - 1].close)));
+  const out: (number | null)[] = [];
+  let r: number | null = null;
+  for (let i = 0; i < bars.length; i++) {
+    if (i < len - 1) { out.push(null); continue; }
+    r = r == null ? tr.slice(0, len).reduce((a, c) => a + c, 0) / len : (r * (len - 1) + tr[i]) / len;
+    out.push(r);
+  }
   return out;
 }
 
 /**
- * زجزاجُ TradingView (مكتبة ZigZag/7) مبسّطاً بأمانة:
- *   · القمّةُ/القاعُ محوريٌّ بـ`depth` شمعةً على كلّ جانبٍ نصفاً.
- *   · يُقبل المحورُ الجديدُ إذا خالف اتجاهَ السابق وابتعد عنه بنسبة الانحراف،
- *     ويُستبدَل السابقُ إذا كان من جنسه وأشدَّ منه.
+ * مكتبةُ TradingView ZigZag/7 حرفاً (D465):
+ *   · المحورُ يُكتشف بعد `L = max(2, floor(depth/2))` شمعة: أحدثُ منه لا يتجاوزه
+ *     (والمساواةُ مقبولة)، وأقدمُ منه لا يبلغه (فالمساواةُ ترفضه).
+ *   · عتبةُ الانحراف = ATR(10) ÷ الإغلاق × 100 × المضاعف **عند شمعة الاكتشاف**.
+ *   · محورٌ من جنس الأخير وأشدُّ منه يمدّه؛ ومخالفٌ بلغ العتبةَ يفتح ضلعاً جديداً.
  */
 export function zigzag(bars: Bar[], mult: number, depth: number): Pivot[] {
-  const n = bars.length;
-  if (n < depth + 2) return [];
+  const n = bars.length, L = Math.max(2, Math.floor(depth / 2));
+  if (n < 2 * L + 1) return [];
   const a = atr(bars, 10);
-  const half = Math.max(1, Math.floor(depth / 2));
   const piv: Pivot[] = [];
-  for (let i = half; i < n - half; i++) {
-    let isH = true, isL = true;
-    for (let k = i - half; k <= i + half; k++) {
-      if (k === i) continue;
-      if (bars[k].high > bars[i].high) isH = false;
-      if (bars[k].low < bars[i].low) isL = false;
-    }
-    const dev = (a[i] / bars[i].close) * 100 * mult;
-    for (const [ok, price, isHigh] of [[isH, bars[i].high, true], [isL, bars[i].low, false]] as const) {
+  for (let t = 2 * L; t < n; t++) {
+    if (a[t] == null) continue;
+    const dev = (a[t]! / bars[t].close) * 100 * mult;
+    for (const isHigh of [true, false]) {
+      const src = (k: number) => isHigh ? bars[t - k].high : bars[t - k].low;
+      const p = src(L);
+      let ok = true;
+      for (let k = 0; k < L && ok; k++) if (isHigh ? src(k) > p : src(k) < p) ok = false;
+      for (let k = L + 1; k <= 2 * L && ok; k++) if (isHigh ? src(k) >= p : src(k) <= p) ok = false;
       if (!ok) continue;
+      const pt = { index: t - L, price: p, isHigh };
       const last = piv[piv.length - 1];
-      if (!last) { piv.push({ index: i, price, isHigh }); continue; }
-      if (last.isHigh === isHigh) {
-        if (isHigh ? price > last.price : price < last.price) piv[piv.length - 1] = { index: i, price, isHigh };
-        continue;
-      }
-      if (Math.abs(price - last.price) / last.price * 100 >= dev) piv.push({ index: i, price, isHigh });
+      if (!last) { piv.push(pt); continue; }
+      if (last.isHigh === isHigh) { if (isHigh ? p > last.price : p < last.price) piv[piv.length - 1] = pt; continue; }
+      const d = 100 * (p - last.price) / Math.abs(last.price);
+      if ((!last.isHigh && d >= dev) || (last.isHigh && d <= -dev)) piv.push(pt);
     }
   }
   return piv;
@@ -233,7 +233,7 @@ export function macdSmart(bars: Bar[], fast = 12, slow = 26, sig = 9, sens = 0.2
   const i = bars.length - 1;
   const L = line[i], S = signal[i], H = hist[i], H1 = hist[i - 1];
   if (L == null || S == null || H == null || H1 == null) return null;
-  const a = atr(bars, 14)[i];
+  const a = atr(bars, 14)[i] ?? 0;
   const mAbs = Math.abs(H), zero = 0.05 * a;
   const side = Math.abs(L) < zero && Math.abs(S) < zero && mAbs < 0.1 * a;
   const L1 = line[i - 1]!, S1 = signal[i - 1]!;
