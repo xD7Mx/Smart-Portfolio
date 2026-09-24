@@ -95,6 +95,23 @@ async def main():
             print(f"  المتنُ ظاهرٌ خارج البيانات المنظّمة: {bool(probe and probe in re.sub(r'<[^>]+>', ' ', _h.unescape(outside)).replace(chr(10),' '))}")
             for mk in ("argaamplus", "Argaam Plus", "أرقام بلس", "للمشتركين", "premium", "paywall", "lock", "subscriber"):
                 print(f"  علامة «{mk}»: {len(re.findall(re.escape(mk), outside, re.I))}")
+            m = re.search(r'"articleBody"\s*:\s*"(.*?)"\s*,\s*"', H, re.S)
+            raw = _h.unescape(m.group(1)) if m else ""
+            txt = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", raw)).strip()
+            print(f"  articleBody (بالتعبير): {len(txt)} حرف · أوّله: {txt[:240]}")
+            print(f"  آخرُه: {txt[-200:]}")
+            try:
+                from app.services.browser_fetch import render
+                R = await render([u], settle_ms=6000)
+                page = R.get(u) or ""
+                vis = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"<script.*?</script>|<style.*?</style>", "", page, flags=re.S)))
+                snip = txt[60:110]
+                print(f"  المتصفّح: {len(page)} حرف · مقطعٌ من المتن ظاهرٌ للزائر: {bool(snip and snip in vis)} · مقطعُ آخره ظاهر: {bool(txt[-60:-10] in vis) if txt else False}")
+                for mk in ("اشترك", "سجّل الدخول", "سجل الدخول", "للمشتركين", "أرقام بلس", "Argaam Plus", "لقراءة المقال"):
+                    if mk in vis:
+                        i = vis.find(mk); print(f"  «{mk}» ظاهرٌ: …{vis[max(0,i-80):i+80]}…")
+            except Exception as e:
+                print(f"  المتصفّح: {type(e).__name__}: {str(e)[:120]}")
             ids = re.findall(r"1936139", H)
             print(f"  ذِكرُ رقم المقال في الصفحة: {len(ids)} مرّة")
             i = H.find("1936139")
