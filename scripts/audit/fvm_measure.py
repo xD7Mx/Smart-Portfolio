@@ -20,7 +20,16 @@ def stat(xs):
 
 async def main():
     from app.services import fair_value_models as F
-    r = await F.for_symbol("4001") or {}
+
+    async def fresh(sym):
+        """حسابٌ مباشرٌ بالشيفرة الحالية — لا مخبأَ من خادمٍ بنسخةٍ أقدم."""
+        i = await F.gather(sym)
+        r = F.value(i) if i else None
+        if r is not None:
+            dy = (i.dps_ttm / i.price) if (i.dps_ttm and i.price) else None
+            r = F.blend(r, F._calibrated(sym), i.archetype, dy)
+        return r
+    r = await fresh("4001") or {}
     print(f"═ 4001: {r.get('value')} ({r.get('low')}–{r.get('high')}) · عدمُ اليقين {r.get('uncertainty')} · نماذج {r.get('count')} · أقران {r.get('peers')}")
     for m in r.get("models") or []:
         print(f"   {m['name'][:44]:46} {m['value']:7.2f}  ({m['low']:.2f}–{m['high']:.2f})")
@@ -42,7 +51,7 @@ async def main():
     for x in rows:
         s, at = x["symbol"], x["analyst_target"]
         a = archetype_of(s) or "?"
-        v = await F.for_symbol(s) or {}
+        v = await fresh(s) or {}
         mv = v.get("models_value")
         if isinstance(v.get("value"), (int, float)) and v["value"] > 0:
             blended[a].append(v["value"] / at); blended["*"].append(v["value"] / at)
