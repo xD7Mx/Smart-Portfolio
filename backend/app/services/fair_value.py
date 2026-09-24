@@ -1340,6 +1340,11 @@ def compute(info: dict, price: float | None,
         if _PE in by_name:
             buckets["مضاعف القطاع"] = by_name[_PE]
         primary = "متعدّد المراحل"
+        # مسارٌ لا وزنَ له في مواصفة النمط لا يدخل الترجيح (D457): كان
+        # المطوّرُ العقاريّ (بلا خصمٍ في مواصفته) يرفع KeyError فيسقط تقديرُه.
+        buckets = {k: v for k, v in buckets.items() if k in WEIGHTS}
+        if primary not in buckets and buckets:
+            primary = max(buckets, key=lambda k: WEIGHTS[k])
 
     # ══ تقديرٌ متضاربٌ ليس تقديراً ══
     # (وجده مسحُ السوق: ١٧٤ شركة من ٣٩٦ بتشتّتٍ ≥2×، وأحدها 11.2×)

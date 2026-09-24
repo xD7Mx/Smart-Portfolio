@@ -37,5 +37,12 @@ def check(ok, label, det=""):
 check(w.get("مضاعف القطاع") == "45%", "١ السلعيُّ يُرجَّح بمواصفته: المضاعفُ 45٪", str(w))
 check(not o.get("excluded"), "٢ ولا يُستبعَد مضاعفُ القطاع وهو العدسةُ الأولى في نمطه", str(o.get("excluded"))[:60])
 check(o.get("value") and o["value"] > 20, "٣ فلا يخرج تقديرُ أرامكو 16 ومساراتُه 18.6/13/39", str(o.get("value")))
+# ‏D457: نمطٌ بلا خصمٍ في مواصفته (المطوّرُ العقاريّ) لا يسقط بـKeyError
+try:
+    o2 = F.compute({"eps": 1.45, "beta": 0.9}, 25.64, sector_avg_pe=18.0, periods=P,
+                   archetype="re_developer", symbol="4020.SR")
+    check(True, "٤ ونمطٌ بلا خصمٍ في مواصفته يُقيَّم ولا يسقط", str(o2.get("value")))
+except Exception as e:                                            # noqa: BLE001
+    check(False, "٤ ونمطٌ بلا خصمٍ في مواصفته يُقيَّم ولا يسقط", f"{type(e).__name__}: {e}")
 print(("FAIL" if fail else "PASS") + " D455 — أوزانُ القطاع من مواصفته")
 sys.exit(fail)
