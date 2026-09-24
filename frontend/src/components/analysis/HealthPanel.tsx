@@ -11,13 +11,14 @@ const TONE = (s: number) => (s < 1 ? "var(--neg-ink)" : s < 2.5 ? "var(--warn-in
 const SEG = ["var(--neg-ink)", "var(--warn-ink)", "var(--gauge-warn)", "var(--gauge-pos)", "var(--pos-ink)"];
 
 function ScoreBar({ score }: { score: number }) {
+  /* يميناً الضعيف ويساراً الممتاز — اتجاهُ القراءة العربية */
   return (
-    <div className="relative pt-2" dir="ltr">
+    <div className="relative pt-2">
       <div className="grid grid-cols-5 gap-1">
         {SEG.map((c, k) => <div key={k} className="h-1.5 rounded" style={{ background: c, opacity: 0.85 }} />)}
       </div>
-      <div className="absolute top-0 -translate-x-1/2 w-0 h-0 border-x-[6px] border-x-transparent border-t-[8px] border-t-[var(--ink)]"
-           style={{ left: `${Math.min(Math.max(score / 5, 0), 1) * 100}%` }} />
+      <div className="absolute top-0 translate-x-1/2 w-0 h-0 border-x-[6px] border-x-transparent border-t-[8px] border-t-[var(--ink)]"
+           style={{ right: `${Math.min(Math.max(score / 5, 0), 1) * 100}%` }} />
       <div className="flex justify-between text-[11px] mt-1.5 text-[var(--ink-muted)]">
         <span>ضعيف</span><span>ممتاز</span>
       </div>

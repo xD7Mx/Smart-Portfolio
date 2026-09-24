@@ -150,8 +150,8 @@ def score(sym: str, table: dict[str, dict]) -> dict | None:
             continue
         sc = statistics.mean(m["score"] for m in ms)
         best, worst = max(ms, key=lambda m: m["score"]), min(ms, key=lambda m: m["score"])
-        why = (f"أقوى مقاييسه {best['name']} ({best['display']}، {best['score']:.1f}/5) وأضعفُها "
-               f"{worst['name']} ({worst['display']}، {worst['score']:.1f}/5) بين {best['peers']} شركةً في القطاع")
+        why = (f"أقوى مقاييسه {best['name']} {best['display']} بدرجة {best['score']:.1f} من 5، وأضعفُها "
+               f"{worst['name']} {worst['display']} بدرجة {worst['score']:.1f} من 5 — بين {best['peers']} شركةً في القطاع")
         out.append({"pillar": pil, "name": PILLARS[pil], "score": round(sc, 2), "label": label(sc),
                     "metrics": ms, "why": why})
     if not out:
@@ -165,7 +165,7 @@ async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     from app.services import tadawul_market as TM
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"health:v1:{sym}"
+    ck = f"health:v2:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
