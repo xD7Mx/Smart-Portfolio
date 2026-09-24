@@ -109,10 +109,36 @@ def daily_candles(rows: list) -> list:
     return out
 
 
+def weekly(rows: list) -> list:
+    """شموعٌ يومية ← أسبوعية (فتحُ أوّل يوم · أعلى · أدنى · إغلاقُ آخر يوم).
+
+    ‏D462: ياهو يسلّم السنتين والخمسَ **أسبوعياً** (فاصل 1wk)، وكان تاسي يُسلَّم
+    يومياً — فبدت شموعُه في المدّة نفسِها ألفاً وثلاثمئة خيطٍ متراصّ بجانب
+    مئتين وستين شمعةً للأسواق العالمية. فالإطارُ واحدٌ للسوقين.
+    """
+    import datetime as _dt
+    out: list = []
+    for r in rows:
+        d = _dt.date.fromisoformat(r["date"][:10])
+        wk = (d - _dt.timedelta(days=(d.weekday() + 1) % 7)).isoformat()   # الأحد
+        if out and out[-1]["_wk"] == wk:
+            b = out[-1]
+            b["high"], b["low"] = max(b["high"], r["high"]), min(b["low"], r["low"])
+            b["close"], b["date"] = r["close"], r["date"][:10]
+        else:
+            out.append({**r, "date": r["date"][:10], "_wk": wk})
+    for b in out:
+        b.pop("_wk", None)
+    return out
+
+
+_WEEKLY = {"2y": 104, "5y": 260}
+
+
 async def history(range_: str = "3mo") -> Optional[list]:
     """تاريخُ تاسي لمدّة الرسم: يوميٌّ رسميٌّ كامل + جلسةُ اليوم شمعةً أخيرة (D461)."""
     from app.services import cache, lastgood
-    ck = f"hist:tadawul:tasi:v2:{range_}"
+    ck = f"hist:tadawul:tasi:v3:{range_}"
     hit = cache.get(ck)
     if hit is not None:
         return hit
@@ -148,6 +174,9 @@ async def history(range_: str = "3mo") -> Optional[list]:
     if len(pts) < 2:
         c = candles(session)
         return c if len(c) >= 2 else None
-    pts = pts[-_KEEP.get(range_, 132):]
+    if range_ in _WEEKLY:
+        pts = weekly(pts)[-_WEEKLY[range_]:]
+    else:
+        pts = pts[-_KEEP.get(range_, 132):]
     cache.set(ck, pts, _TTL)
     return pts

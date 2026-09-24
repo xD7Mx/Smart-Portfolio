@@ -91,7 +91,8 @@ const RANGES: [string, string][] = [["1mo", "شهر"], ["3mo", "3 أشهر"], ["
 
 export default function NativeChart({ symbol, theme = "dark" }: { symbol: string; theme?: "dark" | "light" }) {
   const el = useRef<HTMLDivElement>(null);
-  const [range, setRange] = useState("6mo");
+  // المدّةُ الافتراضيّةُ خمسُ سنوات للسوقين (بأمر المالك)
+  const [range, setRange] = useState("5y");
   const [ind, setInd] = useState({ sma20: true, sma50: true, sma200: false, macd: true, rsi: false });
   const [err, setErr] = useState(false);
 

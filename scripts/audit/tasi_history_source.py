@@ -47,8 +47,10 @@ BODY = json.dumps([{"dateTime": f"2026-09-22 10:{m:02d}:45", "dateTimeInMillis":
                     "indexPrice": 10669.0 + m} for m in range(30)])
 
 
-DAILY = json.dumps([{"dateTime": f"2026-{m:02d}-{d:02d} 00:00:00", "indexPrice": 10000.0 + m * 30 + d}
-                    for m in range(1, 10) for d in (1, 8, 15, 22)])
+import datetime as _dt0
+DAILY = json.dumps([{"dateTime": f"{_dt0.date(2025, 1, 1) + _dt0.timedelta(days=i)} 00:00:00",
+                     "indexPrice": 10000.0 + (i % 37) * 3 + i * 0.5}
+                    for i in range(0, 629) if (_dt0.date(2025, 1, 1) + _dt0.timedelta(days=i)).weekday() not in (4, 5)])
 
 
 async def _fetch(url, *a, **k):
@@ -97,5 +99,13 @@ check(len(m1) == 22 and len(y5) > len(m1), "٦ كلُّ مدّةٍ بنصيبه�
       f"شهر={len(m1)} · خمسُ سنوات={len(y5)}")
 check(bool(y5) and y5[-1]["date"] == "2026-09-22" and y5[-1]["close"] == 10698.0,
       "٧ وجلسةُ اليوم شمعةٌ أخيرةٌ على اليوميّ", str(y5[-1:])[:90])
+# ‏D462: «لماذا فرقُ الشموع واضحٌ وكلاهما نفسُ المدّة؟» — ياهو أسبوعيٌّ للسنتين
+# والخمس، وتاسي كان يومياً. فالإطارُ واحدٌ للسوقين، والافتراضيُّ خمسُ سنوات.
+import datetime as _dtm
+_ds = [_dtm.date.fromisoformat(p_["date"][:10]) for p_ in y5]
+check(len(_ds) >= 2 and all((b - a).days >= 5 for a, b in zip(_ds, _ds[1:-1])),
+      "٨ وخمسُ السنوات أسبوعيّةٌ كالأسواق العالمية لا يوميّة", f"{len(_ds)} شمعة")
+_nc = (ROOT / "frontend/src/components/analysis/NativeChart.tsx").read_text(encoding="utf-8")
+check('useState("5y")' in _nc, "٩ والمدّةُ الافتراضيّةُ خمسُ سنوات للسوقين")
 print(("FAIL" if fail else "PASS") + " D438 — منحنى تاسي من «تداول»")
 sys.exit(fail)
