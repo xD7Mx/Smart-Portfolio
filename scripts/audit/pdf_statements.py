@@ -101,5 +101,10 @@ _mg = ["Insurance revenue", "7", "1,314,513            1,026,441            2,56
 g = P._pairs(_mg, P._KIND["income"])
 check(g.get("net_income") == (44167.0, -1470.0) and g.get("revenue") == (1314513.0, 1026441.0),
       "٢٧ صيغةُ ميدغلف وأعمدةٌ متعدّدةٌ في سطرٍ واحد", str(g))
+_ocr = ["CONSOLIDATED STATEMENT OF INCOME", "Revenue 27 116,525,214 117,736,492", "Net income for the year 1,258,302 (345,652)",
+        "Basic and diluted earnings per share 32 2.47 1.10"]
+o = P._pairs(_ocr, P._KIND["income"])
+check(o.get("revenue") == (116525214.0, 117736492.0) and o.get("net_income") == (1258302.0, -345652.0) and o.get("eps") == (2.47, 1.10),
+      "٢٨ سطرُ القراءة الضوئية: البندُ وأرقامُه في سطرٍ واحد يُفصلان", str(o))
 print(f"{'FAIL' if fail else 'PASS'} D476 — قوائمُ «تداول» PDF حين تقف XBRL")
 sys.exit(fail)

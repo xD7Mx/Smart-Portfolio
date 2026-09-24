@@ -122,9 +122,30 @@ def _toks(lines: list[str]) -> list[str]:
         parts = t.split(" ")
         if len(parts) > 1 and all(_val(x) is not None or x in ("-", "--", "—", "–") for x in parts):
             out += parts
+            continue
+        # «Revenue 27 116,525,214 117,736,492» — القراءةُ الضوئيةُ تضع البندَ وأرقامَه في سطرٍ واحد
+        k = len(parts)
+        while k > 0 and (_val(parts[k - 1]) is not None or parts[k - 1] in ("-", "--", "—", "–")):
+            k -= 1
+        if 0 < k < len(parts) and len(parts) - k >= 2 and re.search(r"[a-z]{3}", " ".join(parts[:k])):
+            out.append(" ".join(parts[:k]))
+            out += parts[k:]
         elif t:
             out.append(t)
     return out
+
+
+def _page_text(pg, idx: int) -> str:
+    """نصُّ الصفحة — وإن كانت صورةً ممسوحةً في مقدّمة الملف تُقرأ ضوئياً (Tesseract في الحاوية)."""
+    t = pg.get_text()
+    if len(t.strip()) >= 40 or idx >= 20:
+        return t
+    try:
+        tp = pg.get_textpage_ocr(language="eng", dpi=220, full=True)
+        return pg.get_text(textpage=tp)
+    except Exception as e:                                         # noqa: BLE001
+        logger.debug("OCR ص{}: {}", idx + 1, type(e).__name__)
+        return t
 
 
 _PARENT = re.compile(r"^[•\-–]?\s*(?:the )?(?:equity holders|shareholders|owners) of the (?:parent|company)(?: company)?$")
@@ -218,8 +239,8 @@ def parse_pdf(data: bytes) -> dict:
     prv: dict = {}
     as_of = None
     found_pages = 0
-    for pg in doc:
-        text = pg.get_text()
+    for idx, pg in enumerate(doc):
+        text = _page_text(pg, idx)
         if found_pages and "notes to the" in text[:900].lower():
             break                                  # القوائمُ الأساسيةُ قبل الإيضاحات — وما بعدها قطاعاتٌ وأجزاء
         kind = _kind_of(text)

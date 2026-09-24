@@ -12,7 +12,7 @@ async def main():
     from app.services.tadawul_market import refresh, usable_rows
     if not (usable_rows()[0] or {}):
         await refresh()
-    for s in ("8210", "8230"):
+    for s in ("8230", "2330", "1320"):
         rec = await X.read_symbol(s)
         an = (rec or {}).get("annual") or []
         qu = (rec or {}).get("quarterly") or []
