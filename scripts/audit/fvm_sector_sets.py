@@ -59,5 +59,9 @@ _ls = _src.splitlines()
 _guards = [_ls[k - 1] for k, l in enumerate(_ls) if "math.log(rev0" in l] + [l for l in _ls if "ni0 / rev0" in l]
 check(_guards and all("rev0 > 0" in l for l in _guards),
       "٩ D472 إيرادٌ سالبٌ للورقة لا يُسقط المحرّكَ كلَّه (لوغاريتمُ عددٍ سالب)")
+_ms = [{"key": "ddm_stable", "family": "income", "value": 10.0, "low": 9.0, "high": 11.0},
+       {"key": "peer_ps", "family": "multiples", "value": 20.0, "low": 18.0, "high": 22.0}]
+_ok = all(abs((F.aggregate(_ms, 15.0, a).get("value") or 0) - 20.0) > 0.5 for a in ("bank", "insurance", "financial"))
+check(_ok, "١٠ D473 نموذجُ التوزيع المعروضُ في المصرف والتأمين يدخل القيمةَ — لا وزنَ صفرٍ خفيّ")
 print(f"{'FAIL' if fail else 'PASS'} D470 — كلُّ قطاعٍ بما يليق به")
 sys.exit(fail)

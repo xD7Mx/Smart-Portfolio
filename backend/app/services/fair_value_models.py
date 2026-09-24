@@ -111,6 +111,20 @@ MODEL_SETS.update({
 for _k in ("Banks", "Utilities", "Telecommunication Services", "Energy"):
     MODEL_SETS[_k] = (MODEL_SETS[_k][0], MODEL_SETS[_k][1] | {"peer_yield"})
 
+# ══ مجموعاتٌ اعتُمدت بالقياس خارج العيّنة (D473 · fvm_sector_fit.py) ══
+# لا تُستبدل مجموعةٌ إلا إن فازت على أوراقٍ لم تُختر بها (ترك واحد) بفارقٍ
+# لا يقلّ عن نقطتين، وبعيّنةٍ ≥ 5، وبثلاثة نماذج على الأقلّ ضمن حدود النظرية.
+MODEL_SETS.update({
+    "Capital Goods": ("السلع الرأسمالية: التدفّقُ بمضاعف الخروج وقيمةُ المنشأة إلى المبيعات",
+                      {"dcf_exit_5", "dcf_exit_10", "peer_ev_sales"}),
+    "Consumer Services": ("الخدمات الاستهلاكية: التدفّقُ بمضاعف الخروج والتدفّقُ التشغيليّ للأقران",
+                          {"dcf_exit_5", "dcf_exit_10", "peer_pocf"}),
+    "Food & Beverages": ("الأغذية والمشروبات: التدفّقُ والقوّةُ الإيرادية والتوزيع",
+                         {"dcf_exit_5", "dcf_exit_10", "epv", "ddm_two_stage"}),
+    "Insurance": ("التأمين: التوزيعُ والأقساطُ المكتتبة", _DDM | {"peer_ps"}),
+    "Energy": ("الطاقة: التدفّقُ الطويل والمبيعاتُ والأصول", {"dcf_gordon_10", "peer_ev_sales", "peer_pb"}),
+})
+
 ARCH_SETS = {"bank": MODEL_SETS["Banks"], "insurance": MODEL_SETS["Insurance"],
              "financial": MODEL_SETS["Financial Services"], "reit": MODEL_SETS["REITs"]}
 
@@ -429,7 +443,9 @@ def aggregate(models: list[dict], price: float, archetype: str | None) -> dict:
     models = keep
     fams: dict[str, list[dict]] = {}
     for m in models:
-        fam = "equity" if m["family"] == "income" and kind == "default" else m["family"]
+        # التوزيعُ عائلةٌ مستقلّةٌ للريت وحده؛ وفي غيره يُضمّ إلى الحقوق — وإلا
+        # عُرض نموذجُه ووزنُه صفرٌ في المصارف والتأمين (D473).
+        fam = "equity" if m["family"] == "income" and kind != "reit" else m["family"]
         fams.setdefault(fam, []).append(m)
     summary, tot_w, acc, lo_acc, hi_acc = [], 0.0, 0.0, 0.0, 0.0
     for fam, ms in fams.items():
@@ -703,7 +719,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v6:{sym}"
+    ck = f"fvm:v7:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
