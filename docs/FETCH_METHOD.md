@@ -169,6 +169,11 @@ GET /tadawul.eportal.charts.v2/ChartGenerator?methodType=parsingMethod
     &chart-type=SQL_MI_MSPV&chart-parameter=tasi&format=json&pageName=MarketStatusHomeGraph
 ```
 
+والتاريخُ اليوميُّ الكامل نوعٌ آخرُ مذكورٌ في `/wps/TASIv2/js/indicesGraph.js`:
+`chart-type=SQL_T_IC_ALL_COM&chart-parameter=tasi` ← ‏4,921 إغلاقاً يومياً من 2007
+إلى أمس (قِيس بـ`tasi_ranges_door.py` · D461). والشموعُ منه من إغلاق الأمس إلى
+إغلاق اليوم، وجلسةُ اليوم تُلحق شمعةً أخيرة.
+
 يردّ مصفوفةَ `{dateTime, indexPrice}` لجلسة آخرِ يوم تداولٍ وحدَها (311 نقطة لتاسي،
 و`mt30` بالمعامل نفسِه). فلا تاريخَ طويلاً منه مباشرة: يُحفظ إغلاقُ كلّ جلسةٍ في
 `lastgood` تحت `market:tasi_daily` فيطول اليوميُّ مع الأيام. والجلبُ في

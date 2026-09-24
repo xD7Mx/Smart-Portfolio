@@ -19,7 +19,13 @@ from loguru import logger
 URL = ("https://www.saudiexchange.sa/tadawul.eportal.charts.v2/ChartGenerator"
        "?methodType=parsingMethod&chart-type=SQL_MI_MSPV&chart-parameter=tasi"
        "&format=json&pageName=MarketStatusHomeGraph")
+# ‏D461: التاريخُ اليوميُّ الكامل (2007 → أمس · 4,921 نقطة مقيسة) — نوعُ رسمٍ
+# اكتُشف في `indicesGraph.js` بصفحة المؤشّرات، ويربطه «تداول» نفسُه بأزرار المُدد.
+URL_DAILY = ("https://www.saudiexchange.sa/tadawul.eportal.charts.v2/ChartGenerator"
+             "?methodType=parsingMethod&chart-type=SQL_T_IC_ALL_COM&chart-parameter=tasi"
+             "&format=json")
 SYMBOLS = {"^TASI.SR", "^TASI", "TASI"}
+_KEEP = {"1mo": 22, "3mo": 66, "6mo": 132, "1y": 260, "2y": 520, "5y": 1300}
 _DAILY_KEY = "market:tasi_daily"
 _TTL = 5 * 60
 
@@ -85,23 +91,63 @@ def remember_close(session: list) -> list:
 MIN_DAILY = 20    # دون عشرين يوماً محفوظاً تُعرض الجلسةُ كاملةً شموعاً لا نقطتان
 
 
+def daily_candles(rows: list) -> list:
+    """إغلاقاتٌ يومية ← شموعٌ من إغلاق الأمس إلى إغلاق اليوم.
+
+    المصدرُ ينشر الإغلاقَ وحدَه لكلّ يوم؛ فالشمعةُ تفتح عند إغلاق اليوم السابق
+    وتُغلق عند إغلاق يومها، وأعلاها وأدناها طرفاها — رسمُ سلسلةِ إغلاقٍ شموعاً.
+    """
+    out, prev = [], None
+    for r in rows if isinstance(rows, list) else []:
+        p, dt = r.get("indexPrice"), str(r.get("dateTime") or "")[:10]
+        if not isinstance(p, (int, float)) or p <= 0 or len(dt) < 10:
+            continue
+        o = prev if prev is not None else p
+        out.append({"date": dt, "time": 0, "open": o, "high": max(o, p),
+                    "low": min(o, p), "close": p, "volume": 0})
+        prev = p
+    return out
+
+
 async def history(range_: str = "3mo") -> Optional[list]:
-    from app.services import cache
-    ck = f"hist:tadawul:tasi:{range_}"
+    """تاريخُ تاسي لمدّة الرسم: يوميٌّ رسميٌّ كامل + جلسةُ اليوم شمعةً أخيرة (D461)."""
+    from app.services import cache, lastgood
+    ck = f"hist:tadawul:tasi:v2:{range_}"
     hit = cache.get(ck)
     if hit is not None:
         return hit
+    from app.services.tadawul_http import fetch
+    daily = cache.get("hist:tadawul:tasi:daily")
+    if daily is None:
+        try:
+            st, body = await fetch(URL_DAILY)
+            daily = daily_candles(json.loads(body)) if st == 200 and body else []
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning(f"tasi daily: {type(e).__name__}: {e}")
+            daily = []
+        if daily:
+            cache.set("hist:tadawul:tasi:daily", daily, 6 * 3600)
+            lastgood.save("market:tasi_daily_full", {"rows": daily[-1400:]})
+        else:
+            daily = ((lastgood.load("market:tasi_daily_full") or {}).get("rows")) or []
     try:
-        from app.services.tadawul_http import fetch
         st, body = await fetch(URL)
         session = parse_session(body) if st == 200 else []
     except Exception as e:                                        # noqa: BLE001
         logger.warning(f"tasi history: {type(e).__name__}: {e}")
         session = []
-    daily = remember_close(session)
-    keep = {"1mo": 22, "3mo": 66, "6mo": 132, "1y": 260}.get(range_, 132)
-    pts = daily[-keep:] if (len(daily) >= MIN_DAILY or not session) else candles(session)
+    remember_close(session)
+    pts = list(daily)
+    if session:
+        day = session[0]["date"][:10]
+        cl = [p["close"] for p in session]
+        o = pts[-1]["close"] if pts and pts[-1]["date"] < day else cl[0]
+        today = {"date": day, "time": 0, "open": o, "high": max(cl + [o]),
+                 "low": min(cl + [o]), "close": cl[-1], "volume": 0}
+        pts = [p for p in pts if p["date"] < day] + [today]
     if len(pts) < 2:
-        return None
+        c = candles(session)
+        return c if len(c) >= 2 else None
+    pts = pts[-_KEEP.get(range_, 132):]
     cache.set(ck, pts, _TTL)
     return pts

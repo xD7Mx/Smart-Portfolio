@@ -47,7 +47,13 @@ BODY = json.dumps([{"dateTime": f"2026-09-22 10:{m:02d}:45", "dateTimeInMillis":
                     "indexPrice": 10669.0 + m} for m in range(30)])
 
 
+DAILY = json.dumps([{"dateTime": f"2026-{m:02d}-{d:02d} 00:00:00", "indexPrice": 10000.0 + m * 30 + d}
+                    for m in range(1, 10) for d in (1, 8, 15, 22)])
+
+
 async def _fetch(url, *a, **k):
+    if "SQL_T_IC_ALL_COM" in url:
+        return (200, DAILY)
     return (200, BODY) if "ChartGenerator" in url else (404, "")
 TH.fetch = _fetch
 
@@ -81,5 +87,15 @@ check("market_service.get_history(" in seg and "primary.get_history" not in seg,
 # مسطّحة، ثمّ صار العرضُ يومين محفوظين فقط. فالجلسةُ شموعُ خمسِ دقائق حقيقية.
 check(len(pts) >= 2 and any(p_["high"] > p_["low"] for p_ in pts),
       "٥ والجلسةُ شموعٌ حقيقيةٌ لها أعلى وأدنى — لا خطوطٌ مسطّحة", str(pts[:1])[:90])
+# ‏D461: «شارت تاسي لا يتغيّر حسب الإطار أو المدّة». فالتاريخُ اليوميُّ الرسميّ
+# يُقرأ، وكلُّ مدّةٍ تأخذ نصيبَها، وجلسةُ اليوم شمعةٌ أخيرة.
+from app.services import cache as _c
+_c.clear() if hasattr(_c, "clear") else None
+m1 = asyncio.run(MD.market_service.get_history("^TASI.SR", "1mo")) or []
+y5 = asyncio.run(MD.market_service.get_history("^TASI.SR", "5y")) or []
+check(len(m1) == 22 and len(y5) > len(m1), "٦ كلُّ مدّةٍ بنصيبها من التاريخ اليوميّ الرسميّ",
+      f"شهر={len(m1)} · خمسُ سنوات={len(y5)}")
+check(bool(y5) and y5[-1]["date"] == "2026-09-22" and y5[-1]["close"] == 10698.0,
+      "٧ وجلسةُ اليوم شمعةٌ أخيرةٌ على اليوميّ", str(y5[-1:])[:90])
 print(("FAIL" if fail else "PASS") + " D438 — منحنى تاسي من «تداول»")
 sys.exit(fail)

@@ -13,7 +13,7 @@ async def main():
     except ModuleNotFoundError as e:
         print(f"⚠ بيئةٌ ناقصة ({e.name}) — لم يُقَس"); return 0
     for sym in ("^TASI.SR", "BZ=F"):
-        for rg in ("1mo", "6mo"):
+        for rg in ("1mo", "1y", "5y"):
             r = await get_price_history(sym, rg)
             d = (r.get("data") if isinstance(r, dict) else getattr(r, "body", b"")) or []
             if isinstance(d, (bytes, bytearray)):
