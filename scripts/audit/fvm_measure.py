@@ -37,6 +37,7 @@ async def main():
     per_model, per_fam = collections.defaultdict(list), collections.defaultdict(list)
     fam_arch = collections.defaultdict(lambda: collections.defaultdict(list))
     worst = []
+    pairs = collections.defaultdict(list)          # (جديد، قائم، هدف، ke، عائدُ توزيع)
     for x in rows:
         s, at = x["symbol"], x["analyst_target"]
         a = archetype_of(s) or "?"
@@ -52,6 +53,10 @@ async def main():
         fv = x.get("fair_value")
         if isinstance(fv, (int, float)) and fv > 0:
             old[a].append(fv / at); old["*"].append(fv / at)
+        if isinstance(v.get("value"), (int, float)) and v["value"] > 0 and isinstance(fv, (int, float)) and fv > 0:
+            ke = (v.get("rates") or {}).get("ke") or 0.10
+            dy = (x.get("dividend_yield") or 0) / 100 if (x.get("dividend_yield") or 0) > 1 else (x.get("dividend_yield") or 0)
+            pairs[a].append((v["value"], fv, at, ke, dy))
     print(f"\nأوراقٌ لها هدف: {len(rows)}")
     print("الجديد الكلّ:", stat(new["*"]))
     print("القائم الكلّ:", stat(old["*"]))
@@ -68,6 +73,18 @@ async def main():
         inv = {f: 1 / max(statistics.median(abs(math.log(x)) for x in xs), 0.05) for f, xs in fams.items() if len(xs) >= 3}
         tot = sum(inv.values()) or 1
         print(f"  {a:20} " + " · ".join(f"{f}={inv[f]/tot:.2f} (وسيط {statistics.median(fams[f]):.2f})" for f in inv))
+    def err(xs):
+        return statistics.median(abs(math.log(x)) for x in xs) if xs else float("nan")
+    print("\nالمزيج α·جديد + (1−α)·قائم — وسيطُ الخطأ لكلّ α (والهدفُ لاثني عشر شهراً = القيمة × (1+ke−عائد)):")
+    allp = [p for ps in pairs.values() for p in ps]
+    for a, ps in sorted(pairs.items(), key=lambda kv: -len(kv[1])) + [("*الكلّ", allp)]:
+        row = []
+        for al in (0, .25, .5, .75, 1):
+            row.append(f"α={al}: {math.exp(err([(al*n+(1-al)*o)/t for n, o, t, k, d in ps]))-1:.0%}")
+        best = min((0, .25, .5, .75, 1), key=lambda al: err([(al*n+(1-al)*o)/t for n, o, t, k, d in ps]))
+        tgt = [((best*n+(1-best)*o)*(1+k-d))/t for n, o, t, k, d in ps]
+        within = sum(.75 <= x <= 1.25 for x in tgt) / len(tgt)
+        print(f"  {a:20} n={len(ps):3} · " + " · ".join(row) + f" · الأفضل α={best} · هدفُ 12 شهراً: وسيطُ النسبة {statistics.median(tgt):.2f} · خطأ {math.exp(err(tgt))-1:.0%} · ±25٪ {within:.0%}")
     print("\nأبعدُ عشرةٍ عن المحللين (رمز · جديد · هدف · قائم):")
     for e, s, v, at, fv in sorted(worst, reverse=True)[:10]:
         print(f"  {s} · {v:.2f} · {at:.2f} · {fv}")
