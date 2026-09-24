@@ -122,6 +122,7 @@ MODEL_SETS.update({
     "Food & Beverages": ("الأغذية والمشروبات: التدفّقُ والقوّةُ الإيرادية والتوزيع",
                          {"dcf_exit_5", "dcf_exit_10", "epv", "ddm_two_stage"}),
     "Insurance": ("التأمين: التوزيعُ والأقساطُ المكتتبة", _DDM | {"peer_ps"}),
+    "Banks": ("المصارف: التوزيعُ المرحليّ ومكرّرُ الربح وعائدُ الأقران", {"ddm_two_stage", "peer_pe", "peer_yield"}),
     "Energy": ("الطاقة: التدفّقُ الطويل والمبيعاتُ والأصول", {"dcf_gordon_10", "peer_ev_sales", "peer_pb"}),
 })
 
@@ -719,7 +720,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v7:{sym}"
+    ck = f"fvm:v8:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
