@@ -129,12 +129,24 @@ def _pct_rank(x: float, xs: list[float]) -> float:
     return below / len(xs)
 
 
-def score(sym: str, table: dict[str, dict]) -> dict | None:
+# ══ المصارفُ والتأمينُ والتمويلُ لا تُقاس بتدفّقٍ حرٍّ ولا ربحٍ تشغيليّ ══
+# قِيس على الراجحي 1120: «هامشُ ربحٍ تشغيليّ 96٪» و«جودةُ أرباحٍ سالبة» — نموُّ
+# دفتر القروض يظهر تدفّقاً تشغيلياً سالباً وهو نموٌّ صحّيّ، وهو عينُ ما يستبعده
+# المحرّكُ الرئيسُ للمصارف (‏NO_DCF). فتسقط هذه المقاييسُ ويبقى ما يصحّ.
+FIN_SKIP = {"ev_ebit", "ev_sales", "fcf_yield", "ebit_margin", "ocf_to_ni", "fcf_margin",
+            "interest_cover", "ebit_growth", "debt_to_equity", "ps"}
+FIN_TYPES = {"bank", "insurance", "financial"}
+
+
+def score(sym: str, table: dict[str, dict], archetype: str | None = None) -> dict | None:
     me = table.get(sym)
     if not me:
         return None
+    skip = FIN_SKIP if archetype in FIN_TYPES else set()
     pillars: dict[str, list[dict]] = {k: [] for k in PILLARS}
     for key, name, pil, higher in METRICS:
+        if key in skip:
+            continue
         x = me.get(key)
         xs = [t[key] for t in table.values() if isinstance(t.get(key), (int, float))]
         if not isinstance(x, (int, float)) or len(xs) < MIN_PEERS:
@@ -165,7 +177,7 @@ async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     from app.services import tadawul_market as TM
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"health:v2:{sym}"
+    ck = f"health:v3:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
@@ -204,7 +216,8 @@ async def for_symbol(symbol: str) -> dict | None:
                 table[s] = m
         cache.set(tk, table, 6 * 60 * 60)
     try:
-        res = score(sym, table)
+        from app.services.statement_merge import archetype_of
+        res = score(sym, table, archetype_of(sym))
         if res:
             res.update({"sector": sector, "peers": len(table)})
     except Exception as e:                                         # noqa: BLE001
