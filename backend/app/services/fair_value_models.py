@@ -40,12 +40,32 @@ TERMINAL_G = 0.025          # نموٌّ نهائيٌّ دون السقف الم
 MIN_PEERS = 3
 FIN_TYPES = {"bank", "insurance", "financial"}
 
-# أوزانُ العائلات بحسب النمط — المصرفُ لا يُقيَّم بتدفّقٍ حرّ، والصندوقُ العقاريُّ بتوزيعه
-FAMILY_WEIGHTS = {
-    "financial": {"equity": 0.55, "multiples": 0.45},
+# ══ أوزانُ العائلات بالقياس لا بالتخمين ══ (fvm_measure.py على 140 ورقةً لها هدفُ محللين)
+# الوزنُ عكسُ وسيط خطأ العائلة لكلّ نمط، مقرَّباً. والمصرفُ لا تدفّقَ حرّاً له.
+FAMILY_WEIGHTS_BY_ARCH = {
+    "bank": {"equity": 0.64, "multiples": 0.36},
+    "financial": {"equity": 0.56, "multiples": 0.44},
+    "insurance": {"equity": 0.24, "multiples": 0.76},
     "reit": {"income": 0.55, "multiples": 0.45},
-    "default": {"cashflow": 0.35, "equity": 0.25, "multiples": 0.40},
+    "asset_light": {"cashflow": 0.45, "equity": 0.21, "multiples": 0.34},
+    "capital_infra": {"cashflow": 0.34, "equity": 0.31, "multiples": 0.35},
+    "commodity": {"cashflow": 0.46, "equity": 0.21, "multiples": 0.33},
+    "consumer_cyclical": {"cashflow": 0.34, "equity": 0.23, "multiples": 0.43},
+    "consumer_defensive": {"cashflow": 0.31, "equity": 0.22, "multiples": 0.47},
+    "contracting": {"cashflow": 0.42, "equity": 0.17, "multiples": 0.41},
+    "re_developer": {"cashflow": 0.63, "equity": 0.18, "multiples": 0.19},
 }
+FAMILY_WEIGHTS = {"default": {"cashflow": 0.38, "equity": 0.22, "multiples": 0.40},
+                  "financial": FAMILY_WEIGHTS_BY_ARCH["financial"], "reit": FAMILY_WEIGHTS_BY_ARCH["reit"]}
+
+# ══ المزيجُ مع المحرّك المُعايَر ══ (قِيس: الجديدُ وحده 37٪ والقائمُ 39٪ والمزيجُ 31٪)
+# حصّةُ النماذج الجديدة لكلّ نمط — أفضلُ α في القياس، والباقي للمحرّك القائم
+# المعايَر على السوق السعوديّ شهوراً (وهو الأدقّ في المصارف والبنية التحتية).
+BLEND_ALPHA = {"bank": 0.25, "financial": 0.25, "insurance": 0.0, "capital_infra": 0.25,
+               "consumer_cyclical": 0.25, "commodity": 0.5, "re_developer": 0.5,
+               "consumer_defensive": 0.75, "contracting": 0.75, "asset_light": 1.0}
+DEFAULT_ALPHA = 0.75
+
 FAMILY_NAMES = {"cashflow": "التدفّقات المخصومة", "equity": "الأرباح والحقوق",
                 "income": "التوزيعات", "multiples": "مضاعفاتُ الأقران السعوديين"}
 
@@ -303,7 +323,7 @@ def multiple_models(i: Inputs, bs: Base) -> list[dict]:
 # ══ التجميع: وسيطُ كلّ عائلةٍ ثمّ أوزانُ النمط ═══════════════════════════════
 def aggregate(models: list[dict], price: float, archetype: str | None) -> dict:
     kind = "financial" if archetype in FIN_TYPES else "reit" if archetype == "reit" else "default"
-    weights = dict(FAMILY_WEIGHTS[kind])
+    weights = dict(FAMILY_WEIGHTS_BY_ARCH.get(archetype or "", FAMILY_WEIGHTS[kind]))
     # ما شذّ عن **عائلته** يُستبعَد ويُسمّى — لا عن وسيط النماذج كلِّها: العائلاتُ
     # تختلف بطبيعتها (مضاعفاتُ سوقٍ مرتفعةٌ مقابل خصمٍ متحفّظ)، وقِيس أنّ المقارنةَ
     # بالكلّ تُسقط عائلةَ الحقوق بأكملها. والشاذُّ داخلَ العائلة افتراضٌ معطوب.
@@ -495,17 +515,64 @@ async def gather(symbol: str) -> Inputs | None:
                   sector=sector, beta=beta, dps_ttm=dps, peers=pm, peer_symbols=peers)
 
 
+def blend(res: dict, calibrated: dict | None, archetype: str | None, dy: float | None) -> dict:
+    """المرجّحُ النهائيّ: النماذجُ الجديدة والمحرّكُ المُعايَر بحصّةٍ مقيسةٍ لكلّ نمط،
+    والهدفُ لاثني عشر شهراً = القيمة × (1 + كلفةِ الحقوق − عائدِ التوزيع)."""
+    new_v = res.get("value")
+    old_v = _n((calibrated or {}).get("value"))
+    a = BLEND_ALPHA.get(archetype or "", DEFAULT_ALPHA)
+    res["models_value"] = new_v
+    if new_v and old_v and old_v > 0:
+        v = a * new_v + (1 - a) * old_v
+        lo_o = _n(calibrated.get("low")) or old_v
+        hi_o = _n(calibrated.get("high")) or old_v
+        res["low"] = round(min(a * res["low"] + (1 - a) * lo_o, v), 2)
+        res["high"] = round(max(a * res["high"] + (1 - a) * hi_o, v), 2)
+        res["value"] = round(v, 2)
+        res["families"] = [dict(f, weight=round(f["weight"] * a, 3)) for f in res.get("families", [])] + [
+            {"family": "calibrated", "name": "المحرّكُ المُعايَر على السوق السعوديّ", "value": round(old_v, 2),
+             "low": round(lo_o, 2), "high": round(hi_o, 2), "weight": round(1 - a, 3), "models": None}]
+        res["blend"] = {"alpha": a, "calibrated": round(old_v, 2)}
+    elif old_v and not new_v:
+        res["value"], res["low"], res["high"] = round(old_v, 2), _n(calibrated.get("low")), _n(calibrated.get("high"))
+    if res.get("value") and res.get("price"):
+        res["upside"] = round((res["value"] / res["price"] - 1) * 100, 2)
+        ke = (res.get("rates") or {}).get("ke") or RISK_FREE + EQUITY_PREMIUM
+        res["target_12m"] = round(res["value"] * (1 + ke - (dy or 0)), 2)
+        res["target_12m_upside"] = round((res["target_12m"] / res["price"] - 1) * 100, 2)
+    return res
+
+
+def _calibrated(sym: str) -> dict | None:
+    """القيمةُ المنشورةُ من المحرّك القائم (لقطةُ الفرز) — بنطاقها إن وُجد."""
+    try:
+        from app.services.market_screener import get_cached_screener
+        for r in get_cached_screener() or []:
+            if str(r.get("symbol")).replace(".SR", "") == sym:
+                v = _n(r.get("fair_value"))
+                return {"value": v, "low": _n(r.get("fair_value_low")), "high": _n(r.get("fair_value_high")),
+                        "dy": _n(r.get("dividend_yield"))} if v else None
+    except Exception:                                              # noqa: BLE001
+        pass
+    return None
+
+
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
-    ck = f"fvm:v2:{symbol}"
+    sym = str(symbol).replace(".SR", "").strip()
+    ck = f"fvm:v3:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
     try:
-        i = await gather(symbol)
+        i = await gather(sym)
         res = value(i) if i else None
+        if res is not None:
+            cal = _calibrated(sym)
+            dy = (i.dps_ttm / i.price) if (i and i.dps_ttm and i.price) else None
+            res = blend(res, cal, i.archetype if i else None, dy)
     except Exception as e:                                         # noqa: BLE001
-        logger.warning("المحرّكُ المتعدّد لـ{}: {}", symbol, e)
+        logger.warning("المحرّكُ المتعدّد لـ{}: {}", sym, e)
         res = None
     cache.set(ck, res or {}, 6 * 60 * 60 if res else 30 * 60)
     return res

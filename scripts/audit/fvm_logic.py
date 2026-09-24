@@ -7,6 +7,11 @@
 درسٌ قِيس: عددُ أسهمٍ بالآلاف في السنويّ (العثيم 900,000)، وربعٌ استثنائيّ
 (خسارةُ تطبيق ERP)، وشاذٌّ داخلَ عائلته لا خارجَها، والمصرفُ بلا خصمِ تدفّق.
 """
+import os as _os, tempfile as _tf
+_SANDBOX = _tf.mkdtemp(prefix="sp-audit-")
+_os.environ["LASTGOOD_PATH"] = _os.path.join(_SANDBOX, "lastgood.json")
+_os.environ["SP_STATE_DIR"] = _SANDBOX
+_os.environ["SP_STATUS_LOG"] = _os.path.join(_SANDBOX, "status_codes.jsonl")
 import pathlib, sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend")); sys.path.insert(0, "/app")
@@ -61,5 +66,11 @@ b = F.value(F.Inputs(symbol="1120", price=100, shares=4e9, annual=A, ttm=ttm, ba
 check(not any(m["family"] == "cashflow" for m in b["models"]), "٧ المصرفُ لا يُقيَّم بخصم تدفّقٍ حرّ")
 check(all(isinstance(a, tuple) and len(a) == 3 for m in r["models"] for a in m["assumptions"]),
       "٨ ولكلّ نموذجٍ افتراضاتُه بمداها ومصدرها")
+bl = F.blend({"value": 8.0, "low": 6.0, "high": 10.0, "price": 5.0, "families": [{"family": "cashflow", "weight": 1.0, "value": 8}],
+              "rates": {"ke": 0.10}}, {"value": 4.0, "low": 3.0, "high": 5.0}, "bank", 0.05)
+check(abs(bl["value"] - (0.25 * 8 + 0.75 * 4)) < 1e-6 and bl["families"][-1]["family"] == "calibrated"
+      and abs(bl["families"][-1]["weight"] - 0.75) < 1e-9,
+      "٩ المزيجُ مع المحرّك المُعايَر بحصّةٍ مقيسةٍ لكلّ نمط (المصرف: ربعٌ للجديد)", str(bl["value"]))
+check(abs(bl["target_12m"] - bl["value"] * 1.05) < 0.01, "١٠ والهدفُ لاثني عشر شهراً = القيمة × (1 + كلفةِ الحقوق − عائدِ التوزيع)", str(bl["target_12m"]))
 print(f"{'FAIL' if fail else 'PASS'} D468 — المحرّكُ متعدّدُ النماذج")
 sys.exit(fail)

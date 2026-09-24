@@ -16,6 +16,8 @@ import DividendProfile from "../analysis/DividendProfile";
 import StockOpinion from "../analysis/StockOpinion";
 import StockCalendar from "../analysis/StockCalendar";
 import CompanyProfileCards from "../analysis/CompanyProfileCards";
+import FairValuePanel from "../analysis/FairValuePanel";
+import HealthPanel from "../analysis/HealthPanel";
 import PriceChart from "../analysis/PriceChart";
 import OwnershipBar from "../analysis/OwnershipBar";
 import clsx from "clsx";
@@ -88,6 +90,8 @@ function DayRangeRow({ low, high }: { low: number; high: number }) {
 const TABS = [
   { id: "overview", label: "نظرة عامة", short: "نظرة" },
   { id: "analysis", label: "تقييم الأداء", short: "الأداء" },
+  { id: "fairvalue", label: "القيمة العادلة", short: "العادلة" },
+  { id: "health", label: "السلامة المالية", short: "السلامة" },
   { id: "financials", label: "القوائم المالية", short: "القوائم" },
   { id: "dividends", label: "التوزيعات", short: "التوزيعات" },
   { id: "calendar", label: "المفكرة", short: "المفكرة" },
@@ -288,6 +292,11 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
       )}
 
       {tab === "analysis" && <AnalysisPanel symbol={symbol} name={data?.name} />}
+      {tab === "fairvalue" && (
+        <FairValuePanel symbol={symbol} analystTarget={data?.analyst_target}
+                        week52={{ low: data?.week52_low, high: data?.week52_high }} />
+      )}
+      {tab === "health" && <HealthPanel symbol={symbol} />}
       {tab === "financials" && <FinancialsTable symbol={symbol} />}
       {tab === "dividends" && <DividendProfile symbol={symbol} />}
       {tab === "calendar" && <StockCalendar symbol={symbol} name={data?.name} />}

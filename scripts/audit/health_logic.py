@@ -7,6 +7,11 @@
 المئوية (أو 5 × (1 − النقطة) لما الأقلُّ فيه أفضل)، والمحورُ متوسّطُ مقاييسه،
 والكلُّ متوسّطُ المحاور. ونزيد: كلُّ محورٍ يُشرح بأقوى مقياسٍ وأضعفه.
 """
+import os as _os, tempfile as _tf
+_SANDBOX = _tf.mkdtemp(prefix="sp-audit-")
+_os.environ["LASTGOOD_PATH"] = _os.path.join(_SANDBOX, "lastgood.json")
+_os.environ["SP_STATE_DIR"] = _SANDBOX
+_os.environ["SP_STATUS_LOG"] = _os.path.join(_SANDBOX, "status_codes.jsonl")
 import pathlib, sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend")); sys.path.insert(0, "/app")

@@ -37,11 +37,19 @@ async def main():
     per_model, per_fam = collections.defaultdict(list), collections.defaultdict(list)
     fam_arch = collections.defaultdict(lambda: collections.defaultdict(list))
     worst = []
+    blended, t12 = collections.defaultdict(list), collections.defaultdict(list)
     pairs = collections.defaultdict(list)          # (جديد، قائم، هدف، ke، عائدُ توزيع)
     for x in rows:
         s, at = x["symbol"], x["analyst_target"]
         a = archetype_of(s) or "?"
         v = await F.for_symbol(s) or {}
+        mv = v.get("models_value")
+        if isinstance(v.get("value"), (int, float)) and v["value"] > 0:
+            blended[a].append(v["value"] / at); blended["*"].append(v["value"] / at)
+            if isinstance(v.get("target_12m"), (int, float)):
+                t12[a].append(v["target_12m"] / at); t12["*"].append(v["target_12m"] / at)
+        if isinstance(mv, (int, float)) and mv > 0:
+            v = {**v, "value": mv}
         if isinstance(v.get("value"), (int, float)) and v["value"] > 0:
             new[a].append(v["value"] / at); new["*"].append(v["value"] / at)
             worst.append((abs(math.log(v["value"] / at)), s, v["value"], at, x.get("fair_value")))
@@ -60,8 +68,10 @@ async def main():
     print(f"\nأوراقٌ لها هدف: {len(rows)}")
     print("الجديد الكلّ:", stat(new["*"]))
     print("القائم الكلّ:", stat(old["*"]))
+    print("المزيجُ المنشور:", stat(blended["*"]))
+    print("هدفُ 12 شهراً:", stat(t12["*"]))
     for a in sorted(k for k in new if k != "*"):
-        print(f"  {a:20} جديد {stat(new[a])}\n  {'':20} قائم {stat(old[a])}")
+        print(f"  {a:20} جديد {stat(new[a])}\n  {'':20} قائم {stat(old[a])}\n  {'':20} مزيج {stat(blended[a])}\n  {'':20} 12ش  {stat(t12[a])}")
     print("\nالعائلات:")
     for k, v in per_fam.items():
         print(f"  {k:12} {stat(v)}")
