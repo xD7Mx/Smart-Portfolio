@@ -51,8 +51,21 @@ async def main():
             print(f"  «{kw}»: …{v[max(0,i-150):i+600]}…"); break
     else:
         print(f"  لم يُعثر على المتن · أوّلُ الظاهر: {v[:300]}")
-    eps2 = sorted(set(m.group(1) for m in _SVC.finditer(h or "")))
-    print("  خدماتُ صفحة التفاصيل:", eps2)
+    eps2 = {}
+    for m in _SVC.finditer(h or ""):
+        eps2.setdefault(m.group(1), m.group(0))
+    print("  خدماتُ صفحة التفاصيل:", sorted(eps2))
+    base2 = (re.search(r"<base[^>]+href=[\"']([^\"']+)", h or "") or [None, ""])[1].rstrip("/")
+    for k in [i.start() for i in re.finditer("getAnnouncementListData", h or "")][:3]:
+        print(f"  سياق: {(h or '')[max(0,k-300):k+900]!r}")
+    ep = eps2.get("getAnnouncementListData")
+    if ep:
+        for params in ({"symbol": "4001"}, {"company": "4001"}, {}):
+            try:
+                st2, raw = await fetch(f"{base2}/{ep}", params={**params, "requestLocale": "ar"}, referer=u)
+                print(f"  نداء {params}: HTTP {st2} · {len(raw or '')} · {(raw or '')[:700]!r}")
+            except Exception as e:
+                print(f"  نداء {params}: {type(e).__name__} {e}")
     return 0
 
 sys.exit(asyncio.run(main()))
