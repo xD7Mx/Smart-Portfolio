@@ -45,6 +45,36 @@ def zigzag(b, mult=3, depth=7):
     return piv
 
 
+def zigzag7(b, mult=3, depth=7):
+    """مكتبةُ TradingView ZigZag/7 حرفاً: عتبةُ الانحراف عند شمعة الاكتشاف، ويمينُ المحور
+    صارمٌ بلا مساواة ويسارُه يقبلها، وATR ببذرة SMA."""
+    n, L = 10, max(2, depth // 2)
+    tr = [x["high"] - x["low"] if i == 0 else max(x["high"] - x["low"], abs(x["high"] - b[i-1]["close"]), abs(x["low"] - b[i-1]["close"])) for i, x in enumerate(b)]
+    a, r = [], None
+    for i in range(len(b)):
+        if i < n - 1: a.append(None); continue
+        r = sum(tr[:n]) / n if r is None else (r * (n - 1) + tr[i]) / n
+        a.append(r)
+    piv = []
+    for t in range(len(b)):
+        if a[t] is None or t - 2 * L < 0: continue
+        dev = a[t] / b[t]["close"] * 100 * mult
+        for hi in (True, False):
+            src = (lambda k: b[t-k]["high"]) if hi else (lambda k: b[t-k]["low"])
+            p0 = src(L)
+            if any((src(k) > p0) if hi else (src(k) < p0) for k in range(0, L)): continue
+            if any((src(k) >= p0) if hi else (src(k) <= p0) for k in range(L + 1, 2 * L + 1)): continue
+            pt = [t - L, p0, hi]
+            if not piv: piv.append(pt); continue
+            last = piv[-1]
+            if last[2] == hi:
+                if (p0 > last[1]) if hi else (p0 < last[1]): piv[-1] = pt
+            else:
+                d = 100 * (p0 - last[1]) / abs(last[1])
+                if (not last[2] and d >= dev) or (last[2] and d <= -dev): piv.append(pt)
+    return piv
+
+
 def ema(v, n):
     k, out, prev = 2 / (n + 1), [], None
     for i, x in enumerate(v):
@@ -83,6 +113,9 @@ async def main():
         h = (-1 if start > end else 1) * abs(start - end)
         lv = {x: round(start + h * x, 2) for x in (0, 1, 1.1, -0.1, 0.5, 0.618, -0.5, -0.618)}
         print(f"فيبوناتشي التطبيق: ضلعٌ {s[1]}@{w[s[0]]['date']} → {e[1]}@{w[e[0]]['date']} · {lv}")
+        p7 = zigzag7(w)
+        if len(p7) >= 2:
+            print(f"ZigZag/7 حرفاً:    ضلعٌ {p7[-2][1]}@{w[p7[-2][0]]['date']} → {p7[-1][1]}@{w[p7[-1][0]]['date']} · آخرُ ستّة محاور: {[(x[1], w[x[0]]['date']) for x in p7[-6:]]}")
         print("تريدنق فيو:       0=5.75 · 1=12.50 · 1.1=13.18 · -0.1=5.08 · 0.5=9.13 · 0.618=9.92 · -0.5=2.38 · -0.618=1.58")
     from app.api.v1.endpoints.market import get_d7m_frames
     r = await get_d7m_frames("4001")
