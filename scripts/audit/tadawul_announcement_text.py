@@ -6,74 +6,51 @@
 import asyncio, json, re, sys
 sys.path.insert(0, "/app")
 _SVC = re.compile(r"p0/[A-Za-z0-9_=]*=NJ([A-Za-z][A-Za-z0-9_]{3,60})=/")
+O = "https://www.saudiexchange.sa"
+PAGE = O + "/wps/portal/saudiexchange/newsandreports/issuer-news/issuer-announcements?locale=ar"
 
 
-def vis(h):
-    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"<script.*?</script>|<style.*?</style>", "", h or "", flags=re.S)))
+def blocks(h):
+    """أكبرُ الكتل النصّية في الصفحة (بلا سكربت/نمط) — لإيجاد المتن."""
+    h = re.sub(r"<script.*?</script>|<style.*?</style>", "", h or "", flags=re.S)
+    out = []
+    for m in re.finditer(r"<(div|td|p|section|article)[^>]*>(.*?)</\1>", h, re.S):
+        t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", m.group(2))).strip()
+        if len(t) > 80 and not re.search(r"تسجيل الدخول|السوق مغلق|Log in", t):
+            out.append((len(t), m.group(0)[:160], t))
+    return sorted(out, reverse=True)[:4]
 
 
 async def main():
     try:
-        from app.services.tadawul_ownership import company_page
-        from app.services.tadawul_http import fetch
+        from app.services.tadawul_http import fetch, smart_fetch
     except ModuleNotFoundError as e:
         print(f"⚠ بيئةٌ ناقصة ({e.name}) — لم يُقَس"); return 0
-    O = "https://www.saudiexchange.sa"
-    from app.services import tadawul_market as TM
-    if not TM.row_for("4001"):
-        await TM.refresh()
-    print("رابطُ صفحة 4001:", (TM.row_for("4001") or {}).get("company_url"))
-    body = await company_page("4001") or ""
-    print(f"صفحةُ 4001: {len(body)} حرف")
-    base = (re.search(r"<base[^>]+href=[\"']([^\"']+)", body) or [None, ""])[1].rstrip("/")
-    eps = {}
-    for m in _SVC.finditer(body):
-        eps.setdefault(m.group(1), m.group(0))
-    print("الخدمات:", sorted(eps))
-    links = sorted(set(re.findall(r'href="([^"]*(?:news-detail|announcement|NewsDetail|newsId)[^"]*)"', body, re.I)))
-    print(f"روابطُ إعلاناتٍ في الصفحة: {len(links)}", links[:5])
-    for name in [n for n in eps if re.search(r"news|announc|disclos", n, re.I)]:
-        for params in ({"symbol": "4001", "language": "ar"}, {"companySymbol": "4001", "requestLocale": "ar"}, {"requestLocale": "ar"}):
-            try:
-                st, raw = await fetch(f"{base}/{eps[name]}", params=params, referer=base)
-            except Exception as e:
-                print(f"  {name} {params}: {type(e).__name__}"); continue
-            print(f"  {name} {params}: HTTP {st} · {len(raw or '')} · {(raw or '')[:400]!r}")
-    # صفحةُ تفاصيل إعلانٍ واحد (رابطُ خدمة الأخبار العامّة المقيسة)
-    target = links[0] if links else "/wps/portal/saudiexchange/newsandreports/issuer-news/news-detail-wcm/?newsId=9593&locale=ar"
-    u = target if target.startswith("http") else O + target
-    st, h = await fetch(u)
-    v = vis(h)
-    print(f"\nتفاصيل: {u[:140]} · HTTP {st} · {len(h or '')} حرف")
-    for kw in ("تعلن", "يعلن", "announces", "Purity", "بيوريتي"):
-        i = v.find(kw)
-        if i >= 0:
-            print(f"  «{kw}»: …{v[max(0,i-150):i+600]}…"); break
-    else:
-        print(f"  لم يُعثر على المتن · أوّلُ الظاهر: {v[:300]}")
-    eps2 = {}
-    for m in _SVC.finditer(h or ""):
-        eps2.setdefault(m.group(1), m.group(0))
-    print("  خدماتُ صفحة التفاصيل:", sorted(eps2))
-    base2 = (re.search(r"<base[^>]+href=[\"']([^\"']+)", h or "") or [None, ""])[1].rstrip("/")
-    for k in [i.start() for i in re.finditer("getAnnouncementListData", h or "")][:3]:
-        print(f"  سياق: {(h or '')[max(0,k-1500):k-250]!r}")
-    from app.services.tadawul_http import smart_fetch
-    for anid, cs in (("98270", "1030"),):
-        du = f"{O}/wps/portal/saudiexchange/newsandreports/issuer-news/issuer-announcements/issuer-announcements-details/?anId={anid}&anCat=1&cs={cs}&locale=ar"
+    st, page = await fetch(PAGE)
+    base = (re.search(r"<base[^>]+href=[\"']([^\"']+)", page or "") or [None, ""])[1].rstrip("/")
+    ep = next((m.group(0) for m in _SVC.finditer(page or "") if m.group(1) == "getAnnouncementListData"), None)
+    print(f"الصفحة: HTTP {st} · الخدمة: {bool(ep)}")
+    form = {"annoucmentType": "1_-1", "symbol": "4001", "sectorDpId": "", "searchType": "", "fromDate": "", "toDate": "",
+            "datePeriod": "", "productType": "", "advisorsList": "", "textSearch": "", "pageNumberDb": "1", "pageSize": "10"}
+    st2, raw = await smart_fetch(f"{base}/{ep}", method="POST", data=form, referer=PAGE,
+                                 warm=PAGE, headers={"X-Requested-With": "XMLHttpRequest"})
+    try:
+        j = json.loads(raw)
+    except Exception:
+        print(f"POST: HTTP {st2} · {(raw or '')[:300]!r}"); return 0
+    L = j.get("announcementList") or []
+    print(f"POST رمز 4001: HTTP {st2} · {len(L)} · المجموع {L[0].get('totalCount') if L else 0} · رموز: {sorted(set(x.get('SYMBOL') for x in L))}")
+    for x in L[:6]:
+        print(f"  {x.get('PR_DATE')} · {x.get('SYMBOL')} · {(x.get('SHORT_DESC') or '')[:90]} · {x.get('announcementUrl','')[-60:]}")
+    print("  مفاتيحُ الصفّ:", sorted(L[0].keys()) if L else [])
+    for x in L[:2]:
+        du = O + x["announcementUrl"].replace("locale=en", "locale=ar")
         st3, h3 = await fetch(du)
-        v3 = vis(h3)
-        i = v3.find("يعلن") if "يعلن" in v3 else v3.find("تعلن")
-        print(f"  تفاصيلُ إعلانٍ ({anid}): HTTP {st3} · {len(h3 or '')} · …{v3[max(0,i-200):i+900] if i>=0 else v3[:300]}…")
-        print("  خدماتُ صفحة التفاصيل:", sorted(set(m.group(1) for m in _SVC.finditer(h3 or ""))))
-    ep = eps2.get("getAnnouncementListData")
-    if ep:
-        for params in ({"symbol": "4001"}, {"company": "4001"}, {}):
-            try:
-                st2, raw = await fetch(f"{base2}/{ep}", params={**params, "requestLocale": "ar"}, referer=u)
-                print(f"  نداء {params}: HTTP {st2} · {len(raw or '')} · {(raw or '')[:700]!r}")
-            except Exception as e:
-                print(f"  نداء {params}: {type(e).__name__} {e}")
+        print(f"\nتفاصيل {x.get('announcementNumber')}: HTTP {st3} · {len(h3 or '')}")
+        for n, tag, t in blocks(h3):
+            print(f"  كتلة {n} حرف · {tag!r}\n    {t[:700]}")
+        for m in re.finditer(r'(?:href|src)="([^"]*\.pdf[^"]*)"', h3 or "", re.I):
+            print(f"  PDF: {m.group(1)[:160]}"); break
     return 0
 
 sys.exit(asyncio.run(main()))
