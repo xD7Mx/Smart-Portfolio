@@ -69,7 +69,7 @@ def _g(a, b):
 def metrics_of(sym: str, row: dict, dps: float | None = None) -> dict | None:
     """مقاييسُ ورقةٍ واحدة من XBRL ولقطة «تداول» — أو None."""
     from app.services.tadawul_xbrl import for_symbol as X
-    from app.services.fair_value_models import _shares_of, _ttm_of
+    from app.services.fair_value_models import _latest, _shares_of, _ttm_of
     px = _n((row or {}).get("price"))
     try:
         an, qu = X(sym, "annual") or [], X(sym, "quarterly") or []
@@ -81,7 +81,7 @@ def metrics_of(sym: str, row: dict, dps: float | None = None) -> dict | None:
     if not sh:
         return None
     ttm, _ = _ttm_of(qu, an)
-    bal = (qu or an)[-1]
+    bal = _latest(qu, an)
     mcap = px * sh
     debt, cash = _n(bal.get("total_debt")) or 0, _n(bal.get("ending_cash")) or 0
     ev = mcap + debt - cash
@@ -179,7 +179,7 @@ async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     from app.services import tadawul_market as TM
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"health:v4:{sym}"
+    ck = f"health:v5:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
@@ -198,7 +198,7 @@ async def for_symbol(symbol: str) -> dict | None:
         is_main = lambda s: True                                   # noqa: E731
     peers = [str(s).replace(".SR", "") for s, r in rows.items()
              if (r or {}).get("sector_en") == sector and is_main(str(s).replace(".SR", ""))]
-    tk = f"health:table:{sector}"
+    tk = f"health:table:v2:{sector}"
     table = cache.get(tk)
     if table is None:
         table = {}

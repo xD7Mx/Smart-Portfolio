@@ -539,6 +539,8 @@ async def read_symbol(symbol: str, *, max_files: int = 8,
                      "audited": got.get("audited"), "rounding": got.get("rounding"),
                      "periods": len(got["periods"])})
     if not (annual or quarterly):
+        await _pdf_supplement(symbol, annual, quarterly)
+    if not (annual or quarterly):
         # قائمةُ الملفّات موجودةٌ — فيُعاد سجلٌّ فارغٌ **يحمل سببَه**، ولا
         # يُقال «بلا ملفّات» لشركةٍ أودعت (D360).
         return {"symbol": symbol, "annual": [], "quarterly": [],
@@ -563,9 +565,33 @@ async def read_symbol(symbol: str, *, max_files: int = 8,
     withhold_unsafe(symbol, annual + quarterly)
     annual.sort(key=lambda p: p["as_of"])
     quarterly.sort(key=lambda p: p["as_of"])
+    await _pdf_supplement(symbol, annual, quarterly)
     return {"symbol": symbol, "annual": annual, "quarterly": quarterly,
             "files": used, "source": "تداول — XBRL",
             "as_of": datetime.now(timezone.utc).date().isoformat()}
+
+
+async def _pdf_supplement(symbol: str, annual: list[dict], quarterly: list[dict]) -> int:
+    """سنواتٌ أحدثُ من آخر XBRL تُقرأ من قوائم «تداول» PDF الرسمية (D476).
+
+    قِيس: ملفّاتُ XBRL للمؤمِّنين وغيرِهم تقف عند 2022 والقوائمُ منشورةٌ PDF
+    حتى 2026 في التبويب نفسِه. فإن كانت آخرُ سنةٍ مقروءةٍ أقدمَ من السنة
+    الماضية تُستكمل ممّا بعدها — وما لا يجتاز صمّامَ الاتّساق يُرفض ويُذكر.
+    """
+    last = max((p["year"] for p in annual), default=0)
+    if last >= date.today().year - 1:
+        return 0
+    ref = next((p.get("shares_outstanding") for p in reversed(annual + quarterly)
+                if isinstance(p.get("shares_outstanding"), (int, float)) and p["shares_outstanding"] > 0), None)
+    try:
+        from app.services.tadawul_pdf import read_annuals
+        more = await read_annuals(symbol, after_year=last, ref_shares=ref)
+    except Exception as e:                                         # noqa: BLE001
+        logger.warning("PDF {}: {}", symbol, type(e).__name__)
+        return 0
+    annual.extend(more)
+    annual.sort(key=lambda p: p["as_of"])
+    return len(more)
 
 
 def _store() -> dict:

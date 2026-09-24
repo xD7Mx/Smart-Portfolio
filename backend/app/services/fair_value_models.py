@@ -544,10 +544,18 @@ def _shares_of(annual: list[dict], quarterly: list[dict]) -> float | None:
     return ref
 
 
+def _latest(quarterly: list[dict], annual: list[dict]) -> dict:
+    """أحدثُ ميزانيةٍ بين الربعيّ والسنويّ — لا الربعيُّ لأنه ربعيّ (D476)."""
+    cands = [x for x in (quarterly[-1:] + annual[-1:])]
+    return max(cands, key=lambda x: str(x.get("as_of") or f"{x.get('year')}-12-31")) if cands else {}
+
+
 def _ttm_of(quarterly: list[dict], annual: list[dict]) -> tuple[dict, str]:
     q = quarterly[-4:]
     keys = ("revenue", "net_income", "ebit", "operating_cash_flow", "capex", "interest_expense", "pretax_income")
-    if len(q) == 4 and all(_n(p.get("revenue")) for p in q):
+    a_end = str((annual[-1] if annual else {}).get("as_of") or "")
+    # أرباعٌ أقدمُ من آخر سنةٍ منشورة لا تكون «آخرَ اثني عشر شهراً» (D476)
+    if len(q) == 4 and all(_n(p.get("revenue")) for p in q) and str(q[-1].get("as_of")) >= a_end:
         from datetime import date
         d = [date.fromisoformat(str(p["as_of"])[:10]) for p in q]
         if (d[-1] - d[0]).days <= 300:
@@ -593,7 +601,7 @@ def _peer_multiples(sym: str, peers: list[str], rows: dict) -> dict:
         if not sh:
             continue
         ttm, _ = _ttm_of(qu, an)
-        bal = (qu or an)[-1]
+        bal = _latest(qu, an)
         mcap = px * sh
         ev = mcap + (_n(bal.get("total_debt")) or 0) - (_n(bal.get("ending_cash")) or 0)
         eq, rev, ni = _n(bal.get("equity")), _n(ttm.get("revenue")), _n(ttm.get("net_income"))
@@ -667,7 +675,7 @@ async def gather(symbol: str) -> Inputs | None:
                      if (r or {}).get("sector_en") == sector and is_main(str(s).replace(".SR", "")))
     peers = [p for p in members if p != sym]
     from app.services import cache
-    ck = f"fvm:peers:v4:{sector}"
+    ck = f"fvm:peers:v5:{sector}"
     table = cache.get(ck)
     if table is None:
         table = _peer_multiples(sym, members, rows)
@@ -714,7 +722,7 @@ async def gather(symbol: str) -> Inputs | None:
     except Exception:                                              # noqa: BLE001
         pass
     return Inputs(symbol=sym, price=price, shares=shares, annual=annual, ttm=ttm,
-                  balance=(quarterly or annual)[-1], ttm_source=src, archetype=archetype_of(sym),
+                  balance=_latest(quarterly, annual), ttm_source=src, archetype=archetype_of(sym),
                   sector=sector, beta=beta, dps_ttm=dps, peers=pm, peer_symbols=peers, notes=notes,
                   stale_days=stale)
 
@@ -769,7 +777,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v13:{sym}"
+    ck = f"fvm:v14:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
