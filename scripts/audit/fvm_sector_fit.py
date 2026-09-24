@@ -115,6 +115,14 @@ async def main():
     print("أسبابُ غياب القيمة:")
     for k, v in why.most_common():
         print(f"   {v:3} × {k}")
+    # مجموعاتُ D470 النظرية قبل ما اعتُمد في D473 على قياسٍ تبيّن تلوّثُه (السهمُ بين أقرانه)
+    D, DD = F._DCF, F._DDM
+    ORIG = {"Capital Goods": D | {"epv", "peer_ev_ebit", "peer_pe", "peer_pb", "peer_pocf", "residual_income"},
+            "Consumer Services": D | {"epv", "peer_ev_ebit", "peer_pe", "peer_ps", "peer_pocf"},
+            "Food & Beverages": set(F._ALL),
+            "Insurance": {"residual_income", "peer_pb", "peer_pe"},
+            "Energy": D | {"epv", "peer_ev_ebit", "peer_ev_sales", "peer_pb", "residual_income", "peer_pe", "peer_yield"} | DD,
+            "Banks": {"residual_income", "peer_pe", "peer_pb", "peer_yield"} | DD}
     PROPOSE = {}
     allitems = [p for v in by.values() for p in v]
     print(f"أوراقٌ لها هدف: {len(allitems)} في {len(by)} قطاعاً\n")
@@ -125,6 +133,9 @@ async def main():
         print(f"═ {sec} · n={len(items)}{tag} · {name}")
         print(f"   القائمة  خطأ {err(cur):.0%} · ±25٪ {within(cur):.0%} · مغطّاة {len(cur)}")
         print(f"   الكاملة  خطأ {err(full):.0%} · ±25٪ {within(full):.0%} · مغطّاة {len(full)}")
+        if sec in ORIG:
+            o = rs(items, ORIG[sec])
+            print(f"   D470     خطأ {err(o):.0%} · ±25٪ {within(o):.0%} · مغطّاة {len(o)}")
         print(f"   الأفضلُ قياساً ({len(chosen)}): {sorted(chosen)} · خطأ داخل العيّنة {best:.0%}")
         if cvr:
             verdict = "يُعتمد" if (len(items) >= 5 and err(cvr) < err(cur) - 0.02) else "لا يُعتمد — القائمةُ أمتن"
