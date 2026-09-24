@@ -226,14 +226,16 @@ function EventRow({ e, onOpen }: { e: any; onOpen: () => void }) {
   const name = lookupCompany(e.symbol)?.name_ar || e.company_name || e.name;
   return (
     <button onClick={onOpen} className="w-full text-start block active:scale-[.995] transition-transform">
-      <div className="event-item flex items-center gap-3 p-2.5 rounded-xl transition-colors">
-        {e.symbol ? <CompanyLogo symbol={e.symbol} size={32} /> : null}
+      <div className="event-item flex items-stretch gap-3 p-2.5 rounded-xl transition-colors">
+        {/* وسمُ الحدث شريطٌ طوليٌّ يمينَ الشعار بكتابةٍ طولية (بأمر المالك —
+            الخيار الأوّل): لا يزاحم الاسمَ والرمز. */}
+        <span className="ev-strip shrink-0" style={{ background: meta.bg, color: meta.fg }}>{meta.label}</span>
+        {e.symbol ? <span className="self-center"><CompanyLogo symbol={e.symbol} size={32} /></span> : null}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             {/* الوسمُ بعد الرمز يساراً (بأمر المالك) — لا يزاحم الاسمَ والرمز. */}
             {name && <span className="text-[var(--ink)] text-[13px] font-semibold truncate">{name}</span>}
             {e.symbol && <span className="tag-b shrink-0" style={{ fontSize: 10 }}>{e.symbol}</span>}
-            <span className="ev-tag shrink-0 ms-auto" style={{ background: meta.bg, color: meta.fg }}>{meta.label}</span>
           </div>
           <p className="text-[var(--ink-muted)] text-xs mt-1 leading-snug">{e.title || e.headline || meta.label}</p>
           <p className="text-[var(--ink-muted)] text-[11px] mt-0.5">{fmtDate(e.date)}</p>
