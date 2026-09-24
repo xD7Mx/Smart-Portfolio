@@ -88,7 +88,8 @@ def _kind_of(text: str) -> str | None:
 
 def _unit(text: str) -> float:
     t = text.lower()
-    if re.search(r"million", t[:1500]):
+    if re.search(r"(?:in|of) (?:saudi riyals? )?millions|millions of saudi|sar ?[’'`]?\s?m(?:illion)?s?\b(?! ?[’'`]?000)|\(sr millions?\)", t[:1500]) \
+            and not re.search(r"thousand|[’'`]\s?000", t[:1500]):
         return 1_000_000.0
     if re.search(r"[’'`]\s?000|thousand", t):
         return 1_000.0
@@ -178,15 +179,24 @@ def _pairs(lines: list[str], keys: tuple[str, ...]) -> dict[str, tuple[float, fl
                 out[hit] = (vals[0], vals[1] if len(vals) > 1 else None)
                 break
             # لا رقمَ بعده: قد يكون شطرَ بندٍ مكسورٍ على سطرين — يُجرَّب الوصل
-    # الأمُّ تغلب الإجماليّ: سطرُ «• Equity holders of the Parent» بعد صافي الربح
+    # الأمُّ تغلب الإجماليّ: «صافي الربح ← العائدُ إلى: • مساهمي الأمّ» — والكتلةُ
+    # الكلّيةُ لا كتلةُ «العمليات المستمرّة» (قِيس: سابك 2025 تنشر الكتلتين)
     if "net_income" in keys:
+        best = None
         for j, t in enumerate(norm):
-            if _PARENT.match(t) and j >= 2 and "attributable to" in " ".join(norm[max(0, j - 3):j]) and \
-                    not any("comprehensive" in x for x in norm[max(0, j - 4):j]):
-                v = _nums_after(norm, j + 1)
-                if v and v[0] is not None:
-                    out["net_income"] = (v[0], v[1] if len(v) > 1 else None)
-                break
+            if not (_PARENT.match(t) and j >= 2 and "attributable to" in " ".join(norm[max(0, j - 3):j])):
+                continue
+            ctx = " ".join(norm[max(0, j - 6):j])
+            if "comprehensive" in ctx:
+                continue
+            v = _nums_after(norm, j + 1)
+            if not v or v[0] is None:
+                continue
+            total = "continuing" not in " ".join(norm[max(0, j - 4):j])
+            if best is None or (total and not best[0]):
+                best = (total, (v[0], v[1] if len(v) > 1 else None))
+        if best:
+            out["net_income"] = best[1]
     return out
 
 
@@ -258,13 +268,21 @@ def parse_pdf(data: bytes) -> dict:
             "reason": None if periods else "لم يُطابَق بندٌ كافٍ في صفحات القوائم"}
 
 
-def valid(p: dict, ref_shares: float | None) -> str | None:
-    """سببُ رفض الفترة — أو None إن اجتازت الصمّام."""
+def valid(p: dict, ref_shares: float | None, peer_shares: float | None = None) -> str | None:
+    """سببُ رفض الفترة — أو None إن اجتازت الصمّام.
+
+    والمرجعُ نفسُه قد يكون خاطئاً (قِيس: أسهمُ 8210 المحفوظةُ من XBRL القديم 119,458
+    — بالآلاف — وصافي الربح ÷ الربحية في ملفّ 2025 = 149 مليوناً في السنتين). فإن
+    اتّسق عمودا الملفّ فيما بينهما (`peer_shares` = أسهمُ العمود الآخر) والمرجعُ
+    بعيدٌ عنهما بفارقٍ يقارب مضاعفَ ألفٍ، فالعطبُ في المرجع لا في الملف.
+    """
     for k in ("net_income", "total_assets", "equity"):
         if p.get(k) is None:
             return f"بندٌ أساسيٌّ غائب: {k}"
     sh = p.get("shares_outstanding")
-    if ref_shares and sh and not (ref_shares / 2 <= sh <= ref_shares * 2):
+    unit_off = bool(ref_shares and sh and any(0.5 <= sh / (ref_shares * f) <= 2 for f in (1e3, 1e-3, 1e6)))
+    self_ok = bool(sh and peer_shares and 0.8 <= sh / peer_shares <= 1.25)
+    if ref_shares and sh and not (ref_shares / 2 <= sh <= ref_shares * 2) and not (unit_off and self_ok):
         return f"صافي الربح ÷ ربحية السهم = {sh:,.0f} سهماً والمعروف {ref_shares:,.0f} — وحدةٌ أو بندٌ خاطئ"
     ta, eq = p.get("total_assets"), p.get("equity")
     if ta and eq and not (0 < eq <= ta):
@@ -323,7 +341,8 @@ async def read_annuals(symbol: str, after_year: int, ref_shares: float | None,
         for p in r["periods"]:
             if p["year"] <= after_year or p["as_of"] in got:
                 continue
-            bad = valid(p, ref_shares)
+            other = next((q.get("shares_outstanding") for q in r["periods"] if q is not p), None)
+            bad = valid(p, ref_shares, other)
             if bad:
                 if report is not None:
                     report[bad.split(":")[0]] = report.get(bad.split(":")[0], 0) + 1

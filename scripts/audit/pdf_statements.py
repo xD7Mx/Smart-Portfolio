@@ -83,5 +83,16 @@ check(d.get("revenue") == (1672498610.0, 1129966260.0) and d.get("net_income") =
       and d.get("eps") == (0.43, 0.54), "٢٠ رقما سطرٍ واحد يُفصلان وإيضاحُ «7,19» يُتجاوَز ولا تُحذف «0.43»", str(d))
 check(P._kind_of("INDEPENDENT AUDITORS' REPORT ON FINANCIAL STATEMENTS statement of financial position") is None,
       "٢١ تقريرُ المراجع ليس قائمة")
+check(P.valid(dict(p, shares_outstanding=149252006), 119458, 149679332) is None,
+      "٢٢ مرجعٌ محفوظٌ بوحدةٍ مغلوطة (بوبا 119,458) لا يرفض ملفّاً اتّسق عموداه")
+check(P.valid(dict(p, shares_outstanding=178476368), 2194773958, 9981125490) is not None,
+      "٢٣ وعمودان غيرُ متّسقَين وبعيدان عن المرجع يُرفضان (سابك قبل الإصلاح)")
+_s2 = ["Net (loss) income from continuing operations", "(345,652)", "7,274,967", "Net (loss) income", "(24,724,966)", "3,723,135",
+       "Net (loss) income from continuing operations", "Attributable to:", "• Equity holders of the Parent", "(1,533,112)", "5,090,374",
+       "Net (loss) income", "Attributable to:", "• Equity holders of the Parent", "(25,779,231)", "1,538,542"]
+check(P._pairs(_s2, ("net_income",)).get("net_income") == (-25779231.0, 1538542.0),
+      "٢٤ الكتلةُ الكلّيةُ العائدةُ للأمّ لا كتلةُ العمليات المستمرّة")
+check(P._unit("All amounts in thousands of Saudi Riyals unless otherwise stated. SAR 5 million facility") == 1000.0,
+      "٢٥ كلمةُ «million» في نصّ الصفحة لا تجعل الوحدةَ ملايين")
 print(f"{'FAIL' if fail else 'PASS'} D476 — قوائمُ «تداول» PDF حين تقف XBRL")
 sys.exit(fail)
