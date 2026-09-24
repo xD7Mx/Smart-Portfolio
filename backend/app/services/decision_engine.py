@@ -272,7 +272,7 @@ def apply_fair_value_ceiling(decision: "Decision", price, fair_value,
             return Decision(
                 decision=ABSTAIN,
                 matched_rule_id=f"{decision.matched_rule_id}+بلا_قيمة_عادلة",
-                reason=("لا يصلنا هدفُ محلّلين لهذه الورقة، فلا يصحّ "
+                reason=("لم يُنشر لهذه الورقة سعرٌ عادلٌ موثوق، فلا يصحّ "
                         "إصدارُ حكمٍ عليها — العجزُ عن التقييم ليس رسوباً "
                         f"فيها. {decision.reason}"),
             )

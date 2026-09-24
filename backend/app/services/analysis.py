@@ -602,17 +602,18 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
     #
     # وثقةٌ منخفضةٌ لا يُبنى عليها منعٌ: هي تُعرض بقيدها المعلَن ولا تُسقط
     # حكماً — كما لا يُطبَّق السقفُ حين تمتنع القيمةُ أصلاً.
-    _gate_fv = _shown_fv
-    if _gate_fv is None and _rel_fields.get("rel_conf") in ("مرتفعة", "متوسطة"):
-        _gate_fv = _rel_fields.get("rel_value")
+    # ══ القرارُ يُحكم بالسعر العادل الواحد المعروض ══ (D454 · بأمر المالك)
+    # كانت البوّابةُ تأخذ **هدفَ المحلّلين** (سياسةٌ قديمةٌ نُسخت: «السعرُ
+    # العادل هدفُ بيوت الخبرة وحدَه») — والشاشةُ تعرض تقديرَ المحرّك. فرأى
+    # المالكُ 2080 بسعرٍ عادلٍ 55.39 ودرجةٍ 78، ورأيُ الذكاء «بيانات غير
+    # كافية» لأنه «لا يصلنا هدفُ محلّلين». فالبوّابةُ تأخذ رقمَ الشاشة نفسَه.
+    _gate_fv = _fv.get("value")
     # البوّابةُ تحكم بالرقم المعروض نفسِه — لا برقمٍ ثانٍ لا تراه الشاشة.
     gov = apply_fair_value_ceiling(fin["decision"],
                                    (price or {}).get("price"),
                                    _gate_fv,
                                    _fv.get("entry_price"),
-                                   single_path=bool(_fv.get("single_path"))
-                                   or (_shown_fv is None
-                                       and _rel_fields.get("rel_paths") == 1),
+                                   single_path=bool(_fv.get("single_path")),
                                    coverage=_cov,
                                    nomu=bool(_fv.get("nomu")),
                                    red_lines=(fin.get("red_lines") or []),

@@ -784,7 +784,7 @@ export default function CompanyPage() {
         <button className="btn-ghost text-sm flex items-center gap-1" onClick={() => nav("/portfolio")}>
           <ArrowRight size={15} /> المحفظة
         </button>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
           <CompanyLogo symbol={company.symbol} color={company.color} size={44} logoUrl={company.logo_url} />
           <div>
             <div className="flex items-center gap-2">
@@ -831,12 +831,15 @@ export default function CompanyPage() {
               {company.sector && <span className="tag-n">{company.sector}</span>}
             </div>
           </div>
+          {/* «عملية جديدة» علامةُ زائدٍ وحدَها، بالتصميم نفسِه، موازيةً للاسم
+              والقطاع والرمز (بأمر المالك). */}
+          {isOwner && (
+            <button className="btn-primary ms-auto shrink-0 flex items-center justify-center w-11 h-11 p-0"
+              onClick={() => setShowTx(true)} title="عملية جديدة" aria-label="عملية جديدة">
+              <Plus size={22} strokeWidth={2.6} />
+            </button>
+          )}
         </div>
-        {isOwner && (
-          <button className="btn-primary mr-auto flex items-center gap-1.5 text-sm" onClick={() => setShowTx(true)}>
-            <Plus size={15} /> عملية جديدة
-          </button>
-        )}
       </div>
 
       {/* Stat cards */}

@@ -1313,6 +1313,25 @@ def compute(info: dict, price: float | None,
         primary = _PB
     else:
         WEIGHTS = {"متعدّد المراحل": 0.45, "نموّ دائم": 0.35, "مضاعف القطاع": 0.20}
+        # ══ أوزانُ كلّ قطاعٍ من مواصفته لا وزنٌ واحدٌ للجميع ══ (D455)
+        # قِيس على أرامكو: 16.11 والمحلّلون ~30. والمواصفةُ تقول للسلعيّ
+        # «مضاعفٌ مسوّىً 0.45 · خصمٌ 0.30 · دخلٌ متبقٍّ 0.25»، والمحرّكُ
+        # يطبّق على تسعة أنماطٍ وزناً واحداً يُعطي المضاعفَ 0.20. فالمواصفةُ
+        # مكتوبةٌ ولا تحكم — وهي ما قال المالك: «لكلّ قطاعٍ طريقةُ تقييم».
+        try:
+            from app.data.archetype_spec import VALUATION as _VS
+            _sw = (_VS.get(archetype or "") or {}).get("weights") or {}
+        except Exception:                                         # noqa: BLE001
+            _sw = {}
+        _map = {"dcf": "متعدّد المراحل", "residual_income": "نموّ دائم",
+                "sector_pe": "مضاعف القطاع", "normalized_pe": "مضاعف القطاع"}
+        _spec_w: dict[str, float] = {}
+        for _k, _wv in _sw.items():
+            if _k in _map:
+                _spec_w[_map[_k]] = _spec_w.get(_map[_k], 0.0) + float(_wv)
+        if len(_spec_w) >= 2:
+            WEIGHTS = _spec_w
+            out["weights_source"] = f"مواصفةُ نمط «{archetype}»"
         perpetual = [by_name[k] for k in (_PB,) if k in by_name]
         if "التدفّق النقدي المخصوم" in by_name:
             buckets["متعدّد المراحل"] = by_name["التدفّق النقدي المخصوم"]
@@ -1343,8 +1362,12 @@ def compute(info: dict, price: float | None,
     # تنازلٌ عن معرفةٍ نملكها إرضاءً لشاهدٍ نعرف ضعفَه.
     # فيُستبعد من **حساب النقطة** ويبقى معروضاً في المسارات، ويُقال إنه
     # استُبعد. وما بقي تضاربُه بعد استبعاده يبقى ممتنعاً.
+    # ولا يُستبعَد «الأضعف» إلا حيث هو الأضعفُ وزناً في مواصفة النمط (D455):
+    # في السلعيّ والمقاولات هو العدسةُ الأولى (0.45) لا شاهدٌ ثانويّ.
+    _pe_w = WEIGHTS.get("مضاعف القطاع", WEIGHTS.get(_PE, 0.0))
+    _pe_weakest = _pe_w <= min(WEIGHTS.values())
     if (len(vals) >= 3 and min(vals) > 0 and max(vals) / min(vals) >= 3.0
-            and _PE in by_name):
+            and _PE in by_name and _pe_weakest):
         core = [m["value"] for m in out["methods"] if m["name"] != _PE]
         if len(core) >= 2 and min(core) > 0 and max(core) / min(core) < 3.0:
             # المدى يبقى محسوباً من **كل** المسارات: من حذف الخلاف ثم ضيّق

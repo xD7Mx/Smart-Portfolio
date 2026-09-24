@@ -69,14 +69,18 @@ check(none_fv.decision != "شراء",
 # فحصُ بنيةٍ لا غنى عنه: القاعدةُ أعلاه تُقاس سلوكاً، وهذا يتأكّد أنّ
 # التحليلَ يمرّر الرقمَ المعروضَ لا هدفَ المحلّلين وحدَه.
 src = (ROOT / "backend/app/services/analysis.py").read_text(encoding="utf-8")
-gate = re.search(r"_gate_fv = _shown_fv(.{0,400}?)apply_fair_value_ceiling",
-                 src, re.S)
+# ‏D454: المعروضُ هو السعرُ العادلُ الواحد من المحرّك — `fair_value` في الاستجابة.
+gate = (re.search(r"_gate_fv = _fv\.get\(\"value\"\)(.{0,900}?)apply_fair_value_ceiling",
+                  src, re.S)
+        if '"fair_value": _fv.get("value")' in src else None)
 check(bool(gate), "٤ التحليلُ يبني رقمَ البوّابة من المعروض")
 if gate:
     blk = gate.group(1)
-    check("rel_value" in blk,
+    # ‏D454: رقمُ البوّابة هو تقديرُ المحرّك لكلّ ورقة — لا يتوقّف على هدفٍ
+    # للمحلّلين ولا على درجة ثقة (الثقةُ قيدٌ معلَنٌ في هامش الأمان لا منع).
+    check("_shown_fv" not in blk and "_analyst_fv" not in blk,
           "٥ فحيث لا هدفَ محلّلين يصلها السعرُ العادل من المحرّك")
-    check("منخفضة" in blk or '"مرتفعة", "متوسطة"' in blk,
+    check("rel_conf" not in blk and "confidence" not in blk,
           "٦ وثقةٌ منخفضةٌ لا يُبنى عليها منعٌ — قيدٌ معلَن")
 check("_gate_fv," in src,
       "٧ والرقمُ المبنيُّ هو ما يُسلَّم للبوّابة فعلاً")

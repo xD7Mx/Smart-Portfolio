@@ -133,7 +133,10 @@ say(all("القيمة العادلة" not in l for l in _reasons),
 # **نداءُ** البوّابة لا استيرادُها: يُؤخَذ آخرُ ذكرٍ للاسم — وهو موضعُ
 # النداء — ويُقرأ ما يليه من وسائط.
 _call = src[src.rindex("apply_fair_value_ceiling("):][:420]
-say("_shown_fv" in _call,
+# ‏D454: المعروضُ صار السعرَ العادلَ الواحد من المحرّك (`"fair_value": _fv.get("value")`)
+# لا هدفَ المحلّلين — فالبوّابةُ تأخذه هو.
+say("_gate_fv" in _call and "_gate_fv = _fv.get(\"value\")" in src
+    and '"fair_value": _fv.get("value")' in src,
     "٩ البوّابةُ تحكم بالرقم المعروض نفسِه",
     "لا رقمَ ثانٍ لا تراه الشاشة" if "_shown_fv" in _call else "ما زالت تحكم برقمٍ آخر")
 

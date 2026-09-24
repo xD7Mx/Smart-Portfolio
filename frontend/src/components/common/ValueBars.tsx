@@ -99,22 +99,17 @@ function Marker({ pos, color, from = "left" }:
   { pos: number; color: string; from?: "left" | "right" }) {
   const place = from === "left" ? { left: `${pos}%` } : { right: `${pos}%` };
   const shift = from === "left" ? "translate(-50%, -50%)" : "translate(50%, -50%)";
+  /* ══ دائرةٌ بيضاءُ ثابتة ══ (بأمر المالك)
+     «ألغِ وهجَ الدائرة واجعلها بيضاءَ طوالَ الوقت بلا توهّجٍ ولا وميض،
+     وعمّمها على كلّ الأشرطة من هذا النوع». فلا طبقةَ وهجٍ ولا نبض، ولونُ
+     الحكم يقرؤه الشريطُ تحتها والوسمُ بجانبها. وحدٌّ شعريٌّ رفيع يفصلها
+     عن المسار في المظهر الفاتح — حدٌّ لا وهج. */
+  void color;
   return (
-    <>
-      <div className="absolute rounded-full animate-pulse" style={{
-        top: "50%", width: 16, height: 16, ...place,
-        transform: shift, background: color, filter: "blur(2px)", opacity: 0.45,
-      }} />
-      <div className="absolute rounded-full" style={{
-        top: "50%", width: 12, height: 12, ...place,
-        /* ══ نقطةٌ صمّاءُ بلونِ حكمها ══ (بأمر المالك · D238)
-           كانت بيضاءَ بطوقٍ من لون الحكم، فيبقى منها في العين قرصٌ أبيضُ
-           صغير ولا يُقرأ لونُ الحكم إلا خيطاً حوله — والنقطةُ هي الحكمُ
-           موضعاً ولوناً. فصارت مصمتةً بلونه كلِّه، ويبقى الوهجُ خلفها
-           هو ما يفصلها عن المسار. */
-        transform: shift, background: color,
-      }} />
-    </>
+    <div className="absolute rounded-full" style={{
+      top: "50%", width: 12, height: 12, ...place, transform: shift,
+      background: "#ffffff", border: "1px solid var(--hairline)",
+    }} />
   );
 }
 
