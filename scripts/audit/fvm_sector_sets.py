@@ -87,5 +87,11 @@ check(_run2(stale=300).get("uncertainty") == "مرتفع", "١٥ D474 وأقدم
 _few = _run2(arch="insurance", sector="Insurance", dps=None)
 check(_few.get("count", 0) >= 3 and not ({m["key"] for m in _few["models"]} & F.FIN_BAN),
       "١٦ D474 لا قيمةَ من نموذجٍ أو اثنين — تُستكمل ثلاثةً ضمن حدود النظرية", f"{_few.get('count')} · {[m['key'] for m in _few.get('models', [])]}")
+F.BLEND_ALPHA["_zero_share"] = 0.0
+_bz = F.blend({"value": 8.0, "low": 6.0, "high": 10.0, "price": 5.0, "families": [{"family": "multiples", "weight": 1.0, "value": 8}],
+               "rates": {"ke": 0.10}}, {"value": 4.0, "low": 3.0, "high": 5.0}, "_zero_share", 0.0)
+F.BLEND_ALPHA.pop("_zero_share", None)
+check(abs(_bz["value"] - 4.0) < 1e-9 and all(f["weight"] > 0 for f in _bz["families"]) and _bz.get("notes"),
+      "١٧ D475 نمطٌ حصّةُ نماذجه صفرٌ لا يعرضها عائلةً ويُعلن أنّ الرقمَ من المحرّك المُعايَر", str([(f["family"], f["weight"]) for f in _bz["families"]]))
 print(f"{'FAIL' if fail else 'PASS'} D470 — كلُّ قطاعٍ بما يليق به")
 sys.exit(fail)

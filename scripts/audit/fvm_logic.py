@@ -69,7 +69,7 @@ check(all(isinstance(a, tuple) and len(a) == 3 for m in r["models"] for a in m["
 bl = F.blend({"value": 8.0, "low": 6.0, "high": 10.0, "price": 5.0, "families": [{"family": "cashflow", "weight": 1.0, "value": 8}],
               "rates": {"ke": 0.10}}, {"value": 4.0, "low": 3.0, "high": 5.0}, "bank", 0.05)
 _a = F.BLEND_ALPHA["bank"]
-check(0 < _a <= 1 and abs(bl["value"] - (_a * 8 + (1 - _a) * 4)) < 1e-6
+check(0 <= _a <= 1 and abs(bl["value"] - (_a * 8 + (1 - _a) * 4)) < 1e-6
       and ((_a == 1 and bl["families"][-1]["family"] != "calibrated") or
            (bl["families"][-1]["family"] == "calibrated" and abs(bl["families"][-1]["weight"] - (1 - _a)) < 1e-9)),
       "٩ المزيجُ مع المحرّك المُعايَر بالحصّة المقيسة للنمط (BLEND_ALPHA)", f"α={_a} · {bl['value']}")

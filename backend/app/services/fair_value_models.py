@@ -61,11 +61,12 @@ FAMILY_WEIGHTS = {"default": {"cashflow": 0.38, "equity": 0.22, "multiples": 0.4
 # ══ المزيجُ مع المحرّك المُعايَر ══ (قِيس: الجديدُ وحده 37٪ والقائمُ 39٪ والمزيجُ 31٪)
 # حصّةُ النماذج الجديدة لكلّ نمط — أفضلُ α في القياس، والباقي للمحرّك القائم
 # المعايَر على السوق السعوديّ شهوراً (وهو الأدقّ في المصارف والبنية التحتية).
-# أُعيد اشتقاقُها بعد مجموعات القطاعات المقيسة (D473): الجديدُ وحده 24٪ والقائمُ 35٪.
-BLEND_ALPHA = {"bank": 0.75, "financial": 0.25, "capital_infra": 0.25,
-               "insurance": 1.0, "consumer_cyclical": 0.75, "commodity": 1.0, "re_developer": 1.0,
-               "consumer_defensive": 0.75, "contracting": 0.75, "asset_light": 1.0}
-DEFAULT_ALPHA = 0.75
+# أُعيد اشتقاقُها بقياسٍ نظيف (D475) بعد إزالة السهم من أقرانه: الجديدُ وحده 34٪
+# والقائمُ 34٪ والمزيجُ بالنصف 30٪ — فالمحرّكان يتكاملان ولا يُغني أحدُهما عن الآخر.
+BLEND_ALPHA = {"bank": 0.75, "financial": 0.0, "capital_infra": 0.0,
+               "insurance": 0.5, "consumer_cyclical": 0.5, "commodity": 1.0, "re_developer": 0.5,
+               "consumer_defensive": 0.5, "contracting": 0.0, "asset_light": 1.0}
+DEFAULT_ALPHA = 0.5
 
 # ══ نظريةُ المالك: «كلُّ قطاعٍ بما يليق به» ══ (D470)
 # النماذجُ لا تُطبَّق كلُّها على الجميع: الصندوقُ العقاريُّ يُقيَّم بتوزيعه وصافي
@@ -738,6 +739,10 @@ def blend(res: dict, calibrated: dict | None, archetype: str | None, dy: float |
         res["families"] = [dict(f, weight=round(f["weight"] * a, 3)) for f in res.get("families", [])] + ([
             {"family": "calibrated", "name": "المحرّكُ المُعايَر على السوق السعوديّ", "value": round(old_v, 2),
              "low": round(lo_o, 2), "high": round(hi_o, 2), "weight": round(1 - a, 3), "models": None}] if a < 1 else [])
+        res["families"] = [f for f in res["families"] if f["weight"] > 0]
+        if a <= 0:
+            res.setdefault("notes", []).append("القيمةُ في هذا النمط من المحرّك المُعايَر وحده — "
+                                               "أدقُّ قياساً هنا؛ والنماذجُ أدناه للاطّلاع لا تدخل الرقم")
         res["blend"] = {"alpha": a, "calibrated": round(old_v, 2)}
     elif old_v and not new_v:
         res["value"], res["low"], res["high"] = round(old_v, 2), _n(calibrated.get("low")), _n(calibrated.get("high"))
@@ -766,7 +771,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v11:{sym}"
+    ck = f"fvm:v12:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
