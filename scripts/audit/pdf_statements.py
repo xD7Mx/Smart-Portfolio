@@ -60,5 +60,28 @@ check([p["as_of"] for p in _m["annual"]] == ["2021-12-31"] and len(_m["quarterly
       "١٥ حصادٌ أفقرُ لا يمحو سنواتٍ محفوظةً لم يقرأها", str(_m))
 _m2 = XB._merge_old({"annual": [{"as_of": "2025-12-31", "revenue": 5.0}]}, {"annual": [{"as_of": "2025-12-31", "revenue": 7.0}]})
 check(_m2["annual"][0]["revenue"] == 7.0, "١٦ والقراءةُ الجديدةُ للتاريخ نفسِه تغلب")
+# أسطرٌ منقولةٌ حرفياً من ملفّات 2025: بوبا 8210 (بندٌ مكسور) · سابك 2010 (العائدُ للأمّ) · الإعادة 8200 (رقمان في سطر)
+_bupa = ["CONSOLIDATED STATEMENT OF INCOME", "Insurance revenue", "6.1", "19,303,064", "18,101,517",
+         "Income attributed to the shareholders before zakat", "and income tax", "1,252,757", "1,372,626",
+         "NET INCOME ATTRIBUTED TO THE SHAREHOLDERS", "AFTER ZAKAT AND INCOME TAX", "1,079,092", "1,166,002",
+         "Basic and diluted earnings per share (expressed in SR per share)", "27", "7.23", "7.79"]
+b = P._pairs(_bupa, P._KIND["income"])
+check(b.get("net_income") == (1079092.0, 1166002.0) and b.get("pretax_income") == (1252757.0, 1372626.0)
+      and b.get("eps") == (7.23, 7.79) and b.get("revenue") == (19303064.0, 18101517.0),
+      "١٧ البندُ المكسورُ على سطرين يُوصل (بوبا)", str(b))
+_sabic = ["Revenue", "27", "116,525,214", "117,736,492", "Net (loss) income", "(24,724,966)", "3,723,135",
+          "Attributable to:", "• Equity holders of the Parent", "(25,779,231)", "1,538,542", "• Non-controlling interests",
+          "Basic and diluted earnings per share from net (loss)", "income attributable to equity holders of the Parent",
+          "(Saudi Riyals)", "32", "• Net (loss) income from continuing operations", "(0.51)", "1.70", "• Net (loss) income", "(8.59)", "0.51"]
+c = P._pairs(_sabic, P._KIND["income"])
+check(c.get("net_income") == (-25779231.0, 1538542.0), "١٨ صافي الربح العائدُ لمساهمي الأمّ يغلب الإجماليّ (سابك)", str(c.get("net_income")))
+check(c.get("eps") == (-8.59, 0.51), "١٩ وربحيةُ السهم من سطر صافي الربح لا من العمليات المستمرّة", str(c.get("eps")))
+_re = ["Reinsurance revenue", "7,19", "1,672,498,610   1,129,966,260", "Net income for the year after zakat and tax",
+       "140,044,427", "474,811,642", "Basic and diluted earning per share", "11", "0.43", "0.54"]
+d = P._pairs(_re, P._KIND["income"])
+check(d.get("revenue") == (1672498610.0, 1129966260.0) and d.get("net_income") == (140044427.0, 474811642.0)
+      and d.get("eps") == (0.43, 0.54), "٢٠ رقما سطرٍ واحد يُفصلان وإيضاحُ «7,19» يُتجاوَز ولا تُحذف «0.43»", str(d))
+check(P._kind_of("INDEPENDENT AUDITORS' REPORT ON FINANCIAL STATEMENTS statement of financial position") is None,
+      "٢١ تقريرُ المراجع ليس قائمة")
 print(f"{'FAIL' if fail else 'PASS'} D476 — قوائمُ «تداول» PDF حين تقف XBRL")
 sys.exit(fail)

@@ -19,30 +19,35 @@ import re
 from loguru import logger
 
 _NUM = re.compile(r"^\(?-?[\d,]+(?:\.\d+)?\)?$")
-_NOTE = re.compile(r"^\d{1,2}(?:\.\d{1,2})?$")
+_NOTE = re.compile(r"^\d{1,2}(?:\s?[.,]\s?\d{1,2})*$")      # «6.1» · «7,19» · «10, 20»
 _MONTHS = {m: i for i, m in enumerate(("january", "february", "march", "april", "may", "june", "july",
                                        "august", "september", "october", "november", "december"), 1)}
 
 # البندُ كما يُنشر (بعد تصغير الحروف وحذف المسافات الزائدة) — الأوّلُ أولى.
 LABELS: dict[str, tuple[str, ...]] = {
-    "revenue": (r"insurance revenue", r"revenues?", r"total revenues?", r"sales", r"net sales",
-                r"revenue from contracts? with customers", r"operating revenues?"),
+    "revenue": (r"insurance (?:service )?revenue", r"reinsurance revenue", r"revenues?", r"total revenues?", r"sales",
+                r"net sales", r"revenue from contracts? with customers", r"operating revenues?",
+                r"rental income(?: from investment properties)?", r"total (?:operating )?income"),
     "net_income": (r"net (?:income|profit) (?:for the (?:year|period) )?attribut\w* to (?:the )?(?:shareholders|owners|equity holders)"
                    r"(?: of the (?:parent|company))?(?: after zakat(?: and income tax)?)?",
                    r"(?:net )?(?:profit|income) for the (?:year|period) attributable to (?:the )?(?:shareholders|owners|equity holders)"
                    r"(?: of the (?:parent|company))?",
-                   r"net (?:profit|income) for the (?:year|period) after zakat(?: and income tax)?",
+                   r"net (?:profit|income) for the (?:year|period) after zakat(?: and (?:income )?tax)?",
                    r"net (?:\(loss\) ?/ ?)?(?:profit|income)(?: ?/ ?\(loss\))? for the (?:year|period)",
-                   r"(?:\(loss\) ?/ ?)?(?:profit|income)(?: ?/ ?\(loss\))? for the (?:year|period)"),
-    "pretax_income": (r"net (?:profit|income) for the (?:year|period) before zakat(?: and income tax)?",
+                   r"(?:\(loss\) ?/ ?)?(?:profit|income)(?: ?/ ?\(loss\))? for the (?:year|period)",
+                   r"net (?:\(loss\) )?(?:income|profit)(?: \(loss\))?"),
+    "pretax_income": (r"net (?:profit|income) for the (?:year|period)(?: attributable to shareholders)? before zakat(?: and (?:income )?tax)?",
+                      r"income attributed to (?:the )?shareholders before,? zakat(?: and income tax)?",
                       r"(?:net )?(?:\(loss\) ?/ ?)?(?:profit|income)(?: ?/ ?\(loss\))? before zakat(?: and income tax)?",
                       r"net income attributed to (?:the )?shareholders before zakat(?: and income tax)?"),
-    "eps": (r"basic (?:and diluted )?(?:\(loss\) ?/ ?)?earnings(?: ?/ ?\(loss\))? per share.*",),
+    "eps": (r"basic (?:and diluted )?(?:\(loss\) ?/ ?)?earnings?(?: ?/ ?\(loss\))? per (?:share|unit).*",
+            r"earnings? per (?:share|unit)(?: - basic(?: and diluted)?)?.*"),
     "total_assets": (r"total assets",),
     "total_liabilities": (r"total liabilities",),
     "equity": (r"total equity attributable to (?:the )?(?:shareholders|owners|equity holders).*",
                r"equity attributable to (?:the )?(?:shareholders|owners|equity holders).*",
-               r"total shareholders[’']? equity", r"total equity"),
+               r"total shareholders[’']? equity", r"total equity",
+               r"net assets attributable to (?:the )?unit ?holders"),
     "ending_cash": (r"cash and cash equivalents(?: at (?:the )?end of the (?:year|period))?",),
     "operating_cash_flow": (r"net cash (?:flows? )?(?:generated from|from|provided by|\(used in\) ?/ ?generated from|"
                             r"generated from ?/ ?\(used in\)|used in|\(used in\)|from ?/ ?\(used in\)) operating activities",),
@@ -70,13 +75,13 @@ def _val(tok: str) -> float | None:
 
 def _kind_of(text: str) -> str | None:
     head = text[:900].lower()
-    if "notes to the" in head:
+    if "notes to the" in head or "auditor" in head:
         return None
     if re.search(r"statement of financial position|balance sheet", head):
         return "balance"
     if re.search(r"statement of cash flows?", head):
         return "cash"
-    if re.search(r"statement of (?:profit or loss|income)(?! and other)|income statement", head):
+    if re.search(r"statement of (?:profit or loss|income)|income statement", head):
         return "income"
     return None
 
@@ -104,29 +109,84 @@ def _as_of(text: str) -> str | None:
     return None
 
 
+def _toks(lines: list[str]) -> list[str]:
+    """أسطرٌ ← رموز: السطرُ الذي يحمل رقمين («1,672,498,610   1,129,966,260») يُفصل."""
+    out = []
+    for l in lines:
+        t = re.sub(r"\s+", " ", l).strip().lower().rstrip(":")
+        parts = t.split(" ")
+        if len(parts) > 1 and all(_val(x) is not None or x in ("-", "--", "—", "–") for x in parts):
+            out += parts
+        elif t:
+            out.append(t)
+    return out
+
+
+_PARENT = re.compile(r"^[•\-–]?\s*(?:the )?(?:equity holders|shareholders|owners) of the (?:parent|company)(?: company)?$")
+
+
+def _nums_after(norm: list[str], j: int) -> list[float | None]:
+    nums: list[str] = []
+    for tok in norm[j:j + 5]:
+        if tok in ("-", "—", "–", "--"):
+            nums.append("0"); continue
+        if _val(tok) is None:
+            break
+        nums.append(tok)
+    if (len(nums) >= 3 and _NOTE.match(nums[0]) and not nums[0].startswith("0")
+            and len(nums[0].replace(",", "").replace(".", "").replace(" ", "")) <= 4):
+        nums = nums[1:]
+    return [_val(t) for t in nums]
+
+
 def _pairs(lines: list[str], keys: tuple[str, ...]) -> dict[str, tuple[float, float | None]]:
-    """بنودُ الصفحة ← (الحالي، السابق). رقمُ الإيضاح الصغير قبل القيم يُتجاوَز."""
+    """بنودُ الصفحة ← (الحالي، السابق).
+
+    والبندُ قد ينكسر على سطرين أو ثلاثة («NET INCOME ATTRIBUTED TO THE SHAREHOLDERS»
+    ثمّ «AFTER ZAKAT AND INCOME TAX») فيُجرَّب موصولاً. وصافي الربح العائدُ لمساهمي
+    الأمّ («Attributable to: • Equity holders of the Parent») يغلب الإجماليَّ.
+    """
     out: dict[str, tuple[float, float | None]] = {}
-    norm = [re.sub(r"\s+", " ", l).strip().lower().rstrip(":") for l in lines]
+    norm = _toks(lines)
     for i, lab in enumerate(norm):
         if not lab or _val(lab) is not None:
             continue
-        for key in keys:
-            if key in out or not any(p.match(lab) for p in _COMP[key]):
+        for span in (1, 2, 3):
+            if i + span > len(norm):
+                break
+            parts = norm[i:i + span]
+            if any(_val(x) is not None for x in parts):
+                break
+            joined = " ".join(parts)
+            hit = None
+            for key in keys:
+                if key in out or not any(p.match(joined) for p in _COMP[key]):
+                    continue
+                hit = key
+                break
+            if not hit:
                 continue
-            nums: list[str] = []
-            for tok in norm[i + 1:i + 6]:
-                if tok in ("-", "—", "–"):
-                    nums.append("0"); continue
-                if _val(tok) is None:
-                    break
-                nums.append(tok)
-            if len(nums) >= 3 and _NOTE.match(nums[0]) and "," not in nums[0]:
-                nums = nums[1:]
-            vals = [_val(t) for t in nums]
+            vals = _nums_after(norm, i + span)
+            if (not vals or vals[0] is None) and hit in ("net_income", "eps"):
+                # «Attributable to: • Equity holders of the Parent» أو بنودُ ربحية السهم الفرعية
+                for j in range(i + span, min(i + span + 10, len(norm))):
+                    if (hit == "net_income" and _PARENT.match(norm[j])) or (
+                            hit == "eps" and re.match(r"^[•\-–]?\s*net (?:\(loss\) )?(?:income|profit)(?: \(loss\))?$", norm[j])):
+                        vals = _nums_after(norm, j + 1)
+                        break
             if vals and vals[0] is not None:
-                out[key] = (vals[0], vals[1] if len(vals) > 1 else None)
-            break
+                out[hit] = (vals[0], vals[1] if len(vals) > 1 else None)
+                break
+            # لا رقمَ بعده: قد يكون شطرَ بندٍ مكسورٍ على سطرين — يُجرَّب الوصل
+    # الأمُّ تغلب الإجماليّ: سطرُ «• Equity holders of the Parent» بعد صافي الربح
+    if "net_income" in keys:
+        for j, t in enumerate(norm):
+            if _PARENT.match(t) and j >= 2 and "attributable to" in " ".join(norm[max(0, j - 3):j]) and \
+                    not any("comprehensive" in x for x in norm[max(0, j - 4):j]):
+                v = _nums_after(norm, j + 1)
+                if v and v[0] is not None:
+                    out["net_income"] = (v[0], v[1] if len(v) > 1 else None)
+                break
     return out
 
 
@@ -146,6 +206,8 @@ def parse_pdf(data: bytes) -> dict:
     found_pages = 0
     for pg in doc:
         text = pg.get_text()
+        if found_pages and "notes to the" in text[:900].lower():
+            break                                  # القوائمُ الأساسيةُ قبل الإيضاحات — وما بعدها قطاعاتٌ وأجزاء
         kind = _kind_of(text)
         if not kind:
             continue
@@ -163,6 +225,11 @@ def parse_pdf(data: bytes) -> dict:
     if not found_pages:
         return {"periods": [], "annual": annual,
                 "reason": "صفحاتُ القوائم الأساسية بلا طبقةٍ نصّية (صورةٌ ممسوحة)"}
+    if not as_of:
+        for i in range(min(3, doc.page_count)):
+            as_of = _as_of(doc[i].get_text()[:3000])
+            if as_of:
+                break
     if not as_of:
         return {"periods": [], "annual": annual, "reason": "لا تاريخَ للفترة في رأس القائمة"}
     y = int(as_of[:4])

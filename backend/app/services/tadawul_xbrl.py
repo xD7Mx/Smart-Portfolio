@@ -500,6 +500,13 @@ async def read_symbol(symbol: str, *, max_files: int = 8,
     from app.services.tadawul_http import fetch
     files, why = await filings_for_ex(symbol)
     if not files:
+        # لا XBRL أصلاً (الصناديقُ العقارية مثلاً): قوائمُ PDF الرسمية وحدَها (D476)
+        pa: list[dict] = []
+        if why and "لا ملفَّ XBRL" in why:
+            await _pdf_supplement(symbol, pa, [])
+        if pa:
+            return {"symbol": symbol, "annual": pa, "quarterly": [], "files": [],
+                    "source": "تداول — PDF", "as_of": datetime.now(timezone.utc).date().isoformat()}
         # السببُ يُسجَّل حيث يقع — فالحاصدُ يطبعه مصنَّفاً (D362)
         if reasons is not None and why:
             reasons[why] = reasons.get(why, 0) + 1
