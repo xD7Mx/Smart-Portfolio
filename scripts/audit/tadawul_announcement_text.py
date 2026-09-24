@@ -51,6 +51,24 @@ async def main():
             print(f"  كتلة {n} حرف · {tag!r}\n    {t[:700]}")
         for m in re.finditer(r'(?:href|src)="([^"]*\.pdf[^"]*)"', h3 or "", re.I):
             print(f"  PDF: {m.group(1)[:160]}"); break
+        break
+    # الطبقةُ الثالثة: ما تطلبه صفحةُ التفاصيل فعلاً حين تُنفَّذ
+    from app.services.browser_fetch import sniff
+    du = O + L[0]["announcementUrl"].replace("locale=en", "locale=ar")
+    r = await sniff(du, settle_ms=9000, want=r"(?i)announc|detail|press|news|json|NJ|wcm|content",
+                    hosts=("www.saudiexchange.sa",), max_bodies=8)
+    print(f"\nنداءاتُ صفحة التفاصيل: {len(r['calls'])}")
+    for c in r["calls"]:
+        u = str(c.get("url") if isinstance(c, dict) else c)
+        if "saudiexchange" in u and not re.search(r"\.(css|js|png|svg|woff2?|jpg|gif|ico)(\?|$)", u):
+            print(f"  {str(c)[:260]}")
+    for k, b in (r.get("bodies") or {}).items():
+        t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", b or ""))
+        i = t.find("العثيم")
+        print(f"\n  جسم {k[:200]} · {len(b or '')} · …{t[max(0,i-100):i+500] if i>=0 else t[:200]}…")
+    rv = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"<script.*?</script>|<style.*?</style>", "", r.get("html") or "", flags=re.S)))
+    i = rv.find("استقالة")
+    print(f"\nالصفحةُ بعد التنفيذ: {len(r.get('html') or '')} · «استقالة»: …{rv[max(0,i-200):i+900] if i>=0 else '—'}…")
     return 0
 
 sys.exit(asyncio.run(main()))
