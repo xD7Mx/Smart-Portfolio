@@ -19,6 +19,10 @@ async def main():
     except ModuleNotFoundError as e:
         print(f"⚠ بيئةٌ ناقصة ({e.name}) — لم يُقَس"); return 0
     O = "https://www.saudiexchange.sa"
+    from app.services import tadawul_market as TM
+    if not TM.row_for("4001"):
+        await TM.refresh()
+    print("رابطُ صفحة 4001:", (TM.row_for("4001") or {}).get("company_url"))
     body = await company_page("4001") or ""
     print(f"صفحةُ 4001: {len(body)} حرف")
     base = (re.search(r"<base[^>]+href=[\"']([^\"']+)", body) or [None, ""])[1].rstrip("/")
