@@ -61,8 +61,8 @@ FAMILY_WEIGHTS = {"default": {"cashflow": 0.38, "equity": 0.22, "multiples": 0.4
 # ══ المزيجُ مع المحرّك المُعايَر ══ (قِيس: الجديدُ وحده 37٪ والقائمُ 39٪ والمزيجُ 31٪)
 # حصّةُ النماذج الجديدة لكلّ نمط — أفضلُ α في القياس، والباقي للمحرّك القائم
 # المعايَر على السوق السعوديّ شهوراً (وهو الأدقّ في المصارف والبنية التحتية).
-BLEND_ALPHA = {"bank": 0.25, "financial": 0.25, "insurance": 0.0, "capital_infra": 0.25,
-               "consumer_cyclical": 0.25, "commodity": 0.5, "re_developer": 0.5,
+BLEND_ALPHA = {"bank": 0.25, "financial": 0.25, "capital_infra": 0.25,
+               "insurance": 0.75, "consumer_cyclical": 0.75, "commodity": 0.75, "re_developer": 0.5,
                "consumer_defensive": 0.75, "contracting": 0.75, "asset_light": 1.0}
 DEFAULT_ALPHA = 0.75
 
@@ -560,7 +560,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v3:{sym}"
+    ck = f"fvm:v4:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
