@@ -1307,6 +1307,15 @@ def compute(info: dict, price: float | None,
         # إلى أضعف الشاهدَين مضاعفةٌ للانحياز، ومضاعفُ الربحية شاهدٌ
         # سوقيٌّ يكذّبه. فتكافآ.
         WEIGHTS = {_PB: 0.50, _PE: 0.50}
+        # ‏D459: والماليّاتُ كذلك من مواصفتها المقيسة لا تكافؤاً ثابتاً.
+        try:
+            from app.data.archetype_spec import VALUATION as _VS2
+            _sw2 = (_VS2.get(archetype or "") or {}).get("weights") or {}
+            if _sw2.get("residual_income") and _sw2.get("sector_pe"):
+                WEIGHTS = {_PB: float(_sw2["residual_income"]), _PE: float(_sw2["sector_pe"])}
+                out["weights_source"] = f"مواصفةُ نمط «{archetype}»"
+        except Exception:                                         # noqa: BLE001
+            pass
         for k in (_PB, _PE):
             if k in by_name:
                 buckets[k] = by_name[k]

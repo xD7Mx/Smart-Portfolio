@@ -92,9 +92,12 @@ else:
     check("WEIGHTS = {_PB: 0.50, _PE: 0.50}" in SRC,
           "٥ المحرّكُ يرجّح الأنماطَ المالية متكافئاً كما تقول الوثيقة")
     _ins = (VALUATION.get("insurance") or {}).get("weights") or {}
-    check(abs(_ins.get("residual_income", 0) - 0.50) < 0.005
-          and abs(_ins.get("sector_pe", 0) - 0.50) < 0.005,
-          "٥ب والتأمينُ في الوثيقةِ ‎50/50 لا فراغٌ")
+    # ‏D459: الأوزانُ مقيسةٌ بالدقّة، والمحرّكُ يقرؤها من الوثيقة نفسِها —
+    # فالتطابقُ بالبناء. يُشترط أن تكون حاضرةً مجموعُها واحد، وأن يقرأها المحرّك.
+    check(_ins.get("residual_income", 0) > 0 and _ins.get("sector_pe", 0) > 0
+          and abs(sum(_ins.values()) - 1.0) < 0.01
+          and '_sw2.get("residual_income") and _sw2.get("sector_pe")' in SRC,
+          "٥ب والتأمينُ في الوثيقةِ بأوزانٍ مقيسةٍ يقرؤها المحرّك لا فراغٌ")
     # و`_spec` الميّتُ لا يعود: لا قراءةَ أوزانٍ من الوثيقة يُدَّعى
     # استعمالُها ثمّ لا تُستعمل.
     check("_spec = dict(" not in SRC,

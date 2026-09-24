@@ -392,6 +392,14 @@ SCORECARDS: dict[str, dict] = {
 # وأمّا `weights` فمصدرُها الحقيقيُّ `WEIGHTS` في `fair_value.py`،
 # وهذا الملفُّ وثيقتُها: يجب أن يتطابقا حرفاً، وحارسُهما
 # `scripts/audit/sector_charter.py` يقيس التطابقَ ولا يأخذه تسليماً.
+# ══ الأوزانُ مقيسةٌ بالدقّة لا مقرَّرةٌ بالرأي ══ (D459 · بأمر المالك)
+# «أريد السعرَ العادل منافساً لهدف المحللين ولمحرّك إنفستنق برو». فقِيس
+# بكاشف `fv_paths_vs_analysts.py` على الخادم (2026-09-24 · 132 ورقةً لها
+# هدف): خطأُ كلّ مسارٍ مقابل أهداف المحلّلين بكلّ نمط. فالخصمُ أضعفُها في
+# كلّ نمط (وسيطُ نسبته 0.25–0.64 · خطؤه 59–301٪) ومضاعفُ القطاع أدقُّها
+# (32–48٪)، والمصارفُ تنافس أصلاً (11–12٪). فصار الوزنُ عكسَ الخطأ المقيس
+# (تجميعُ النماذج بدقّتها) — لا نسخاً لرقم المحلّلين بل تقديماً للأصدق.
+# ويُعاد القياسُ بالكاشف نفسِه، ولا يُعدَّل وزنٌ إلا بقياسٍ جديد.
 VALUATION: dict[str, dict] = {
     "bank":               {"weights": {"residual_income": 0.65, "sector_pe": 0.35},
                            "terminal": 0.035, "explicit": None,
@@ -411,11 +419,11 @@ VALUATION: dict[str, dict] = {
     # ولا خصمَ تدفّقٍ حرٍّ لها (‏D039): التدفّقُ في التأمين احتياطياتٌ
     # لا نقدٌ حرّ. وجودةُ الاكتتاب (نسبةُ المجموع) تدخل في **الثقة**
     # لا في الرقم — فغيابُها يُخفّض الثقةَ ولا يُفرّغ التقدير.
-    "insurance":          {"weights": {"residual_income": 0.50, "sector_pe": 0.50},
+    "insurance":          {"weights": {"sector_pe": 0.67, "residual_income": 0.33},
                            "terminal": None, "explicit": None,
                            "abstain_if": ["negative_equity", "no_roe"],
                            "confidence_penalty": ["no_combined_ratio"]},
-    "financial":          {"weights": {"residual_income": 0.60, "sector_pe": 0.40},
+    "financial":          {"weights": {"sector_pe": 0.62, "residual_income": 0.38},
                            "terminal": 0.035, "explicit": None,
                            "abstain_if": ["leverage_gt_9", "two_loss_years"]},
     "reit":               {"weights": {"capitalized_yield": 0.55, "residual_income": 0.25,
@@ -443,28 +451,22 @@ VALUATION: dict[str, dict] = {
                            "quality_axes": ["premium_discount_to_nav",
                                             "tracking_difference",
                                             "fee_and_liquidity"]},
-    "commodity":          {"weights": {"normalized_pe": 0.45, "dcf": 0.30,
-                                       "residual_income": 0.25},
+    "commodity":          {"weights": {"sector_pe": 0.40, "residual_income": 0.35, "dcf": 0.25},
                            "terminal": 0.035, "explicit": 0.0,
                            "abstain_if": ["negative_normalized_eps", "history_lt_4y"]},
-    "capital_infra":      {"weights": {"dcf": 0.55, "residual_income": 0.25,
-                                       "sector_pe": 0.20},
+    "capital_infra":      {"weights": {"sector_pe": 0.46, "dcf": 0.28, "residual_income": 0.26},
                            "terminal": 0.035, "explicit": "min_growth_8",
                            "abstain_if": ["no_debt_field", "coverage_lt_1"]},
-    "re_developer":       {"weights": {"nav_like": 0.50, "normalized_pe": 0.30,
-                                       "residual_income": 0.20},
+    "re_developer":       {"weights": {"sector_pe": 0.39, "residual_income": 0.36, "dcf": 0.25},
                            "terminal": 0.030, "explicit": 0.0,
                            "abstain_if": ["negative_equity", "three_years_negative_ccr"]},
-    "contracting":        {"weights": {"normalized_pe": 0.45, "dcf": 0.35,
-                                       "residual_income": 0.20},
+    "contracting":        {"weights": {"sector_pe": 0.44, "residual_income": 0.43, "dcf": 0.13},
                            "terminal": 0.030, "explicit": "min_growth_8",
                            "abstain_if": ["negative_normalized_eps", "current_ratio_lt_09"]},
-    "consumer_defensive": {"weights": {"dcf": 0.45, "residual_income": 0.35,
-                                       "sector_pe": 0.20},
+    "consumer_defensive": {"weights": {"sector_pe": 0.45, "residual_income": 0.34, "dcf": 0.21},
                            "terminal": 0.035, "explicit": "min_growth_12",
                            "abstain_if": ["no_debt_field", "negative_avg_profit"]},
-    "consumer_cyclical":  {"weights": {"dcf": 0.45, "residual_income": 0.35,
-                                       "sector_pe": 0.20},
+    "consumer_cyclical":  {"weights": {"sector_pe": 0.49, "residual_income": 0.33, "dcf": 0.18},
                            "terminal": 0.035, "explicit": "min_growth_12",
                            "abstain_if": ["no_debt_field", "negative_avg_profit"]},
     "asset_light":        {"weights": {"dcf": 0.50, "residual_income": 0.30,

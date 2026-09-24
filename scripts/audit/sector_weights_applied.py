@@ -34,7 +34,9 @@ def check(ok, label, det=""):
     global fail
     fail |= not ok
     print(f"{'PASS' if ok else 'FAIL'} {label}" + (f" — {det}" if det else ""))
-check(w.get("مضاعف القطاع") == "45%", "١ السلعيُّ يُرجَّح بمواصفته: المضاعفُ 45٪", str(w))
+from app.data.archetype_spec import VALUATION as _VS
+_want = round(_VS["commodity"]["weights"]["sector_pe"] * 100)
+check(w.get("مضاعف القطاع") == f"{_want}%", f"١ السلعيُّ يُرجَّح بمواصفته: المضاعفُ {_want}٪", str(w))
 check(not o.get("excluded"), "٢ ولا يُستبعَد مضاعفُ القطاع وهو العدسةُ الأولى في نمطه", str(o.get("excluded"))[:60])
 check(o.get("value") and o["value"] > 20, "٣ فلا يخرج تقديرُ أرامكو 16 ومساراتُه 18.6/13/39", str(o.get("value")))
 # ‏D457: نمطٌ بلا خصمٍ في مواصفته (المطوّرُ العقاريّ) لا يسقط بـKeyError
@@ -44,5 +46,12 @@ try:
     check(True, "٤ ونمطٌ بلا خصمٍ في مواصفته يُقيَّم ولا يسقط", str(o2.get("value")))
 except Exception as e:                                            # noqa: BLE001
     check(False, "٤ ونمطٌ بلا خصمٍ في مواصفته يُقيَّم ولا يسقط", f"{type(e).__name__}: {e}")
+# ‏D459: والتأمينُ يُرجَّح بمواصفته المقيسة لا تكافؤاً ثابتاً 50/50
+_Q = [{**p_, "eps": 2.0, "net_income": 2e8, "equity": 1.5e9, "shares_outstanding": 1e8} for p_ in P]
+o3 = F.compute({"eps": 2.0, "roe": 13.0, "beta": 0.9}, 28.0, sector_avg_pe=15.0, periods=_Q,
+               archetype="insurance", symbol="8200.SR")
+_wi = round(_VS["insurance"]["weights"]["sector_pe"] * 100)
+check((o3.get("weighting") or {}).get("مضاعف الربحية العادل") == f"{_wi}%",
+      f"٥ والتأمينُ بمواصفته المقيسة: المضاعفُ {_wi}٪", str(o3.get("weighting")))
 print(("FAIL" if fail else "PASS") + " D455 — أوزانُ القطاع من مواصفته")
 sys.exit(fail)
