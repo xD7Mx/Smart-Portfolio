@@ -35,7 +35,11 @@ LABELS: dict[str, tuple[str, ...]] = {
                    r"net (?:profit|income) for the (?:year|period) after zakat(?: and (?:income )?tax)?",
                    r"net (?:\(loss\) ?/ ?)?(?:profit|income)(?: ?/ ?\(loss\))? for the (?:year|period)",
                    r"(?:\(loss\) ?/ ?)?(?:profit|income)(?: ?/ ?\(loss\))? for the (?:year|period)",
-                   r"net (?:\(loss\) )?(?:income|profit)(?: \(loss\))?"),
+                   r"net (?:\(loss\) )?(?:income|profit)(?: \(loss\))?",
+                   # «(Loss) for the year» · «Net (loss) for the year» · «Profit / (loss) for the year» (صناديق عقارية)
+                   r"(?:net )?\(?(?:loss|profit|income)\)?(?: ?/ ?\(?(?:loss|profit|income)\)?)? for the (?:year|period)",
+                   # «Income / (loss) attributed to the shareholders after zakat and income tax» (ميدغلف 8030)
+                   r"(?:net )?(?:income|profit)(?: ?/ ?\(loss\))? attribut\w* to (?:the )?shareholders after zakat(?: and income tax)?"),
     "pretax_income": (r"net (?:profit|income) for the (?:year|period)(?: attributable to shareholders)? before zakat(?: and (?:income )?tax)?",
                       r"income attributed to (?:the )?shareholders before,? zakat(?: and income tax)?",
                       r"(?:net )?(?:\(loss\) ?/ ?)?(?:profit|income)(?: ?/ ?\(loss\))? before zakat(?: and income tax)?",

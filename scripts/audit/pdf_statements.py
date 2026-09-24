@@ -94,5 +94,12 @@ check(P._pairs(_s2, ("net_income",)).get("net_income") == (-25779231.0, 1538542.
       "٢٤ الكتلةُ الكلّيةُ العائدةُ للأمّ لا كتلةُ العمليات المستمرّة")
 check(P._unit("All amounts in thousands of Saudi Riyals unless otherwise stated. SAR 5 million facility") == 1000.0,
       "٢٥ كلمةُ «million» في نصّ الصفحة لا تجعل الوحدةَ ملايين")
+_reit = ["Other income", "1,860,258", "765,142", "(Loss) for the year", "(13,461,064)", "(187,275,085)"]
+check(P._pairs(_reit, ("net_income",)).get("net_income") == (-13461064.0, -187275085.0), "٢٦ «(Loss) for the year» صافي ربح الصندوق العقاريّ")
+_mg = ["Insurance revenue", "7", "1,314,513            1,026,441            2,565,761            2,026,784",
+       "Income / (loss) attributed to the shareholders after zakat and income tax", "44,167                  (1,470)", "80,416", "18,168"]
+g = P._pairs(_mg, P._KIND["income"])
+check(g.get("net_income") == (44167.0, -1470.0) and g.get("revenue") == (1314513.0, 1026441.0),
+      "٢٧ صيغةُ ميدغلف وأعمدةٌ متعدّدةٌ في سطرٍ واحد", str(g))
 print(f"{'FAIL' if fail else 'PASS'} D476 — قوائمُ «تداول» PDF حين تقف XBRL")
 sys.exit(fail)
