@@ -81,6 +81,12 @@ function rsi(data: number[], p = 14): (number | null)[] {
   return out;
 }
 
+/* تاريخٌ يوميّ «2026-09-22» يُمرَّر كما هو، ونقطةٌ داخل الجلسة
+   «2026-09-22 10:00» (تاسي من مولّد «تداول») تصير ثوانيَ بتوقيت الرياض —
+   فالمكتبةُ لا تقبل التاريخَ بساعته نصّاً. */
+const tkey = (d: string): any =>
+  d && d.length > 10 ? Math.floor(Date.parse(d.replace(" ", "T") + ":00+03:00") / 1000) : d;
+
 const RANGES: [string, string][] = [["1mo", "شهر"], ["3mo", "3 أشهر"], ["6mo", "6 أشهر"], ["1y", "سنة"], ["2y", "سنتان"], ["5y", "5 سنوات"]];
 
 export default function NativeChart({ symbol, theme = "dark" }: { symbol: string; theme?: "dark" | "light" }) {
@@ -136,7 +142,7 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         layout: { background: { color: "transparent" }, textColor: tok("--ink-muted", "#4a4a4a"), fontFamily: "inherit" },
         grid: { vertLines: { color: tok("--hairline", "#dcdcdc") }, horzLines: { color: tok("--hairline", "#dcdcdc") } },
         rightPriceScale: { borderColor: tok("--hairline", "#dcdcdc"), scaleMargins: { top: 0.06, bottom: (ind.rsi || ind.macd) ? 0.28 : 0.14 } },
-        timeScale: { borderColor: tok("--hairline", "#dcdcdc"), timeVisible: false },
+        timeScale: { borderColor: tok("--hairline", "#dcdcdc"), timeVisible: bars.some((b: any) => String(b.date || "").length > 10) },
         crosshair: { mode: 0 },
         /* ══ الإصبعُ العموديُّ للصفحة لا للرسم ══ (بأمر المالك)
            «عند تمرير الشاشة تتوقّف الصفحة ويظهر التعليق»: كان الرسمُ يأسر
@@ -153,17 +159,17 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         upColor: up, downColor: down, borderVisible: false,
         wickUpColor: up, wickDownColor: down,
       });
-      candle.setData(bars.map((b: any) => ({ time: b.date, open: b.open, high: b.high, low: b.low, close: b.close })));
+      candle.setData(bars.map((b: any) => ({ time: tkey(b.date), open: b.open, high: b.high, low: b.low, close: b.close })));
 
       // volume
       const vol = chart.addHistogramSeries({ priceScaleId: "", priceFormat: { type: "volume" } });
       vol.priceScale().applyOptions({ scaleMargins: { top: 0.86, bottom: 0 } });
-      vol.setData(bars.map((b: any) => ({ time: b.date, value: b.volume, color: b.close >= b.open ? tokA("--pos-ink", "#16a34a", .4) : tokA("--neg-ink", "#dc2626", .4) })));
+      vol.setData(bars.map((b: any) => ({ time: tkey(b.date), value: b.volume, color: b.close >= b.open ? tokA("--pos-ink", "#16a34a", .4) : tokA("--neg-ink", "#dc2626", .4) })));
 
       const closes = bars.map((b: any) => b.close);
       const addSMA = (period: number, color: string) => {
         const s = chart.addLineSeries({ color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false });
-        s.setData(sma(closes, period).map((v, i) => v == null ? null : ({ time: bars[i].date, value: v })).filter(Boolean));
+        s.setData(sma(closes, period).map((v, i) => v == null ? null : ({ time: tkey(bars[i].date), value: v })).filter(Boolean));
       };
       if (ind.sma20) addSMA(20, tok("--chart-1", "#5b52d3"));
       if (ind.sma50) addSMA(50, tok("--warn-ink", "#92400e"));
@@ -176,18 +182,18 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
           scaleMargins: bothPanes ? { top: 0.74, bottom: 0.14 } : { top: 0.74, bottom: 0.02 },
           borderColor: tok("--hairline", "#dcdcdc"),
         });
-        rs.setData(rsi(closes).map((v, i) => v == null ? null : ({ time: bars[i].date, value: v })).filter(Boolean));
+        rs.setData(rsi(closes).map((v, i) => v == null ? null : ({ time: tkey(bars[i].date), value: v })).filter(Boolean));
       }
       if (ind.macd) {
         const { line, signal, hist } = macd(closes);
         const macdMargins = bothPanes ? { top: 0.88, bottom: 0 } : { top: 0.74, bottom: 0.02 };
         const macdHist = chart.addHistogramSeries({ priceScaleId: "macd", priceLineVisible: false, lastValueVisible: false });
         chart.priceScale("macd").applyOptions({ scaleMargins: macdMargins, borderColor: tok("--hairline", "#dcdcdc") });
-        macdHist.setData(hist.map((v, i) => v == null ? null : ({ time: bars[i].date, value: v, color: v >= 0 ? tokA("--pos-ink", "#16a34a", .5) : tokA("--neg-ink", "#dc2626", .5) })).filter(Boolean));
+        macdHist.setData(hist.map((v, i) => v == null ? null : ({ time: tkey(bars[i].date), value: v, color: v >= 0 ? tokA("--pos-ink", "#16a34a", .5) : tokA("--neg-ink", "#dc2626", .5) })).filter(Boolean));
         const macdLine = chart.addLineSeries({ color: tok("--chart-1", "#5b52d3"), lineWidth: 1.3, priceScaleId: "macd", priceLineVisible: false, lastValueVisible: false });
-        macdLine.setData(line.map((v, i) => v == null ? null : ({ time: bars[i].date, value: v })).filter(Boolean));
+        macdLine.setData(line.map((v, i) => v == null ? null : ({ time: tkey(bars[i].date), value: v })).filter(Boolean));
         const signalLine = chart.addLineSeries({ color: tok("--warn-ink", "#92400e"), lineWidth: 1.3, priceScaleId: "macd", priceLineVisible: false, lastValueVisible: false });
-        signalLine.setData(signal.map((v, i) => v == null ? null : ({ time: bars[i].date, value: v })).filter(Boolean));
+        signalLine.setData(signal.map((v, i) => v == null ? null : ({ time: tkey(bars[i].date), value: v })).filter(Boolean));
       }
       chart.timeScale().fitContent();
       ro = new ResizeObserver(() => chart && chart.applyOptions({}));

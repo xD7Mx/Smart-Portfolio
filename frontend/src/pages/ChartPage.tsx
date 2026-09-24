@@ -8,7 +8,7 @@ import { holdingsApi } from "../services/api";
 import { useAppStore } from "../store/appStore";
 
 const GLOBAL: [string, string][] = [
-  ["^GSPC", "S&P 500"], ["^IXIC", "ناسداك"], ["^DJI", "داو جونز"],
+  ["^TASI.SR", "تاسي"], ["^GSPC", "S&P 500"], ["^IXIC", "ناسداك"], ["^DJI", "داو جونز"],
   ["BZ=F", "برنت"], ["GC=F", "الذهب"], ["BTC-USD", "بتكوين"],
 ];
 
@@ -22,7 +22,7 @@ export default function ChartPage() {
   // ══ السوقُ العالميّ بمحرّك الرسم نفسِه ══ (بأمر المالك: لا تطبيقَ مختلف)
   // كان تبويبُه إطاراً من TradingView لا يدعم «تداول» ويخالف تصميمَ التطبيق.
   // فصار الرسمُ الأصليَّ نفسَه على رموزٍ عالمية من باب التاريخ الواحد.
-  const [gsym, setGsym] = useState("^GSPC");
+  const [gsym, setGsym] = useState("^TASI.SR");
   const [gq, setGq] = useState("");
 
   // الأزرار السريعة من حيازات المحفظة النشطة (معزولة بالمحفظة) — تتفاعل مع

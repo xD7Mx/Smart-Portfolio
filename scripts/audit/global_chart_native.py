@@ -20,5 +20,9 @@ def check(ok, label):
 check("TradingViewChart" not in src, "١ لا إطارَ TradingView في صفحة الرسم")
 check(src.count("<NativeChart") >= 2, "٢ والتبويبُ العالميُّ يرسم بالمحرّك نفسِه")
 check("/market/history/${encodeURIComponent(symbol)}" in api, "٣ والرمزُ مُرمَّزٌ في مسار التاريخ")
+check('"^TASI.SR", "تاسي"' in src, "٤ وتاسي ضمن مؤشّرات الأسواق (بأمر المالك)")
+nc = (ROOT / "frontend/src/components/analysis/NativeChart.tsx").read_text(encoding="utf-8")
+check("const tkey" in nc and "time: b.date," not in nc,
+      "٥ والرسمُ يقبل نقاطَ الجلسة بساعتها (تاسي من «تداول») لا التاريخَ وحدَه")
 print(("FAIL" if fail else "PASS") + " D443 — رسمٌ واحدٌ للسوقين")
 sys.exit(fail)
