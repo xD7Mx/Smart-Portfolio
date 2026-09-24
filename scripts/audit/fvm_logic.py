@@ -68,9 +68,11 @@ check(all(isinstance(a, tuple) and len(a) == 3 for m in r["models"] for a in m["
       "٨ ولكلّ نموذجٍ افتراضاتُه بمداها ومصدرها")
 bl = F.blend({"value": 8.0, "low": 6.0, "high": 10.0, "price": 5.0, "families": [{"family": "cashflow", "weight": 1.0, "value": 8}],
               "rates": {"ke": 0.10}}, {"value": 4.0, "low": 3.0, "high": 5.0}, "bank", 0.05)
-check(abs(bl["value"] - (0.25 * 8 + 0.75 * 4)) < 1e-6 and bl["families"][-1]["family"] == "calibrated"
-      and abs(bl["families"][-1]["weight"] - 0.75) < 1e-9,
-      "٩ المزيجُ مع المحرّك المُعايَر بحصّةٍ مقيسةٍ لكلّ نمط (المصرف: ربعٌ للجديد)", str(bl["value"]))
+_a = F.BLEND_ALPHA["bank"]
+check(0 < _a <= 1 and abs(bl["value"] - (_a * 8 + (1 - _a) * 4)) < 1e-6
+      and ((_a == 1 and bl["families"][-1]["family"] != "calibrated") or
+           (bl["families"][-1]["family"] == "calibrated" and abs(bl["families"][-1]["weight"] - (1 - _a)) < 1e-9)),
+      "٩ المزيجُ مع المحرّك المُعايَر بالحصّة المقيسة للنمط (BLEND_ALPHA)", f"α={_a} · {bl['value']}")
 check(abs(bl["target_12m"] - bl["value"] * 1.05) < 0.01, "١٠ والهدفُ لاثني عشر شهراً = القيمة × (1 + كلفةِ الحقوق − عائدِ التوزيع)", str(bl["target_12m"]))
 print(f"{'FAIL' if fail else 'PASS'} D468 — المحرّكُ متعدّدُ النماذج")
 sys.exit(fail)

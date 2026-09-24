@@ -690,9 +690,10 @@ def blend(res: dict, calibrated: dict | None, archetype: str | None, dy: float |
         res["low"] = round(min(a * res["low"] + (1 - a) * lo_o, v), 2)
         res["high"] = round(max(a * res["high"] + (1 - a) * hi_o, v), 2)
         res["value"] = round(v, 2)
-        res["families"] = [dict(f, weight=round(f["weight"] * a, 3)) for f in res.get("families", [])] + [
+        # حصّةُ صفرٍ لا تُعرض عائلةً — ما لا يدخل القيمةَ لا يُرى كأنه يدخلها (D473)
+        res["families"] = [dict(f, weight=round(f["weight"] * a, 3)) for f in res.get("families", [])] + ([
             {"family": "calibrated", "name": "المحرّكُ المُعايَر على السوق السعوديّ", "value": round(old_v, 2),
-             "low": round(lo_o, 2), "high": round(hi_o, 2), "weight": round(1 - a, 3), "models": None}]
+             "low": round(lo_o, 2), "high": round(hi_o, 2), "weight": round(1 - a, 3), "models": None}] if a < 1 else [])
         res["blend"] = {"alpha": a, "calibrated": round(old_v, 2)}
     elif old_v and not new_v:
         res["value"], res["low"], res["high"] = round(old_v, 2), _n(calibrated.get("low")), _n(calibrated.get("high"))
@@ -721,7 +722,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v9:{sym}"
+    ck = f"fvm:v10:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

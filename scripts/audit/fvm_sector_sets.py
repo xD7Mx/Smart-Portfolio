@@ -63,5 +63,10 @@ _ms = [{"key": "ddm_stable", "family": "income", "value": 10.0, "low": 9.0, "hig
        {"key": "peer_ps", "family": "multiples", "value": 20.0, "low": 18.0, "high": 22.0}]
 _ok = all(abs((F.aggregate(_ms, 15.0, a).get("value") or 0) - 20.0) > 0.5 for a in ("bank", "insurance", "financial"))
 check(_ok, "١٠ D473 نموذجُ التوزيع المعروضُ في المصرف والتأمين يدخل القيمةَ — لا وزنَ صفرٍ خفيّ")
+F.BLEND_ALPHA["_full_share"] = 1.0
+_bl = F.blend({"value": 8.0, "low": 6.0, "high": 10.0, "price": 5.0, "families": [{"family": "multiples", "weight": 1.0, "value": 8}],
+               "rates": {"ke": 0.10}}, {"value": 4.0, "low": 3.0, "high": 5.0}, "_full_share", 0.0)
+F.BLEND_ALPHA.pop("_full_share", None)
+check(all(f["weight"] > 0 for f in _bl["families"]), "١١ D473 عائلةٌ حصّتُها صفرٌ لا تُعرض", str([(f["family"], f["weight"]) for f in _bl["families"]]))
 print(f"{'FAIL' if fail else 'PASS'} D470 — كلُّ قطاعٍ بما يليق به")
 sys.exit(fail)
