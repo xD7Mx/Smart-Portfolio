@@ -133,6 +133,7 @@ export default function FairValuePanel({ symbol, analystTarget, week52 }: {
 
       <div className="card p-4 space-y-2">
         <div className="text-[13px] font-bold text-[var(--ink)]">العائلات ووزنها</div>
+        {r.model_set && <div className="text-[12px] text-[var(--brand-ink)]">{r.model_set}</div>}
         {(r.families || []).map((f: any) => (
           <div key={f.family} className="flex items-center gap-2 min-h-[32px] text-[13px]">
             <span className="flex-1 text-[var(--ink)]">{f.name}</span>

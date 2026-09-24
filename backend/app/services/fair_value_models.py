@@ -66,6 +66,39 @@ BLEND_ALPHA = {"bank": 0.25, "financial": 0.25, "capital_infra": 0.25,
                "consumer_defensive": 0.75, "contracting": 0.75, "asset_light": 1.0}
 DEFAULT_ALPHA = 0.75
 
+# ══ نظريةُ المالك: «كلُّ قطاعٍ بما يليق به» ══ (D470)
+# النماذجُ لا تُطبَّق كلُّها على الجميع: الصندوقُ العقاريُّ يُقيَّم بتوزيعه وصافي
+# أصوله (و«InvestingPro» نفسُه يعرض له أربعةَ نماذج لا خمسةَ عشر)، والمصرفُ
+# بعائد حقوقه، والدوريُّ بهوامشَ مطبَّعةٍ لا بربحِ سنةٍ واحدة، والبرمجياتُ لا
+# تُقاس بدفتريةٍ لا تحمل أصولَها. والمفتاحُ مجموعةُ «تداول» الصناعيةُ الرسمية.
+_ALL = {"dcf_gordon_5", "dcf_gordon_10", "dcf_exit_5", "dcf_exit_10", "epv", "residual_income",
+        "ddm_stable", "ddm_two_stage", "peer_pe", "peer_pb", "peer_ps", "peer_pocf",
+        "peer_ev_ebit", "peer_ev_sales", "peer_yield"}
+_DCF = {"dcf_gordon_5", "dcf_gordon_10", "dcf_exit_5", "dcf_exit_10"}
+_DDM = {"ddm_stable", "ddm_two_stage"}
+MODEL_SETS = {
+    "REITs": ("الصناديق العقارية: التوزيعُ وصافي الأصول", _DDM | {"peer_yield", "peer_pb", "peer_ps"}),
+    "Banks": ("المصارف: عائدُ الحقوق والتوزيع", {"residual_income", "peer_pe", "peer_pb"} | _DDM),
+    "Insurance": ("التأمين: الحقوقُ وعائدُها", {"residual_income", "peer_pb", "peer_pe"}),
+    "Financial Services": ("الخدمات المالية: الحقوقُ والأرباح", {"residual_income", "peer_pe", "peer_pb"} | _DDM),
+    "Real Estate Mgmt & Dev't": ("التطوير العقاري: الأصولُ والتدفّقُ الطويل",
+                                 {"peer_pb", "residual_income", "dcf_gordon_10", "dcf_exit_10", "peer_pe"}),
+    "Energy": ("الطاقة: هوامشُ مطبَّعةٌ عبر الدورة", _DCF | {"epv", "peer_ev_ebit", "peer_ev_sales", "peer_pb", "residual_income", "peer_pe"} | _DDM),
+    "Materials": ("المواد الأساسية: هوامشُ مطبَّعةٌ عبر الدورة", _DCF | {"epv", "peer_ev_ebit", "peer_ev_sales", "peer_pb", "residual_income"}),
+    "Utilities": ("المرافق: تدفّقٌ منتظمٌ وتوزيع", _DCF | _DDM | {"peer_ev_ebit", "peer_pe", "peer_pb", "residual_income"}),
+    "Telecommunication Services": ("الاتصالات: تدفّقٌ منتظمٌ وتوزيع", _DCF | _DDM | {"peer_ev_ebit", "peer_ev_sales", "peer_pe", "epv"}),
+    "Software & Services": ("البرمجيات: الأرباحُ والمبيعات لا الدفترية", _DCF | {"epv", "peer_pe", "peer_ev_ebit", "peer_ps", "peer_pocf", "peer_ev_sales"}),
+    "Health Care Equipment & Svc": ("الرعاية الصحية: الأرباحُ والتدفّق", _DCF | {"epv", "peer_pe", "peer_ev_ebit", "peer_ps", "peer_pocf"}),
+    "Pharma, Biotech & Life Science": ("الأدوية: الأرباحُ والتدفّق", _DCF | {"epv", "peer_pe", "peer_ev_ebit", "peer_ps", "peer_pocf"}),
+}
+ARCH_SETS = {"bank": MODEL_SETS["Banks"], "insurance": MODEL_SETS["Insurance"],
+             "financial": MODEL_SETS["Financial Services"], "reit": MODEL_SETS["REITs"]}
+
+
+def model_set(sector: str | None, archetype: str | None) -> tuple[str, set]:
+    return MODEL_SETS.get(sector or "") or ARCH_SETS.get(archetype or "") or ("النموذجُ الكامل", _ALL)
+
+
 FAMILY_NAMES = {"cashflow": "التدفّقات المخصومة", "equity": "الأرباح والحقوق",
                 "income": "التوزيعات", "multiples": "مضاعفاتُ الأقران السعوديين"}
 
@@ -306,6 +339,13 @@ def multiple_models(i: Inputs, bs: Base) -> list[dict]:
         m, q1, q3 = statistics.median(xs), _pct(xs, .25), _pct(xs, .75)
         out.append(_model(f"peer_{key}", "multiples", name, base * m, base * q1, base * q3,
                           [(label, f"{base:.2f}", ""), ("وسيطُ الأقران", f"{m:.2f}x", f"{q1:.2f}–{q3:.2f}x · {len(xs)} أقران")]))
+    ys = i.peers.get("yield") or []
+    if i.dps_ttm and i.dps_ttm > 0 and len(ys) >= MIN_PEERS:
+        m, q1, q3 = statistics.median(ys), _pct(ys, .25), _pct(ys, .75)
+        out.append(_model("peer_yield", "multiples", "عائدُ التوزيع مقابل الأقران", i.dps_ttm / m,
+                          i.dps_ttm / q3, i.dps_ttm / q1,
+                          [("توزيعاتُ 12 شهراً", f"{i.dps_ttm:.2f}", "جدولُ توزيعات «تداول»"),
+                           ("وسيطُ عائد الأقران", f"{m*100:.2f}%", f"{q1*100:.2f}–{q3*100:.2f}% · {len(ys)} أقران")]))
     for key, base, name, label in (("ev_ebit", bs.ebit_n, "مضاعفُ قيمة المنشأة/الربح التشغيليّ", "الربحُ التشغيليّ المطبَّع"),
                                    ("ev_sales", bs.rev, "مضاعفُ قيمة المنشأة/الإيراد", "إيرادُ 12 شهراً")):
         xs = i.peers.get(key) or []
@@ -378,9 +418,9 @@ def value(i: Inputs) -> dict:
     bs = base_of(i)
     if not bs:
         return {"value": None, "reason": "لا إيرادَ أو لا عددَ أسهمٍ موثوق في الإفصاح"}
-    fin = i.archetype in FIN_TYPES
-    models = ([] if fin or i.archetype == "reit" else cashflow_models(i, bs)) \
-        + equity_models(i, bs) + multiple_models(i, bs)
+    set_name, allowed = model_set(i.sector, i.archetype)
+    models = [m for m in cashflow_models(i, bs) + equity_models(i, bs) + multiple_models(i, bs)
+              if m["key"] in allowed]
     # ══ نموذجٌ بعشرة أضعاف السعر أو عُشره خطأُ مدخلاتٍ لا رأيٌ ══
     # (قِيس: 1321 خرج بخمسة ملياراتٍ للسهم — عددُ أسهمٍ بوحدةٍ مغلوطة)
     bad = [m for m in models if not (i.price / 10 <= m["value"] <= i.price * 10)]
@@ -389,7 +429,7 @@ def value(i: Inputs) -> dict:
     agg["excluded"] = agg.get("excluded", []) + [
         {**m, "excluded": "يبعد عن السعر عشرةَ أضعاف — خطأُ مدخلاتٍ أرجحُ من رأي"} for m in bad]
     return {**agg, "price": i.price, "models": models, "count": len(models),
-            "notes": bs.notes + i.notes, "peers": i.peer_symbols, "sector": i.sector,
+            "notes": bs.notes + i.notes, "peers": i.peer_symbols, "sector": i.sector, "model_set": set_name,
             "ttm_source": i.ttm_source,
             "rates": {"ke": round(bs.ke, 4), "wacc": round(bs.wacc, 4), "tax": round(bs.tax, 3)}}
 
@@ -423,6 +463,24 @@ def _ttm_of(quarterly: list[dict], annual: list[dict]) -> tuple[dict, str]:
                     f"أربعةُ أرباعٍ حتى {q[-1]['as_of']}")
     a = annual[-1] if annual else {}
     return ({k: _n(a.get(k)) for k in keys}, f"سنةُ {a.get('year')}")
+
+
+async def _peer_yields(peers: list[str], rows: dict) -> list[float]:
+    """عائدُ توزيع الأقران لاثني عشر شهراً من جدول «تداول» الرسميّ."""
+    from app.services.tadawul_dividends import read as _div
+    from datetime import date, timedelta
+    cut = (date.today() - timedelta(days=365)).isoformat()
+    out = []
+    for s in peers:
+        px = _n((rows.get(s) or rows.get(s + ".SR") or {}).get("price"))
+        try:
+            d = await _div(s) or {}
+        except Exception:                                          # noqa: BLE001
+            continue
+        amt = sum(h["amount"] for h in (d.get("history") or []) if str(h.get("date")) >= cut)
+        if px and amt > 0 and 0 < amt / px < 0.25:
+            out.append(round(amt / px, 5))
+    return out
 
 
 def _peer_multiples(sym: str, peers: list[str], rows: dict) -> dict:
@@ -488,10 +546,11 @@ async def gather(symbol: str) -> Inputs | None:
                    if (r or {}).get("sector_en") == sector and str(s).replace(".SR", "") != sym
                    and is_main(str(s).replace(".SR", "")))
     from app.services import cache
-    ck = f"fvm:peers:{sector}"
+    ck = f"fvm:peers:v2:{sector}"
     pm = cache.get(ck)
     if pm is None:
         pm = _peer_multiples(sym, peers, rows)
+        pm["yield"] = await _peer_yields(peers, rows)
         cache.set(ck, pm, 6 * 60 * 60)
     dps = None
     try:
@@ -560,7 +619,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v4:{sym}"
+    ck = f"fvm:v5:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
