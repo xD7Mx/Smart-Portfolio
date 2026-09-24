@@ -64,7 +64,10 @@ check(bool(pts) and pts[-1].get("close") == 10698.0,
 try:
     from app.services import lastgood
     d = lastgood.load("market:tasi_daily") or {}
-    check(d.get("2026-09-22") == 10698.0, "٣ ويُحفظ إغلاقُ الجلسة فيطول التاريخُ اليوميّ",
+    _d = d.get("2026-09-22") or {}
+    check(isinstance(_d, dict) and _d.get("close") == 10698.0 and _d.get("open") == 10669.0
+          and _d.get("high") == 10698.0,
+          "٣ ويُحفظ يومُ الجلسة شمعةً كاملةً فيطول التاريخُ اليوميّ (D460)",
           str({k: v for k, v in d.items() if k != "_stale_since"}))
 except ModuleNotFoundError as e:
     print(f"⚠ ٣ لم يُقَس ({e.name})")
@@ -74,5 +77,9 @@ seg = src.split('@router.get("/history/{symbol}")', 1)[-1].split("@router", 1)[0
 check("market_service.get_history(" in seg and "primary.get_history" not in seg,
       "٤ ونقطةُ /market/history تمرّ من الباب الواحد لا من المزوّد مباشرة")
 
+# ‏D460: رآه المالك «لا يظهر شموع… فقط اسمٌ ورقم»: كانت كلُّ نقطةٍ شمعةً
+# مسطّحة، ثمّ صار العرضُ يومين محفوظين فقط. فالجلسةُ شموعُ خمسِ دقائق حقيقية.
+check(len(pts) >= 2 and any(p_["high"] > p_["low"] for p_ in pts),
+      "٥ والجلسةُ شموعٌ حقيقيةٌ لها أعلى وأدنى — لا خطوطٌ مسطّحة", str(pts[:1])[:90])
 print(("FAIL" if fail else "PASS") + " D438 — منحنى تاسي من «تداول»")
 sys.exit(fail)

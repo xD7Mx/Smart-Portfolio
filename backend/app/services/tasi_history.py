@@ -40,17 +40,49 @@ def parse_session(body: str) -> list:
     return out
 
 
+def candles(session: list, minutes: int = 5) -> list:
+    """نقاطُ الدقيقة ← شموعُ خمسِ دقائق حقيقية (فتحٌ · أعلى · أدنى · إغلاق).
+
+    ‏D460: كان كلُّ نقطةٍ شمعةً فتحُها وأعلاها وأدناها وإغلاقُها واحد — فتُرسم
+    خطوطاً مسطّحةً لا تُرى. والشمعةُ من أسعار دقائقها.
+    """
+    out: list = []
+    for p in session:
+        d = p["date"]
+        hh, mm = int(d[11:13]), int(d[14:16])
+        key = f"{d[:11]}{hh:02d}:{mm - mm % minutes:02d}"
+        c = p["close"]
+        if out and out[-1]["date"] == key:
+            b = out[-1]
+            b["high"], b["low"], b["close"] = max(b["high"], c), min(b["low"], c), c
+        else:
+            out.append({"date": key, "time": 0, "open": c, "high": c, "low": c,
+                        "close": c, "volume": 0})
+    return out
+
+
 def remember_close(session: list) -> list:
-    """يُضاف إغلاقُ الجلسة إلى السجلّ اليوميّ ويُردّ السجلُّ مرتّباً."""
+    """يُحفظ يومُ الجلسة شمعةً كاملة (فتحُها وأعلاها وأدناها وإغلاقُها)."""
     from app.services import lastgood
     daily = dict(lastgood.load(_DAILY_KEY) or {})
     daily.pop("_stale_since", None)
     if session:
-        last = session[-1]
-        daily[last["date"][:10]] = last["close"]
+        cl = [p["close"] for p in session]
+        daily[session[-1]["date"][:10]] = {"open": cl[0], "high": max(cl),
+                                           "low": min(cl), "close": cl[-1]}
         lastgood.save(_DAILY_KEY, daily)
-    return [{"date": d, "time": 0, "open": c, "high": c, "low": c,
-             "close": c, "volume": 0} for d, c in sorted(daily.items())]
+    out = []
+    for d, v in sorted(daily.items()):
+        if isinstance(v, dict):
+            out.append({"date": d, "time": 0, **{k: v[k] for k in ("open", "high", "low", "close")},
+                        "volume": 0})
+        elif isinstance(v, (int, float)):
+            out.append({"date": d, "time": 0, "open": v, "high": v, "low": v,
+                        "close": v, "volume": 0})
+    return out
+
+
+MIN_DAILY = 20    # دون عشرين يوماً محفوظاً تُعرض الجلسةُ كاملةً شموعاً لا نقطتان
 
 
 async def history(range_: str = "3mo") -> Optional[list]:
@@ -68,7 +100,7 @@ async def history(range_: str = "3mo") -> Optional[list]:
         session = []
     daily = remember_close(session)
     keep = {"1mo": 22, "3mo": 66, "6mo": 132, "1y": 260}.get(range_, 132)
-    pts = daily[-keep:] if len(daily) >= 2 else session
+    pts = daily[-keep:] if (len(daily) >= MIN_DAILY or not session) else candles(session)
     if len(pts) < 2:
         return None
     cache.set(ck, pts, _TTL)
