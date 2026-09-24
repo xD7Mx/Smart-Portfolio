@@ -53,6 +53,11 @@ check("\n" in f.get("text", "") and "<" not in f.get("text", "") and "البند
 l = asyncio.run(A.read("https://www.argaam.com/ar/article/articledetail/id/2")) or {}
 check(SECRET not in l.get("text", "") and l.get("text") == "سجلت الشركة أول خسائر فصلية" and l.get("full") is False,
       "٣ والمقفلُ للمشتركين لا يُسحب نصُّه الخفيّ — ملخّصُه المعلنُ وحده", l.get("text", "")[:60])
+from app.services.article_body import teaser, drop_caption
+t = teaser("سجلت شركة العثيم أول خسائر فصلية لها في الربع الثاني نتيجة ضغوط تشغيلية مرتبطة بتطبيق نظام تخطيط موارد المنشأة (ERP) والتي انعكست على كفاءة سلسلة الإم")
+check(t.endswith("سلسلة…") and "الإم" not in t, "٣ب والملخّصُ المقطوعُ عند 150 حرفاً يُنهى بكلمةٍ تامّة لا بنصفها", t[-20:])
+c = drop_caption("شعار شركة أسواق عبدالله العثيم\n\nأعلنت شركة أسواق عبد الله العثيم موافقة مجلس إدارتها على استقالة الرئيس التنفيذي وتكليف العضو المنتدب.")
+check(c.startswith("أعلنت"), "٣ج وتعليقُ الصورة في أوّل المقال لا يُعرض سطراً", c[:20])
 n = len(calls)
 for bad in ("https://evil.example/ar/article/articledetail/id/1", "http://www.argaam.com/ar/article/articledetail/id/1",
             "https://www.argaam.com/ar/company/companyoverview/marketid/3/companyid/911"):

@@ -74,18 +74,37 @@ def parse(h: str) -> dict | None:
     if not h:
         return None
     if LOCK in h:
-        lead = _meta(h, "og:description")
+        lead = teaser(_meta(h, "og:description"))
         return {"text": lead, "full": False} if lead else None
-    body = html_to_text(_ld_body(h))
+    body = drop_caption(html_to_text(_ld_body(h)))
     if len(body) < 40:
         return None
     return {"text": body, "full": True}
 
 
+def teaser(s: str) -> str:
+    """ملخّصُ «أرقام» المعلنُ مقطوعٌ عند 150 حرفاً ولو وسطَ كلمة («سلسلة الإم»).
+    فيُنهى عند آخر كلمةٍ تامّة، وتُوصَل بنقاطٍ إن قُطع — لا نصفَ كلمة."""
+    s = (s or "").strip()
+    if len(s) < 140 or s.endswith((".", "؟", "!", "…")):
+        return s
+    cut = s.rsplit(" ", 1)[0].rstrip(" ،,:؛-(")
+    return cut + "…" if cut else s
+
+
+def drop_caption(text: str) -> str:
+    """أوّلُ فقرةٍ في مقالات «أرقام» تعليقُ الصورة («شعار شركة …»، «مبنى …»،
+    أو اسمٌ ومنصب) — سطرٌ قصيرٌ بلا ترقيمِ جملة يتلوه المتن. يُسقَط."""
+    parts = text.split("\n\n", 1)
+    if len(parts) == 2 and len(parts[0]) < 110 and not re.search(r"[.،:؛!؟]", parts[0]) and len(parts[1]) > 80:
+        return parts[1].strip()
+    return text
+
+
 async def read(url: str) -> dict | None:
     if not allowed(url):
         return None
-    ck = f"argaam:article:{url}"
+    ck = f"argaam:article:v2:{url}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
