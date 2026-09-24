@@ -117,16 +117,14 @@ for _k in ("Banks", "Utilities", "Telecommunication Services", "Energy"):
 # لا تُستبدل مجموعةٌ إلا إن فازت على أوراقٍ لم تُختر بها (ترك واحد) بفارقٍ
 # لا يقلّ عن نقطتين، وبعيّنةٍ ≥ 5، وبثلاثة نماذج على الأقلّ ضمن حدود النظرية.
 MODEL_SETS.update({
-    "Capital Goods": ("السلع الرأسمالية: التدفّقُ بمضاعف الخروج وقيمةُ المنشأة إلى المبيعات",
-                      {"dcf_exit_5", "dcf_exit_10", "peer_ev_sales"}),
     "Consumer Services": ("الخدمات الاستهلاكية: التدفّقُ بمضاعف الخروج والتدفّقُ التشغيليّ للأقران",
                           {"dcf_exit_5", "dcf_exit_10", "peer_pocf"}),
     "Food & Beverages": ("الأغذية والمشروبات: التدفّقُ والقوّةُ الإيرادية والتوزيع",
                          {"dcf_exit_5", "dcf_exit_10", "epv", "ddm_two_stage"}),
-    "Insurance": ("التأمين: التوزيعُ والأقساطُ المكتتبة", _DDM | {"peer_ps"}),
     "Banks": ("المصارف: التوزيعُ المرحليّ ومكرّرُ الربح وعائدُ الأقران", {"ddm_two_stage", "peer_pe", "peer_yield"}),
-    "Energy": ("الطاقة: التدفّقُ الطويل والمبيعاتُ والأصول", {"dcf_gordon_10", "peer_ev_sales", "peer_pb"}),
 })
+# وأُعيدت السلعُ الرأسمالية والطاقةُ والتأمينُ إلى مجموعاتها النظرية (D470): قياسُ D475
+# النظيف بيّن أنّ ما اعتُمد لها في D473 قام على قياسٍ ملوّث (السهمُ بين أقرانه).
 
 ARCH_SETS = {"bank": MODEL_SETS["Banks"], "insurance": MODEL_SETS["Insurance"],
              "financial": MODEL_SETS["Financial Services"], "reit": MODEL_SETS["REITs"]}
@@ -771,7 +769,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v12:{sym}"
+    ck = f"fvm:v13:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
