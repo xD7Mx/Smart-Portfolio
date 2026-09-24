@@ -320,7 +320,7 @@ async def pdf_links(symbol: str) -> tuple[list[dict], str | None]:
 
 
 async def read_annuals(symbol: str, after_year: int, ref_shares: float | None,
-                       max_files: int = 10, report: dict | None = None) -> list[dict]:
+                       max_files: int = 16, report: dict | None = None) -> list[dict]:
     """فتراتٌ سنويةٌ أحدثُ من `after_year` من ملفّات PDF الرسمية — مجتازةً الصمّام."""
     from app.services.tadawul_http import fetch_bytes
     links, why = await pdf_links(symbol)

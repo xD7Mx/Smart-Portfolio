@@ -30,7 +30,7 @@ async def main():
         if last < cut:
             stale.append((s, last))
     print(f"أوراقٌ تقف قوائمُها قبل {cut}: {len(stale)}")
-    rep = await X.refresh([s for s, _ in stale], conc=4)
+    rep = await X.refresh([s for s, _ in stale], conc=2)
     print("الحصاد:", rep)
     st = X._store()
     moved = collections.Counter()
