@@ -35,6 +35,7 @@ async def main():
             if isinstance(x.get("analyst_target"), (int, float)) and x["analyst_target"] > 0]
     new, old = collections.defaultdict(list), collections.defaultdict(list)
     per_model, per_fam = collections.defaultdict(list), collections.defaultdict(list)
+    fam_arch = collections.defaultdict(lambda: collections.defaultdict(list))
     worst = []
     for x in rows:
         s, at = x["symbol"], x["analyst_target"]
@@ -47,6 +48,7 @@ async def main():
                 per_model[m["key"]].append(m["value"] / at)
             for f in v.get("families") or []:
                 per_fam[f["family"]].append(f["value"] / at)
+                fam_arch[a][f["family"]].append(f["value"] / at)
         fv = x.get("fair_value")
         if isinstance(fv, (int, float)) and fv > 0:
             old[a].append(fv / at); old["*"].append(fv / at)
@@ -61,6 +63,11 @@ async def main():
     print("النماذج:")
     for k, v in sorted(per_model.items()):
         print(f"  {k:16} {stat(v)}")
+    print("\nأوزانٌ مقترحة لكلّ نمط (عكسُ وسيط الخطأ لكلّ عائلة):")
+    for a, fams in sorted(fam_arch.items()):
+        inv = {f: 1 / max(statistics.median(abs(math.log(x)) for x in xs), 0.05) for f, xs in fams.items() if len(xs) >= 3}
+        tot = sum(inv.values()) or 1
+        print(f"  {a:20} " + " · ".join(f"{f}={inv[f]/tot:.2f} (وسيط {statistics.median(fams[f]):.2f})" for f in inv))
     print("\nأبعدُ عشرةٍ عن المحللين (رمز · جديد · هدف · قائم):")
     for e, s, v, at, fv in sorted(worst, reverse=True)[:10]:
         print(f"  {s} · {v:.2f} · {at:.2f} · {fv}")

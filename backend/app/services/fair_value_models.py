@@ -218,22 +218,33 @@ def equity_models(i: Inputs, bs: Base) -> list[dict]:
     ke = bs.ke
     # الدخلُ المتبقّي: الدفتريةُ + فائضُ العائد يتلاشى إلى كلفة الحقوق في عشر سنوات
     if bs.bvps and bs.roe_n is not None:
+        # ══ فائضُ العائد لا يتلاشى إلى الصفر ══ (قِيس: وسيطُ النسبة إلى هدف المحللين 0.41)
+        # تلاشيه الكاملُ في عشر سنوات بلا قيمةٍ نهائية يجعل كلَّ شركةٍ «دفتريةً
+        # وقليلاً»، وذلك ينفي كلَّ ميزةٍ تنافسية. فيتلاشى إلى ثلثه ويبقى أبدياً
+        # بنموٍّ نهائيّ — وهو نهجُ الدخل المتبقّي بقيمةٍ نهائية المعتاد.
         def ri(k, roe0):
             bv, v = bs.bvps, bs.bvps
             payout = min(max((i.dps_ttm or 0) / (bs.ni_n / i.shares), 0), 1) if (bs.ni_n and bs.ni_n > 0) else 0
+            roe_inf = k + (roe0 - k) / 3
+            roe = roe0
             for t in range(1, 11):
-                roe = roe0 + (k - roe0) * t / 10
+                roe = roe0 + (roe_inf - roe0) * t / 10
                 v += (roe - k) * bv / (1 + k) ** t
                 bv *= 1 + roe * (1 - payout)
+            if k - TERMINAL_G > 0.02:
+                v += (roe - k) * bv / (k - TERMINAL_G) / (1 + k) ** 10
             return v
-        out.append(_model("residual_income", "equity", "الدخلُ المتبقّي (عشر سنوات · عائدٌ يتلاشى)",
+        out.append(_model("residual_income", "equity", "الدخلُ المتبقّي (فائضٌ يتلاشى إلى ثلثه · قيمةٌ نهائية)",
                           ri(ke, bs.roe_n), ri(ke + 0.005, bs.roe_n - 0.01), ri(ke - 0.005, bs.roe_n + 0.01),
                           [("العائدُ على الحقوق المطبَّع", f"{bs.roe_n*100:.1f}%", "متوسّطُ ثلاث سنوات"),
                            ("كلفةُ حقوق الملكية", f"{ke*100:.2f}%", "±0.5%"),
                            ("الدفتريةُ للسهم", f"{bs.bvps:.2f}", "أحدثُ ميزانية")]))
     # التوزيعات: نموٌّ مستقرّ ومرحلتان — من جدول توزيعات «تداول» الرسميّ
     d0 = i.dps_ttm
-    if d0 and d0 > 0:
+    # ══ خصمُ التوزيعات لمن يوزّع فعلاً ══ (قِيس: وسيطُ النسبة 0.47 على الكلّ)
+    # من يحتجز أغلبَ ربحه لا تقيس توزيعاتُه قيمتَه — قيمتُه فيما احتجز.
+    payout0 = (d0 / (bs.ni_n / i.shares)) if (d0 and bs.ni_n and bs.ni_n > 0) else None
+    if d0 and d0 > 0 and payout0 is not None and payout0 >= 0.45:
         g_s = min(max((bs.roe_n or 0) * (1 - min(d0 / (bs.ni_n / i.shares), 1)) if (bs.ni_n and bs.ni_n > 0) else 0, 0),
                   MAX_SUSTAINABLE_GROWTH)
         f1 = lambda k, g: d0 * (1 + g) / (k - g) if k - g > 0.02 else None
@@ -350,7 +361,13 @@ def value(i: Inputs) -> dict:
     fin = i.archetype in FIN_TYPES
     models = ([] if fin or i.archetype == "reit" else cashflow_models(i, bs)) \
         + equity_models(i, bs) + multiple_models(i, bs)
+    # ══ نموذجٌ بعشرة أضعاف السعر أو عُشره خطأُ مدخلاتٍ لا رأيٌ ══
+    # (قِيس: 1321 خرج بخمسة ملياراتٍ للسهم — عددُ أسهمٍ بوحدةٍ مغلوطة)
+    bad = [m for m in models if not (i.price / 10 <= m["value"] <= i.price * 10)]
+    models = [m for m in models if m not in bad]
     agg = aggregate(models, i.price, i.archetype)
+    agg["excluded"] = agg.get("excluded", []) + [
+        {**m, "excluded": "يبعد عن السعر عشرةَ أضعاف — خطأُ مدخلاتٍ أرجحُ من رأي"} for m in bad]
     return {**agg, "price": i.price, "models": models, "count": len(models),
             "notes": bs.notes + i.notes, "peers": i.peer_symbols, "sector": i.sector,
             "ttm_source": i.ttm_source,
@@ -480,7 +497,7 @@ async def gather(symbol: str) -> Inputs | None:
 
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
-    ck = f"fvm:v1:{symbol}"
+    ck = f"fvm:v2:{symbol}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
