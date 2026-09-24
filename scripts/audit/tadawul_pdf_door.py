@@ -9,7 +9,7 @@
 import asyncio, re, sys
 sys.path.insert(0, "/app")
 
-SYMS = ["8010", "8210", "1320"]
+SYMS = ["8010", "1320"]
 KEYS = re.compile(r"(insurance revenue|total revenue|revenue|net profit|profit for the (year|period)|net income|"
                   r"total equity|total shareholders|total assets|earnings per share|basic)", re.I)
 
@@ -44,12 +44,14 @@ async def main():
         except Exception as e:                                     # noqa: BLE001
             print("   لا يُفتح:", e); continue
         print(f"   صفحات {doc.page_count}")
-        shown = 0
         for i, pg in enumerate(doc):
-            for line in pg.get_text().splitlines():
-                if KEYS.search(line) and shown < 60:
-                    print(f"   ص{i+1}: {line.strip()[:140]}")
-                    shown += 1
+            t = pg.get_text()
+            if i < 14:
+                print(f"   ص{i+1}: {len(t)} حرفاً · {re.sub(chr(10), ' | ', t[:90])}")
+        want = [i for i, pg in enumerate(doc) if i < 16 and re.search(r"total assets|per share", pg.get_text(), re.I)]
+        for i in want[:3]:
+            print(f"\n   ─── نصُّ ص{i+1} ───")
+            print(doc[i].get_text()[:3500])
     return 0
 
 sys.exit(asyncio.run(main()))
