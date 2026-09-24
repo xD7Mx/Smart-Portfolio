@@ -67,6 +67,10 @@ async def main():
         free += kind == "حرّ"; locked += kind == "مقفل"; other += kind not in ("حرّ", "مقفل")
         t = re.search(r"<title>(.*?)</title>", H, re.S)
         print(f"  {kind:5} · {u.rsplit('/',1)[-1]} · {(t.group(1).strip() if t else '')[:70]}")
+    from app.services.article_body import read
+    for u in urls[:20]:
+        r = await read(u)
+        print(f"  التطبيق: {u.rsplit('/',1)[-1]} → {('كامل' if r['full'] else 'ملخّص') if r else 'لا نصّ'} · {len(r['text']) if r else 0} حرف · {(r['text'][:90] if r else '')!r}")
     print(f"\nالمجموع: حرّ {free} · مقفلٌ للمشتركين {locked} · غيرُ ذلك {other} (من {min(len(urls),20)})")
     return 0
 

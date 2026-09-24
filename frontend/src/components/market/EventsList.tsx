@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, X, Share2, ExternalLink, Loader2 } from "lucide-react";
+import { CalendarDays, X, Share2, Loader2 } from "lucide-react";
 import CompanyLogo from "../common/CompanyLogo";
 import { lookupCompany } from "../../data/saudiCompanies";
 import { marketApi } from "../../services/api";
@@ -127,18 +127,6 @@ function EventDetailModal({ e, onClose }: { e: any; onClose: () => void }) {
   const meta = typeMeta(e);
   const name = lookupCompany(e.symbol)?.name_ar || e.company_name || e.name;
   const title = e.title || e.headline || meta.label;
-  const [link, setLink] = useState<{ state: "checking" | "ok" | "bad"; url?: string }>(
-    e.url ? { state: "checking" } : { state: "bad" }
-  );
-  React.useEffect(() => {
-    if (!e.url) return;
-    let alive = true;
-    marketApi.resolveNewsUrl(e.url)
-      .then(r => { const u = r.data?.data?.url; if (alive) setLink(u ? { state: "ok", url: u } : { state: "bad" }); })
-      .catch(() => { if (alive) setLink({ state: "bad" }); });
-    return () => { alive = false; };
-  }, [e.url]);
-
   /* نصّ الإعلان الكامل — يُجلب عند الفتح فقط. ثلاث حالاتٍ صريحة لا رابعة:
      يُجلب · وصل · تعذّر. ولا حالةَ صامتة تترك المالك ينتظر مربّعاً فارغاً. */
   const [detail, setDetail] = useState<{ s: "off" | "load" | "ok" | "bad"; t?: string }>(
@@ -153,8 +141,23 @@ function EventDetailModal({ e, onClose }: { e: any; onClose: () => void }) {
     return () => { alive = false; };
   }, [e.detail_id]);
 
+  /* محتوى المصدر داخل النافذة (D466) — بأمر المالك: لا خروجَ من التطبيق.
+     مقالُ «أرقام» يُقرأ بالجلب الذكيّ في الخادم؛ وما ليس مقالاً (صفحةُ
+     شركة) لا نصَّ له فلا يظهر مربّعٌ فارغ. */
+  const [body, setBody] = useState<{ s: "off" | "load" | "ok"; t?: string }>(
+    !e.detail_id && /argaam\.com\/ar\/article\/articledetail\//.test(e.url || "") ? { s: "load" } : { s: "off" }
+  );
+  React.useEffect(() => {
+    if (body.s !== "load") return;
+    let alive = true;
+    marketApi.articleBody(e.url)
+      .then(r => { const t = r.data?.data?.text; if (alive) setBody(t ? { s: "ok", t } : { s: "off" }); })
+      .catch(() => { if (alive) setBody({ s: "off" }); });
+    return () => { alive = false; };
+  }, [e.url]);
+
   const share = async () => {
-    const url = link.url || e.url || window.location.href;
+    const url = e.url || window.location.href;
     const data = { title, text: title, url };
     if ((navigator as any).share) {
       try { await (navigator as any).share(data); } catch { /* أُلغيت */ }
@@ -200,16 +203,19 @@ function EventDetailModal({ e, onClose }: { e: any; onClose: () => void }) {
             )}
           </div>
         )}
+        {body.s !== "off" && (
+          <div className="mb-4 rounded-xl p-3 overflow-y-auto" style={{ background: "var(--surface)", maxHeight: "50vh" }}>
+            {body.s === "load" ? (
+              <span className="text-xs flex items-center gap-1.5" style={{ color: "var(--ink-muted)" }}>
+                <Loader2 size={12} className="animate-spin" /> يُجلب نصّ الإعلان…
+              </span>
+            ) : (
+              <p className="text-[13px] leading-relaxed whitespace-pre-line" style={{ color: "var(--ink)" }}>{body.t}</p>
+            )}
+          </div>
+        )}
         <div className="flex gap-2 flex-wrap">
-          <ShareButton title={title} url={link.url || e.url} />
-          {link.state === "checking" && (
-            <span className="btn-ghost flex items-center gap-1.5 opacity-60"><Loader2 size={14} className="animate-spin" /> المصدر</span>
-          )}
-          {link.state === "ok" && (
-            <a href={link.url} target="_blank" rel="noopener noreferrer" className="btn-ghost flex items-center gap-1.5">
-              <ExternalLink size={14} /> المصدر
-            </a>
-          )}
+          <ShareButton title={title} url={e.url} />
           {/* «افتح في أرقام» بالرمز لا بالمعرّف المرفق: الإعلان قد يأتي من
               ياهو بلا معرّف أرقام، والشركة نفسها معروفة في الخريطة. فربطُ
               الزرّ بالرمز يجعله يظهر لكل شركةٍ في السوق لا للمنسوب وحده —

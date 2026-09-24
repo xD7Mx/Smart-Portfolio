@@ -232,6 +232,7 @@ export const marketApi = {
   portfolioNews: () => api.get<APIResponse>("/market/news", { params: { portfolio_only: true } }),
   resolveNewsUrl: (u: string) => api.get<APIResponse>("/market/news/resolve", { params: { u } }),
   eventDetail: (id: string) => api.get<APIResponse>(`/market/event-detail/${id}`),
+  articleBody: (u: string) => api.get<APIResponse>("/market/article-body", { params: { u } }),
   argaamIds: () => api.get<APIResponse>("/market/argaam-ids"),
   summary:  () => api.get<APIResponse>("/market/summary"),
   economicNews: () => api.get<APIResponse>("/market/economic-news"),
