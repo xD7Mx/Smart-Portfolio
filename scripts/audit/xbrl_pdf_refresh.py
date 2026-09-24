@@ -20,7 +20,11 @@ async def main():
     st = X._store()
     cut = date.today().year - 1
     stale = []
-    for s in sorted(str(k).replace(".SR", "") for k in rows):
+    try:
+        from app.data.universe import is_main
+    except Exception:                                              # noqa: BLE001
+        is_main = lambda x: not x.startswith("9")                  # noqa: E731
+    for s in sorted(str(k).replace(".SR", "") for k in rows if is_main(str(k).replace(".SR", ""))):
         rec = st.get(s) or {}
         last = max((p.get("year") or 0 for p in rec.get("annual") or []), default=0)
         if last < cut:
@@ -31,6 +35,8 @@ async def main():
     st = X._store()
     moved = collections.Counter()
     for s, before in stale:
+        if False:
+            pass
         rec = st.get(s) or {}
         an = rec.get("annual") or []
         after = max((p.get("year") or 0 for p in an), default=0)
