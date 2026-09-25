@@ -55,8 +55,9 @@ from app.data.universe import main_market  # noqa: E402
 SYMS = list(main_market(MARKET_UNIVERSE).keys())
 # الصناديقُ تُسعَّر في المسحة نفسِها وإن لم تدخل الإحصاء — فمن أرادَ «صفرَ
 # نداءات» عليه أن يغطّيها في اللقطة أيضاً، وإلا سُئل عنها المزوّدُ بحقّ.
+# ‏D486: الصناديقُ صارت في السوق الرئيسة نفسها — فلا تُضاف مرّتين.
 FUNDS = [s for s, m in MARKET_UNIVERSE.items()
-         if m.get("sector") == "صناديق المؤشرات المتداولة"]
+         if m.get("sector") == "صناديق المؤشرات المتداولة" and s not in SYMS]
 ALL = SYMS + FUNDS
 asked: list[list[str]] = []
 

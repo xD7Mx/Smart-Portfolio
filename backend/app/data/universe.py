@@ -34,19 +34,26 @@ MAIN = "MAIN"
 NOMU = "NOMU"
 
 # مصدرُ التصنيف: قاعدةُ ترقيم تداول — «نمو» تبدأ بـ‎9، **إلا صناديقَ
-# المؤشرات المتداولة (94xx)** فهي في السوق الرئيسة (D486).
-CLASSIFICATION_SOURCE = "تداول — بادئةُ الرمز (9xxx = «نمو» · 94xx = صناديق المؤشرات في الرئيسة)"
+# المؤشرات المتداولة** (بقطاعها الرسميّ) فهي في السوق الرئيسة (D486).
+CLASSIFICATION_SOURCE = "تداول — بادئةُ الرمز (9xxx = «نمو» · صناديقُ المؤشرات بقطاعها الرسميّ في الرئيسة)"
 
 # ══ صناديقُ المؤشرات ليست «نمو» (بأمر المالك · D486) ══
 # قاعدةُ «ما بدأ بـ9 فهو نمو» أسقطت صناديقَ المؤشرات المتداولة (9400–9409
 # في دليل تداول: يقين 30، البلاد للذهب…) من السوق الرئيسة، وهي مدرجةٌ فيها
 # بقطاعها الرسميّ «صناديق المؤشرات المتداولة». فعومِلت سوقاً موازيةً وأُهملت.
-ETF_PREFIX = "94"
+ETF_SECTOR = "صناديق المؤشرات المتداولة"
+_ETFS: set[str] | None = None
 
 
 def is_etf(symbol: str | None) -> bool:
-    s = str(symbol or "").strip().upper().replace(".SR", "")
-    return s.isdigit() and len(s) == 4 and s.startswith(ETF_PREFIX)
+    """صندوقُ مؤشراتٍ بقطاعه الرسميّ في دليل تداول — لا بالبادئة وحدها:
+    البادئةُ 94 أوسعُ من الصناديق المدرجة فعلاً، والقطاعُ معطىً رسميّ."""
+    global _ETFS
+    if _ETFS is None:
+        from app.data.market_universe import MARKET_UNIVERSE
+        _ETFS = {str(k) for k, m in MARKET_UNIVERSE.items()
+                 if (m or {}).get("sector") == ETF_SECTOR}
+    return str(symbol or "").strip().upper().replace(".SR", "") in _ETFS
 
 
 def market_of(symbol: str | None) -> str | None:
@@ -60,7 +67,7 @@ def market_of(symbol: str | None) -> str | None:
     s = str(symbol).strip().upper().replace(".SR", "")
     if not (s.isdigit() and len(s) == 4):
         return None
-    if s.startswith(ETF_PREFIX):
+    if is_etf(s):
         return MAIN
     return NOMU if s.startswith("9") else MAIN
 
