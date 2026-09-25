@@ -826,10 +826,94 @@ function ReconcileModal({ holdings, onClose }: { holdings: any[]; onClose: () =>
   );
 }
 
+/* كشف حساب النقد (D484) — بصيغة كشف البنك: رصيدٌ افتتاحيّ، وكل حركةٍ
+   مدينةً أو دائنةً بالرصيد الجاري بعدها، ورصيدٌ ختاميّ. يُصدَّر CSV ليُطابَق
+   بكشف الوسيط للفترة نفسها سطراً بسطر. */
+function StatementModal({ onClose }: { onClose: () => void }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const monthAgo = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const [from, setFrom] = useState(monthAgo);
+  const [to, setTo] = useState(today);
+  const { data: st, isLoading, isError } = useQuery({
+    queryKey: ["cash-statement", from, to],
+    queryFn: () => cashApi.statement(from, to).then(r => r.data.data),
+  });
+  const rows: any[] = st?.rows || [];
+  const money = (n: number | null | undefined) => n == null ? "" : fmt2(n);
+  const exportCsv = () => {
+    const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const head = ["التاريخ", "المرجع", "البيان", "الرمز", "الشركة", "الكمية", "السعر", "مدين", "دائن", "الرصيد"];
+    const lines = [head.map(esc).join(","),
+      [st.from || "", "", "رصيد افتتاحي", "", "", "", "", "", "", st.opening].map(esc).join(","),
+      ...rows.map(r => [r.at.slice(0, 10), r.ref, r.label, r.symbol, r.company, r.quantity, r.price,
+                        r.debit, r.credit, r.balance].map(esc).join(",")),
+      [st.to || "", "", "رصيد ختامي", "", "", "", "", st.total_debit, st.total_credit, st.closing].map(esc).join(",")];
+    const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `كشف-حساب-${from}-${to}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  return (
+    <Modal title="كشف الحساب" onClose={onClose} wide>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="من"><input type="date" className="input" value={from} max={to} onChange={e => setFrom(e.target.value)} /></Field>
+          <Field label="إلى"><input type="date" className="input" value={to} min={from} onChange={e => setTo(e.target.value)} /></Field>
+        </div>
+        {isLoading && <div className="h-24 skeleton" />}
+        {isError && <p className="text-sm text-[var(--neg-ink)]">تعذّر جلب الكشف.</p>}
+        {st && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+              <div className="kpi"><div className="kpi-lbl">رصيد افتتاحي</div><div className="kpi-val tabular-nums" dir="ltr">{fmt2(st.opening)}</div></div>
+              <div className="kpi"><div className="kpi-lbl">إجمالي المدين</div><div className="kpi-val tabular-nums text-[var(--neg-ink)]" dir="ltr">{fmt2(st.total_debit)}</div></div>
+              <div className="kpi"><div className="kpi-lbl">إجمالي الدائن</div><div className="kpi-val tabular-nums text-[var(--pos-ink)]" dir="ltr">{fmt2(st.total_credit)}</div></div>
+              <div className="kpi"><div className="kpi-lbl">رصيد ختامي</div><div className="kpi-val tabular-nums" dir="ltr">{fmt2(st.closing)}</div></div>
+            </div>
+            {!st.reconciled && (
+              <p className="text-xs font-bold text-[var(--warn-ink)]">
+                مجموع الحركات منذ البداية (<span dir="ltr">{fmt2(st.ledger_total)}</span>) لا يساوي السيولة المخزَّنة (<span dir="ltr">{fmt2(st.stored_cash)}</span>) — توجد حركةٌ غير مقيَّدة.
+              </p>
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[640px]">
+                <thead><tr>{["التاريخ", "البيان", "الشركة", "مدين", "دائن", "الرصيد"].map(h => <th key={h} className="th text-right">{h}</th>)}</tr></thead>
+                <tbody>
+                  <tr><td className="td tabular-nums" dir="ltr">{st.from || ""}</td><td className="td text-[var(--ink-muted)]">رصيد افتتاحي</td><td className="td" /><td className="td" /><td className="td" /><td className="td tabular-nums font-semibold" dir="ltr">{fmt2(st.opening)}</td></tr>
+                  {rows.length === 0 && <tr><td colSpan={6} className="td text-center text-[var(--ink-muted)] py-6">لا حركات في هذه الفترة.</td></tr>}
+                  {rows.map(r => (
+                    <tr key={r.ref}>
+                      <td className="td tabular-nums" dir="ltr">{r.at.slice(0, 10)}</td>
+                      <td className="td">{r.label}{r.quantity ? <span className="text-[var(--ink-muted)] text-[11px] tabular-nums"> · <span dir="ltr">{fmt2(r.quantity)} × {fmt2(r.price)}</span></span> : null}</td>
+                      <td className="td">{r.symbol ? <span className="tag-b" style={{fontSize: 10, padding: "2px 7px"}}>{r.symbol}</span> : null} {lookupCompany(r.symbol)?.name_ar || r.company || ""}</td>
+                      <td className="td tabular-nums text-[var(--neg-ink)]" dir="ltr">{money(r.debit)}</td>
+                      <td className="td tabular-nums text-[var(--pos-ink)]" dir="ltr">{money(r.credit)}</td>
+                      <td className="td tabular-nums font-semibold" dir="ltr">{fmt2(r.balance)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-2">
+              <button className="btn-primary flex-1" onClick={exportCsv}>تصدير CSV</button>
+              <button className="btn-ghost flex-1" onClick={() => window.print()}>طباعة</button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function CashModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const { isOwner } = useAuthStore();
   const [mode, setMode] = useState<"deposit" | "withdraw">("deposit");
+  const [statementOpen, setStatementOpen] = useState(false);
+  // تاريخُ الحركة الفعليّ كما في كشف الوسيط (D484)
+  const [valueDate, setValueDate] = useState(new Date().toISOString().slice(0, 10));
   const [amount, setAmount] = useState("");
   const { data: cash } = useQuery({ queryKey: ["cash"], queryFn: () => cashApi.get().then(r => r.data?.data) });
   const { data: history = [], isLoading: histLoading } = useQuery({
@@ -838,8 +922,8 @@ function CashModal({ onClose }: { onClose: () => void }) {
   });
   const mutation = useMutation({
     mutationFn: () => (mode === "deposit"
-      ? cashApi.deposit({ amount: Number(amount) })
-      : cashApi.withdraw({ amount: Number(amount) })).then(r => r.data),
+      ? cashApi.deposit({ amount: Number(amount), date: valueDate })
+      : cashApi.withdraw({ amount: Number(amount), date: valueDate })).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries(); setAmount(""); },
   });
   const deleteLedgerMut = useMutation({
@@ -862,6 +946,8 @@ function CashModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="السيولة النقدية" onClose={onClose}>
       <div className="space-y-4">
+        <button className="btn-ghost w-full" onClick={() => setStatementOpen(true)}>كشف الحساب</button>
+        {statementOpen && <StatementModal onClose={() => setStatementOpen(false)} />}
         {cash && (
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="kpi"><div className="kpi-lbl">السيولة المتاحة</div><div className="kpi-val">{fmt(cash.available_cash)}</div></div>
@@ -878,7 +964,10 @@ function CashModal({ onClose }: { onClose: () => void }) {
               <button onClick={() => setMode("withdraw")} className="py-2 rounded-xl text-sm font-bold border"
                 style={mode === "withdraw" ? {background:"transparent",color:"var(--neg-ink)",borderColor:"color-mix(in srgb, var(--neg-ink) 40%, transparent)"} : {borderColor:"var(--hairline)",color:"var(--ink-muted)"}}>سحب</button>
             </div>
-            <Field label="المبلغ"><NumInput value={amount} onChange={setAmount} placeholder="0.00" /></Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="المبلغ"><NumInput value={amount} onChange={setAmount} placeholder="0.00" /></Field>
+              <Field label="التاريخ"><input type="date" className="input" value={valueDate} max={new Date().toISOString().slice(0, 10)} onChange={e => setValueDate(e.target.value)} /></Field>
+            </div>
             <div className="flex gap-3">
               <button className="btn-primary flex-1" onClick={() => mutation.mutate()} disabled={mutation.isPending || !(Number(amount) > 0)}>تأكيد</button>
             </div>

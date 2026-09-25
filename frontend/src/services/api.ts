@@ -197,6 +197,8 @@ export const cashApi = {
   deposit: (data: any) => api.post<APIResponse>("/cash/deposit", data),
   withdraw:(data: any) => api.post<APIResponse>("/cash/withdraw", data),
   removeLedger: (id: number) => api.delete<APIResponse>(`/cash/ledger/${id}`),
+  // كشف حساب بصيغة البنك (D484)
+  statement: (from?: string, to?: string) => api.get<APIResponse>("/cash/statement", { params: { ...(from ? { date_from: from } : {}), ...(to ? { date_to: to } : {}) } }),
 };
 
 // ── Dividends ─────────────────────────────────────────────────

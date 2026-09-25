@@ -12,6 +12,23 @@ router = APIRouter()
 class CashDeposit(BaseModel):
     amount: float
     source: str = "DEPOSIT"
+    # تاريخ الحركة الفعليّ (D484): كان الإيداع يُقيَّد بلحظة إدخاله فقط، فيظهر
+    # في كشف الحساب بعد المشتريات التي موّلها ولا يطابق كشف الوسيط.
+    date: str | None = None
+
+    def value_date(self):
+        from datetime import datetime, timedelta, timezone
+        riyadh = timezone(timedelta(hours=3))  # كتوقيت العمليات نفسه
+        now = datetime.now(riyadh)
+        if not self.date:
+            return None
+        try:
+            d = datetime.fromisoformat(self.date[:10])
+        except ValueError:
+            raise HTTPException(422, f"تاريخ غير صالح: {self.date}")
+        if d.date() > now.date():
+            raise HTTPException(422, "لا يُقبل تاريخٌ في المستقبل.")
+        return now if d.date() == now.date() else d.replace(tzinfo=riyadh)
 
     @field_validator("amount")
     @classmethod
@@ -133,7 +150,9 @@ async def deposit_cash(data: CashDeposit, db: AsyncSession = Depends(get_db)):
     cash = await _get_cash(db)
     cash.available_cash = float(cash.available_cash or 0) + data.amount
     cash.total_cash = float(cash.total_cash or 0) + data.amount
-    db.add(CashLedger(kind=CashLedgerKind.DEPOSIT, amount=data.amount, note=data.source))
+    vd = data.value_date()
+    db.add(CashLedger(kind=CashLedgerKind.DEPOSIT, amount=data.amount, note=data.source,
+                      **({"created_at": vd} if vd else {})))
     await db.commit()
     return success_response(message=f"Deposited {data.amount} successfully.")
 
@@ -145,6 +164,77 @@ async def withdraw_cash(data: CashDeposit, db: AsyncSession = Depends(get_db)):
         raise HTTPException(422, "Insufficient available cash")
     cash.available_cash = float(cash.available_cash or 0) - data.amount
     cash.total_cash = float(cash.total_cash or 0) - data.amount
-    db.add(CashLedger(kind=CashLedgerKind.WITHDRAW, amount=data.amount, note=data.source))
+    vd = data.value_date()
+    db.add(CashLedger(kind=CashLedgerKind.WITHDRAW, amount=data.amount, note=data.source,
+                      **({"created_at": vd} if vd else {})))
     await db.commit()
     return success_response(message=f"Withdrew {data.amount} successfully.")
+
+
+@router.get("/statement")
+async def cash_statement(date_from: str | None = None, date_to: str | None = None,
+                         db: AsyncSession = Depends(get_db)):
+    """كشف حساب النقد (D484) — بصيغة كشف البنك: رصيدٌ افتتاحيّ، ثم كل حركةٍ
+    بتاريخها مديناً أو دائناً والرصيدُ الجاري بعدها، ثم رصيدٌ ختاميّ. يُطابَق
+    بكشف الوسيط للفترة نفسها سطراً بسطر. الحركات هي نفسها التي تبني مطابقة
+    النقد: إيداع وسحب وشراء وبيع وتوزيع نقدي — فلا رقم هنا بلا قيدٍ في السجل."""
+    from datetime import date as _d
+    def _day(s):
+        try:
+            return _d.fromisoformat(s[:10]) if s else None
+        except ValueError:
+            raise HTTPException(422, f"تاريخ غير صالح: {s}")
+    d0, d1 = _day(date_from), _day(date_to)
+    if d0 and d1 and d0 > d1:
+        raise HTTPException(422, "تاريخ البداية بعد تاريخ النهاية.")
+
+    moves = []
+    for l in (await db.execute(select(CashLedger))).scalars().all():
+        dep = l.kind == CashLedgerKind.DEPOSIT
+        moves.append({"at": l.created_at, "ref": f"L{l.id}", "type": "DEPOSIT" if dep else "WITHDRAW",
+                      "label": "إيداع" if dep else "سحب", "note": l.note, "symbol": None, "company": None,
+                      "quantity": None, "price": None, "amount": float(l.amount or 0) * (1 if dep else -1)})
+    labels = {"BUY": "شراء", "SELL": "بيع", "DIVIDEND": "توزيع نقدي"}
+    txs = (await db.execute(
+        select(Transaction).options(selectinload(Transaction.company))
+        .where(Transaction.transaction_type.in_([TransactionType.BUY, TransactionType.SELL, TransactionType.DIVIDEND]))
+    )).scalars().all()
+    for t in txs:
+        amt = float(t.total_amount or 0)
+        moves.append({"at": t.executed_at, "ref": f"T{t.id}", "type": str(t.transaction_type.value if hasattr(t.transaction_type, "value") else t.transaction_type),
+                      "label": labels.get(t.transaction_type, t.transaction_type), "note": t.notes,
+                      "symbol": t.company.symbol if t.company else None,
+                      "company": t.company.company_name if t.company else None,
+                      "quantity": float(t.quantity or 0) or None, "price": float(t.price or 0) or None,
+                      "amount": -amt if t.transaction_type == TransactionType.BUY else amt})
+    moves = [m for m in moves if m["at"] is not None]
+    moves.sort(key=lambda m: (m["at"], m["ref"]))
+
+    opening = 0.0
+    rows, bal = [], 0.0
+    for m in moves:
+        day = m["at"].date()
+        if d0 and day < d0:
+            opening += m["amount"]; bal = opening
+            continue
+        if d1 and day > d1:
+            continue
+        bal += m["amount"]
+        rows.append({**m, "at": m["at"].isoformat(),
+                     "debit": round(-m["amount"], 2) if m["amount"] < 0 else None,
+                     "credit": round(m["amount"], 2) if m["amount"] > 0 else None,
+                     "balance": round(bal, 2)})
+    closing = round(bal if rows else opening, 2)
+    total_all = round(sum(m["amount"] for m in moves), 2)
+    c = (await db.execute(select(Cash).limit(1))).scalar_one_or_none()
+    stored = round(float(c.available_cash or 0), 2) if c else 0.0
+    return success_response(data={
+        "from": d0.isoformat() if d0 else None, "to": d1.isoformat() if d1 else None,
+        "opening": round(opening, 2), "closing": closing,
+        "total_debit": round(sum(r["debit"] or 0 for r in rows), 2),
+        "total_credit": round(sum(r["credit"] or 0 for r in rows), 2),
+        "rows": rows,
+        # الكشفُ كلّه يجب أن ينتهي عند الرصيد المخزَّن — وإلا فحركةٌ ناقصة.
+        "ledger_total": total_all, "stored_cash": stored,
+        "reconciled": abs(total_all - stored) <= 0.01,
+    })
