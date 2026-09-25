@@ -279,14 +279,67 @@ function TxModal({ companyId, onClose }: { companyId: number; onClose: () => voi
 /* Transaction row — deletable; reverses its cash/holding effect on the server */
 /* حذف عملية — منطقٌ واحد يخدم صفّ الكمبيوتر وبطاقة الجوال، فلا تتباعد رسالة
    التأكيد ولا سلوك الحذف بين الشكلين. */
+/* سجلّ التغييرات (D481): كل إضافةٍ وتعديلٍ وحذفٍ في عمليات الشركة بصورته
+   قبل وبعد وسببه — من قاعدة البيانات نفسها، ولا يُعدَّل ولا يُحذف. */
+const AUDIT_OP: Record<string, { label: string; color: string }> = {
+  INSERT: { label: "إضافة", color: "var(--pos-ink)" },
+  UPDATE: { label: "تعديل", color: "var(--warn-ink)" },
+  DELETE: { label: "حذف", color: "var(--neg-ink)" },
+  TRUNCATE: { label: "تفريغ", color: "var(--neg-ink)" },
+};
+const auditSummary = (r: any) => {
+  const x = r.new || r.old || {};
+  const typ = TX_LABEL[x.transaction_type]?.label || x.transaction_type || "";
+  const base = `${typ} ${fmt(Number(x.quantity || 0), 2)} × ${fmt(Number(x.price || 0))}`;
+  if (r.op !== "UPDATE" || !r.old || !r.new) return base;
+  const keys: [string, string][] = [["quantity", "الكمية"], ["price", "السعر"], ["fees", "الرسوم"],
+    ["total_amount", "الإجمالي"], ["executed_at", "التاريخ"], ["funding_source", "التمويل"], ["notes", "الملاحظة"]];
+  const ch = keys.filter(([k]) => String(r.old[k] ?? "") !== String(r.new[k] ?? ""))
+    .map(([k, ar]) => `${ar}: ${r.old[k] ?? "—"} ← ${r.new[k] ?? "—"}`);
+  return ch.length ? `${typ} · ${ch.join(" · ")}` : base;
+};
+function TxAuditLog({ companyId }: { companyId: number }) {
+  const [open, setOpen] = useState(false);
+  const { data: rows = [] } = useQuery({
+    queryKey: ["tx-audit", companyId],
+    queryFn: () => transactionsApi.audit(companyId).then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
+    enabled: open,
+  });
+  return (
+    <div className="mt-4 border-t border-[var(--hairline)] pt-3">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="min-h-[32px] text-sm font-semibold text-[var(--ink-muted)] hover:text-[var(--ink)]">
+        سجلّ التغييرات {open ? "▴" : "▾"}
+      </button>
+      {open && (rows.length === 0
+        ? <p className="text-xs text-[var(--ink-muted)] mt-2">لا تغييرات مقيَّدة بعد.</p>
+        : <div className="mt-2 divide-y divide-[var(--hairline)]">
+            {rows.map((r: any) => {
+              const m = AUDIT_OP[r.op] || { label: r.op, color: "var(--ink-muted)" };
+              return (
+                <div key={r.id} className="py-2 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="px-2 py-0.5 rounded-lg font-bold" style={{ background: `color-mix(in srgb, ${m.color} 14%, transparent)`, color: m.color }}>{m.label}</span>
+                  <span className="text-[var(--ink)] tabular-nums">{auditSummary(r)}</span>
+                  {r.reason && <span className="text-[var(--ink-muted)]">— {r.reason}</span>}
+                  <span className="ms-auto text-[var(--ink-muted)] tabular-nums" dir="ltr">{(r.at || "").slice(0, 16).replace("T", " ")}</span>
+                </div>
+              );
+            })}
+          </div>)}
+    </div>
+  );
+}
+
 function useTxDelete(t: any) {
   const qc = useQueryClient();
   const mut = useMutation({
-    mutationFn: () => transactionsApi.remove(t.id).then(r => r.data),
+    mutationFn: (reason: string) => transactionsApi.remove(t.id, reason).then(r => r.data),
     onSuccess: () => qc.invalidateQueries(),
   });
+  /* الحذفُ يُعكس أثرُه ويبقى في «سجلّ التغييرات» بصورته وسببه (D481). */
   const ask = () => {
-    if (confirm("هل تريد حذف هذه العملية؟ سيتم عكس أثرها على الرصيد والمحفظة.")) mut.mutate();
+    const why = prompt("سبب حذف هذه العملية؟ سيُعكس أثرها على الرصيد والمحفظة، وتبقى في سجلّ التغييرات.");
+    if (why !== null) mut.mutate(why);
   };
   return { mut, ask };
 }
@@ -960,6 +1013,7 @@ export default function CompanyPage() {
               </div>
             </>
           )}
+          <TxAuditLog companyId={Number(id)} />
         </div>
       )}
 

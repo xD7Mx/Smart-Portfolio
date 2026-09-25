@@ -164,7 +164,9 @@ export const transactionsApi = {
     api.get<APIResponse>("/transactions" + (companyId ? `?company_id=${companyId}&limit=${limit}` : `?limit=${limit}`)),
   add:    (data: any) => api.post<APIResponse>("/transactions", data),
   get:    (id: number) => api.get<APIResponse>(`/transactions/${id}`),
-  remove: (id: number) => api.delete<APIResponse>(`/transactions/${id}`),
+  // السببُ يُقيَّد في سجلّ التدقيق (D481)
+  remove: (id: number, reason?: string) => api.delete<APIResponse>(`/transactions/${id}`, { params: reason ? { reason } : {} }),
+  audit:  (companyId?: number) => api.get<APIResponse>("/transactions/audit", { params: companyId != null ? { company_id: companyId } : {} }),
   // مراجعة الأوسمة: كشف ما يستحيل حسابياً، وإزالته بقرار المالك وحده.
   tagAudit: () => api.get<APIResponse>("/transactions/tag-audit"),
   untag:  (ids: number[]) => api.post<APIResponse>("/transactions/untag", { ids }),

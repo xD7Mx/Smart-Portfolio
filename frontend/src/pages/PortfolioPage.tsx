@@ -797,13 +797,17 @@ function CashModal({ onClose }: { onClose: () => void }) {
     onSuccess: () => qc.invalidateQueries(),
   });
   const deleteTxMut = useMutation({
-    mutationFn: (id: number) => transactionsApi.remove(id).then(r => r.data),
+    mutationFn: ({ id, reason }: { id: number; reason: string }) => transactionsApi.remove(id, reason).then(r => r.data),
     onSuccess: () => qc.invalidateQueries(),
   });
   const removeItem = (item: any) => {
-    if (!confirm(item.kind === "ledger" ? "حذف هذه الحركة النقدية؟" : "حذف هذه العملية؟ سيُعكس أثرها على السيولة والمركز.")) return;
-    if (item.kind === "ledger") deleteLedgerMut.mutate(item.id);
-    else deleteTxMut.mutate(item.id);
+    if (item.kind === "ledger") {
+      if (confirm("حذف هذه الحركة النقدية؟")) deleteLedgerMut.mutate(item.id);
+      return;
+    }
+    // العمليةُ المحذوفة تبقى في سجلّ التغييرات بصورتها وسببها (D481)
+    const why = prompt("سبب حذف هذه العملية؟ سيُعكس أثرها على السيولة والمركز، وتبقى في سجلّ التغييرات.");
+    if (why !== null) deleteTxMut.mutate({ id: item.id, reason: why });
   };
   return (
     <Modal title="السيولة النقدية" onClose={onClose}>

@@ -396,6 +396,8 @@ async def restore_dump(db, dump: dict) -> None:
     # الجلسة كي تشمل كل البيانات وتحفظ portfolio_id كما هو (لا يُختم).
     from app.core.portfolio_scope import reset_scope
     reset_scope()
+    # سببُ التغيير في سجلّ تدقيق العمليات (D481)
+    await db.execute(text("SELECT set_config('sp.audit_reason', :r, true)"), {"r": "استعادة نسخة احتياطية"})
     """Replace all rows from a dump inside one transaction, then reset the
     identity sequences. Raises ValueError with an Arabic message on any
     validation failure (nothing is deleted in that case)."""
@@ -505,6 +507,8 @@ async def factory_reset(db) -> dict:
     # الجلسة كي تشمل كل البيانات وتحفظ portfolio_id كما هو (لا يُختم).
     from app.core.portfolio_scope import reset_scope
     reset_scope()
+    # سببُ التغيير في سجلّ تدقيق العمليات (D481)
+    await db.execute(text("SELECT set_config('sp.audit_reason', :r, true)"), {"r": "فورمات"})
     """امسح كل بيانات المستخدم وأعد التطبيق لوضعه الأساسي — بعد كتابة نسخة
     أمان تلقائية أولاً، فالمسح نفسه قابل للاستعادة دائماً. ملفات النسخ
     الاحتياطية على القرص لا تُمسّ إطلاقاً (هي طريق العودة).

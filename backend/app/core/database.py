@@ -127,6 +127,57 @@ async def init_db() -> None:
         # قائمة، على نفس نمط الترحيلات أعلاه.
         await _safe("ALTER TABLE companies ADD COLUMN IF NOT EXISTS description TEXT")
         await _safe("ALTER TABLE companies ADD COLUMN IF NOT EXISTS description_source VARCHAR(20)")
+        # ── سجلّ تدقيق العمليات (D481 · معيار السجلّ غير القابل للمحو) ──
+        # كل إضافةٍ وتعديلٍ وحذفٍ في جدول العمليات يُقيَّد هنا بصورته قبل
+        # التغيير وبعده — من قاعدة البيانات نفسها لا من الكود، فلا مسار
+        # (واجهة، استعادة، فورمات، سكربت) يفلت منه. والسجلّ إلحاقيٌّ فقط:
+        # تعديلُه أو حذفُ صفٍّ منه أو تفريغُه يُرفض. ربحُ البيع المحقَّق
+        # حقلٌ مشتقّ تعيد حسابَه إعادةُ التشغيل، فتغيّرُه وحده لا يُقيَّد.
+        await _safe("""CREATE TABLE IF NOT EXISTS transaction_audit (
+            id BIGSERIAL PRIMARY KEY,
+            at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            op VARCHAR(8) NOT NULL,
+            tx_id INTEGER,
+            company_id INTEGER,
+            old_row JSONB,
+            new_row JSONB,
+            reason TEXT)""")
+        await _safe("CREATE INDEX IF NOT EXISTS ix_transaction_audit_company ON transaction_audit (company_id, at)")
+        await _safe("""CREATE OR REPLACE FUNCTION sp_tx_audit() RETURNS trigger AS $$
+        DECLARE o JSONB; n JSONB;
+        BEGIN
+          IF TG_OP = 'TRUNCATE' THEN
+            INSERT INTO transaction_audit (op, reason)
+            VALUES ('TRUNCATE', NULLIF(current_setting('sp.audit_reason', true), ''));
+            RETURN NULL;
+          END IF;
+          IF TG_OP <> 'INSERT' THEN o := to_jsonb(OLD); END IF;
+          IF TG_OP <> 'DELETE' THEN n := to_jsonb(NEW); END IF;
+          IF TG_OP = 'UPDATE' AND (o - 'realized_gain') = (n - 'realized_gain') THEN
+            RETURN NULL;
+          END IF;
+          INSERT INTO transaction_audit (op, tx_id, company_id, old_row, new_row, reason)
+          VALUES (TG_OP, COALESCE((n->>'id')::int, (o->>'id')::int),
+                  COALESCE((n->>'company_id')::int, (o->>'company_id')::int), o, n,
+                  NULLIF(current_setting('sp.audit_reason', true), ''));
+          RETURN NULL;
+        END $$ LANGUAGE plpgsql""")
+        await _safe("DROP TRIGGER IF EXISTS sp_tx_audit_row ON transactions")
+        await _safe("""CREATE TRIGGER sp_tx_audit_row AFTER INSERT OR UPDATE OR DELETE ON transactions
+                       FOR EACH ROW EXECUTE FUNCTION sp_tx_audit()""")
+        await _safe("DROP TRIGGER IF EXISTS sp_tx_audit_trunc ON transactions")
+        await _safe("""CREATE TRIGGER sp_tx_audit_trunc AFTER TRUNCATE ON transactions
+                       FOR EACH STATEMENT EXECUTE FUNCTION sp_tx_audit()""")
+        await _safe("""CREATE OR REPLACE FUNCTION sp_tx_audit_lock() RETURNS trigger AS $$
+        BEGIN
+          RAISE EXCEPTION 'transaction_audit is append-only';
+        END $$ LANGUAGE plpgsql""")
+        await _safe("DROP TRIGGER IF EXISTS sp_tx_audit_lock_row ON transaction_audit")
+        await _safe("""CREATE TRIGGER sp_tx_audit_lock_row BEFORE UPDATE OR DELETE ON transaction_audit
+                       FOR EACH ROW EXECUTE FUNCTION sp_tx_audit_lock()""")
+        await _safe("DROP TRIGGER IF EXISTS sp_tx_audit_lock_trunc ON transaction_audit")
+        await _safe("""CREATE TRIGGER sp_tx_audit_lock_trunc BEFORE TRUNCATE ON transaction_audit
+                       FOR EACH STATEMENT EXECUTE FUNCTION sp_tx_audit_lock()""")
         await _safe("UPDATE transactions SET quantity = total_amount / price "
                     "WHERE transaction_type = 'REINVESTMENT' AND price > 0 AND (quantity IS NULL OR quantity = 0)")
         await _safe("UPDATE transactions SET transaction_type = 'BUY' WHERE transaction_type = 'REINVESTMENT'")

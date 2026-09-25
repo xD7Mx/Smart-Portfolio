@@ -11,7 +11,7 @@ of this simpler, exception-free model — see backfill migration in database.py.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from app.core.database import get_db
 from app.core.response import success_response
 from app.models.transaction import Transaction, Cash, Dividend, DividendAction
@@ -664,6 +664,36 @@ async def untag_transactions(data: UntagRequest, db: AsyncSession = Depends(get_
                             message=f"أُزيل الوسم عن {changed} عملية.")
 
 
+async def _audit_reason(db: AsyncSession, why: str | None) -> None:
+    """سببُ التغيير يُمرَّر إلى قيد التدقيق في قاعدة البيانات (D481) — محليٌّ
+    للمعاملة الجارية فلا يتسرّب إلى غيرها."""
+    await db.execute(text("SELECT set_config('sp.audit_reason', :r, true)"),
+                     {"r": (why or "").strip()[:500]})
+
+
+@router.get("/audit")
+async def get_audit(company_id: int | None = None, limit: int = 200,
+                    db: AsyncSession = Depends(get_db)):
+    """سجلّ التدقيق (D481): كل إضافةٍ وتعديلٍ وحذفٍ في العمليات بصورته قبل
+    وبعد — يُقرأ ولا يُكتب إلا من قاعدة البيانات نفسها."""
+    sql = ("SELECT id, at, op, tx_id, company_id, old_row, new_row, reason "
+           "FROM transaction_audit")
+    params: dict = {"n": max(1, min(limit, 2000))}
+    if company_id is not None:
+        sql += " WHERE company_id = :c"
+        params["c"] = company_id
+    sql += " ORDER BY id DESC LIMIT :n"
+    try:
+        rows = (await db.execute(text(sql), params)).mappings().all()
+    except Exception:
+        return success_response(data=[], message="سجلّ التدقيق غير متوفّر بعد.")
+    return success_response(data=[{
+        "id": r["id"], "at": r["at"].isoformat() if r["at"] else None, "op": r["op"],
+        "tx_id": r["tx_id"], "company_id": r["company_id"],
+        "old": r["old_row"], "new": r["new_row"], "reason": r["reason"],
+    } for r in rows])
+
+
 @router.get("/{tx_id}")
 async def get_transaction(tx_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Transaction).where(Transaction.id == tx_id))
@@ -720,6 +750,7 @@ class TransactionPatch(BaseModel):
     notes: Optional[str] = None
     funding_source: Optional[str] = None    # "" أو null ⇒ إزالة الوسم
     set_funding_source: bool = False        # علامةٌ صريحة: عالِج الوسم أعلاه
+    reason: Optional[str] = None            # سبب التعديل — يُقيَّد في سجلّ التدقيق (D481)
 
 
 @router.patch("/{tx_id}")
@@ -728,6 +759,7 @@ async def patch_transaction(tx_id: int, data: TransactionPatch,
     tx = (await db.execute(select(Transaction).where(Transaction.id == tx_id))).scalar_one_or_none()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found.")
+    await _audit_reason(db, data.reason)
 
     t = tx.transaction_type
     cash = await _get_cash(db)
@@ -843,13 +875,15 @@ async def patch_transaction(tx_id: int, data: TransactionPatch,
 
 
 @router.delete("/{tx_id}")
-async def delete_transaction(tx_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_transaction(tx_id: int, reason: str | None = None,
+                             db: AsyncSession = Depends(get_db)):
     """Undo a wrongly-recorded transaction: reverses its effect on the
     Holding and Cash, and removes any Dividend row it created — the same
     keep-the-UI-clean escape hatch already available on the dividends log."""
     tx = (await db.execute(select(Transaction).where(Transaction.id == tx_id))).scalar_one_or_none()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found.")
+    await _audit_reason(db, reason)
 
     h = (await db.execute(select(Holding).where(Holding.company_id == tx.company_id).with_for_update())).scalar_one_or_none()
     cash = await _get_cash(db)
