@@ -203,6 +203,15 @@ LABELS: dict[str, tuple[str, ...]] = {
               "capital expenditures - cash basis",
               "purchase of property and equipment",
               "purchase of property and equipment, insurance/ takaful operations cash flow"),
+    # ══ الإهلاكُ والاستهلاك من قائمة التدفّقات (D489) ══ منقولةٌ بالحرف من
+    # مخرَج `tadawul_logo_door.py` على 19 شركةً من كلّ القطاعات: الصياغةُ
+    # المعياريّةُ في 16 منها، والاستهلاكُ في 11؛ والإجماليُّ احتياطٌ لمن لا
+    # يفصّل. ومنها EBITDA = الربحُ التشغيليّ + الإهلاك — من ملفّ تداول نفسِه.
+    "_dep_ppe": ("adjustments for depreciation and impairment (reversal of impairment) of property, plant and equipments",),
+    "_amort_int": ("adjustments for amortization and impairment (reversal of impairment) of intangible assets",),
+    "_dep_total": ("depreciation and amortisation", "depreciation and amortization",
+                   "depreciation, amortization and impairment",
+                   "depreciation,amortisation and impairment"),
     "ending_cash": ("cash and cash equivalents at end of period",
                     "cash and cash equivalents", "bank balances and cash"),
 }
@@ -295,7 +304,7 @@ def parse(html: str) -> dict:
              "capex", "ending_cash", "pretax_income", "borrowings_current",
              "borrowings_noncurrent", "lease_current", "lease_noncurrent",
              "_commission_net", "_premiums_earned", "_premiums_written",
-             "inventory"}
+             "inventory", "_dep_ppe", "_amort_int", "_dep_total"}
     # وعددُ الأسهم عددٌ لا مال: لا يُضرَب في وحدة التقريب (كربحية السهم).
 
     periods: list[dict] = []
@@ -348,6 +357,18 @@ def parse(html: str) -> dict:
         pre, fin_cost = p.get("pretax_income"), p.get("interest_expense")
         if pre is not None and fin_cost is not None:
             p["ebit"] = round(pre + abs(fin_cost), 2)
+        # الإهلاكُ: المعياريّان مجموعَين، وإلا فالإجماليّ — بقيمته المطلقة
+        # (يُنشر موجباً في التسويات وسالباً في قائمة الدخل). ومنه EBITDA.
+        _parts = [abs(p[k]) for k in ("_dep_ppe", "_amort_int") if isinstance(p.get(k), (int, float))]
+        _tot = p.get("_dep_total")
+        for _k in ("_dep_ppe", "_amort_int", "_dep_total"):
+            p.pop(_k, None)
+        if _parts:
+            p["depreciation"] = round(sum(_parts), 2)
+        elif isinstance(_tot, (int, float)) and _tot != 0:
+            p["depreciation"] = round(abs(_tot), 2)
+        if isinstance(p.get("ebit"), (int, float)) and isinstance(p.get("depreciation"), (int, float)):
+            p["ebitda"] = round(p["ebit"] + p["depreciation"], 2)
         # وإجماليُّ الدَّين مجموعُ ما قُرئ من قروضٍ والتزاماتِ إيجار — وما
         # لم يُقرأ منها لا يُفترَض صفراً: إن غابت كلُّها يبقى الحقلُ غائباً.
         _debt = [p.get(k) for k in ("borrowings_current", "borrowings_noncurrent",

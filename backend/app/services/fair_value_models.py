@@ -75,8 +75,9 @@ DEFAULT_ALPHA = 0.5
 # تُقاس بدفتريةٍ لا تحمل أصولَها. والمفتاحُ مجموعةُ «تداول» الصناعيةُ الرسمية.
 _ALL = {"dcf_gordon_5", "dcf_gordon_10", "dcf_exit_5", "dcf_exit_10", "epv", "residual_income",
         "ddm_stable", "ddm_two_stage", "peer_pe", "peer_pb", "peer_ps", "peer_pocf",
-        "peer_ev_ebit", "peer_ev_sales", "peer_yield"}
-_DCF = {"dcf_gordon_5", "dcf_gordon_10", "dcf_exit_5", "dcf_exit_10"}
+        "peer_ev_ebit", "peer_ev_sales", "peer_yield",
+        "dcf_ebitda_5", "dcf_ebitda_10", "peer_ev_ebitda"}
+_DCF = {"dcf_gordon_5", "dcf_gordon_10", "dcf_exit_5", "dcf_exit_10", "dcf_ebitda_5", "dcf_ebitda_10"}
 _DDM = {"ddm_stable", "ddm_two_stage"}
 MODEL_SETS = {
     "REITs": ("الصناديق العقارية: التوزيعُ وصافي الأصول", _DDM | {"peer_yield", "peer_pb", "peer_ps"}),
@@ -134,17 +135,18 @@ MODEL_SETS.update({
 #   توزيعاتٌ نموٌّ مستقرّ → ddm_stable · «القيمة بقياس DCF مقابل النمو» → dcf_gordon
 #   «العائد المتوقّع لـDCF» (خروجٌ بالإيراد) → dcf_exit (مضاعفُ EV/الإيراد)
 #   مكرّرُ الربحية/السعر للمبيعات/للدفترية/العوائد/EBIT/التدفّق التشغيليّ → peer_*
-# وما لا مُدخلَ له عندنا لا يُختلق: «DCF بخروج EBITDA» و«مكرّرات EBITDA» تحتاج
-# الإهلاكَ والاستهلاك، ولا تحمله قوائمُنا — فهما غيرُ متوفّرَين (IP_MISSING).
-IP_MISSING = ("DCF بخروج EBITDA (5 و10 سنوات)", "مكرّرات EBITDA")
+#   «النموّ المتوقّع لـEBITDA على DCF» → dcf_ebitda · «مكرّرات الأرباح قبل الفوائد والضريبة» → peer_ev_ebitda
+# وكلاهما من EBITDA تداول نفسِه: الربحُ التشغيليّ + بندُ الإهلاك من قائمة التدفّقات (D489).
+IP_MISSING: tuple = ()
 _IP14 = {"epv", "ddm_two_stage", "peer_ps", "peer_pb", "peer_pe", "peer_yield",
-         "dcf_gordon_5", "dcf_gordon_10", "dcf_exit_5", "dcf_exit_10", "peer_ev_ebit"}      # 2222
+         "dcf_gordon_5", "dcf_gordon_10", "dcf_exit_5", "dcf_exit_10", "peer_ev_ebit",
+         "dcf_ebitda_5", "dcf_ebitda_10", "peer_ev_ebitda"}                                  # 2222
 _IP15 = _IP14 | {"ddm_stable"}                                                            # 4001 · 2280
 _IP13 = _IP14 - {"ddm_two_stage"}                                                         # 1831
 _IP12 = _IP13 - {"dcf_gordon_5"}                                                          # 1810
 _IP11 = _IP12 - {"epv"}                                                                   # 4300
 _IP10 = _IP11 - {"dcf_gordon_10"}                                                         # 2340
-_IP7 = {"epv", "peer_pe", "peer_pb", "peer_ps", "peer_ev_ebit", "peer_yield"}             # 1302
+_IP7 = {"epv", "peer_pe", "peer_pb", "peer_ps", "peer_ev_ebit", "peer_yield", "peer_ev_ebitda"}             # 1302
 MODEL_SETS = {k: (f"مجموعةُ InvestingPro للقطاع: {n} نموذجاً — المتوفّرُ مدخلُه عندنا {len(v)}", v) for k, (n, v) in {
     "Energy": (14, _IP14), "Materials": (14, _IP14), "Transportation": (14, _IP14),
     "Health Care Equipment & Svc": (14, _IP14), "Pharma, Biotech & Life Science": (14, _IP14),
@@ -205,7 +207,8 @@ STALE_WARN, STALE_STOP = 274, 456            # تسعةُ أشهرٍ للتحذ�
 MIN_MODELS = 3                               # أدنى عددٍ من النماذج الصالحة لنشر قيمة
 SIM_FLOOR = 0.5                              # حصّةُ القرين الثابتة؛ والباقي بتشابهه (fvm_sim_floor.py)
 FIN_BAN = {"dcf_gordon_5", "dcf_gordon_10", "dcf_exit_5", "dcf_exit_10", "epv",
-           "peer_ev_ebit", "peer_ev_sales", "peer_pocf"}   # المصرفُ والتأمينُ لا تدفّقَ حرٌّ ولا قيمةَ منشأة
+           "peer_ev_ebit", "peer_ev_sales", "peer_pocf",
+           "dcf_ebitda_5", "dcf_ebitda_10", "peer_ev_ebitda"}   # المصرفُ والتأمينُ لا تدفّقَ حرٌّ ولا قيمةَ منشأة
 
 
 def _n(x) -> Optional[float]:
@@ -255,6 +258,8 @@ class Base:
     roe_n: float | None
     growth: float            # نموُّ الإيراد السنويّ المقيَّد
     notes: list[str]
+    ebitda_margin_n: float | None = None   # هامشُ EBITDA المطبَّع — من إهلاك تداول (D489)
+    ebitda_n: float | None = None
 
 
 def base_of(i: Inputs) -> Base | None:
@@ -271,7 +276,7 @@ def base_of(i: Inputs) -> Base | None:
         # تُعمَّم على الأبد — قِيس: صافولا 2024 رفع المتوسّطَ إلى 17٪ والوسيطُ 4٪ (D474).
         return statistics.median(ms) if ms else None
 
-    m_ni, m_ebit = margin("net_income"), margin("ebit")
+    m_ni, m_ebit, m_ebitda = margin("net_income"), margin("ebit"), margin("ebitda")
     fcfs = [(_n(p.get("operating_cash_flow")) or 0) - (_n(p.get("capex")) or 0) for p in a
             if _n(p.get("operating_cash_flow")) is not None]
     m_fcf = (statistics.median([f / p["revenue"] for f, p in zip(fcfs, a) if _n(p.get("revenue"))])
@@ -304,7 +309,9 @@ def base_of(i: Inputs) -> Base | None:
                 ocf=_n(i.ttm.get("operating_cash_flow")),
                 ni_n=(m_ni * rev) if m_ni is not None else ni,
                 ebit_n=(m_ebit * rev) if m_ebit is not None else _n(i.ttm.get("ebit")),
-                bvps=bvps, roe_n=roe_n, growth=g, notes=notes)
+                bvps=bvps, roe_n=roe_n, growth=g, notes=notes,
+                ebitda_margin_n=m_ebitda,
+                ebitda_n=(m_ebitda * rev) if m_ebitda is not None else _n(i.ttm.get("ebitda")))
 
 
 def _model(key, family, name, value, low, high, assumptions, note=None):
@@ -317,7 +324,7 @@ def _model(key, family, name, value, low, high, assumptions, note=None):
 
 
 # ══ عائلةُ التدفّقات المخصومة ══════════════════════════════════════════════
-def _fcff_value(bs: Base, shares, years, g1, r, tv_mult=None):
+def _fcff_value(bs: Base, shares, years, g1, r, tv_mult=None, tv_on="rev"):
     """قيمةُ السهم من تدفّقٍ حرٍّ للمنشأة: نموٌّ يتلاشى خطّياً إلى النهائيّ."""
     if bs.fcf_margin_n is None or bs.fcf_margin_n <= 0:
         return None
@@ -326,7 +333,11 @@ def _fcff_value(bs: Base, shares, years, g1, r, tv_mult=None):
         gt = g1 + (TERMINAL_G - g1) * (t - 1) / max(years - 1, 1)
         rev *= 1 + gt
         pv += rev * bs.fcf_margin_n / (1 + r) ** t
-    if tv_mult is not None:
+    if tv_mult is not None and tv_on == "ebitda":
+        if not bs.ebitda_margin_n or bs.ebitda_margin_n <= 0:
+            return None
+        tv = rev * bs.ebitda_margin_n * tv_mult
+    elif tv_mult is not None:
         tv = rev * tv_mult
     else:
         if r - TERMINAL_G < 0.02:
@@ -339,7 +350,19 @@ def _fcff_value(bs: Base, shares, years, g1, r, tv_mult=None):
 def cashflow_models(i: Inputs, bs: Base) -> list[dict]:
     out = []
     ev_s = i.peers.get("ev_sales") or []
+    ev_e = i.peers.get("ev_ebitda") or []
     for years in (5, 10):
+        if len(ev_e) >= MIN_PEERS and bs.ebitda_margin_n and bs.ebitda_margin_n > 0:
+            m, q1, q3 = _wq(ev_e, .5), _wq(ev_e, .25), _wq(ev_e, .75)
+            v = _fcff_value(bs, i.shares, years, bs.growth, bs.wacc, tv_mult=m, tv_on="ebitda")
+            lo = _fcff_value(bs, i.shares, years, bs.growth, bs.wacc + 0.005, tv_mult=q1, tv_on="ebitda")
+            hi = _fcff_value(bs, i.shares, years, bs.growth, bs.wacc - 0.005, tv_mult=q3, tv_on="ebitda")
+            out.append(_model(f"dcf_ebitda_{years}", "cashflow", f"تدفّقٌ حرٌّ مخصوم {years} سنوات · خروجٌ بمضاعف EBITDA",
+                              v, lo, hi,
+                              [("كلفةُ رأس المال", f"{bs.wacc*100:.2f}%", "±0.5%"),
+                               ("هامشُ EBITDA المطبَّع", f"{bs.ebitda_margin_n*100:.1f}%", "الربحُ التشغيليّ + إهلاكُ تداول"),
+                               ("مضاعفُ خروج EV/EBITDA", f"{m:.2f}x", f"{q1:.2f}–{q3:.2f}x · أقرانٌ سعوديون"),
+                               ("نموُّ الإيراد الابتدائيّ", f"{bs.growth*100:.1f}%", "")]))
         v = _fcff_value(bs, i.shares, years, bs.growth, bs.wacc)
         lo = _fcff_value(bs, i.shares, years, max(bs.growth - 0.01, 0), bs.wacc + 0.005)
         hi = _fcff_value(bs, i.shares, years, bs.growth + 0.01, bs.wacc - 0.005)
@@ -452,6 +475,7 @@ def multiple_models(i: Inputs, bs: Base) -> list[dict]:
                           [("توزيعاتُ 12 شهراً", f"{i.dps_ttm:.2f}", "جدولُ توزيعات «تداول»"),
                            ("وسيطُ عائد الأقران", f"{m*100:.2f}%", f"{q1*100:.2f}–{q3*100:.2f}% · {len(ys)} أقران")]))
     for key, base, name, label in (("ev_ebit", bs.ebit_n, "مضاعفُ قيمة المنشأة/الربح التشغيليّ", "الربحُ التشغيليّ المطبَّع"),
+                                   ("ev_ebitda", bs.ebitda_n, "مضاعفُ قيمة المنشأة/EBITDA", "EBITDA المطبَّع (إهلاكُ تداول)"),
                                    ("ev_sales", bs.rev, "مضاعفُ قيمة المنشأة/الإيراد", "إيرادُ 12 شهراً")):
         xs = i.peers.get(key) or []
         if not base or base <= 0 or len(xs) < MIN_PEERS:
@@ -588,14 +612,18 @@ def _latest(quarterly: list[dict], annual: list[dict]) -> dict:
 
 def _ttm_of(quarterly: list[dict], annual: list[dict]) -> tuple[dict, str]:
     q = quarterly[-4:]
-    keys = ("revenue", "net_income", "ebit", "operating_cash_flow", "capex", "interest_expense", "pretax_income")
+    keys = ("revenue", "net_income", "ebit", "operating_cash_flow", "capex", "interest_expense", "pretax_income",
+            "depreciation", "ebitda")
     a_end = str((annual[-1] if annual else {}).get("as_of") or "")
     # أرباعٌ أقدمُ من آخر سنةٍ منشورة لا تكون «آخرَ اثني عشر شهراً» (D476)
     if len(q) == 4 and all(_n(p.get("revenue")) for p in q) and str(q[-1].get("as_of")) >= a_end:
         from datetime import date
         d = [date.fromisoformat(str(p["as_of"])[:10]) for p in q]
         if (d[-1] - d[0]).days <= 300:
-            return ({k: sum(_n(p.get(k)) or 0 for p in q) for k in keys},
+            # ربعٌ بلا إهلاكٍ لا يُحسب صفراً: EBITDA الأرباعِ الأربعة أو لا شيء (D489)
+            return ({k: (sum(_n(p.get(k)) or 0 for p in q)
+                         if k not in ("depreciation", "ebitda") or all(_n(p.get(k)) is not None for p in q)
+                         else _n((annual[-1] if annual else {}).get(k))) for k in keys},
                     f"أربعةُ أرباعٍ حتى {q[-1]['as_of']}")
     a = annual[-1] if annual else {}
     return ({k: _n(a.get(k)) for k in keys}, f"سنةُ {a.get('year')}")
@@ -621,7 +649,7 @@ async def _peer_yields(peers: list[str], rows: dict) -> dict[str, float]:
 
 def _peer_multiples(sym: str, peers: list[str], rows: dict) -> dict:
     from app.services.tadawul_xbrl import for_symbol as X
-    out: dict[str, list] = {k: [] for k in ("pe", "pb", "ps", "pocf", "ev_ebit", "ev_sales")}
+    out: dict[str, list] = {k: [] for k in ("pe", "pb", "ps", "pocf", "ev_ebit", "ev_sales", "ev_ebitda")}
     out["_rec"] = {}
     for s in peers:
         px = _n((rows.get(s) or rows.get(s + ".SR") or {}).get("price"))
@@ -642,12 +670,14 @@ def _peer_multiples(sym: str, peers: list[str], rows: dict) -> dict:
         ev = mcap + (_n(bal.get("total_debt")) or 0) - (_n(bal.get("ending_cash")) or 0)
         eq, rev, ni = _n(bal.get("equity")), _n(ttm.get("revenue")), _n(ttm.get("net_income"))
         ebit, ocf = _n(ttm.get("ebit")), _n(ttm.get("operating_cash_flow"))
+        ebitda = _n(ttm.get("ebitda"))
         for k, v, lo, hi in (("pe", mcap / ni if ni and ni > 0 else None, 0, 60),
                              ("pb", mcap / eq if eq and eq > 0 else None, 0, 15),
                              ("ps", mcap / rev if rev and rev > 0 else None, 0, 20),
                              ("pocf", mcap / ocf if ocf and ocf > 0 else None, 0, 60),
                              ("ev_ebit", ev / ebit if ebit and ebit > 0 else None, 0, 60),
-                             ("ev_sales", ev / rev if rev and rev > 0 else None, 0, 20)):
+                             ("ev_sales", ev / rev if rev and rev > 0 else None, 0, 20),
+                             ("ev_ebitda", ev / ebitda if ebitda and ebitda > 0 else None, 0, 40)):
             if v is not None and lo < v <= hi:
                 out[k].append(round(v, 3))
                 out["_rec"].setdefault(s, {"rev": rev, "margin": (ni / rev) if (ni is not None and rev) else None})[k] = round(v, 3)
@@ -736,7 +766,7 @@ async def gather(symbol: str) -> Inputs | None:
         # كلُّ قرينٍ يحمل حصّةً ثابتة والتشابهُ يزيدها — لا يحكم قرينٌ واحدٌ القطاعَ (D475)
         weights[p_sym] = SIM_FLOOR + (1 - SIM_FLOOR) * w
     pw = {k: [(rec[k], weights[ps]) for ps, rec in (pm.get("_rec") or {}).items() if k in rec]
-          for k in ("pe", "pb", "ps", "pocf", "ev_ebit", "ev_sales")}
+          for k in ("pe", "pb", "ps", "pocf", "ev_ebit", "ev_sales", "ev_ebitda")}
     pw["yield"] = pm.get("yield") or []
     peers = sorted(peers, key=lambda x: -weights.get(x, 0))
     pm = pw
@@ -813,7 +843,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v15:{sym}"
+    ck = f"fvm:v16:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
