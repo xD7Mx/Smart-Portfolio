@@ -29,9 +29,19 @@ async def main():
         last = max((p.get("year") or 0 for p in rec.get("annual") or []), default=0)
         if last < cut:
             stale.append((s, last))
+    # التأمينُ والصناديقُ العقاريةُ أوّلاً، ودفعاتٌ بميزانيةِ وقتٍ دون حدّ المهمّة (ساعة)
+    stale.sort(key=lambda x: (0 if x[0].startswith(("80", "81", "82", "83")) else 1 if x[0].startswith(("433", "434", "435")) else 2, x[0]))
     print(f"أوراقٌ تقف قوائمُها قبل {cut}: {len(stale)}")
-    rep = await X.refresh([s for s, _ in stale], conc=2)
-    print("الحصاد:", rep)
+    import time
+    t0, done = time.monotonic(), []
+    for i in range(0, len(stale), 4):
+        if time.monotonic() - t0 > 45 * 60:
+            print(f"ميزانيةُ الوقت نفدت — بقي {len(stale) - i} للدفعة التالية")
+            break
+        chunk = [s for s, _ in stale[i:i + 4]]
+        print("الحصاد:", chunk, await X.refresh(chunk, conc=2))
+        done += stale[i:i + 4]
+    stale = done
     st = X._store()
     moved = collections.Counter()
     for s, before in stale:
