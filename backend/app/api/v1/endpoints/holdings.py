@@ -240,6 +240,49 @@ async def update_holding(company_id: int, data: HoldingUpdate, db: AsyncSession 
     return success_response(data=_serialize(h), message="Holding updated.")
 
 
+class ReconcileItem(BaseModel):
+    company_id: int
+    quantity: float
+
+
+class ReconcileRequest(BaseModel):
+    items: list[ReconcileItem] = []
+    cash: Optional[float] = None
+
+
+@router.post("/reconcile")
+async def reconcile(data: ReconcileRequest, db: AsyncSession = Depends(get_db)):
+    """المطابقة مع كشف الوسيط (D483): المالك يُدخل ما في كشفه، والتطبيق يعرض
+    الفرق لكل شركةٍ وللنقد. قراءةٌ محضة — لا يُصحَّح شيءٌ تلقائياً؛ التصحيح
+    قرار المالك بعمليةٍ تُقيَّد في السجلّ. وتُعرض كمية إعادة التشغيل بجانب
+    المخزَّنة كي يظهر إن كان الفرق من السجلّ نفسه أم من إدخالٍ ناقص."""
+    from app.api.v1.endpoints.transactions import replay_holding
+    from app.models.transaction import Cash
+    TOL = 1e-6
+    rows = []
+    for it in data.items:
+        h = (await db.execute(select(Holding).options(selectinload(Holding.company))
+                              .where(Holding.company_id == it.company_id))).scalar_one_or_none()
+        app_qty = float(h.quantity or 0) if h else 0.0
+        rep = await replay_holding(db, it.company_id)
+        diff = round(it.quantity - app_qty, 6)
+        rows.append({
+            "company_id": it.company_id,
+            "symbol": h.company.symbol if h and h.company else None,
+            "name": h.company.company_name if h and h.company else None,
+            "broker": it.quantity, "app": app_qty, "ledger": float(rep["quantity"]),
+            "diff": diff, "ok": abs(diff) <= TOL,
+        })
+    cash = None
+    if data.cash is not None:
+        c = (await db.execute(select(Cash).limit(1))).scalar_one_or_none()
+        app_cash = float(c.available_cash or 0) if c else 0.0
+        d = round(data.cash - app_cash, 2)
+        cash = {"broker": data.cash, "app": round(app_cash, 2), "diff": d, "ok": abs(d) <= 0.01}
+    ok = all(r["ok"] for r in rows) and (cash is None or cash["ok"])
+    return success_response(data={"items": rows, "cash": cash, "ok": ok})
+
+
 @router.get("/closed")
 async def get_closed_positions(db: AsyncSession = Depends(get_db)):
     """الصفقات المغلقة (D480): كل شركةٍ بيعت كاملةً — محذوفةً من الجدول أو

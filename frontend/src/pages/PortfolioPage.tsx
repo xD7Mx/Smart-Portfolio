@@ -776,6 +776,56 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
 }
 
 // ── Cash Deposit / Withdraw (الضخ الشهري) ────────────────────
+/* المطابقة مع كشف الوسيط (D483): تُدخل ما في كشفك فيظهر الفرق لكل شركةٍ
+   وللنقد. لا يُحفظ ولا يُصحَّح شيءٌ هنا — التصحيح عمليةٌ تُسجَّل في السجلّ. */
+function ReconcileModal({ holdings, onClose }: { holdings: any[]; onClose: () => void }) {
+  const open = holdings.filter((h: any) => (h.total_shares || 0) > 0);
+  const [qty, setQty] = useState<Record<number, string>>({});
+  const [cash, setCash] = useState("");
+  const mut = useMutation({
+    mutationFn: () => holdingsApi.reconcile({
+      items: open.filter((h: any) => qty[h.company_id] !== undefined && qty[h.company_id] !== "")
+        .map((h: any) => ({ company_id: h.company_id, quantity: Number(qty[h.company_id]) })),
+      ...(cash !== "" ? { cash: Number(cash) } : {}),
+    }).then(r => r.data.data),
+  });
+  const res = mut.data;
+  const byId: Record<number, any> = Object.fromEntries((res?.items || []).map((r: any) => [r.company_id, r]));
+  const Diff = ({ r }: { r: any }) => !r ? null : r.ok
+    ? <span className="text-[var(--pos-ink)] text-xs font-bold">مطابق</span>
+    : <span className="text-[var(--neg-ink)] text-xs font-bold tabular-nums" dir="ltr">{r.diff > 0 ? "+" : ""}{fmt2(r.diff)}</span>;
+  return (
+    <Modal title="المطابقة مع كشف الوسيط" onClose={onClose}>
+      <div className="space-y-3">
+        <div className="divide-y divide-[var(--hairline)]">
+          {open.map((h: any) => (
+            <div key={h.company_id} className="py-2 grid grid-cols-[1fr_110px_90px] items-center gap-2">
+              <div className="min-w-0">
+                <p className="text-[var(--ink)] text-sm font-semibold truncate">{lookupCompany(h.company?.symbol)?.name_ar || h.company?.name}</p>
+                <p className="text-[var(--ink-muted)] text-[11px] tabular-nums">في التطبيق: <span dir="ltr">{fmt2(h.total_shares)}</span></p>
+              </div>
+              <NumInput value={qty[h.company_id] ?? ""} onChange={(v: string) => setQty(q => ({ ...q, [h.company_id]: v }))} placeholder="كمية الكشف" />
+              <div className="text-end"><Diff r={byId[h.company_id]} /></div>
+            </div>
+          ))}
+          <div className="py-2 grid grid-cols-[1fr_110px_90px] items-center gap-2">
+            <p className="text-[var(--ink)] text-sm font-semibold">النقد المتاح</p>
+            <NumInput value={cash} onChange={setCash} placeholder="نقد الكشف" />
+            <div className="text-end"><Diff r={res?.cash} /></div>
+          </div>
+        </div>
+        {res && (
+          <p className={"text-sm font-bold " + (res.ok ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]")}>
+            {res.ok ? "المحفظة مطابقة لكشف الوسيط." : "توجد فروق — صحّحها بتسجيل العملية الناقصة أو تعديل الخاطئة."}
+          </p>
+        )}
+        {mut.isError && <p className="text-sm text-[var(--neg-ink)]">تعذّرت المطابقة.</p>}
+        <button className="btn-primary w-full" disabled={mut.isPending} onClick={() => mut.mutate()}>طابِق</button>
+      </div>
+    </Modal>
+  );
+}
+
 function CashModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const { isOwner } = useAuthStore();
@@ -1798,6 +1848,7 @@ export default function PortfolioPage() {
   const [delComp, setDelComp]   = useState<any>(null);
   const [editHold, setEditHold] = useState<any>(null);
   const [cashOpen, setCashOpen] = useState(false);
+  const [reconOpen, setReconOpen] = useState(false);
   const [colsOpen, setColsOpen] = useState(false);
   const [tab, setTab] = useState<"holdings" | "dashboard" | "watchlist" | "portfolioNews" | "portfolioCalendar" | "notifications">("holdings");
   const [dashSubTab, setDashSubTab] = useState<"grid" | "rebalance" | "liquidity">("grid");
@@ -2013,6 +2064,9 @@ export default function PortfolioPage() {
               التمييز بالأيقونة لا بالشكل — وكانا زرّين بلغتين مختلفتين. */}
           <button className="wealth-act" onClick={() => setCashOpen(true)} title="السيولة" aria-label="السيولة">
             <Wallet size={17} />
+          </button>
+          <button className="wealth-act" onClick={() => setReconOpen(true)} title="المطابقة مع كشف الوسيط" aria-label="المطابقة مع كشف الوسيط">
+            <Scale size={17} />
           </button>
           {isOwner && (
             <button className="wealth-act" onClick={() => setAddOpen(true)} title={t("port.addCompany")} aria-label={t("port.addCompany")}>
@@ -2528,6 +2582,7 @@ export default function PortfolioPage() {
       {delComp   && <DeleteModal company={delComp} onClose={() => setDelComp(null)} />}
       {editHold  && <HoldingModal holding={editHold} onClose={() => setEditHold(null)} />}
       {cashOpen  && <CashModal onClose={() => setCashOpen(false)} />}
+      {reconOpen && <ReconcileModal holdings={holdings} onClose={() => setReconOpen(false)} />}
       {sheetSymbol && <StockSheet symbol={sheetSymbol} onClose={() => setSheetSymbol(null)} />}
     </div>
   );
