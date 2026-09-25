@@ -43,6 +43,20 @@ def _period_return(closes: list[float], bars: int) -> float | None:
     return (end / start - 1) * 100
 
 
+def _dps_tadawul(sym: str) -> float | None:
+    """توزيعاتُ اثني عشر شهراً من جدول «تداول» المحفوظ (D492) — بلا نداءٍ
+    جديد. كان عائدُ التوزيع يُقرأ من مخزن الأساسيات وحده فظهر لثلاثة قطاعات."""
+    try:
+        from datetime import date, timedelta
+        from app.services import lastgood
+        rows = (lastgood.load(f"div:tadawul:{sym}") or {}).get("rows") or []
+        cut = (date.today() - timedelta(days=365)).isoformat()
+        amt = sum(float(r.get("amount") or 0) for r in rows if str(r.get("eligibility") or r.get("paid") or r.get("announced") or "") >= cut)
+        return amt or None
+    except Exception:                                              # noqa: BLE001
+        return None
+
+
 async def compute_sector_analysis() -> list | None:
     """يبني جدول الأداء القطاعي: لكل قطاع عائد كل فترة (وسيط الشركات) ومتوسط
     عائد التوزيعات وعدد الشركات. الوسيط لا المتوسط الحسابي — كي لا تُشوّه
@@ -84,7 +98,7 @@ async def compute_sector_analysis() -> list | None:
             r = _period_return(closes, bars)
             if r is not None:
                 b["rets"][key].append(r)
-        dps = (fund_store.get(sym) or {}).get("dps_ttm")
+        dps = (fund_store.get(sym) or {}).get("dps_ttm") or _dps_tadawul(sym)
         if dps and closes[-1]:
             b["yields"].append(dps / closes[-1] * 100)
 

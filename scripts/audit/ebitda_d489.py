@@ -57,5 +57,7 @@ M = open(os.path.join(ROOT, "backend/app/api/v1/endpoints/market.py"), encoding=
 E = open(os.path.join(ROOT, "frontend/src/components/market/EventsList.tsx"), encoding="utf-8").read()
 check("asyncio.create_task(compute_sector_analysis())" in M, "٧ D490 شاشةُ القطاعات الفارغةُ تُطلق بناءها بنفسها")
 check("ev-strip" not in E and 'className="ev-tag inline-block"' in E, "٨ D491 وسمُ الحدث سطرٌ أعلى الاسم لا شريطٌ طوليّ، والعنوانُ ينتهي بتاريخه")
+SA = open(os.path.join(ROOT, "backend/app/services/sector_analysis.py"), encoding="utf-8").read()
+check("or _dps_tadawul(sym)" in SA and 'r.get("eligibility")' in SA, "٩ D492 عائدُ توزيع القطاع من جدول تداول حين يغيب من الأساسيات")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)
