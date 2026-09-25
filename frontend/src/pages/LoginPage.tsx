@@ -45,7 +45,15 @@ export default function LoginPage() {
         onSubmit={e => { e.preventDefault(); if (password) mutation.mutate(); }}
         /* سفاري الآيفون لا يُظهر لوحةَ المفاتيح للتركيز التلقائيّ — إلا بلمسةٍ من المستخدم (D478).
            فأيُّ لمسةٍ على البطاقة تركّز الحقل، ولوحةُ المفاتيح تظهر معها. */
-        onClick={e => { if ((e.target as HTMLElement).tagName !== "BUTTON") pwRef.current?.focus(); }}
+        onClick={e => {
+          if ((e.target as HTMLElement).tagName === "BUTTON") return;
+          // تطبيقُ الشاشة الرئيسية على الآيفون: حقلٌ مركَّزٌ مسبقاً لا تُظهر لمستُه اللوحةَ —
+          // فيُرفع التركيزُ ويُعاد، فيقع «تركيزٌ جديد» بلمسة المستخدم وتظهر اللوحة (D478).
+          const el = pwRef.current;
+          if (!el) return;
+          if (document.activeElement === el) el.blur();
+          el.focus();
+        }}
       >
         <div className="flex flex-col items-center gap-2.5 mb-2">
           {/* الصورة الرمزية الدائرية — كشاشة دخول ماك */}
@@ -70,7 +78,8 @@ export default function LoginPage() {
           className="input w-full"
           type="password"
           ref={pwRef}
-          autoFocus
+          /* التركيزُ التلقائيّ للحاسوب وحدَه: على اللمس يسرق «أوّلَ تركيز» بلا لوحةٍ فلا تظهر بعدها */
+          autoFocus={typeof window !== "undefined" && window.matchMedia?.("(pointer: fine)").matches}
           autoComplete="current-password"
           enterKeyHint="go"
           value={password}

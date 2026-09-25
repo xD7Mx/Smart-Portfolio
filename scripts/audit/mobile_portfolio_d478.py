@@ -18,7 +18,9 @@ check(">مركز مغلق<" not in P and "!(h.total_shares > 0)" not in P,
 i = P.find('<div className="lg:hidden divide-y"')
 mob = P[i:i + 4000] if i >= 0 else ""
 check("it.current_weight" in mob, "٢ «التوزيعُ النسبيّ لا يُظهر نسبةَ الامتلاك الحالية» — تظهر في بطاقة الجوّال")
-check(bool(re.search(r"onClick=\{[^}]*pwRef\.current\?\.focus\(\)", L)) and "ref={pwRef}" in L,
+check("onClick={e =>" in L and "el.focus()" in L and "const el = pwRef.current" in L and "ref={pwRef}" in L,
       "٣ «لا يظهر كيبورد الجوال» — لمسةٌ على بطاقة الدخول تركّز الحقل (سفاري لا يفتح اللوحةَ للتركيز التلقائيّ)")
+check("el.blur()" in L and "(pointer: fine)" in L and "\n          autoFocus\n" not in L,
+      "٤ «باقي تطبيق PWA لا تخرج لوحة المفاتيح» — لا تركيزَ تلقائيَّ على اللمس، واللمسةُ تُحدث تركيزاً جديداً")
 print(f"{'FAIL' if fail else 'PASS'} D478 — ملاحظاتُ الجوّال")
 sys.exit(fail)
