@@ -273,6 +273,10 @@ async def _replay(db: AsyncSession, company_id: int, persist_gains: bool = True)
                 t.realized_gain = sell_qty * (price - avg) - fees
             invested = max(0, invested - sell_qty * avg)
             qty -= sell_qty
+            # بيعٌ كامل يُغلق الدورة: بقايا الفاصلة العائمة في التكلفة كانت
+            # تُرحَّل إلى أوّل شراءٍ بعد الإغلاق فتُفسد متوسّطه (D480).
+            if qty <= 1e-9:
+                qty, invested = 0.0, 0.0
         elif typ == "DIVIDEND":
             pass  # dividends don't change shares; income is summed below
         elif typ == "BONUS":
@@ -473,6 +477,12 @@ async def add_transaction(data: TransactionCreate, db: AsyncSession = Depends(ge
         select(func.count(_Co.id)).where(_Co.id == data.company_id)
     )).scalar():
         raise HTTPException(404, f"لا توجد شركة بالمعرّف {data.company_id} — لم تُسجَّل العملية.")
+    # شراءٌ جديد في شركةٍ محذوفة يُعيدها إلى المحفظة بسجلّها كاملاً (D480):
+    # كانت العملية تُسجَّل وتبقى الشركة مخفيّة، فيبدو الشراء ضائعاً.
+    if data.transaction_type == "BUY":
+        _co = (await db.execute(select(_Co).where(_Co.id == data.company_id))).scalar_one()
+        if _co.status == "ARCHIVED":
+            _co.status = "ACTIVE"
 
     # ── فخّ التجزئة/المنحة ────────────────────────────────────────────────
     # التجزئة تضرب كل الأسهم المملوكة وقتَها، بما فيها أسهم منحةٍ سابقة. ومن

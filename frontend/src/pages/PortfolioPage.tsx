@@ -1805,6 +1805,11 @@ export default function PortfolioPage() {
     queryFn: () => holdingsApi.list().then(r => Array.isArray(r.data?.data) ? r.data.data : []),
   });
 
+  const { data: closed = [] } = useQuery({
+    queryKey: ["holdings-closed"],
+    queryFn: () => holdingsApi.closed().then(r => Array.isArray(r.data?.data) ? r.data.data : []),
+  });
+
   const { data: companies = [] } = useQuery({
     queryKey: ["companies"],
     queryFn: () => companiesApi.list().then(r => Array.isArray(r.data.data) ? r.data.data : []),
@@ -2453,6 +2458,31 @@ export default function PortfolioPage() {
 
       {/* Portfolio-level financial indicators (weighted averages) */}
       <PortfolioMetricsCard />
+
+      {/* الصفقات المغلقة (D480): ما بيع كاملاً يبقى بسجلّه وربحه المحقَّق
+          ولو حُذف من الجدول — والشراء فيه من جديد يُكمل السجلّ نفسه. */}
+      {closed.length > 0 && (
+        <div className="card">
+          <CollapsibleList label="الصفقات المغلقة" count={closed.length}>
+            <div className="divide-y divide-[var(--hairline)]">
+              {closed.map((c: any) => (
+                <button key={c.company_id} onClick={() => navigate("/portfolio/" + c.company_id)}
+                  className="w-full min-h-[40px] py-2 flex items-center gap-2.5 text-start hover:bg-[var(--field)] transition-colors">
+                  <CompanyLogo symbol={c.symbol} size={24} />
+                  <span className="text-[var(--ink)] font-semibold text-[13px]">{lookupCompany(c.symbol)?.name_ar || c.name}</span>
+                  <span className="tag-b" style={{fontSize: 10, padding: "2px 7px"}}>{c.symbol}</span>
+                  <span className="text-[var(--ink-muted)] text-[11px] tabular-nums" dir="ltr">
+                    {(c.opened_at || "").slice(0, 10)} → {(c.closed_at || "").slice(0, 10)}
+                  </span>
+                  <span className="text-[var(--ink-muted)] text-[11px]">{c.transactions} عملية</span>
+                  <span className={"ms-auto text-sm font-semibold tabular-nums " + (c.realized_gain >= 0 ? "profit" : "loss")}
+                    dir="ltr">{c.realized_gain >= 0 ? "+" : ""}{fmt2(c.realized_gain)}</span>
+                </button>
+              ))}
+            </div>
+          </CollapsibleList>
+        </div>
+      )}
 
       {/* Companies without holdings — قائمة منسدلة */}
       {companies.length > 0 && (

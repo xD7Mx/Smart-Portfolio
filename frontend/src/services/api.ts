@@ -148,6 +148,7 @@ export const companiesApi = {
 export const holdingsApi = {
   production: (companyId: number) => api.get<APIResponse>(`/holdings/${companyId}/production`),
   list: () => api.get<APIResponse>("/holdings"),
+  closed: () => api.get<APIResponse>("/holdings/closed"),
   get:  (companyId: number) => api.get<APIResponse>(`/holdings/${companyId}`),
   // ترتيب العرض الذي يختاره المالك — مصدرٌ واحد تتبعه كل البطاقات.
   setOrder: (order: number[]) => api.put<APIResponse>("/holdings/order", { order }),

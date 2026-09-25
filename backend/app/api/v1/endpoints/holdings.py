@@ -240,6 +240,56 @@ async def update_holding(company_id: int, data: HoldingUpdate, db: AsyncSession 
     return success_response(data=_serialize(h), message="Holding updated.")
 
 
+@router.get("/closed")
+async def get_closed_positions(db: AsyncSession = Depends(get_db)):
+    """الصفقات المغلقة (D480): كل شركةٍ بيعت كاملةً — محذوفةً من الجدول أو
+    باقيةً بصفر سهم. الحذف أرشفةٌ تُخفي الشركة من كل قائمة، فكان سجلّ
+    عملياتها وربحها المحقَّق بلا بابٍ يُفتح منه، وتبدو المضاربة كأنها لم تكن.
+    هنا تبقى مرئيةً من سجلّها نفسه: لا أرقام تُخزَّن، والربح مجموع ما حسبته
+    إعادة التشغيل لكل بيع."""
+    from sqlalchemy import func
+    from app.models.transaction import Transaction
+    rows = (await db.execute(
+        select(Transaction.company_id,
+               func.count(Transaction.id),
+               func.min(Transaction.executed_at),
+               func.max(Transaction.executed_at),
+               func.coalesce(func.sum(Transaction.realized_gain), 0))
+        .where(Transaction.transaction_type == "SELL")
+        .group_by(Transaction.company_id)
+    )).all()
+    if not rows:
+        return success_response(data=[])
+    ids = [r[0] for r in rows]
+    cos = {c.id: c for c in (await db.execute(select(Company).where(Company.id.in_(ids)))).scalars().all()}
+    qty = dict((await db.execute(
+        select(Holding.company_id, Holding.quantity).where(Holding.company_id.in_(ids))
+    )).all())
+    counts = dict((await db.execute(
+        select(Transaction.company_id, func.count(Transaction.id))
+        .where(Transaction.company_id.in_(ids)).group_by(Transaction.company_id)
+    )).all())
+    firsts = dict((await db.execute(
+        select(Transaction.company_id, func.min(Transaction.executed_at))
+        .where(Transaction.company_id.in_(ids)).group_by(Transaction.company_id)
+    )).all())
+    out = []
+    for cid, _n, _f, last, gain in rows:
+        c = cos.get(cid)
+        if not c or float(qty.get(cid) or 0) > 1e-9:
+            continue
+        out.append({
+            "company_id": cid, "symbol": c.symbol, "name": c.company_name,
+            "archived": c.status == "ARCHIVED",
+            "transactions": int(counts.get(cid) or 0),
+            "opened_at": firsts[cid].isoformat() if firsts.get(cid) else None,
+            "closed_at": last.isoformat() if last else None,
+            "realized_gain": round(float(gain or 0), 2),
+        })
+    out.sort(key=lambda x: x["closed_at"] or "", reverse=True)
+    return success_response(data=out)
+
+
 @router.get("/{company_id}/production")
 async def get_company_production(company_id: int, db: AsyncSession = Depends(get_db)):
     """إنتاج الشركة ونقطة الصفر — بنفس تعريف المحفظة، من مصدرٍ واحد."""
