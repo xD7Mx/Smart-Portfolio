@@ -146,6 +146,39 @@ class TransactionCreate(BaseModel):
         return self
 
 
+# ── بوّابة الثوابت المحاسبية (D482 · القيد المزدوج) ─────────────────────
+# كل عمليةٍ تُفحص **قبل** حفظها لا بعده: النقدُ المخزَّن يساوي مجموع حركاته،
+# ولا بيعَ يتجاوز المملوك في لحظته، ولا كميةَ سالبة. وما كان مختلّاً قبل
+# العملية (تسويةٌ يدوية معتمدة مثلاً) لا يُحمَّل عليها — تُرفض فقط العمليةُ
+# التي تكسر ثابتاً كان سليماً، فلا يُمنع المالك من العمل بسبب خللٍ قديم.
+TOL = 0.01
+
+
+async def _ledger_state(db: AsyncSession, company_id: int) -> dict:
+    from app.services.integrity import _cash_reconciliation
+    cash = await _cash_reconciliation(db)
+    rep = await _replay(db, company_id, persist_gains=False)
+    return {"cash_ok": bool(cash.get("ok")), "cash_diff": cash.get("diff"),
+            "clipped": set(rep["clipped_sales"]), "qty": float(rep["quantity"])}
+
+
+async def _ledger_gate(db: AsyncSession, company_id: int, before: dict) -> None:
+    await db.flush()
+    after = await _ledger_state(db, company_id)
+    if before["cash_ok"] and not after["cash_ok"]:
+        raise HTTPException(422, f"رُفضت العملية: تكسر مطابقة النقد (فارق {after['cash_diff']:,.2f}) "
+                                 f"— الرصيد لا يعود مساوياً لمجموع حركاته. لم يُحفظ شيء.")
+    new = sorted(after["clipped"] - before["clipped"])
+    if new:
+        raise HTTPException(422, f"رُفضت العملية: تجعل عملية البيع رقم {new[0]} تبيع أسهماً غير "
+                                 f"مملوكة في تاريخها. لم يُحفظ شيء.")
+    if after["qty"] < -TOL:
+        raise HTTPException(422, "رُفضت العملية: تنتج كمية أسهم سالبة. لم يُحفظ شيء.")
+    cash_row = (await db.execute(select(Cash).limit(1))).scalar_one_or_none()
+    if cash_row is not None and float(cash_row.available_cash or 0) < -TOL:
+        raise HTTPException(422, "رُفضت العملية: تجعل السيولة المتاحة سالبة. لم يُحفظ شيء.")
+
+
 async def _get_cash(db: AsyncSession) -> Cash:
     # FOR UPDATE: two concurrent requests (e.g. a buy and a manual deposit)
     # must not both read the same stale balance and clobber each other's
@@ -484,6 +517,8 @@ async def add_transaction(data: TransactionCreate, db: AsyncSession = Depends(ge
         if _co.status == "ARCHIVED":
             _co.status = "ACTIVE"
 
+    _before = await _ledger_state(db, data.company_id)
+
     # ── فخّ التجزئة/المنحة ────────────────────────────────────────────────
     # التجزئة تضرب كل الأسهم المملوكة وقتَها، بما فيها أسهم منحةٍ سابقة. ومن
     # يُدخل محفظته يدوياً يقرأ كمياته من تطبيق الوسيط **بعد** التجزئة، فيسجّل
@@ -528,6 +563,7 @@ async def add_transaction(data: TransactionCreate, db: AsyncSession = Depends(ge
     # split) land on the exact correct share count and cost basis, not just
     # the naive forward-applied one from _apply above.
     await recompute_holding(db, data.company_id)
+    await _ledger_gate(db, data.company_id, _before)
     await db.commit()
     await db.refresh(tx)
     return success_response(data={"id": tx.id}, message="Transaction recorded.")
@@ -760,6 +796,7 @@ async def patch_transaction(tx_id: int, data: TransactionPatch,
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found.")
     await _audit_reason(db, data.reason)
+    _before = await _ledger_state(db, tx.company_id)
 
     t = tx.transaction_type
     cash = await _get_cash(db)
@@ -864,6 +901,7 @@ async def patch_transaction(tx_id: int, data: TransactionPatch,
     # الحيازة تُبنى من السجل كاملاً — يصحّح الكمية والتكلفة والأرباح المحقّقة
     # مهما تغيّر الترتيب أو تخلّلته تجزئة.
     await recompute_holding(db, tx.company_id)
+    await _ledger_gate(db, tx.company_id, _before)
     await db.commit()
     await db.refresh(tx)
     return success_response(data={
@@ -884,6 +922,7 @@ async def delete_transaction(tx_id: int, reason: str | None = None,
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found.")
     await _audit_reason(db, reason)
+    _before = await _ledger_state(db, tx.company_id)
 
     h = (await db.execute(select(Holding).where(Holding.company_id == tx.company_id).with_for_update())).scalar_one_or_none()
     cash = await _get_cash(db)
@@ -941,5 +980,6 @@ async def delete_transaction(tx_id: int, reason: str | None = None,
     # Rebuild the holding from scratch on the remaining ledger — the fix for
     # the delete-before-a-split miscount (and every other ordering edge case).
     await recompute_holding(db, company_id)
+    await _ledger_gate(db, company_id, _before)
     await db.commit()
     return success_response(message="Transaction deleted.")
