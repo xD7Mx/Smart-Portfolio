@@ -6,7 +6,9 @@
 يكتب في مخزن القوائم ما يكتبه الحصادُ الليليُّ نفسُه (مصدرٌ رسميٌّ لا أرقامُ المالك)،
 ويطبع لكلّ ورقة: آخرَ سنةٍ قبلُ وبعدُ، وعيّنةً من الأرقام، وأسبابَ الرفض.
 """
-import asyncio, collections, sys
+import asyncio, collections, os, sys
+# استكمالٌ لمرّةٍ واحدة: القراءةُ الضوئيةُ في هذه العملية وحدها — لا في الحصاد الليليّ (D477)
+os.environ["SP_PDF_OCR"] = "1"
 from datetime import date
 sys.path.insert(0, "/app")
 
@@ -34,13 +36,14 @@ async def main():
     print(f"أوراقٌ تقف قوائمُها قبل {cut}: {len(stale)}")
     import time
     t0, done = time.monotonic(), []
-    for i in range(0, len(stale), 4):
+    from app.services.tadawul_pdf import mem_available_mb
+    for i in range(0, len(stale), 1):
         if time.monotonic() - t0 > 45 * 60:
             print(f"ميزانيةُ الوقت نفدت — بقي {len(stale) - i} للدفعة التالية")
             break
-        chunk = [s for s, _ in stale[i:i + 4]]
-        print("الحصاد:", chunk, await X.refresh(chunk, conc=2))
-        done += stale[i:i + 4]
+        chunk = [s for s, _ in stale[i:i + 1]]
+        print("الحصاد:", chunk, f"ذاكرةٌ متاحة {mem_available_mb():.0f}MB", await X.refresh(chunk, conc=1))
+        done += stale[i:i + 1]
     stale = done
     st = X._store()
     moved = collections.Counter()
