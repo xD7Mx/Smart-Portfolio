@@ -156,7 +156,9 @@ def mem_available_mb() -> float | None:
     return None
 
 
-MIN_FREE_MB = 350                            # دونها لا يُفتح ملفّ PDF — الخادمُ أولى من الحصاد
+import os as _os
+# دونها لا يُفتح ملفّ PDF — الخادمُ أولى من الحصاد. ويُخفَّض لاستكمالٍ مراقَبٍ بعد ذاكرة التبديل.
+MIN_FREE_MB = int(_os.environ.get("SP_PDF_MIN_FREE_MB", "350"))
 
 
 def _page_text(pg, idx: int, ocr: bool = True) -> str:

@@ -9,6 +9,7 @@
 import asyncio, collections, os, sys
 # استكمالٌ لمرّةٍ واحدة: القراءةُ الضوئيةُ في هذه العملية وحدها — لا في الحصاد الليليّ (D477)
 os.environ["SP_PDF_OCR"] = "1"
+os.environ["SP_PDF_MIN_FREE_MB"] = "250"      # ذاكرةُ تبديلٍ 2GB موجودة — والحصادُ الليليُّ يبقى على 350
 from datetime import date
 sys.path.insert(0, "/app")
 
