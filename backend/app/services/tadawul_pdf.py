@@ -135,13 +135,37 @@ def _toks(lines: list[str]) -> list[str]:
     return out
 
 
+def ocr_enabled() -> bool:
+    """القراءةُ الضوئيةُ بمفتاحٍ صريح لا افتراضاً (D477).
+
+    قِيس على خادم المالك: Tesseract بدقّة 220 على خادمٍ بذاكرة 1GB علّق الخادمَ مرّتين
+    (فحصُ «Instance status» فشل) — وإلغاءُ المهمّة لا يوقف العمليةَ داخل الحاوية.
+    فلا تعمل إلا بـ`SP_PDF_OCR=1` وبعد ذاكرةِ تبديلٍ تحمي النظام.
+    """
+    import os
+    return os.environ.get("SP_PDF_OCR", "").strip() == "1"
+
+
+def mem_available_mb() -> float | None:
+    try:
+        for line in open("/proc/meminfo", encoding="ascii"):
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) / 1024
+    except Exception:                                              # noqa: BLE001
+        return None
+    return None
+
+
+MIN_FREE_MB = 350                            # دونها لا يُفتح ملفّ PDF — الخادمُ أولى من الحصاد
+
+
 def _page_text(pg, idx: int, ocr: bool = True) -> str:
     """نصُّ الصفحة — وإن كانت صورةً ممسوحةً في مقدّمة ملفٍّ سنويّ تُقرأ ضوئياً (Tesseract في الحاوية)."""
     t = pg.get_text()
-    if len(t.strip()) >= 40 or idx >= 12 or not ocr:
+    if len(t.strip()) >= 40 or idx >= 12 or not ocr or not ocr_enabled():
         return t
     try:
-        tp = pg.get_textpage_ocr(language="eng", dpi=220, full=True, tessdata=_tessdata())
+        tp = pg.get_textpage_ocr(language="eng", dpi=150, full=True, tessdata=_tessdata())
         return pg.get_text(textpage=tp)
     except Exception as e:                                         # noqa: BLE001
         logger.info("OCR ص{}: {}: {}", idx + 1, type(e).__name__, str(e)[:160])
@@ -364,6 +388,12 @@ async def read_annuals(symbol: str, after_year: int, ref_shares: float | None,
     for f in links[:max_files]:
         if f["filed"] and int(f["filed"][:4]) <= after_year:
             continue
+        free = mem_available_mb()
+        if free is not None and free < MIN_FREE_MB:
+            logger.warning("PDF {}: الذاكرةُ المتاحة {:.0f}MB دون الحدّ — يتوقّف الاستكمال", symbol, free)
+            if report is not None:
+                report["ذاكرةٌ غيرُ كافية"] = report.get("ذاكرةٌ غيرُ كافية", 0) + 1
+            break
         try:
             st, data = await fetch_bytes(f["url"], referer=f["referer"])
         except Exception as e:                                     # noqa: BLE001

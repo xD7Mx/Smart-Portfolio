@@ -108,5 +108,8 @@ check(o.get("revenue") == (116525214.0, 117736492.0) and o.get("net_income") == 
       "٢٨ سطرُ القراءة الضوئية: البندُ وأرقامُه في سطرٍ واحد يُفصلان", str(o))
 check(P.valid(dict(p, shares_outstanding=100018598), 40000, 100103313) is None,
       "٢٩ مرجعٌ مختلٌّ (40,000 سهم) لا يرفض ملفّاً اتّسقت سنواتُه على 100 مليون (8230)")
+os.environ.pop("SP_PDF_OCR", None)
+check(P.ocr_enabled() is False, "٣٠ D477 القراءةُ الضوئيةُ معطّلةٌ افتراضاً — علّقت خادماً بذاكرة 1GB مرّتين")
+check(P.MIN_FREE_MB >= 300 and (P.mem_available_mb() is None or P.mem_available_mb() > 0), "٣١ D477 ولا يُفتح ملفّ PDF والذاكرةُ المتاحةُ دون الحدّ")
 print(f"{'FAIL' if fail else 'PASS'} D476 — قوائمُ «تداول» PDF حين تقف XBRL")
 sys.exit(fail)
