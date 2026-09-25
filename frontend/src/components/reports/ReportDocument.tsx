@@ -112,7 +112,10 @@ const ReportDocument = React.forwardRef<HTMLDivElement, { data: ReportDocData }>
           })().map(k => (
             <div key={k.l} style={{ border: "1px solid #e4dcc2", borderRadius: 8, padding: "10px 12px", background: "#fff" }}>
               <div style={{ fontSize: 10, color: PAPER_MUTED, fontWeight: 300 }}>{k.l}</div>
-              <div style={{ fontSize: 16, fontWeight: 300, color: k.c, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{k.v}</div>
+              {/* الرقمُ وإشارتُه معزولان يساراً-يميناً: في سطرٍ عربيّ كانت «+» تُطبع بعد الرقم (D479) */}
+              <div style={{ fontSize: 16, fontWeight: 300, color: k.c, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
+                <bdi dir="ltr" style={{ unicodeBidi: "isolate" }}>{k.v}</bdi>
+              </div>
             </div>
           ))}
         </div>
@@ -130,9 +133,11 @@ const ReportDocument = React.forwardRef<HTMLDivElement, { data: ReportDocData }>
             </div>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
               <thead>
-                <tr style={{ background: NAVY, color: "#fff" }}>
+                {/* نصٌّ داكنٌ على خلفيةٍ فاتحة: الخلفياتُ لا تُطبع افتراضاً فكان الأبيضُ على الورق الأبيض لا يُقرأ (D479) */}
+                <tr style={{ background: "#efe7cf", color: NAVY, borderBottom: `2px solid ${GOLD}`,
+                             WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" } as React.CSSProperties}>
                   {["الشركة", "الرمز", "الأسهم", "القيمة", "الربح/الخسارة"].map(h => (
-                    <th key={h} style={{ padding: "7px 10px", textAlign: "start", fontWeight: 300 }}>{h}</th>
+                    <th key={h} style={{ padding: "7px 10px", textAlign: "start", fontWeight: 500 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -144,8 +149,10 @@ const ReportDocument = React.forwardRef<HTMLDivElement, { data: ReportDocData }>
                     <td style={{ padding: "6px 10px", fontVariantNumeric: "tabular-nums" }}>{money(p.shares)}</td>
                     <td style={{ padding: "6px 10px", fontVariantNumeric: "tabular-nums" }}>{money(p.market_value)}</td>
                     <td style={{ padding: "6px 10px", color: p.pnl >= 0 ? GREEN : RED, fontVariantNumeric: "tabular-nums" }}>
-                      {p.pnl >= 0 ? "+" : ""}{money(p.pnl)}
-                      {p.pnl_pct == null ? "" : ` (${p.pnl_pct.toFixed(1)}%)`}
+                      <bdi dir="ltr" style={{ unicodeBidi: "isolate" }}>
+                        {p.pnl >= 0 ? "+" : ""}{money(p.pnl)}
+                        {p.pnl_pct == null ? "" : ` (${p.pnl_pct >= 0 ? "+" : ""}${p.pnl_pct.toFixed(1)}%)`}
+                      </bdi>
                     </td>
                   </tr>
                 ))}

@@ -95,12 +95,14 @@ body{{color:{INK};font-family:'Thmanyah Serif Display','Segoe UI',sans-serif;
 .kpis{{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:22px}}
 .kpi{{border:1px solid {LINE};border-radius:8px;padding:10px 12px;background:#fff}}
 .kpi .l{{font-size:10px;color:{MUTED};font-weight:300}}
-.kpi .v{{font-size:16px;font-weight:300;margin-top:2px;font-variant-numeric:tabular-nums}}
+.kpi .v{{font-size:16px;font-weight:300;margin-top:2px;font-variant-numeric:tabular-nums;
+         direction:ltr;unicode-bidi:isolate;text-align:right}}
 .sec{{font-size:13px;font-weight:500;color:{NAVY};margin-bottom:8px;
       border-inline-start:3px solid {GOLD};padding-inline-start:8px}}
 table{{width:100%;border-collapse:collapse;font-size:11.5px}}
-thead tr{{background:{NAVY};color:#fff}}
-th{{padding:7px 10px;text-align:start;font-weight:300}}
+thead tr{{background:#efe7cf;color:{NAVY};border-bottom:2px solid {GOLD};
+          -webkit-print-color-adjust:exact;print-color-adjust:exact}}
+th{{padding:7px 10px;text-align:start;font-weight:500}}
 td{{padding:6px 10px;border-bottom:1px solid #e9e2cc}}
 tbody tr:nth-child(even){{background:{ZEBRA}}}
 tbody tr:nth-child(odd){{background:#fff}}
@@ -205,7 +207,8 @@ def build_html(data: dict, *, period: str = "", generated_at: str = "") -> str:
                 f'<td class="num">{_money(p.get("shares"))}</td>'
                 f'<td class="num">{_money(p.get("market_value"))}</td>'
                 f'<td class="num {"pos" if pnl >= 0 else "neg"}">'
-                f'{"+" if pnl >= 0 else ""}{_money(pnl)} ({(p.get("pnl_pct") or 0):.1f}%)</td></tr>')
+                f'<bdi dir="ltr" style="unicode-bidi:isolate">{"+" if pnl >= 0 else ""}{_money(pnl)} '
+                f'({"+" if (p.get("pnl_pct") or 0) >= 0 else ""}{(p.get("pnl_pct") or 0):.1f}%)</bdi></td></tr>')
         head = "".join(f"<th>{h}</th>" for h in
                        ("الشركة", "الرمز", "الأسهم", "القيمة", "الربح/الخسارة"))
         pos_html = (f'<div style="margin-bottom:24px"><div class="sec">تفاصيل المراكز</div>'
