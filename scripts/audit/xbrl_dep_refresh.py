@@ -44,4 +44,51 @@ async def main():
         keys = sorted(m["key"] for m in (r or {}).get("models") or [])
         print(f"   {s}: {len(keys)} من {n} · قيمة {(r or {}).get('value')} · {', '.join(keys)}")
 
-asyncio.run(main())
+
+async def sanity():
+    """معيارُ المالك: قرينٌ من كلّ قطاعٍ له هدفُ محللين في ياهو — سعرُنا العادلُ
+    بجانبه. هدفٌ 5 وسعرُنا 8 (أو العكس) غيرُ منطقيّ: يُوسَم ما خرج عن ±30٪."""
+    from app.data.universe import main_market
+    from app.data.market_universe import MARKET_UNIVERSE as U
+    from app.services import fair_value_models as F
+    from app.services.market_data import market_service
+    by_sec: dict[str, list[str]] = {}
+    for s, m in main_market(U).items():
+        by_sec.setdefault((m or {}).get("sector") or "—", []).append(s)
+    rows = []
+    for sec, syms in sorted(by_sec.items()):
+        order = [x for x in REPS if x in syms] + [x for x in syms if x not in REPS]
+        pick = None
+        for s in order[:12]:
+            try:
+                info = await market_service.get_company_info(s + ".SR") or {}
+            except Exception:                                      # noqa: BLE001
+                continue
+            tgt = info.get("target_mean_price")
+            if tgt:
+                pick = (s, float(tgt), info.get("price") or info.get("current_price")); break
+        if not pick:
+            print(f"   {sec}: لا هدفَ محللين لأيّ ورقةٍ مفحوصة"); continue
+        s, tgt, px = pick
+        try:
+            r = await F.for_symbol(s) or {}
+        except Exception:                                          # noqa: BLE001
+            r = {}
+        fv = r.get("value")
+        ratio = (fv / tgt) if fv and tgt else None
+        flag = "—" if ratio is None else ("✔" if 0.7 <= ratio <= 1.3 else "✖")
+        rows.append((sec, s, px, tgt, fv, ratio, flag, r.get("count")))
+    print("\n═ معيارُ المالك: سعرُنا العادل مقابل هدف المحللين (ياهو)، ورقةٌ لكلّ قطاع")
+    print(f"   {'القطاع':<34} {'الرمز':<5} {'السعر':>8} {'المحللون':>9} {'سعرُنا':>9} {'النسبة':>7}  نماذج")
+    for sec, s, px, tgt, fv, ratio, flag, n in rows:
+        print(f"   {sec:<34} {s:<5} {px or 0:>8.2f} {tgt:>9.2f} {fv or 0:>9.2f} "
+              f"{(ratio or 0):>6.2f}× {flag}  {n}")
+    ok = sum(1 for r in rows if r[6] == "✔")
+    print(f"\n   ضمن ±30٪: {ok} من {len(rows)} قطاعاً")
+
+
+async def all_():
+    await main()
+    await sanity()
+
+asyncio.run(all_())
