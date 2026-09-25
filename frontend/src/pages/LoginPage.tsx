@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Briefcase } from "lucide-react";
@@ -7,6 +7,7 @@ import { AvatarImg } from "../components/common/Avatar";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
+  const pwRef = useRef<HTMLInputElement>(null);
   const nav = useNavigate();
   const loc = useLocation() as any;
 
@@ -42,6 +43,9 @@ export default function LoginPage() {
       <form
         className="login-card relative w-full max-w-sm rounded-2xl p-6 space-y-4"
         onSubmit={e => { e.preventDefault(); if (password) mutation.mutate(); }}
+        /* سفاري الآيفون لا يُظهر لوحةَ المفاتيح للتركيز التلقائيّ — إلا بلمسةٍ من المستخدم (D478).
+           فأيُّ لمسةٍ على البطاقة تركّز الحقل، ولوحةُ المفاتيح تظهر معها. */
+        onClick={e => { if ((e.target as HTMLElement).tagName !== "BUTTON") pwRef.current?.focus(); }}
       >
         <div className="flex flex-col items-center gap-2.5 mb-2">
           {/* الصورة الرمزية الدائرية — كشاشة دخول ماك */}
@@ -65,7 +69,10 @@ export default function LoginPage() {
         <input
           className="input w-full"
           type="password"
+          ref={pwRef}
           autoFocus
+          autoComplete="current-password"
+          enterKeyHint="go"
           value={password}
           onChange={e => setPassword(e.target.value)}
           placeholder="كلمة المرور"

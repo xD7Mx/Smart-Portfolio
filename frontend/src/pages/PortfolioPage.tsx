@@ -1525,6 +1525,8 @@ export function RebalanceCard() {
                     <ShariaBadge status={it.sharia_status} size={13} />
                   </button>
                   <div className="flex items-center gap-1.5 shrink-0">
+                    {/* نسبةُ الامتلاك الحالية كعمود «الوزن الحالي» في جدول الحاسوب (D478) */}
+                    <span className="tag-n tabular-nums" dir="ltr" title="نسبة الامتلاك الحالية">{it.current_weight}%</span>
                     <label className="text-[11px] text-[var(--ink-muted)]">الهدف %</label>
                     <input className="input" style={{width: 76, padding: "6px 10px"}} type="text" inputMode="decimal" lang="en"
                       value={val(it.company_id, it.target_weight)}
@@ -2281,20 +2283,8 @@ export default function PortfolioPage() {
             const dir = lookupCompany(h.company?.symbol);
             const ar = dir?.name_ar || h.company?.name_ar || h.company?.name;
 
-            /* **مركزٌ مغلق** (بلا أسهم): بطاقةٌ كاملة من الأصفار تشغل مساحة
-               مركزٍ قائم وتُقرأ خطأً كأنها حيازة. سطرٌ واحد رمادي يكفي —
-               وأرقامه كلّها باقيةٌ في صفحة الشركة. */
-            if (!(h.total_shares > 0)) {
-              return (
-                <button key={h.id} onClick={() => navigate("/portfolio/" + h.company?.id)}
-                  className="w-full flex items-center gap-2 px-3.5 py-2.5 text-start"
-                  {...dragProps(h.company_id ?? h.company?.id)}>
-                  <CompanyLogo symbol={h.company?.symbol} color={h.company?.color} size={20} logoUrl={h.company?.logo_url} />
-                  <span className="text-[var(--ink-muted)] text-[12.5px] truncate">{ar}</span>
-                  <span className="tag-n" style={{ fontSize: 9.5, padding: "1px 6px" }}>مركز مغلق</span>
-                </button>
-              );
-            }
+            /* بأمر المالك (D478): كلُّ شركةٍ في المحفظة ببطاقتها الكاملة كما في
+               جدول الحاسوب — لا تُطوى في سطرِ «مركز مغلق». */
 
             return (
               <div key={h.id} className="p-3.5 space-y-3" {...dragProps(h.company_id ?? h.company?.id)}>

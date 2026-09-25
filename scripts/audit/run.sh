@@ -275,6 +275,7 @@ python3 scripts/audit/tadawul_first_disclosure.py || _note "$LINENO"
 python3 scripts/audit/fvm_logic.py || _note "$LINENO"
 python3 scripts/audit/fvm_sector_sets.py || _note "$LINENO"
 python3 scripts/audit/pdf_statements.py || _note "$LINENO"
+python3 scripts/audit/mobile_portfolio_d478.py || _note "$LINENO"
 python3 scripts/audit/health_logic.py || _note "$LINENO"
 node scripts/audit/mobile_walk.mjs || _note "$LINENO"
 
