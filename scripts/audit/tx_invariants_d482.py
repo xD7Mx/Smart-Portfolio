@@ -24,6 +24,13 @@ for name in ("add_transaction", "patch_transaction", "delete_transaction"):
           and re.search(r"await _ledger_gate\([^)]*\)\n\s*await db\.commit\(\)", body) is not None,
           f"٢ {name}: الحالةُ تُلتقط قبل التغيير والبوّابةُ قبل الحفظ مباشرةً")
 
+# ٤ سياسةُ التكلفة الثابتة: المتوسط المرجّح في إعادة التشغيل وفي التطبيق الأمامي،
+#   ومعلنةٌ في الميثاق (IFRS 9 · IAS 8)
+rp = T[T.find("async def _replay"):T.find("async def _apply")]
+G = open(os.path.join(ROOT, "docs/GOVERNANCE.md"), encoding="utf-8").read()
+check("avg = (invested / qty) if qty else 0" in rp and "invested = max(0, invested - sell_qty * avg)" in rp
+      and "بالمتوسط المرجّح" in G and "IAS 8" in G,
+      "٤ التكلفةُ بالمتوسط المرجّح في إعادة التشغيل، والسياسةُ معلنةٌ ثابتةً في الميثاق")
 port, host = os.environ.get("SP_PG_PORT"), os.environ.get("SP_PG_HOST")
 if not port:
     print("SKIP ٣ السيناريو الحيّ على Postgres (عيّن SP_PG_PORT و SP_PG_HOST)")
