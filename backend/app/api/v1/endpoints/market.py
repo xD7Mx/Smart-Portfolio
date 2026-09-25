@@ -796,7 +796,18 @@ async def get_sector_analysis():
     """التحليل القطاعي: أداء كل قطاع عبر ٣ش/٦ش/سنة/٣س/٥س + متوسط عائد
     توزيعاته + عدد شركاته. يُحسب مجدولاً ويُخدَم من المخزّن (بلا نداء حيّ)."""
     from app.services.sector_analysis import get_cached_sector_analysis
-    return success_response(data=get_cached_sector_analysis() or [])
+    rows = get_cached_sector_analysis() or []
+    # ══ الشاشةُ الفارغةُ تبني بنفسها (D490) ══ كان البناءُ عصراً في أيام التداول
+    # وحدَها، فأيُّ فشلٍ أو إقلاعٍ بلا نسخةٍ محفوظة يترك «القطاعات» فارغةً أيّاماً.
+    # فإن فرغت يُطلق بناءٌ خلفيّ — مرّةً في الساعة على الأكثر.
+    if not rows:
+        import asyncio, time
+        from app.services.sector_analysis import compute_sector_analysis
+        global _SECTOR_KICK
+        if time.time() - globals().get("_SECTOR_KICK", 0) > 3600:
+            _SECTOR_KICK = time.time()
+            asyncio.create_task(compute_sector_analysis())
+    return success_response(data=rows)
 
 
 @router.post("/sectors/rebuild", dependencies=[Depends(require_owner)])

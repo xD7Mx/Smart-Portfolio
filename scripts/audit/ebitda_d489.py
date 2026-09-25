@@ -51,7 +51,11 @@ check(len(F.MODEL_SETS["Energy"][1]) == 14 and len(F.MODEL_SETS["Consumer Staple
       "٤ مجموعاتُ InvestingPro كاملةَ العدد: الطاقة 14 · التجزئة 15 · الرأسمالية 7 · المعمّرة 10")
 check(not F.IP_MISSING, "٥ لا نموذجَ «غيرَ متوفّر» — كلُّها من تداول")
 L = open(os.path.join(ROOT, "frontend/src/components/common/CompanyLogo.tsx"), encoding="utf-8").read()
-check("tadawulgroup.sa/Resources/SEMOBILELOGOS/" in L and L.find("SEMOBILELOGOS") < L.find("TV_LOGOS[base]"),
-      "٦ D488 شعارُ «تداول» الرسميّ أوّلاً، والبقيّةُ احتياطٌ تلقائيّ")
+check("tadawulgroup.sa/Resources/SEMOBILELOGOS/" in L and L.find("TV_LOGOS[base] || null") < L.find("SEMOBILELOGOS/${base}"),
+      "٦ D488 (بأمر المالك: شعاراتُ تداول فيها أخطاء — الحبيب) TradingView أوّلاً وتداولُ احتياط")
+M = open(os.path.join(ROOT, "backend/app/api/v1/endpoints/market.py"), encoding="utf-8").read()
+E = open(os.path.join(ROOT, "frontend/src/components/market/EventsList.tsx"), encoding="utf-8").read()
+check("asyncio.create_task(compute_sector_analysis())" in M, "٧ D490 شاشةُ القطاعات الفارغةُ تُطلق بناءها بنفسها")
+check("ev-strip" not in E and 'className="ev-tag inline-block"' in E, "٨ D491 وسمُ الحدث سطرٌ أعلى الاسم لا شريطٌ طوليّ، والعنوانُ ينتهي بتاريخه")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

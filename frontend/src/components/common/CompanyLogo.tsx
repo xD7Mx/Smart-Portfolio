@@ -31,14 +31,16 @@ export default function CompanyLogo({ symbol, color, size = 40, logoUrl }: { sym
 
      فالخريطة أولاً لأنها **مقيسة**، والمخزَّن ثانياً لأنه قد يحمل شعاراً
      أحدث لشركةٍ غيّرت هويّتها، وبارْكِت ثالثاً. */
-  /* ══ دليلُ الشعارات من «تداول» أوّلاً (بأمر المالك · D488) ══
+  /* ══ TradingView أوّلاً وتداول احتياطٌ (بأمر المالك · D488 مُعدَّل) ══
+     رأى المالك في تداول شعاراتٍ خاطئة (الحبيب 4013)، فعادت الخريطةُ أوّلاً،
+     وتداولُ لما غاب عنها فقط.
      قِيس على الخادم (tadawul_logo_door.py): صفحةُ كلّ شركةٍ في تداول تحمل
      شعارَها على `tadawulgroup.sa/Resources/SEMOBILELOGOS/{الرمز}.png` —
      المصدرُ الرسميّ لكلّ مدرَجٍ حتى الجديد والموازي، وهو ما غاب عن خريطة
      TradingView (392 من 409). وما لم يُحمَّل ينتقل تلقائياً إلى التالي. */
   const candidates = [
-    /^\d{4}$/.test(base) ? `https://www.tadawulgroup.sa/Resources/SEMOBILELOGOS/${base}.png` : null,
     TV_LOGOS[base] || null,
+    /^\d{4}$/.test(base) ? `https://www.tadawulgroup.sa/Resources/SEMOBILELOGOS/${base}.png` : null,
     logoUrl || null,
     base ? `https://assets.parqet.com/logos/symbol/${base}.SR?format=png&size=${size * 2}` : null,
   ].filter((u, i, a): u is string => !!u && a.indexOf(u) === i);
