@@ -47,8 +47,9 @@ main = main_market(MARKET_UNIVERSE)
 say(len(main) == c["main"] and c["main"] + c["nomu"] == c["total"],
     "٢ الكونُ ينقسم سوقين بلا بقيّة",
     f"رئيسة {c['main']} · نمو {c['nomu']} · الكلّ {c['total']}")
-say(not any(str(s).startswith("9") for s in main),
-    "٣ لا رمزَ ‎9xxx في السوق الرئيسة")
+from app.data.universe import is_etf  # ‏D486: صناديقُ المؤشرات 94xx رئيسة
+say(not any(str(s).startswith("9") and not is_etf(s) for s in main),
+    "٣ لا رمزَ «نمو» (9xxx عدا صناديق المؤشرات 94xx) في السوق الرئيسة")
 say(all(is_main(s) for s in main), "٤ كلُّ معروضٍ رئيسيّ")
 
 # ── الشرطُ مصدرُه واحد ─────────────────────────────────────────────────

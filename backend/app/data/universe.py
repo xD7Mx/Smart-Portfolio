@@ -33,8 +33,20 @@ from __future__ import annotations
 MAIN = "MAIN"
 NOMU = "NOMU"
 
-# مصدرُ التصنيف: قاعدةُ ترقيم تداول — «نمو» تبدأ بـ‎9.
-CLASSIFICATION_SOURCE = "تداول — بادئةُ الرمز (9xxx = السوق الموازية «نمو»)"
+# مصدرُ التصنيف: قاعدةُ ترقيم تداول — «نمو» تبدأ بـ‎9، **إلا صناديقَ
+# المؤشرات المتداولة (94xx)** فهي في السوق الرئيسة (D486).
+CLASSIFICATION_SOURCE = "تداول — بادئةُ الرمز (9xxx = «نمو» · 94xx = صناديق المؤشرات في الرئيسة)"
+
+# ══ صناديقُ المؤشرات ليست «نمو» (بأمر المالك · D486) ══
+# قاعدةُ «ما بدأ بـ9 فهو نمو» أسقطت صناديقَ المؤشرات المتداولة (9400–9409
+# في دليل تداول: يقين 30، البلاد للذهب…) من السوق الرئيسة، وهي مدرجةٌ فيها
+# بقطاعها الرسميّ «صناديق المؤشرات المتداولة». فعومِلت سوقاً موازيةً وأُهملت.
+ETF_PREFIX = "94"
+
+
+def is_etf(symbol: str | None) -> bool:
+    s = str(symbol or "").strip().upper().replace(".SR", "")
+    return s.isdigit() and len(s) == 4 and s.startswith(ETF_PREFIX)
 
 
 def market_of(symbol: str | None) -> str | None:
@@ -48,6 +60,8 @@ def market_of(symbol: str | None) -> str | None:
     s = str(symbol).strip().upper().replace(".SR", "")
     if not (s.isdigit() and len(s) == 4):
         return None
+    if s.startswith(ETF_PREFIX):
+        return MAIN
     return NOMU if s.startswith("9") else MAIN
 
 

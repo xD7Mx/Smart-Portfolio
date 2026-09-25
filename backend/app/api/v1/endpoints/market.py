@@ -766,6 +766,7 @@ async def company_directory():
     """
     from app.data.saudi_directory import SAUDI_DIRECTORY, is_suspended, suspended_since
     from app.services.argaam_ids import snapshot as _ids, url_for
+    from app.data.universe import market_of, NOMU
     # `snapshot()` يعيد {ids, built_at} لا الخريطةَ نفسَها — والفرقُ
     # يُخرج رابطاً لكلّ الشركات أو لا أحد. كشفه الحارسُ في أوّل تشغيل.
     ids = (_ids() or {}).get("ids") or {}
@@ -784,6 +785,8 @@ async def company_directory():
             "argaam_url": url_for(sym, ids),
             "suspended": bool(is_suspended(sym)),
             "suspended_since": suspended_since(sym),
+            # السوقُ من تصنيفٍ واحد (D486) — مفتاحُ «نمو» في الدليل يقرأه
+            "nomu": market_of(sym) == NOMU,
         })
     return success_response(data={"count": len(rows), "companies": rows})
 

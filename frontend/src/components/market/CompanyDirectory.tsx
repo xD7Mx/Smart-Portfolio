@@ -21,11 +21,17 @@ type Row = {
   symbol: string; name: string; sector?: string | null;
   logo?: string | null; argaam_url?: string | null;
   suspended?: boolean; suspended_since?: string | null;
+  nomu?: boolean;
 };
 
 export default function CompanyDirectory({ onPick }: { onPick: (symbol: string) => void }) {
   const [open, setOpen] = React.useState(false);
   const [q, setQ] = React.useState("");
+  /* ══ «نمو» اختياريّ والقطاعُ بلمسة (بأمر المالك · D486) ══
+     الجميعُ يظهر افتراضاً، ومفتاحٌ يُخفي السوقَ الموازية لمن شاء؛ وقائمةُ
+     القطاعات بجانب البحث تنقل إلى قطاعٍ بعينه مباشرةً. */
+  const [showNomu, setShowNomu] = React.useState(true);
+  const [sector, setSector] = React.useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["market-directory"],
@@ -37,9 +43,13 @@ export default function CompanyDirectory({ onPick }: { onPick: (symbol: string) 
 
   const rows: Row[] = data?.companies || [];
   const term = q.trim();
-  const shown = term
-    ? rows.filter(r => r.symbol.includes(term) || (r.name || "").includes(term))
-    : rows;
+  const sectors = React.useMemo(
+    () => [...new Set(rows.map(r => r.sector || "غير مصنّف"))].sort((a, b) => a.localeCompare(b, "ar")),
+    [rows]);
+  const shown = rows.filter(r =>
+    (showNomu || !r.nomu)
+    && (!sector || (r.sector || "غير مصنّف") === sector)
+    && (!term || r.symbol.includes(term) || (r.name || "").includes(term)));
 
   const bySector = React.useMemo(() => {
     const m = new Map<string, Row[]>();
@@ -85,14 +95,27 @@ export default function CompanyDirectory({ onPick }: { onPick: (symbol: string) 
               </button>
             </div>
 
-            <div className="px-3 py-2" style={{ borderBottom: "1px solid var(--hairline)" }}>
-              <input
-                value={q}
-                onChange={e => setQ(e.target.value)}
-                placeholder="اسم الشركة أو رمزها"
-                className="w-full rounded-lg px-2.5 py-1.5 text-[12px] text-[var(--ink)]"
-                style={{ background: "var(--field)", border: "1px solid var(--hairline)" }}
-              />
+            <div className="px-3 py-2 space-y-2" style={{ borderBottom: "1px solid var(--hairline)" }}>
+              <div className="flex items-center gap-2">
+                <input
+                  value={q}
+                  onChange={e => setQ(e.target.value)}
+                  placeholder="اسم الشركة أو رمزها"
+                  className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-[12px] text-[var(--ink)]"
+                  style={{ background: "var(--field)", border: "1px solid var(--hairline)", minHeight: 32 }}
+                />
+                <select value={sector} onChange={e => setSector(e.target.value)} aria-label="القطاع"
+                  className="shrink-0 max-w-[45%] rounded-lg px-2 py-1.5 text-[12px] text-[var(--ink)]"
+                  style={{ background: "var(--field)", border: "1px solid var(--hairline)", minHeight: 32 }}>
+                  <option value="">كل القطاعات</option>
+                  {sectors.map(x => <option key={x} value={x}>{x}</option>)}
+                </select>
+              </div>
+              <label className="flex items-center gap-2 text-[12px] text-[var(--ink)] cursor-pointer select-none" style={{ minHeight: 32 }}>
+                <input type="checkbox" checked={showNomu} onChange={e => setShowNomu(e.target.checked)}
+                       className="w-4 h-4 accent-[var(--brand)]" />
+                إظهار السوق الموازية «نمو»
+              </label>
             </div>
 
             <div className="overflow-y-auto" style={{ maxHeight: "62vh" }}>
@@ -127,6 +150,12 @@ export default function CompanyDirectory({ onPick }: { onPick: (symbol: string) 
                           </span>
                         </span>
                       </button>
+                      {r.nomu && (
+                        <span className="shrink-0 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md"
+                              style={{ background: "var(--field)", color: "var(--ink-muted)" }}>
+                          نمو
+                        </span>
+                      )}
                       {r.suspended && (
                         <span className="shrink-0 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md"
                               style={{ background: "var(--tag-sell)", color: "var(--tag-ink)" }}>
