@@ -116,7 +116,12 @@ else:
           "٢ صفحةُ السهم: لا عبارةَ اعتذارٍ في موضع رقم")
     # ‏D471: الصفُّ صار يعرض قيمةَ المحرّك متعدّد النماذج (`fvVal`) وتسقط إلى المنشور؛
     # والقاعدةُ واحدة: الغيابُ شَرطة.
-    check(bool(re.search(r'(data\.fair_value|fvVal) != null \? `\$\{fmt\((data\.fair_value|fvVal)\)\} ﷼` : "—"', _vis)),
+    # ‏D485 (بأمر المالك): الصفُّ خرج من «نظرة عامة» إلى «تقييم الأداء» وحده،
+    # فيُقاس هناك بالقاعدة نفسها: الغيابُ شَرطة.
+    _ap = _strip_comments((FRONT / "components" / "analysis" / "AnalysisPanel.tsx").read_text("utf-8"))
+    _fvb = _ap[_ap.find("fvValue != null ? ("):]
+    check(bool(re.search(r'(data\.fair_value|fvVal) != null \? `\$\{fmt\((data\.fair_value|fvVal)\)\} ﷼` : "—"', _vis))
+          or ("fvValue != null ? (" in _ap and '>—</div>' in _fvb[:2500]),
           "٢ب والغيابُ شَرطةٌ في مكان الرقم")
     check('? "السعر العادل" : "هدف المحللين' not in _vis,
           "٢ج ولا يُبدَّل اسمُ الصفّ فيَظنّ القارئُ رقماً مكانَ آخر")

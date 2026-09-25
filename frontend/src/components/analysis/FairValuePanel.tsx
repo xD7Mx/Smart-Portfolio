@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { lookupCompany } from "../../data/saudiCompanies";
 
@@ -10,30 +9,33 @@ import { lookupCompany } from "../../data/saudiCompanies";
 
 const fmt = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(2));
 
+/* ══ شريطُ النطاق بتصميم شريط السلامة (بأمر المالك · D485) ══
+   مسارٌ رفيعٌ مدوَّر، والنطاقُ ممتلئٌ بلون الحكم، ودائرةٌ بيضاءُ للقيمة،
+   وخطٌّ رفيعٌ للسعر — لا مثلثاتٌ ولا أرقامٌ معلّقةٌ فوق الشريط. */
 function RangeRow({ title, meta, low, high, mark, price }: {
   title: string; meta?: string; low: number; high: number; mark?: number | null; price: number;
 }) {
   const lo = Math.min(low, high, price, mark ?? low), hi = Math.max(low, high, price, mark ?? high);
   const span = hi - lo || 1;
-  const pos = (v: number) => `${((v - lo) / span) * 100}%`;
+  const at = (v: number) => ((v - lo) / span) * 100;
+  const fill = mark == null ? "var(--ink-muted)" : mark >= price ? "var(--gauge-pos)" : "var(--gauge-neg)";
   return (
     <div className="space-y-1.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[13px] font-bold text-[var(--ink)]">{title}</span>
+      <div className="flex items-baseline gap-2">
+        <span className="flex-1 text-[13px] font-bold text-[var(--ink)]">{title}</span>
         {meta && <span className="text-[11px] text-[var(--ink-muted)]">{meta}</span>}
+        {mark != null && <span className="text-[13px] font-bold tabular-nums text-[var(--ink)]">{fmt(mark)}</span>}
       </div>
-      <div className="relative h-7" dir="ltr">
-        <div className="absolute inset-x-0 top-3.5 h-[3px] rounded bg-[var(--track)]" />
-        <div className="absolute top-3.5 h-[3px] rounded bg-[var(--ink-muted)]"
-             style={{ left: pos(Math.min(low, high)), width: `${(Math.abs(high - low) / span) * 100}%` }} />
+      <div className="relative h-3" dir="ltr">
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-[var(--surface)]" />
+        <div className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full"
+             style={{ left: `${at(Math.min(low, high))}%`, width: `${(Math.abs(high - low) / span) * 100}%`, background: fill }} />
+        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[2px] h-3 bg-[var(--ink)]"
+             style={{ left: `${at(price)}%` }} title={`السعر ${fmt(price)}`} />
         {mark != null && (
-          <div className="absolute -top-0.5 -translate-x-1/2 text-center" style={{ left: pos(mark) }}>
-            <div className="text-[11px] font-bold tabular-nums text-[var(--ink)]">{fmt(mark)}</div>
-            <div className="mx-auto w-0 h-0 border-x-[5px] border-x-transparent border-t-[6px] border-t-[var(--ink)]" />
-          </div>
+          <div className="absolute top-1/2 rounded-full" style={{ left: `${at(mark)}%`, width: 12, height: 12,
+               transform: "translate(-50%, -50%)", background: "#ffffff", border: "1px solid var(--hairline)" }} />
         )}
-        <div className="absolute top-2 w-[2px] h-4 bg-[var(--brand-ink)] -translate-x-1/2" style={{ left: pos(price) }}
-             title={`السعر ${fmt(price)}`} />
       </div>
       <div className="flex justify-between text-[11px] tabular-nums text-[var(--ink-muted)]" dir="ltr">
         <span>{fmt(Math.min(low, high))}</span><span>{fmt(Math.max(low, high))}</span>
@@ -48,12 +50,11 @@ function ModelRow({ m, price }: { m: any; price: number }) {
   return (
     <div className="border-b border-[var(--hairline)] last:border-0">
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
-              className="w-full min-h-[44px] flex items-center gap-2 py-2 text-right">
+              className="w-full min-h-[32px] flex items-center gap-2 py-2 text-right">
         <span className="flex-1 text-[13px] text-[var(--ink)]">{m.name}</span>
         <span className="text-[11px] tabular-nums text-[var(--ink-muted)]" dir="ltr">{fmt(m.low)}–{fmt(m.high)}</span>
         <span className={"min-w-[52px] text-center rounded-md px-2 py-0.5 text-[13px] font-bold tabular-nums bg-[var(--surface)] "
           + (up ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]")}>{fmt(m.value)}</span>
-        <ChevronDown size={16} className={"text-[var(--ink-muted)] transition-transform " + (open ? "rotate-180" : "")} />
       </button>
       {open && (
         <table className="w-full mb-3 text-[12px]">

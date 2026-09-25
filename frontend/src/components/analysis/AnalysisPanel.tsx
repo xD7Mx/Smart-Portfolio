@@ -1,11 +1,13 @@
-import React from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircle, XCircle, TrendingUp, Activity, Sparkles, ShieldCheck
 } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { lookupCompany } from "../../data/saudiCompanies";
-import { TrendBar } from "../common/ValueBars";
+import { TrendBar, SafetyBar, FairValueBar } from "../common/ValueBars";
+import FairValuePanel from "./FairValuePanel";
+import HealthPanel from "./HealthPanel";
 
 const TONE_COLOR: Record<string, string> = { green: "var(--pos-ink)", yellow: "var(--warn-ink)", red: "var(--neg-ink)", na: "var(--ink-muted)" };
 const DECISION_COLOR: Record<string, string> = { "شراء قوي": "var(--pos-ink)", "شراء": "var(--pos-ink)", "انتظار": "var(--warn-ink)", "تجنب": "var(--neg-ink)" };
@@ -46,6 +48,16 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
     enabled: !!symbol,
     retry: 0,
   });
+  /* ══ رقمٌ واحد للسعر العادل (D485) ══ الصندوقُ وتفاصيلُه من المحرّك
+     المرجَّح نفسِه — كان الصندوقُ يقرأ المحرّكَ القديم والتفاصيلُ المرجَّحَ،
+     فيظهر رقمان للسهم نفسِه في شاشةٍ واحدة. والقديمُ احتياطٌ إن غاب. */
+  const sym4 = symbol.replace(".SR", "");
+  const { data: fvm } = useQuery({
+    queryKey: ["fvm", sym4],
+    queryFn: () => marketApi.fairValueModels(sym4).then(x => x.data?.data || null),
+    staleTime: 30 * 60 * 1000,
+  });
+  const [open, setOpen] = useState<null | "fv" | "hl">(null);
 
   if (isLoading) return (
     <div className="analysis-card space-y-3 animate-pulse">
@@ -66,6 +78,8 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
   const up = (data.change_pct ?? 0) >= 0;
 
   const fv = data.fair_value_detail || {};
+  const fvValue: number | null = fvm?.value ?? data.fair_value ?? null;
+  const fvUp: number | null = fvm?.upside ?? data.fair_value_upside_pct ?? null;
   // أصلُ الأرقام وتاريخُها — يصلان من المحرّك ويُعرضان مع الدرجة (D381)
   const prov: Record<string, any> = data.governance_provenance || {};
   // بطاقةُ النمط وركنُ الحوكمة — يصلان في جذر التحليل أو داخل المالية.
@@ -123,7 +137,9 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-xl px-3 py-2.5" style={{ background: "color-mix(in srgb, var(--brand) 7%, transparent)" }}>
+          <button type="button" onClick={() => setOpen(open === "hl" ? null : "hl")} aria-expanded={open === "hl"}
+            className="rounded-xl px-3 py-2.5 text-right min-h-[32px] transition-opacity hover:opacity-90"
+            style={{ background: "color-mix(in srgb, var(--brand) " + (open === "hl" ? 14 : 7) + "%, transparent)" }}>
             <div className="text-[10px] text-[var(--ink-muted)] mb-1">درجة الجودة المالية</div>
             {fin.score != null ? (
               /* ══ ودرجةٌ بلا تاريخٍ تُقرأ حديثةً ══ (D381)
@@ -152,24 +168,27 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                  «بانتظار القوائم» — وصفٌ كاذبٌ لسببٍ آخر. */
               <div className="text-xl tabular-nums leading-none text-[var(--ink-muted)]" style={{ fontWeight: 800 }}>—</div>
             )}
-          </div>
+            {fin.score != null && <div className="mt-2"><SafetyBar score={Math.round(fin.score)} width="100%" /></div>}
+          </button>
 
-          <div className="rounded-xl px-3 py-2.5" style={{ background: "color-mix(in srgb, var(--brand) 7%, transparent)" }}>
+          <button type="button" onClick={() => setOpen(open === "fv" ? null : "fv")} aria-expanded={open === "fv"}
+            className="rounded-xl px-3 py-2.5 text-right min-h-[32px] transition-opacity hover:opacity-90"
+            style={{ background: "color-mix(in srgb, var(--brand) " + (open === "fv" ? 14 : 7) + "%, transparent)" }}>
             {/* ══ سعرٌ عادلٌ واحد: تقديرُ المحرّك ══ (بأمر المالك · D431)
                 «أريد رقماً واحداً للسعر العادل يكون هو الأجدرَ بهذه الثقة
                 والاسم». فالاسمُ ثابتٌ والرقمُ من المحرّك وحدَه، وحيث يمتنع
                 «—». لا يحلّ محلَّه هدفُ المحللين ولا النسبيُّ إلى القطاع. */}
             <div className="text-[10px] text-[var(--ink-muted)] mb-1">السعر العادل</div>
-            {data.fair_value != null ? (
+            {fvValue != null ? (
               <div className="flex items-baseline gap-1.5 flex-wrap"
-                title={`المدى ${fmt(data.fair_value_low)} – ${fmt(data.fair_value_high)}`
+                title={`المدى ${fmt(fvm?.low ?? data.fair_value_low)} – ${fmt(fvm?.high ?? data.fair_value_high)}`
                        + (data.fair_value_conf ? ` · ثقة ${data.fair_value_conf}` : "")
                        + (data.fair_value_asof ? ` · أرقامٌ حتى ${data.fair_value_asof}` : "")}>
-                <span className="text-xl tabular-nums leading-none text-[var(--ink)]" style={{ fontWeight: 800 }}>{fmt(data.fair_value)}</span>
-                {data.fair_value_upside_pct != null && (
+                <span className="text-xl tabular-nums leading-none text-[var(--ink)]" style={{ fontWeight: 800 }}>{fmt(fvValue)}</span>
+                {fvUp != null && (
                   <span className="text-[11px] tabular-nums" dir="ltr"
-                    style={{ color: data.fair_value_upside_pct >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
-                    {data.fair_value_upside_pct > 0 ? "+" : ""}{data.fair_value_upside_pct}%
+                    style={{ color: fvUp >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
+                    {fvUp > 0 ? "+" : ""}{fvUp.toFixed(1)}%
                   </span>
                 )}
                 {/* عمرُ الرقم جزءٌ منه (‏D380) */}
@@ -184,8 +203,12 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
             ) : (
               <div className="text-xl tabular-nums leading-none text-[var(--ink-muted)]" style={{ fontWeight: 800 }}>—</div>
             )}
-          </div>
+            {fvUp != null && <div className="mt-2"><FairValueBar upside={fvUp} hideLabel width="100%" /></div>}
+          </button>
         </div>
+        {open === "hl" && <div className="mt-3"><HealthPanel symbol={symbol} quality={fin.score ?? null} /></div>}
+        {open === "fv" && <div className="mt-3"><FairValuePanel symbol={symbol} analystTarget={data.analyst_target ?? f.target_mean_price ?? null}
+                                   week52={{ low: f.week52_low, high: f.week52_high }} /></div>}
 
         {/* ══ حُذف سعرُ الدخول وحكمُه وسطرُ «خلاصة المجلس» ══
             (بأمر المالك · D208)
