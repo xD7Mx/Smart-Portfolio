@@ -50,7 +50,8 @@ i = F.Inputs(symbol="4001", price=4.38, shares=sh, annual=A, ttm=ttm, balance=Q[
 r = F.value(i)
 check(any("طُبِّع" in n for n in r["notes"]), "٣ الربعُ الاستثنائيّ يُطبَّع على هامش السنوات ويُذكر", (r["notes"] or [""])[0][:60])
 fams = {f["family"] for f in r["families"]}
-check({"cashflow", "equity", "multiples"} <= fams and r["count"] >= 12, "٤ ثلاثُ عائلاتٍ واثنا عشر نموذجاً فأكثر", f"{sorted(fams)} · {r['count']}")
+# ‏D487: مجموعةُ InvestingPro للتجزئة الاستهلاكية (العثيم 4001: 15 نموذجاً، المتوفّرُ عندنا 12)
+check({"cashflow", "multiples"} <= fams and r["count"] >= 9, "٤ عائلتا التدفّق والمضاعفات وتسعةُ نماذج فأكثر من مجموعة InvestingPro", f"{sorted(fams)} · {r['count']}")
 check(r["low"] <= r["value"] <= r["high"] and all(m["low"] <= m["value"] <= m["high"] for m in r["models"]),
       "٥ لكلّ نموذجٍ نطاقٌ ولها نطاقٌ يحيط بالقيمة")
 agg = F.aggregate([{"key": "a", "family": "cashflow", "value": 5, "low": 4, "high": 6},

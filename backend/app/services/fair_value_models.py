@@ -126,6 +126,42 @@ MODEL_SETS.update({
 # وأُعيدت السلعُ الرأسمالية والطاقةُ والتأمينُ إلى مجموعاتها النظرية (D470): قياسُ D475
 # النظيف بيّن أنّ ما اعتُمد لها في D473 قام على قياسٍ ملوّث (السهمُ بين أقرانه).
 
+# ══ مجموعاتُ InvestingPro بعينها (بأمر المالك · D487) ══
+# صوّر المالك نماذجَ InvestingPro لرمزٍ من كلّ قطاعٍ من الـ23 (Photo.pdf)،
+# وقال: «إذا كانت النماذجُ 15 فهي نفسُها كاملة، و14 نفسُها… وهكذا».
+# فالمجموعةُ هنا هي مجموعتُهم مقروءةً من الصور، بمقابلها في محرّكنا:
+#   قيمةُ قوّة الأرباح → epv · توزيعاتٌ مراحلُ متعدّدة → ddm_two_stage
+#   توزيعاتٌ نموٌّ مستقرّ → ddm_stable · «القيمة بقياس DCF مقابل النمو» → dcf_gordon
+#   «العائد المتوقّع لـDCF» (خروجٌ بالإيراد) → dcf_exit (مضاعفُ EV/الإيراد)
+#   مكرّرُ الربحية/السعر للمبيعات/للدفترية/العوائد/EBIT/التدفّق التشغيليّ → peer_*
+# وما لا مُدخلَ له عندنا لا يُختلق: «DCF بخروج EBITDA» و«مكرّرات EBITDA» تحتاج
+# الإهلاكَ والاستهلاك، ولا تحمله قوائمُنا — فهما غيرُ متوفّرَين (IP_MISSING).
+IP_MISSING = ("DCF بخروج EBITDA (5 و10 سنوات)", "مكرّرات EBITDA")
+_IP14 = {"epv", "ddm_two_stage", "peer_ps", "peer_pb", "peer_pe", "peer_yield",
+         "dcf_gordon_5", "dcf_gordon_10", "dcf_exit_5", "dcf_exit_10", "peer_ev_ebit"}      # 2222
+_IP15 = _IP14 | {"ddm_stable"}                                                            # 4001 · 2280
+_IP13 = _IP14 - {"ddm_two_stage"}                                                         # 1831
+_IP12 = _IP13 - {"dcf_gordon_5"}                                                          # 1810
+_IP11 = _IP12 - {"epv"}                                                                   # 4300
+_IP10 = _IP11 - {"dcf_gordon_10"}                                                         # 2340
+_IP7 = {"epv", "peer_pe", "peer_pb", "peer_ps", "peer_ev_ebit", "peer_yield"}             # 1302
+MODEL_SETS = {k: (f"مجموعةُ InvestingPro للقطاع: {n} نموذجاً — المتوفّرُ مدخلُه عندنا {len(v)}", v) for k, (n, v) in {
+    "Energy": (14, _IP14), "Materials": (14, _IP14), "Transportation": (14, _IP14),
+    "Health Care Equipment & Svc": (14, _IP14), "Pharma, Biotech & Life Science": (14, _IP14),
+    "Software & Services": (14, _IP14),
+    "Consumer Staples": (15, _IP15), "Food & Beverages": (15, _IP15),
+    "Household & Personal": (15, _IP15), "Financial Services": (15, _IP15),
+    "Telecommunication Services": (15, _IP15),
+    "Commercial & Professional": (13, _IP13), "Media": (13, _IP13),
+    "Consumer Discretionary": (13, _IP13), "Utilities": (13, _IP13),
+    "Consumer Services": (12, _IP12), "Real Estate Mgmt & Dev't": (11, _IP11),
+    "Consumer Durables": (10, _IP10), "Capital Goods": (7, _IP7),
+    "Banks": (3, {"peer_pe", "peer_ps", "peer_pb"}),
+    "Insurance": (4, {"ddm_stable", "peer_pe", "peer_ps", "peer_pb"}),
+    "REITs": (3, {"peer_pb", "peer_ps", "peer_pocf"}),
+    "Technology Hardware": (14, _IP14),
+}.items()}
+
 ARCH_SETS = {"bank": MODEL_SETS["Banks"], "insurance": MODEL_SETS["Insurance"],
              "financial": MODEL_SETS["Financial Services"], "reit": MODEL_SETS["REITs"]}
 
@@ -777,7 +813,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v14:{sym}"
+    ck = f"fvm:v15:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

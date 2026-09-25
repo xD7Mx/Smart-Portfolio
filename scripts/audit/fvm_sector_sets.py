@@ -39,18 +39,20 @@ def run(sector, arch):
     r = F.value(i)
     return {m["key"] for m in r["models"]}, r.get("model_set")
 reit, rn = run("REITs", "reit")
-check(reit and reit <= {"ddm_stable", "ddm_two_stage", "peer_yield", "peer_pb", "peer_ps"} and "peer_yield" in reit,
-      "١ الصندوقُ العقاريّ بالتوزيع وصافي الأصول وعائدِ الأقران — لا تدفّقَ حرٌّ ولا ربحٌ تشغيليّ", f"{sorted(reit)} · {rn}")
+# ‏D487 (بأمر المالك): المجموعاتُ هي مجموعاتُ InvestingPro المقروءةُ من صوره —
+# الريت 4330: السعر/الدفترية · السعر/المبيعات · التدفّق التشغيليّ.
+check(reit and reit <= {"peer_pb", "peer_ps", "peer_pocf"} and not reit & F._DCF,
+      "١ الصندوقُ العقاريّ بمجموعة InvestingPro — الدفترية والمبيعات والتدفّق التشغيليّ", f"{sorted(reit)} · {rn}")
 bank, _ = run("Banks", "bank")
 check(bank and not bank & F._DCF and "epv" not in bank, "٢ المصرفُ بعائد الحقوق والتوزيع — بلا خصمِ تدفّقٍ حرّ", str(sorted(bank)))
 soft, _ = run("Software & Services", "asset_light")
-check(soft and "peer_pb" not in soft and soft & F._DCF, "٣ البرمجياتُ بالأرباح والمبيعات لا بالدفترية", str(sorted(soft)))
+check(soft and soft <= F._IP14 and soft & F._DCF, "٣ البرمجياتُ (علم 7203) بمجموعة InvestingPro ذات الأربعة عشر", str(sorted(soft)))
 cons, cn = run("Consumer Staples Distribution & Retail", "consumer_defensive")
 check(len(cons) > len(reit) and cons & F._DCF and "peer_pb" in cons, "٤ والتجزئةُ الاستهلاكيةُ بالنموذج الكامل", f"{len(cons)} · {cn}")
 check(len({frozenset(reit), frozenset(bank), frozenset(soft), frozenset(cons)}) == 4, "٥ أربعةُ قطاعاتٍ بأربع مجموعاتِ نماذج مختلفة")
 n, st = F.model_set("Brand New Industry Group", None)
 check("لم يُصنَّف" in n and st == F._ALL, "٦ قطاعٌ جديدٌ لم يُعرَف يُقيَّم بالكامل ويُسمّى — لا تُظلَم ورقةٌ لغياب اسمها", n)
-check(F.model_set("Consumer Discretionary Distribution & Re", None)[0].startswith("تجزئة السلع الكمالية"),
+check(F.model_set("Consumer Discretionary Distribution & Re", None)[1] == F._IP13,
       "٧ واسمُ «تداول» المختصرُ يُطابَق بالبادئة")
 check(abs(F._wq([(10, 1.0), (20, 0.05), (30, 0.05)], .5) - 10) < 1e-9, "٨ والأقرانُ الأقربُ نشاطاً يحملون الوزنَ الأكبر (وسيطٌ مرجَّح)")
 import re as _re, inspect as _insp
