@@ -113,6 +113,7 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
   const [cfg, setCfg] = useState<D7MSettings>(() => {
     // v2: حدّا اللوحة صارا 6 / −6 كما في السكربت، فلا تُورَث قيمُ النسخة السابقة
     try { const sv = JSON.parse(localStorage.getItem("sp_d7m_cfg_v2") || "{}");
+      if (sv && sv.dashPos === "tr") sv.dashPos = "tl";   // النقلُ إلى أعلى اليسار بأمر المالك
       return { ...D7M_DEFAULTS, ...sv, colors: { ...D7M_DEFAULTS.colors, ...(sv.colors || {}) } }; }
     catch { return D7M_DEFAULTS; }
   });
@@ -140,9 +141,9 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
   const { data: vixBars = [] } = useQuery({
     queryKey: ["ohlc", "^VIX", "1mo"],
     queryFn: () => marketApi.history("^VIX", "1mo").then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
-    enabled: ind.d7m && isUS, staleTime: 15 * 60 * 1000,
+    enabled: false, staleTime: 15 * 60 * 1000,   // VIX محذوفٌ بأمر المالك
   });
-  const vix = isUS && vixBars.length ? vixBars[vixBars.length - 1].close : null;
+  const vix = null;
   // إطاراتُ اللوحة كما يطلبها السكربت: يوميٌّ لـEMA200 وشموعُ 15د لـ4H · 1H · 15M
   const { data: frames } = useQuery({
     queryKey: ["frames", symbol],
@@ -151,9 +152,9 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
     staleTime: 5 * 60 * 1000, refetchInterval: 5 * 60 * 1000, retry: 0,
   });
   const today = new Date().toISOString().slice(0, 10);
-  const newsDay = isUS && cfg.news && cfg.newsDates.split(",").map((x: string) => x.trim()).includes(today);
+  const newsDay = false;   // (بأمر المالك) حُذفت الأخبار وVIX من المؤشّر
   const dash = ind.d7m && cfg.dashboard ? dashboard(bars as any, { bull: cfg.bull, bear: cfg.bear, vix,
-    vixWarn: cfg.vixWarn, vixBlock: cfg.vixBlock, newsDates: newsDay ? [today] : [], today,
+    vixWarn: 25, vixBlock: 35, newsDates: newsDay ? [today] : [], today,
     daily: frames?.daily, m15: frames?.m15 }) : null;
   const msmart = ind.d7m && cfg.macdDash && bars.length > 40 ? macdSmart(bars as any) : null;
   const tt = ind.d7m && cfg.tradeTool ? tradeTool(bars as any, vix, newsDay) : null;
@@ -295,8 +296,8 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         const placeZones = () => {
           // لا تتراكب النصوص: يُسقَط ما يقع على بُعد أقلّ من 14px من نصٍّ ظاهر
           const shown: { y: number; x: number; title: string }[] = [];
-          // في منتصف امتداد الفيبوناتشي أفقياً — موضعُها في تريدنق فيو
-          const mid = fib ? (fib.startIndex + bars.length - 1) / 2 : bars.length / 2;
+          // بين خطَّي المنطقة رأسياً، وقربَ آخر سعرٍ أفقياً (بأمر المالك)
+          const mid = Math.max(0, bars.length - 12);
           const x = chart.timeScale().logicalToCoordinate(mid) ?? 200;
           try { setPsw(chart.priceScale("right").width() || 64); } catch {}
           zoneList.map(z => ({ y: candle.priceToCoordinate(z.price) ?? -999, x, title: z.title }))
@@ -457,8 +458,6 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
                           {k === 0 ? "راصد الحيتان" : k === 1 ? dash.liq.state : k === 2 ? "قوة الاتجاه" : dash.trend.state}</td>
                       </tr>
                     ))}
-                    {dash.vixWarn && <tr><td colSpan={3} className="d7m-warnrow">{dash.vixWarn}</td></tr>}
-                    {dash.newsWarn && <tr><td colSpan={3} className="d7m-warnrow">⚠ يوم خبر اقتصادي</td></tr>}
                     <tr><th colSpan={3}>قرار الدخول</th></tr>
                     <tr><td colSpan={3} className={`d7m-decision d7m-tone-${dash.tone}`}>
                       <div className="d7m-dec-text">{dash.decision}</div>

@@ -122,13 +122,6 @@ export default function D7MPanel({ cfg, onChange, onClose }: Props) {
           <Check k="tradeTool" label="أداة الصفقة" />
         </fieldset>
 
-        <fieldset><legend>VIX والأخبار</legend>
-          <Num k="vixWarn" label="تحذير VIX" /><Num k="vixBlock" label="منع VIX" />
-          <Check k="news" label="تواريخ الأخبار" />
-          <label className="d7m-row d7m-col"><span>التواريخ</span>
-            <textarea dir="ltr" rows={3} value={cfg.newsDates} onChange={e => set("newsDates", e.target.value)} />
-          </label>
-        </fieldset>
       </div>
     </div>
   );

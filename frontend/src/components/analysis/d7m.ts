@@ -90,7 +90,8 @@ export function autoFib(bars: Bar[], mult = 3, depth = 7, reverse = false): { li
     const isLowSup = mz < mid && hi === main[1];
     const isUpSup = upper && !isRes;
     if (isRes) zones.push({ price: mz, title: "الــمــقــاومــة" });
-    else if (isUpSup) zones.push({ price: mz, title: "لاتطمع - لاتعكس" });
+    // (بأمر المالك) حُذف نصُّ «لاتطمع - لاتعكس»؛ المنطقةُ باقيةٌ بخطوطها.
+    else if (isUpSup) { /* لا نصّ */ }
     else if (isLowSup) zones.push({ price: mz, title: "الـــدعـــم" });
   }
   return { lines, zones, startIndex: start.index };
@@ -568,7 +569,7 @@ export const D7M_COLORS: [string, string, string][] = [
 
 export const D7M_DEFAULTS = {
   colors: {} as Record<string, string>,
-  dashPos: "tr" as "tr" | "tl" | "br" | "bl",
+  dashPos: "tl" as "tr" | "tl" | "br" | "bl",   // أعلى اليسار (بأمر المالك)
   fib: true, fibDev: 3, fibDepth: 7, fibReverse: false, fibZones: true,
   fibLevels: Object.fromEntries(FIB_LEVELS.map(([lv]) => [String(lv), true])) as Record<string, boolean>,
   trend: true, trendPP: 15, trendShapes: false,
@@ -578,7 +579,5 @@ export const D7M_DEFAULTS = {
   pdh: false, pdl: false, pdc: false, dOpen: false,
   dashboard: true, bull: 6, bear: -6,
   macdDash: false, alertsDash: false, tradeTool: false,
-  vixWarn: 25, vixBlock: 35, news: false,
-  newsDates: "2026-01-28, 2026-03-18, 2026-04-29, 2026-06-17, 2026-07-29, 2026-09-16, 2026-10-28, 2026-12-09, 2026-01-13, 2026-02-11, 2026-03-11, 2026-04-10, 2026-05-12, 2026-06-10, 2026-07-14, 2026-08-12, 2026-09-11, 2026-10-14, 2026-11-10, 2026-12-10",
 };
 export type D7MSettings = typeof D7M_DEFAULTS;
