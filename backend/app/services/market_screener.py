@@ -355,9 +355,14 @@ async def _enrich_fundamentals(rows: list[dict]) -> None:
         fund = cache.get(f"fund:yahoo:{ysym}") or {}
         stored = fund_store.get(sym) or {}
         pick = lambda k: fund.get(k) if fund.get(k) is not None else stored.get(k)
-        r["pe_ratio"] = pick("pe_ratio")
-        r["price_to_book"] = pick("price_to_book")
-        r["roe"] = pick("roe")
+        # ══ «تداول» أوّلاً والمخزنُ احتياط (بأمر المالك · D494) ══ المكرّرُ
+        # والدفتريةُ والعائدُ على الحقوق تُحسب من قوائم تداول الرسميّة (XBRL)
+        # وسعرِ لقطته؛ وما تعذّر حسابُه يُؤخذ من المزوّد ثمّ المخزن.
+        _t = _tadawul_ratios(sym, r.get("price"))
+        r["pe_ratio"] = _t.get("pe_ratio") if _t.get("pe_ratio") is not None else pick("pe_ratio")
+        r["price_to_book"] = _t.get("price_to_book") if _t.get("price_to_book") is not None else pick("price_to_book")
+        r["roe"] = _t.get("roe") if _t.get("roe") is not None else pick("roe")
+        r["ratios_source"] = "تداول" if _t else "المزوّد/المخزن"
         # ══ السعرُ العادل = متوسّطُ تقديرات بيوت الخبرة ══ (بأمر المالك)
         # نفسُ الرقم الذي تعرضه صفحةُ الشركة وتحليلُ الذكاء — مصدرٌ واحد
         # في التطبيق كلِّه، باسمٍ واحد.
@@ -542,6 +547,32 @@ def _attach_relative_valuation(rows: list[dict]) -> None:
             v = "fair"
         r["verdict"] = v
 
+
+
+def _tadawul_ratios(sym: str, price) -> dict:
+    """مكرّرُ الربحية والدفتريةُ والعائدُ على الحقوق من قوائم «تداول» المحفوظة
+    (D494) — بلا نداءِ شبكة. ما لا يُحسب بصدقٍ يُترك فيملؤه الاحتياط."""
+    try:
+        from app.services import tadawul_xbrl as X
+        from app.services import fair_value_models as F
+        px = float(price or 0)
+        an, qu = X.for_symbol(sym, "annual") or [], X.for_symbol(sym, "quarterly") or []
+        if not an or px <= 0:
+            return {}
+        sh = F._shares_of(an, qu)
+        ttm, _ = F._ttm_of(qu, an)
+        bal = F._latest(qu, an)
+        ni, eq = F._n(ttm.get("net_income")), F._n(bal.get("equity"))
+        out = {}
+        if sh and ni and ni > 0 and 0 < px * sh / ni <= 200:
+            out["pe_ratio"] = round(px * sh / ni, 2)
+        if sh and eq and eq > 0 and 0 < px * sh / eq <= 50:
+            out["price_to_book"] = round(px * sh / eq, 2)
+        if ni is not None and eq and eq > 0:
+            out["roe"] = round(ni / eq * 100, 2)
+        return out
+    except Exception:                                              # noqa: BLE001
+        return {}
 
 @_background_task   # D436: مهمّةٌ خلفية تقف عند 90٪ من حصّة ياهو
 async def compute_screener() -> list | None:

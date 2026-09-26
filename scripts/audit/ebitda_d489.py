@@ -61,5 +61,9 @@ SA = open(os.path.join(ROOT, "backend/app/services/sector_analysis.py"), encodin
 DY = open(os.path.join(ROOT, "backend/app/services/dividend_yield.py"), encoding="utf-8").read()
 check("_dps_tadawul(sym) or" in SA and DY.find("_dps_tadawul(base)") < DY.find('src.get("dividend_yield")'), "١٠ D493 تداولُ أوّلاً والمخزنُ احتياط — في القطاعات والأسهم")
 check("_dps_tadawul(sym)" in SA and 'r.get("eligibility")' in SA, "٩ D492 عائدُ توزيع القطاع من جدول تداول حين يغيب من الأساسيات")
+MS = open(os.path.join(ROOT, "backend/app/services/market_screener.py"), encoding="utf-8").read()
+check("_t = _tadawul_ratios(sym" in MS and '_t.get("pe_ratio") if' in MS, "١١ D494 أعمدةُ الفرز (المكرّر · الدفترية · العائد على الحقوق) من قوائم تداول أوّلاً")
+from app.services import market_screener as MSm
+check(MSm._tadawul_ratios("0000", 10) == {}, "١١ب ورمزٌ بلا قوائم يعود فارغاً فيملؤه الاحتياط")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)
