@@ -53,6 +53,16 @@ def resolve(symbol: str, price: float | None,
             fund_cache = fund_cache or {}
             store_row = store_row or {}
 
+    # ══ «تداول» أوّلاً والمخزنُ احتياط (بأمر المالك · D493) ══ توزيعاتُ اثني
+    # عشر شهراً من جدول تداول الرسميّ المحفوظ ÷ السعر؛ ثمّ المزوّدُ ثمّ المخزن.
+    try:
+        from app.services.sector_analysis import _dps_tadawul
+        _t = _dps_tadawul(base)
+    except Exception:                                             # noqa: BLE001
+        _t = None
+    if _t and price and price > 0 and _t / price < 0.25:
+        return round(_t / price * 100, 2), "تداول"
+
     for src in (fund_cache or {}, store_row or {}):
         v = src.get("dividend_yield")
         if isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0:

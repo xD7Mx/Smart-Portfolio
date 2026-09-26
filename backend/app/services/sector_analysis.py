@@ -98,7 +98,7 @@ async def compute_sector_analysis() -> list | None:
             r = _period_return(closes, bars)
             if r is not None:
                 b["rets"][key].append(r)
-        dps = (fund_store.get(sym) or {}).get("dps_ttm") or _dps_tadawul(sym)
+        dps = _dps_tadawul(sym) or (fund_store.get(sym) or {}).get("dps_ttm")
         if dps and closes[-1]:
             b["yields"].append(dps / closes[-1] * 100)
 
