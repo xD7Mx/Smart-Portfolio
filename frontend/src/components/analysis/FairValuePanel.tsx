@@ -34,7 +34,7 @@ function RangeRow({ title, meta, low, high, mark, price }: {
              style={{ left: `${at(price)}%` }} title={`السعر ${fmt(price)}`} />
         {mark != null && (
           <div className="absolute top-1/2 rounded-full" style={{ left: `${at(mark)}%`, width: 12, height: 12,
-               transform: "translate(-50%, -50%)", background: "#ffffff", border: "1px solid var(--hairline)" }} />
+               transform: "translate(-50%, -50%)", background: "#ffffff", border: "2px solid var(--ink)" }} />
         )}
       </div>
       <div className="flex justify-between text-[11px] tabular-nums text-[var(--ink-muted)]" dir="ltr">

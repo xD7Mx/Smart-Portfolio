@@ -108,7 +108,7 @@ function Marker({ pos, color, from = "left" }:
   return (
     <div className="absolute rounded-full" style={{
       top: "50%", width: 12, height: 12, ...place, transform: shift,
-      background: "#ffffff", border: "1px solid var(--hairline)",
+      background: "#ffffff", border: "2px solid var(--ink)",
     }} />
   );
 }
