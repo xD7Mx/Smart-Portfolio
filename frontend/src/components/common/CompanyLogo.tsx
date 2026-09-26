@@ -66,6 +66,10 @@ export default function CompanyLogo({ symbol, color, size = 40, logoUrl }: { sym
   useEffect(() => {
     if (!url) return;
     const t = setTimeout(() => {
+      // ══ الشعارُ واجبٌ لا اختياريّ (بأمر المالك · D495) ══ صفٌّ لم يكتمل
+      // تحميلُه يأخذ ما نجح لرمزه في صفٍّ آخر قبل أن يُعدّ فاشلاً.
+      const k = RESOLVED.get(base);
+      if (k && k !== url && candidates.includes(k)) { setStage(candidates.indexOf(k)); return; }
       if (!imgRef.current?.complete) setStage(s => s + 1);
     }, 15000);
     return () => clearTimeout(t);
@@ -99,7 +103,7 @@ export default function CompanyLogo({ symbol, color, size = 40, logoUrl }: { sym
            خريطةُ القطاعات) — وهو «التأخّرُ في مناطق دون أخرى» الذي رآه
            المالك. الشعارُ هويّةُ الصفّ لا زينةٌ فيه: يُحمَّل بأولويةٍ
            عادية، ويبقى التأجيلُ الكسول لما خرج عن الشاشة. */
-        loading="lazy"
+        loading="eager"
         decoding="async"
       />
     );
