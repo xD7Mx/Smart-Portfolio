@@ -143,7 +143,10 @@ MODEL_SETS.update({
 #   «النموّ المتوقّع لـEBITDA على DCF» → dcf_ebitda · «مكرّرات الأرباح قبل الفوائد والضريبة» → peer_ev_ebitda
 # وكلاهما من EBITDA تداول نفسِه: الربحُ التشغيليّ + بندُ الإهلاك من قائمة التدفّقات (D489).
 IP_MISSING: tuple = ()
-_IP14 = {"epv", "ddm_two_stage", "peer_ps", "peer_pb", "peer_pe", "peer_yield",
+# ‏D511: «مكرّرُ الإيرادات لقيمة المنشأة» في صور InvestingPro (المراعي 48.59) قُرئ
+# خطأً «عائدَ توزيعٍ مقابل الأقران» — نموذجٌ لا وجودَ له عندهم، أعطى «إكسترا»
+# 296.91 على سعر 61.45 (توزيعُ 5 ÷ وسيطِ عائد أقرانٍ 1.68٪). فيُردّ إلى مقابله.
+_IP14 = {"epv", "ddm_two_stage", "peer_ps", "peer_pb", "peer_pe", "peer_ev_sales",
          "dcf_gordon_5", "dcf_gordon_10", "dcf_exit_5", "dcf_exit_10", "peer_ev_ebit",
          "dcf_ebitda_5", "dcf_ebitda_10", "peer_ev_ebitda"}                                  # 2222
 _IP15 = _IP14 | {"ddm_stable"}                                                            # 4001 · 2280
@@ -151,7 +154,7 @@ _IP13 = _IP14 - {"ddm_two_stage"}                                               
 _IP12 = _IP13 - {"dcf_gordon_5"}                                                          # 1810
 _IP11 = _IP12 - {"epv"}                                                                   # 4300
 _IP10 = _IP11 - {"dcf_gordon_10"}                                                         # 2340
-_IP7 = {"epv", "peer_pe", "peer_pb", "peer_ps", "peer_ev_ebit", "peer_yield", "peer_ev_ebitda"}             # 1302
+_IP7 = {"epv", "peer_pe", "peer_pb", "peer_ps", "peer_ev_ebit", "peer_ev_sales", "peer_ev_ebitda"}             # 1302
 MODEL_SETS = {k: (f"مجموعةُ InvestingPro للقطاع: {n} نموذجاً — المتوفّرُ مدخلُه عندنا {len(v)}", v) for k, (n, v) in {
     "Energy": (14, _IP14), "Materials": (14, _IP14), "Transportation": (14, _IP14),
     "Health Care Equipment & Svc": (14, _IP14), "Pharma, Biotech & Life Science": (14, _IP14),
@@ -950,7 +953,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v22:{sym}"
+    ck = f"fvm:v23:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

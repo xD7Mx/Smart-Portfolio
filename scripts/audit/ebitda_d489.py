@@ -165,5 +165,9 @@ finally:
 check(_S.SAHMAK_ENABLED is False and _SA().api_key is None and not _calls,
       "٢٥ D510 «سهمك» موقوفٌ كلُّه بمفتاحٍ واحد — لا نداءَ حتى مع وجود المفتاح (تداول ثمّ أرقام)", f"calls={len(_calls)}")
 _S.SAHMAK_API_KEY = None
+_ipsets = [v for k, (_n, v) in F.MODEL_SETS.items() if k not in ("Banks", "Insurance", "REITs")]
+check(all("peer_yield" not in v and "peer_ev_sales" in v for v in _ipsets),
+      "٢٦ D511 مجموعاتُ InvestingPro فيها «مكرّرُ الإيرادات لقيمة المنشأة» لا «عائدُ التوزيع مقابل الأقران» (إكسترا 296.91 على سعر 61.45)",
+      str([k for k, (_n, v) in F.MODEL_SETS.items() if "peer_yield" in v]))
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)
