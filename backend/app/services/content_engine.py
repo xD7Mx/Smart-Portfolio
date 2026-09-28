@@ -87,6 +87,11 @@ async def refresh_news(db: AsyncSession, force: bool = False) -> int:
     pairs = await _portfolio_symbol_names(db)
     names = [n for _, n in pairs]
     real = (await fetch_market_news(names, company_pairs=pairs)) + (await fetch_economic_news())
+    # ══ ترتيبُ المصادر: تداول ← أرقام ← غيرُهما (بأمر المالك · D508) ══ حارسُ
+    # التكرار أدناه يُبقي أوّلَ من يصل؛ وكانت «أرقام» تُلحق آخِراً فتفوز نسخةُ
+    # Google بالقصّة نفسِها. فتُقدَّم «أرقام» على ما سواها.
+    _google = real
+    real = []
     # ── الوجه الثالث من مرآة «أرقام»: أخباره من صفحته هو ──────────────────
     # أرقام في سجلّ المصادر أصلاً، لكنه يصلنا **بالواسطة** عبر Google News:
     # عناوينُ منتقاة لا كلُّ ما ينشره، وبتأخير. فتُقرأ صفحته مباشرةً وتُضاف
@@ -98,6 +103,7 @@ async def refresh_news(db: AsyncSession, force: bool = False) -> int:
         real += await fetch_argaam_news()
     except Exception as e:                                        # noqa: BLE001
         logger.warning(f"Argaam news unavailable: {e}")
+    real += _google
     # حارس التكرار المتقارب عبر الدورات: نبني بصمات القصص المخزّنة حديثًا (٧أيام)
     # فلا يُضاف خبرٌ نشرته صحيفة أخرى بصياغة مختلفة كسطر جديد — تُنافس المدفوع.
     recent_cut = datetime.now(timezone.utc) - timedelta(days=7)
@@ -1150,6 +1156,9 @@ async def build_market_calendar_disclosures() -> int:
     return added
 
 
+SOURCE_RANK = {"تداول": 0, "أرقام": 1}   # D508 — وما سواهما 2
+
+
 def clean_events(items) -> list:
     """‏D506 (بأمر المالك): «عناوين غريبة بالإنجليزية وبلا شعار — تشوّهٌ عن أقرانه».
     يُنزع وسمُ HTML المتسرّب (‏<span class="sar-symbol">) ويُسقط ما لا حرفَ عربيَّ فيه:
@@ -1186,9 +1195,21 @@ async def market_wide_events() -> list[dict]:
         seen: set = set()
         # المؤرَّخ أولاً (الأحدث فالأقدم)، والمجهول في الذيل — ترتيبٌ تنازلي
         # على سلسلةٍ فارغة كان يقذف المجهول إلى **صدارة** المفكرة.
+        # ══ تداول ← أرقام ← غيرُهما (D508) ══ الحدثُ نفسُه (الشركة · اليوم · النوع)
+        # من مصدرين يُعرض مرّةً بنسخة الأعلى رتبة؛ والترتيبُ داخل اليوم الواحد
+        # بالرتبة نفسِها.
+        _rank = lambda e: SOURCE_RANK.get(e.get("source"), 2)
+        best: dict = {}
+        for e in store.values():
+            k3 = (e.get("symbol"), e.get("date"), e.get("type"))
+            if e.get("symbol") and e.get("date") and (k3 not in best or _rank(e) < _rank(best[k3])):
+                best[k3] = e
         for e in sorted(store.values(),
-                        key=lambda e: (bool(e.get("date")), e.get("date") or ""),
+                        key=lambda e: (bool(e.get("date")), e.get("date") or "", -_rank(e)),
                         reverse=True):
+            _k3 = (e.get("symbol"), e.get("date"), e.get("type"))
+            if _k3 in best and best[_k3] is not e:
+                continue
             sym = e.get("symbol"); title = e.get("title") or ""
             name = sym_to_name.get(sym)
             # منسوب بالرمز من المصدر نفسه — لا يُطبَّق عليه فلتر ورود الاسم في

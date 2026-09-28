@@ -130,5 +130,17 @@ _fp = _FC.pick_forecasts([{"headline": "الراجحي المالية ترفع �
 check(len(_fp) == 1 and _fp[0]["kind"] == "سعرٌ مستهدف" and 'onClick={() => setView("fc")}>التوقعات</button>' in _ev
       and "subscription" not in open(os.path.join(ROOT, "backend/app/services/forecasts.py"), encoding="utf-8").read().split('"""')[2],
       "٢٢ D507 «التوقعات» تبويبٌ ثالثٌ في مفكرة السوق من مصادرَ عامّةٍ مقيسة (لا صفحاتِ المشتركين) — وما ليس توقّعاً لا يدخله", str(_fp))
+from app.services import content_engine as _C
+_st = {k: {"symbol": "2280", "date": "2026-09-28", "type": "dividend", "title": t, "source": src}
+       for k, t, src in (("a", "x", "Google"), ("b", "y", "تداول"), ("c", "z", "أرقام"))}
+_o1, _o2 = _C._cal_load_store, _C._universe_pairs
+_C._cal_load_store, _C._universe_pairs = (lambda: _st), (lambda: [("2280", "المراعي")])
+try:
+    _src = [e["source"] for e in _aio.run(_C.market_wide_events())]
+finally:
+    _C._cal_load_store, _C._universe_pairs = _o1, _o2
+_CEs = open(os.path.join(ROOT, "backend/app/services/content_engine.py"), encoding="utf-8").read()
+check(_src == ["تداول"] and _CEs.find("real += await fetch_argaam_news()") < _CEs.find("real += _google"),
+      "٢٣ D508 المصادرُ بترتيب المالك: تداول ← أرقام ← غيرُهما — الحدثُ المكرَّر بنسخة الأعلى رتبة، وأخبارُ أرقام قبل Google", str(_src))
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)
