@@ -110,5 +110,11 @@ _d = {m["key"]: m for m in F.value(_i4)["models"]}
 _g = next((float(x[1].rstrip("%")) for x in (_d.get("ddm_stable") or {}).get("assumptions", []) if x[0] == "النموُّ المستدام"), 0)
 check(_g > 3.6 and (_d.get("ddm_stable") or {}).get("value", 0) > 30,
       "١٩ D504 خصمُ التوزيعات بطريقة InvestingPro: النموُّ العائدُ × الاحتجاز بلا سقف 3.5٪ (المراعي ~62 لا 20.7)", str({k: _d[k]["value"] for k in _d if k.startswith("ddm")}) + f" g={_g}")
+from app.services import lastgood as _LG, dividend_yield as _DY
+_LG.save("div:tadawul:0001", {"rows": [{"amount": 1.0, "eligibility": "2019-01-01"}]})
+_z = _DY.resolve("0001", 10.0, {}, {})
+_MK = open(os.path.join(ROOT, "backend/app/api/v1/endpoints/market.py"), encoding="utf-8").read()
+check(_z == (0.0, "تداول · لا توزيعَ في 12 شهراً") and "_tadawul_changes().get(sym)" in MS and "rows = _sector_dividends_fill(rows)" in _MK,
+      "٢٠ D505 لا خليةَ فارغة بلا سبب: عائدُ من لم يوزّع صفرٌ من تداول، والتغيّرُ من لقطة تداول، وتوزيعاتُ القطاع من صفوف الفرز", str(_z))
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

@@ -74,4 +74,14 @@ def resolve(symbol: str, price: float | None,
             and isinstance(price, (int, float)) and price > 0):
         return round(dps / price * 100, 2), "توزيعات ١٢ شهراً ÷ السعر"
 
+    # ══ لا توزيعَ رقمٌ لا فراغ (بأمر المالك · D505) ══ «لا أريد خليةً فارغة»: من
+    # لجدول «تداول» سجلٌّ محفوظٌ له ولم يوزّع في اثني عشر شهراً فعائدُه صفرٌ مقيس
+    # لا مجهول. ومن لا سجلَّ له يبقى «غير متوفّر» — فلا اختلاق.
+    try:
+        from app.services import lastgood
+        _rec = lastgood.load(f"div:tadawul:{base}")
+        if isinstance(_rec, dict) and "rows" in _rec:
+            return 0.0, "تداول · لا توزيعَ في 12 شهراً"
+    except Exception:                                             # noqa: BLE001
+        pass
     return None, None

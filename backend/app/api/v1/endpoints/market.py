@@ -807,7 +807,32 @@ async def get_sector_analysis():
         if time.time() - globals().get("_SECTOR_KICK", 0) > 3600:
             _SECTOR_KICK = time.time()
             asyncio.create_task(compute_sector_analysis())
+    rows = _sector_dividends_fill(rows)
     return success_response(data=rows)
+
+
+def _sector_dividends_fill(rows: list) -> list:
+    """عائدُ توزيع القطاع من صفوف الفرز نفسِها عند كلّ طلب (D505) — وهي من
+    «تداول» أوّلاً. كانت اللقطةُ القطاعيةُ تُبنى نادراً فبقيت أغلبُ خلاياها فارغة.
+    متوسّطُ شركات القطاع كلِّها (والتي لا توزّع صفرٌ مقيس — فالوسيطُ يصير صفراً)."""
+    try:
+        from app.services.market_screener import get_cached_screener
+        by: dict[str, list] = {}
+        for r in get_cached_screener() or []:
+            v = r.get("dividend_yield")
+            if r.get("sector") and isinstance(v, (int, float)):
+                by.setdefault(r["sector"], []).append(float(v))
+        out = []
+        for row in rows or []:
+            row = dict(row)
+            ys = by.get(row.get("sector")) or []
+            if ys:
+                row["dividend_yield"] = round(sum(ys) / len(ys), 2)
+                row["dividend_sample"] = len(ys)
+            out.append(row)
+        return out
+    except Exception:                                             # noqa: BLE001
+        return rows
 
 
 @router.get("/drawings/{symbol}")

@@ -692,6 +692,16 @@ def _tadawul_prices() -> dict:
         return {}
 
 
+def _tadawul_changes() -> dict:
+    """تغيّرُ اليوم٪ من لقطة «تداول» (D505)."""
+    try:
+        from app.services.tadawul_market import snapshot
+        return {k: v.get("change_pct") for k, v in (snapshot() or {}).items()
+                if isinstance(v, dict) and isinstance(v.get("change_pct"), (int, float))}
+    except Exception:                                             # noqa: BLE001
+        return {}
+
+
 def _movers_prices() -> dict:
     """أسعارُ اليوم من لقطة المحرّكين — تُقرأ مرّةً لكلّ إنعاشٍ لا لكلّ صفّ."""
     try:
@@ -804,7 +814,10 @@ async def refresh_derived(rows: list) -> list:
             if isinstance(px_new, (int, float)) and px_new > 0:
                 r["price_source"] = _src
                 r["price"] = px_new
-                _chg = getattr(pd, "change_pct", None)
+                # ‏D505: تغيّرُ لقطة «تداول» أوّلاً — مُصدِرُ السعر نفسُه
+                _chg = _tadawul_changes().get(sym)
+                if not isinstance(_chg, (int, float)):
+                    _chg = getattr(pd, "change_pct", None)
                 # ══ التغيّرُ اليوميّ من مسح المحرّكين ══ (D502) اللقطةُ تُبنى
                 # قبل اكتمال المسح، فبقي العمودُ فارغاً لمن لم تُفتح صفحتُه.
                 if not isinstance(_chg, (int, float)):
