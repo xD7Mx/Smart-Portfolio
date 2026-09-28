@@ -765,11 +765,14 @@ async def _hist_multiples(sym: str, annual: list[dict], shares: float | None) ->
         if not d or not before:
             continue
         px = before[-1]
-        sh = _n(per.get("shares_outstanding")) or shares
+        # ══ عددُ الأسهم الحاليّ لا عددُ تلك السنة ══ (D503) أسعارُ ياهو معدَّلةٌ
+        # للمنح والتجزئة، فتُقرن بعدد الأسهم الحاليّ؛ وعددُ القوائم القديم (وبعضُه
+        # بالآلاف) أعطى دار الأركان مكرّراً 0.02× والراجحيَّ مضاعفاتٍ أدنى من حقّها.
+        sh = shares
         ni, eq, rev = _n(per.get("net_income")), _n(per.get("equity")), _n(per.get("revenue"))
         if not sh or sh <= 0:
             continue
-        for k, base, lo, hi in (("pe", ni, 0, 80), ("pb", eq, 0, 30), ("ps", rev, 0, 40)):
+        for k, base, lo, hi in (("pe", ni, 3, 80), ("pb", eq, 0.2, 30), ("ps", rev, 0.1, 40)):
             if base and base > 0:
                 m = px * sh / base
                 if lo < m <= hi:
@@ -942,7 +945,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v20:{sym}"
+    ck = f"fvm:v21:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

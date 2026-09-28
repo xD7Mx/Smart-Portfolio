@@ -87,5 +87,20 @@ check("_tadawul_ratios(sym.replace" in _rd, "١٦ D501 مضاعفاتُ تداو
 _rd2 = _rd[:_rd.find("_tadawul_prices().get(sym)")]
 check("pd = None" in _rd2[-200:] and "_movers_changes().get(sym)" in _rd,
       "١٧ D502 التغيّرُ اليوميّ لا يسقط حين يأتي السعرُ من تداول (كان pd غيرَ معرَّف) ويُقرأ من مسح المحرّكين")
+import asyncio as _aio
+from app.services import market_data as _MD
+class _Y:
+    async def _fetch_chart_points(self, *a, **k):
+        return [{"date": f"{y}-12-31", "close": 20.0} for y in (2021, 2022, 2023, 2024, 2025)]
+_orig = _MD.market_service._yahoo
+_MD.market_service._yahoo = lambda: _Y()
+try:
+    _A3 = [{"year": y, "as_of": f"{y}-12-31", "net_income": 1e9, "equity": 1e10, "revenue": 5e9,
+            "shares_outstanding": 1e6} for y in (2021, 2022, 2023, 2024, 2025)]   # بالآلاف
+    _h = _aio.run(F._hist_multiples("X", _A3, 1e9))
+finally:
+    _MD.market_service._yahoo = _orig
+check(_h.get("pe") and abs(_h["pe"][0] - 20.0) < 0.01 and abs(_h["pb"][0] - 2.0) < 0.01,
+      "١٨ D503 المضاعفُ التاريخيّ بعدد الأسهم الحاليّ مع أسعارٍ معدَّلة — لا عددَ القوائم القديم (كان 0.02× لدار الأركان)", str(_h))
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)
