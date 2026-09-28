@@ -82,5 +82,7 @@ _i2 = F.Inputs(symbol="X", price=20, shares=1e9, annual=_A2, ttm=dict(_A2[-1]), 
 _v2 = {m["key"]: m["value"] for m in F.value(_i2)["models"]}
 check(abs(_v2.get("peer_pe", 0) - 27.0) < 0.01 and "await _hist_multiples(sym" in FV,
       "١٥ D500 المكرّرُ من مضاعف الشركة التاريخيّ أوّلاً (وسيط 27× × ربحية 1 = 27) — طريقةُ InvestingPro", str(_v2))
+_rd = MS[MS.find("async def refresh_derived"):]
+check("_tadawul_ratios(sym.replace" in _rd, "١٦ D501 مضاعفاتُ تداول في الفرز عند كلّ طلبٍ لا في المسحة الليلية وحدها")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

@@ -748,6 +748,17 @@ async def refresh_derived(rows: list) -> list:
         sym = str(r.get("symbol") or "")
         if not sym:
             continue
+        # ══ مضاعفاتُ «تداول» عند كلّ طلبٍ لا في المسحة الليلية وحدها (D501) ══
+        # كانت D494 تكتبها في البناء اليوميّ فقط، فلا يراها المالكُ حتى الغد.
+        try:
+            _tr = _tadawul_ratios(sym.replace(".SR", ""), r.get("price"))
+            for _k in ("pe_ratio", "price_to_book", "roe"):
+                if _tr.get(_k) is not None:
+                    r[_k] = _tr[_k]
+            if _tr:
+                r["ratios_source"] = "تداول"
+        except Exception:                                         # noqa: BLE001
+            pass
         # ══ سعرُ الصفّ هو سعرُ صفحة السهم ══ (بأمر المالك · D236)
         # قال: «بياناتها في كوكبٍ آخر لا تطابق صفحة السهم، سواءَ آخر سعرٍ
         # وغير ذلك». والسببُ مقيس: سعرُ الصفّ **آخرُ إغلاقٍ في تاريخٍ**
