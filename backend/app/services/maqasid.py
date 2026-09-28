@@ -87,4 +87,15 @@ def rating(symbol: str) -> dict | None:
             source = "أرقام"
         return {"status": a.get("status"), "purification": None, "source": source}
 
+    # ══ المصرفُ التقليديّ بطبيعة نشاطه ══ (بأمر المالك · D506) رأى «بي اس اف» بلا
+    # هلال. المقاصدُ وأرقام لا يُدرجان مصرفاً ربويّاً أصلاً (لا يُفحص ما حُسم
+    # نشاطُه)، فغاب ثلاثةٌ: الأول · بي اس اف · الإستثمار. ومعيارُ «أيوفي» الأوّل
+    # فحصُ النشاط: الإقراضُ بفائدةٍ نشاطٌ رئيسٌ محرَّم — فلا يُحتاج إلى نسبة.
+    try:
+        from app.data.market_universe import MARKET_UNIVERSE
+        if (MARKET_UNIVERSE.get(base) or {}).get("sector") == "البنوك":
+            return {"status": "NON_COMPLIANT", "purification": None,
+                    "source": "فحصُ النشاط: مصرفٌ تقليديّ"}
+    except Exception:                                             # noqa: BLE001
+        pass
     return None

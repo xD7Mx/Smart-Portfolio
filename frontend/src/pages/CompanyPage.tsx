@@ -839,11 +839,11 @@ export default function CompanyPage() {
         </button>
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <CompanyLogo symbol={company.symbol} color={company.color} size={44} logoUrl={company.logo_url} />
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <ShariaBadge status={company.sharia_status} size={15} />
               {/* عنوان الصفحة لا نافذة — يبقى بمقاسه الأكبر المستقلّ. */}
-              <h2 className="text-lg font-bold text-[var(--ink)]">{nameAr}</h2>
+              <h2 className="text-lg font-bold text-[var(--ink)] truncate">{nameAr}</h2>
               <span className="tag-b">{company.symbol}</span>
               {isOwner && (
                 <span className="relative shrink-0">

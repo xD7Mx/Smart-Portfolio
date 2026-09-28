@@ -16,8 +16,8 @@ const SHARIA_TONE: Record<string, { color: string; title: string }> = {
 };
 
 export function ShariaBadge({ status, size = 13 }: { status?: string | null; size?: number }) {
-  const tone = status ? SHARIA_TONE[status] : undefined;
-  if (!tone) return null;
+  // ‏D506: المجهولُ هلالٌ رماديّ لا غياب — فلا يُظنّ أن الحكمَ نُسي.
+  const tone = (status && SHARIA_TONE[status]) || { color: "var(--ink-muted)", title: "التوافقُ الشرعيّ غيرُ محدَّد" };
   return (
     <span className="shrink-0 inline-flex" title={tone.title}>
       <MoonStar size={size} style={{ color: tone.color }} />

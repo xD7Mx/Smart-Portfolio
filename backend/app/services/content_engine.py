@@ -1150,6 +1150,28 @@ async def build_market_calendar_disclosures() -> int:
     return added
 
 
+def clean_events(items) -> list:
+    """‏D506 (بأمر المالك): «عناوين غريبة بالإنجليزية وبلا شعار — تشوّهٌ عن أقرانه».
+    يُنزع وسمُ HTML المتسرّب (‏<span class="sar-symbol">) ويُسقط ما لا حرفَ عربيَّ فيه:
+    مصدرُه النسخةُ الإنجليزيةُ من إعلانات «تداول»، والعربيةُ منها تصل من «تداول»
+    نفسِها أو «أرقام» — فلا يُفقد إعلانٌ بل نسختُه المكرَّرة."""
+    import html as _h
+    out = []
+    for it in items or []:
+        if not isinstance(it, dict):
+            out.append(it)
+            continue
+        t = it.get("title")
+        if isinstance(t, str):
+            t = re.sub(r"<[^>]+>", "", _h.unescape(t))
+            t = " ".join(t.replace("^", "").split())
+            if not re.search(r"[\u0600-\u06FF]", t):
+                continue
+            it = {**it, "title": t}
+        out.append(it)
+    return out
+
+
 async def market_wide_events() -> list[dict]:
     """مفكرة السوق — reads the accumulated full-market store (built by the
     scheduled RSS + dividend passes over the WHOLE universe), newest first.

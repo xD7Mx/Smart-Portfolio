@@ -116,5 +116,12 @@ _z = _DY.resolve("0001", 10.0, {}, {})
 _MK = open(os.path.join(ROOT, "backend/app/api/v1/endpoints/market.py"), encoding="utf-8").read()
 check(_z == (0.0, "تداول · لا توزيعَ في 12 شهراً") and "_tadawul_changes().get(sym)" in MS and "rows = _sector_dividends_fill(rows)" in _MK,
       "٢٠ D505 لا خليةَ فارغة بلا سبب: عائدُ من لم يوزّع صفرٌ من تداول، والتغيّرُ من لقطة تداول، وتوزيعاتُ القطاع من صفوف الفرز", str(_z))
+from app.services import maqasid as _MQ
+from app.services.content_engine import clean_events as _CE
+_ce = _CE([{"title": 'Saudi Exchange announces <span class="sar-symbol">^</span>14.52'}, {"title": "توزيع <b>1.5</b>"}])
+_UI = open(os.path.join(ROOT, "frontend/src/components/common/UI.tsx"), encoding="utf-8").read()
+check((_MQ.rating("1050") or {}).get("status") == "NON_COMPLIANT" and (_MQ.rating("1120") or {}).get("status") == "COMPLIANT"
+      and _ce == [{"title": "توزيع 1.5"}] and "if (!tone) return null;" not in _UI,
+      "٢١ D506 هلالُ الشرعية لكلّ السوق (المصرفُ التقليديّ بفحص النشاط، والمجهولُ رماديّ) ولا عنوانَ إنجليزيّاً ولا وسمَ HTML في الإفصاحات", str(_ce))
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

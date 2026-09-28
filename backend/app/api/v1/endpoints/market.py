@@ -686,8 +686,8 @@ async def get_news(portfolio_only: bool = False, lang: str = "ar", db: AsyncSess
 async def get_events_market_wide():
     """General market calendar (major Tadawul companies) — independent of
     the user's own portfolio, for the Market page's own calendar."""
-    from app.services.content_engine import market_wide_events
-    return success_response(data=await market_wide_events())
+    from app.services.content_engine import market_wide_events, clean_events
+    return success_response(data=clean_events(await market_wide_events()))
 
 
 @router.get("/event-detail/{detail_id}")
@@ -1214,7 +1214,8 @@ async def get_company_events(symbol: str, name: str = ""):
     (Arabic) comes from the caller's own directory lookup since Google News
     needs it to search well; falls back to the bare symbol if not given."""
     from app.services.content_engine import company_calendar
-    return success_response(data=await company_calendar(symbol, name or symbol))
+    from app.services.content_engine import clean_events
+    return success_response(data=clean_events(await company_calendar(symbol, name or symbol)))
 
 
 @router.get("/events")
@@ -1297,7 +1298,8 @@ async def get_events(db: AsyncSession = Depends(get_db)):
     # مصدر، وتُعرض في مفكرةٍ يخطّط المالك بها. وهو خرقٌ مباشر للخطّ الأحمر
     # الثاني في الميثاق: «ما لا مصدر له في التطبيق يُقال عنه غير متوفّر».
     # فالفراغ الصادق أفضل من امتلاءٍ كاذب — والواجهة تقول «لا مواعيد».
-    return success_response(data=out)
+    from app.services.content_engine import clean_events
+    return success_response(data=clean_events(out))
 
 @router.get("/economic-news")
 async def get_economic_news(db: AsyncSession = Depends(get_db)):
