@@ -126,8 +126,25 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
   const [draws, setDraws] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem(dKey) || "[]"); } catch { return []; } });
   const [tool, setTool] = useState<null | "line" | "channel">(null);
   const pending = useRef<any[]>([]);
-  useEffect(() => { try { setDraws(JSON.parse(localStorage.getItem(dKey) || "[]")); } catch { setDraws([]); } }, [dKey]);
-  const saveDraws = (d: any[]) => { setDraws(d); try { localStorage.setItem(dKey, JSON.stringify(d)); } catch {} };
+  /* ══ الرسمُ يبقى للشركة حتى يمسحه المالك (بأمر المالك · D496) ══ يُحفظ على
+     الخادم لكلّ رمزٍ على حدة، والنسخةُ المحلّيةُ للعرض الفوريّ وحين يتعذّر الخادم. */
+  useEffect(() => {
+    let alive = true;
+    try { setDraws(JSON.parse(localStorage.getItem(dKey) || "[]")); } catch { setDraws([]); }
+    marketApi.drawings(symbol).then(r => {
+      const items = Array.isArray(r.data?.data) ? r.data.data : null;
+      if (alive && items && items.length) {
+        setDraws(items);
+        try { localStorage.setItem(dKey, JSON.stringify(items)); } catch {}
+      }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [dKey]);
+  const saveDraws = (d: any[]) => {
+    setDraws(d);
+    try { localStorage.setItem(dKey, JSON.stringify(d)); } catch {}
+    marketApi.saveDrawings(symbol, d).catch(() => {});
+  };
 
   const { data: bars = [], isLoading } = useQuery({
     queryKey: ["ohlc", symbol, range],
@@ -362,7 +379,12 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         chart.subscribeClick((param: any) => {
           if (!param?.time || !param.point) return;
           const p = candle.coordinateToPrice(param.point.y); if (p == null) return;
-          pending.current.push({ t: param.time, p });
+          // الشارتُ اليوميّ يُرجع الزمنَ كائناً {year, month, day} لا نصّاً، فكان
+          // الرسمُ يُحفظ بزمنٍ لا يطابق أيَّ شمعةٍ فلا يُرسم أبداً (D496).
+          const tm = param.time;
+          const t = (tm && typeof tm === "object" && "year" in tm)
+            ? `${tm.year}-${String(tm.month).padStart(2, "0")}-${String(tm.day).padStart(2, "0")}` : tm;
+          pending.current.push({ t, p });
           const need = tool === "line" ? 2 : 3;
           if (pending.current.length >= need) {
             const [a, b, c] = pending.current; pending.current = [];

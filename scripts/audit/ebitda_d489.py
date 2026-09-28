@@ -65,5 +65,8 @@ MS = open(os.path.join(ROOT, "backend/app/services/market_screener.py"), encodin
 check("_t = _tadawul_ratios(sym" in MS and '_t.get("pe_ratio") if' in MS, "١١ D494 أعمدةُ الفرز (المكرّر · الدفترية · العائد على الحقوق) من قوائم تداول أوّلاً")
 from app.services import market_screener as MSm
 check(MSm._tadawul_ratios("0000", 10) == {}, "١١ب ورمزٌ بلا قوائم يعود فارغاً فيملؤه الاحتياط")
+NC = open(os.path.join(ROOT, "frontend/src/components/analysis/NativeChart.tsx"), encoding="utf-8").read()
+check('"year" in tm' in NC and "marketApi.saveDrawings(symbol, d)" in NC and '@router.put("/drawings/{symbol}"' in M,
+      "١٢ D496 الرسمُ يُحفظ بزمن الشمعة لا بكائن المكتبة، وعلى الخادم لكلّ شركةٍ حتى يُمسح")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

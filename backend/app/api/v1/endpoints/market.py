@@ -810,6 +810,26 @@ async def get_sector_analysis():
     return success_response(data=rows)
 
 
+@router.get("/drawings/{symbol}")
+async def get_drawings(symbol: str):
+    """رسومُ المالك على شارت الشركة (D496) — محفوظةٌ على الخادم لكلّ شركةٍ على
+    حدة، فتبقى عبر الأجهزة والمتصفّحات حتى يمسحها بنفسه."""
+    from app.services import lastgood
+    sym = symbol.replace(".SR", "").strip().upper()[:20]
+    return success_response(data=(lastgood.load(f"draw:{sym}") or {}).get("items") or [])
+
+
+@router.put("/drawings/{symbol}", dependencies=[Depends(require_owner)])
+async def put_drawings(symbol: str, payload: dict):
+    from app.services import lastgood
+    sym = symbol.replace(".SR", "").strip().upper()[:20]
+    items = (payload or {}).get("items")
+    if not isinstance(items, list) or len(items) > 200:
+        raise HTTPException(status_code=422, detail="قائمةُ رسومٍ غيرُ صالحة")
+    lastgood.save(f"draw:{sym}", {"items": items})
+    return success_response(data={"count": len(items)})
+
+
 @router.post("/sectors/rebuild", dependencies=[Depends(require_owner)])
 async def rebuild_sectors():
     """بناء التحليل القطاعي فوراً (للمالك)."""

@@ -233,6 +233,9 @@ export const goalsApi = {
 // ── Market ────────────────────────────────────────────────────
 export const marketApi = {
   directory: () => api.get<APIResponse>("/market/directory"),
+  // رسومُ الشارت محفوظةٌ على الخادم لكلّ شركة (D496)
+  drawings: (symbol: string) => api.get<APIResponse>(`/market/drawings/${encodeURIComponent(symbol)}`),
+  saveDrawings: (symbol: string, items: any[]) => api.put<APIResponse>(`/market/drawings/${encodeURIComponent(symbol)}`, { items }),
   overview: () => api.get<APIResponse>("/market/overview"),
   movers:   () => api.get<APIResponse>("/market/movers"),
   news:     (lang: string = "ar") => api.get<APIResponse>(`/market/news?lang=${lang}`),
