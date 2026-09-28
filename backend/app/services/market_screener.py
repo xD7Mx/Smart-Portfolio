@@ -695,8 +695,15 @@ def _tadawul_prices() -> dict:
 def _tadawul_changes() -> dict:
     """تغيّرُ اليوم٪ من لقطة «تداول» (D505)."""
     try:
-        from app.services.tadawul_market import snapshot
-        return {k: v.get("change_pct") for k, v in (snapshot() or {}).items()
+        # ‏D509: لا `snapshot()` — صارمةٌ للّحظيّ فتعود فارغةً بعد الإغلاق (قِيس:
+        # عمرُها 31 دقيقة ⇒ صفر، والمخزَّنُ فيه تغيّرُ 396 شركة). وتغيّرُ آخر
+        # جلسةٍ حقيقةٌ بعد الإغلاق لا تأخّر — فيُقرأ من آخر قراءةٍ محفوظة.
+        from app.services import cache, lastgood
+        from app.services.tadawul_market import STORE_KEY, CLOSE_MAX_DAYS
+        rec = cache.get(STORE_KEY)
+        if not isinstance(rec, dict):
+            rec = lastgood.load(STORE_KEY, max_age_seconds=CLOSE_MAX_DAYS * 86400)
+        return {k: v.get("change_pct") for k, v in ((rec or {}).get("rows") or {}).items()
                 if isinstance(v, dict) and isinstance(v.get("change_pct"), (int, float))}
     except Exception:                                             # noqa: BLE001
         return {}

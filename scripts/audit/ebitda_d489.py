@@ -142,5 +142,10 @@ finally:
 _CEs = open(os.path.join(ROOT, "backend/app/services/content_engine.py"), encoding="utf-8").read()
 check(_src == ["تداول"] and _CEs.find("real += await fetch_argaam_news()") < _CEs.find("real += _google"),
       "٢٣ D508 المصادرُ بترتيب المالك: تداول ← أرقام ← غيرُهما — الحدثُ المكرَّر بنسخة الأعلى رتبة، وأخبارُ أرقام قبل Google", str(_src))
+from app.services import tadawul_market as _TM
+import time as _time
+_LG.save(_TM.STORE_KEY, {"rows": {"2222": {"price": 25.5, "change_pct": -1.2}}, "at": __import__("datetime").datetime.fromtimestamp(_time.time() - 2 * 86400, __import__("datetime").timezone.utc).isoformat()})
+check(_TM.snapshot() == {} and MSm._tadawul_changes().get("2222") == -1.2,
+      "٢٤ D509 تغيّرُ آخر جلسةٍ يُقرأ بعد الإغلاق من آخر قراءةٍ محفوظة — لا من اللقطة اللحظية الصارمة الفارغة", str(MSm._tadawul_changes()))
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)
