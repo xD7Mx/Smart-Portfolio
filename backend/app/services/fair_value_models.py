@@ -203,6 +203,7 @@ class Inputs:
     beta: float | None = None
     dps_ttm: float | None = None             # توزيعاتُ اثني عشر شهراً من جدول «تداول»
     peers: dict = field(default_factory=dict)  # اسمُ المضاعف ← قائمةُ قيم الأقران
+    hist: dict = field(default_factory=dict)   # مضاعفاتُ الشركة التاريخية (D500): pe/pb/ps ← قائمة
     peer_symbols: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     stale_days: int | None = None            # عمرُ أحدث قوائم منشورة بالأيام
@@ -481,6 +482,15 @@ def multiple_models(i: Inputs, bs: Base) -> list[dict]:
         just = {k: (f_pb(k) , f_pb(k) / roe) for k in (bs.ke, bs.ke + 0.005, bs.ke - 0.005)}
     eps_n = bs.ni_n / sh if bs.ni_n else None
     for key, (base, name, label) in per_share.items():
+        # ══ المضاعفُ التاريخيّ أوّلاً (طريقةُ InvestingPro · D500) ══ وسيطُ ما تداولت
+        # به الشركةُ نفسُها عند نهاية سنواتها المنشورة، مضروباً في أساسها الحاليّ.
+        hx = (i.hist or {}).get(key) or []
+        if len(hx) >= 3 and base and base > 0:
+            m, q1, q3 = _wq(hx, .5), _wq(hx, .25), _wq(hx, .75)
+            out.append(_model(f"peer_{key}", "multiples", name, base * m, base * q1, base * q3,
+                              [(label, f"{base:.2f}", ""),
+                               ("مضاعفُ الشركة التاريخيّ", f"{m:.2f}x", f"{q1:.2f}–{q3:.2f}x · {len(hx)} سنوات · نهايةُ كلّ سنة")]))
+            continue
         if just and key in ("pe", "pb", "ps") and base and base > 0:
             idx = 0 if key == "pb" else 1
             mult = {k: v[idx] for k, v in just.items()}
@@ -735,6 +745,38 @@ def _peer_multiples(sym: str, peers: list[str], rows: dict) -> dict:
     return out
 
 
+async def _hist_multiples(sym: str, annual: list[dict], shares: float | None) -> dict:
+    """مضاعفاتُ الشركة نفسِها عند نهاية كلّ سنةٍ منشورة (حتى خمس) — سعرُ الإقفال
+    ذلك اليوم ÷ ربحيتِها ودفتريتِها ومبيعاتِها من قوائم «تداول» (D500).
+    قِيس من صور المالك: مضاعفاتُ InvestingPro تطابق ما اعتادت الشركةُ أن تُتداوَل
+    به (علم: مكرّرُهم 27.3× والسوقُ 20.7× والمبرَّرُ 15.3×)."""
+    try:
+        from app.services.market_data import market_service
+        pts = await market_service._yahoo()._fetch_chart_points(f"{sym}.SR", "10y", "1d")
+    except Exception:                                              # noqa: BLE001
+        return {}
+    closes = [(str(p.get("date")), _n(p.get("close"))) for p in (pts or []) if p.get("date") and _n(p.get("close"))]
+    if not closes:
+        return {}
+    out: dict[str, list] = {"pe": [], "pb": [], "ps": []}
+    for per in annual[-5:]:
+        d = str(per.get("as_of") or "")[:10]
+        before = [c for dd, c in closes if dd <= d]
+        if not d or not before:
+            continue
+        px = before[-1]
+        sh = _n(per.get("shares_outstanding")) or shares
+        ni, eq, rev = _n(per.get("net_income")), _n(per.get("equity")), _n(per.get("revenue"))
+        if not sh or sh <= 0:
+            continue
+        for k, base, lo, hi in (("pe", ni, 0, 80), ("pb", eq, 0, 30), ("ps", rev, 0, 40)):
+            if base and base > 0:
+                m = px * sh / base
+                if lo < m <= hi:
+                    out[k].append(round(m, 3))
+    return {k: v for k, v in out.items() if len(v) >= 3}
+
+
 async def gather(symbol: str) -> Inputs | None:
     from app.services import tadawul_market as TM
     from app.services.tadawul_xbrl import for_symbol as X
@@ -843,7 +885,8 @@ async def gather(symbol: str) -> Inputs | None:
         beta = bt[0] if bt else None
     except Exception:                                              # noqa: BLE001
         pass
-    return Inputs(symbol=sym, price=price, shares=shares, annual=annual, ttm=ttm,
+    hist = await _hist_multiples(sym, annual, shares)
+    return Inputs(symbol=sym, price=price, shares=shares, annual=annual, ttm=ttm, hist=hist,
                   balance=_latest(quarterly, annual), ttm_source=src, archetype=archetype_of(sym),
                   sector=sector, beta=beta, dps_ttm=dps, peers=pm, peer_symbols=peers, notes=notes,
                   stale_days=stale)
@@ -899,7 +942,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v19:{sym}"
+    ck = f"fvm:v20:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

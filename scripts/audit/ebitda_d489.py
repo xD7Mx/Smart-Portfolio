@@ -76,5 +76,11 @@ check(abs(_v.get("peer_pb", 0) - 68.5) < 1.5 and abs(_v.get("peer_pe", 0) - 68.5
       "١٣ D497 المضاعفُ المبرَّر (طريقةُ InvestingPro): مصرفٌ عائدُه 22٪ ودفتريته 24.08 ← ~68.5 (InvestingPro للراجحي 67.78–69.72) لا 26 بوسيط القطاع", str(_v))
 FV = open(os.path.join(ROOT, "backend/app/services/fair_value_models.py"), encoding="utf-8").read()
 check("or (beta_for(_ar) if _ar else None)" in FV, "١٤ D498 بيتا القطاع تُبحث بالاسم العربيّ أيضاً — لا كلفةَ حقوقٍ ثابتة 10٪ للجميع")
+_A2 = [{"year": y, "as_of": f"{y}-12-31", "revenue": 2e10, "net_income": 1e9, "equity": 8e9, "eps": 1.0} for y in (2023, 2024, 2025)]
+_i2 = F.Inputs(symbol="X", price=20, shares=1e9, annual=_A2, ttm=dict(_A2[-1]), balance={"equity": 8e9}, ttm_source="t",
+               sector="Energy", hist={"pe": [25, 27, 30]}, peers={})
+_v2 = {m["key"]: m["value"] for m in F.value(_i2)["models"]}
+check(abs(_v2.get("peer_pe", 0) - 27.0) < 0.01 and "await _hist_multiples(sym" in FV,
+      "١٥ D500 المكرّرُ من مضاعف الشركة التاريخيّ أوّلاً (وسيط 27× × ربحية 1 = 27) — طريقةُ InvestingPro", str(_v2))
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)
