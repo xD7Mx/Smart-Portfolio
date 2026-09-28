@@ -62,3 +62,25 @@ async def main():
 
 
 asyncio.run(main())
+
+
+# ══ الطورُ الثاني: الصفحتان تُحمَّلان بسكربت (صفرُ صفوف في HTML) — فتُقرأ
+# نداءاتُهما من حركة الشبكة (FETCH_METHOD §٤ج). ══
+async def sniff_pages():
+    from app.services.browser_fetch import sniff
+    for u in ("/ar/monitors/analyst-estimates", "/ar/monitors/research-articles"):
+        try:
+            res = await sniff(BASE + u, settle_ms=10000, want=r"(?i)json|estimat|research|article|report|api",
+                              max_bodies=4)
+        except Exception as e:                                    # noqa: BLE001
+            print(f"✖ sniff {u}: {e}")
+            continue
+        calls = [c for c in (res.get("calls") or []) if c.get("type") in ("xhr", "fetch")]
+        print(f"\n═ sniff {u}: نداءات {len(calls)}")
+        for c in calls[:25]:
+            print(f"   {c.get('status')} {c.get('type')} {str(c.get('url'))[:150]} · {c.get('size')}")
+        for k, v in list((res.get("bodies") or {}).items())[:4]:
+            print(f"   ⟵ {str(k)[:120]}\n      {str(v)[:700]}")
+
+
+asyncio.run(sniff_pages())
