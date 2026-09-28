@@ -39,7 +39,7 @@ async def _get(path: str, params: dict | None = None):
     # تماماً: خطّةٌ لا تشمل النقطة (‏403)، ورمزٌ غير مغطّى (‏404)،
     # وحصّةٌ نفدت (لا نداءَ أصلاً). ومسبارٌ لا يفصل بين الأسباب لا
     # يحسم شيئاً — وقد كلّف ذلك جولةَ تشخيصٍ يدويّة كاملة.
-    if not settings.SAHMAK_API_KEY:
+    if not (settings.SAHMAK_ENABLED and settings.SAHMAK_API_KEY):
         LAST[path] = {"سبب": "لا مفتاح مضبوط"}
         return None
     # ══ نقطةٌ ترفضها الخطّةُ لا تُنادى ثانيةً ══ (D161)
@@ -90,7 +90,7 @@ async def company_library() -> list:
     cached = cache.get(ck)
     if cached is not None:
         return cached
-    if not settings.SAHMAK_API_KEY:
+    if not (settings.SAHMAK_ENABLED and settings.SAHMAK_API_KEY):
         return []
     from app.services.usage_tracker import can_call, record
 

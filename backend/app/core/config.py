@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     YAHOO_FINANCE_ENABLED: bool = True
     SAHMAK_API_KEY: Optional[str] = None
     SAHMAK_BASE_URL: str = "https://app.sahmk.sa/api/v1"
+    # ══ «سهمك» موقوف (بأمر المالك · D510) ══ «نعتمد على تداول ثم أرقام، لا
+    # نحتاجه». كان يُنادى من مسارات احتياطٍ منسيّة (مزوّدُ السعر، الفترات
+    # المالية، الشعار، الشرعية) فبلغ نصفَ حصّته اليومية. مفتاحٌ واحدٌ يُطفئه كلَّه.
+    SAHMAK_ENABLED: bool = False
 
     # Per-provider daily request caps (free-tier safe; override in .env)
     # Sahmak/Gemini caps mirror a real vendor-enforced free-tier quota — Yahoo

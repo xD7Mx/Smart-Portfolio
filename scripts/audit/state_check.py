@@ -60,6 +60,7 @@ os.environ["LASTGOOD_PATH"] = os.path.join(sb, "lg.json")
 sys.path.insert(0, %r)
 from app.core.config import settings
 settings.SAHMAK_API_KEY = "TEST"
+settings.SAHMAK_ENABLED = True   # D510: الاختبارُ لسلوكه حين يُفعَّل — وهو موقوفٌ في الإنتاج
 from app.services import sahmak_library as s, usage_tracker as ut
 n = {"c": 0}
 class R:

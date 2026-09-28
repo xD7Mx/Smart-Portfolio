@@ -147,5 +147,23 @@ import time as _time
 _LG.save(_TM.STORE_KEY, {"rows": {"2222": {"price": 25.5, "change_pct": -1.2}}, "at": __import__("datetime").datetime.fromtimestamp(_time.time() - 2 * 86400, __import__("datetime").timezone.utc).isoformat()})
 check(_TM.snapshot() == {} and MSm._tadawul_changes().get("2222") == -1.2,
       "٢٤ D509 تغيّرُ آخر جلسةٍ يُقرأ بعد الإغلاق من آخر قراءةٍ محفوظة — لا من اللقطة اللحظية الصارمة الفارغة", str(MSm._tadawul_changes()))
+from app.core.config import settings as _S
+from app.services.market_data import SahmakAdapter as _SA
+from app.services import sahmak_library as _SL
+_S.SAHMAK_API_KEY = "test-key"
+_calls = []
+class _NoNet:
+    def __init__(self, *a, **k): _calls.append(1)
+    async def __aenter__(self): raise RuntimeError("شبكة")
+    async def __aexit__(self, *a): return False
+_oh = _SL.httpx.AsyncClient
+_SL.httpx.AsyncClient = _NoNet
+try:
+    _lib = _aio.run(_SL.company_library())
+finally:
+    _SL.httpx.AsyncClient = _oh
+check(_S.SAHMAK_ENABLED is False and _SA().api_key is None and not _calls,
+      "٢٥ D510 «سهمك» موقوفٌ كلُّه بمفتاحٍ واحد — لا نداءَ حتى مع وجود المفتاح (تداول ثمّ أرقام)", f"calls={len(_calls)}")
+_S.SAHMAK_API_KEY = None
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

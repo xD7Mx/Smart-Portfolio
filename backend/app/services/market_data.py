@@ -1404,7 +1404,7 @@ class SahmakAdapter:
     name = "sahmak"
 
     def __init__(self):
-        self.api_key = settings.SAHMAK_API_KEY
+        self.api_key = settings.SAHMAK_API_KEY if settings.SAHMAK_ENABLED else None   # D510
         self.BASE_URL = getattr(settings, "SAHMAK_BASE_URL", "https://sahmk.sa").rstrip("/")
 
     async def get_price(self, symbol: str) -> Optional[PriceData]:

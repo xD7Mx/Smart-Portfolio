@@ -245,6 +245,8 @@ async def _check_gemini() -> dict:
 
 async def _check_sahmak() -> dict:
     """Check Sahmak provider key/connectivity."""
+    if not cfg.SAHMAK_ENABLED:                                    # D510
+        return {"status": "not_configured", "detail": "موقوفٌ بأمر المالك — تداول ثمّ أرقام"}
     if not cfg.SAHMAK_API_KEY:
         return {"status": "not_configured", "detail": "No API key set"}
     try:
