@@ -810,7 +810,12 @@ async def gather(symbol: str) -> Inputs | None:
     beta = None
     try:
         from app.services.sector_betas import beta_for
-        bt = beta_for(sector) if sector else None
+        # جدولُ البيتا مفهرسٌ باسم القطاع العربيّ من دليل السوق، والمحرّكُ يحمل
+        # اسمَ «تداول» الإنجليزيّ — فكان البحثُ يفشل دائماً فتُحسب بيتا=1
+        # وكلفةُ الحقوق 10٪ لكلّ شركة (D498). يُجرَّب الاسمان.
+        from app.data.market_universe import MARKET_UNIVERSE as _U
+        _ar = ((_U.get(sym) or _U.get(sym + ".SR") or {}).get("sector"))
+        bt = (beta_for(sector) if sector else None) or (beta_for(_ar) if _ar else None)
         beta = bt[0] if bt else None
     except Exception:                                              # noqa: BLE001
         pass
@@ -870,7 +875,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v17:{sym}"
+    ck = f"fvm:v18:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

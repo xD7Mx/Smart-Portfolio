@@ -74,5 +74,7 @@ _i = F.Inputs(symbol="X", price=64.75, shares=1e9, annual=_A, ttm=dict(_A[-1]), 
 _v = {m["key"]: m["value"] for m in F.value(_i)["models"]}
 check(abs(_v.get("peer_pb", 0) - 68.5) < 1.5 and abs(_v.get("peer_pe", 0) - 68.5) < 1.5,
       "١٣ D497 المضاعفُ المبرَّر (طريقةُ InvestingPro): مصرفٌ عائدُه 22٪ ودفتريته 24.08 ← ~68.5 (InvestingPro للراجحي 67.78–69.72) لا 26 بوسيط القطاع", str(_v))
+FV = open(os.path.join(ROOT, "backend/app/services/fair_value_models.py"), encoding="utf-8").read()
+check("or (beta_for(_ar) if _ar else None)" in FV, "١٤ D498 بيتا القطاع تُبحث بالاسم العربيّ أيضاً — لا كلفةَ حقوقٍ ثابتة 10٪ للجميع")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)
