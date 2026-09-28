@@ -102,5 +102,13 @@ finally:
     _MD.market_service._yahoo = _orig
 check(_h.get("pe") and abs(_h["pe"][0] - 20.0) < 0.01 and abs(_h["pb"][0] - 2.0) < 0.01,
       "١٨ D503 المضاعفُ التاريخيّ بعدد الأسهم الحاليّ مع أسعارٍ معدَّلة — لا عددَ القوائم القديم (كان 0.02× لدار الأركان)", str(_h))
+_A4 = [{"year": y, "as_of": f"{y}-12-31", "revenue": 2e10, "net_income": 2.46e9, "equity": 20.82e9, "eps": 2.46,
+        "operating_income": 3.1e9, "ocf": 4e9, "capex": 2e9} for y in (2023, 2024, 2025)]
+_i4 = F.Inputs(symbol="X", price=43.22, shares=1e9, annual=_A4, ttm=dict(_A4[-1]), balance={"equity": 20.82e9},
+               ttm_source="t", sector="Food & Beverages", dps_ttm=1.15, peers={})
+_d = {m["key"]: m for m in F.value(_i4)["models"]}
+_g = next((float(x[1].rstrip("%")) for x in (_d.get("ddm_stable") or {}).get("assumptions", []) if x[0] == "النموُّ المستدام"), 0)
+check(_g > 3.6 and (_d.get("ddm_stable") or {}).get("value", 0) > 30,
+      "١٩ D504 خصمُ التوزيعات بطريقة InvestingPro: النموُّ العائدُ × الاحتجاز بلا سقف 3.5٪ (المراعي ~62 لا 20.7)", str({k: _d[k]["value"] for k in _d if k.startswith("ddm")}) + f" g={_g}")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

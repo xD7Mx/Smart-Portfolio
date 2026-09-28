@@ -432,9 +432,14 @@ def equity_models(i: Inputs, bs: Base) -> list[dict]:
     # من يحتجز أغلبَ ربحه لا تقيس توزيعاتُه قيمتَه — قيمتُه فيما احتجز.
     payout0 = (d0 / (bs.ni_n / i.shares)) if (d0 and bs.ni_n and bs.ni_n > 0) else None
     if d0 and d0 > 0 and payout0 is not None and payout0 >= 0.45:
+        # ══ طريقةُ InvestingPro في خصم التوزيعات ══ (D504) قِيس من صور المالك: فارقُ
+        # الخصم والنموّ عندهم ~2٪ (المراعي 61.99 على توزيع 1.15) لا 5.75٪ عندنا.
+        # فالخصمُ بأدنى كلفتَي رأس المال والحقوق، والنموُّ العائدُ × الاحتجاز بلا
+        # سقفٍ ثابت 3.5٪ — سقفُه الخصمُ ناقصاً 2٪. (المراعي: 7.72٪ و5.72٪ ← 60.8)
+        ke = min(bs.wacc, ke) if bs.wacc and bs.wacc > 0.04 else ke
         g_s = min(max((bs.roe_n or 0) * (1 - min(d0 / (bs.ni_n / i.shares), 1)) if (bs.ni_n and bs.ni_n > 0) else 0, 0),
-                  MAX_SUSTAINABLE_GROWTH)
-        f1 = lambda k, g: d0 * (1 + g) / (k - g) if k - g > 0.02 else None
+                  ke - 0.02)
+        f1 = lambda k, g: d0 * (1 + g) / (k - g) if k - g > 0.0199 else None
         out.append(_model("ddm_stable", "income", "خصمُ التوزيعات · نموٌّ مستقرّ", f1(ke, g_s),
                           f1(ke + 0.005, max(g_s - 0.0025, 0)), f1(ke - 0.005, g_s + 0.0025),
                           [("توزيعاتُ 12 شهراً", f"{d0:.2f}", "جدولُ توزيعات «تداول»"),
@@ -446,7 +451,7 @@ def equity_models(i: Inputs, bs: Base) -> list[dict]:
             for t in range(1, 6):
                 d *= 1 + g_hi
                 v += d / (1 + k) ** t
-            return v + (d * (1 + g_s) / (k - g_s)) / (1 + k) ** 5 if k - g_s > 0.02 else None
+            return v + (d * (1 + g_s) / (k - g_s)) / (1 + k) ** 5 if k - g_s > 0.0199 else None
         gh = min(bs.growth, 0.10)
         out.append(_model("ddm_two_stage", "income", "خصمُ التوزيعات · مرحلتان", f2(ke, gh),
                           f2(ke + 0.005, max(gh - 0.01, 0)), f2(ke - 0.005, gh + 0.01),
@@ -945,7 +950,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v21:{sym}"
+    ck = f"fvm:v22:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
