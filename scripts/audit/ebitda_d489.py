@@ -68,5 +68,11 @@ check(MSm._tadawul_ratios("0000", 10) == {}, "١١ب ورمزٌ بلا قوائ�
 NC = open(os.path.join(ROOT, "frontend/src/components/analysis/NativeChart.tsx"), encoding="utf-8").read()
 check('"year" in tm' in NC and "marketApi.saveDrawings(symbol, d)" in NC and '@router.put("/drawings/{symbol}"' in M,
       "١٢ D496 الرسمُ يُحفظ بزمن الشمعة لا بكائن المكتبة، وعلى الخادم لكلّ شركةٍ حتى يُمسح")
+_A = [{"year": y, "as_of": f"{y}-12-31", "revenue": 2e10, "net_income": 0.22 * 24.08e9, "equity": 24.08e9, "eps": 5.3} for y in (2023, 2024, 2025)]
+_i = F.Inputs(symbol="X", price=64.75, shares=1e9, annual=_A, ttm=dict(_A[-1]), balance={"equity": 24.08e9},
+              ttm_source="t", archetype="bank", sector="Banks", peers={"pe": [10] * 5, "pb": [1.08] * 5, "ps": [3.19] * 5})
+_v = {m["key"]: m["value"] for m in F.value(_i)["models"]}
+check(abs(_v.get("peer_pb", 0) - 68.5) < 1.5 and abs(_v.get("peer_pe", 0) - 68.5) < 1.5,
+      "١٣ D497 المضاعفُ المبرَّر (طريقةُ InvestingPro): مصرفٌ عائدُه 22٪ ودفتريته 24.08 ← ~68.5 (InvestingPro للراجحي 67.78–69.72) لا 26 بوسيط القطاع", str(_v))
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

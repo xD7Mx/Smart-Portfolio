@@ -460,7 +460,34 @@ def multiple_models(i: Inputs, bs: Base) -> list[dict]:
         "ps": (bs.rev / sh, "مضاعفُ المبيعات", "مبيعاتُ السهم"),
         "pocf": (bs.ocf / sh if bs.ocf else None, "مضاعفُ التدفّق التشغيليّ", "تدفّقٌ تشغيليٌّ للسهم"),
     }
+    # ══ المضاعفُ المبرَّر — طريقةُ InvestingPro (بأمر المالك · D497) ══
+    # قِيس على الراجحي: وسيطُ القطاع (10×) أعطى 38 وInvestingPro 69.7؛ والمبرَّرُ
+    # من عائد الشركة على حقوقها أعطى 68.6 للمكرّر والدفترية معاً. فالشركةُ تأخذ
+    # المضاعفَ الذي يستحقّه عائدُها لا مضاعفَ شركةٍ متوسّطة:
+    #   الدفتريةُ المبرَّرة = (العائد على الحقوق − النموّ) ÷ (كلفة الحقوق − النموّ)
+    #   المكرّرُ المبرَّر  = الدفتريةُ المبرَّرة ÷ العائد على الحقوق
+    # والمبيعاتُ بالمكرّر المبرَّر × هامش الربح (ولذا تتساوى قيمتُها وقيمةُ المكرّر
+    # كما في InvestingPro). وحيث العائدُ دون النموّ يُرجَع إلى وسيط الأقران.
+    g_j = MAX_SUSTAINABLE_GROWTH
+    roe = bs.roe_n
+    just = None
+    if roe is not None and roe > g_j + 0.005 and bs.ke > g_j + 0.01:
+        f_pb = lambda ke: min(max((roe - g_j) / (ke - g_j), 0.0), 15.0)
+        just = {k: (f_pb(k) , f_pb(k) / roe) for k in (bs.ke, bs.ke + 0.005, bs.ke - 0.005)}
+    eps_n = bs.ni_n / sh if bs.ni_n else None
     for key, (base, name, label) in per_share.items():
+        if just and key in ("pe", "pb", "ps") and base and base > 0:
+            idx = 0 if key == "pb" else 1
+            mult = {k: v[idx] for k, v in just.items()}
+            b2 = base if key != "ps" else eps_n
+            if b2 and b2 > 0:
+                v, lo, hi = b2 * mult[bs.ke], b2 * mult[bs.ke + 0.005], b2 * mult[bs.ke - 0.005]
+                out.append(_model(f"peer_{key}", "multiples", name, v, lo, hi,
+                                  [(label, f"{base:.2f}", ""),
+                                   ("المضاعفُ المبرَّر", f"{mult[bs.ke]:.2f}x", "من العائد على الحقوق — طريقةُ InvestingPro"),
+                                   ("العائدُ على الحقوق المطبَّع", f"{roe*100:.1f}%", "وسيطُ ثلاث سنوات"),
+                                   ("كلفةُ الحقوق", f"{bs.ke*100:.2f}%", "±0.5%")]))
+                continue
         xs = i.peers.get(key) or []
         if not base or base <= 0 or len(xs) < MIN_PEERS:
             continue
@@ -843,7 +870,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v16:{sym}"
+    ck = f"fvm:v17:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

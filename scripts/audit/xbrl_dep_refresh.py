@@ -91,4 +91,5 @@ async def all_():
     await main()
     await sanity()
 
-asyncio.run(all_())
+if __name__ == "__main__":
+    asyncio.run(all_())
