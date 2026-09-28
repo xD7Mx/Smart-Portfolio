@@ -304,10 +304,39 @@ function RecsPanel({ data, loading }: { data: any; loading: boolean }) {
   );
 }
 
+function ForecastsPanel({ data, loading }: { data?: any[]; loading: boolean }) {
+  if (loading) return <div className="h-40 skeleton rounded-xl" />;
+  if (!data || !data.length)
+    return <div className="py-16 text-center text-[var(--ink-muted)] text-sm">التوقعات غير متوفّرة حالياً</div>;
+  return (
+    <div className="space-y-1.5">
+      {data.map((f: any, i: number) => (
+        <a key={f.url || i} href={f.url || undefined} target="_blank" rel="noopener noreferrer"
+           className="card block p-3 min-h-[32px] text-right hover:bg-[var(--surface)]">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="ev-tag inline-block text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--surface)] text-[var(--ink)]">{f.kind}</span>
+            {f.company && (
+              <span className="flex items-center gap-1.5 min-w-0">
+                <CompanyLogo symbol={f.company} size={18} />
+                <span className="text-[11px] text-[var(--ink-muted)] truncate">{lookupCompany(f.company)?.name_ar || f.company}</span>
+              </span>
+            )}
+          </div>
+          <div className="flex items-end gap-3">
+            <p className="flex-1 text-[13px] leading-relaxed text-[var(--ink)]">{f.title}</p>
+            <span className="text-[10.5px] text-[var(--ink-muted)] tabular-nums shrink-0" dir="ltr">{f.date || "—"}</span>
+          </div>
+          <p className="text-[10.5px] text-[var(--ink-muted)] mt-1">{f.source}</p>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export default function EventsList({ events, symbol }: { events: any[]; symbol?: string }) {
   const now = new Date();
   const [open, setOpen] = useState<any | null>(null);
-  const [view, setView] = useState<"cal" | "disc" | "recs">("cal");
+  const [view, setView] = useState<"cal" | "disc" | "recs" | "fc">("cal");
 
   /* ══ توصيات المحللين ══ (بأمر المالك)
      تبويبٌ ثالث في المُبدِّل نفسه، ومن «أرقام» كالمفكرة. ولا يُجلب إلا
@@ -317,6 +346,16 @@ export default function EventsList({ events, symbol }: { events: any[]; symbol?:
     queryKey: ["argaam-recs", symbol],
     queryFn: () => marketApi.recommendations(symbol!).then(r => r.data?.data),
     enabled: !!symbol && view === "recs",
+    retry: 0,
+  });
+
+  /* ══ «التوقعات» ══ (بأمر المالك · D507) التبويبُ الثالث في مفكرة السوق:
+     توقعاتُ بيوت الخبرة والبنوك وتقاريرُ السوق. لا يُجلب إلا حين يُفتح. */
+  const { data: fc, isLoading: fcLoading } = useQuery({
+    queryKey: ["forecasts"],
+    queryFn: () => marketApi.forecasts().then(r => r.data?.data || []),
+    enabled: !symbol && view === "fc",
+    staleTime: 30 * 60 * 1000,
     retry: 0,
   });
 
@@ -351,7 +390,7 @@ export default function EventsList({ events, symbol }: { events: any[]; symbol?:
   /* المُبدِّل يظهر متى وُجد أكثر من جانبٍ واحد — وتبويب التوصيات جانبٌ
      قائم بذاته، فيُظهره وجودُ رمزِ شركةٍ حتى لو كانت المفكرة كلُّها من
      صنفٍ واحد. */
-  const showSwitch = split || !!symbol;
+  const showSwitch = true;
   const switcher = showSwitch ? (
     /* الأسماء مجرّدة بلا أعداد بين قوسين (بأمر المالك): العدد يتغيّر مع كل
        تحديث فيقفز عرض الزرّ، والاسم وحده أرسم. */
@@ -360,6 +399,10 @@ export default function EventsList({ events, symbol }: { events: any[]; symbol?:
         onClick={() => setView("cal")}>المفكرة</button>
       <button role="tab" aria-selected={view === "disc"} className={"seg-btn" + (view === "disc" ? " on" : "")}
         onClick={() => setView("disc")}>الإفصاحات</button>
+      {!symbol && (
+        <button role="tab" aria-selected={view === "fc"} className={"seg-btn" + (view === "fc" ? " on" : "")}
+          onClick={() => setView("fc")}>التوقعات</button>
+      )}
       {symbol && (
         <button role="tab" aria-selected={view === "recs"} className={"seg-btn" + (view === "recs" ? " on" : "")}
           onClick={() => setView("recs")}>توصيات المحللين</button>
@@ -367,6 +410,7 @@ export default function EventsList({ events, symbol }: { events: any[]; symbol?:
     </div>
   ) : null;
 
+  if (view === "fc") return <div>{switcher}<ForecastsPanel data={fc} loading={fcLoading} /></div>;
   if (view === "recs") return <div>{switcher}<RecsPanel data={recs} loading={recsLoading} /></div>;
 
   if (!ordered.length && !undated.length) {

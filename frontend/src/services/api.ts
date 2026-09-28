@@ -250,6 +250,7 @@ export const marketApi = {
   feedstock: () => api.get<APIResponse>("/market/feedstock"),
   events:   () => api.get<APIResponse>("/market/events"),
   eventsMarket: () => api.get<APIResponse>("/market/events-market"),
+  forecasts: () => api.get<APIResponse>("/market/forecasts"),
   companyEvents: (symbol: string, name?: string) => api.get<APIResponse>(`/market/events/${symbol}`, { params: name ? { name } : undefined }),
   results:  () => api.get<APIResponse>("/market/results"),
   company:  (symbol: string) => api.get<APIResponse>(`/market/company/${symbol}`),

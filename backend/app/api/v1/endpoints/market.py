@@ -690,6 +690,14 @@ async def get_events_market_wide():
     return success_response(data=clean_events(await market_wide_events()))
 
 
+@router.get("/forecasts")
+async def get_forecasts():
+    """«التوقعات» (D507): توقعاتُ بيوت الخبرة والبنوك وتقاريرُ السوق من المصادر
+    العامّة المقيسة — كلُّ بندٍ بمصدره ورابطه. وفراغُها يُقال لا يُملأ."""
+    from app.services.forecasts import get
+    return success_response(data=await get())
+
+
 @router.get("/event-detail/{detail_id}")
 async def get_event_detail(detail_id: str):
     """نصّ الإعلان الكامل — مقدار التوزيع، جدول أعمال الجمعية، نسبة المنحة.

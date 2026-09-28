@@ -123,5 +123,12 @@ _UI = open(os.path.join(ROOT, "frontend/src/components/common/UI.tsx"), encoding
 check((_MQ.rating("1050") or {}).get("status") == "NON_COMPLIANT" and (_MQ.rating("1120") or {}).get("status") == "COMPLIANT"
       and _ce == [{"title": "توزيع 1.5"}] and "if (!tone) return null;" not in _UI,
       "٢١ D506 هلالُ الشرعية لكلّ السوق (المصرفُ التقليديّ بفحص النشاط، والمجهولُ رماديّ) ولا عنوانَ إنجليزيّاً ولا وسمَ HTML في الإفصاحات", str(_ce))
+from app.services import forecasts as _FC
+_ev = open(os.path.join(ROOT, "frontend/src/components/market/EventsList.tsx"), encoding="utf-8").read()
+_fp = _FC.pick_forecasts([{"headline": "الراجحي المالية ترفع السعر المستهدف لسهم المراعي", "url": "u"},
+                          {"headline": "المراعي تعتمد التقرير السنوي", "url": "x"}, {"headline": "ارتفاع مؤشر السوق", "url": "y"}])
+check(len(_fp) == 1 and _fp[0]["kind"] == "سعرٌ مستهدف" and 'onClick={() => setView("fc")}>التوقعات</button>' in _ev
+      and "subscription" not in open(os.path.join(ROOT, "backend/app/services/forecasts.py"), encoding="utf-8").read().split('"""')[2],
+      "٢٢ D507 «التوقعات» تبويبٌ ثالثٌ في مفكرة السوق من مصادرَ عامّةٍ مقيسة (لا صفحاتِ المشتركين) — وما ليس توقّعاً لا يدخله", str(_fp))
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)
