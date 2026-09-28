@@ -84,5 +84,8 @@ check(abs(_v2.get("peer_pe", 0) - 27.0) < 0.01 and "await _hist_multiples(sym" i
       "١٥ D500 المكرّرُ من مضاعف الشركة التاريخيّ أوّلاً (وسيط 27× × ربحية 1 = 27) — طريقةُ InvestingPro", str(_v2))
 _rd = MS[MS.find("async def refresh_derived"):]
 check("_tadawul_ratios(sym.replace" in _rd, "١٦ D501 مضاعفاتُ تداول في الفرز عند كلّ طلبٍ لا في المسحة الليلية وحدها")
+_rd2 = _rd[:_rd.find("_tadawul_prices().get(sym)")]
+check("pd = None" in _rd2[-200:] and "_movers_changes().get(sym)" in _rd,
+      "١٧ D502 التغيّرُ اليوميّ لا يسقط حين يأتي السعرُ من تداول (كان pd غيرَ معرَّف) ويُقرأ من مسح المحرّكين")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

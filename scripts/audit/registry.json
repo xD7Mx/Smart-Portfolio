@@ -3690,6 +3690,13 @@
       "العلاج": "_tadawul_ratios تُطبَّق في refresh_derived أيضاً، وكاشفُ screener_fill.py يقيس امتلاءَ كلّ عمودٍ ومصدرَه.",
       "الفحص": "scripts/audit/ebitda_d489.py",
       "الحالة": "مغلق"
+    },
+    {
+      "id": "D502",
+      "title": "عمودُ التغيّر اليوميّ في فرز السوق فارغٌ 0٪",
+      "root_cause": "في refresh_derived يُقرأ change_pct من pd الذي لا يُعرَّف حين يأتي السعرُ من تداول؛ NameError يبتلعه try فيُترك التغيّرُ وإعادةُ حساب البُعد عن المتوسطات",
+      "fix": "pd = None قبل الطبقات، والتغيّرُ من مسح المحرّكين احتياطاً",
+      "guard": "scripts/audit/ebitda_d489.py#17"
     }
   ]
 }

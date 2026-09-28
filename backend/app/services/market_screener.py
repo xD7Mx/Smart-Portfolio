@@ -701,6 +701,15 @@ def _movers_prices() -> dict:
         return {}
 
 
+def _movers_changes() -> dict:
+    """تغيّرُ اليوم% من لقطة المحرّكين (D502)."""
+    try:
+        from app.services.market_movers import get_cached_market_movers
+        return (get_cached_market_movers() or {}).get("stocks") or {}
+    except Exception:                                             # noqa: BLE001
+        return {}
+
+
 async def refresh_derived(rows: list) -> list:
     """يُنعش الحقولَ المشتقّةَ في صفوف اللقطة عند التقديم — لا عند بنائها.
 
@@ -776,6 +785,7 @@ async def refresh_derived(rows: list) -> list:
             # يتقدّمها لأنه كان الأحدثَ زمناً يومَ لم يكن للسوق مصدرٌ مباشر؛
             # وقد صار للقطة زمنٌ محروسٌ (ربعُ ساعةٍ حدّاً) وتغطيةٌ كاملة،
             # فالمُصدِرُ يتقدّم المزوّد. وياهو يبقى لمن غاب عن اللقطة.
+            pd = None   # D502: كان غيرَ معرَّفٍ حين يأتي السعرُ من «تداول»
             _tp = _tadawul_prices().get(sym)
             px_new = _tp if isinstance(_tp, (int, float)) and _tp > 0 else None
             _src = "tadawul" if px_new else None
@@ -795,6 +805,10 @@ async def refresh_derived(rows: list) -> list:
                 r["price_source"] = _src
                 r["price"] = px_new
                 _chg = getattr(pd, "change_pct", None)
+                # ══ التغيّرُ اليوميّ من مسح المحرّكين ══ (D502) اللقطةُ تُبنى
+                # قبل اكتمال المسح، فبقي العمودُ فارغاً لمن لم تُفتح صفحتُه.
+                if not isinstance(_chg, (int, float)):
+                    _chg = _movers_changes().get(sym)
                 if isinstance(_chg, (int, float)):
                     r["change_pct"] = round(_chg, 2)
                 for _k, _sma in (("dist_sma50", r.get("sma50")),
