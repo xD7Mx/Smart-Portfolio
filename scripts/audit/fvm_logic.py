@@ -60,8 +60,13 @@ agg = F.aggregate([{"key": "a", "family": "cashflow", "value": 5, "low": 4, "hig
                    {"key": "d", "family": "equity", "value": 1.6, "low": 1.4, "high": 1.8},
                    {"key": "e", "family": "multiples", "value": 12, "low": 9, "high": 16}], 4.38, "consumer_defensive")
 ex = [e["key"] for e in agg["excluded"]]
-check(ex == ["c"] and {f["family"] for f in agg["families"]} == {"cashflow", "equity", "multiples"},
-      "٦ الشاذُّ يُستبعَد داخلَ عائلته ولا تُسقَط عائلةٌ لأنها تخالف غيرَها", str(ex))
+# ‏D499 (بأمر المالك: «طبّق طريقة InvestingPro كما هي»): المتوسّطُ البسيط لكلّ النماذج
+# والمدى من أدناها إلى أعلاها — ولا استبعادَ داخل العائلة (خطأُ المدخلات بعشرة أضعاف
+# السعر يُستبعَد قبل الجمع في value()).
+_vals = [5, 5.5, 60, 1.6, 12]
+check(not ex and abs(agg["value"] - sum(_vals) / len(_vals)) < 0.01 and agg["low"] == 1.6 and agg["high"] == 60
+      and {f["family"] for f in agg["families"]} == {"cashflow", "equity", "multiples"},
+      "٦ جمعُ InvestingPro: متوسّطٌ بسيطٌ والمدى من أدنى نموذجٍ إلى أعلاه، ولا تُسقَط عائلة", f"{agg['value']} · {ex}")
 b = F.value(F.Inputs(symbol="1120", price=100, shares=4e9, annual=A, ttm=ttm, balance=Q[-1], ttm_source=src,
                      archetype="bank", peers=peers))
 check(not any(m["family"] == "cashflow" for m in b["models"]), "٧ المصرفُ لا يُقيَّم بخصم تدفّقٍ حرّ")

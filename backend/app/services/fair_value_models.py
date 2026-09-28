@@ -67,6 +67,11 @@ BLEND_ALPHA = {"bank": 0.75, "financial": 0.0, "capital_infra": 0.0,
                "insurance": 0.5, "consumer_cyclical": 0.5, "commodity": 1.0, "re_developer": 0.5,
                "consumer_defensive": 0.5, "contracting": 0.0, "asset_light": 1.0}
 DEFAULT_ALPHA = 0.5
+# ‏D499: جمعُ InvestingPro (متوسّطٌ بسيط) ولا مزجَ بالمحرّك المُعايَر — والمُعايَرُ احتياطٌ
+# حين لا نموذجَ صالحاً فقط.
+IP_AGGREGATE = True
+BLEND_ALPHA = {k: 1.0 for k in BLEND_ALPHA}
+DEFAULT_ALPHA = 1.0
 
 # ══ نظريةُ المالك: «كلُّ قطاعٍ بما يليق به» ══ (D470)
 # النماذجُ لا تُطبَّق كلُّها على الجميع: الصندوقُ العقاريُّ يُقيَّم بتوزيعه وصافي
@@ -518,6 +523,25 @@ def multiple_models(i: Inputs, bs: Base) -> list[dict]:
 
 # ══ التجميع: وسيطُ كلّ عائلةٍ ثمّ أوزانُ النمط ═══════════════════════════════
 def aggregate(models: list[dict], price: float, archetype: str | None) -> dict:
+    # ══ طريقةُ InvestingPro في الجمع (بأمر المالك · D499) ══ «المتوسّط» عندهم متوسّطٌ
+    # بسيطٌ لقيم النماذج كلِّها (أرامكو: 14 نموذجاً ← 31.11)، والمدى من أدنى نموذجٍ إلى
+    # أعلاه؛ بلا أوزانِ عائلاتٍ ولا استبعادٍ داخل العائلة ولا مزجٍ بمحرّكٍ آخر.
+    if IP_AGGREGATE and models:
+        vals = [m["value"] for m in models]
+        value = statistics.fmean(vals)
+        fams: dict[str, list[float]] = {}
+        for m in models:
+            fams.setdefault(m["family"], []).append(m["value"])
+        summary = [{"family": f, "name": FAMILY_NAMES.get(f, f), "value": round(statistics.fmean(v), 2),
+                    "low": round(min(v), 2), "high": round(max(v), 2),
+                    "weight": round(len(v) / len(vals), 3), "models": len(v)} for f, v in fams.items()]
+        disp = ((_pct(vals, .75) - _pct(vals, .25)) / value) if len(vals) >= 4 and value else None
+        uncertainty = ("منخفض" if disp is not None and disp < 0.25 else
+                       "معتدل" if disp is not None and disp < 0.5 else "مرتفع")
+        return {"value": round(value, 2), "low": round(min(vals), 2), "high": round(max(vals), 2),
+                "upside": round((value / price - 1) * 100, 2) if price else None,
+                "uncertainty": uncertainty, "dispersion": round(disp, 3) if disp is not None else None,
+                "families": summary, "excluded": [], "weights_kind": "investingpro_mean"}
     kind = "financial" if archetype in FIN_TYPES else "reit" if archetype == "reit" else "default"
     weights = dict(FAMILY_WEIGHTS_BY_ARCH.get(archetype or "", FAMILY_WEIGHTS[kind]))
     # ما شذّ عن **عائلته** يُستبعَد ويُسمّى — لا عن وسيط النماذج كلِّها: العائلاتُ
@@ -875,7 +899,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v18:{sym}"
+    ck = f"fvm:v19:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
