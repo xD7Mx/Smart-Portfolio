@@ -383,12 +383,39 @@ async def official_names() -> tuple[dict[str, str], str | None]:
     return out, None
 
 
+def sym_unknown(sym: str, directory: dict) -> bool:
+    """رمزٌ لا يعرفه ملفُّ الدليل — فإضافتُه للمزامنة الأسبوعية لا للتسمية."""
+    import json as _j
+    import os as _o
+    global _FILE_DIR
+    if _FILE_DIR is None:
+        try:
+            from app.data import saudi_directory as _sd
+            with open(_o.path.join(_o.path.dirname(_sd.__file__), "saudi_directory.json"), encoding="utf-8") as fh:
+                _FILE_DIR = set(_j.load(fh))
+        except Exception:                                         # noqa: BLE001
+            _FILE_DIR = set(directory)
+    return sym not in _FILE_DIR
+
+
+_FILE_DIR: set | None = None
+
+
 def apply_official(names: dict[str, str]) -> dict:
     """يكتب اسمَ «تداول» فوق الدليل لكلّ رمز — استبدالاً لا إكمالاً."""
     from app.data.saudi_directory import SAUDI_DIRECTORY
     ov = overlay()
+    # ══ تسميةٌ لا إضافة ══ (D523)
+    # أوّلُ تشغيلٍ على الخادم كتب صفّاً لكلّ رمزٍ من «نمو» ليس في الدليل، فصار
+    # الدليلُ ‎285 بدل ‎275 وانكسرت السلسلةُ واللجنة. فالاسمُ الرسميّ يُكتب لمن
+    # يعرفه الدليلُ وحدَه، وما زُرع خطأً (اسمٌ ووسمٌ لا غير) يُقلَع.
+    for sym in [k for k, v in ov.items() if isinstance(v, dict) and sym_unknown(k, SAUDI_DIRECTORY)
+                and set(v) <= {"name", "name_src"} and v.get("name_src") == "تداول"]:
+        ov.pop(sym, None)
     changed = []
     for sym, nm in names.items():
+        if sym_unknown(sym, SAUDI_DIRECTORY) and sym not in ov:
+            continue
         e = ov.setdefault(sym, {})
         cur = e.get("name") or (SAUDI_DIRECTORY.get(sym) or {}).get("name")
         if cur != nm:
