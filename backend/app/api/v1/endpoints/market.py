@@ -698,6 +698,13 @@ async def get_forecasts():
     return success_response(data=await get())
 
 
+@router.get("/official-names")
+async def get_official_names():
+    """أسماءُ «تداول» الرسمية (D520) — تُطبَّق فوق دليل الواجهة الساكن."""
+    from app.services.tadawul_sync import official_overlay
+    return success_response(data=official_overlay())
+
+
 @router.get("/event-detail/{detail_id}")
 async def get_event_detail(detail_id: str):
     """نصّ الإعلان الكامل — مقدار التوزيع، جدول أعمال الجمعية، نسبة المنحة.

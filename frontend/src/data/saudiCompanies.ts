@@ -470,3 +470,16 @@ export function lookupCompany(symbol: string): SaudiCompany | undefined {
 export const SECTORS: string[] = Array.from(
   new Set(SAUDI_COMPANIES.map(c => c.sector).filter(Boolean))
 ).sort((a, b) => a.localeCompare(b, "ar"));
+
+/* ══ الاسمُ الرسميّ من «تداول» فوق الدليل الساكن ══ (بأمر المالك · D520)
+   الخادمُ يكتب أسماءَ «تداول» في طبقته؛ وهنا تُطبَّق على الجدول نفسِه فتقرؤها
+   كلُّ شاشةٍ تستدعي lookupCompany/searchCompanies بلا تعديلٍ فيها. */
+export function applyOfficialNames(names: Record<string, string> | null | undefined): number {
+  if (!names) return 0;
+  let n = 0;
+  for (const c of SAUDI_COMPANIES) {
+    const nm = names[c.symbol];
+    if (nm && nm !== c.name_ar) { c.name_ar = nm; n++; }
+  }
+  return n;
+}

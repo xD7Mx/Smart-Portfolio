@@ -311,6 +311,11 @@ async def sync(*, dry_run: bool = False) -> dict:
 
     ‏`dry_run` يعيد الخطّةَ ولا يكتب — وهو ما يُشغَّل أوّلَ مرّة.
     """
+    if not dry_run:
+        try:
+            await sync_official()
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning(f"الأسماءُ الرسمية تعذّرت: {type(e).__name__}")
     listed, why = await fetch_listed()
     if not listed:
         # ══ الإضافةُ لا تنتظر القائمةَ الكاملة ══ (D244)
@@ -343,3 +348,68 @@ async def sync(*, dry_run: bool = False) -> dict:
                    ("added", "renamed", "suspended", "resumed")},
         "listed": p["listed"]})
     return out
+
+
+# ══ الاسمُ الرسميّ من «تداول» بلا نقاش ══ (بأمر المالك · D520)
+# قال المالك: «اعتمد المصدر الرسمي وهو تداول بدون نقاش». وقِيس على الخادم
+# (‏tadawul_names_door.py): خدمةُ جدول السوق بلغة ‎ar تحمل `companyName`
+# الاسمَ النظاميَّ الكامل («شركة درب السعودية الأستثمارية») — لا اسمَ المتابعة
+# المختصر الذي رفضه D245. فيُكتب فوق الدليل لكلّ رمزٍ، وتُحذف «شركة» الأولى
+# وحدَها لأن الدليلَ كلَّه بلا هذه البادئة؛ وما سواها حرفيّ.
+MIN_OFFICIAL = 200        # دون ذلك في الرئيسيّ: جلبٌ فشل، فلا يُكتب شيء
+
+
+def official_name(raw) -> str | None:
+    t = " ".join(str(raw or "").split())
+    if t.startswith("شركة "):
+        t = t[len("شركة "):].strip()
+    return t or None
+
+
+async def official_names() -> tuple[dict[str, str], str | None]:
+    from app.services.tadawul_market import NOMU_PAGE, PAGE, fetch_rows
+    out: dict[str, str] = {}
+    for page in (PAGE, NOMU_PAGE):
+        rows, why = await fetch_rows(page, locale="ar")
+        if why and page == PAGE:
+            return {}, why
+        for r in rows or []:
+            sym = str((r or {}).get("companySymbol") or "").strip()
+            nm = official_name((r or {}).get("companyName"))
+            if re.fullmatch(r"\d{4}", sym) and nm:
+                out.setdefault(sym, nm)
+        if page == PAGE and len(out) < MIN_OFFICIAL:
+            return {}, f"فُهم {len(out)} اسماً فقط (الحدّ {MIN_OFFICIAL})"
+    return out, None
+
+
+def apply_official(names: dict[str, str]) -> dict:
+    """يكتب اسمَ «تداول» فوق الدليل لكلّ رمز — استبدالاً لا إكمالاً."""
+    from app.data.saudi_directory import SAUDI_DIRECTORY
+    ov = overlay()
+    changed = []
+    for sym, nm in names.items():
+        e = ov.setdefault(sym, {})
+        cur = e.get("name") or (SAUDI_DIRECTORY.get(sym) or {}).get("name")
+        if cur != nm:
+            changed.append({"symbol": sym, "from": cur, "to": nm})
+        e["name"] = nm
+        e["name_src"] = "تداول"
+    _save_overlay(ov)
+    return {"official": len(names), "changed": changed}
+
+
+async def sync_official() -> dict:
+    names, why = await official_names()
+    if not names:
+        logger.warning(f"الأسماءُ الرسمية من «تداول» تعذّرت: {why}")
+        return {"ok": False, "why": why}
+    res = apply_official(names)
+    logger.info(f"🗂️ أسماءُ «تداول» الرسمية: {res['official']} · تغيّر {len(res['changed'])}")
+    return {"ok": True, **res}
+
+
+def official_overlay() -> dict[str, str]:
+    """ما كتبته «تداول» من أسماء — تقرؤه الواجهةُ فوق دليلها الساكن."""
+    return {s: v["name"] for s, v in overlay().items()
+            if isinstance(v, dict) and v.get("name_src") == "تداول" and v.get("name")}

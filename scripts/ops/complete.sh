@@ -33,6 +33,15 @@ git fetch origin "$BR" && git checkout FETCH_HEAD -- . && \
   echo "الشجرةُ عند $(git rev-parse --short FETCH_HEAD)" || \
   { echo "✘ تعذّرت التسوية — تُراجَع الشبكةُ أو الصلاحيات"; exit 1; }
 
+say "١ب · أسماءُ «تداول» الرسمية (D520) — قبل الإعادة لتُقرأ عند الإقلاع"
+docker exec "$C" python -c "
+import asyncio, sys; sys.path.insert(0,'/app')
+from app.services.tadawul_sync import sync_official
+r = asyncio.run(sync_official())
+print({k: (v if k != 'changed' else len(v)) for k, v in r.items()})
+for c in (r.get('changed') or [])[:40]: print(' ', c['symbol'], c['from'], '←', c['to'])
+" 2>&1 | grep -vE "INFO|DEBUG" | tail -45
+
 say "٢ · إعادةُ الخادم"
 # ‏D434: `up -d` يُطبّق إعداد الحاوية إن تغيّر (أمرُ التشغيل بلا --reload)،
 # ثمّ الإعادةُ تقرأ الشفرةَ الجديدة — فالخادمُ لا يُعاد إلا هنا.
