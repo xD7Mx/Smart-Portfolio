@@ -13,7 +13,7 @@ import CompanyLogo from "../common/CompanyLogo";
    فمن أوقف الحركةَ في نظامه لا تُفرَض عليه. */
 
 export default function InlineStockSearch(
-  { onPick }: { onPick: (symbol: string) => void },
+  { onPick, global = false }: { onPick: (symbol: string) => void; global?: boolean },
 ) {
   const [open, setOpen] = React.useState(false);
   const [q, setQ] = React.useState("");
@@ -62,6 +62,17 @@ export default function InlineStockSearch(
           }} />
       </div>
 
+      {/* ══ السوقان في حقلٍ واحد ══ (بأمر المالك · D521)
+         رمزٌ لاتينيٌّ لا يعرفه الدليلُ السعوديّ يُفتح رمزاً عالمياً (AAPL · BTC-USD). */}
+      {open && global && !hits.length && /^[\^A-Za-z][A-Za-z0-9.=^-]{0,14}$/.test(q.trim()) && (
+        <div className="sp-menu absolute z-30 top-full mt-1.5 end-0 rounded-xl overflow-hidden shadow-2xl" style={{ width: 280 }}>
+          <button type="button" onClick={() => pick(q.trim())}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[32px] text-start hover:panel transition-colors">
+            <span className="tabular-nums text-[12px] font-semibold text-[var(--ink)]" dir="ltr">{q.trim().toUpperCase()}</span>
+            <span className="text-[var(--ink-muted)] text-[12px]">سوقٌ عالميّ</span>
+          </button>
+        </div>
+      )}
       {open && hits.length > 0 && (
         <div className="sp-menu absolute z-30 top-full mt-1.5 end-0 rounded-xl overflow-hidden shadow-2xl"
              style={{ width: 280, maxHeight: 300, overflowY: "auto" }}>

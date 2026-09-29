@@ -17,6 +17,7 @@ export const AR_EN: Record<string, string> = {
   "محفظتي": "My Portfolio",
   "السوق": "Market",
   "الرسم البياني": "Chart",
+  "غرفة التداول": "Trading Room",
   "الحوكمة": "Governance",
   "تحليل الذكاء": "AI Analysis",
   "الحاسبات": "Calculators",

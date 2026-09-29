@@ -93,6 +93,36 @@ const tkey = (d: string): any =>
 
 const RANGES: [string, string][] = [["1mo", "شهر"], ["3mo", "3 أشهر"], ["6mo", "6 أشهر"], ["1y", "سنة"], ["2y", "سنتان"], ["5y", "5 سنوات"]];
 
+const IND = [["sma20", "SMA20", "var(--chart-1)"], ["sma50", "SMA50", "var(--warn-ink)"], ["sma200", "SMA200", "var(--chart-4)"],
+  ["macd", "MACD", "var(--chart-1)"], ["rsi", "RSI", "var(--chart-5)"], ["d7m", "D7M", "var(--brand-ink)"]] as const;
+
+/** زرٌّ يُظهر المختارَ وحدَه، وعند الضغط تنسدل الخيارات ثمّ تُطوى. */
+function Drop({ label, children }: { label: string; children: (close: () => void) => React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
+        className={"inline-flex items-center gap-1 px-2.5 py-1 min-h-[32px] max-w-[62vw] rounded-lg text-[11px] font-bold border transition-all " +
+          (open ? "text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink)]")}>
+        <span className="truncate">{label}</span>
+        <span aria-hidden className={"text-[var(--ink-muted)] transition-transform duration-200 " + (open ? "rotate-180" : "")}>▾</span>
+      </button>
+      {open && (
+        <div className="sp-menu absolute z-30 top-full mt-1 start-0 min-w-[140px] rounded-xl overflow-hidden shadow-2xl py-1">
+          {children(() => setOpen(false))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** شريطُ السكربت █░: عشرُ خاناتٍ، الممتلئةُ بلون القرار والباقيةُ منقَّطة. */
 function Meter({ v, solid = false }: { v: number; solid?: boolean }) {
   const f = Math.min(Math.round(Math.abs(v)), 10);
@@ -403,47 +433,41 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex gap-1.5 flex-wrap">
-          {RANGES.map(([id, lbl]) => (
-            <button key={id} onClick={() => setRange(id)}
-              className={"px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border transition-all " +
-                (range === id ? " text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)] hover:text-[var(--ink)]")}>
+      {/* ══ قوائمُ منسدلةٌ يظهر عليها المختارُ وحدَه ══ (بأمر المالك · D521)
+         كانت المدّةُ ستَّ أزرارٍ والمؤشراتُ ستّاً تملأ سطرين على الجوال. */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <Drop label={(RANGES.find(r => r[0] === range) || RANGES[0])[1]}>
+          {close => RANGES.map(([id, lbl]) => (
+            <button key={id} type="button" onClick={() => { setRange(id); close(); }}
+              className={"w-full text-start px-3 min-h-[32px] text-[12px] font-bold " + (range === id ? "text-[var(--brand-ink)]" : "text-[var(--ink)]")}>
               {lbl}
             </button>
           ))}
-        </div>
-        <div className="flex gap-1.5 flex-wrap">
-          {([["sma20", "SMA20", "var(--chart-1)"], ["sma50", "SMA50", "var(--warn-ink)"], ["sma200", "SMA200", "var(--chart-4)"], ["macd", "MACD", "var(--chart-1)"], ["rsi", "RSI", "var(--chart-5)"], ["d7m", "D7M", "var(--brand-ink)"]] as const).map(([k, lbl, c]) => (
-            <button key={k} onClick={() => toggle(k)}
-              className={"px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border transition-all " + (ind[k] ? "text-[var(--ink)]" : "text-[var(--ink-muted)]")}
-              /* ══ لا تُلحَق شفافيةٌ برمز ══
-                 كان `c + "22"` ينتج `var(--chart-1)22` — نصٌّ غير صالح
-                 يسقطه المتصفّح، فتظهر الشارة المفعَّلة بلا أرضيةٍ ولا
-                 إطار: لا يُفرَّق المفعَّل من المطفأ إلا بحبرٍ خافت.
-                 و`color-mix` هي التي تخلط رمزاً بشفافية. */
-              style={ind[k]
-                ? { background: `color-mix(in srgb, ${c} 14%, transparent)`,
-                    borderColor: `color-mix(in srgb, ${c} 42%, transparent)` }
-                : { borderColor: "var(--hairline)" }}>
+        </Drop>
+        <Drop label={IND.filter(([k]) => ind[k]).map(x => x[1]).join(" · ") || "المؤشرات"}>
+          {() => IND.map(([k, lbl, c]) => (
+            <button key={k} type="button" onClick={() => toggle(k)} aria-pressed={ind[k]}
+              className="w-full flex items-center gap-2 px-3 min-h-[32px] text-[12px] font-bold text-[var(--ink)]" dir="ltr">
+              <span className="w-3 h-3 rounded-sm border" style={ind[k]
+                ? { background: c, borderColor: c } : { borderColor: "var(--hairline)" }} />
               {lbl}
             </button>
           ))}
-          {ind.d7m && (
-            <button onClick={() => setShowCfg(true)} title="إعدادات المؤشّر" aria-label="إعدادات المؤشّر"
-              className="px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border border-[var(--hairline)] text-[var(--ink)]">⚙ إعدادات D7M</button>
-          )}
-          <button onClick={() => { pending.current = []; setTool(tool === "line" ? null : "line"); }}
-            className={"px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border transition-all " + (tool === "line" ? "text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)]")}>
-            ╱ خطّ</button>
-          <button onClick={() => { pending.current = []; setTool(tool === "channel" ? null : "channel"); }}
-            className={"px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border transition-all " + (tool === "channel" ? "text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)]")}>
-            ▱ قناة</button>
-          {draws.length > 0 && (
-            <button onClick={() => saveDraws([])}
-              className="px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border border-[var(--hairline)] text-[var(--ink-muted)]">مسح الرسم</button>
-          )}
-        </div>
+        </Drop>
+        {ind.d7m && (
+          <button onClick={() => setShowCfg(true)} title="إعدادات المؤشّر" aria-label="إعدادات المؤشّر"
+            className="px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border border-[var(--hairline)] text-[var(--ink)]">⚙ D7M</button>
+        )}
+        <button onClick={() => { pending.current = []; setTool(tool === "line" ? null : "line"); }}
+          className={"px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border transition-all " + (tool === "line" ? "text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)]")}>
+          ╱ خطّ</button>
+        <button onClick={() => { pending.current = []; setTool(tool === "channel" ? null : "channel"); }}
+          className={"px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border transition-all " + (tool === "channel" ? "text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)]")}>
+          ▱ قناة</button>
+        {draws.length > 0 && (
+          <button onClick={() => saveDraws([])}
+            className="px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border border-[var(--hairline)] text-[var(--ink-muted)]">مسح الرسم</button>
+        )}
       </div>
       {tool && (
         <p className="text-[11px] text-[var(--brand-ink)]">
@@ -459,7 +483,7 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         <div className="h-[420px] flex items-center justify-center text-[var(--ink-muted)] text-sm">لا توجد بيانات سعرية تاريخية لهذا الرمز حالياً.</div>
       ) : (
         <div className="relative">
-        <div className="relative" style={{ height: "62vh", minHeight: 420, width: "100%" }}>
+        <div className="relative chart-frame" style={{ height: 440, width: "100%" }}>
           <div ref={el} style={{ position: "absolute", inset: 0 }} />
           {ind.d7m && zones.filter(z => z.y > 0).map((z, k) => (
             <div key={k} className="d7m-zone" style={{ top: z.y - 8, left: z.x, color: cfg.colors?.zone || undefined }}>{z.title}</div>

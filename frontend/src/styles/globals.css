@@ -988,8 +988,16 @@ html.light .login-card {
    على الرسم يُمرّر التطبيق كلّه). none تمنع التمرير والتكبير معاً داخله. */
 /* ‏pan-y: التمريرُ العموديُّ للصفحة دائماً — كان `none` فتتجمّد الصفحةُ
    متى وقع الإصبعُ على رسم (بأمر المالك). */
-.chart-lock { touch-action: pan-y pinch-zoom; }
-.chart-lock canvas, .chart-lock iframe { touch-action: pan-y pinch-zoom; }
+.chart-lock { touch-action: pan-y; }
+.chart-lock canvas, .chart-lock iframe { touch-action: pan-y; }
+/* ══ إطارٌ مقفل ══ (بأمر المالك · D521)
+   كان ارتفاعُ الرسم ‎62vh: على الجوال يتغيّر vh كلّما ظهر شريطُ العنوان أو
+   اختفى، فيُعاد تحجيمُ الرسم وسطَ السحب — وكان محورا الأسعار والزمن تحت
+   `pan-y` فيأخذ المتصفّحُ سحبَ المحور العموديّ تمريراً للصفحة فيتقطّع التكبير.
+   فالارتفاعُ ثابت، واللوحةُ معزولةٌ عن تخطيط الصفحة، والمحوران للرسم وحدَه. */
+.chart-frame { contain: strict; overscroll-behavior: contain; }
+.chart-frame table tr td:last-child canvas,
+.chart-frame table tr:last-child canvas { touch-action: none; }
 
 
 /* إشعار التحديث — يعمل على المظهرين */
