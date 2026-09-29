@@ -25,35 +25,13 @@ recs = [(s, d[s]["name"], name_en.get(s, ""), d[s].get("sector") or "")
         for s in sorted(d, key=lambda x: (d[x].get("sector") or "zz", x)) if d[s].get("name")]
 lines = "\n".join(f'  {{ symbol: "{s}", name_ar: "{esc(na)}", name_en: "{esc(ne)}", sector: "{esc(se)}" }},'
                   for s, na, ne, se in recs)
-open(sc_path, "w", encoding="utf-8").write(
-'''/**
- * Tadawul companies directory — GENERATED from the single source of truth
- * backend/app/data/saudi_directory.json (name + sector + logo). Do not edit
- * by hand: regenerate so the frontend can NEVER drift from the backend
- * governance directory. One directory, called across the whole site.
- */
-export interface SaudiCompany { symbol: string; name_ar: string; name_en: string; sector: string }
-
-export const SAUDI_COMPANIES: SaudiCompany[] = [
-''' + lines + '''
-];
-
-const norm = (s: string) => (s || "").toLowerCase().replace(/[أإآ]/g, "ا").trim();
-
-export function searchCompanies(q: string, limit = 8): SaudiCompany[] {
-  const n = norm(q);
-  if (!n) return [];
-  return SAUDI_COMPANIES.filter(c =>
-    c.symbol.startsWith(n) ||
-    norm(c.name_ar).includes(n) ||
-    c.name_en.toLowerCase().includes(n)
-  ).slice(0, limit);
-}
-
-export function lookupCompany(symbol: string): SaudiCompany | undefined {
-  return SAUDI_COMPANIES.find(c => c.symbol === (symbol || "").trim());
-}
-''')
+# ══ يُستبدَل مصفوفُ الشركات وحدَه (D515) ══ كان السكربتُ يعيد كتابةَ الملفّ كاملاً
+# بنسخةٍ قديمةٍ منه، فأسقط `norm` المُصدَّرةَ وما أُضيف بعده — وتوقّفت الواجهةُ كلُّها
+# عن الرسم (قِيس في لجنة كشف الأعطال). فيبقى ما حول المصفوف كما هو.
+_src = open(sc_path, encoding="utf-8").read()
+_m = re.search(r"(export const SAUDI_COMPANIES: SaudiCompany\[\] = \[\n)(.*?)(\n\];)", _src, re.S)
+assert _m, "لم يُعثر على مصفوف SAUDI_COMPANIES"
+open(sc_path, "w", encoding="utf-8").write(_src[:_m.start(2)] + lines + _src[_m.end(2):])
 logos = "\n".join(f'  "{s}": "{d[s]["logo"]}",' for s in sorted(d) if d[s].get("logo"))
 open(tv_path, "w", encoding="utf-8").write(
 '''// GENERATED from the single source of truth backend/app/data/saudi_directory.json.

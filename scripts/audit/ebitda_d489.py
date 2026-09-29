@@ -180,5 +180,10 @@ _fd = _XB._fill_depreciation([{"as_of": "2025-12-31", "revenue": 4e9, "ebit": 8e
 check(_fd[0].get("depreciation") == 2.4e8 and _fd[0].get("ebitda") == 1.04e9 and "مشتقٌّ" in (_fd[0].get("depreciation_source") or "")
       and "adjustments for depreciation expense" in _XB.LABELS["_dep_ppe"],
       "٢٨ D514 سنةٌ من استكمال PDF بلا إهلاك تأخذه بنسبته إلى الإيراد من أقرب فترةٍ منشورة (موسوماً مشتقّاً) — وصياغاتُ معادن وكيان والشمالية بالحرف", str(_fd))
+import json as _json
+_dir = _json.load(open(os.path.join(ROOT, "backend/app/data/saudi_directory.json"), encoding="utf-8"))
+_fe = open(os.path.join(ROOT, "frontend/src/data/saudiCompanies.ts"), encoding="utf-8").read()
+check(all(k in _dir and f'symbol: "{k}"' in _fe for k in ("4328", "6022", "9537")),
+      "٢٩ D515 كلُّ شركةٍ في لقطة «تداول» في دليلنا باسمها العربيّ (أرماح 6022 كانت تظهر بالإنجليزية)")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

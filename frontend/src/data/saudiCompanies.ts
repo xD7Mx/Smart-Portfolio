@@ -26,6 +26,7 @@ export const SAUDI_COMPANIES: SaudiCompany[] = [
   { symbol: "4325", name_ar: "مسار", name_en: "", sector: "إدارة وتطوير العقارات" },
   { symbol: "4326", name_ar: "الماجدية", name_en: "", sector: "إدارة وتطوير العقارات" },
   { symbol: "4327", name_ar: "الرمز للعقارات", name_en: "", sector: "إدارة وتطوير العقارات" },
+  { symbol: "4328", name_ar: "لدن للاستثمار", name_en: "Ladun Investment", sector: "إدارة وتطوير العقارات" },
   { symbol: "9521", name_ar: "إنمار", name_en: "", sector: "إدارة وتطوير العقارات" },
   { symbol: "9523", name_ar: "جروب فايف", name_en: "", sector: "إدارة وتطوير العقارات" },
   { symbol: "9535", name_ar: "لدن العقارية", name_en: "", sector: "إدارة وتطوير العقارات" },
@@ -54,6 +55,7 @@ export const SAUDI_COMPANIES: SaudiCompany[] = [
   { symbol: "4061", name_ar: "أنعام القابضة", name_en: "", sector: "إنتاج الأغذية" },
   { symbol: "6001", name_ar: "حلواني إخوان", name_en: "Halwani Bros", sector: "إنتاج الأغذية" },
   { symbol: "6002", name_ar: "هرفي للخدمات الغذائية", name_en: "Herfy Foods", sector: "إنتاج الأغذية" },
+  { symbol: "6022", name_ar: "أرماح الرياضية", name_en: "Armah Sports", sector: "الخدمات الاستهلاكية" },
   { symbol: "6010", name_ar: "نادك", name_en: "NADEC", sector: "إنتاج الأغذية" },
   { symbol: "6012", name_ar: "ريدان", name_en: "Raydan Food", sector: "إنتاج الأغذية" },
   { symbol: "6013", name_ar: "التطويرية الغذائية", name_en: "DWF", sector: "إنتاج الأغذية" },
@@ -405,6 +407,7 @@ export const SAUDI_COMPANIES: SaudiCompany[] = [
   { symbol: "9589", name_ar: "فاد", name_en: "", sector: "تجزئة وتوزيع السلع الكمالية" },
   { symbol: "9649", name_ar: "جمجوم فاشن للتجارة", name_en: "", sector: "تجزئة وتوزيع السلع الكمالية" },
   { symbol: "9651", name_ar: "عبدالعزيز التويجري للتجارة", name_en: "", sector: "تجزئة وتوزيع السلع الكمالية" },
+  { symbol: "9537", name_ar: "أمواج الدولية", name_en: "Amwaj International", sector: "تجزئة وتوزيع السلع الكمالية" },
   /* ══ صناديقُ المؤشرات المتداولة ══
      رآها المالك «بلا قيمة ولا صورة»، فظننتُ الدليلَ يجهلها. والقياسُ نقض
      ظنّي: كانت في كون السوق منذ البداية بقطاعها الصحيح، لكنّ الأسماء تُقرأ
