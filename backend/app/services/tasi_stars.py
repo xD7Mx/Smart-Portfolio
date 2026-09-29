@@ -65,7 +65,7 @@ def _main_share(sym) -> bool:
 
 
 WATCH = 10               # ‏D539: المرتبةُ 21–30 تحت المراقبة
-WEIGHTS = {"excess": 0.50, "upside": 0.25, "quality": 0.15, "confidence": 0.10}   # بأمر المالك: التفوّقُ 50٪
+WEIGHTS = {"excess": 0.50, "upside": 0.25, "quality": 0.15, "confidence": 0.10}   # (قبل D540 — متروكٌ للتوثيق)
 CONF = {"مرتفعة": 1.0, "متوسطة": 0.6, "منخفضة": 0.2}
 
 
@@ -121,31 +121,44 @@ def large_caps(snap: dict[str, dict]) -> set[str]:
     return {k for c, k in caps[:LARGE_N] if c > 0}
 
 
+async def bonus_symbols() -> set[str]:
+    """رموزُ من أعلنت منحةَ أسهمٍ في سنتين (D540) — من أحداث السوق المحفوظة."""
+    try:
+        from sqlalchemy import select as _sel
+        from app.core.database import AsyncSessionLocal
+        from app.models.market import MarketEvent, MarketEventType
+        since = datetime.now(timezone.utc) - timedelta(days=730)
+        async with AsyncSessionLocal() as db:
+            res = await db.execute(_sel(MarketEvent.company_symbol).where(
+                MarketEvent.event_type == MarketEventType.BONUS, MarketEvent.event_date >= since))
+            return {str(x).replace(".SR", "") for x in res.scalars().all() if x}
+    except Exception:                                             # noqa: BLE001
+        return set()
+
+
 def rank(rows: list[dict], rets: dict[str, float], tasi_ret: float,
-         large: set[str] | None = None, snap: dict | None = None) -> list[dict]:
-    """الترتيبُ الكامل (D539) — دالّةٌ نقيّةٌ يقيسها الحارس."""
+         large: set[str] | None = None, snap: dict | None = None, bonus: set[str] | None = None) -> list[dict]:
+    """الترتيبُ الكامل بنموذج العائلات الثماني (D540) — دالّةٌ نقيّةٌ يقيسها الحارس."""
+    from app.services.stars_factors import score_all
     cands = []
     for r in rows or []:
         s = str(r.get("symbol") or "")
         if not eligible(r) or rets.get(s) is None or (large and s not in large):
             continue
-        cands.append((r, s, rets[s] - tasi_ret))
+        cands.append({**r, "ret_12m": rets[s]})
     if not cands:
         return []
-    pr_x = _pct_rank([c[2] for c in cands])
-    pr_u = _pct_rank([min(c[0]["fair_value_upside_pct"], 60.0) for c in cands])
-    pr_q = _pct_rank([c[0]["finance_score"] for c in cands])
+    scores = score_all(cands, bonus)
     out = []
-    for i, (r, s, excess) in enumerate(cands):
-        conf = CONF.get(r.get("fair_value_conf"), 0.2)
-        sc = (WEIGHTS["excess"] * pr_x[i] + WEIGHTS["upside"] * pr_u[i]
-              + WEIGHTS["quality"] * pr_q[i] + WEIGHTS["confidence"] * conf) * 100
+    for r in cands:
+        s = str(r["symbol"])
+        sc = scores.get(s) or {"score": 0, "families": {}}
         out.append({"symbol": s, "name": r.get("name"), "sector": r.get("sector"),
                     "price": r.get("price"), "fair_value": r.get("fair_value"),
-                    "upside": r["fair_value_upside_pct"], "ret_12m": round(rets[s], 1),
-                    "excess": round(excess, 1), "finance_score": r["finance_score"],
-                    "confidence": r.get("fair_value_conf"),
-                    "sharia": r.get("sharia"), "score": round(sc, 1),
+                    "upside": r["fair_value_upside_pct"], "ret_12m": round(r["ret_12m"], 1),
+                    "excess": round(r["ret_12m"] - tasi_ret, 1), "finance_score": r["finance_score"],
+                    "confidence": r.get("fair_value_conf"), "sharia": r.get("sharia"),
+                    "score": sc["score"], "families": sc["families"],
                     "pe": r.get("pe_ratio") or ((snap or {}).get(s) or {}).get("pe_ratio"),
                     "market_cap": _cap(s, (snap or {}).get(s) or {})})
     out.sort(key=lambda x: -x["score"])
@@ -155,8 +168,8 @@ def rank(rows: list[dict], rets: dict[str, float], tasi_ret: float,
 
 
 def select(rows: list[dict], rets: dict[str, float], tasi_ret: float,
-           large: set[str] | None = None, snap: dict | None = None) -> list[dict]:
-    return rank(rows, rets, tasi_ret, large, snap)[:SIZE]
+           large: set[str] | None = None, snap: dict | None = None, bonus: set[str] | None = None) -> list[dict]:
+    return rank(rows, rets, tasi_ret, large, snap, bonus)[:SIZE]
 
 
 def _load() -> dict | None:
@@ -201,7 +214,7 @@ async def build(force: bool = False) -> dict:
                 v = _ret_12m(await market_service.get_history(f"{r['symbol']}.SR", "1y"))
             if v is not None:
                 rets[str(r["symbol"])] = v
-    ranked = rank(rows, rets, tasi_ret, large, snap)
+    ranked = rank(rows, rets, tasi_ret, large, snap, await bonus_symbols())
     members = ranked[:SIZE]
     if not members:
         return old or {"error": "لا شركةَ تجتاز القاعدةَ اليوم"}
@@ -287,7 +300,7 @@ async def get() -> dict:
         rets = {str(r.get("symbol")): r["ret_12m"] for r in rows if isinstance(r.get("ret_12m"), (int, float))}
         tr = rec.get("tasi_ret_12m")
         if rets and isinstance(tr, (int, float)):
-            live = rank(rows, rets, tr, large_caps(snap) or None, snap)
+            live = rank(rows, rets, tr, large_caps(snap) or None, snap, await bonus_symbols())
             top = {m["symbol"] for m in live[:SIZE]}
             mem = {m["symbol"] for m in rec["members"]}
             entering = [m for m in live[:SIZE] if m["symbol"] not in mem]

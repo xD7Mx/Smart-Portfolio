@@ -253,7 +253,9 @@ check(_ids[0] == "1001" and "1004" not in _ids and "1006" not in _ids and set(_i
       and _sel_l == [] and _r12 is not None and abs(_r12 - 52.0) < 0.01 and _ST._ret_12m(_tp[:10]) is None
       and "9536" not in _lc and _ST.REBALANCE_DAYS == 30 and _sel[0]["rank"] == 1
       and _pf["ret"] == 2.5 and _pf["tasi_ret"] == 2.0 and _pf["level"] == 102.5
-      and _ST.WEIGHTS["excess"] == 0.50 and abs(sum(_ST.WEIGHTS.values()) - 1) < 1e-9,
-      "٣٣ D522·D539 نجوم تاسي ترتيبٌ لا بوّابات: الأمانُ ملزم (الشرعيةُ · القوائمُ الحديثة)، والتفوّقُ على تاسي والعادلُ والجودةُ والثقةُ ترتيب — والأقوى أوّلاً", str(_ids) + f" {_pf}")
+      and len(__import__("app.services.stars_factors", fromlist=["x"]).FAMILIES) == 8
+      and abs(sum(__import__("app.services.stars_factors", fromlist=["x"]).WEIGHTS.values()) - 1) < 1e-9
+      and set(_sel[0].get("families") or {}) == {"financial", "multiples", "momentum", "efficiency", "profit_trend", "debt", "industry", "corporate"},
+      "٣٣ D522·D539·D540 نجوم تاسي بنموذج العائلات الثماني (محاكاةُ ProPicks) — ترتيبٌ لا بوّابات: الأمانُ ملزم (الشرعيةُ · القوائمُ الحديثة)، والتفوّقُ على تاسي والعادلُ والجودةُ والثقةُ ترتيب — والأقوى أوّلاً", str(_ids) + f" {_pf}")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)
