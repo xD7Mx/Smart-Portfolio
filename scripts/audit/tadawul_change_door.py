@@ -16,3 +16,6 @@ for k in list(rows)[:2]:
     print("  ", k, sorted(rows[k].keys()))
 raw = (rec or {}).get("raw_keys")
 print("مفاتيحُ الصفّ الخام إن حُفظت:", raw)
+print("الألواح (D517):", (rec or {}).get("boards"), "· زمن:", (rec or {}).get("at"))
+_etf = sorted(k for k in rows if k.startswith("94"))
+print("صناديقُ 94xx في اللقطة:", len(_etf), _etf[:12], [rows[k].get("price") for k in _etf[:5]])
