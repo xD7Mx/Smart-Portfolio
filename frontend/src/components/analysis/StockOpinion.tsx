@@ -108,7 +108,6 @@ export default function StockOpinion({ symbol, name }: { symbol: string; name?: 
           <ul className="space-y-0.5 text-[var(--ink)]">
             {(data.tension.against || []).map((b: string, i: number) => <li key={i}>• {b}</li>)}
           </ul>
-          <div className="text-[var(--ink-muted)] mt-1">{data.tension.note}</div>
         </div>
       )}
       {data.summary && <p className="text-xs leading-relaxed pt-1 border-t border-[var(--hairline)] ai-opinion-text">{data.summary}</p>}

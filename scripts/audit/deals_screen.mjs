@@ -132,7 +132,10 @@ const rowsOf = () => page.evaluate(() => {
   return {
     rows: rows.length,
     logos: rows.filter(r => r.querySelector(".co-logo")).length,
-    symbols: rows.map(r => (r.textContent || "").match(/\b\d{4}\b/)?.[0] || ""),
+    // الخلايا تُقرأ منفصلةً: نصُّ الصفّ متّصلاً يلصق الرمزَ بالسعر («121158.40»)
+    // فيُلتقط «0007» من الكمية والقيمة — عطبُ قياسٍ لا عطبُ شاشة.
+    symbols: rows.map(r => ([...r.querySelectorAll("*")].map(c => c.childElementCount ? "" : (c.textContent || "")).join(" ")
+                            .match(/\b\d{4}\b/)?.[0]) || ""),
     text: (card.textContent || "").replace(/\s+/g, " ").trim().slice(0, 220),
     searchOpen: card.querySelector('.inline-search')?.dataset.open || null,
     inputSeen: (() => {

@@ -22,7 +22,6 @@ function Pillar({ p }: { p: any }) {
         <span className="text-lg font-bold tabular-nums" style={{ color: safeColor(v) }}>{v}%</span>
       </button>
       <SafetyBar score={v} width="100%" />
-      <p className="text-[12px] leading-relaxed text-[var(--ink-muted)]">{p.why}</p>
       {open && (
         <table className="w-full text-[12px]">
           <thead>
@@ -68,7 +67,7 @@ export default function HealthPanel({ symbol, quality }: { symbol: string; quali
         </div>
       )}
       {r ? r.pillars.map((p: any) => <Pillar key={p.pillar} p={p} />)
-         : <div className="py-6 text-center text-sm text-[var(--ink-muted)]">لا أقرانَ كافين في قطاع «تداول» لترتيب محاور هذه الورقة.</div>}
+         : <div className="py-6 text-center text-sm text-[var(--ink-muted)]">غير متوفّر</div>}
     </div>
   );
 }

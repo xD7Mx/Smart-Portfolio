@@ -372,7 +372,7 @@ for (const [name, path] of STOPS) {
           const r = document.createRange();
           r.selectNodeContents(n);
           const b = r.getBoundingClientRect();
-          return b.width ? (b.left + b.right) / 2 : null;
+          return b.width ? { c: (b.left + b.right) / 2, r: b.right, t: n.textContent.trim() } : null;
         };
         head.forEach((h, i) => {
           const txt = (h.textContent || "").trim();
@@ -380,7 +380,13 @@ for (const [name, path] of STOPS) {
           if (!/[0-9]/.test(val)) return;          // الأعمدة الرقمية وحدها
           const a = ink(h), b = ink(cells[i]);
           if (a == null || b == null) return;
-          out.push({ txt, dx: Math.abs(a - b) });
+          /* ‏D527: عمودٌ أوّلُ نصِّه اسمٌ (الشركة ثمّ رمزها) يُقاس بحافّته
+             اليمنى — محاذاةُ اليمين هي القاعدة، والمراكزُ تختلف بطول الاسم. */
+          const textual = !/^[-+−]?[0-9]/.test(b.t);
+          // وحافّةُ المحتوى كلِّه (الشعارُ قبل الاسم) لا حافّةُ نصّ الاسم وحده.
+          const edge = Math.max(...[...cells[i].querySelectorAll("*")].map(e => e.getBoundingClientRect())
+            .filter(r => r.width).map(r => r.right), b.r);
+          out.push({ txt, dx: Math.abs(textual ? a.r - edge : a.c - b.c) });
         });
       }
       return out;

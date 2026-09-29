@@ -91,7 +91,7 @@ export default function FairValuePanel({ symbol, analystTarget, week52 }: {
   });
   if (isLoading) return <div className="h-64 skeleton rounded-xl" />;
   if (!r || r.value == null) {
-    return <div className="py-10 text-center text-sm text-[var(--ink-muted)]">{r?.reason || "لم تكتمل مدخلاتُ النماذج لهذه الورقة من الإفصاح الرسميّ."}</div>;
+    return <div className="py-10 text-center text-sm text-[var(--ink-muted)]">غير متوفّر</div>;
   }
   const price = r.price as number;
   const up = r.upside as number;
@@ -134,16 +134,12 @@ export default function FairValuePanel({ symbol, analystTarget, week52 }: {
 
       <div className="card p-4 space-y-2">
         <div className="text-[13px] font-bold text-[var(--ink)]">العائلات ووزنها</div>
-        {r.model_set && <div className="text-[12px] text-[var(--brand-ink)]">{r.model_set}</div>}
         {(r.families || []).map((f: any) => (
           <div key={f.family} className="flex items-center gap-2 min-h-[32px] text-[13px]">
             <span className="flex-1 text-[var(--ink)]">{f.name}</span>
             <span className="text-[11px] text-[var(--ink-muted)] tabular-nums">{Math.round(f.weight * 100)}%{f.models ? ` · ${f.models} نماذج` : ""}</span>
             <span className="min-w-[52px] text-center font-bold tabular-nums text-[var(--ink)]">{fmt(f.value)}</span>
           </div>
-        ))}
-        {(r.notes || []).map((n: string, k: number) => (
-          <p key={k} className="text-[12px] leading-relaxed text-[var(--warn-ink)]">{n}</p>
         ))}
       </div>
 
@@ -153,17 +149,6 @@ export default function FairValuePanel({ symbol, analystTarget, week52 }: {
           {ms.map((m: any) => <ModelRow key={m.key} m={m} price={price} />)}
         </div>
       ))}
-
-      {(r.excluded || []).length > 0 && (
-        <div className="card p-4 space-y-1.5">
-          <div className="text-[13px] font-bold text-[var(--ink)]">نماذجُ استُبعدت</div>
-          {r.excluded.map((e: any) => (
-            <div key={e.key} className="text-[12px] text-[var(--ink-muted)]">
-              <span className="text-[var(--ink)]">{e.name}</span> · {fmt(e.value)} — {e.excluded}
-            </div>
-          ))}
-        </div>
-      )}
 
       {(r.peers || []).length > 0 && (
         <div className="card p-4 space-y-2">
