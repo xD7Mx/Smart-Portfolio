@@ -980,7 +980,10 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                 <div className="flex items-center gap-2.5">
                   <CompanyLogo symbol={r.symbol} size={34} />
                   <div className="min-w-0 flex-1">
-                    <div className="text-[var(--ink)] text-[13px] font-bold truncate">{r.name}</div>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <ShariaBadge status={r.sharia} size={12} />
+                      <div className="text-[var(--ink)] text-[13px] font-bold truncate">{r.name}</div>
+                    </div>
                     <div className="text-[10px] text-[var(--ink-muted)] truncate">{r.symbol}{r.sector ? ` · ${r.sector}` : ""}</div>
                   </div>
                   <div className="text-end shrink-0">
@@ -1056,10 +1059,9 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                 )}
 
                 {/* الوسوم المتبقية — صفٌّ خاصّ بها */}
-                {(r.verdict || r.sharia === "COMPLIANT" || r.dividend_yield != null || m.macd_cross) && (
+                {(r.verdict || r.dividend_yield != null || m.macd_cross) && (
                   <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
                     <VerdictTag v={r.verdict} small gap={r.value_gap_pct} basis={r.value_basis} />
-                    {r.sharia === "COMPLIANT" && <Chip text="متوافق شرعاً" color="var(--pos-ink)" />}
                     {r.dividend_yield != null && <Chip text={`توزيع ${r.dividend_yield}%`} color="var(--info-ink)" />}
                     {m.macd_cross === "up" && <Chip text="ماكد صاعد" color="var(--pos-ink)" />}
                     {m.macd_cross === "down" && <Chip text="ماكد هابط" color="var(--neg-ink)" />}

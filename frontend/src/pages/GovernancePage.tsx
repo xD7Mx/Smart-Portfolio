@@ -11,6 +11,9 @@ import { Shield, ShieldCheck, ShieldAlert, AlertTriangle, Layers, TrendingUp, La
 import { ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { portfolioApi } from "../services/api";
 import CompanyLogo from "../components/common/CompanyLogo";
+import StockSheet from "../components/market/StockSheet";
+import { SafetyBar, safeColor } from "../components/common/ValueBars";
+import { ShariaBadge } from "../components/common/UI";
 import GovernanceV2Modal from "../components/governance/GovernanceV2Modal";
 import clsx from "clsx";
 
@@ -200,9 +203,9 @@ function HoldingsHeatmap({ rows, onOpenV2 }: { rows: any[]; onOpenV2: (symbol: s
                 <CompanyLogo symbol={r.symbol} size={28} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
+                    <ShariaBadge status={r.sharia_status} size={12} />
                     <span className="text-[var(--ink)] text-sm font-semibold truncate">{r.name}</span>
                     <span className="tag-b shrink-0">{r.symbol}</span>
-                    {r.sharia_status === "NON_COMPLIANT" && <span className="tag-r shrink-0">غير متوافقة</span>}
                   </div>
                   {r.insufficient_data ? (
                     <div className="mt-1.5 text-[10px] text-[var(--ink-muted)]">—</div>
@@ -275,12 +278,8 @@ function MarketOpportunities() {
     queryKey: ["governance-market"],
     queryFn: () => portfolioApi.governanceMarket().then(r => r.data.data),
   });
-  const scoreColorLocal = (s: number) => s >= 70 ? "var(--pos-ink)" : s >= 45 ? "var(--warn-ink)" : "var(--neg-ink)";
-  const shariaBadge = (status: string) => status === "COMPLIANT"
-    ? <span className="tag-g" style={{ fontSize: 10 }}>متوافقة شرعياً</span>
-    : status === "NON_COMPLIANT"
-    ? <span className="tag-r" style={{ fontSize: 10 }}>غير متوافقة</span>
-    : <span className="tag-n" style={{ fontSize: 10 }}>غير معروف</span>;
+  // ‏D532: صفوفٌ بتصميم الفرز — الشرعيةُ رمزٌ لا نصّ، والصفُّ يفتح صفحةَ السهم.
+  const [sheet, setSheet] = useState<string | null>(null);
 
   if (isLoading) return <div className="card"><div className="h-40 skeleton" /></div>;
   if (!data?.has_data) {
@@ -304,23 +303,27 @@ function MarketOpportunities() {
       </div>
       <div className="space-y-1.5 max-h-[520px] overflow-y-auto">
         {(data.opportunities || []).map((o: any) => (
-          <div key={o.symbol} className="flex items-center gap-3 p-2.5 rounded-xl hover:panel transition-colors">
+          <button key={o.symbol} type="button" onClick={() => setSheet(o.symbol)}
+            className="w-full flex items-center gap-3 p-2.5 min-h-[48px] rounded-xl hover:bg-[var(--field)] transition-colors text-start">
             <CompanyLogo symbol={o.symbol} size={30} logoUrl={o.logo_url} />
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[var(--ink)] text-sm font-semibold truncate">{o.name}</span>
-                <span className="tag-b shrink-0" style={{ fontSize: 10 }}>{o.symbol}</span>
-                {shariaBadge(o.sharia_status)}
+              <div className="flex items-center gap-1.5 min-w-0">
+                <ShariaBadge status={o.sharia_status} size={12} />
+                <span className="text-[var(--ink)] text-[13px] font-semibold truncate">{o.name}</span>
               </div>
-              <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">{o.sector}</div>
+              <div className="text-[10.5px] text-[var(--ink-muted)] truncate">{o.symbol}{o.sector ? ` · ${o.sector}` : ""}</div>
             </div>
-            <div className="text-end shrink-0">
-              <div className="font-bold text-sm" style={{ color: scoreColorLocal(o.finance_score) }}>{Math.round(o.finance_score)}/100</div>
-              <div className="text-[10px] text-[var(--ink-muted)]">سلامة مالية</div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <SafetyBar score={o.finance_score == null ? null : Math.round(o.finance_score)} width={44} />
+              <span className="text-[12px] font-bold tabular-nums w-7 text-end"
+                style={{ color: o.finance_score == null ? "var(--ink-muted)" : safeColor(o.finance_score) }}>
+                {o.finance_score == null ? "—" : Math.round(o.finance_score)}
+              </span>
             </div>
-          </div>
+          </button>
         ))}
       </div>
+      {sheet && <StockSheet symbol={sheet} onClose={() => setSheet(null)} />}
     </div>
   );
 }

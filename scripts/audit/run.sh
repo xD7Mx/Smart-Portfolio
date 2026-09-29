@@ -291,6 +291,7 @@ node scripts/audit/align_d513.mjs || _note "$LINENO"
 python3 scripts/audit/no_notes_d526.py || _note "$LINENO"
 python3 scripts/audit/quarter_report_d528.py || _note "$LINENO"
 python3 scripts/audit/history_stale_d530.py || _note "$LINENO"
+python3 scripts/audit/sharia_icon_d532.py || _note "$LINENO"
 
 # D160 (عودة): لا فحصَ في اللجنة يكتب في بيانات المالك المتتبَّعة. عولج
 # في أربعة سكربتاتٍ وتخلّف `rank_check` فعاد يلوّث lastgood.json ويمنع
