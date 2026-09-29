@@ -52,7 +52,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
      المرجَّح نفسِه — كان الصندوقُ يقرأ المحرّكَ القديم والتفاصيلُ المرجَّحَ،
      فيظهر رقمان للسهم نفسِه في شاشةٍ واحدة. والقديمُ احتياطٌ إن غاب. */
   const sym4 = symbol.replace(".SR", "");
-  const { data: fvm } = useQuery({
+  const { data: fvm, isLoading: fvmLoading } = useQuery({
     queryKey: ["fvm", sym4],
     queryFn: () => marketApi.fairValueModels(sym4).then(x => x.data?.data || null),
     staleTime: 30 * 60 * 1000,
@@ -179,7 +179,10 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                 والاسم». فالاسمُ ثابتٌ والرقمُ من المحرّك وحدَه، وحيث يمتنع
                 «—». لا يحلّ محلَّه هدفُ المحللين ولا النسبيُّ إلى القطاع. */}
             <div className="text-[10px] text-[var(--ink-muted)] mb-1">السعر العادل</div>
-            {fvValue != null ? (
+            {/* ‏D512: لا رقمَ قبل جواب المحرّك — كان يُرسَم رقمٌ ثمّ يُستبدَل بآخر */}
+            {fvmLoading ? (
+              <div className="h-6 w-24 skeleton rounded" />
+            ) : fvValue != null ? (
               <div className="flex items-baseline gap-1.5 flex-wrap"
                 title={`المدى ${fmt(fvm?.low ?? data.fair_value_low)} – ${fmt(fvm?.high ?? data.fair_value_high)}`
                        + (data.fair_value_conf ? ` · ثقة ${data.fair_value_conf}` : "")

@@ -169,5 +169,10 @@ _ipsets = [v for k, (_n, v) in F.MODEL_SETS.items() if k not in ("Banks", "Insur
 check(all("peer_yield" not in v and "peer_ev_sales" in v for v in _ipsets),
       "٢٦ D511 مجموعاتُ InvestingPro فيها «مكرّرُ الإيرادات لقيمة المنشأة» لا «عائدُ التوزيع مقابل الأقران» (إكسترا 296.91 على سعر 61.45)",
       str([k for k, (_n, v) in F.MODEL_SETS.items() if "peer_yield" in v]))
+_AN = open(os.path.join(ROOT, "backend/app/services/analysis.py"), encoding="utf-8").read()
+_AP = open(os.path.join(ROOT, "frontend/src/components/analysis/AnalysisPanel.tsx"), encoding="utf-8").read()
+check("_new = await _fvm_for(" in _AN and _AN.find("_new = await _fvm_for(") < _AN.find('"fair_value": _fv.get("value")')
+      and "{fvmLoading ? (" in _AP,
+      "٢٧ D512 سعرٌ عادلٌ واحدٌ من محرّكٍ واحد: التحليلُ والفرزُ من محرّك InvestingPro، ولا رقمَ يُرسم قبل جوابه ثمّ يُستبدَل")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

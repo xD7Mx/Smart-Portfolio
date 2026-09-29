@@ -466,6 +466,22 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
                          ttm=(_stmt or {}).get("ttm"),
                          symbol=symbol)
 
+    # ══ محرّكٌ واحدٌ لرقمٍ واحد (بأمر المالك · D512) ══ قال: «يظهر رقمٌ مرتفعٌ
+    # ثمّ يتلاشى ويظهر رقمٌ منخفض». والسببُ محرّكان: القديمُ (`fair_value.compute`)
+    # يغذّي هذه الصفحةَ والفرزَ عبر المسحة، والجديدُ (`fair_value_models` — طريقةُ
+    # InvestingPro، 16 من 20 قطاعاً) يصل بعده بنداءٍ مستقلّ فيستبدله. فصار الجديدُ
+    # هو السعرَ العادل هنا أيضاً، والقديمُ احتياطٌ حين لا قيمةَ للجديد فقط.
+    try:
+        from app.services.fair_value_models import for_symbol as _fvm_for
+        _new = await _fvm_for(str(symbol).replace(".SR", ""))
+        if _new and isinstance(_new.get("value"), (int, float)) and _new["value"] > 0:
+            _fv = dict(_fv or {})
+            _fv.update({"value": _new["value"], "low": _new.get("low"), "high": _new.get("high"),
+                        "engine": "fair_value_models"})
+    except Exception as _e:                                       # noqa: BLE001
+        from loguru import logger as _lg_fvm
+        _lg_fvm.warning(f"fvm {symbol}: {_e}")
+
     _analyst_fv = (info or {}).get("target_mean_price")
     if not isinstance(_analyst_fv, (int, float)) or _analyst_fv <= 0:
         _analyst_fv = None

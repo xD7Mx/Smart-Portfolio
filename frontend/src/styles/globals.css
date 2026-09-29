@@ -1329,6 +1329,14 @@ html.light .wealth-val, html.light .wealth-stat-val { color: var(--ink); }
 [dir="rtl"] .text-end [dir="ltr"].tabular-nums,
 [dir="rtl"] .text-end .tabular-nums[dir="ltr"],
 [dir="rtl"] .text-end > [dir="ltr"] { text-align: left !important; }
+/* ══ الرقمُ يتبع حاويتَه الموسَّطة (بأمر المالك · D513) ══ «أجد العنوانَ يميناً
+   والمحتوى يساراً — يفترض اتّساقٌ: إن كان العنوانُ في المنتصف فالجميعُ منتصف».
+   قاعدةُ الرقم اللاتينيّ أعلاه تُحاذيه يميناً ما لم يحمل هو نفسُه `text-center`،
+   فكانت بطاقةٌ موسَّطةٌ (القطاعات، المقاييس) توسّط عنوانَها وتدفع رقمَها جانباً.
+   فالرقمُ داخل حاويةٍ موسَّطةٍ يتوسّط معها — خصوصيّةٌ (0,3,0) تغلب (0,2,0). */
+.text-center [dir="ltr"].tabular-nums,
+.text-center .tabular-nums[dir="ltr"],
+.text-center > [dir="ltr"] { text-align: center; }
 
 /* ── الرموز القديمة تُعاد إلى الدليل الواحد ─────────────────────── */
 /* الطافي فوق الصفحة (`--pop`) يعلو بالبياض لا بالقتامة: نافذةٌ بلون الأرضية
