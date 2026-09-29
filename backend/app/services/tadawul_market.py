@@ -198,11 +198,14 @@ async def refresh() -> dict:
         if e_why:
             logger.warning("جدولُ الصناديق لم يُقرأ: {}", e_why)
         else:
-            _et = normalize(e_rows)
-            for k, v in _et.items():
-                table.setdefault(k, v)
-            etf = len(_et)
-            logger.info("جدولُ صناديق المؤشرات: {} رمزاً", etf)
+            # ‏D518: قِيس أن الصفحةَ تعيد صفوفَ الرئيسيّ نفسَها (272 سهماً لا صندوقاً)
+            # حين تُنادى بلا معامِلها الخاصّ — فكان العدُّ يطرحها من الرئيسيّ فيصير 0.
+            # فلا يُضاف ولا يُعدّ إلا صندوقٌ (94xx) جديدٌ على اللقطة.
+            for k, v in normalize(e_rows).items():
+                if k.startswith("94") and k not in table:
+                    table[k] = v
+                    etf += 1
+            logger.info("جدولُ صناديق المؤشرات: {} صندوقاً ({} صفّاً وصل)", etf, len(e_rows))
     except Exception as e:                                        # noqa: BLE001
         logger.warning("جدولُ الصناديق تعذّر: {}", type(e).__name__)
     # ══ وتقلّصُ اللقطة يُعلَن ولا يمرّ ══ (D361)

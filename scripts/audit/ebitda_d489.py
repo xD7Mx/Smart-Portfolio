@@ -187,8 +187,9 @@ check(all(k in _dir and f'symbol: "{k}"' in _fe for k in ("4328", "6022", "9537"
       "٢٩ D515 كلُّ شركةٍ في لقطة «تداول» في دليلنا باسمها العربيّ (أرماح 6022 كانت تظهر بالإنجليزية)")
 _orig_fr, _orig_min = _TM.fetch_rows, _TM.MIN_ROWS
 async def _fake_rows(page=None):
-    if page == _TM.ETF_PAGE:
-        return [{"companyRef": "9405", "lastTradePrice": 21.91, "precentChange": -2.32}], None
+    if page == _TM.ETF_PAGE:   # D518: الصفحةُ قد تعيد أسهمَ الرئيسيّ معها — لا تُعدّ صناديق
+        return [{"companyRef": "9405", "lastTradePrice": 21.91, "precentChange": -2.32},
+                {"companyRef": "2222", "lastTradePrice": 25.5}], None
     if page == _TM.NOMU_PAGE:
         return [], "لا نمو"
     return [{"companyRef": "2222", "lastTradePrice": 25.5, "precentChange": 0.4}], None
@@ -198,7 +199,8 @@ try:
     _rows = (_LG.load(_TM.STORE_KEY) or {}).get("rows") or {}
 finally:
     _TM.fetch_rows, _TM.MIN_ROWS = _orig_fr, _orig_min
-check("9405" in _rows and _rows["9405"].get("price") == 21.91 and "2222" in _rows,
-      "٣٠ D517 صناديقُ المؤشرات (94xx) في لقطة «تداول» من صفحة etfs-market-watch — كانت «بلا بيانات»", str(sorted(_rows)))
+_bd = (_LG.load(_TM.STORE_KEY) or {}).get("boards") or {}
+check("9405" in _rows and _rows["9405"].get("price") == 21.91 and "2222" in _rows and _bd.get("main") == 1 and _bd.get("etf") == 1,
+      "٣٠ D517 صناديقُ المؤشرات (94xx) في لقطة «تداول» من صفحة etfs-market-watch — كانت «بلا بيانات»", str(sorted(_rows)) + f" boards={_bd}")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)
