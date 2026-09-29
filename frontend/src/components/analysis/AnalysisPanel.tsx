@@ -100,7 +100,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
     ["الدين لحقوق الملكية", f.debt_to_equity != null ? fmt(f.debt_to_equity) : null],
     ["أعلى 52 أسبوع", f.week52_high != null ? fmt(f.week52_high) : null],
     ["أدنى 52 أسبوع", f.week52_low != null ? fmt(f.week52_low) : null],
-    ["تقدير المحللين", f.target_mean_price != null ? fmt(f.target_mean_price) + "" : null],
+    ["تقدير المحللين", (data.analyst_target ?? f.target_mean_price) != null ? fmt(data.analyst_target ?? f.target_mean_price) : null],
     /* القيمة الدفترية للسهم (بأمر المالك) — تلي تقدير المحللين لأنها
        المرجعُ المقابل له: ذاك ما يتوقّعه السوق، وهذه ما تملكه الشركة
        فعلاً لكل سهم. وهي مدخلٌ في مضاعف الدفترية المبرَّر أيضاً، فعرضُها
@@ -210,7 +210,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
           </button>
         </div>
         {open === "hl" && <div className="mt-3"><HealthPanel symbol={symbol} quality={fin.score ?? null} /></div>}
-        {open === "fv" && <div className="mt-3"><FairValuePanel symbol={symbol} analystTarget={data.analyst_target ?? f.target_mean_price ?? null}
+        {open === "fv" && <div className="mt-3"><FairValuePanel symbol={symbol} analystTarget={null}
                                    week52={{ low: f.week52_low, high: f.week52_high }} /></div>}
 
         {/* ══ حُذف سعرُ الدخول وحكمُه وسطرُ «خلاصة المجلس» ══
@@ -257,46 +257,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
         </div>
       )}
 
-      {/* ══ لا عنوانَ بلا محتوى ══ (رآه المالك في غازكو 2080)
-          كانت البطاقةُ تُرسَم دائماً ومحتواها مشروطٌ بوجود أركان الإطار،
-          فحين يمتنع المحرّكُ عن الحكم — وهو امتناعٌ صحيح — يبقى العنوانُ
-          وحدَه فوق فراغ. والعنوانُ يَعِد بما تحته: عنوانٌ بلا مضمونٍ عطبٌ
-          في العرض لا صدقٌ في الامتناع. */}
-      {Array.isArray(data.governance_standard?.metrics)
-       && data.governance_standard.metrics.length > 0 && (
-      <div className="card">
-        <div className="flex items-baseline justify-between flex-wrap gap-1.5 mb-3">
-          <p className="card-title flex items-center gap-1.5"><ShieldCheck size={14} className="text-[var(--brand-ink)]" /> ميزان خبراء الحوكمة</p>
-          {/* الإطار المطبَّق على هذا القطاع — يُعرض مع الدرجة لا بعدها:
-              البنك لا يُقاس بما يُقاس به مصنع، ودرجةٌ لا يُعرف إطارُها
-              ولا نطاقُها لا يُبنى عليها قرار. */}
-        </div>
-        {/* أركانُ الإطار نفسه — لا مؤشّراتٍ عامّة تُعرض لكل قطاع.
-            كلُّ ركنٍ برقمه ونطاقه المعترف به، فيُقرأ الرقم لا يُشاهَد. */}
-        {Array.isArray(data.governance_standard?.metrics) && data.governance_standard.metrics.length > 0 && (
-          <div className="grid grid-cols-2 gap-1.5 mb-2">
-            {data.governance_standard.metrics.map((m: any) => (
-              /* اسمُ الركن لا يُقصّ: كانت تُبتر إلى «(‏IR…»،
-                 واسمُ المعيار مبتوراً أسوأ من غيابه. فالاسم يلتفّ
-                 في سطرين، والرقم تحته لا بجانبه. */
-              <div key={m.key} className="rounded-lg px-2 py-1.5 flex flex-col gap-0.5"
-                style={{ background: "color-mix(in srgb, var(--brand) 6%, transparent)" }}>
-                <span className="text-[10px] text-[var(--ink-muted)] leading-tight">{m.label}</span>
-                <span className="flex items-baseline gap-1">
-                  <span className="text-[15px] tabular-nums text-[var(--ink)] leading-none" style={{ fontWeight: 800 }} dir="ltr">
-                    {m.value.toLocaleString("en-US", { maximumFractionDigits: 2 })}{m.unit === "%" || m.unit === "×" ? m.unit : ""}
-                  </span>
-                  {m.unit !== "%" && m.unit !== "×" && m.unit && (
-                    <span className="text-[9.5px] text-[var(--ink-muted)]">{m.unit}</span>
-                  )}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
-      </div>
-      )}
+      {/* ‏D537: «ميزان خبراء الحوكمة» مكانُه صفحةُ الحوكمة لا صفحةُ السهم. */}
 
       {/* ══ حُذفت بطاقةُ «هدف المحللين» بشريطها ══ (بأمر المالك · D208)
           الرقمُ نفسُه معروضٌ في صدر البطاقة أعلاه، والشريطُ يعيد قولَه

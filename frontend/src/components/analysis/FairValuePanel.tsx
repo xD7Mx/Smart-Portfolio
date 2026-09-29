@@ -125,10 +125,6 @@ export default function FairValuePanel({ symbol, analystTarget, week52 }: {
         {week52?.low != null && week52?.high != null && (
           <RangeRow title="نطاق السوق" meta="52 أسبوعاً" low={week52.low} high={week52.high} mark={price} price={price} />
         )}
-        {analystTarget != null && (
-          <RangeRow title="هدف المحللين" meta="الإجماع" low={Math.min(analystTarget, price)} high={Math.max(analystTarget, price)}
-                    mark={analystTarget} price={price} />
-        )}
         <RangeRow title="نماذجنا" meta={`${r.count} نموذجاً`} low={r.low} high={r.high} mark={r.value} price={price} />
       </div>
 
