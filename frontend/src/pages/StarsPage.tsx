@@ -46,6 +46,26 @@ function MiniList({ title, items, onPick, tone: t }: { title: string; items: any
   );
 }
 
+/* عدٌّ تنازليٌّ حيّ إلى التوازن القادم — «الأسهم الجديدة القادمة» كما في InvestingPro. */
+function Countdown({ to }: { to?: string }) {
+  const [now, setNow] = useState(Date.now());
+  React.useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
+  if (!to) return null;
+  const end = new Date(to + "T13:00:00Z").getTime();       // بعد إغلاق السوق بتوقيت الرياض
+  const ms = Math.max(0, end - now);
+  const d = Math.floor(ms / 86400000), h = Math.floor(ms / 3600000) % 24, m = Math.floor(ms / 60000) % 60;
+  const cell = (v: number, u: string) => (
+    <span className="flex items-baseline gap-0.5"><span className="text-2xl font-bold tabular-nums">{String(v).padStart(2, "0")}</span>
+      <span className="text-[11px] font-semibold">{u}</span></span>
+  );
+  return (
+    <div className="text-center" style={{ color: "var(--warn-ink)" }}>
+      <div className="text-[11px] font-semibold mb-0.5">الأسهم الجديدة القادمة</div>
+      <div className="flex items-center justify-center gap-2" dir="rtl">{cell(d, "ي")}<span>:</span>{cell(h, "س")}<span>:</span>{cell(m, "د")}</div>
+    </div>
+  );
+}
+
 export default function StarsPage() {
   const [sheet, setSheet] = useState<string | null>(null);
   const { data, isLoading } = useQuery({
@@ -67,11 +87,17 @@ export default function StarsPage() {
   );
   return (
     <div className="space-y-4 fade-in">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-medium text-[var(--ink)] flex items-center gap-2">
-          <Star size={22} className="text-[var(--brand-ink)]" /> نجوم تاسي
-        </h1>
-        <span className="tag-b" dir="ltr">TASI20</span>
+      <div className="card space-y-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-medium text-[var(--ink)] flex items-center gap-2">
+              <Star size={22} className="text-[var(--brand-ink)]" /> نجوم تاسي
+              <span className="tag-b text-[12px]" dir="ltr">TASI20</span>
+            </h1>
+            <p className="text-[13px] text-[var(--ink-muted)] mt-1">أقوى 20 شركةً في السوق السعودية للتفوّق على تاسي — تُحدَّث شهرياً.</p>
+          </div>
+          <Countdown to={data?.next_rebalance} />
+        </div>
       </div>
 
       {isLoading ? <div className="card h-64 skeleton" /> : !data?.members?.length ? (
@@ -91,9 +117,9 @@ export default function StarsPage() {
             </div>
             <Curve track={data.track || []} />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {info("بدايةُ السجلّ", data.inception || data.since)}
-              {info("آخرُ توازن", data.since)}
-              {info("التوازنُ القادم", data.next_rebalance || data.rebalance || "شهرياً")}
+              {info("تاريخُ البداية", data.inception || data.since)}
+              {info("تردّدُ إعادة التوازن", data.rebalance || "شهرياً")}
+              {info("التركيزُ على الحجم", "شركاتٌ كبيرة")}
               {info("الأوزان", data.weighting || "متساوية")}
             </div>
           </div>
