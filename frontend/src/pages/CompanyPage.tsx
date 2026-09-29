@@ -1,3 +1,4 @@
+import QuarterReport from "../components/analysis/QuarterReport";
 import React, { useState } from "react";
 import { invalidateWatchlist } from "../services/watchlistCache";
 import { useParams, useNavigate } from "react-router-dom";
@@ -38,6 +39,7 @@ const TABS = [
   { id: "txs",       label: "سجل العمليات",  short: "العمليات" },
   { id: "divs",      label: "التوزيعات",     short: "التوزيعات" },
   { id: "calendar",  label: "المفكرة",       short: "المفكرة" },
+  { id: "reports",   label: "التقارير",      short: "التقارير" },
   { id: "opinion",   label: "رأي الذكاء",    short: "الذكاء", color: "var(--chart-3)" },
 ] as const;
 
@@ -1040,6 +1042,7 @@ export default function CompanyPage() {
       )}
 
       {tab === "calendar" && <StockCalendar symbol={company.symbol} name={nameAr} />}
+      {tab === "reports" && <QuarterReport symbol={company.symbol} />}
 
       {tab === "opinion" && (
         <div className="card">

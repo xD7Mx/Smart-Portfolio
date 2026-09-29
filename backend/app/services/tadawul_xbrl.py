@@ -81,6 +81,12 @@ LABELS: dict[str, tuple[str, ...]] = {
     "_commission_net": (
         "special commission income (expense)/ financing and investment"
         " income (expense), net",),
+    # ══ بنودُ البنوك لتقرير الربع ══ (D528 · مقيسةٌ بالحرف: bank_labels_door.py على 1120 و1010)
+    "bank_loans": ("loans,financing and advances, net",),
+    "bank_deposits": ("customer's deposits",),
+    "bank_op_income": ("total operating income",),
+    "bank_impairment": ("impairment (reversal of impairment) charge for credit losses/ loans, financing and advances",
+                        "impairment charge for credit losses and other financial assets, net"),
     "net_income": ("profit (loss) for period", "profit (loss)",
                    "profit (loss) for the period",
                    "profit (loss), attributable to equity holders of parent company"),
@@ -288,6 +294,10 @@ def parse(html: str) -> dict:
             ends = [_clean(x) for x in rest if re.search(r"\d{4}-\d{2}-\d{2}", x)]
         if head == "start date" and rest and not starts:
             starts = [_clean(x) for x in rest if re.search(r"\d{4}-\d{2}-\d{2}", x)]
+        # ‏D528: العائدُ لمساهمي الأمّ يُلتقط إضافةً — لا يُنتزع من صافي الربح.
+        if head == "profit (loss), attributable to equity holders of parent company" \
+                and "net_income_parent" not in vals:
+            vals["net_income_parent"] = [_num(x) for x in rest]
         key = _label_key(cells[0])
         if key and key not in vals:
             # قِيمُ الصفّ بترتيب أعمدته؛ وما ليس رقماً (مرجعُ إيضاحٍ مثلاً)
@@ -311,12 +321,16 @@ def parse(html: str) -> dict:
              "capex", "ending_cash", "pretax_income", "borrowings_current",
              "borrowings_noncurrent", "lease_current", "lease_noncurrent",
              "_commission_net", "_premiums_earned", "_premiums_written",
-             "inventory", "_dep_ppe", "_amort_int", "_dep_total"}
+             "inventory", "_dep_ppe", "_amort_int", "_dep_total",
+             "bank_loans", "bank_deposits", "bank_op_income",
+             "bank_impairment", "net_income_parent"}
     # وعددُ الأسهم عددٌ لا مال: لا يُضرَب في وحدة التقريب (كربحية السهم).
 
     periods: list[dict] = []
     for i, end in enumerate(ends):
-        p: dict = {"as_of": end, "year": int(end[:4])}
+        # ‏D528: موضعُ العمود — الأوّلُ فترةُ الملفّ نفسِه؛ وما بعده مقارنات
+        # (وعمودُ الميزانية الثاني نهايةُ السنة لا الربعُ المقابل).
+        p: dict = {"as_of": end, "year": int(end[:4]), "col": i}
         if _ins_layout:
             p["insurer_layout"] = True
         for key, series in vals.items():
@@ -360,7 +374,10 @@ def parse(html: str) -> dict:
                 and _gross > _net > 0):
             p["interest_expense"] = round(_gross - _net, 2)
             p["interest_expense_derived"] = "إجماليُّ دخلِ العمولة − صافيه"
+        if isinstance(p.get("_commission_net"), (int, float)):
+            p["bank_nfi"] = p["_commission_net"]           # D528: صافي دخل التمويل للتقرير
         p.pop("_commission_net", None)
+
         pre, fin_cost = p.get("pretax_income"), p.get("interest_expense")
         if pre is not None and fin_cost is not None:
             p["ebit"] = round(pre + abs(fin_cost), 2)
@@ -568,8 +585,13 @@ async def read_symbol(symbol: str, *, max_files: int = 8,
         kind = _norm(got.get("kind") or "")
         bucket = annual if kind.startswith("annual") else quarterly
         for p in got["periods"]:
-            if not any(x["as_of"] == p["as_of"] for x in bucket):
+            cur = next((x for x in bucket if x["as_of"] == p["as_of"]), None)
+            if cur is None:
                 bucket.append(p)
+            elif p.get("col") == 0 and cur.get("col") not in (None, 0):
+                # ‏D528: فترةُ الملفّ نفسِه تغلب عمودَ المقارنة في ملفٍّ أحدث —
+                # فيه الميزانيةُ بتاريخها الصحيح لا بنهاية السنة.
+                bucket[bucket.index(cur)] = {**cur, **p}
         used.append({"filed": f["filed"], "kind": got.get("kind"),
                      "audited": got.get("audited"), "rounding": got.get("rounding"),
                      "periods": len(got["periods"])})

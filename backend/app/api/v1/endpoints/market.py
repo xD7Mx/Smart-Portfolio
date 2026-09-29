@@ -698,6 +698,13 @@ async def get_forecasts():
     return success_response(data=await get())
 
 
+@router.get("/quarter-report/{symbol}")
+async def get_quarter_report(symbol: str):
+    """تقريرُ الربع (D528): توصيةٌ وهدفٌ وجدولُ الربع وتوقّعاتُنا وأداءٌ مقابلَ تاسي."""
+    from app.services.quarter_report import build
+    return success_response(data=await build(symbol))
+
+
 @router.get("/tasi-stars")
 async def get_tasi_stars():
     """«نجوم تاسي 20» (D522): السلّةُ المثبَّتةُ بتاريخها وأداؤها مقابلَ تاسي."""
