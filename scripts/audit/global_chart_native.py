@@ -36,7 +36,10 @@ check("62vh" not in nc and "height: 440" in nc and ".chart-frame { contain: stri
       "٦ D521 الرسمُ إطارٌ مقفلُ الارتفاع لا يتبع vh، والقرصُ والمحوران للرسم لا للصفحة")
 check("<Drop label={(RANGES.find" in nc and "<Drop label={IND.filter" in nc and "RANGES.map(([id, lbl]) => (\n            <button key={id} onClick={() => setRange(id)}" not in nc,
       "٧ D521 المدّةُ والمؤشراتُ قائمتان منسدلتان يظهر عليهما المختارُ وحدَه")
-check('ar: "غرفة التداول"' in _i18 and 'tab("idx", "المؤشرات")' in src and 'tab("mine", "محفظتك")' in src,
-      "٨ D521 التبويبُ «غرفة التداول» ودرجاه «محفظتك» و«المؤشرات»")
+check('ar: "الرسم البياني"' in _i18 and 'tab("idx", "المؤشرات")' in src and 'tab("mine", "محفظتك")' in src
+      and "stars" not in src,
+      "٨ D529 التبويبُ «الرسم البياني» ودرجاه «محفظتك» و«المؤشرات» — بلا «نجوم تاسي»")
+check('"channel" ? null' not in nc and '[["free", "حرّ"], ["line", "خطّ"]]' in nc and "onPointerMove={onMove}" in nc,
+      "٩ D529 أداةُ «رسم» بخيارين: حرٌّ وخطّ — بلا قناة")
 print(("FAIL" if fail else "PASS") + " D443 · D521 — رسمٌ واحدٌ للسوقين")
 sys.exit(fail)

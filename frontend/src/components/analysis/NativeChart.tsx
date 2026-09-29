@@ -154,8 +154,14 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
   // ══ الرسمُ اليدويّ: خطُّ ترند وقناة — محفوظان لكلّ رمز ══
   const dKey = `sp_draw_${symbol}`;
   const [draws, setDraws] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem(dKey) || "[]"); } catch { return []; } });
-  const [tool, setTool] = useState<null | "line" | "channel">(null);
+  const [tool, setTool] = useState<null | "line" | "free">(null);
   const pending = useRef<any[]>([]);
+  // ══ الرسمُ الحرّ (D529) — يُحفظ نقاطاً بزمن الشمعة وسعرها فيتبع الرسمَ حين يُسحب ويُكبَّر ══
+  const chartRef = useRef<any>(null);
+  const candleRef = useRef<any>(null);
+  const [tick, setTick] = useState(0);
+  const stroke = useRef<{ t: any; p: number }[] | null>(null);
+  const [live, setLive] = useState<{ x: number; y: number }[]>([]);
   /* ══ الرسمُ يبقى للشركة حتى يمسحه المالك (بأمر المالك · D496) ══ يُحفظ على
      الخادم لكلّ رمزٍ على حدة، والنسخةُ المحلّيةُ للعرض الفوريّ وحين يتعذّر الخادم. */
   useEffect(() => {
@@ -395,6 +401,7 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
       // ══ الرسمُ اليدويّ (خطٌّ · قناة) ══
       const tIndex = (t: any) => bars.findIndex((b: any) => String(tkey(b.date)) === String(t));
       for (const d of draws) {
+        if (!d.a || !d.b) continue;
         const a = tIndex(d.a.t), b = tIndex(d.b.t);
         if (a < 0 || b < 0 || a === b) continue;
         const [i1, v1, i2, v2] = a < b ? [a, d.a.p, b, d.b.p] : [b, d.b.p, a, d.a.p];
@@ -405,7 +412,7 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         if (d.c) { const ci = tIndex(d.c.t); if (ci >= 0) { const slope = (v2 - v1) / (i2 - i1);
           const off = d.c.p - (v1 + slope * (ci - i1)); mk(v1 + off, v2 + off); } }
       }
-      if (tool) {
+      if (tool === "line") {
         chart.subscribeClick((param: any) => {
           if (!param?.time || !param.point) return;
           const p = candle.coordinateToPrice(param.point.y); if (p == null) return;
@@ -415,19 +422,56 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
           const t = (tm && typeof tm === "object" && "year" in tm)
             ? `${tm.year}-${String(tm.month).padStart(2, "0")}-${String(tm.day).padStart(2, "0")}` : tm;
           pending.current.push({ t, p });
-          const need = tool === "line" ? 2 : 3;
-          if (pending.current.length >= need) {
-            const [a, b, c] = pending.current; pending.current = [];
-            saveDraws([...draws, tool === "line" ? { a, b } : { a, b, c }]); setTool(null);
+          if (pending.current.length >= 2) {
+            const [a, b] = pending.current; pending.current = [];
+            saveDraws([...draws, { a, b }]); setTool(null);
           }
         });
       }
       chart.timeScale().fitContent();
-      ro = new ResizeObserver(() => chart && chart.applyOptions({}));
+      chartRef.current = chart; candleRef.current = candle;
+      chart.timeScale().subscribeVisibleLogicalRangeChange(() => setTick(t => t + 1));
+      setTick(t => t + 1);
+      ro = new ResizeObserver(() => { chart && chart.applyOptions({}); setTick(t => t + 1); });
       ro.observe(el.current);
     }).catch(() => setErr(true));
-    return () => { cancelled = true; try { ro && ro.disconnect(); chart && chart.remove(); } catch {} };
+    return () => { cancelled = true; chartRef.current = null; candleRef.current = null;
+      try { ro && ro.disconnect(); chart && chart.remove(); } catch {} };
   }, [bars, theme, ind, range, cfg, draws, tool]);
+
+  const normT = (tm: any) => (tm && typeof tm === "object" && "year" in tm)
+    ? `${tm.year}-${String(tm.month).padStart(2, "0")}-${String(tm.day).padStart(2, "0")}` : tm;
+  const toXY = (pt: { t: any; p: number }) => {
+    const c = chartRef.current, k = candleRef.current;
+    if (!c || !k) return null;
+    const x = c.timeScale().timeToCoordinate(pt.t), y = k.priceToCoordinate(pt.p);
+    return x == null || y == null ? null : { x, y };
+  };
+  const freePaths = React.useMemo(() => {
+    void tick;
+    return draws.filter((d: any) => Array.isArray(d.free)).map((d: any) =>
+      d.free.map(toXY).filter(Boolean).map((q: any, i: number) => `${i ? "L" : "M"}${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(""));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draws, tick]);
+  const onDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (tool !== "free") return;
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    stroke.current = []; setLive([]); onMove(e);
+  };
+  const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!stroke.current || !chartRef.current || !candleRef.current) return;
+    const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    const t = normT(chartRef.current.timeScale().coordinateToTime(x));
+    const p = candleRef.current.coordinateToPrice(y);
+    if (t == null || p == null) return;
+    stroke.current.push({ t, p });
+    setLive(l => [...l, { x, y }]);
+  };
+  const onUp = () => {
+    const pts = stroke.current; stroke.current = null; setLive([]);
+    if (pts && pts.length > 1) { saveDraws([...draws, { free: pts }]); setTool(null); }
+  };
 
   const toggle = (k: keyof typeof ind) => setInd(s => ({ ...s, [k]: !s[k] }));
 
@@ -435,6 +479,21 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
     <div className="space-y-2">
       {/* ══ قوائمُ منسدلةٌ يظهر عليها المختارُ وحدَه ══ (بأمر المالك · D521)
          كانت المدّةُ ستَّ أزرارٍ والمؤشراتُ ستّاً تملأ سطرين على الجوال. */}
+      {bars.length > 1 && (() => {
+        const last = bars[bars.length - 1], prev = bars[bars.length - 2];
+        const ch = prev?.close ? (last.close / prev.close - 1) * 100 : null;
+        return (
+          <div className="flex items-baseline gap-2">
+            <span className="text-xl font-bold tabular-nums text-[var(--ink)]" dir="ltr">{last.close.toFixed(2)}</span>
+            {ch != null && (
+              <span className={"text-[13px] font-bold tabular-nums " + (ch >= 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]")} dir="ltr">
+                {(last.close - prev.close >= 0 ? "+" : "") + (last.close - prev.close).toFixed(2)} ({(ch >= 0 ? "+" : "") + ch.toFixed(2)}%)
+              </span>
+            )}
+            <span className="text-[11px] text-[var(--ink-muted)] tabular-nums" dir="ltr">{String(last.date).slice(0, 16)}</span>
+          </div>
+        );
+      })()}
       <div className="flex items-center gap-1.5 flex-wrap">
         <Drop label={(RANGES.find(r => r[0] === range) || RANGES[0])[1]}>
           {close => RANGES.map(([id, lbl]) => (
@@ -458,22 +517,19 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
           <button onClick={() => setShowCfg(true)} title="إعدادات المؤشّر" aria-label="إعدادات المؤشّر"
             className="px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border border-[var(--hairline)] text-[var(--ink)]">⚙ D7M</button>
         )}
-        <button onClick={() => { pending.current = []; setTool(tool === "line" ? null : "line"); }}
-          className={"px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border transition-all " + (tool === "line" ? "text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)]")}>
-          ╱ خطّ</button>
-        <button onClick={() => { pending.current = []; setTool(tool === "channel" ? null : "channel"); }}
-          className={"px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border transition-all " + (tool === "channel" ? "text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)]")}>
-          ▱ قناة</button>
+        <Drop label={tool === "free" ? "رسم · حرّ" : tool === "line" ? "رسم · خطّ" : "رسم"}>
+          {close => ([["free", "حرّ"], ["line", "خطّ"]] as const).map(([k, lbl]) => (
+            <button key={k} type="button" onClick={() => { pending.current = []; setTool(tool === k ? null : k); close(); }}
+              className={"w-full text-start px-3 min-h-[32px] text-[12px] font-bold " + (tool === k ? "text-[var(--brand-ink)]" : "text-[var(--ink)]")}>
+              {lbl}
+            </button>
+          ))}
+        </Drop>
         {draws.length > 0 && (
           <button onClick={() => saveDraws([])}
             className="px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border border-[var(--hairline)] text-[var(--ink-muted)]">مسح الرسم</button>
         )}
       </div>
-      {tool && (
-        <p className="text-[11px] text-[var(--brand-ink)]">
-          {tool === "line" ? "انقر نقطتين على الرسم لخطّ الترند" : "انقر نقطتين للخطّ ثمّ نقطةً ثالثة للموازي"}
-        </p>
-      )}
       {showCfg && <D7MPanel cfg={cfg} onChange={saveCfg} onClose={() => setShowCfg(false)} />}
       {err ? (
         <div className="h-[420px] flex items-center justify-center text-[var(--ink-muted)] text-sm">تعذّر تحميل مكتبة الرسم — تأكد من الاتصال بالإنترنت.</div>
@@ -485,6 +541,18 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         <div className="relative">
         <div className="relative chart-frame" style={{ height: 440, width: "100%" }}>
           <div ref={el} style={{ position: "absolute", inset: 0 }} />
+          <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: tool === "free" ? "auto" : "none",
+               touchAction: tool === "free" ? "none" : undefined, cursor: tool === "free" ? "crosshair" : undefined, zIndex: 3 }}
+               onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+            {freePaths.map((d: string, k: number) => d && (
+              <path key={k} d={d} fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+                style={{ stroke: cfg.colors?.draw || "var(--brand-ink)" }} />
+            ))}
+            {live.length > 1 && (
+              <path d={live.map((q, i) => `${i ? "L" : "M"}${q.x.toFixed(1)},${q.y.toFixed(1)}`).join("")} fill="none"
+                strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ stroke: cfg.colors?.draw || "var(--brand-ink)" }} />
+            )}
+          </svg>
           {ind.d7m && zones.filter(z => z.y > 0).map((z, k) => (
             <div key={k} className="d7m-zone" style={{ top: z.y - 8, left: z.x, color: cfg.colors?.zone || undefined }}>{z.title}</div>
           ))}

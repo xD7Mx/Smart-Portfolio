@@ -4,12 +4,11 @@ import { CandlestickChart, ChevronDown } from "lucide-react";
 import NativeChart from "../components/analysis/NativeChart";
 import CompanyLogo from "../components/common/CompanyLogo";
 import InlineStockSearch from "../components/market/InlineStockSearch";
-import TasiStarsPanel from "../components/market/TasiStarsPanel";
 import { lookupCompany } from "../data/saudiCompanies";
-import { holdingsApi, marketApi } from "../services/api";
+import { holdingsApi } from "../services/api";
 import { useAppStore } from "../store/appStore";
 
-/* ══ غرفةُ التداول ══ (بأمر المالك · D521)
+/* ══ الرسم البياني ══ (بأمر المالك · D521 · D529)
    السوقان السعوديُّ والعالميُّ في رسمٍ واحدٍ وحقلِ بحثٍ واحد — لا تبويبَين.
    وتحت العنوان درجان: «محفظتك» و«المؤشرات» (تاسي أوّلاً ثمّ العالمية). */
 const INDICES: [string, string][] = [
@@ -17,7 +16,7 @@ const INDICES: [string, string][] = [
   ["BZ=F", "برنت"], ["GC=F", "الذهب"], ["BTC-USD", "بتكوين"],
 ];
 
-type Drawer = null | "mine" | "idx" | "stars";
+type Drawer = null | "mine" | "idx";
 
 const chipCls = (on: boolean) =>
   "shrink-0 min-h-[32px] px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 " +
@@ -40,12 +39,6 @@ export default function ChartPage() {
     [holdings]
   );
 
-  // «نجوم تاسي 20» (D522) — تُجلب عند فتح درجها فقط.
-  const { data: stars, isLoading: starsLoading } = useQuery({
-    queryKey: ["tasi-stars"], enabled: drawer === "stars", staleTime: 5 * 60_000,
-    queryFn: () => marketApi.tasiStars().then(r => r.data?.data || null),
-  });
-
   // الافتراضيّ: أوّلُ شركةٍ في المحفظة، وإلا تاسي — فلا تبدأ الغرفةُ فارغة.
   const symbol = chosen ?? (chips[0]?.symbol ?? "^TASI.SR");
   const pick = (s: string) => { setChosen(s.toUpperCase()); setDrawer(null); };
@@ -66,32 +59,33 @@ export default function ChartPage() {
     <div className="space-y-4 fade-in">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-medium text-[var(--ink)] flex items-center gap-2">
-          <CandlestickChart size={22} className="text-[var(--brand-ink)]" /> غرفة التداول
+          <CandlestickChart size={22} className="text-[var(--brand-ink)]" /> الرسم البياني
         </h1>
         <InlineStockSearch onPick={pick} global />
       </div>
 
-      <div className="flex items-center gap-2">
-        {chips.length > 0 && tab("mine", "محفظتك")}
-        {tab("idx", "المؤشرات")}
-        {tab("stars", "نجوم تاسي")}
-        <span className="ms-auto min-w-0 truncate text-sm font-semibold text-[var(--ink)]">{title}</span>
-      </div>
-
-      {drawer === "stars" && <TasiStarsPanel data={stars} loading={starsLoading} onPick={s => { setChosen(s); }} />}
-
-      <div style={{ display: "grid", gridTemplateRows: drawer && drawer !== "stars" ? "1fr" : "0fr", opacity: drawer && drawer !== "stars" ? 1 : 0, transition: "grid-template-rows .24s ease, opacity .2s ease" }}>
-        <div style={{ overflow: "hidden" }}>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5" style={{ scrollbarWidth: "none" }}>
-            {drawer === "mine" && chips.map((c: any) => (
-              <button key={c.symbol} onClick={() => pick(c.symbol)} title={c.name} className={chipCls(symbol === c.symbol)}>
-                <CompanyLogo symbol={c.symbol} size={18} logoUrl={c.logo_url} />
-                <span>{c.symbol}</span>
-              </button>
-            ))}
-            {drawer === "idx" && INDICES.map(([s, lbl]) => (
-              <button key={s} onClick={() => pick(s)} className={chipCls(symbol === s)}>{lbl}</button>
-            ))}
+      {/* الدرجُ ملتصقٌ بالتبويبات: ينزل منها بحركةٍ ويعود إليها — بلا فراغٍ حين يُطوى. */}
+      <div>
+        <div className="flex items-center gap-2">
+          {chips.length > 0 && tab("mine", "محفظتك")}
+          {tab("idx", "المؤشرات")}
+          <span className="ms-auto min-w-0 truncate text-sm font-semibold text-[var(--ink)]">{title}</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateRows: drawer ? "1fr" : "0fr", opacity: drawer ? 1 : 0,
+                      transform: drawer ? "translateY(0)" : "translateY(-6px)",
+                      transition: "grid-template-rows .28s ease, opacity .22s ease, transform .28s ease" }}>
+          <div style={{ overflow: "hidden" }}>
+            <div className="flex items-center gap-2 overflow-x-auto pt-2" style={{ scrollbarWidth: "none" }}>
+              {drawer === "mine" && chips.map((c: any) => (
+                <button key={c.symbol} onClick={() => pick(c.symbol)} title={c.name} className={chipCls(symbol === c.symbol)}>
+                  <CompanyLogo symbol={c.symbol} size={18} logoUrl={c.logo_url} />
+                  <span>{c.symbol}</span>
+                </button>
+              ))}
+              {drawer === "idx" && INDICES.map(([s, lbl]) => (
+                <button key={s} onClick={() => pick(s)} className={chipCls(symbol === s)}>{lbl}</button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

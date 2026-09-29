@@ -471,8 +471,13 @@ class YahooFinanceAdapter:
         cached = cache.get(ck)
         if cached is not None:
             return cached
+        # ══ آخرُ تاريخٍ صالحٍ حين تنفد الحصّة ══ (D530)
+        # نفدت حصّةُ ياهو اليومية بمسحات النشر فعاد التاريخُ None: الرسمُ بلا
+        # حركة سعر والتحليلُ الفنيُّ «يتطلب تاريخاً». والتاريخُ اليوميُّ لا يفسد
+        # في يوم — فتُحفَظ نسختُه أسبوعين وتُقدَّم متى تعذّر الجلب.
+        stale_k = f"hist:stale:{symbol}:{range_}"
         if not can_call("yahoo"):
-            return None
+            return cache.get(stale_k)
         record("yahoo")
         # Daily bars can come back mostly null/duplicated for some tickers
         # (notably indices like ^TASI.SR) — same reason the real Yahoo
@@ -503,8 +508,9 @@ class YahooFinanceAdapter:
         # interval can fix. One candle would be misleading, so treat it the
         # same as "no history" and let the UI say so honestly.
         if len(points) < 2:
-            return None
+            return cache.get(stale_k)
         cache.set(ck, points, cache.HISTORY_TTL)
+        cache.set(stale_k, points, 14 * 24 * 3600)
         return points
 
     async def get_intraday(self, symbol: str) -> list:
