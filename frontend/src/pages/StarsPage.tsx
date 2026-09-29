@@ -12,17 +12,39 @@ const pct = (v: any) => (typeof v === "number" ? `${v >= 0 ? "+" : ""}${v.toFixe
 const tone = (v: any) => (typeof v === "number" ? (v >= 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]") : "text-[var(--ink-muted)]");
 
 const RULES: [string, string][] = [
-  ["التفوّق على تاسي", "عائدُ 12 شهراً أعلى من عائد تاسي"],
-  ["توقّع 12 شهراً", "السعرُ العادل أعلى من السعر بـ15٪ فأكثر"],
-  ["ثقة التقييم", "ليست منخفضة"],
-  ["الدرجة المالية", "70 فأكثر"],
-  ["الخطوط الحمراء", "لا شيء"],
-  ["القوائم المالية", "خلال 9 أشهر"],
   ["الشرعية", "ليست غير متوافقة"],
+  ["القوائم المالية", "خلال 9 أشهر"],
+  ["الخطوط الحمراء", "لا شيء"],
+  ["السعر العادل", "أعلى من السعر"],
   ["نطاق السوق", "أكبر 100 شركة بالقيمة السوقية"],
-  ["السلّة", "20 شركة بأوزانٍ متساوية"],
+  ["الترتيب", "التفوّق على تاسي 35٪ · البعد عن العادل 35٪ · الجودة 20٪ · الثقة 10٪"],
+  ["السلّة", "أعلى 20 بأوزانٍ متساوية"],
+  ["تحت المراقبة", "المراتب 21–30"],
   ["إعادة التوازن", "شهرياً"],
 ];
+
+function MiniList({ title, items, onPick, tone: t }: { title: string; items: any[]; onPick: (s: string) => void; tone: string }) {
+  if (!items?.length) return null;
+  return (
+    <div className="card p-0">
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <p className="card-title" style={{ color: t }}>{title}</p>
+        <span className="text-[12px] text-[var(--ink-muted)] tabular-nums">{items.length}</span>
+      </div>
+      {items.map((m: any) => (
+        <button key={m.symbol} type="button" onClick={() => onPick(m.symbol)}
+          className="w-full flex items-center gap-2 px-4 py-2 min-h-[44px] text-start border-t border-[var(--hairline)] hover:bg-[var(--field)]">
+          <CompanyLogo symbol={m.symbol} size={24} />
+          <span className="flex-1 min-w-0">
+            <span className="block text-[13px] font-semibold text-[var(--ink)] truncate">{m.name}</span>
+            <span className="block text-[11px] text-[var(--ink-muted)] tabular-nums" dir="ltr" style={{ textAlign: "right" }}>{m.symbol}</span>
+          </span>
+          {typeof m.rank === "number" && <span className="text-[12px] font-bold tabular-nums text-[var(--ink-muted)]" dir="ltr">#{m.rank}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function StarsPage() {
   const [sheet, setSheet] = useState<string | null>(null);
@@ -71,7 +93,7 @@ export default function StarsPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {info("بدايةُ السجلّ", data.inception || data.since)}
               {info("آخرُ توازن", data.since)}
-              {info("إعادةُ التوازن", data.rebalance || "شهرياً")}
+              {info("التوازنُ القادم", data.next_rebalance || data.rebalance || "شهرياً")}
               {info("الأوزان", data.weighting || "متساوية")}
             </div>
           </div>
@@ -102,6 +124,14 @@ export default function StarsPage() {
           </div>
         </>
       )}
+
+      {data?.members?.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <MiniList title="قادمة هذا الشهر" items={data.entering} onPick={setSheet} tone="var(--pos-ink)" />
+          <MiniList title="خارجة هذا الشهر" items={data.exiting} onPick={setSheet} tone="var(--neg-ink)" />
+        </div>
+      )}
+      {data?.members?.length > 0 && <MiniList title="تحت المراقبة" items={data.watch} onPick={setSheet} tone="var(--warn-ink)" />}
 
       <div className="card">
         <p className="card-title mb-2">المعايير</p>

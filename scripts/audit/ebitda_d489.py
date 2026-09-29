@@ -248,7 +248,11 @@ _tp = [{"date": (_dt(2025, 9, 29) + _td(days=7 * i)).isoformat(), "close": 100 +
 _r12 = _ST._ret_12m(_tp)
 _sel_l = _ST.select(_rows, {"1001": 25.0}, 8.0, large={"2222"})
 _lc = _ST.large_caps({"2222": {"market_cap": 9e12}, "1001": {"market_cap": 1e9}, "9536": {"market_cap": 5e12}})
-check([m["symbol"] for m in _sel] == ["1001"] and _sel_l == [] and _r12 is not None and abs(_r12 - 52.0) < 0.01 and _ST._ret_12m(_tp[:10]) is None and "9536" not in _lc and _ST.REBALANCE_DAYS == 30 and _sel[0]["excess"] == 17.0 and _pf["ret"] == 2.5 and _pf["tasi_ret"] == 2.0 and _pf["level"] == 102.5,
-      "٣٣ D522 نجوم تاسي: متفوّقٌ على تاسي في 12 شهراً + عادلٌ فوق السعر ≥15٪ + ثقةٌ ودرجةٌ وقوائمُ حديثةٌ وشرعيّ — وأداءٌ متساوي الأوزان مقابلَ تاسي منذ التثبيت", str([m["symbol"] for m in _sel]) + f" {_pf}")
+_ids = [m["symbol"] for m in _sel]
+check(_ids[0] == "1001" and "1004" not in _ids and "1006" not in _ids and set(_ids) == {"1001", "1002", "1003", "1005", "1007"}
+      and _sel_l == [] and _r12 is not None and abs(_r12 - 52.0) < 0.01 and _ST._ret_12m(_tp[:10]) is None
+      and "9536" not in _lc and _ST.REBALANCE_DAYS == 30 and _sel[0]["rank"] == 1
+      and _pf["ret"] == 2.5 and _pf["tasi_ret"] == 2.0 and _pf["level"] == 102.5,
+      "٣٣ D522·D539 نجوم تاسي ترتيبٌ لا بوّابات: الأمانُ ملزم (الشرعيةُ · القوائمُ الحديثة)، والتفوّقُ على تاسي والعادلُ والجودةُ والثقةُ ترتيب — والأقوى أوّلاً", str(_ids) + f" {_pf}")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

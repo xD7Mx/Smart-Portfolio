@@ -64,51 +64,99 @@ def _main_share(sym) -> bool:
     return is_main(sym) and not is_etf(sym)
 
 
+WATCH = 10               # ‏D539: المرتبةُ 21–30 تحت المراقبة
+WEIGHTS = {"excess": 0.35, "upside": 0.35, "quality": 0.20, "confidence": 0.10}
+CONF = {"مرتفعة": 1.0, "متوسطة": 0.6, "منخفضة": 0.2}
+
+
 def eligible(r: dict) -> bool:
-    """البوّابتان ٢ و٣ — ما لا يحتاج تاريخاً سعرياً."""
+    """شروطُ الأمان وحدها ملزمة (D539): الشرعيةُ · القوائمُ خلال 9 أشهر · بلا خطٍّ
+    أحمر · سعرٌ عادلٌ فوق السعر · درجةٌ مالية. والباقي ترتيبٌ لا شرط."""
     up, fs = r.get("fair_value_upside_pct"), r.get("finance_score")
     age = r.get("stmt_age_days")
-    return (isinstance(up, (int, float)) and up >= MIN_UPSIDE
-            and r.get("fair_value_conf") not in (None, "منخفضة")
-            and isinstance(fs, (int, float)) and fs >= MIN_SCORE
+    return (isinstance(up, (int, float)) and up > 0
+            and isinstance(fs, (int, float))
             and not (r.get("red_lines") or 0)
             and isinstance(age, (int, float)) and age <= MAX_STMT_DAYS
             and r.get("sharia") != "NON_COMPLIANT"
             and _main_share(r.get("symbol")))
 
 
-def score(r: dict, excess: float) -> float:
-    return (min(r["fair_value_upside_pct"], CAP_UPSIDE) / CAP_UPSIDE
-            + min(excess, CAP_EXCESS) / CAP_EXCESS
-            + r["finance_score"] / 100) / 3 * 100
+def _pct_rank(vals: list[float]) -> list[float]:
+    """الرتبةُ المئوية (0–1) لكلّ قيمةٍ بين أقرانها — الأعلى 1."""
+    n = len(vals)
+    if n <= 1:
+        return [1.0] * n
+    # المتساويان في القيمة متساويان في الرتبة (متوسطُ مواضعهما) — لا يُفضَّل أحدُهما بترتيب الإدخال.
+    order = sorted(range(n), key=lambda i: vals[i])
+    out = [0.0] * n
+    k = 0
+    while k < n:
+        j = k
+        while j + 1 < n and vals[order[j + 1]] == vals[order[k]]:
+            j += 1
+        for q in range(k, j + 1):
+            out[order[q]] = ((k + j) / 2) / (n - 1)
+        k = j + 1
+    return out
+
+
+def _cap(sym: str, v: dict) -> float | None:
+    """القيمةُ السوقية من «تداول»، وإن غابت خارجَ الجلسة: السعرُ × الأسهمِ المنشورة."""
+    c = (v or {}).get("market_cap")
+    if isinstance(c, (int, float)) and c > 0:
+        return c
+    px = (v or {}).get("price")
+    try:
+        from app.services import tadawul_xbrl
+        rows = tadawul_xbrl.for_symbol(sym, "annual") or tadawul_xbrl.for_symbol(sym, "quarterly")
+        sh = next((p.get("shares_outstanding") for p in reversed(rows or []) if p.get("shares_outstanding")), None)
+    except Exception:                                             # noqa: BLE001
+        sh = None
+    return px * sh if isinstance(px, (int, float)) and isinstance(sh, (int, float)) and px > 0 and sh > 0 else None
 
 
 def large_caps(snap: dict[str, dict]) -> set[str]:
-    caps = sorted(((v.get("market_cap") or 0, k) for k, v in (snap or {}).items()
-                   if _main_share(k) and v.get("market_cap")), reverse=True)
-    return {k for _, k in caps[:LARGE_N]}
+    caps = sorted(((_cap(k, v) or 0, k) for k, v in (snap or {}).items() if _main_share(k)), reverse=True)
+    return {k for c, k in caps[:LARGE_N] if c > 0}
 
 
-def select(rows: list[dict], rets: dict[str, float], tasi_ret: float,
-           large: set[str] | None = None, snap: dict | None = None) -> list[dict]:
-    """البوّابةُ ١ فوق ٢ و٣، ثمّ الترتيب — دالّةٌ نقيّةٌ يقيسها الحارس."""
-    out = []
+def rank(rows: list[dict], rets: dict[str, float], tasi_ret: float,
+         large: set[str] | None = None, snap: dict | None = None) -> list[dict]:
+    """الترتيبُ الكامل (D539) — دالّةٌ نقيّةٌ يقيسها الحارس."""
+    cands = []
     for r in rows or []:
         s = str(r.get("symbol") or "")
-        if not eligible(r) or rets.get(s) is None or (large is not None and s not in large):
+        if not eligible(r) or rets.get(s) is None or (large and s not in large):
             continue
-        excess = rets[s] - tasi_ret
-        if excess <= 0:
-            continue
+        cands.append((r, s, rets[s] - tasi_ret))
+    if not cands:
+        return []
+    pr_x = _pct_rank([c[2] for c in cands])
+    pr_u = _pct_rank([min(c[0]["fair_value_upside_pct"], 60.0) for c in cands])
+    pr_q = _pct_rank([c[0]["finance_score"] for c in cands])
+    out = []
+    for i, (r, s, excess) in enumerate(cands):
+        conf = CONF.get(r.get("fair_value_conf"), 0.2)
+        sc = (WEIGHTS["excess"] * pr_x[i] + WEIGHTS["upside"] * pr_u[i]
+              + WEIGHTS["quality"] * pr_q[i] + WEIGHTS["confidence"] * conf) * 100
         out.append({"symbol": s, "name": r.get("name"), "sector": r.get("sector"),
                     "price": r.get("price"), "fair_value": r.get("fair_value"),
                     "upside": r["fair_value_upside_pct"], "ret_12m": round(rets[s], 1),
                     "excess": round(excess, 1), "finance_score": r["finance_score"],
-                    "sharia": r.get("sharia"), "score": round(score(r, excess), 1),
+                    "confidence": r.get("fair_value_conf"),
+                    "sharia": r.get("sharia"), "score": round(sc, 1),
                     "pe": r.get("pe_ratio") or ((snap or {}).get(s) or {}).get("pe_ratio"),
-                    "market_cap": ((snap or {}).get(s) or {}).get("market_cap")})
+                    "market_cap": _cap(s, (snap or {}).get(s) or {})})
     out.sort(key=lambda x: -x["score"])
-    return out[:SIZE]
+    for k, m in enumerate(out, 1):
+        m["rank"] = k
+    return out
+
+
+def select(rows: list[dict], rets: dict[str, float], tasi_ret: float,
+           large: set[str] | None = None, snap: dict | None = None) -> list[dict]:
+    return rank(rows, rets, tasi_ret, large, snap)[:SIZE]
 
 
 def _load() -> dict | None:
@@ -153,7 +201,8 @@ async def build(force: bool = False) -> dict:
                 v = _ret_12m(await market_service.get_history(f"{r['symbol']}.SR", "1y"))
             if v is not None:
                 rets[str(r["symbol"])] = v
-    members = select(rows, rets, tasi_ret, large, snap)
+    ranked = rank(rows, rets, tasi_ret, large, snap)
+    members = ranked[:SIZE]
     if not members:
         return old or {"error": "لا شركةَ تجتاز القاعدةَ اليوم"}
     # ربطُ المؤشّر: مستوى السلّة السابقة يُحمَل فلا يبدأ كلُّ ربعٍ من الصفر.
@@ -172,6 +221,7 @@ async def build(force: bool = False) -> dict:
            "weighting": "متساوية", "rebalance": "شهرياً", "universe": f"أكبرُ {LARGE_N} بالقيمة السوقية",
            "tasi_start": tasi_pts[-1]["close"], "tasi_ret_12m": round(tasi_ret, 1),
            "members": [{**m, "start_price": m["price"]} for m in members],
+           "watch": ranked[SIZE:SIZE + WATCH],
            "history": history[-20:],
            "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     lastgood.save(STORE_KEY, rec)
@@ -229,4 +279,22 @@ async def get() -> dict:
                "tasi_total": round(tl - 100, 2) if tl is not None else None}
     summary["excess"] = (round(summary["total"] - summary["tasi_total"], 2)
                          if None not in (summary["total"], summary["tasi_total"]) else None)
-    return {**rec, "members": members, "perf": perf, "summary": summary}
+    # ══ القادمةُ والخارجةُ هذا الشهر (D539) — ترتيبٌ حيٌّ يوميّ مقابلَ السلّة المثبَّتة ══
+    entering, exiting, watch = [], [], rec.get("watch") or []
+    try:
+        from app.services.tadawul_market import usable_rows
+        snap = usable_rows()[0] or {}
+        rets = {str(r.get("symbol")): r["ret_12m"] for r in rows if isinstance(r.get("ret_12m"), (int, float))}
+        tr = rec.get("tasi_ret_12m")
+        if rets and isinstance(tr, (int, float)):
+            live = rank(rows, rets, tr, large_caps(snap) or None, snap)
+            top = {m["symbol"] for m in live[:SIZE]}
+            mem = {m["symbol"] for m in rec["members"]}
+            entering = [m for m in live[:SIZE] if m["symbol"] not in mem]
+            exiting = [m for m in members if m["symbol"] not in top]
+            watch = [m for m in live[SIZE:SIZE + WATCH] if m["symbol"] not in mem]
+    except Exception:                                             # noqa: BLE001
+        pass
+    nxt = (date.fromisoformat(rec["since"]) + timedelta(days=REBALANCE_DAYS)).isoformat()
+    return {**rec, "members": members, "perf": perf, "summary": summary,
+            "entering": entering, "exiting": exiting, "watch": watch, "next_rebalance": nxt}

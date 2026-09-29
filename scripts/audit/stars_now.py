@@ -16,7 +16,8 @@ async def main():
     rec = await S.build(force=True)
     print("تاسي 12ش:", rec.get("tasi_ret_12m"), "· السلّة:", len(rec.get("members") or []), rec.get("error") or "")
     for m in rec.get("members") or []:
-        print(f"  {m['symbol']} {m.get('name')} · عادل {m['upside']}% · 12ش {m['ret_12m']}% (+{m['excess']}) · درجة {m['finance_score']}")
+        print(f"  #{m.get('rank')} {m['symbol']} {m.get('name')} · عادل {m['upside']}% · 12ش {m['ret_12m']}% ({m['excess']:+}) · درجة {m['finance_score']} · {m.get('confidence')} · {m['score']}")
+    print("تحت المراقبة:", " ".join(f"#{m.get('rank')} {m['symbol']}" for m in rec.get("watch") or []))
 
 
 asyncio.run(main())
