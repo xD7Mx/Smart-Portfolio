@@ -174,5 +174,11 @@ _AP = open(os.path.join(ROOT, "frontend/src/components/analysis/AnalysisPanel.ts
 check("_new = await _fvm_for(" in _AN and _AN.find("_new = await _fvm_for(") < _AN.find('"fair_value": _fv.get("value")')
       and "{fvmLoading ? (" in _AP,
       "٢٧ D512 سعرٌ عادلٌ واحدٌ من محرّكٍ واحد: التحليلُ والفرزُ من محرّك InvestingPro، ولا رقمَ يُرسم قبل جوابه ثمّ يُستبدَل")
+from app.services import tadawul_xbrl as _XB
+_fd = _XB._fill_depreciation([{"as_of": "2025-12-31", "revenue": 4e9, "ebit": 8e8}],
+                             {"quarterly": [{"as_of": "2025-06-30", "revenue": 2e9, "depreciation": 1.2e8}]})
+check(_fd[0].get("depreciation") == 2.4e8 and _fd[0].get("ebitda") == 1.04e9 and "مشتقٌّ" in (_fd[0].get("depreciation_source") or "")
+      and "adjustments for depreciation expense" in _XB.LABELS["_dep_ppe"],
+      "٢٨ D514 سنةٌ من استكمال PDF بلا إهلاك تأخذه بنسبته إلى الإيراد من أقرب فترةٍ منشورة (موسوماً مشتقّاً) — وصياغاتُ معادن وكيان والشمالية بالحرف", str(_fd))
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

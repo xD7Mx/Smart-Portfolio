@@ -207,8 +207,15 @@ LABELS: dict[str, tuple[str, ...]] = {
     # مخرَج `tadawul_logo_door.py` على 19 شركةً من كلّ القطاعات: الصياغةُ
     # المعياريّةُ في 16 منها، والاستهلاكُ في 11؛ والإجماليُّ احتياطٌ لمن لا
     # يفصّل. ومنها EBITDA = الربحُ التشغيليّ + الإهلاك — من ملفّ تداول نفسِه.
-    "_dep_ppe": ("adjustments for depreciation and impairment (reversal of impairment) of property, plant and equipments",),
-    "_amort_int": ("adjustments for amortization and impairment (reversal of impairment) of intangible assets",),
+    # ‏D514: صياغاتُ معادن (1211) وكيان (2350، بخطئها الإملائيّ كما في ملفّها)
+    # والشمالية (3004) — منقولةٌ بالحرف من مخرَج dep_labels_door.py.
+    "_dep_ppe": ("adjustments for depreciation and impairment (reversal of impairment) of property, plant and equipments",
+                 "depreciation of property, plant and equipment",
+                 "adjustment for depreciation of prperty,plant and equipment and right-of-use assets",
+                 "adjustments for depreciation expense"),
+    "_amort_int": ("adjustments for amortization and impairment (reversal of impairment) of intangible assets",
+                   "amortisation of intangible assets",
+                   "adjusment for amortisation of intangible assets"),
     "_dep_total": ("depreciation and amortisation", "depreciation and amortization",
                    "depreciation, amortization and impairment",
                    "depreciation,amortisation and impairment"),
@@ -666,7 +673,40 @@ def for_symbol(symbol, kind: str = "annual") -> list[dict]:
     if age > MAX_AGE_DAYS:
         return []
     rows = rec.get(kind)
-    return rows if isinstance(rows, list) else []
+    if not isinstance(rows, list):
+        return []
+    return _fill_depreciation(rows, rec) if kind == "annual" else rows
+
+
+def _fill_depreciation(annual: list[dict], rec: dict) -> list[dict]:
+    """الإهلاكُ لسنةٍ لم تحمله (D514) — بنسبته إلى الإيراد من أقرب فترةٍ نشرتها «تداول».
+
+    قِيس: المواساة (4002) وأنابيب (1320) و7205 قُرئ إهلاكُها من ملفّ XBRL صحيحاً
+    (المواساة 122 مليوناً)، لكنّ **أحدثَ سنةٍ** في المخزن جاءت من استكمال PDF
+    (لا ملفَّ XBRL لتلك السنة) وهو لا يقرأ الإهلاك — فغاب EBITDA عن 11 شركة.
+    فيُشتقّ بنسبة الإهلاك إلى الإيراد في أقرب فترةٍ منشورة (سنويةً أو ربعية —
+    النسبةُ لا تتأثّر بطول الفترة) × إيرادِ السنة، ويُوسَم مشتقّاً لا منشوراً.
+    """
+    src = [p for p in (list(annual) + list(rec.get("quarterly") or []))
+           if isinstance(p.get("depreciation"), (int, float)) and p["depreciation"] > 0
+           and isinstance(p.get("revenue"), (int, float)) and p["revenue"] > 0]
+    if not src:
+        return annual
+    out = []
+    for p in annual:
+        if p.get("depreciation") is None and isinstance(p.get("revenue"), (int, float)) and p["revenue"] > 0:
+            ref = min(src, key=lambda q: abs((date.fromisoformat(str(q["as_of"])[:10])
+                                              - date.fromisoformat(str(p["as_of"])[:10])).days)
+                      if q.get("as_of") and p.get("as_of") else 10 ** 6)
+            ratio = ref["depreciation"] / ref["revenue"]
+            if 0 < ratio < 0.6:
+                p = dict(p)
+                p["depreciation"] = round(p["revenue"] * ratio, 2)
+                p["depreciation_source"] = f"مشتقٌّ: نسبةُ الإهلاك إلى الإيراد {ratio*100:.1f}٪ من فترة {ref.get('as_of')}"
+                if isinstance(p.get("ebit"), (int, float)):
+                    p["ebitda"] = round(p["ebit"] + p["depreciation"], 2)
+        out.append(p)
+    return out
 
 
 async def refresh(symbols: list[str], conc: int = 4) -> dict:
