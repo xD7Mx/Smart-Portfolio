@@ -228,5 +228,20 @@ _IX = open(os.path.join(ROOT, "frontend/src/index.tsx"), encoding="utf-8").read(
 check(_so.get("ok") and _on.get("4130") == "درب السعودية الأستثمارية" and _on.get("4083") == "الشركة المتحدة الدولية القابضة"
       and _on.get("9532") == "مصنع مياه الجوف الصحية" and "applyOfficialNames(" in _IX and "official-names" in open(os.path.join(ROOT, "frontend/src/services/api.ts"), encoding="utf-8").read(),
       "٣٢ D520 الاسمُ الرسميّ من «تداول» يُكتب فوق الدليل لكلّ رمزٍ (استبدالاً لا إكمالاً) وتطبّقه الواجهةُ قبل الرسم", str({k: _on.get(k) for k in ("4130", "4083", "9532")}))
+from app.services import tasi_stars as _ST
+_base = {"fair_value_upside_pct": 30.0, "fair_value_conf": "متوسطة", "finance_score": 80.0, "red_lines": 0,
+         "stmt_age_days": 100, "sharia": "COMPLIANT", "price": 10.0, "fair_value": 13.0}
+_rows = [{**_base, "symbol": "1001"},
+         {**_base, "symbol": "1002", "fair_value_upside_pct": 10.0},
+         {**_base, "symbol": "1003"},
+         {**_base, "symbol": "1004", "sharia": "NON_COMPLIANT"},
+         {**_base, "symbol": "1005", "fair_value_conf": "منخفضة"},
+         {**_base, "symbol": "1006", "stmt_age_days": 400},
+         {**_base, "symbol": "1007", "finance_score": 60.0}]
+_sel = _ST.select(_rows, {s: (5.0 if s == "1003" else 25.0) for s in ("1001", "1002", "1003", "1004", "1005", "1006", "1007")}, 8.0)
+_pf = _ST.performance({"members": [{"symbol": "1001", "start_price": 10.0}, {"symbol": "1002", "start_price": 20.0}], "tasi_start": 100.0, "level_start": 100},
+                      [{"symbol": "1001", "price": 11.0}, {"symbol": "1002", "price": 19.0}], 102.0)
+check([m["symbol"] for m in _sel] == ["1001"] and _sel[0]["excess"] == 17.0 and _pf["ret"] == 2.5 and _pf["tasi_ret"] == 2.0 and _pf["level"] == 102.5,
+      "٣٣ D522 نجوم تاسي: متفوّقٌ على تاسي في 12 شهراً + عادلٌ فوق السعر ≥15٪ + ثقةٌ ودرجةٌ وقوائمُ حديثةٌ وشرعيّ — وأداءٌ متساوي الأوزان مقابلَ تاسي منذ التثبيت", str([m["symbol"] for m in _sel]) + f" {_pf}")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

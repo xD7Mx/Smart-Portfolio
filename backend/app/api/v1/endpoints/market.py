@@ -698,6 +698,13 @@ async def get_forecasts():
     return success_response(data=await get())
 
 
+@router.get("/tasi-stars")
+async def get_tasi_stars():
+    """«نجوم تاسي 20» (D522): السلّةُ المثبَّتةُ بتاريخها وأداؤها مقابلَ تاسي."""
+    from app.services.tasi_stars import get
+    return success_response(data=await get())
+
+
 @router.get("/official-names")
 async def get_official_names():
     """أسماءُ «تداول» الرسمية (D520) — تُطبَّق فوق دليل الواجهة الساكن."""

@@ -5,7 +5,7 @@ import NativeChart from "../components/analysis/NativeChart";
 import CompanyLogo from "../components/common/CompanyLogo";
 import InlineStockSearch from "../components/market/InlineStockSearch";
 import { lookupCompany } from "../data/saudiCompanies";
-import { holdingsApi } from "../services/api";
+import { holdingsApi, marketApi } from "../services/api";
 import { useAppStore } from "../store/appStore";
 
 /* ══ غرفةُ التداول ══ (بأمر المالك · D521)
@@ -16,7 +16,7 @@ const INDICES: [string, string][] = [
   ["BZ=F", "برنت"], ["GC=F", "الذهب"], ["BTC-USD", "بتكوين"],
 ];
 
-type Drawer = null | "mine" | "idx";
+type Drawer = null | "mine" | "idx" | "stars";
 
 const chipCls = (on: boolean) =>
   "shrink-0 min-h-[32px] px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 " +
@@ -38,6 +38,14 @@ export default function ChartPage() {
       .map((h: any) => ({ symbol: h.company.symbol, name: h.company.name_ar || h.company.name || h.company.company_name, logo_url: h.company.logo_url })),
     [holdings]
   );
+
+  // «نجوم تاسي 20» (D522) — تُجلب عند فتح درجها فقط.
+  const { data: stars, isLoading: starsLoading } = useQuery({
+    queryKey: ["tasi-stars"], enabled: drawer === "stars", staleTime: 5 * 60_000,
+    queryFn: () => marketApi.tasiStars().then(r => r.data?.data || null),
+  });
+  const pct = (v: any) => (typeof v === "number" ? `${v >= 0 ? "+" : ""}${v.toFixed(1)}%` : "غير متوفّر");
+  const tone = (v: any) => (typeof v === "number" ? (v >= 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]") : "text-[var(--ink-muted)]");
 
   // الافتراضيّ: أوّلُ شركةٍ في المحفظة، وإلا تاسي — فلا تبدأ الغرفةُ فارغة.
   const symbol = chosen ?? (chips[0]?.symbol ?? "^TASI.SR");
@@ -67,6 +75,7 @@ export default function ChartPage() {
       <div className="flex items-center gap-2">
         {chips.length > 0 && tab("mine", "محفظتك")}
         {tab("idx", "المؤشرات")}
+        {tab("stars", "نجوم تاسي")}
         <span className="ms-auto min-w-0 truncate text-sm font-semibold text-[var(--ink)]">{title}</span>
       </div>
 
@@ -78,6 +87,28 @@ export default function ChartPage() {
                 <CompanyLogo symbol={c.symbol} size={18} logoUrl={c.logo_url} />
                 <span>{c.symbol}</span>
               </button>
+            ))}
+            {drawer === "stars" && (starsLoading ? (
+              <div className="h-8 w-full skeleton rounded-xl" />
+            ) : !stars?.members?.length ? (
+              <span className="text-xs text-[var(--ink-muted)]">غير متوفّر</span>
+            ) : (
+              <>
+                <div className="shrink-0 flex items-center gap-2 px-2.5 min-h-[32px] rounded-xl border border-[var(--hairline)] text-xs font-bold">
+                  <span className="text-[var(--ink-muted)]">منذ</span>
+                  <span dir="ltr" className="tabular-nums text-[var(--ink)]">{stars.since}</span>
+                  <span className={"tabular-nums " + tone(stars.perf?.ret)} dir="ltr">{pct(stars.perf?.ret)}</span>
+                  <span className="text-[var(--ink-muted)]">تاسي</span>
+                  <span className={"tabular-nums " + tone(stars.perf?.tasi_ret)} dir="ltr">{pct(stars.perf?.tasi_ret)}</span>
+                </div>
+                {stars.members.map((m: any) => (
+                  <button key={m.symbol} onClick={() => pick(m.symbol)} title={m.name} className={chipCls(symbol === m.symbol)}>
+                    <CompanyLogo symbol={m.symbol} size={18} />
+                    <span>{m.symbol}</span>
+                    <span dir="ltr" className="tabular-nums text-[var(--pos-ink)]">{pct(m.upside)}</span>
+                  </button>
+                ))}
+              </>
             ))}
             {drawer === "idx" && INDICES.map(([s, lbl]) => (
               <button key={s} onClick={() => pick(s)} className={chipCls(symbol === s)}>{lbl}</button>
