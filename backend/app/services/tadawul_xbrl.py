@@ -731,7 +731,7 @@ def _fill_depreciation(annual: list[dict], rec: dict) -> list[dict]:
     return out
 
 
-async def refresh(symbols: list[str], conc: int = 4) -> dict:
+async def refresh(symbols: list[str], conc: int = 4, max_files: int = 8) -> dict:
     """يقرأ مجموعةَ رموزٍ ويحفظ ما فُهم — ويعيد تقريراً بما دخل وما تعذّر.
 
     ══ وشرطٌ مفقودٌ لا يُقال «بلا ملفّات» ══ (D337)
@@ -780,7 +780,7 @@ async def refresh(symbols: list[str], conc: int = 4) -> dict:
             return
         async with sem:
             try:
-                rec = await read_symbol(sym, reasons=why_empty)
+                rec = await read_symbol(sym, max_files=max_files, reasons=why_empty)
             except Exception as e:                                # noqa: BLE001
                 logger.debug("XBRL {}: {}", sym, e)
                 rec = None
