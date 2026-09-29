@@ -18,7 +18,8 @@ const PAPER_INK = "#241f1a";
 const PAPER_MUTED = "#6b6255";
 const ON_NAVY = "#efe7ff";
 /* لوحُ الورق مشتركٌ مع ورقة تقرير الشركة (D544) — هويّةٌ واحدة */
-export const PAPER = { NAVY, NAVY_2, GOLD, GOLD_L, GREEN, RED, INK: PAPER_INK, MUTED: PAPER_MUTED, ON_NAVY, BG: "#faf6ee" };
+export const PAPER = { NAVY, NAVY_2, GOLD, GOLD_L, GREEN, RED, INK: PAPER_INK, MUTED: PAPER_MUTED, ON_NAVY, BG: "#faf6ee",
+  CARD_LINE: "#e4dcc2", HEAD: "#efe7cf", STRIPE: "#f6f2e4", ROW_LINE: "#e9e2cc", WARN: "#a36a00" };
 
 export interface ReportDocData {
   period?: string;

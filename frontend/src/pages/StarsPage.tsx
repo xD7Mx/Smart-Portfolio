@@ -11,18 +11,13 @@ import { Curve } from "../components/market/TasiStarsPanel";
 const pct = (v: any) => (typeof v === "number" ? `${v > 0.05 ? "+" : ""}${Math.abs(v) < 0.05 ? "0.0" : v.toFixed(1)}%` : "—");
 const tone = (v: any) => (typeof v === "number" && Math.abs(v) >= 0.05 ? (v > 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]") : "text-[var(--ink)]");
 
-const RULES: [string, string][] = [
-  ["الشرعية", "ليست غير متوافقة"],
-  ["القوائم المالية", "خلال 9 أشهر"],
-  ["الخطوط الحمراء", "لا شيء"],
-  ["السعر العادل", "أعلى من السعر"],
-  ["نطاق السوق", "أكبر 100 شركة بالقيمة السوقية"],
-  ["الترتيب", "توقّعُ التفوّق على تاسي من ثماني عائلات بأوزانٍ متساوية"],
-  ["العائلات", "البيانات المالية · مضاعفات التداول · زخم الأسعار · كفاءة الأصول · اتجاهات الربحية · الديون والسيولة · تصنيف الصناعة · إجراءات الشركة"],
+const FIXED: [string, string][] = [
   ["السلّة", "أعلى 20 بأوزانٍ متساوية"],
   ["تحت المراقبة", "المراتب 21–30"],
   ["إعادة التوازن", "شهرياً"],
 ];
+const OFF_KEY = "stars:off";
+const readOff = (): string[] => { try { return JSON.parse(localStorage.getItem(OFF_KEY) || "[]"); } catch { return []; } };
 
 function MiniList({ title, items, onPick, tone: t }: { title: string; items: any[]; onPick: (s: string) => void; tone: string }) {
   if (!items?.length) return null;
@@ -69,11 +64,21 @@ function Countdown({ to }: { to?: string }) {
 
 export default function StarsPage() {
   const [sheet, setSheet] = useState<string | null>(null);
-  const { data, isLoading } = useQuery({
-    queryKey: ["tasi-stars"], staleTime: 5 * 60_000,
-    queryFn: () => marketApi.tasiStars().then(r => r.data?.data || null),
+  /* ‏D546: كلُّ معيارٍ مفتاح — المطفأُ يُرسل للخادم فتُعاد السلّةُ وسجلُّها منذ 2015 به. */
+  const [off, setOff] = useState<string[]>(readOff);
+  const offKey = [...off].sort().join(",");
+  const toggle = (k: string) => setOff(o => {
+    const n = o.includes(k) ? o.filter(x => x !== k) : [...o, k];
+    try { localStorage.setItem(OFF_KEY, JSON.stringify(n)); } catch { /* تفضيلٌ محلّيّ */ }
+    return n;
+  });
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["tasi-stars", offKey], staleTime: 5 * 60_000, placeholderData: (p: any) => p,
+    queryFn: () => marketApi.tasiStars(offKey).then(r => r.data?.data || null),
   });
   const s = data?.summary || {};
+  const bt = data?.backtest || null;
+  const criteria: any[] = data?.criteria || [];
   const stat = (label: string, v: any) => (
     <div className="rounded-xl border border-[var(--hairline)] px-3 py-2 min-w-0">
       <div className="text-[11px] text-[var(--ink-muted)] truncate">{label}</div>
@@ -117,13 +122,37 @@ export default function StarsPage() {
               <span className="flex items-center gap-1"><span className="w-2.5 h-0.5 inline-block" style={{ background: "var(--ink-muted)" }} />تاسي</span>
             </div>
             <Curve track={data.track || []} />
+            {bt && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {stat("العائد السنوي المركّب", bt.cagr)}
+                {stat("تاسي السنوي المركّب", bt.tasi_cagr)}
+                {info("أشهر التفوّق على تاسي", `${bt.beat_pct}%`)}
+                {stat("أقصى تراجع", bt.max_dd)}
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {info("تاريخُ البداية", data.inception || data.since)}
+              {info("تاريخُ البداية", (data.track || [])[1]?.d || data.inception || data.since)}
               {info("تردّدُ إعادة التوازن", data.rebalance || "شهرياً")}
-              {info("التركيزُ على الحجم", "شركاتٌ كبيرة")}
+              {info("التركيزُ على الحجم", off.includes("large") ? "كلّ السوق الرئيسة" : "شركاتٌ كبيرة")}
               {info("الأوزان", data.weighting || "متساوية")}
             </div>
           </div>
+
+          {!!bt?.years?.length && (
+            <div className="card p-0">
+              <div className="px-4 pt-4 pb-2"><p className="card-title">العوائد السنوية</p></div>
+              <div className="grid grid-cols-3 gap-3 px-4 py-1.5 text-[11px] text-[var(--ink-muted)] border-b border-[var(--hairline)]">
+                <span>السنة</span><span>نجوم تاسي</span><span>تاسي</span>
+              </div>
+              {[...bt.years].reverse().map((y: any) => (
+                <div key={y.y} className="grid grid-cols-3 gap-3 px-4 min-h-[36px] items-center border-b border-[var(--hairline)] last:border-0 text-[13px]">
+                  <span className="tabular-nums text-[var(--ink)]">{y.y}</span>
+                  <span className={"tabular-nums font-bold " + tone(y.s)} dir="ltr" style={{ textAlign: "right" }}>{pct(y.s)}</span>
+                  <span className={"tabular-nums font-bold " + tone(y.t)} dir="ltr" style={{ textAlign: "right" }}>{pct(y.t)}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="card p-0">
             <div className="flex items-center justify-between px-4 pt-4 pb-2">
@@ -161,8 +190,26 @@ export default function StarsPage() {
       {data?.members?.length > 0 && <MiniList title="تحت المراقبة" items={data.watch} onPick={setSheet} tone="var(--warn-ink)" />}
 
       <div className="card">
-        <p className="card-title mb-2">المعايير</p>
-        {RULES.map(([k, v]) => (
+        <div className="flex items-center justify-between mb-2">
+          <p className="card-title">المعايير</p>
+          {isFetching && <span className="w-3 h-3 rounded-full skeleton" aria-hidden />}
+        </div>
+        {([["filter", "الشروط"], ["family", "عائلات الترتيب"]] as const).map(([g, title]) => (
+          <div key={g} className="mb-2">
+            <div className="text-[11px] font-semibold text-[var(--ink-muted)] mt-2 mb-1">{title}</div>
+            {criteria.filter(c => c.group === g).map(c => {
+              const on = !off.includes(c.key);
+              return (
+                <button key={c.key} type="button" role="switch" aria-checked={on} onClick={() => toggle(c.key)}
+                  className="w-full flex items-center justify-between gap-3 min-h-[40px] text-start border-b border-[var(--hairline)] last:border-0">
+                  <span className={"text-[13px] " + (on ? "text-[var(--ink)]" : "text-[var(--ink-muted)]")}>{c.label}</span>
+                  <span aria-hidden className={"switch inline-block" + (on ? " on" : "")} />
+                </button>
+              );
+            })}
+          </div>
+        ))}
+        {FIXED.map(([k, v]) => (
           <div key={k} className="flex items-center justify-between gap-3 min-h-[36px] border-b border-[var(--hairline)] last:border-0">
             <span className="text-[13px] text-[var(--ink)]">{k}</span>
             <span className="text-[13px] font-semibold text-[var(--ink-muted)] text-end">{v}</span>

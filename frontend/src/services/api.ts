@@ -254,7 +254,7 @@ export const marketApi = {
   quarterReport: (s: string, asOf?: string, kind = "quarter") =>
     api.get<APIResponse>(`/market/quarter-report/${encodeURIComponent(s)}`, { params: { as_of: asOf, kind } }),
   quarterReports: (s: string) => api.get<APIResponse>(`/market/quarter-reports/${encodeURIComponent(s)}`),
-  tasiStars: () => api.get<APIResponse>("/market/tasi-stars"),
+  tasiStars: (off?: string) => api.get<APIResponse>("/market/tasi-stars", { params: off ? { off } : {} }),
   officialNames: () => api.get<APIResponse>("/market/official-names"),
   companyEvents: (symbol: string, name?: string) => api.get<APIResponse>(`/market/events/${symbol}`, { params: name ? { name } : undefined }),
   results:  () => api.get<APIResponse>("/market/results"),

@@ -5,7 +5,7 @@ import { PAPER } from "./ReportDocument";
    وشريطُ الذهب والشبكةُ والجدولُ وذيلُ الهويّة. فتقريرُ الشركة وتقريرُ المحفظة
    ورقةٌ واحدةٌ بمضمونين. */
 
-const { NAVY, NAVY_2, GOLD, GOLD_L, GREEN, RED, INK, MUTED, ON_NAVY, BG } = PAPER;
+const { NAVY, NAVY_2, GOLD, GOLD_L, GREEN, RED, INK, MUTED, ON_NAVY, BG, CARD_LINE, HEAD, STRIPE, ROW_LINE, WARN } = PAPER;
 
 const num = (v: any, d = 0) =>
   typeof v === "number" ? v.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d }) : "—";
@@ -17,7 +17,7 @@ export const qName = (iso?: string) => {
   const m = Number(iso.slice(5, 7));
   return `الربع ${m <= 3 ? "الأول" : m <= 6 ? "الثاني" : m <= 9 ? "الثالث" : "الرابع"} ${iso.slice(0, 4)}`;
 };
-const REC: Record<string, string> = { "شراء": GREEN, "بيع": RED, "حياد": "#a36a00" };
+const REC: Record<string, string> = { "شراء": GREEN, "بيع": RED, "حياد": WARN };
 
 const Title = ({ children }: { children: React.ReactNode }) => (
   <div style={{ fontSize: 13, fontWeight: 500, color: NAVY, marginBottom: 8, borderInlineStart: `3px solid ${GOLD}`, paddingInlineStart: 8 }}>
@@ -68,7 +68,7 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
         {!!tiles.length && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
             {tiles.map(k => (
-              <div key={k.l} style={{ border: "1px solid #e4dcc2", borderRadius: 8, padding: "10px 12px", background: "#fff" }}>
+              <div key={k.l} style={{ border: `1px solid ${CARD_LINE}`, borderRadius: 8, padding: "10px 12px", background: "#fff" }}>
                 <div style={{ fontSize: 10, color: MUTED, fontWeight: 300 }}>{k.l}</div>
                 <div style={{ fontSize: 16, fontWeight: k.text ? 500 : 300, color: k.c, marginTop: 2 }}>
                   {k.text ? k.v : <N v={k.v} />}
@@ -83,14 +83,14 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
             <Title>النتائج المالية (مليون ريال)</Title>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
               <thead>
-                <tr style={{ background: "#efe7cf", color: NAVY, borderBottom: `2px solid ${GOLD}`,
+                <tr style={{ background: HEAD, color: NAVY, borderBottom: `2px solid ${GOLD}`,
                              WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" } as React.CSSProperties}>
                   {heads.map((x, i) => <th key={i} style={th}>{x}</th>)}
                 </tr>
               </thead>
               <tbody>
                 {t.rows.map((x: any, i: number) => (
-                  <tr key={x.key} style={{ background: i % 2 ? "#f6f2e4" : "#fff", borderBottom: "1px solid #e9e2cc" }}>
+                  <tr key={x.key} style={{ background: i % 2 ? STRIPE : "#fff", borderBottom: `1px solid ${ROW_LINE}` }}>
                     <td style={{ ...td, fontWeight: 500 }}>{x.label}</td>
                     <td style={td}><N v={mn(x.cur, x.key)} /></td>
                     <td style={td}><N v={mn(x.yoy_base, x.key)} /></td>
@@ -113,7 +113,7 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
               ["القيمة السوقية (مليون ريال)", typeof r?.market?.market_cap === "number" ? num(r.market.market_cap / 1e6) : "—"],
               ["الأسهم (مليون سهم)", typeof r?.market?.shares === "number" ? num(r.market.shares / 1e6) : "—"]].map(([l, v], i) => (
               <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", fontSize: 11.5,
-                                    background: i % 2 ? "#f6f2e4" : "#fff", borderBottom: "1px solid #e9e2cc" }}>
+                                    background: i % 2 ? STRIPE : "#fff", borderBottom: `1px solid ${ROW_LINE}` }}>
                 <span style={{ fontWeight: 300, color: MUTED }}>{l}</span><N v={v} c={NAVY} />
               </div>
             ))}
@@ -122,14 +122,14 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
             <Title>الأداء مقابل تاسي</Title>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
               <thead>
-                <tr style={{ background: "#efe7cf", color: NAVY, borderBottom: `2px solid ${GOLD}`,
+                <tr style={{ background: HEAD, color: NAVY, borderBottom: `2px solid ${GOLD}`,
                              WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" } as React.CSSProperties}>
                   {["المدّة", "السهم", "تاسي"].map(x => <th key={x} style={th}>{x}</th>)}
                 </tr>
               </thead>
               <tbody>
                 {([["6m", "نصف عام"], ["1y", "عام"], ["2y", "عامان"]] as const).map(([k, l], i) => (
-                  <tr key={k} style={{ background: i % 2 ? "#f6f2e4" : "#fff", borderBottom: "1px solid #e9e2cc" }}>
+                  <tr key={k} style={{ background: i % 2 ? STRIPE : "#fff", borderBottom: `1px solid ${ROW_LINE}` }}>
                     <td style={td}>{l}</td>
                     <td style={td}><N v={pct(r?.performance?.[k]?.stock)} c={col(r?.performance?.[k]?.stock)} /></td>
                     <td style={td}><N v={pct(r?.performance?.[k]?.tasi)} c={col(r?.performance?.[k]?.tasi)} /></td>

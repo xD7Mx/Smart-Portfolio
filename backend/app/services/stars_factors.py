@@ -94,10 +94,12 @@ def _pct_rank(vals: list[float]) -> list[float]:
     return pr(vals)
 
 
-def score_all(cands: list[dict], bonus: set[str] | None = None) -> dict[str, dict]:
-    """cands: صفوفُ الفرز المؤهّلة (فيها ret_12m) — يعيد لكلّ رمزٍ عائلاتِه ودرجتَه."""
+def score_all(cands: list[dict], bonus: set[str] | None = None, off: set[str] | None = None) -> dict[str, dict]:
+    """cands: صفوفُ الفرز المؤهّلة (فيها ret_12m) — يعيد لكلّ رمزٍ عائلاتِه ودرجتَه.
+    ‏off: عائلاتٌ أطفأها المالك (D546) — تُعرض ولا تدخل الدرجة، والباقي بأوزانٍ متساوية."""
     if not cands:
         return {}
+    on = [k for k, _ in FAMILIES if k not in (off or ())] or [k for k, _ in FAMILIES]
     bonus = bonus or set()
     sec_ret: dict[str, list[float]] = {}
     for r in cands:
@@ -150,6 +152,6 @@ def score_all(cands: list[dict], bonus: set[str] | None = None) -> dict[str, dic
         for fam, _ in FAMILIES:
             vs = [v for k, v in ranks[s].items() if k.startswith(fam + ".")]
             fams[fam] = sum(vs) / len(vs) if vs else 0.5          # عائلةٌ بلا قياسٍ: محايدة
-        sc = sum(WEIGHTS[f] * fams[f] for f in fams) * 100
+        sc = sum(fams[f] for f in on) / len(on) * 100
         out[s] = {"families": {k: round(v * 100) for k, v in fams.items()}, "score": round(sc, 1)}
     return out

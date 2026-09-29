@@ -69,20 +69,46 @@ WEIGHTS = {"excess": 0.50, "upside": 0.25, "quality": 0.15, "confidence": 0.10} 
 CONF = {"مرتفعة": 1.0, "متوسطة": 0.6, "منخفضة": 0.2}
 
 
-def eligible(r: dict) -> bool:
-    """شروطُ الأمان وحدها ملزمة (D539): الشرعيةُ · القوائمُ خلال 9 أشهر · بلا خطٍّ
-    أحمر · سعرٌ عادلٌ فوق السعر · درجةٌ مالية. والباقي ترتيبٌ لا شرط."""
+# ══ المعاييرُ مفاتيحُ يطفئها المالك (D546) ══ — الشرطُ المطفأ لا يُطبَّق، والعائلةُ
+# المطفأةُ لا تدخل الدرجة. والسوقُ الرئيسةُ وحدها ليست مفتاحاً: السلّةُ سلّةُ تاسي.
+CRITERIA = [
+    ("sharia", "filter", "التوافق الشرعي"),
+    ("large", "filter", "الشركات الكبيرة (أكبر 100)"),
+    ("fresh", "filter", "قوائم منشورة خلال 9 أشهر"),
+    ("redlines", "filter", "خلوّ من الخطوط الحمراء"),
+    ("upside", "filter", "السعر العادل فوق السعر"),
+    ("outlier", "filter", "استبعاد التقييم الشاذ"),
+    ("financial", "family", "البيانات المالية"),
+    ("multiples", "family", "مضاعفات التداول"),
+    ("momentum", "family", "زخم الأسعار"),
+    ("efficiency", "family", "كفاءة الأصول"),
+    ("profit_trend", "family", "اتجاهات الربحية"),
+    ("debt", "family", "الديون والسيولة"),
+    ("industry", "family", "تصنيف الصناعة"),
+    ("corporate", "family", "إجراءات الشركة"),
+]
+CRITERIA_KEYS = {k for k, _, _ in CRITERIA}
+
+
+def parse_off(raw: str | None) -> frozenset:
+    return frozenset(x for x in str(raw or "").split(",") if x in CRITERIA_KEYS)
+
+
+def eligible(r: dict, off: frozenset = frozenset()) -> bool:
+    """شروطُ الأمان (D539) — كلٌّ منها مفتاحٌ (D546): الشرعيةُ · القوائمُ خلال 9 أشهر ·
+    بلا خطٍّ أحمر · سعرٌ عادلٌ فوق السعر · لا تقييمَ شاذّاً. والباقي ترتيبٌ لا شرط."""
     up, fs = r.get("fair_value_upside_pct"), r.get("finance_score")
     age = r.get("stmt_age_days")
     # ‏D542: تقييمٌ يزيد على ضعف السعر بثقةٍ منخفضة شاذٌّ لا يُختار عليه نجم
     # (صافولا +194٪ · ساسكو +223٪ · الدواء +146٪ — مضاعفُ مبيعاتِ الأقران على هامشٍ منخفض).
-    if isinstance(up, (int, float)) and up > 100 and r.get("fair_value_conf") in (None, "منخفضة"):
+    if ("outlier" not in off and isinstance(up, (int, float)) and up > 100
+            and r.get("fair_value_conf") in (None, "منخفضة")):
         return False
-    return (isinstance(up, (int, float)) and up > 0
+    return (("upside" in off or (isinstance(up, (int, float)) and up > 0))
             and isinstance(fs, (int, float))
-            and not (r.get("red_lines") or 0)
-            and isinstance(age, (int, float)) and age <= MAX_STMT_DAYS
-            and r.get("sharia") != "NON_COMPLIANT"
+            and ("redlines" in off or not (r.get("red_lines") or 0))
+            and ("fresh" in off or (isinstance(age, (int, float)) and age <= MAX_STMT_DAYS))
+            and ("sharia" in off or r.get("sharia") != "NON_COMPLIANT")
             and _main_share(r.get("symbol")))
 
 
@@ -141,25 +167,28 @@ async def bonus_symbols() -> set[str]:
 
 
 def rank(rows: list[dict], rets: dict[str, float], tasi_ret: float,
-         large: set[str] | None = None, snap: dict | None = None, bonus: set[str] | None = None) -> list[dict]:
+         large: set[str] | None = None, snap: dict | None = None, bonus: set[str] | None = None,
+         off: frozenset = frozenset()) -> list[dict]:
     """الترتيبُ الكامل بنموذج العائلات الثماني (D540) — دالّةٌ نقيّةٌ يقيسها الحارس."""
     from app.services.stars_factors import score_all
+    if "large" in off:
+        large = None
     cands = []
     for r in rows or []:
         s = str(r.get("symbol") or "")
-        if not eligible(r) or rets.get(s) is None or (large and s not in large):
+        if not eligible(r, off) or rets.get(s) is None or (large and s not in large):
             continue
         cands.append({**r, "ret_12m": rets[s]})
     if not cands:
         return []
-    scores = score_all(cands, bonus)
+    scores = score_all(cands, bonus, set(off))
     out = []
     for r in cands:
         s = str(r["symbol"])
         sc = scores.get(s) or {"score": 0, "families": {}}
         out.append({"symbol": s, "name": r.get("name"), "sector": r.get("sector"),
                     "price": r.get("price"), "fair_value": r.get("fair_value"),
-                    "upside": r["fair_value_upside_pct"], "ret_12m": round(r["ret_12m"], 1),
+                    "upside": r.get("fair_value_upside_pct"), "ret_12m": round(r["ret_12m"], 1),
                     "excess": round(r["ret_12m"] - tasi_ret, 1), "finance_score": r["finance_score"],
                     "confidence": r.get("fair_value_conf"), "sharia": r.get("sharia"),
                     "score": sc["score"], "families": sc["families"],
@@ -269,7 +298,7 @@ def performance(rec: dict, rows: list[dict], tasi_now) -> dict:
             "priced": len(rs)}
 
 
-async def get() -> dict:
+async def get(off: frozenset = frozenset()) -> dict:
     from app.services.market_screener import get_cached_screener
     from app.services.tadawul_market import index_quote
     rec = await build()
@@ -316,5 +345,24 @@ async def get() -> dict:
     except Exception:                                             # noqa: BLE001
         pass
     nxt = (date.fromisoformat(rec["since"]) + timedelta(days=REBALANCE_DAYS)).isoformat()
-    return {**rec, "members": members, "perf": perf, "summary": summary,
-            "entering": entering, "exiting": exiting, "watch": watch, "next_rebalance": nxt}
+    out = {**rec, "members": members, "perf": perf, "summary": summary,
+           "entering": entering, "exiting": exiting, "watch": watch, "next_rebalance": nxt}
+    # ══ المفاتيحُ المطفأة (D546): السلّةُ والمراقبةُ بترتيبٍ حيٍّ بالمعايير المفعّلة ══
+    if off:
+        try:
+            from app.services.tadawul_market import usable_rows
+            snap = usable_rows()[0] or {}
+            rets = {str(r.get("symbol")): r["ret_12m"] for r in rows if isinstance(r.get("ret_12m"), (int, float))}
+            ranked = rank(rows, rets, rec.get("tasi_ret_12m") or 0.0, large_caps(snap) or None, snap,
+                          await bonus_symbols(), off)
+            out.update(members=ranked[:SIZE], watch=ranked[SIZE:SIZE + WATCH], entering=[], exiting=[])
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning(f"stars off={sorted(off)}: {type(e).__name__}: {e}")
+    # ══ السجلُّ منذ 2015 (D546): اختبارٌ شهريٌّ بما كان معلوماً في وقته ══
+    from app.services import stars_backtest
+    bt = await stars_backtest.get(set(off))
+    if bt and bt.get("track"):
+        out.update(track=bt["track"], inception=bt["track"][0]["d"], backtest={k: v for k, v in bt.items() if k != "track"},
+                   summary={"total": bt["total"], "tasi_total": bt["tasi_total"], "excess": bt["excess"]})
+    out["criteria"] = [{"key": k, "group": g, "label": lbl, "on": k not in off} for k, g, lbl in CRITERIA]
+    return out

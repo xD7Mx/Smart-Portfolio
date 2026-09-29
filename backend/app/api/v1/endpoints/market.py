@@ -713,10 +713,10 @@ async def get_quarter_reports(symbol: str):
 
 
 @router.get("/tasi-stars")
-async def get_tasi_stars():
-    """«نجوم تاسي 20» (D522): السلّةُ المثبَّتةُ بتاريخها وأداؤها مقابلَ تاسي."""
-    from app.services.tasi_stars import get
-    return success_response(data=await get())
+async def get_tasi_stars(off: str | None = None):
+    """«نجوم تاسي 20» (D522): السلّة وأداؤها منذ 2015 (D546)؛ و`off` معاييرُ مطفأة بفواصل."""
+    from app.services.tasi_stars import get, parse_off
+    return success_response(data=await get(parse_off(off)))
 
 
 @router.get("/official-names")
