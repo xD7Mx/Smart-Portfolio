@@ -3795,6 +3795,13 @@
       "root_cause": "gen_frontend_directory.py يعيد كتابةَ saudiCompanies.ts كاملاً بنسخةٍ قديمة بلا `export const norm` — فكلُّ صفحةٍ تستوردها سقطت (قيس: «لوحة التحكّم» نصّ 0 حرفاً)",
       "fix": "يستبدل مصفوفَ SAUDI_COMPANIES وحده ويُبقي ما حوله",
       "guard": "لجنةُ render_smoke/user_walk (أمسكته)"
+    },
+    {
+      "id": "D517",
+      "title": "صناديقُ المؤشرات المتداولة (94xx) بلا بيانات من «تداول»",
+      "root_cause": "لقطةُ «تداول» تقرأ صفحتَي الرئيسيّ ونمو فقط؛ والصناديقُ في صفحةٍ ثالثة (etfs-market-watch) بالخدمة نفسِها",
+      "fix": "ETF_PAGE بابٌ ثالثٌ بالقارئ نفسِه، يُضاف ولا يُشترَط، ومعدودٌ في boards",
+      "guard": "scripts/audit/ebitda_d489.py#30 · etf_page_door.py"
     }
   ]
 }

@@ -43,6 +43,8 @@ PAGE = ("https://www.saudiexchange.sa/wps/portal/saudiexchange/ourmarkets/"
 # من جهةٍ واحدةٍ فغاب عنّا ثلثُ الدليل.
 NOMU_PAGE = ("https://www.saudiexchange.sa/wps/portal/saudiexchange/ourmarkets/"
              "nomuc-market-watch")
+ETF_PAGE = ("https://www.saudiexchange.sa/wps/portal/saudiexchange/ourmarkets/"
+            "etfs-market-watch")
 _BASE_RE = re.compile(r"<base[^>]+href=[\"']([^\"']+)", re.I)
 _EP_RE = re.compile(r"p0/[A-Za-z0-9_=]*=NJgetMainNomucMarketDetails=/")
 
@@ -186,12 +188,29 @@ async def refresh() -> dict:
             logger.info("جدولُ «نمو»: {} رمزاً", nomu)
     except Exception as e:                                        # noqa: BLE001
         logger.warning("جدولُ «نمو» تعذّر: {}", type(e).__name__)
+    # ══ وبابٌ ثالثٌ لصناديق المؤشرات المتداولة (94xx) ══ (بأمر المالك · D517)
+    # قِيس: لقطةُ السوق الرئيسة لا تحمل الصناديق (9400/9405/9408 غائبة)، فظهرت
+    # «بلا بيانات». وصفحتُها etfs-market-watch تنادي الخدمةَ نفسَها
+    # (getMainNomucMarketDetails) — فتُقرأ بالقارئ نفسِه، وتُضاف ولا تُشترَط.
+    etf = 0
+    try:
+        e_rows, e_why = await fetch_rows(ETF_PAGE)
+        if e_why:
+            logger.warning("جدولُ الصناديق لم يُقرأ: {}", e_why)
+        else:
+            _et = normalize(e_rows)
+            for k, v in _et.items():
+                table.setdefault(k, v)
+            etf = len(_et)
+            logger.info("جدولُ صناديق المؤشرات: {} رمزاً", etf)
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("جدولُ الصناديق تعذّر: {}", type(e).__name__)
     # ══ وتقلّصُ اللقطة يُعلَن ولا يمرّ ══ (D361)
     # لقطةٌ فيها سوقانِ ثمّ تصير بسوقٍ واحدٍ ليست «لقطةً أصغر» بل **فقدَ
     # ثلثِ السوق**. ويُقاس بالمقارنة مع آخرِ سجلٍّ صالح: بورصةٌ كانت
     # تُقرأ فصارت لا تُقرأ تُسمّى بالاسم. ولا تُنقَل صفوفٌ قديمةٌ تحت زمنٍ
     # جديدٍ (بند D298): الإعلانُ لا التلبيسُ.
-    boards = {"main": len(table) - nomu, "nomu": nomu}
+    boards = {"main": len(table) - nomu - etf, "nomu": nomu, "etf": etf}
     try:
         from app.services import lastgood as _lg
         prev = (_lg.load(STORE_KEY) or {}).get("boards") or {}
