@@ -92,13 +92,21 @@ async def _tasi_monthly() -> dict[str, float]:
 def _universe() -> dict[str, dict]:
     """المرشّحون: أسهمُ السوق الرئيسة (لا صناديق) من صفوف الفرز — بقطاعها وحكمها وأسهمها."""
     from app.services.market_screener import get_cached_screener
-    from app.services.tasi_stars import _main_share
+    from app.services.tasi_stars import _cap, _main_share
+    try:
+        from app.services.tadawul_market import usable_rows
+        snap = usable_rows()[0] or {}
+    except Exception:                                             # noqa: BLE001
+        snap = {}
     out = {}
     for r in get_cached_screener() or []:
         s = str(r.get("symbol") or "")
         if not s or not _main_share(s):
             continue
-        px, cap = _n(r.get("price")), _n(r.get("market_cap"))
+        # ‏D546: صفوفُ الفرز بلا قيمةٍ سوقية — فتُقرأ كما يقرؤها الترتيبُ الحيّ (لقطةُ «تداول»
+        # أو السعرُ × الأسهمِ المنشورة)، وإلا صار حجمُ كلّ سهمٍ صفراً فخلا الكونُ.
+        v = snap.get(s) or {"price": r.get("price")}
+        px, cap = _n(v.get("price")) or _n(r.get("price")), _n(r.get("market_cap")) or _cap(s, v)
         out[s] = {"sector": r.get("sector") or "", "sharia": r.get("sharia"),
                   "shares": (cap / px) if cap and px else None}
     return out
