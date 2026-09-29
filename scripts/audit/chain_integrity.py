@@ -73,10 +73,12 @@ async def main() -> int:
     # ── ١ · الدليلُ الرسميّ ───────────────────────────────────────────
     try:
         from app.data.market_universe import MARKET_UNIVERSE
-        from app.data.universe import main_market
+        from app.data.universe import is_nomu, main_market
         mm = main_market(MARKET_UNIVERSE)
         secs = {(m or {}).get("sector") for m in mm.values()} - {None}
-        nomu = [s for s in mm if str(s).startswith("9")]
+        # ‏D524: صناديقُ المؤشرات (94xx) من الرئيسيّ — كان `startswith("9")`
+        # يعدّها «نمو» فانكسرت الحلقةُ منذ D517 بلا عطبٍ في الدليل.
+        nomu = [s for s in mm if is_nomu(s)]
         (ok if (len(mm) >= 270 and len(secs) >= 20 and not nomu) else bad)(
             "١ الدليلُ الرسميّ",
             f"{len(mm)} شركة · {len(secs)} قطاعاً · نمو={len(nomu)}")
@@ -96,7 +98,8 @@ async def main() -> int:
             skip("٢ اللقطةُ الحيّة", f"{type(e).__name__}")
             rows = {}
     if rows:
-        main_rows = {s: r for s, r in rows.items() if not s.startswith("9")}
+        from app.data.universe import is_etf, is_main
+        main_rows = {s: r for s, r in rows.items() if is_main(s) and not is_etf(s)}
         with_sec = sum(1 for r in main_rows.values() if (r or {}).get("sector_en"))
         with_px = sum(1 for r in main_rows.values() if (r or {}).get("price"))
         (ok if (with_sec == len(main_rows) and with_px >= len(main_rows) - 5)
@@ -116,7 +119,8 @@ async def main() -> int:
     # صنفاً واحداً من اثني عشر. فالعيّنةُ تُؤخذ **بخطوةٍ ممتدّةٍ على
     # الكون** لتمسّ مطلعَه ووسطَه وآخرَه — وهي ثابتةٌ لا عشوائية، فيُعاد
     # القياسُ فيُعطي الجوابَ نفسه.
-    _all = sorted(s for s in (rows or {}) if not s.startswith("9"))
+    from app.data.universe import is_etf, is_main
+    _all = sorted(s for s in (rows or {}) if is_main(s) and not is_etf(s))
     _step = max(1, len(_all) // 60)
     _probe = _all[::_step][:60]
     # ══ ونجاحٌ على عيّنةٍ فارغةٍ ليس نجاحاً ══ (D402)

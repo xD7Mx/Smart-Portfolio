@@ -3844,6 +3844,13 @@
       "root_cause": "apply_official كتب ov.setdefault(sym) لكلّ رمزٍ في جدولَي «تداول» — ومنها رموزُ «نمو» غيرُ المدرَجة في الدليل — فصارت الطبقةُ تُضيف صفوفاً لا تُسمّي فقط",
       "fix": "التسميةُ لمن يعرفه ملفُّ الدليل أو الطبقةُ وحدَه، وما زُرع خطأً ({name,name_src} فقط) يُقلَع في التشغيل التالي",
       "guard": "scripts/audit/ebitda_d489.py#32 · chain_integrity.py#1"
+    },
+    {
+      "id": "D524",
+      "title": "حلقةُ السلسلة ١ تقول «نمو=10» والعشرةُ صناديقُ مؤشراتٍ من الرئيسيّ",
+      "root_cause": "chain_integrity عرّف «نمو» بـstartswith(\"9\") نسخةً يدويةً لا بالمصنّف الواحد، فلمّا دخلت صناديقُ 94xx الكونَ (D517) عُدّت «نمو» وانكسرت الحلقة على الخادم",
+      "fix": "is_nomu من app.data.universe",
+      "guard": "scripts/audit/main_market.py#5 (نسخُ تعريف نمو) · chain_integrity.py#1"
     }
   ]
 }

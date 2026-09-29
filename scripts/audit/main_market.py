@@ -58,7 +58,8 @@ say(all(is_main(s) for s in main), "٤ كلُّ معروضٍ رئيسيّ")
 SRC = ROOT / "backend" / "app"
 ALLOWED = {SRC / "data" / "universe.py"}
 offenders = []
-for path in SRC.rglob("*.py"):
+# ‏D524: وحلقةُ السلسلة حَكَمٌ على الدليل — نسختُها عدّت صناديقَ 94xx «نمو».
+for path in [*SRC.rglob("*.py"), ROOT / "scripts" / "audit" / "chain_integrity.py"]:
     if path in ALLOWED or "__pycache__" in str(path):
         continue
     try:
