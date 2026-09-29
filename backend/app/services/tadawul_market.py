@@ -118,7 +118,7 @@ def normalize(rows: list) -> dict[str, dict]:
     return out
 
 
-async def fetch_rows(page: str | None = None) -> tuple[list, str | None]:
+async def fetch_rows(page: str | None = None, locale: str = "en") -> tuple[list, str | None]:
     """صفوفُ مراقبة سوقٍ واحد — أو (فارغ، سببُ التعذّر).
 
     و`page` يحدّد **أيَّ سوقٍ**: الأساسُ ونداءُ الجدول يُشتقّانِ من
@@ -140,7 +140,7 @@ async def fetch_rows(page: str | None = None) -> tuple[list, str | None]:
     status, body = await fetch(mb.group(1).rstrip("/") + "/" + me.group(0),
                                params={"sectorParameter": "All",
                                        "iswatchListSelected": "NO",
-                                       "requestLocale": "en"}, referer=page)
+                                       "requestLocale": locale}, referer=page)
     if status != 200:
         return [], f"HTTP {status} من نقطة بيانات السوق"
     try:
