@@ -61,12 +61,18 @@ def _statements(sym: str) -> dict:
         out["debt_ratio"] = dr
 
     def ttm_growth(key):
-        vals = [_n(p.get(key)) for p in qs if p.get("col") in (None, 0)]
-        vals = [v for v in vals if v is not None]
-        if len(vals) < 8:
-            return None
-        a, b = sum(vals[-4:]), sum(vals[-8:-4])
-        return (a - b) / abs(b) if b else None
+        # ‏D542: الربعُ الرابعُ غائبٌ من الأرباع (يأتي في السنويّ)، فكان شرطُ ثمانية أرباعٍ
+        # متتالية لا يتحقّق لأحد. فيُقارَن كلُّ ربعٍ من آخر أربعةٍ بمقابله قبل سنة.
+        own = [p for p in qs if p.get("col") in (None, 0) and _n(p.get(key)) is not None]
+        by = {str(p.get("as_of"))[:7]: _n(p.get(key)) for p in own}
+        a = b = 0.0
+        n = 0
+        for p in own[-4:]:
+            k = str(p.get("as_of"))[:7]
+            prev = by.get(f"{int(k[:4]) - 1}{k[4:]}")
+            if prev is not None:
+                a += _n(p.get(key)); b += prev; n += 1
+        return (a - b) / abs(b) if n and b else None
     for key, name in (("net_income", "ni_growth"), ("revenue", "rev_growth")):
         g = ttm_growth(key)
         if g is not None:

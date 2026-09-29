@@ -56,28 +56,28 @@ export function QuarterReportView({ symbol, asOf, kind = "quarter" }: { symbol: 
         {!(t.rows || []).length ? (
           <div className="py-10 text-center text-sm text-[var(--ink-muted)]">غير متوفّر</div>
         ) : (
-          <table className="w-full text-[12px] min-w-[620px]">
+          <table className="w-full text-[11px] sm:text-[12px]">
             <thead>
               <tr className="bg-[var(--surface)] text-[var(--ink-muted)]">
-                <th className="text-right p-2 font-bold">البند</th>
-                <th className="text-right p-2 font-bold">{qName(t.as_of)}</th>
-                <th className="text-right p-2 font-bold">{t.annual ? String(t.prior_year || "").slice(0, 4) : qName(t.prior_year)}</th>
-                <th className="text-right p-2 font-bold">التغيّر السنوي</th>
-                {!t.annual && <th className="text-right p-2 font-bold">{qName(t.prev_quarter)}</th>}
-                {!t.annual && <th className="text-right p-2 font-bold">التغيّر الربعي</th>}
-                <th className="text-right p-2 font-bold">توقّعاتنا</th>
+                <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">البند</th>
+                <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">{qName(t.as_of)}</th>
+                <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">{t.annual ? String(t.prior_year || "").slice(0, 4) : qName(t.prior_year)}</th>
+                <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">سنوي</th>
+                {!t.annual && <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">{qName(t.prev_quarter)}</th>}
+                {!t.annual && <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">ربعي</th>}
+                <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">توقّعاتنا</th>
               </tr>
             </thead>
             <tbody>
               {t.rows.map((x: any) => (
                 <tr key={x.key} className="border-t border-[var(--hairline)]">
-                  <td className="p-2 text-[var(--ink)] font-semibold">{x.label}</td>
-                  <td className="p-2 tabular-nums font-bold text-[var(--ink)]" dir="ltr" style={{ textAlign: "right" }}>{mn(x.cur, x.key)}</td>
-                  <td className="p-2 tabular-nums text-[var(--ink)]" dir="ltr" style={{ textAlign: "right" }}>{mn(x.yoy_base, x.key)}</td>
-                  <td className={"p-2 tabular-nums font-bold " + tone(x.yoy)} dir="ltr" style={{ textAlign: "right" }}>{pct(x.yoy)}</td>
-                  {!t.annual && <td className="p-2 tabular-nums text-[var(--ink)]" dir="ltr" style={{ textAlign: "right" }}>{mn(x.prev, x.key)}</td>}
-                  {!t.annual && <td className={"p-2 tabular-nums font-bold " + tone(x.qoq)} dir="ltr" style={{ textAlign: "right" }}>{pct(x.qoq)}</td>}
-                  <td className="p-2 tabular-nums text-[var(--ink)]" dir="ltr" style={{ textAlign: "right" }}>{mn(x.expected, x.key)}</td>
+                  <td className="px-1 py-2 sm:p-2 text-[var(--ink)] font-semibold leading-tight">{x.label}</td>
+                  <td className="px-1 py-2 sm:p-2 tabular-nums font-bold text-[var(--ink)]" dir="ltr" style={{ textAlign: "right" }}>{mn(x.cur, x.key)}</td>
+                  <td className="px-1 py-2 sm:p-2 tabular-nums text-[var(--ink)]" dir="ltr" style={{ textAlign: "right" }}>{mn(x.yoy_base, x.key)}</td>
+                  <td className={"px-1 py-2 sm:p-2 tabular-nums font-bold " + tone(x.yoy)} dir="ltr" style={{ textAlign: "right" }}>{pct(x.yoy)}</td>
+                  {!t.annual && <td className="px-1 py-2 sm:p-2 tabular-nums text-[var(--ink)]" dir="ltr" style={{ textAlign: "right" }}>{mn(x.prev, x.key)}</td>}
+                  {!t.annual && <td className={"px-1 py-2 sm:p-2 tabular-nums font-bold " + tone(x.qoq)} dir="ltr" style={{ textAlign: "right" }}>{pct(x.qoq)}</td>}
+                  <td className="px-1 py-2 sm:p-2 tabular-nums text-[var(--ink)]" dir="ltr" style={{ textAlign: "right" }}>{mn(x.expected, x.key)}</td>
                 </tr>
               ))}
             </tbody>
@@ -144,7 +144,7 @@ export default function QuarterReport({ symbol }: { symbol: string }) {
         ))}
       </div>
       {open && (
-        <div className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-6" style={{ background: "color-mix(in srgb, var(--bg) 92%, transparent)" }}>
+        <div className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-6" style={{ background: "var(--bg)" }}>
           <div className="max-w-3xl mx-auto space-y-3 print-area">
             <div className="flex justify-end no-print">
               <button type="button" onClick={() => setOpen(null)} aria-label="إغلاق"

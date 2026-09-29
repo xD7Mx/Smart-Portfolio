@@ -257,5 +257,15 @@ check(_ids[0] == "1001" and "1004" not in _ids and "1006" not in _ids and set(_i
       and abs(sum(__import__("app.services.stars_factors", fromlist=["x"]).WEIGHTS.values()) - 1) < 1e-9
       and set(_sel[0].get("families") or {}) == {"financial", "multiples", "momentum", "efficiency", "profit_trend", "debt", "industry", "corporate"},
       "٣٣ D522·D539·D540 نجوم تاسي بنموذج العائلات الثماني (محاكاةُ ProPicks) — ترتيبٌ لا بوّابات: الأمانُ ملزم (الشرعيةُ · القوائمُ الحديثة)، والتفوّقُ على تاسي والعادلُ والجودةُ والثقةُ ترتيب — والأقوى أوّلاً", str(_ids) + f" {_pf}")
+_odd = {**_base, "symbol": "1009", "fair_value_upside_pct": 194.0, "fair_value_conf": "منخفضة"}
+_odd_ok = {**_base, "symbol": "1010", "fair_value_upside_pct": 150.0, "fair_value_conf": "متوسطة"}
+check(not _ST.eligible(_odd) and _ST.eligible(_odd_ok),
+      "٣٤ D542 تقييمٌ يزيد على ضعف السعر بثقةٍ منخفضة لا يُختار عليه نجم (صافولا +194٪ · ساسكو +223٪)")
+from app.services import quarter_report as _QR
+_qq = [{"as_of": "2025-06-30", "col": 0, "bank_loans": 100.0}, {"as_of": "2026-03-31", "col": 0, "bank_loans": 103.0},
+       {"as_of": "2026-06-30", "col": 0, "bank_loans": 104.0}]
+_lr = next(r for r in _QR.table(_qq, bank=True)["rows"] if r["key"] == "bank_loans")
+check(_lr["expected"] is not None and abs(_lr["expected"] - 103 * (1.03 ** (1 / 3))) < 0.01,
+      "٣٥ D542 توقّعُ بنود الميزانية بلا ربعٍ رابعٍ مخزَّن: يُمدّ نموُّ الأرباع الثلاثة", str(_lr["expected"]))
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

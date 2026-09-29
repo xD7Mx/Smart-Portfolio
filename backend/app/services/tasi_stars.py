@@ -74,6 +74,10 @@ def eligible(r: dict) -> bool:
     أحمر · سعرٌ عادلٌ فوق السعر · درجةٌ مالية. والباقي ترتيبٌ لا شرط."""
     up, fs = r.get("fair_value_upside_pct"), r.get("finance_score")
     age = r.get("stmt_age_days")
+    # ‏D542: تقييمٌ يزيد على ضعف السعر بثقةٍ منخفضة شاذٌّ لا يُختار عليه نجم
+    # (صافولا +194٪ · ساسكو +223٪ · الدواء +146٪ — مضاعفُ مبيعاتِ الأقران على هامشٍ منخفض).
+    if isinstance(up, (int, float)) and up > 100 and r.get("fair_value_conf") in (None, "منخفضة"):
+        return False
     return (isinstance(up, (int, float)) and up > 0
             and isinstance(fs, (int, float))
             and not (r.get("red_lines") or 0)
@@ -221,7 +225,10 @@ async def build(force: bool = False) -> dict:
     # ربطُ المؤشّر: مستوى السلّة السابقة يُحمَل فلا يبدأ كلُّ ربعٍ من الصفر.
     level, tlevel = 100.0, 100.0
     history = list((old or {}).get("history") or [])
-    if old:
+    if old and old.get("since") == today.isoformat():
+        history = [h for h in history if h.get("since") != h.get("until")]   # D542: بناءٌ ثانٍ في اليوم نفسِه لا يُسجَّل فترة
+        old = {**old, "_same_day": True}
+    if old and not old.get("_same_day"):
         perf = performance(old, rows, tasi_pts[-1]["close"])
         if perf.get("level") is not None:
             level = perf["level"]

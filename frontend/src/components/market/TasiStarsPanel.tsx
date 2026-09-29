@@ -5,16 +5,18 @@ import CompanyLogo from "../common/CompanyLogo";
    بطاقةُ الأداء أوّلاً (الإجماليّ · المتفوّق · تاسي)، ثمّ منحنى السلّة مقابلَ
    تاسي من السجلّ الحيّ، ثمّ الأعضاءُ بمكرّر ربحيتهم. وما لا مصدرَ له «غير متوفّر». */
 
-const pct = (v: any) => (typeof v === "number" ? `${v >= 0 ? "+" : ""}${v.toFixed(1)}%` : "غير متوفّر");
-const tone = (v: any) => (typeof v === "number" ? (v >= 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]") : "text-[var(--ink-muted)]");
+const pct = (v: any) => (typeof v === "number" ? `${v > 0.05 ? "+" : ""}${Math.abs(v) < 0.05 ? "0.0" : v.toFixed(1)}%` : "—");
+const tone = (v: any) => (typeof v === "number" && Math.abs(v) >= 0.05 ? (v > 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]") : "text-[var(--ink)]");
 
-export function Curve({ track }: { track: { d: string; s: number; t: number }[] }) {
-  if (!track || track.length < 2) {
-    return <div className="h-[140px] flex items-center justify-center text-xs text-[var(--ink-muted)]">غير متوفّر</div>;
-  }
+export function Curve({ track: raw }: { track: { d: string; s: number; t: number }[] }) {
+  /* ‏D542: يومُ البداية نقطةٌ واحدة — يُرسم خطُّ الأساس 100 للمؤشّرين لا فراغ. */
+  const base = raw && raw.length ? raw : [{ d: "", s: 100, t: 100 }];
+  const track = base.length === 1 ? [base[0], { ...base[0] }] : base;
   const W = 600, H = 140, P = 6;
   const all = track.flatMap(p => [p.s, p.t]);
-  const lo = Math.min(...all), hi = Math.max(...all), span = hi - lo || 1;
+  let lo = Math.min(...all), hi = Math.max(...all);
+  if (hi - lo < 1e-9) { lo -= 1; hi += 1; }            // خطٌّ مستوٍ يُوسَّط لا يلتصق بالقاع
+  const span = hi - lo;
   const x = (i: number) => P + (i / (track.length - 1)) * (W - 2 * P);
   const y = (v: number) => H - P - ((v - lo) / span) * (H - 2 * P);
   const path = (k: "s" | "t") => track.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p[k]).toFixed(1)}`).join("");

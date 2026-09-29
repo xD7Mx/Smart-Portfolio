@@ -116,6 +116,10 @@ def table(quarterly: list[dict], bank: bool, as_of: str | None = None) -> dict:
             p2 = _val(q[2], key, kind)
             if p1 is not None and p2:
                 exp = p1 * p1 / p2
+            elif p1 is not None and y:
+                # ‏D542: الربعُ الرابعُ لا يُخزَّن ربعاً (يأتي في السنويّ) — فيُمدّ نموُّ
+                # الأرباع الثلاثة الأخيرة بمتوسّطه الربعيّ.
+                exp = p1 * (p1 / y) ** (1 / 3)
         rows.append({"key": key, "label": label, "cur": v0, "yoy_base": y, "yoy": _chg(v0, y),
                      "prev": p1, "qoq": _chg(v0, p1), "expected": round(exp, 2) if exp is not None else None})
     return {"as_of": cur.get("as_of"), "prior_year": (q[4] or {}).get("as_of"),
@@ -175,10 +179,13 @@ async def build(symbol: str, as_of: str | None = None, kind: str = "quarter") ->
         dy = None
     total = round(change + (dy or 0), 1) if change is not None else None
     srow = next((r for r in get_cached_screener() or [] if str(r.get("symbol")) == sym), {})
-    mcap = snap.get("market_cap")
+    from app.services.tasi_stars import _cap
+    mcap = _cap(sym, snap)                       # D542: السعر × الأسهم حين تغيب القيمةُ السوقيةُ خارجَ الجلسة
     perf = {}
     try:
         s_h = await market_service.get_history(f"{sym}.SR", "2y")
+        if not s_h:                              # D542: الحصّةُ نفدت — النداءُ المباشرُ الذي يقرأ به الفرز
+            s_h = await market_service._yahoo()._fetch_chart_points(f"{sym}.SR", "2y", "1d")
         t_h = await market_service.get_history("^TASI.SR", "2y")
         for k, days in (("6m", 182), ("1y", 365), ("2y", 730)):
             perf[k] = {"stock": _ret(s_h, days), "tasi": _ret(t_h, days)}
