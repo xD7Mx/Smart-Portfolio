@@ -8,7 +8,7 @@ import CompanyLogo from "../common/CompanyLogo";
 const pct = (v: any) => (typeof v === "number" ? `${v >= 0 ? "+" : ""}${v.toFixed(1)}%` : "غير متوفّر");
 const tone = (v: any) => (typeof v === "number" ? (v >= 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]") : "text-[var(--ink-muted)]");
 
-function Curve({ track }: { track: { d: string; s: number; t: number }[] }) {
+export function Curve({ track }: { track: { d: string; s: number; t: number }[] }) {
   if (!track || track.length < 2) {
     return <div className="h-[140px] flex items-center justify-center text-xs text-[var(--ink-muted)]">غير متوفّر</div>;
   }

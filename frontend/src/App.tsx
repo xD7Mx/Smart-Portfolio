@@ -30,6 +30,7 @@ import AIPage          from "./pages/AIPage";
 import GovernancePage  from "./pages/GovernancePage";
 import CalculatorsPage from "./pages/CalculatorsPage";
 import ChartPage       from "./pages/ChartPage";
+import StarsPage       from "./pages/StarsPage";
 import LoginPage       from "./pages/LoginPage";
 
 // Styles
@@ -209,6 +210,7 @@ function App() {
             <Route path="/portfolio/:id"  element={<CompanyPage />} />
             <Route path="/market"         element={<MarketPage />} />
             <Route path="/chart"          element={<ChartPage />} />
+            <Route path="/stars"          element={<StarsPage />} />
             <Route path="/governance"      element={<GovernancePage />} />
             <Route path="/ai"             element={<AIPage />} />
             <Route path="/calculators"    element={<CalculatorsPage />} />
