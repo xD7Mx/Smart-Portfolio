@@ -13,7 +13,7 @@ const mixA = (c: string, pct: number) => `color-mix(in srgb, ${c} ${pct}%, trans
 const fmt = (n: number) => (n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
- * Company dividend profile — distribution frequency, last-10-years history,
+ * Company dividend profile — distribution frequency, every distributed year (D541),
  * and an upcoming/last-distribution note. Real data from Yahoo, cached 24h.
  */
 export default function DividendProfile({ symbol }: { symbol: string }) {
@@ -60,7 +60,7 @@ export default function DividendProfile({ symbol }: { symbol: string }) {
 
       {data.yearly?.length > 0 && (
         <>
-          <p className="text-xs font-bold text-[var(--ink-muted)] mb-2">التوزيع السنوي — آخر {data.yearly.length} سنوات (للسهم)</p>
+          <p className="text-xs font-bold text-[var(--ink-muted)] mb-2">التوزيع السنوي — كلُّ السنوات الموزَّعة ({data.yearly.length}) للسهم</p>
           <div style={{ height: 180 }} dir="ltr">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data.yearly} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
@@ -82,7 +82,7 @@ export default function DividendProfile({ symbol }: { symbol: string }) {
 
       {data.recent?.length > 0 && (
         <div className="mt-4">
-          <p className="text-xs font-bold text-[var(--ink-muted)] mb-2">آخر التوزيعات المعلنة</p>
+          <p className="text-xs font-bold text-[var(--ink-muted)] mb-2">كلُّ التوزيعات المعلنة</p>
           <div className="flex flex-wrap gap-2">
             {data.recent.map((d: any, i: number) => (
               <span key={i} className="tag-n" style={{ fontSize: 11 }}>{d.date} · {fmt(d.amount)}</span>

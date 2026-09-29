@@ -351,12 +351,12 @@ async def get_company_dividends(symbol: str):
     if not data:
         return success_response(data=None, message="لا توجد بيانات توزيعات متاحة لهذا الرمز حالياً.")
 
-    # last 10 announced years, aggregated per year
+    # ‏D541 (بأمر المالك): كلُّ سنةٍ وُزّع فيها — بلا عددٍ محدّد.
     from collections import defaultdict
     by_year = defaultdict(float)
     for h in data.get("history", []):
         by_year[h["year"]] += h["amount"]
-    years = sorted(by_year.keys())[-10:]
+    years = sorted(by_year.keys())
     yearly = [{"year": y, "amount": round(by_year[y], 3)} for y in years]
 
     # note about the next ex/eligibility date or the last distribution
@@ -389,7 +389,7 @@ async def get_company_dividends(symbol: str):
         "ex_date": data.get("ex_date"),
         "pay_date": data.get("pay_date"),
         "yearly": yearly,
-        "recent": data.get("history", [])[-8:][::-1],
+        "recent": data.get("history", [])[::-1],
         "note": note,
         "source": data.get("source"),
         "official": data.get("official"),

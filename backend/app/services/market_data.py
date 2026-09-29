@@ -661,11 +661,11 @@ class YahooFinanceAdapter:
         return None
 
     async def get_dividends(self, symbol: str) -> Optional[dict]:
-        """Dividend history (up to 10y) + inferred frequency + next ex/pay date.
+        """Dividend history (every distributed year — D541) + inferred frequency + next ex/pay date.
         Cached 24h."""
         from app.services import cache
         from app.services.usage_tracker import record, can_call
-        ck = f"div:yahoo:{symbol}"
+        ck = f"div:yahoo:{symbol}:all"          # D541: كلُّ السنوات — مفتاحٌ جديدٌ لا يرث العشرَ القديمة
         cached = cache.get(ck)
         if cached is not None:
             return cached
@@ -680,7 +680,7 @@ class YahooFinanceAdapter:
                 res = None
                 for host in ("query1", "query2"):
                     try:
-                        r = await client.get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{symbol}?range=10y&interval=1mo&events=div")
+                        r = await client.get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{symbol}?range=max&interval=1mo&events=div")
                         if r.status_code == 200:
                             res = (r.json().get("chart", {}).get("result") or [None])[0]
                             if res:
