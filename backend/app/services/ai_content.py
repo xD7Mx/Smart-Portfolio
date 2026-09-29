@@ -705,7 +705,8 @@ def value_lines(analysis: dict) -> list[str]:
 
 async def stock_opinion(symbol: str, name: str, analysis: dict,
                         headlines: list[str] | None = None,
-                        evidence_lines_ar: list[str] | None = None) -> dict | None:
+                        evidence_lines_ar: list[str] | None = None,
+                        mind_lines: list[str] | None = None) -> dict | None:
     """One-click "رأي الذكاء" card for a single stock — a fixed-template
     prompt (only symbol/data/headlines change) grounded ONLY in our own real,
     already-computed numbers (price, technical indicators, fundamentals,
@@ -719,7 +720,7 @@ async def stock_opinion(symbol: str, name: str, analysis: dict,
     # يعرفها — والمفتاحُ القديم كان سيُبقيه يوماً كاملاً.
     # ‎v4 (‏D428): كان التوجيهُ يُسمّي سعرَنا العادل «هدفَ المحللين»، فرأيٌ
     # كُتب به يحمل الخلطَ نفسَه — يُبطَل ولا يُخدَم بقيّةَ اليوم.
-    key = f"ai:opinion:v4:{date.today().isoformat()}:{symbol}"
+    key = f"ai:opinion:v5:{date.today().isoformat()}:{symbol}"   # ‏v5 (D548): ملفُّ عقل التطبيق
     f = analysis.get("fundamentals") or {}
     t = analysis.get("technical") or {}
     lines = [
@@ -741,6 +742,9 @@ async def stock_opinion(symbol: str, name: str, analysis: dict,
     ]
     ctx = "\n".join(l for l in lines if l)
     news_ctx = ("\n\nأحدث الأخبار الحقيقية المتوفرة عن السهم:\n- " + "\n- ".join(headlines[:5])) if headlines else ""
+    # ‏D548: ملفُّ عقل التطبيق — محرّكاتُنا ونموذجُ الأبحاث، مادّةٌ أولى قبل أرقام ياهو العامّة.
+    mind_ctx = (("\n\nملفُّ الشركة من محرّكات التطبيق ونموذج أبحاثه (المرجعُ الأوّل لرأيك):\n- "
+                 + "\n- ".join(mind_lines)) if mind_lines else "")
     # ══ شواهدُ «أرقام» — بيّنةٌ لا حَكَم ══ (D218)
     # مصدرٌ محدَّثٌ صار متاحاً (توصياتُ بيوت الخبرة · نِسَبٌ رقابية · مفكرة).
     # يدخل مادّةً يُستشهد بها، ولا يُعطى صلاحيةَ تغيير القرار: المُقرِّرُ
@@ -777,11 +781,12 @@ async def stock_opinion(symbol: str, name: str, analysis: dict,
 اشرح لقارئٍ غيرِ متخصّص **لماذا** خرج التطبيقُ بهذا القرار عن {name}:{symbol}: حلل أساسياته (مكرر الربحية P/E، نمو ربحية السهم EPS) باستخدام المقاييس الرئيسية أدناه، وراجع إجماع هدف المحللين، ولاحظ أي إشارات فنية مهمة من المؤشرات الفنية.{decision_ctx}
 
 المعطيات الحقيقية المتاحة فقط (لا تستخدم أي رقم من خارجها):
-{ctx}{news_ctx}{argaam_ctx}
+{ctx}{mind_ctx}{news_ctx}{argaam_ctx}
 
 قواعد صارمة:
 - لا تخترع أي رقم أو إحصائية غير موجودة أعلاه (مثل عدد المحللين أو أهداف أسعار غير مذكورة) — إن لم تُعطَ معلومة فاحذف القسم الخاص بها أو اذكر "غير متاح".
 - اربط كل نقطة برقم فعلي من المعطيات أعلاه.
+- فكّر بعقل التطبيق الواحد: ابنِ رأيك على ملفّ محرّكات التطبيق ونموذج أبحاثه (القرار · الدرجة المالية · الأركان · السعر العادل · نجوم تاسي · توقّعات الربع ودقّتها · التاريخ) قبل أي رقمٍ آخر، ولا تناقض شيئاً منها.
 - كن متزناً: اذكر نقاط القوة والضعف معاً، لا تصاغة تسويقية.
 - شواهدُ «أرقام» **بيّنةٌ لا حكم**: استشهد بها بأسمائها وتواريخها، ولا تجعلها قراراً ثانياً. وإن خالفت توصياتُ بيوت الخبرة قرارَ التطبيق فقُل ذلك صراحةً بوصفه واقعة — «توصياتٌ حديثةٌ بالشراء بينما قرارُنا كذا لأنّ كذا» — ولا تُخفِ أحدهما ولا تُطاوع الأعلى صوتاً.{tone_rule}
 

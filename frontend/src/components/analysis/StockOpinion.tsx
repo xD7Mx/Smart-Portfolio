@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles, Compass, LineChart, Target, Zap, Landmark, Loader2, BookOpen } from "lucide-react";
+import { Sparkles, Compass, LineChart, Target, Zap, Landmark, Loader2, BookOpen, Cpu, FlaskConical } from "lucide-react";
 import { aiApi } from "../../services/api";
 
 /* لصقُ لاحقةٍ ستّ عشرية على اللون (`${color}33`) يعمل مع قيمةٍ ثابتة فقط،
@@ -84,6 +84,8 @@ export default function StockOpinion({ symbol, name }: { symbol: string; name?: 
         </ul>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <Section icon={Cpu} color="var(--brand-ink)" headline={data.engines_headline} bullets={data.engines_bullets} />
+        <Section icon={FlaskConical} color="var(--chart-2)" headline={data.research_headline} bullets={data.research_bullets} />
         <Section icon={LineChart} color="var(--chart-1)" headline={data.technical_headline} bullets={data.technical_bullets} />
         <Section icon={Target} color="var(--chart-3)" headline={data.valuation_headline} bullets={data.valuation_bullets} />
         <Section icon={Zap} color="var(--warn-ink)" headline={data.fundamentals_headline} bullets={data.fundamentals_bullets} />

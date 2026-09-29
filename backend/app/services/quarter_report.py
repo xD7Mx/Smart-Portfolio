@@ -201,10 +201,18 @@ async def build(symbol: str, as_of: str | None = None, kind: str = "quarter") ->
             perf[k] = {"stock": _ret(s_h, days), "tasi": _ret(t_h, days)}
     except Exception:                                             # noqa: BLE001
         perf = {}
+    # ══ توصيةُ التقرير قرارُ التطبيق الواحد (D548) ══ — لا قاعدةٌ ثانية (±15٪) بجواره.
+    decision = None
+    if latest:
+        try:
+            from app.services.analysis import analyze_company
+            decision = ((await analyze_company(f"{sym}.SR", srow.get("name")) or {}).get("decision") or {}).get("label")
+        except Exception:                                         # noqa: BLE001
+            decision = None
     return {
         "symbol": sym, "name": srow.get("name") or snap.get("name"), "bank": arch == "bank",
         "latest": bool(latest), "kind": kind,
-        "header": None if not latest else {"recommendation": recommendation(total), "price": price, "target_12m": target,
+        "header": None if not latest else {"recommendation": decision or recommendation(total), "price": price, "target_12m": target,
                    "change": change, "dividend_yield": dy, "total_return": total},
         "table": tbl,
         "market": {"high_52w": srow.get("high_52w"), "low_52w": srow.get("low_52w"),

@@ -350,10 +350,17 @@ async def get_stock_opinion(symbol: str, name: str = "", db: AsyncSession = Depe
         _ev_lines = evidence_lines(await argaam_evidence(s))
     except Exception:                                             # noqa: BLE001
         _ev_lines = []
+    # ══ عقلُ التطبيق الواحد (D548): ملفٌّ من محرّكاتنا ونموذج الأبحاث يقرؤه كلُّ كاتب ══
+    from app.services.app_mind import attach, dossier
+    try:
+        _mind = dossier(s, analysis)
+    except Exception:                                             # noqa: BLE001
+        _mind = {}
     opinion = None
     try:
         opinion = await stock_opinion(symbol, name or analysis.get("name") or symbol, analysis,
-                                      headlines=list(rows), evidence_lines_ar=_ev_lines)
+                                      headlines=list(rows), evidence_lines_ar=_ev_lines,
+                                      mind_lines=(_mind.get("engines") or []) + (_mind.get("research") or []))
     except Exception:
         opinion = None
     if not opinion:
@@ -374,6 +381,8 @@ async def get_stock_opinion(symbol: str, name: str = "", db: AsyncSession = Depe
     if opinion and _ev_lines:
         opinion["evidence_headline"] = "شواهد من «أرقام»"
         opinion["evidence_bullets"] = _ev_lines[:3]
+    if opinion and _mind:
+        opinion = attach(opinion, _mind)
     unified = (analysis.get("decision") or {}).get("label")
     if opinion and unified:
         opinion["sentiment_label"] = unified

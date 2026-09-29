@@ -19,6 +19,9 @@ export const qName = (iso?: string) => {
 };
 const REC: Record<string, string> = { "شراء": GREEN, "بيع": RED, "حياد": WARN };
 
+/* ‏D548: التوصيةُ قرارُ التطبيق الواحد بمفرداته — يُلوَّن باتّجاهه لا بقائمةٍ ثابتة. */
+const recColor = (x?: string) => !x ? NAVY : /شراء|تجميع|إيجاب/.test(x) ? GREEN : /بيع|تجنب|سلب|تخفيف/.test(x) ? RED : REC["حياد"];
+
 const Title = ({ children }: { children: React.ReactNode }) => (
   <div style={{ fontSize: 13, fontWeight: 500, color: NAVY, marginBottom: 8, borderInlineStart: `3px solid ${GOLD}`, paddingInlineStart: 8 }}>
     {children}
@@ -35,7 +38,7 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
   const t = r?.table || {};
   const period = t.annual ? `النتائج السنوية ${String(t.as_of || "").slice(0, 4)}` : `نتائج ${qName(t.as_of)}`;
   const tiles = h ? [
-    { l: "التوصية", v: h.recommendation || "—", c: REC[h.recommendation] || NAVY, text: true },
+    { l: "قرار التطبيق", v: h.recommendation || "—", c: recColor(h.recommendation), text: true },
     { l: "آخر سعر إغلاق", v: num(h.price, 2), c: NAVY },
     { l: "السعر المستهدف خلال 12 شهراً", v: num(h.target_12m, 2), c: NAVY },
     { l: "التغيّر المتوقّع", v: pct(h.change), c: col(h.change) },
