@@ -65,7 +65,7 @@ def _main_share(sym) -> bool:
 
 
 WATCH = 10               # ‏D539: المرتبةُ 21–30 تحت المراقبة
-WEIGHTS = {"excess": 0.35, "upside": 0.35, "quality": 0.20, "confidence": 0.10}
+WEIGHTS = {"excess": 0.50, "upside": 0.25, "quality": 0.15, "confidence": 0.10}   # بأمر المالك: التفوّقُ 50٪
 CONF = {"مرتفعة": 1.0, "متوسطة": 0.6, "منخفضة": 0.2}
 
 
