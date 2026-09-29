@@ -28,7 +28,7 @@ export default function LoginPage() {
     mutationFn: () => authApi.login(password).then(r => r.data),
     onSuccess: (r) => {
       authToken.set(r.data.access_token);
-      nav(loc.state?.from || "/portfolio", { replace: true });
+      nav(loc.state?.from || "/", { replace: true });   // D534: «/» تحترم صفحةَ البداية
     },
   });
 
