@@ -1,3 +1,4 @@
+import QuarterReport from "../analysis/QuarterReport";
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { X, Shield, Sparkles, ShieldCheck } from "lucide-react";
@@ -91,6 +92,7 @@ const TABS = [
   { id: "financials", label: "القوائم المالية", short: "القوائم" },
   { id: "dividends", label: "التوزيعات", short: "التوزيعات" },
   { id: "calendar", label: "المفكرة", short: "المفكرة" },
+  { id: "reports", label: "التقارير", short: "التقارير" },
   { id: "opinion", label: "رأي الذكاء", short: "الذكاء", color: true },
 ] as const;
 
@@ -283,6 +285,7 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
       {tab === "financials" && <FinancialsTable symbol={symbol} />}
       {tab === "dividends" && <DividendProfile symbol={symbol} />}
       {tab === "calendar" && <StockCalendar symbol={symbol} name={data?.name} />}
+      {tab === "reports" && <QuarterReport symbol={sym4} />}
       {tab === "opinion" && (
         <div className="card">
           <StockOpinion symbol={symbol} name={data?.name} />

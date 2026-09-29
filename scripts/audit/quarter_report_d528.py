@@ -71,5 +71,14 @@ check(t2["bank_loans"]["yoy"] is None and t2["bank_nfi"]["yoy"] is not None,
       "٣ ميزانيةُ عمودِ المقارنة (نهايةُ السنة) لا تُقارَن بالربع — والدخلُ يُقارَن")
 check(Q.recommendation(20.6) == "شراء" and Q.recommendation(0) == "حياد" and Q.recommendation(-16) == "بيع"
       and Q.recommendation(None) is None, "٤ التوصيةُ بحدود ±15٪ لإجمالي العائد المتوقّع")
-print(("FAIL" if fail else "PASS") + " D528 — تقريرُ الربع")
+# ٥ · D531: فهرسُ الفترات والتقريرُ السنويّ والربعُ المختار
+ann = [{"as_of": "2023-12-31", "col": 0, "net_income": 100.0}, {"as_of": "2024-12-31", "col": 0, "net_income": 110.0},
+       {"as_of": "2025-12-31", "col": 0, "net_income": 132.0}]
+at = Q.annual_table(ann, bank=False)
+ni = next(r for r in at["rows"] if r["key"] == "net_income_parent")
+old = Q.table(qs, bank=True, as_of="2026-03-31")
+check(Q.periods(qs) == ["2026-06-30", "2026-03-31"] and at.get("annual") and ni["yoy"] == 20.0 and ni["expected"] == 121.0
+      and old["as_of"] == "2026-03-31",
+      "٥ D531 فهرسُ الأرباع (عمودُ الملفّ وحدَه) والتقريرُ السنويّ والربعُ المختار", str(Q.periods(qs)))
+print(("FAIL" if fail else "PASS") + " D528 · D531 — تقاريرُ الشركة")
 sys.exit(fail)

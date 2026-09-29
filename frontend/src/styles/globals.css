@@ -2980,3 +2980,11 @@ html.light {
     align-items: flex-start; }
   .d7m-table { flex: 1 1 160px; }
 }
+
+/* ══ PDF تقرير الشركة (D531): يُطبع التقريرُ وحده بمظهره ══ */
+@media print {
+  body * { visibility: hidden !important; }
+  .print-area, .print-area * { visibility: visible !important; }
+  .print-area { position: absolute; inset: 0; max-width: none; }
+  .no-print { display: none !important; }
+}

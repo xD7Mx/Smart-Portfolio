@@ -699,10 +699,17 @@ async def get_forecasts():
 
 
 @router.get("/quarter-report/{symbol}")
-async def get_quarter_report(symbol: str):
-    """تقريرُ الربع (D528): توصيةٌ وهدفٌ وجدولُ الربع وتوقّعاتُنا وأداءٌ مقابلَ تاسي."""
+async def get_quarter_report(symbol: str, as_of: str | None = None, kind: str = "quarter"):
+    """تقريرُ الربع أو السنة (D528 · D531): توصيةٌ وهدفٌ للأحدث، وجدولُ الفترة وتوقّعاتُنا."""
     from app.services.quarter_report import build
-    return success_response(data=await build(symbol))
+    return success_response(data=await build(symbol, as_of, "annual" if kind == "annual" else "quarter"))
+
+
+@router.get("/quarter-reports/{symbol}")
+async def get_quarter_reports(symbol: str):
+    """فهرسُ تقارير الشركة (D531): كلُّ ربعٍ وكلُّ سنةٍ لها قوائمُ مقروءة."""
+    from app.services.quarter_report import catalog
+    return success_response(data=catalog(symbol))
 
 
 @router.get("/tasi-stars")

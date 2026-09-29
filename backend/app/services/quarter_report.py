@@ -55,9 +55,43 @@ def _near(qs: list[dict], target: date, tol: int = 20) -> dict | None:
     return best if best and abs((_d(best) - target).days) <= tol else None
 
 
-def table(quarterly: list[dict], bank: bool) -> dict:
+def periods(rows: list[dict]) -> list[str]:
+    """الفتراتُ التي لها تقرير: عمودُ ملفٍّ أوّلُ بأرقامٍ — الأحدثُ أوّلاً."""
+    out = [str(p.get("as_of"))[:10] for p in rows or []
+           if _d(p) and p.get("col") in (None, 0)
+           and any(isinstance(p.get(k), (int, float)) for k in ("revenue", "net_income", "bank_nfi"))]
+    return sorted(set(out), reverse=True)
+
+
+def annual_table(annual: list[dict], bank: bool, as_of: str | None = None) -> dict:
+    """التقريرُ السنويّ: السنةُ مقابلَ سابقتها، وتوقّعُنا من نموّ السنة السابقة."""
+    ys = sorted([p for p in annual or [] if _d(p)], key=_d)
+    if as_of:
+        ys = [p for p in ys if str(p.get("as_of"))[:10] <= as_of]
+    if not ys:
+        return {}
+    cur = ys[-1]
+    t = _d(cur)
+    y1 = _near(ys, t - timedelta(days=365), 40)
+    y2 = _near(ys, t - timedelta(days=730), 40)
+    rows = []
+    for key, label, kind in (BANK if bank else GENERAL):
+        v0 = _val(cur, key, kind)
+        if v0 is None:
+            continue
+        b1, b2 = _val(y1, key, kind), _val(y2, key, kind)
+        exp = b1 * b1 / b2 if b1 is not None and b2 else None
+        rows.append({"key": key, "label": label, "cur": v0, "yoy_base": b1, "yoy": _chg(v0, b1),
+                     "prev": None, "qoq": None, "expected": round(exp, 2) if exp is not None else None})
+    return {"as_of": cur.get("as_of"), "prior_year": (y1 or {}).get("as_of"), "prev_quarter": None,
+            "annual": True, "rows": rows}
+
+
+def table(quarterly: list[dict], bank: bool, as_of: str | None = None) -> dict:
     """جدولُ الربع — دالّةٌ نقيّةٌ يقيسها الحارس."""
     qs = sorted([p for p in quarterly or [] if _d(p)], key=_d)
+    if as_of:
+        qs = [p for p in qs if str(p.get("as_of"))[:10] <= as_of]
     if not qs:
         return {}
     cur = qs[-1]
@@ -106,7 +140,14 @@ def _ret(points, days: int):
     return round((pts[-1]["close"] / first["close"] - 1) * 100, 1)
 
 
-async def build(symbol: str) -> dict:
+def catalog(symbol: str) -> dict:
+    from app.services import tadawul_xbrl
+    sym = str(symbol).replace(".SR", "").strip()
+    return {"quarters": periods(tadawul_xbrl.for_symbol(sym, "quarterly")),
+            "years": periods(tadawul_xbrl.for_symbol(sym, "annual"))}
+
+
+async def build(symbol: str, as_of: str | None = None, kind: str = "quarter") -> dict:
     from app.services import fair_value_models, tadawul_xbrl
     from app.services.dividend_yield import resolve as _dy
     from app.services.market_data import market_service
@@ -115,7 +156,13 @@ async def build(symbol: str) -> dict:
 
     sym = str(symbol).replace(".SR", "").strip()
     arch = tadawul_xbrl._arch_of(sym)
-    tbl = table(tadawul_xbrl.for_symbol(sym, "quarterly"), arch == "bank")
+    if kind == "annual":
+        tbl = annual_table(tadawul_xbrl.for_symbol(sym, "annual"), arch == "bank", as_of)
+    else:
+        tbl = table(tadawul_xbrl.for_symbol(sym, "quarterly"), arch == "bank", as_of)
+    cat = catalog(sym)
+    newest = (cat["years"] if kind == "annual" else cat["quarters"])[:1]
+    latest = not as_of or (newest and as_of >= newest[0])
     snap = row_for(sym)
     price = snap.get("price")
     fvm = await fair_value_models.for_symbol(sym) or {}
@@ -139,7 +186,8 @@ async def build(symbol: str) -> dict:
         perf = {}
     return {
         "symbol": sym, "bank": arch == "bank",
-        "header": {"recommendation": recommendation(total), "price": price, "target_12m": target,
+        "latest": bool(latest), "kind": kind,
+        "header": None if not latest else {"recommendation": recommendation(total), "price": price, "target_12m": target,
                    "change": change, "dividend_yield": dy, "total_return": total},
         "table": tbl,
         "market": {"high_52w": srow.get("high_52w"), "low_52w": srow.get("low_52w"),
