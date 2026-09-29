@@ -29,7 +29,7 @@
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from loguru import logger
 
@@ -130,6 +130,16 @@ async def build(force: bool = False) -> dict:
     rows = get_cached_screener() or []
     tasi_pts = await market_service.get_history("^TASI.SR", "1y")
     tasi_ret = _ret_12m(tasi_pts)
+    if tasi_ret is None:
+        # ‏D538: حصّةُ ياهو اليومية نفدت — فيُقرأ تاريخُ تاسي بالنداء المباشر الذي
+        # يقرأ به الفرزُ تاريخَ الأسهم، ويُقصّ على آخر سنة.
+        try:
+            raw = await market_service._yahoo()._fetch_chart_points("^TASI.SR", "2y", "1d")
+            cut = (date.today() - timedelta(days=366)).isoformat()
+            tasi_pts = [p for p in raw or [] if str(p.get("date"))[:10] >= cut]
+            tasi_ret = _ret_12m(tasi_pts)
+        except Exception:                                         # noqa: BLE001
+            tasi_ret = None
     if tasi_ret is None or not rows:
         return old or {"error": "تاريخُ تاسي أو صفوفُ الفرز غيرُ متوفّرة"}
     from app.services.tadawul_market import usable_rows
