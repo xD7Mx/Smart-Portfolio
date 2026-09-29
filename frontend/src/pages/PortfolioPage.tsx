@@ -2285,9 +2285,10 @@ export default function PortfolioPage() {
       {tab !== "holdings" ? null : (
       <>
       {/* Table */}
-      <div className="card overflow-x-auto p-0">
-        {/* Column customization (point 10) */}
-        <div className="flex items-center justify-end px-3 pt-2 relative">
+      <div className="card overflow-x-auto p-0 relative !mt-2">
+        {/* ══ زرُّ الأعمدة على سطر الشركة الأولى ══ (بأمر المالك · D533)
+            كان صفّاً وحده فوق القائمة يفتح فراغاً بين التبويبات وأوّل شركة. */}
+        <div className="absolute end-2.5 z-20 top-[36px] lg:top-2">
           <button className="p-1.5 rounded-lg text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--field)] transition-all"
             title="تخصيص الأعمدة" onClick={() => setColsOpen(o => !o)}>
             <Columns3 size={15} />
