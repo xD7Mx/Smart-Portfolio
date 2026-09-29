@@ -45,10 +45,17 @@ CAP_EXCESS = 50.0
 
 
 def _ret_12m(points: list | None) -> float | None:
-    closes = [p.get("close") for p in (points or []) if isinstance(p, dict) and p.get("close")]
-    if len(closes) < 200:
+    pts = [p for p in (points or []) if isinstance(p, dict) and p.get("close")]
+    if len(pts) < 20:
         return None
-    return (closes[-1] / closes[0] - 1) * 100
+    # ‏D525: تاريخُ تاسي من «تداول» أقلُّ نقاطاً من ياهو — فيُقاس امتدادُ التاريخ لا عددُ نقاطه.
+    try:
+        span = (date.fromisoformat(str(pts[-1].get("date"))[:10]) - date.fromisoformat(str(pts[0].get("date"))[:10])).days
+    except ValueError:
+        span = 365 if len(pts) >= 200 else 0
+    if span < 330:
+        return None
+    return (pts[-1]["close"] / pts[0]["close"] - 1) * 100
 
 
 def _main_share(sym) -> bool:
@@ -131,7 +138,9 @@ async def build(force: bool = False) -> dict:
     rets: dict[str, float] = {}
     for r in rows:
         if eligible(r) and (large is None or str(r["symbol"]) in large):
-            v = _ret_12m(await market_service.get_history(f"{r['symbol']}.SR", "1y"))
+            v = r.get("ret_12m")
+            if not isinstance(v, (int, float)):
+                v = _ret_12m(await market_service.get_history(f"{r['symbol']}.SR", "1y"))
             if v is not None:
                 rets[str(r["symbol"])] = v
     members = select(rows, rets, tasi_ret, large, snap)

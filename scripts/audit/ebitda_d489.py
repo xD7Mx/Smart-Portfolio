@@ -243,9 +243,12 @@ _rows = [{**_base, "symbol": "1001"},
 _sel = _ST.select(_rows, {s: (5.0 if s == "1003" else 25.0) for s in ("1001", "1002", "1003", "1004", "1005", "1006", "1007")}, 8.0)
 _pf = _ST.performance({"members": [{"symbol": "1001", "start_price": 10.0}, {"symbol": "1002", "start_price": 20.0}], "tasi_start": 100.0, "level_start": 100},
                       [{"symbol": "1001", "price": 11.0}, {"symbol": "1002", "price": 19.0}], 102.0)
+from datetime import date as _dt, timedelta as _td
+_tp = [{"date": (_dt(2025, 9, 29) + _td(days=7 * i)).isoformat(), "close": 100 + i} for i in range(53)]
+_r12 = _ST._ret_12m(_tp)
 _sel_l = _ST.select(_rows, {"1001": 25.0}, 8.0, large={"2222"})
 _lc = _ST.large_caps({"2222": {"market_cap": 9e12}, "1001": {"market_cap": 1e9}, "9536": {"market_cap": 5e12}})
-check([m["symbol"] for m in _sel] == ["1001"] and _sel_l == [] and "9536" not in _lc and _ST.REBALANCE_DAYS == 30 and _sel[0]["excess"] == 17.0 and _pf["ret"] == 2.5 and _pf["tasi_ret"] == 2.0 and _pf["level"] == 102.5,
+check([m["symbol"] for m in _sel] == ["1001"] and _sel_l == [] and _r12 is not None and abs(_r12 - 52.0) < 0.01 and _ST._ret_12m(_tp[:10]) is None and "9536" not in _lc and _ST.REBALANCE_DAYS == 30 and _sel[0]["excess"] == 17.0 and _pf["ret"] == 2.5 and _pf["tasi_ret"] == 2.0 and _pf["level"] == 102.5,
       "٣٣ D522 نجوم تاسي: متفوّقٌ على تاسي في 12 شهراً + عادلٌ فوق السعر ≥15٪ + ثقةٌ ودرجةٌ وقوائمُ حديثةٌ وشرعيّ — وأداءٌ متساوي الأوزان مقابلَ تاسي منذ التثبيت", str([m["symbol"] for m in _sel]) + f" {_pf}")
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

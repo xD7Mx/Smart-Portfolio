@@ -204,6 +204,9 @@ async def _row_for(symbol: str, name: str, sector: str | None, sem: asyncio.Sema
         "sector": sector,
         "price": price,
         "high_52w": round(max(last_year), 3),
+        # ‏D525: عائدُ اثني عشر شهراً من التاريخ نفسِه — «نجوم تاسي» تقارنه بتاسي
+        # بلا نداءٍ ثانٍ لكلّ سهم (نفدت حصّةُ المزوّد فخرجت السلّةُ فارغة).
+        "ret_12m": round((price / last_year[0] - 1) * 100, 2) if len(closes) >= 240 and last_year[0] else None,
         "low_52w": round(min(last_year), 3),
         # الفاصل اليومي مبسوط في الجذر (توافقاً مع أي مستهلك سابق)…
         **daily,
