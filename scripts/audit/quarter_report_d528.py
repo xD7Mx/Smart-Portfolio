@@ -7,6 +7,13 @@
 """
 import os
 import sys
+import tempfile
+
+# مخزنُ الحالة مؤقّتٌ قبل استيراد المحرّك — لا يُكتب في بيانات حقيقية.
+_SB = tempfile.mkdtemp(prefix="sp-audit-")
+os.environ["LASTGOOD_PATH"] = os.path.join(_SB, "lastgood.json")
+os.environ["SP_STATE_DIR"] = _SB
+os.environ["SP_STATUS_LOG"] = os.path.join(_SB, "status_codes.jsonl")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "backend"))
