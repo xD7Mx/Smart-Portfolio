@@ -4,6 +4,7 @@ import { CandlestickChart, ChevronDown } from "lucide-react";
 import NativeChart from "../components/analysis/NativeChart";
 import CompanyLogo from "../components/common/CompanyLogo";
 import InlineStockSearch from "../components/market/InlineStockSearch";
+import TasiStarsPanel from "../components/market/TasiStarsPanel";
 import { lookupCompany } from "../data/saudiCompanies";
 import { holdingsApi, marketApi } from "../services/api";
 import { useAppStore } from "../store/appStore";
@@ -44,8 +45,6 @@ export default function ChartPage() {
     queryKey: ["tasi-stars"], enabled: drawer === "stars", staleTime: 5 * 60_000,
     queryFn: () => marketApi.tasiStars().then(r => r.data?.data || null),
   });
-  const pct = (v: any) => (typeof v === "number" ? `${v >= 0 ? "+" : ""}${v.toFixed(1)}%` : "غير متوفّر");
-  const tone = (v: any) => (typeof v === "number" ? (v >= 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]") : "text-[var(--ink-muted)]");
 
   // الافتراضيّ: أوّلُ شركةٍ في المحفظة، وإلا تاسي — فلا تبدأ الغرفةُ فارغة.
   const symbol = chosen ?? (chips[0]?.symbol ?? "^TASI.SR");
@@ -79,7 +78,9 @@ export default function ChartPage() {
         <span className="ms-auto min-w-0 truncate text-sm font-semibold text-[var(--ink)]">{title}</span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateRows: drawer ? "1fr" : "0fr", opacity: drawer ? 1 : 0, transition: "grid-template-rows .24s ease, opacity .2s ease" }}>
+      {drawer === "stars" && <TasiStarsPanel data={stars} loading={starsLoading} onPick={s => { setChosen(s); }} />}
+
+      <div style={{ display: "grid", gridTemplateRows: drawer && drawer !== "stars" ? "1fr" : "0fr", opacity: drawer && drawer !== "stars" ? 1 : 0, transition: "grid-template-rows .24s ease, opacity .2s ease" }}>
         <div style={{ overflow: "hidden" }}>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5" style={{ scrollbarWidth: "none" }}>
             {drawer === "mine" && chips.map((c: any) => (
@@ -87,28 +88,6 @@ export default function ChartPage() {
                 <CompanyLogo symbol={c.symbol} size={18} logoUrl={c.logo_url} />
                 <span>{c.symbol}</span>
               </button>
-            ))}
-            {drawer === "stars" && (starsLoading ? (
-              <div className="h-8 w-full skeleton rounded-xl" />
-            ) : !stars?.members?.length ? (
-              <span className="text-xs text-[var(--ink-muted)]">غير متوفّر</span>
-            ) : (
-              <>
-                <div className="shrink-0 flex items-center gap-2 px-2.5 min-h-[32px] rounded-xl border border-[var(--hairline)] text-xs font-bold">
-                  <span className="text-[var(--ink-muted)]">منذ</span>
-                  <span dir="ltr" className="tabular-nums text-[var(--ink)]">{stars.since}</span>
-                  <span className={"tabular-nums " + tone(stars.perf?.ret)} dir="ltr">{pct(stars.perf?.ret)}</span>
-                  <span className="text-[var(--ink-muted)]">تاسي</span>
-                  <span className={"tabular-nums " + tone(stars.perf?.tasi_ret)} dir="ltr">{pct(stars.perf?.tasi_ret)}</span>
-                </div>
-                {stars.members.map((m: any) => (
-                  <button key={m.symbol} onClick={() => pick(m.symbol)} title={m.name} className={chipCls(symbol === m.symbol)}>
-                    <CompanyLogo symbol={m.symbol} size={18} />
-                    <span>{m.symbol}</span>
-                    <span dir="ltr" className="tabular-nums text-[var(--pos-ink)]">{pct(m.upside)}</span>
-                  </button>
-                ))}
-              </>
             ))}
             {drawer === "idx" && INDICES.map(([s, lbl]) => (
               <button key={s} onClick={() => pick(s)} className={chipCls(symbol === s)}>{lbl}</button>
