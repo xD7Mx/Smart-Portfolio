@@ -267,5 +267,9 @@ _qq = [{"as_of": "2025-06-30", "col": 0, "bank_loans": 100.0}, {"as_of": "2026-0
 _lr = next(r for r in _QR.table(_qq, bank=True)["rows"] if r["key"] == "bank_loans")
 check(_lr["expected"] is not None and abs(_lr["expected"] - 103 * (1.03 ** (1 / 3))) < 0.01,
       "٣٥ D542 توقّعُ بنود الميزانية بلا ربعٍ رابعٍ مخزَّن: يُمدّ نموُّ الأرباع الثلاثة", str(_lr["expected"]))
+_eq = [{"as_of": "2025-06-30", "col": 0, "eps": 99662846.0, "revenue": 1.0}, {"as_of": "2026-06-30", "col": 0, "eps": 1.24, "revenue": 1.0}]
+_er = next(r for r in _QR.table(_eq, bank=False)["rows"] if r["key"] == "eps")
+check(_er["yoy_base"] is None and _er["yoy"] is None and _er["expected"] is None,
+      "٣٦ D543 ربحيةُ السهم بالملايين (صافي الدخل بوسمٍ خاطئ) لا تُعرض ولا تُقارن — الدريس", str(_er))
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)

@@ -43,6 +43,8 @@ def _val(p: dict | None, key: str, kind: str):
     v = p.get(key)
     if v is None and key == "net_income_parent":
         v = p.get("net_income")
+    if key == "eps" and isinstance(v, (int, float)) and abs(v) > 1000:
+        return None                              # D543: ربحيةُ سهمٍ بالملايين وسمٌ خاطئٌ من الملفّ (صافي الدخل)
     return v if isinstance(v, (int, float)) else None
 
 
