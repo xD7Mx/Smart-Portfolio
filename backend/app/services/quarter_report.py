@@ -89,8 +89,11 @@ def annual_table(annual: list[dict], bank: bool, as_of: str | None = None) -> di
             "annual": True, "rows": rows}
 
 
-def table(quarterly: list[dict], bank: bool, as_of: str | None = None) -> dict:
-    """جدولُ الربع — دالّةٌ نقيّةٌ يقيسها الحارس."""
+def table(quarterly: list[dict], bank: bool, as_of: str | None = None, annual: list[dict] | None = None) -> dict:
+    """جدولُ الربع — دالّةٌ نقيّةٌ يقيسها الحارس.
+    ‏D547: توقّعُ بنود التدفّق من نموذج الأبحاث المدرَّب على تاريخ الشركة (بما قبل الربع
+    وحده) متى كفى تاريخُها — وإلا فالمعادلةُ السابقة."""
+    from app.services import research_model as _R
     qs = sorted([p for p in quarterly or [] if _d(p)], key=_d)
     if as_of:
         qs = [p for p in qs if str(p.get("as_of"))[:10] <= as_of]
@@ -107,7 +110,11 @@ def table(quarterly: list[dict], bank: bool, as_of: str | None = None) -> dict:
             continue
         y, p1 = _val(q[4], key, kind), _val(q[1], key, kind)
         exp = None
-        if kind == "flow":
+        if kind == "flow" and annual is not None and key != "eps":
+            exp = _R.expected_at(quarterly, annual, key, str(cur.get("as_of"))[:10])
+        if exp is not None:
+            pass
+        elif kind == "flow":
             last4 = [_val(q[n], key, kind) for n in range(1, 5)]
             prev4 = [_val(q[n], key, kind) for n in range(5, 9)]
             if y is not None and None not in last4 and None not in prev4 and sum(prev4):
@@ -165,7 +172,8 @@ async def build(symbol: str, as_of: str | None = None, kind: str = "quarter") ->
     if kind == "annual":
         tbl = annual_table(tadawul_xbrl.for_symbol(sym, "annual"), arch == "bank", as_of)
     else:
-        tbl = table(tadawul_xbrl.for_symbol(sym, "quarterly"), arch == "bank", as_of)
+        tbl = table(tadawul_xbrl.for_symbol(sym, "quarterly"), arch == "bank", as_of,
+                    tadawul_xbrl.for_symbol(sym, "annual"))
     cat = catalog(sym)
     newest = (cat["years"] if kind == "annual" else cat["quarters"])[:1]
     latest = not as_of or (newest and as_of >= newest[0])
@@ -202,4 +210,13 @@ async def build(symbol: str, as_of: str | None = None, kind: str = "quarter") ->
         "market": {"high_52w": srow.get("high_52w"), "low_52w": srow.get("low_52w"),
                    "market_cap": mcap, "shares": round(mcap / price) if mcap and price else None},
         "performance": perf,
+        "research": _research(sym, price) if latest else None,
     }
+
+
+def _research(sym: str, price) -> dict | None:
+    try:
+        from app.services.research_model import note
+        return note(sym, price)
+    except Exception:                                             # noqa: BLE001
+        return None

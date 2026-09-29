@@ -42,6 +42,27 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
     { l: "عائد الأرباح الموزّعة", v: typeof h.dividend_yield === "number" ? `${h.dividend_yield.toFixed(1)}%` : "—", c: NAVY },
     { l: "إجمالي العوائد المتوقّعة", v: pct(h.total_return), c: col(h.total_return) },
   ] : [];
+  const R = r?.research || {};
+  const LABEL: Record<string, string> = Object.fromEntries((t.rows || []).map((x: any) => [x.key, x.label]));
+  Object.assign(LABEL, { revenue: LABEL.revenue || "الإيرادات", ebit: LABEL.ebit || "الربح التشغيلي",
+    net_income_parent: LABEL.net_income_parent || "صافي الدخل", bank_nfi: LABEL.bank_nfi || "صافي دخل التمويل والاستثمار",
+    bank_op_income: LABEL.bank_op_income || "الدخل التشغيلي الإجمالي" });
+  const fcRows: any[] = Object.values(R.forecast || {});
+  const g = R.growth || {}, ph = R.price || {}, pb = R.pe_band, se = R.seasonality;
+  const yr = (x: any) => (g.years?.length ? `${g.years[0]}–${g.years[g.years.length - 1]}` : "");
+  const hist: { l: string; v: string; c?: string; text?: boolean }[] = [
+    ...(g.rev_cagr != null ? [{ l: `نموّ الإيراد السنوي المركّب ${yr(g)}`, v: pct(g.rev_cagr), c: col(g.rev_cagr) }] : []),
+    ...(g.ni_cagr != null ? [{ l: `نموّ صافي الدخل السنوي المركّب ${yr(g)}`, v: pct(g.ni_cagr), c: col(g.ni_cagr) }] : []),
+    ...(g.margin_last != null ? [{ l: `هامش صافي الربح ${g.years[0]} ← ${g.years[g.years.length - 1]}`, v: `${g.margin_first}% ← ${g.margin_last}%` }] : []),
+    ...(se ? [{ l: `أقوى الأرباع (${se.years} سنوات)`, v: `الربع ${se.strongest}`, text: true }] : []),
+    ...(ph.cagr != null ? [{ l: `عائد السهم السنوي منذ ${String(ph.since).slice(0, 4)}`, v: pct(ph.cagr), c: col(ph.cagr) }] : []),
+    ...(ph.tasi_cagr != null ? [{ l: `تاسي السنوي في المدّة نفسها`, v: pct(ph.tasi_cagr), c: col(ph.tasi_cagr) }] : []),
+    ...(ph.max_dd != null ? [{ l: "أقصى تراجع للسهم", v: pct(ph.max_dd), c: col(ph.max_dd) }] : []),
+    ...(ph.best ? [{ l: `أفضل سنة (${ph.best.y}) · أسوأ سنة (${ph.worst.y})`, v: `${pct(ph.best.r)} · ${pct(ph.worst.r)}` }] : []),
+    ...(ph.div ? [{ l: `التوزيعات منذ ${ph.div.since}`, v: `${ph.div.years_paid} سنة · انتظام ${ph.div.regularity}%`, text: true }] : []),
+    ...(ph.div?.cagr != null ? [{ l: "نموّ التوزيعات السنوي", v: pct(ph.div.cagr), c: col(ph.div.cagr) }] : []),
+    ...(pb?.current != null ? [{ l: `مكرّر الربحية ونطاقه (${pb.points[0][0]}–${pb.points[pb.points.length - 1][0]})`, v: `${pb.current}x · ${pb.low}–${pb.high}x` }] : []),
+  ];
   const heads = ["البند", t.annual ? String(t.as_of || "").slice(0, 4) : qName(t.as_of),
     t.annual ? String(t.prior_year || "").slice(0, 4) : qName(t.prior_year), "سنوي",
     ...(t.annual ? [] : [qName(t.prev_quarter), "ربعي"]), "توقّعاتنا"];
@@ -139,6 +160,46 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
             </table>
           </div>
         </div>
+
+        {!!fcRows.length && (
+          <div>
+            <Title>توقّعاتنا لـ{qName(fcRows[0].as_of)} (مليون ريال)</Title>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
+              <thead>
+                <tr style={{ background: HEAD, color: NAVY, borderBottom: `2px solid ${GOLD}`,
+                             WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" } as React.CSSProperties}>
+                  {["البند", "التوقّع", "الطريقة الأدقّ لهذه الشركة", "خطؤها التاريخي", "صدقُ الاتجاه", "أرباعٌ مختبَرة"].map(x => <th key={x} style={th}>{x}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {fcRows.map((f: any, i: number) => (
+                  <tr key={f.key} style={{ background: i % 2 ? STRIPE : "#fff", borderBottom: `1px solid ${ROW_LINE}` }}>
+                    <td style={{ ...td, fontWeight: 500 }}>{LABEL[f.key] || f.key}</td>
+                    <td style={td}><N v={mn(f.value, f.key)} c={NAVY} /></td>
+                    <td style={td}>{f.label}</td>
+                    <td style={td}><N v={`${f.mape.toFixed(1)}%`} /></td>
+                    <td style={td}><N v={f.hit == null ? "—" : `${f.hit}%`} /></td>
+                    <td style={td}><N v={String(f.tested)} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {!!hist.length && (
+          <div>
+            <Title>القراءة التاريخية</Title>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              {hist.map(k => (
+                <div key={k.l} style={{ border: `1px solid ${CARD_LINE}`, borderRadius: 8, padding: "10px 12px", background: "#fff" }}>
+                  <div style={{ fontSize: 10, color: MUTED, fontWeight: 300 }}>{k.l}</div>
+                  <div style={{ fontSize: 15, fontWeight: 300, color: k.c || NAVY, marginTop: 2 }}>{k.text ? k.v : <N v={k.v} c={k.c || NAVY} />}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       <div style={{ height: 6, background: `linear-gradient(90deg, ${NAVY}, ${NAVY_2}, ${NAVY})` }} />
     </div>
