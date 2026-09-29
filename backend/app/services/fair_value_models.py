@@ -271,8 +271,21 @@ class Base:
     ebitda_n: float | None = None
 
 
+def _same_company(annual: list[dict], shares: float | None) -> list[dict]:
+    """سنواتُ الشركة بهيكلها الحاليّ (D545): سنةٌ عددُ أسهمها يبعد عن اليوم أكثرَ من
+    الثلث قبلَ إعادة هيكلة (توزيعُ حصّةٍ أو تخفيضُ رأس مال) — شركةٌ أخرى لا تُطبَّع
+    بها هوامشُ اليوم. قِيس: صافولا 911 مليونَ سهمٍ في 2023 و300 مليونٍ اليوم، و2024
+    فيها ربحُ توزيع حصّة المراعي (13 ملياراً تشغيلياً) — فكانت هوامشُها المطبَّعة
+    ضعفَ هامشها الحاليّ والعادلُ +194٪."""
+    if not shares:
+        return annual
+    keep = [p for p in annual if not _n(p.get("shares_outstanding"))
+            or shares / 1.5 <= p["shares_outstanding"] <= shares * 1.5]
+    return keep or annual[-1:]
+
+
 def base_of(i: Inputs) -> Base | None:
-    a = i.annual[-3:]
+    a = _same_company(i.annual[-3:], i.shares)
     rev = _n(i.ttm.get("revenue")) or _n(a[-1].get("revenue") if a else None)
     if not rev or rev <= 0 or not i.shares or i.shares <= 0:
         return None
@@ -356,9 +369,24 @@ def _fcff_value(bs: Base, shares, years, g1, r, tv_mult=None, tv_on="rev"):
     return (ev - bs.net_debt) / shares
 
 
+def _ev_sales_adj(i: Inputs, bs: Base) -> tuple[list[float], float]:
+    """مضاعفُ الإيراد مصحَّحاً بالهامش (D545): الإيرادُ لا يساوي الإيرادَ حين يختلف
+    ما يبقى منه. فمضاعفُ الأقران يُضرب في هامش EBITDA للشركة ÷ وسيط هامش الأقران
+    (مقيَّداً بين الربع والضعفين). قِيس: صافولا بهامشٍ 10٪ تُقيَّم بمضاعف أقرانٍ
+    هامشُهم أعلى — فخرج نموذجا الإيراد 166 و129 لسهمٍ بـ24."""
+    xs = i.peers.get("ev_sales") or []
+    pm = [r.get("ebitda_margin") for r in ((i.peers.get("_rec") or {}).values())
+          if isinstance(r, dict) and isinstance(r.get("ebitda_margin"), (int, float)) and r["ebitda_margin"] > 0]
+    own = bs.ebitda_margin_n
+    if not xs or len(pm) < MIN_PEERS or not own or own <= 0:
+        return xs, 1.0
+    f = min(max(own / statistics.median(pm), 0.25), 2.0)
+    return [(x[0] * f, x[1]) if isinstance(x, tuple) else x * f for x in xs], f
+
+
 def cashflow_models(i: Inputs, bs: Base) -> list[dict]:
     out = []
-    ev_s = i.peers.get("ev_sales") or []
+    ev_s = _ev_sales_adj(i, bs)[0]
     ev_e = i.peers.get("ev_ebitda") or []
     for years in (5, 10):
         if len(ev_e) >= MIN_PEERS and bs.ebitda_margin_n and bs.ebitda_margin_n > 0:
@@ -527,7 +555,7 @@ def multiple_models(i: Inputs, bs: Base) -> list[dict]:
     for key, base, name, label in (("ev_ebit", bs.ebit_n, "مضاعفُ قيمة المنشأة/الربح التشغيليّ", "الربحُ التشغيليّ المطبَّع"),
                                    ("ev_ebitda", bs.ebitda_n, "مضاعفُ قيمة المنشأة/EBITDA", "EBITDA المطبَّع (إهلاكُ تداول)"),
                                    ("ev_sales", bs.rev, "مضاعفُ قيمة المنشأة/الإيراد", "إيرادُ 12 شهراً")):
-        xs = i.peers.get(key) or []
+        xs = (_ev_sales_adj(i, bs)[0] if key == "ev_sales" else i.peers.get(key)) or []
         if not base or base <= 0 or len(xs) < MIN_PEERS:
             continue
         m, q1, q3 = _wq(xs, .5), _wq(xs, .25), _wq(xs, .75)
@@ -792,7 +820,8 @@ def _peer_multiples(sym: str, peers: list[str], rows: dict) -> dict:
                              ("ev_ebitda", ev / ebitda if ebitda and ebitda > 0 else None, 0, 40)):
             if v is not None and lo < v <= hi:
                 out[k].append(round(v, 3))
-                out["_rec"].setdefault(s, {"rev": rev, "margin": (ni / rev) if (ni is not None and rev) else None})[k] = round(v, 3)
+                out["_rec"].setdefault(s, {"rev": rev, "margin": (ni / rev) if (ni is not None and rev) else None,
+                                           "ebitda_margin": (ebitda / rev) if (ebitda is not None and rev) else None})[k] = round(v, 3)
     return out
 
 
@@ -888,7 +917,7 @@ async def gather(symbol: str) -> Inputs | None:
                      if (r or {}).get("sector_en") == sector and is_main(str(s).replace(".SR", "")))
     peers = [p for p in members if p != sym]
     from app.services import cache
-    ck = f"fvm:peers:v5:{sector}"
+    ck = f"fvm:peers:v6:{sector}"
     table = cache.get(ck)
     if table is None:
         table = _peer_multiples(sym, members, rows)
@@ -915,6 +944,7 @@ async def gather(symbol: str) -> Inputs | None:
     pw = {k: [(rec[k], weights[ps]) for ps, rec in (pm.get("_rec") or {}).items() if k in rec]
           for k in ("pe", "pb", "ps", "pocf", "ev_ebit", "ev_sales", "ev_ebitda")}
     pw["yield"] = pm.get("yield") or []
+    pw["_rec"] = pm.get("_rec") or {}                  # D545: هوامشُ الأقران لتصحيح مضاعف الإيراد
     peers = sorted(peers, key=lambda x: -weights.get(x, 0))
     pm = pw
     dps = None

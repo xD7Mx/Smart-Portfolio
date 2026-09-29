@@ -1,159 +1,105 @@
 import React, { useState } from "react";
-import { Eye, FileDown, X } from "lucide-react";
+import { Eye, Download, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { marketApi } from "../../services/api";
+import ReportViewer from "../reports/ReportViewer";
+import CompanyReportDocument, { qName } from "../reports/CompanyReportDocument";
 
-/* ══ تقريرُ الربع ══ (D528) — أرقامٌ وعناوين، بلا حواشٍ. */
+/* ══ تقاريرُ الشركة ══ (D528 · D531 · D544) — كلُّ ربعٍ وكلُّ سنة، بورق تقرير
+   المحفظة وعارضه وتصديره نفسِها: «عرض» و«تحميل» كأرشيف التقارير. */
 
-const num = (v: any, d = 0) =>
-  typeof v === "number" ? v.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d }) : "—";
-const mn = (v: any, key: string) => (key === "eps" ? num(v, 2) : typeof v === "number" ? num(v / 1e6) : "—");
-const pct = (v: any) => (typeof v === "number" ? `${v >= 0 ? "+" : ""}${v.toFixed(1)}%` : "—");
-const tone = (v: any) => (typeof v === "number" ? (v >= 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]") : "text-[var(--ink-muted)]");
-const qName = (iso?: string) => {
-  if (!iso) return "—";
-  const m = Number(iso.slice(5, 7));
-  return `الربع ${m <= 3 ? "الأول" : m <= 6 ? "الثاني" : m <= 9 ? "الثالث" : "الرابع"} ${iso.slice(0, 4)}`;
-};
-const REC_TONE: Record<string, string> = { "شراء": "var(--pos-ink)", "بيع": "var(--neg-ink)", "حياد": "var(--warn-ink)" };
+type Pick = { asOf: string; kind: "quarter" | "annual"; download?: boolean };
 
-export function QuarterReportView({ symbol, asOf, kind = "quarter" }: { symbol: string; asOf?: string; kind?: "quarter" | "annual" }) {
-  const { data: r, isLoading } = useQuery({
-    queryKey: ["quarter-report", symbol, asOf, kind],
-    queryFn: () => marketApi.quarterReport(symbol, asOf, kind).then(x => x.data?.data || null),
+function CompanyReportModal({ symbol, pick, onClose }: { symbol: string; pick: Pick; onClose: () => void }) {
+  const { data } = useQuery({
+    queryKey: ["quarter-report", symbol, pick.asOf, pick.kind],
+    queryFn: () => marketApi.quarterReport(symbol, pick.asOf, pick.kind).then(x => x.data?.data || null),
     staleTime: 30 * 60 * 1000,
   });
-  if (isLoading) return <div className="h-72 skeleton rounded-xl" />;
-  if (!r) return <div className="card py-10 text-center text-sm text-[var(--ink-muted)]">غير متوفّر</div>;
-  const h = r.header;
-  const t = r.table || {};
-  const kv = (label: string, v: React.ReactNode, cls = "text-[var(--ink)]") => (
-    <div className="flex items-center justify-between gap-2 min-h-[32px] border-b border-[var(--hairline)] last:border-0">
-      <span className="text-[12px] text-[var(--ink-muted)]">{label}</span>
-      <span className={"text-[13px] font-bold tabular-nums " + cls} dir="ltr">{v}</span>
-    </div>
-  );
+  const label = pick.kind === "annual" ? `التقرير السنوي ${pick.asOf.slice(0, 4)}` : `تقرير ${qName(pick.asOf)}`;
   return (
-    <div className="space-y-3">
-      <div className="card p-4 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-base font-bold text-[var(--ink)]">{t.annual ? `النتائج السنوية ${String(t.as_of || "").slice(0, 4)}` : `نتائج ${qName(t.as_of)}`}</h2>
-          {!h ? null : h.recommendation
-            ? <span className="px-3 py-1 rounded-lg text-[13px] font-bold border"
-                style={{ color: REC_TONE[h.recommendation], borderColor: REC_TONE[h.recommendation] }}>{h.recommendation}</span>
-            : <span className="text-[12px] text-[var(--ink-muted)]">غير متوفّر</span>}
-        </div>
-        {h && <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-          {kv("آخر سعر إغلاق", num(h.price, 2))}
-          {kv("التغيّر", pct(h.change), tone(h.change))}
-          {kv("السعر المستهدف خلال 12 شهراً", num(h.target_12m, 2))}
-          {kv("عائد الأرباح الموزّعة", typeof h.dividend_yield === "number" ? `${h.dividend_yield.toFixed(1)}%` : "—")}
-          {kv("إجمالي العوائد المتوقّعة", pct(h.total_return), tone(h.total_return))}
-        </div>}
-      </div>
-
-      <div className="card p-0 overflow-x-auto">
-        {!(t.rows || []).length ? (
-          <div className="py-10 text-center text-sm text-[var(--ink-muted)]">غير متوفّر</div>
-        ) : (
-          <table className="w-full text-[11px] sm:text-[12px]">
-            <thead>
-              <tr className="bg-[var(--surface)] text-[var(--ink-muted)]">
-                <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">البند</th>
-                <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">{qName(t.as_of)}</th>
-                <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">{t.annual ? String(t.prior_year || "").slice(0, 4) : qName(t.prior_year)}</th>
-                <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">سنوي</th>
-                {!t.annual && <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">{qName(t.prev_quarter)}</th>}
-                {!t.annual && <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">ربعي</th>}
-                <th className="text-right px-1 py-2 sm:p-2 font-bold leading-tight align-bottom">توقّعاتنا</th>
-              </tr>
-            </thead>
-            <tbody>
-              {t.rows.map((x: any) => (
-                <tr key={x.key} className="border-t border-[var(--hairline)]">
-                  <td className="px-1 py-2 sm:p-2 text-[var(--ink)] font-semibold leading-tight">{x.label}</td>
-                  <td className="px-1 py-2 sm:p-2 tabular-nums font-bold text-[var(--ink)]" dir="ltr" style={{ textAlign: "right" }}>{mn(x.cur, x.key)}</td>
-                  <td className="px-1 py-2 sm:p-2 tabular-nums text-[var(--ink)]" dir="ltr" style={{ textAlign: "right" }}>{mn(x.yoy_base, x.key)}</td>
-                  <td className={"px-1 py-2 sm:p-2 tabular-nums font-bold " + tone(x.yoy)} dir="ltr" style={{ textAlign: "right" }}>{pct(x.yoy)}</td>
-                  {!t.annual && <td className="px-1 py-2 sm:p-2 tabular-nums text-[var(--ink)]" dir="ltr" style={{ textAlign: "right" }}>{mn(x.prev, x.key)}</td>}
-                  {!t.annual && <td className={"px-1 py-2 sm:p-2 tabular-nums font-bold " + tone(x.qoq)} dir="ltr" style={{ textAlign: "right" }}>{pct(x.qoq)}</td>}
-                  <td className="px-1 py-2 sm:p-2 tabular-nums text-[var(--ink)]" dir="ltr" style={{ textAlign: "right" }}>{mn(x.expected, x.key)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="card p-4">
-          <div className="text-[13px] font-bold text-[var(--ink)] mb-1">بيانات السوق</div>
-          {kv("أعلى / أدنى سعر خلال 52 أسبوعاً", `${num(r.market?.high_52w, 2)} / ${num(r.market?.low_52w, 2)}`)}
-          {kv("القيمة السوقية (مليون ريال)", typeof r.market?.market_cap === "number" ? num(r.market.market_cap / 1e6) : "—")}
-          {kv("الأسهم (مليون سهم)", typeof r.market?.shares === "number" ? num(r.market.shares / 1e6) : "—")}
-        </div>
-        <div className="card p-4">
-          <div className="text-[13px] font-bold text-[var(--ink)] mb-1">الأداء مقابل تاسي</div>
-          <div className="grid grid-cols-3 gap-2 text-[11px] text-[var(--ink-muted)] min-h-[32px] items-center">
-            <span>المدّة</span><span>السهم</span><span>تاسي</span>
-          </div>
-          {([["6m", "نصف عام"], ["1y", "عام"], ["2y", "عامان"]] as const).map(([k, lbl]) => (
-            <div key={k} className="grid grid-cols-3 gap-2 min-h-[32px] items-center border-t border-[var(--hairline)] text-[13px]">
-              <span className="text-[var(--ink)]">{lbl}</span>
-              <span className={"tabular-nums font-bold " + tone(r.performance?.[k]?.stock)} dir="ltr" style={{ textAlign: "right" }}>{pct(r.performance?.[k]?.stock)}</span>
-              <span className={"tabular-nums font-bold " + tone(r.performance?.[k]?.tasi)} dir="ltr" style={{ textAlign: "right" }}>{pct(r.performance?.[k]?.tasi)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+    <ReportViewer data={data} title={label} filename={`${symbol}-${label}.png`} autoDownload={!!pick.download}
+      onClose={onClose} render={ref => <CompanyReportDocument ref={ref} data={data} />} />
   );
 }
 
-/* ══ تقاريرُ الشركة (D531) — كلُّ ربعٍ وكلُّ سنة، بزرَّي «عرض» و«PDF» كتقارير المحفظة ══ */
 export default function QuarterReport({ symbol }: { symbol: string }) {
-  const [open, setOpen] = useState<{ asOf: string; kind: "quarter" | "annual"; print?: boolean } | null>(null);
+  const [open, setOpen] = useState<Pick | null>(null);
   const { data: cat, isLoading } = useQuery({
     queryKey: ["quarter-reports", symbol],
     queryFn: () => marketApi.quarterReports(symbol).then(x => x.data?.data || null),
     staleTime: 30 * 60 * 1000,
   });
-  React.useEffect(() => {
-    if (!open?.print) return;
-    const t = setTimeout(() => window.print(), 1200);
-    return () => clearTimeout(t);
-  }, [open]);
   if (isLoading) return <div className="h-40 skeleton rounded-xl" />;
-  const items: { asOf: string; kind: "quarter" | "annual"; label: string }[] = [
-    ...(cat?.years || []).map((y: string) => ({ asOf: y, kind: "annual" as const, label: `التقرير السنوي ${y.slice(0, 4)}` })),
-    ...(cat?.quarters || []).map((q: string) => ({ asOf: q, kind: "quarter" as const, label: `تقرير ${qName(q)}` })),
+  const items: (Pick & { type: string; label: string })[] = [
+    ...(cat?.years || []).map((y: string) => ({ asOf: y, kind: "annual" as const, type: "سنوي", label: `النتائج السنوية ${y.slice(0, 4)}` })),
+    ...(cat?.quarters || []).map((q: string) => ({ asOf: q, kind: "quarter" as const, type: "ربع سنوي", label: `نتائج ${qName(q)}` })),
   ].sort((a, b) => (a.asOf < b.asOf ? 1 : a.asOf > b.asOf ? -1 : a.kind === "annual" ? -1 : 1));
   return (
-    <div className="space-y-3">
-      <div className="card p-0">
-        {!items.length ? (
-          <div className="py-10 text-center text-sm text-[var(--ink-muted)]">غير متوفّر</div>
-        ) : items.map(it => (
-          <div key={it.kind + it.asOf} className="flex items-center gap-2 px-4 min-h-[48px] border-b border-[var(--hairline)] last:border-0">
-            <span className="flex-1 text-[13px] font-semibold text-[var(--ink)]">{it.label}</span>
-            <button type="button" onClick={() => setOpen({ asOf: it.asOf, kind: it.kind })}
-              className="btn-ghost !py-1.5 text-xs min-h-[32px]"><Eye size={14} /> عرض</button>
-            <button type="button" onClick={() => setOpen({ asOf: it.asOf, kind: it.kind, print: true })}
-              className="btn-ghost !py-1.5 text-xs min-h-[32px]"><FileDown size={14} /> PDF</button>
-          </div>
-        ))}
+    <div className="card p-0">
+      <div className="flex items-center gap-2 p-4 border-b border-[var(--hairline)]">
+        <FileText size={16} className="text-[var(--brand-ink)]" />
+        <h2 className="card-title">تقارير الشركة</h2>
       </div>
-      {open && (
-        <div className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-6" style={{ background: "var(--bg)" }}>
-          <div className="max-w-3xl mx-auto space-y-3 print-area">
-            <div className="flex justify-end no-print">
-              <button type="button" onClick={() => setOpen(null)} aria-label="إغلاق"
-                className="btn-ghost !p-2 min-h-[32px]"><X size={16} /></button>
-            </div>
-            <QuarterReportView symbol={symbol} asOf={open.asOf} kind={open.kind} />
-          </div>
+      {!items.length ? (
+        <div className="text-center py-12 text-[var(--ink-muted)]">
+          <FileText size={32} className="mx-auto mb-2 opacity-50" />
         </div>
+      ) : (
+        <>
+          <div className="md:hidden p-3 space-y-2.5">
+            {items.map(it => (
+              <div key={it.kind + it.asOf} className="rounded-xl border border-[var(--hairline)] panel p-3.5">
+                <div className="flex items-center justify-between gap-2 mb-2.5">
+                  <span className="tag-b">{it.type}</span>
+                  <span className="text-[11px] text-[var(--ink-muted)] tabular-nums">{it.asOf}</span>
+                </div>
+                <p className="text-[var(--ink)] text-sm font-semibold mb-3">{it.label}</p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setOpen(it)} className="btn-ghost flex-1 justify-center !py-2 text-xs">
+                    <Eye size={14} /> عرض
+                  </button>
+                  <button onClick={() => setOpen({ ...it, download: true })} className="btn-ghost flex-1 justify-center !py-2 text-xs">
+                    <Download size={14} /> تحميل
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[var(--hairline)]">
+                  <th className="th text-start">النوع</th>
+                  <th className="th text-start">الفترة</th>
+                  <th className="th text-start">نهاية الفترة</th>
+                  <th className="th text-start">الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(it => (
+                  <tr key={it.kind + it.asOf} className="hover:bg-[var(--field)] transition-colors">
+                    <td className="td"><span className="tag-b">{it.type}</span></td>
+                    <td className="td text-[var(--ink)]">{it.label}</td>
+                    <td className="td text-[var(--ink-muted)] tabular-nums">{it.asOf}</td>
+                    <td className="td">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setOpen(it)} title="عرض" className="p-1.5 rounded-lg text-[var(--ink-muted)] hover:text-[var(--brand-ink)] transition-all">
+                          <Eye size={15} />
+                        </button>
+                        <button onClick={() => setOpen({ ...it, download: true })} title="تحميل صورة" className="p-1.5 rounded-lg text-[var(--ink-muted)] hover:text-[var(--pos-ink)] transition-all">
+                          <Download size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
+      {open && <CompanyReportModal symbol={symbol} pick={open} onClose={() => setOpen(null)} />}
     </div>
   );
 }

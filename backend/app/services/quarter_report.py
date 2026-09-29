@@ -194,7 +194,7 @@ async def build(symbol: str, as_of: str | None = None, kind: str = "quarter") ->
     except Exception:                                             # noqa: BLE001
         perf = {}
     return {
-        "symbol": sym, "bank": arch == "bank",
+        "symbol": sym, "name": srow.get("name") or snap.get("name"), "bank": arch == "bank",
         "latest": bool(latest), "kind": kind,
         "header": None if not latest else {"recommendation": recommendation(total), "price": price, "target_12m": target,
                    "change": change, "dividend_yield": dy, "total_return": total},

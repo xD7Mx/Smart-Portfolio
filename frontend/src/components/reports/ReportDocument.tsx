@@ -17,6 +17,8 @@ const RED = "#c0273c";
 const PAPER_INK = "#241f1a";
 const PAPER_MUTED = "#6b6255";
 const ON_NAVY = "#efe7ff";
+/* لوحُ الورق مشتركٌ مع ورقة تقرير الشركة (D544) — هويّةٌ واحدة */
+export const PAPER = { NAVY, NAVY_2, GOLD, GOLD_L, GREEN, RED, INK: PAPER_INK, MUTED: PAPER_MUTED, ON_NAVY, BG: "#faf6ee" };
 
 export interface ReportDocData {
   period?: string;
