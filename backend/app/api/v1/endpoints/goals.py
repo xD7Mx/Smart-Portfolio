@@ -177,7 +177,9 @@ async def add_goal(data: GoalCreate, db: AsyncSession = Depends(get_db)):
         portfolio = Portfolio(name="My Portfolio")
         db.add(portfolio)
         await db.flush()
-    goal = Goal(**data.model_dump(), portfolio_id=portfolio.id)
+    from app.core.portfolio_scope import active_pid as _apid
+    # ‏D535: هدفُ المحفظة النشطة لا أوّلِ محفظةٍ في القاعدة.
+    goal = Goal(**data.model_dump(), portfolio_id=_apid() or portfolio.id)
     db.add(goal)
     await db.commit()
     await db.refresh(goal)

@@ -188,12 +188,18 @@ async def _get_cash(db: AsyncSession) -> Cash:
     if not cash:
         # Cash FK requires a Portfolio row — bootstrap it on first use
         from app.models.portfolio import Portfolio
-        p = (await db.execute(select(Portfolio).limit(1))).scalar_one_or_none()
-        if not p:
-            p = Portfolio(name="My Portfolio")
-            db.add(p)
-            await db.flush()
-        cash = Cash(portfolio_id=p.id, available_cash=0, total_cash=0)
+        from app.core.portfolio_scope import active_pid as _apid
+        # ‏D535: سيولةُ المحفظة النشطة — كانت تُنشأ لأوّل محفظةٍ في القاعدة، فتذهب
+        # سيولةُ المحفظة الجديدة إلى الرئيسية ولا تُرى في مكانها.
+        pid = _apid()
+        if pid is None:
+            p = (await db.execute(select(Portfolio).limit(1))).scalar_one_or_none()
+            if not p:
+                p = Portfolio(name="My Portfolio")
+                db.add(p)
+                await db.flush()
+            pid = p.id
+        cash = Cash(portfolio_id=pid, available_cash=0, total_cash=0)
         db.add(cash)
         await db.flush()
     return cash

@@ -275,7 +275,8 @@ async def init_db() -> None:
             # reports + allocation: عزلهما بالمحفظة أيضًا (تقرير كل محفظة، وأوزان
             # التوزيع النسبي الخاصة بها). allocation كان company_id فريدًا عالميًا
             # → نُسقط القيد ونجعله فريدًا لكل (محفظة، شركة).
-            for tbl in ("reports", "allocation"):
+            # ‏D535: وقائمةُ المراقبة ومجموعاتُها لكلّ محفظة — القائمُ يبقى للافتراضية.
+            for tbl in ("reports", "allocation", "watchlist_groups", "watchlist"):
                 try:
                     await _safe(
                         f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS portfolio_id INTEGER "

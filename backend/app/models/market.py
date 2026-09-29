@@ -200,6 +200,8 @@ class WatchlistGroup(Base):
     __tablename__ = "watchlist_groups"
 
     id = Column(Integer, primary_key=True, index=True)
+    # ‏D535: قائمةُ المراقبة لكلّ محفظةٍ على حدة (بأمر المالك).
+    portfolio_id = Column(Integer, ForeignKey("portfolio.id", ondelete="CASCADE"), nullable=True, index=True)
     name = Column(String(100), nullable=False)
     color = Column(String(20), default="#3B82F6")
     is_default = Column(Boolean, default=False)
@@ -211,6 +213,7 @@ class Watchlist(Base):
     __tablename__ = "watchlist"
 
     id = Column(Integer, primary_key=True, index=True)
+    portfolio_id = Column(Integer, ForeignKey("portfolio.id", ondelete="CASCADE"), nullable=True, index=True)
     symbol = Column(String(20), nullable=False, index=True)
     name = Column(String(200))
     group_id = Column(Integer, ForeignKey("watchlist_groups.id"), index=True)

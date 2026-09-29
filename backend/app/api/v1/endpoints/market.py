@@ -1416,9 +1416,11 @@ async def _ensure_default_group(db: AsyncSession) -> int:
         if grp is None:
             raise last_err or RuntimeError("تعذّر تهيئة مجموعة المراقبة الافتراضية")
     # إسناد الرموز القديمة (بلا مجموعة) للمجموعة الافتراضية
-    await db.execute(
-        Watchlist.__table__.update().where(Watchlist.group_id.is_(None)).values(group_id=grp.id)
-    )
+    from app.core.portfolio_scope import active_pid as _apid
+    _upd = Watchlist.__table__.update().where(Watchlist.group_id.is_(None))
+    if _apid() is not None:          # D535: رموزُ هذه المحفظة وحدها
+        _upd = _upd.where(Watchlist.portfolio_id == _apid())
+    await db.execute(_upd.values(group_id=grp.id))
     await db.commit()
     return grp.id
 
@@ -1555,6 +1557,10 @@ async def remove_watchlist(symbol: str, group_id: int | None = None,
     إنذار. الحذف الشامل صار فعلاً صريحاً يُطلَب بـ all_groups=true لا سلوكاً
     ضمنياً يقع بالخطأ."""
     q = delete(Watchlist).where(Watchlist.symbol == symbol.strip().upper())
+    # ‏D535: الحذفُ لا يمرّ بمرشِّح المحفظة — فيُقصَر عليها صراحةً.
+    from app.core.portfolio_scope import active_pid as _apid
+    if _apid() is not None:
+        q = q.where(Watchlist.portfolio_id == _apid())
     if not all_groups:
         if group_id is None:
             group_id = await _ensure_default_group(db)

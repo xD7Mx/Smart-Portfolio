@@ -74,7 +74,17 @@ async def add_company(data: CompanyCreate, db: AsyncSession = Depends(get_db)):
     existing = (await db.execute(select(Company).where(Company.symbol == data.symbol))).scalar_one_or_none()
     if existing:
         if existing.status != "ARCHIVED":
-            raise HTTPException(status_code=400, detail="هذه الشركة موجودة بالفعل في المحفظة.")
+            # ══ الشركةُ واحدةٌ والحيازةُ لكلّ محفظة ══ (D535)
+            # الشركةُ سجلٌّ عامٌّ فريدُ الرمز، والحيازةُ للمحفظة. فكانت إضافتُها
+            # إلى محفظةٍ جديدةٍ ترفض «موجودة بالفعل» لأنها في المحفظة الأخرى.
+            # الحيازةُ تُقرأ بمرشِّح المحفظة النشطة: إن غابت عنها أُنشئت لها.
+            mine = (await db.execute(select(Holding.id).where(Holding.company_id == existing.id))).scalar_one_or_none()
+            if mine is not None:
+                raise HTTPException(status_code=400, detail="هذه الشركة موجودة بالفعل في المحفظة.")
+            db.add(Holding(company_id=existing.id, quantity=0, average_cost=0, invested_amount=0, market_value=0))
+            await db.commit()
+            await db.refresh(existing)
+            return success_response(data=_serialize(existing), message="Company added successfully.")
         existing.status = "ACTIVE"
         existing.company_name = data.resolved_name()
         existing.sector = data.sector or existing.sector

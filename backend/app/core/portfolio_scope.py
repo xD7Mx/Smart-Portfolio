@@ -33,6 +33,11 @@ def reset_scope() -> None:
     _read_all.set(False)
 
 
+def active_pid() -> int | None:
+    """المحفظةُ النشطة في هذا الطلب — للكتابات الجماعية التي لا يمرّ بها المرشِّح."""
+    return _active_pid.get()
+
+
 def is_aggregate() -> bool:
     """وضع التوحيد فعّال (قراءة مُجمَّعة عبر كل المحافظ)."""
     return _read_all.get()
@@ -41,8 +46,9 @@ def is_aggregate() -> bool:
 def _scoped_models():
     from app.models.portfolio import Holding, Note, PortfolioSnapshot
     from app.models.transaction import Transaction, Installment, Dividend, BonusShare, Cash, CashLedger
-    from app.models.market import Goal, Allocation, Report
-    return [Holding, Note, PortfolioSnapshot, Transaction, Installment, Dividend, BonusShare, Cash, CashLedger, Goal, Allocation, Report]
+    from app.models.market import Goal, Allocation, Report, Watchlist, WatchlistGroup
+    return [Holding, Note, PortfolioSnapshot, Transaction, Installment, Dividend, BonusShare, Cash, CashLedger, Goal, Allocation, Report,
+            Watchlist, WatchlistGroup]
 
 
 _installed = False
