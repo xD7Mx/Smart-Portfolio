@@ -614,14 +614,57 @@ def aggregate(models: list[dict], price: float, archetype: str | None) -> dict:
             "families": summary, "excluded": excluded, "weights_kind": kind}
 
 
+def _equity_only(i: Inputs) -> dict | None:
+    """مسارُ الحقوق والربح لمن لا إيرادَ منشوراً له (D519).
+
+    قِيس: خمسُ شركاتٍ (المصافي · أيان · تسهيل · صادرات · ثمار) إيرادُها في آخر سنةٍ
+    غائبٌ أو صفر — شركاتٌ قابضةٌ وماليةٌ يُسمّى دخلُها بغير «الإيراد» — فكان المحرّكُ
+    يرفض نماذجَها كلَّها. ومكرّرُ الربحية ومضاعفُ الدفترية لا يحتاجان إيراداً:
+    مضاعفُ الشركة التاريخيّ أوّلاً (D500) ثمّ وسيطُ الأقران، كما في المسار الكامل.
+    """
+    sh = i.shares
+    if not sh or sh <= 0 or not i.price:
+        return None
+    a = i.annual[-1] if i.annual else {}
+    eq = _n(i.balance.get("equity")) or _n(a.get("equity"))
+    ni = _n(i.ttm.get("net_income")) or _n(a.get("net_income"))
+    models = []
+    for key, base, name, label in (("pb", eq / sh if eq and eq > 0 else None, "مضاعفُ الدفترية", "الدفتريةُ للسهم"),
+                                   ("pe", ni / sh if ni and ni > 0 else None, "مكرّرُ الربحية", "ربحيةُ السهم")):
+        if not base:
+            continue
+        hx = (i.hist or {}).get(key) or []
+        xs, src = (hx, "مضاعفُ الشركة التاريخيّ") if len(hx) >= 3 else ((i.peers.get(key) or []), "وسيطُ الأقران")
+        if len(xs) < (3 if src.startswith("مضاعفُ الشركة") else MIN_PEERS):
+            continue
+        m, q1, q3 = _wq(xs, .5), _wq(xs, .25), _wq(xs, .75)
+        mdl = _model(f"peer_{key}", "multiples", name, base * m, base * q1, base * q3,
+                     [(label, f"{base:.2f}", ""), (src, f"{m:.2f}x", f"{q1:.2f}–{q3:.2f}x")])
+        if mdl and i.price / 10 <= mdl["value"] <= i.price * 10:
+            models.append(mdl)
+    if not models:
+        return None
+    vals = [x["value"] for x in models]
+    v = sum(vals) / len(vals)
+    return {"value": round(v, 2), "low": round(min(x["low"] for x in models), 2),
+            "high": round(max(x["high"] for x in models), 2),
+            "upside": round((v / i.price - 1) * 100, 2), "uncertainty": "مرتفع",
+            "models": models, "families": [], "excluded": [], "weights_kind": "equity_only",
+            "price": i.price, "note": "لا إيرادَ منشوراً — قُدِّر بالدفترية والربحية وحدهما"}
+
+
 def value(i: Inputs) -> dict:
-    bs = base_of(i)
-    if not bs:
-        return {"value": None, "reason": "لا إيرادَ أو لا عددَ أسهمٍ موثوق في الإفصاح"}
     # ══ قوائمُ قديمة لا تُقيَّم بها ورقةٌ اليوم (D474) ══ (قِيس: 1320 بقوائم 2021)
+    # (D519: قُدِّم على شرط الإيراد كي يسري على مسار الحقوق أيضاً.)
     if i.stale_days is not None and i.stale_days > STALE_STOP:
         return {"value": None, "reason": f"أحدثُ قوائم منشورة لدينا ({i.ttm_source}) أقدمُ من خمسة عشر شهراً — "
                                          "لا تُقيَّم ورقةٌ اليوم بقوائمَ قديمة", "price": i.price}
+    bs = base_of(i)
+    if not bs:
+        eo = _equity_only(i)
+        if eo:
+            return eo
+        return {"value": None, "reason": "لا إيرادَ أو لا عددَ أسهمٍ موثوق في الإفصاح"}
     set_name, allowed = model_set(i.sector, i.archetype)
     every = cashflow_models(i, bs) + equity_models(i, bs) + multiple_models(i, bs)
     # ══ نموذجٌ بعشرة أضعاف السعر أو عُشره خطأُ مدخلاتٍ لا رأيٌ ══
@@ -953,7 +996,7 @@ def _calibrated(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v23:{sym}"
+    ck = f"fvm:v24:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

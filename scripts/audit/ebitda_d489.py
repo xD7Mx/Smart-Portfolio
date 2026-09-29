@@ -202,5 +202,12 @@ finally:
 _bd = (_LG.load(_TM.STORE_KEY) or {}).get("boards") or {}
 check("9405" in _rows and _rows["9405"].get("price") == 21.91 and "2222" in _rows and _bd.get("main") == 1 and _bd.get("etf") == 1,
       "٣٠ D517 صناديقُ المؤشرات (94xx) في لقطة «تداول» من صفحة etfs-market-watch — كانت «بلا بيانات»", str(sorted(_rows)) + f" boards={_bd}")
+_A5 = [{"year": y, "as_of": f"{y}-12-31", "revenue": None, "net_income": 3.5e8, "equity": 9.5e8} for y in (2023, 2024, 2025)]
+_i5 = F.Inputs(symbol="X", price=8.65, shares=1.01e8, annual=_A5, ttm=dict(_A5[-1]), balance={"equity": 9.5e8},
+               ttm_source="t", sector="Food & Beverages", hist={"pb": [1.0, 1.2, 1.4], "pe": [3, 4, 5]}, peers={})
+_r5 = F.value(_i5)
+_i5.stale_days = 900
+check(_r5.get("value") and _r5.get("weights_kind") == "equity_only" and F.value(_i5).get("value") is None,
+      "٣١ D519 شركةٌ بلا إيرادٍ منشور تُقدَّر بالدفترية والربحية وحدهما (5 شركاتٍ كانت بلا سعرٍ عادل) — والقديمةُ تبقى محجوبة", str(_r5.get("value")))
 print(f"{'FAIL' if fail else 'PASS'} D488 · D489 — EBITDA تداول وشعاراتُها")
 sys.exit(fail)
