@@ -27,7 +27,10 @@ from loguru import logger
 
 STORE = "know:{}"
 YEARS = 5
-MAX_MB = 14                      # حدُّ الإرسال المضمَّن للنموذج ~20MB بعد الترميز
+MAX_MB = 10                      # حدُّ الملفّ: ذروةُ الذاكرة ~4 أضعافه (البايتات والترميز والطلب)
+# ‏لا يُفتح الملفُّ هنا فلا يلزم حدُّ المحلّل الثقيل (350MB): قِيس المتاحُ على الخادم 155MB،
+# والذروةُ هنا ~40MB — فيُترك للنظام أكثرُ من مئة.
+MIN_FREE_MB = 150
 NIGHT_FILES = 24                 # ملفّاتُ الليلة الواحدة — بالتتابع، لا أكثر
 BUDGET_SHARE = 0.6               # لا تُقرأ ملفّاتٌ إن استُهلك 60٪ من حصّة اليوم
 
@@ -51,9 +54,11 @@ def pick(links: list[dict], today: date | None = None) -> list[dict]:
         return []
     out = [links[0]]
     for y in range(today.year - 1, today.year - YEARS - 1, -1):          # الأحدثُ أوّلاً
-        win = [l for l in links if l["filed"][:4] == str(y + 1) and l["filed"][5:7] in ("01", "02", "03", "04")]
-        if win and win[0] not in out:
-            out.append(win[0])
+        # يناير–مارس أوّلاً: أبريل موسمُ الربع الأول، فلا يُؤخذ إلا إن لم يُودَع السنويُّ قبله
+        yr = [l for l in links if l["filed"][:4] == str(y + 1)]
+        win = [l for l in yr if l["filed"][5:7] in ("01", "02", "03")] or [l for l in yr if l["filed"][5:7] == "04"]
+        if win and win[-1] not in out:
+            out.append(win[-1])
     return out
 
 
@@ -116,7 +121,7 @@ async def learn(symbol: str, name: str = "", budget: int = 3, report: dict | Non
     """يقرأ ما لم يُقرأ من ملفّات الشركة (حتى `budget`) ويحفظ نقاطه. يعيد عددَ المقروء."""
     from app.services import lastgood
     from app.services.tadawul_http import fetch_bytes
-    from app.services.tadawul_pdf import MIN_FREE_MB, mem_available_mb, pdf_links
+    from app.services.tadawul_pdf import mem_available_mb, pdf_links
     sym = _sym(symbol)
     rec = load(sym)
     files = dict(rec.get("files") or {})

@@ -21,7 +21,7 @@ def check(ok, label, det=""):
 
 from app.services import file_reader as F
 L = [{"url": f"https://x/{d}.pdf", "filed": d, "referer": ""} for d in
-     ("2026-08-10", "2026-05-12", "2026-03-20", "2025-11-05", "2025-08-09", "2025-03-25", "2024-03-18",
+     ("2026-08-10", "2026-05-12", "2026-03-20", "2025-11-05", "2025-08-09", "2025-04-30", "2025-03-25", "2024-03-18",
       "2023-03-29", "2022-03-30", "2021-03-28", "2020-03-30")]
 p = [x["filed"] for x in F.pick(L, date(2026, 9, 30))]
 check(p == ["2026-08-10", "2026-03-20", "2025-03-25", "2024-03-18", "2023-03-29", "2022-03-30"],
@@ -42,7 +42,7 @@ check('"mime_type": "application/pdf"' in src and "fitz" not in src and "parse_p
       "٥ خفيف: الملفُّ يُرسَل للنموذج كما هو ولا يُفتح على الخادم (لا PyMuPDF ولا OCR)")
 check("mem_available_mb()" in src and "remaining_fraction(\"gemini\")" in src and "with background():" in src
       and "MAX_MB * 1024 * 1024" in src and F.NIGHT_FILES <= 30,
-      "٦ محروس: ذاكرةٌ، ونصيبُ الحصّة، وحدُّ الحجم، ودفعةٌ ليليّةٌ محدودة")
+      "٦ محروس (حدُّ ذاكرته الخاصّ، وملفُّ الربع الأول في أبريل لا يُحسب سنوياً): ذاكرةٌ، ونصيبُ الحصّة، وحدُّ الحجم، ودفعةٌ ليليّةٌ محدودة")
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 check("job_file_reader" in sch and 'id="file_reader_night"' in sch, "٧ ليلاً لا عند فتح الصفحة")
 ai = (ROOT / "backend/app/services/ai_content.py").read_text(encoding="utf-8")
