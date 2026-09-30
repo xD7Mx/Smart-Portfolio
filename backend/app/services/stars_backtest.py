@@ -336,7 +336,7 @@ def run(data: dict, uni: dict[str, dict], stm: dict, off: set[str] | None = None
 async def get(off: set[str] | None = None) -> dict | None:
     """الاختبارُ لمجموعة المعايير المفعّلة — مخزَّنٌ اثنتي عشرةَ ساعة."""
     from app.services import cache, lastgood
-    key = "stars:bt:" + (",".join(sorted(off or ())) or "all")
+    key = "stars:bt:v2:" + (",".join(sorted(off or ())) or "all")
     hit = cache.get(key)
     if hit is not None:
         return hit
