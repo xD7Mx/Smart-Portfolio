@@ -1,6 +1,6 @@
 """
 Target weights & rebalancing — decision support only, never auto-executes.
-Weights are % of investable capital (market value + available cash).
+Weights are % of investable capital (paid cost of holdings + available cash) — D562.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,6 +36,12 @@ class TargetsUpdate(BaseModel):
     items: list[TargetItem]
 
 
+def held(h) -> float:
+    """ما يملكه المالكُ في الشركة بتكلفته المدفوعة (‏D562)؛ وإن غابت فبقيمته السوقية."""
+    v = float(h.invested_amount or 0)
+    return v if v > 0 else float(h.market_value or 0)
+
+
 async def _snapshot(db: AsyncSession):
     # ترتيب المالك من شاشة الحيازات — يسري على كل بطاقة تعرض شركات.
     result = await db.execute(
@@ -46,7 +52,9 @@ async def _snapshot(db: AsyncSession):
     cash_row = (await db.execute(select(Cash).limit(1))).scalar_one_or_none()
     cash = float(cash_row.available_cash or 0) if cash_row else 0.0
     total_mv = sum(float(h.market_value or 0) for h in holdings)
-    investable = total_mv + cash
+    # ‏D562 بأمر المالك: رأسُ المال = **المدفوع** في الأسهم + السيولة، وما يملكه من كلّ شركةٍ
+    # يُقاس بما دفعه فيها لا بسعر اليوم — فلا يتحرّك المقترحُ بصعود السعر أو هبوطه.
+    investable = sum(held(h) for h in holdings) + cash
     targets = {a.company_id: float(a.target_weight or 0)
                for a in (await db.execute(select(Allocation))).scalars().all()}
     return holdings, cash, total_mv, investable, targets
@@ -103,7 +111,7 @@ async def get_allocation(db: AsyncSession = Depends(get_db)):
             # ما ينقص الشركةَ لبلوغ هدفها، لا «الوزنُ × السيولة» الذي يُهمل ما تملكه أصلاً
             # (قِيس: الراجحي ريت 2.35٪ وهدفُه 2.8٪ — اقتُرح له 6,976 فيصير 4.5٪؛ وحاجتُه ~1,490).
             # تموّله إعادةُ الاستثمار بحصّة الوزن أوّلاً ثمّ السيولةُ الباقي — كإعادة التوازن.
-            need = max(0.0, tw / 100 * investable - mv)
+            need = max(0.0, tw / 100 * investable - held(h))
             reinvest_share = round(min(need, tw / 100 * pool), 2)
             liquidity_share = round(need - reinvest_share, 2)
             total_amount = round(need, 2)
@@ -115,7 +123,7 @@ async def get_allocation(db: AsyncSession = Depends(get_db)):
             "symbol": h.company.symbol,
             "name": h.company.company_name,
             "market_value": mv,
-            "current_weight": round(mv / investable * 100, 2) if investable else 0,
+            "current_weight": round(held(h) / investable * 100, 2) if investable else 0,   # بالتكلفة (D562)
             "target_weight": tw,
             "last_price": lp,
             # None تعني «غير متوفّر» — لا صفراً يُقرأ «لا توزيعات».
@@ -224,7 +232,7 @@ async def calculate_rebalance(db: AsyncSession = Depends(get_db)):
         target_pct = targets.get(h.company_id, 0)
         mv = float(h.market_value or 0)
         target_value = investable * target_pct / 100
-        delta = target_value - mv
+        delta = target_value - held(h)                       # ‏D562: بالمدفوع لا بسعر اليوم
         if abs(delta) < max(1.0, investable * 0.002):  # ignore noise < 0.2%
             action = "HOLD"
         else:
@@ -245,7 +253,7 @@ async def calculate_rebalance(db: AsyncSession = Depends(get_db)):
             "company_id": h.company_id,
             "symbol": h.company.symbol,
             "name": h.company.company_name,
-            "current_weight": round(mv / investable * 100, 2),
+            "current_weight": round(held(h) / investable * 100, 2),
             "target_weight": target_pct,
             "delta_value": round(delta, 2),
             "est_shares": round(abs(delta) / lp, 2) if lp else None,

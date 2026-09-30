@@ -157,13 +157,23 @@ const RB = { investable: 1_000_000, lastPrice: 50, freshCash: 100_000, reinvestP
       "١٨ دون المستهدف ⇒ شراءُ ما ينقصه من رأس المال كلّه (D561)", `${r.side} · ${r.totalAmount}`);
 }
 
-// ١٨ب · ‏D561 بأرقام المالك: الراجحي ريت 2.35٪ من 331,278 وهدفُه 2.8٪ ⇒ ~1,491 لا 6,976.
+// ١٨ب · ‏D561 · D562 بأرقام المالك: ما يملكه يُطرح **بتكلفته المدفوعة** (8,086.21) من هدفه
+//        على رأس المال (المدفوع + السيولة) — لا بقيمته السوقية ولا بحصّة السيولة وحدها.
 {
-  const r = rebalanceRow({ investable: 331277.74, lastPrice: 7.73, freshCash: 242759.1, reinvestPool: 6388.74,
-                           currentWeight: 7784.11 / 331277.74 * 100, targetWeight: 2.8 });
-  say(r.side === "buy" && Math.abs(r.totalAmount - 1491.67) < 1 && near(r.reinvestShare + r.liquidityShare, r.totalAmount),
-      "١٨ب الراجحي ريت: يُكمَّل إلى هدفه من رأس المال كلّه (~1,491) ولا يُعطى 2.8٪ من السيولة (6,976)",
-      `${r.totalAmount?.toFixed(2)} · إعادة ${r.reinvestShare?.toFixed(2)} · سيولة ${r.liquidityShare?.toFixed(2)}`);
+  const INV = 330000;                                   // المدفوعُ + السيولة (رقمٌ للاختبار)
+  const r = rebalanceRow({ investable: INV, lastPrice: 7.73, freshCash: 242759.1, reinvestPool: 6388.74,
+                           currentWeight: 8086.21 / INV * 100, targetWeight: 2.8 });
+  const want = 0.028 * INV - 8086.21;                    // 1,153.79
+  say(r.side === "buy" && Math.abs(r.totalAmount - want) < 0.5 && near(r.reinvestShare + r.liquidityShare, r.totalAmount),
+      "١٨ب الراجحي ريت: يُكمَّل إلى هدفه بطرح المدفوع فيه من رأس المال (المدفوع + السيولة)",
+      `${r.totalAmount?.toFixed(2)} (المتوقَّع ${want.toFixed(2)})`);
+}
+{
+  const api = readFileSync(new URL("../../backend/app/api/v1/endpoints/allocation.py", import.meta.url), "utf-8");
+  const pg = readFileSync(new URL("../../frontend/src/pages/PortfolioPage.tsx", import.meta.url), "utf-8");
+  say(/investable = sum\(held\(h\) for h in holdings\) \+ cash/.test(api) && /tw \/ 100 \* investable - held\(h\)/.test(api)
+      && /delta = target_value - held\(h\)/.test(api) && /investable: Number\(alloc\?\.investable\)/.test(pg),
+      "١٨ج D562 الخادمُ والواجهةُ على أساسٍ واحد: المدفوعُ + السيولة، وما يُملك بتكلفته");
 }
 
 // ١٩ · فائضٌ لا يبلغ سعرَ سهمٍ واحد لا يُقترح — رقمٌ لا يُنفَّذ ليس نصيحة.
