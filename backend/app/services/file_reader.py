@@ -89,10 +89,11 @@ async def _read_pdf(data: bytes, name: str, sym: str) -> dict | None:
         return None
     from app.services.ai_content import _extract_json_obj
     import asyncio
-    body = {"contents": [{"parts": [
-                {"inline_data": {"mime_type": "application/pdf", "data": base64.b64encode(data).decode()}},
-                {"text": PROMPT.format(name=name, sym=sym)}]}],
-            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1500}}
+    # ‏الطلبُ يُبنى بايتاتٍ مباشرةً: json.dumps لسلسلةٍ بميجابايتات ينسخها مرّتين أخريين
+    tail = json.dumps({"text": PROMPT.format(name=name, sym=sym)}, ensure_ascii=False).encode()
+    body = (b'{"contents":[{"parts":[{"inline_data":{"mime_type":"application/pdf","data":"'
+            + base64.b64encode(data) + b'"}},' + tail
+            + b']}],"generationConfig":{"temperature":0.1,"maxOutputTokens":1500}}')
     del data
     # ‏503 «مشغول» عارضٌ عند المزوّد (قِيس مرّتين): محاولةٌ ثانيةٌ بعد مهلة، ثمّ ثالثة (لا بديلَ: 2.5-flash غيرُ متاحٍ لهذا الحساب، و3.5 حصّتُه 20 يومياً)
     for i, model in enumerate((settings.AI_MODEL,) * 3):
@@ -102,7 +103,7 @@ async def _read_pdf(data: bytes, name: str, sym: str) -> dict | None:
         try:
             record("gemini")
             async with httpx.AsyncClient(timeout=120) as c:
-                r = await c.post(url, json=body)
+                r = await c.post(url, content=body, headers={"Content-Type": "application/json"})
             if r.status_code in (429, 500, 503) and i < 2:
                 logger.info("القارئ البصري {}: HTTP {} — يُعاد: {}", sym, r.status_code, r.text[:160].replace(settings.AI_API_KEY, "***"))
                 await asyncio.sleep(15 * (i + 1))
@@ -117,6 +118,17 @@ async def _read_pdf(data: bytes, name: str, sym: str) -> dict | None:
             logger.warning("القارئ البصري {}: {}", sym, type(e).__name__)
             return None
     return None
+
+
+def _trim() -> None:
+    """يُعيد الذاكرةَ إلى النظام بعد كلّ ملفّ — لا تبقى محجوزةً في كومة بايثون."""
+    import gc
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:                                             # noqa: BLE001
+        pass
 
 
 def prune(files: dict, today: date | None = None) -> dict:
@@ -160,6 +172,7 @@ async def learn(symbol: str, name: str = "", budget: int = 3, report: dict | Non
             continue
         obj = await _read_pdf(data, name or sym, sym)
         del data
+        _trim()
         if not obj:
             if report is not None:
                 report["تعذّرت القراءة"] = report.get("تعذّرت القراءة", 0) + 1

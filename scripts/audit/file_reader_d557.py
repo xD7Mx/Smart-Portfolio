@@ -38,13 +38,15 @@ check(k[0].startswith("[فترة 2026-06-30] الإيراد") and any("[سنوي
       and any("تحذير" in x for x in k), "٣ المعرفة: أحدثُ فترةٍ بتفصيلها وحكمُ كلّ سنةٍ وتحذيراتُها", str(k))
 check(F.coverage("9999") == {"files": 2, "from": "2025-12-31", "to": "2026-06-30"}, "٤ التغطية")
 src = (ROOT / "backend/app/services/file_reader.py").read_text(encoding="utf-8")
-check('"mime_type": "application/pdf"' in src and "fitz" not in src and "parse_pdf" not in src and "ocr" not in src.lower().replace("القراءة الضوئية", ""),
+check('"mime_type":"application/pdf"' in src and "fitz" not in src and "parse_pdf" not in src and "ocr" not in src.lower().replace("القراءة الضوئية", ""),
       "٥ خفيف: الملفُّ يُرسَل للنموذج كما هو ولا يُفتح على الخادم (لا PyMuPDF ولا OCR)")
 check("mem_available_mb()" in src and "remaining_fraction(\"gemini\")" in src and "with background():" in src
       and "MAX_MB * 1024 * 1024" in src and F.NIGHT_FILES <= 30,
       "٦ محروس (حدُّ ذاكرته الخاصّ، وملفُّ الربع الأول في أبريل لا يُحسب سنوياً): ذاكرةٌ، ونصيبُ الحصّة، وحدُّ الحجم، ودفعةٌ ليليّةٌ محدودة")
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
-check("job_file_reader" in sch and 'id="file_reader_night"' in sch, "٧ ليلاً لا عند فتح الصفحة")
+check("job_file_reader" in sch and 'id="file_reader_night"' in sch and "create_subprocess_exec" in sch
+      and "malloc_trim" in src and "json.dumps(body" not in src and "content=body" in src,
+      "٧ ليلاً في عمليةٍ منفصلة، وذاكرةٌ تُعاد بعد كلّ ملفّ، وطلبٌ بايتاتٍ بلا نسخٍ زائد (قِيس: ملفّان حجزا 90MB)")
 ai = (ROOT / "backend/app/services/ai_content.py").read_text(encoding="utf-8")
 am = (ROOT / "backend/app/services/app_mind.py").read_text(encoding="utf-8")
 ui = (ROOT / "frontend/src/components/analysis/StockOpinion.tsx").read_text(encoding="utf-8")

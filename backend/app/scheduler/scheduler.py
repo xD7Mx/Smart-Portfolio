@@ -189,10 +189,21 @@ async def job_xbrl_statements():
 
 
 async def job_file_reader():
-    """القارئُ البصريّ (D557): ملفّاتٌ قليلةٌ ليلاً بالتتابع — المحفظةُ أوّلاً."""
+    """القارئُ البصريّ (D557): ملفّاتٌ قليلةٌ ليلاً بالتتابع — المحفظةُ أوّلاً.
+
+    في **عمليةٍ منفصلة**: قِيس أنّ ملفّين يحجزان ~90MB في الكومة، وعلى خادمٍ بذاكرة 1GB
+    لا يُترك ذلك في عملية الخادم — فتُعاد الذاكرةُ كاملةً بانتهائها، ولها مهلةٌ قصوى."""
+    import asyncio, sys
     try:
-        from app.services.file_reader import nightly
-        await nightly()
+        p = await asyncio.create_subprocess_exec(
+            sys.executable, "-c",
+            "import asyncio, sys; sys.path.insert(0, '/app'); "
+            "from app.services.file_reader import nightly; asyncio.run(nightly())")
+        try:
+            await asyncio.wait_for(p.wait(), timeout=90 * 60)
+        except asyncio.TimeoutError:
+            p.kill()
+            logger.warning("القارئ البصري: جاوز ساعةً ونصفاً فأُوقف")
     except Exception as e:
         logger.error(f"القارئ البصري: {e}")
 
