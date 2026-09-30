@@ -81,7 +81,7 @@ export default function RoomPage() {
                       </span>
                       <span className="text-[12px] text-[var(--ink-muted)] tabular-nums" dir="ltr">{hhmm(q.time)}</span>
                     </span>
-                    <span className="flex items-baseline gap-2 mt-0.5" dir="ltr">
+                    <span className="flex items-baseline justify-end gap-2 mt-0.5" dir="ltr">
                       <span className="text-[16px] font-medium tabular-nums text-[var(--ink)]">{fmt(q.price)}</span>
                       <span className={"text-[13px] font-medium tabular-nums " + tone(q.change)}>
                         {typeof q.change === "number" ? `${q.change > 0 ? "+" : ""}${fmt(q.change)}` : ""}
