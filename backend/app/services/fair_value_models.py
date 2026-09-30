@@ -1023,13 +1023,46 @@ def _calibrated(sym: str) -> dict | None:
     return None
 
 
+async def _reit_nav_value(sym: str) -> dict | None:
+    """‏D554: سعرُ الريت العادل = صافي قيمة أصوله المنشور (مقيِّمان معتمدان) — لا نماذجُ
+    الشركات: قِيس أنها لا تُنتج قيمةً لـ17 ريتاً من 19، وتعطي سدكو ريت +222٪."""
+    from app.services.reit_advisor import build
+    from app.services.tadawul_market import row_for
+    price = (row_for(sym) or {}).get("price")
+    adv = await build(sym, price)
+    if not adv or not adv.get("nav") or not price:
+        return None
+    hist = [h["v"] for h in adv.get("nav_history") or []][-2:] or [adv["nav"]]
+    nav = adv["nav"]
+    last = (adv.get("distributions") or [{}])[-1]
+    model = {"key": "reit_nav", "family": "nav", "name": "صافي قيمة الأصول المنشور", "value": round(nav, 2),
+             "low": round(min(hist), 2), "high": round(max(hist), 2),
+             "assumptions": [["صافي قيمة الأصول للوحدة", f"{nav:.2f}", f"كما في {adv.get('nav_date')} · مقيِّمان معتمدان"],
+                             ["المصدر", "إعلانُ التوزيع في «تداول»",
+                              f"{last.get('amount')} ÷ {last.get('nav_pct')}٪"]]}
+    return {"value": round(nav, 2), "low": model["low"], "high": model["high"],
+            "upside": round((nav / price - 1) * 100, 2), "uncertainty": "منخفض", "count": 1,
+            "models": [model], "families": [], "excluded": [], "weights_kind": "reit_nav",
+            "model_set": "الصناديق العقارية: صافي قيمة الأصول المنشور", "price": price, "notes": [],
+            "reit": adv}
+
+
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v24:{sym}"
+    ck = f"fvm:v25:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
+    try:
+        from app.services.statement_merge import archetype_of as _arch
+        if _arch(sym) == "reit":
+            r = await _reit_nav_value(sym)
+            if r:
+                cache.set(ck, r, 6 * 60 * 60)
+                return r
+    except Exception as e:                                         # noqa: BLE001
+        logger.warning("ريت {}: {}", sym, e)
     try:
         i = await gather(sym)
         res = value(i) if i else None

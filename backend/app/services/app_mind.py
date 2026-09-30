@@ -67,6 +67,26 @@ def engines(analysis: dict, sym: str) -> list[str]:
                if isinstance(a.get("fair_value_low"), (int, float)) and isinstance(a.get("fair_value_high"), (int, float)) else "")
         out.append(f"السعرُ العادل {fv:.2f}{rng}" + (f" · الفجوة {_pm(up)}" if up is not None else "")
                    + (f" · ثقةٌ {a['fair_value_conf']}" if a.get("fair_value_conf") else ""))
+    # ‏D554: الريت — صافي أصوله المنشور وتوزيعاتُه كما أعلنها الصندوق، وتنبيهُ التأخّر
+    try:
+        from app.services.reit_advisor import cached, summarize
+        raw = cached(sym)
+        if raw:
+            r = summarize(raw["dists"], raw.get("vals") or [], a.get("price"))
+            if r.get("nav"):
+                out.append(f"صافي قيمة الأصول للوحدة {r['nav']:.2f} (كما في {r['nav_date']}، مقيِّمان معتمدان)"
+                           + (f" — السعرُ {'بخصم' if r['premium'] < 0 else 'بعلاوة'} {abs(r['premium']):.1f}٪ عليه" if r.get("premium") is not None else "")
+                           + (f"، وتغيّرُه عن التقييم السابق {_pm(r['nav_change'])}" if r.get("nav_change") is not None else ""))
+            if r.get("ttm"):
+                out.append(f"توزيعاتُ 12 شهراً {r['ttm']:.3f} ريال للوحدة (عائد {r.get('yield')}٪)، آخرُها {r.get('last_amount')}"
+                           + (f"، واتّجاهُها {r['trend']}" if r.get("trend") else "")
+                           + (f"، والقادمُ متوقَّعٌ نحو {r['next_expected']}" if r.get("next_expected") else ""))
+            if r.get("overdue"):
+                out.append(f"تنبيه: تأخّر التوزيعُ عن إيقاعه المعتاد (كلَّ {r['cadence_days']} يوماً تقريباً) — يُراجَع إعلانُ الصندوق")
+            if r.get("valuations"):
+                out.append(f"آخرُ تقرير تقييمٍ لأصول الصندوق أُعلن في {r['valuations'][0]}")
+    except Exception:                                             # noqa: BLE001
+        pass
     st = _stars(sym)
     if st:
         where = "ضمن نجوم تاسي" if st["group"] == "member" else "تحت مراقبة نجوم تاسي"

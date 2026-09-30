@@ -68,6 +68,24 @@ print('يُحصد:', len(syms))
 print(asyncio.run(X.refresh(syms, conc=8)))
 " 2>&1 | grep -vE "DEBUG" | tail -4
 
+say "٤ب · مستشارُ الريت — صافي الأصول والتوزيعات من إعلانات «تداول» (D554)"
+docker exec "$C" python -c "
+import asyncio, sys; sys.path.insert(0,'/app')
+from app.services.market_screener import get_cached_screener
+from app.services.statement_merge import archetype_of
+from app.services.reit_advisor import build
+from app.services.tadawul_market import row_for
+async def m():
+    n = 0
+    for r in get_cached_screener() or []:
+        s = str(r.get('symbol'))
+        if archetype_of(s) == 'reit':
+            a = await build(s, (row_for(s) or {}).get('price'), force=True)
+            n += 1 if a and a.get('nav') else 0
+    print('ريتاتٌ بصافي أصولٍ منشور:', n)
+asyncio.run(m())
+" 2>&1 | grep -vE "DEBUG|INFO" | tail -2
+
 if [ "$SWEEP" = "1" ]; then
   say "٥ · مسحةُ التقييم — درجةٌ وسعرٌ عادلٌ لكلّ شركة"
   docker exec "$C" python -c "

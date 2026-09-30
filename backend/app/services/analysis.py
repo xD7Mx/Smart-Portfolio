@@ -478,6 +478,8 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
             _fv = dict(_fv or {})
             _fv.update({"value": _new["value"], "low": _new.get("low"), "high": _new.get("high"),
                         "engine": "fair_value_models"})
+            if _new.get("weights_kind") == "reit_nav":        # D554: صافي الأصول المنشور — رقمُ المقيِّمَين
+                _fv.update({"confidence": "مرتفعة", "implausible": False, "single_path": False})
     except Exception as _e:                                       # noqa: BLE001
         from loguru import logger as _lg_fvm
         _lg_fvm.warning(f"fvm {symbol}: {_e}")

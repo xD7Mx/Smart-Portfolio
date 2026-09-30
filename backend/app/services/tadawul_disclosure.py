@@ -84,6 +84,7 @@ async def list_for(symbol: str, size: int = 40) -> list[dict]:
         if str(r.get("SYMBOL")) != sym or not r.get("announcementUrl"):
             continue
         out.append({"date": _date(r.get("PR_DATE")), "id": str(r.get("announcementNumber") or r.get("PRESS_REL_ID")),
+                    "title": str(r.get("TITLE") or ""),
                     "url": O + r["announcementUrl"].replace("locale=en", "locale=ar")})
     cache.set(ck, out, 60 * 60 if out else 10 * 60)
     return out

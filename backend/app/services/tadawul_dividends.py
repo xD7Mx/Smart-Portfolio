@@ -81,6 +81,19 @@ async def read(symbol: str) -> Optional[dict]:
         lastgood.save(f"div:tadawul:{sym}", {"rows": rows})
     else:
         rows = ((lastgood.load(f"div:tadawul:{sym}") or {}).get("rows")) or []
+    # ‏D554: جدولُ صفحة الصندوق توقّف عند مايو 2025 للراجحي ريت، وإعلاناتُ التوزيع في «تداول»
+    # مستمرّةٌ ربعياً — فيُكمَل الجدولُ بما أعلنه الصندوقُ نفسُه (بالأحقّية، بلا تكرار).
+    try:
+        from app.services.reit_advisor import cached as _reit
+        adv = _reit(sym)
+        have = {r.get("eligibility") for r in rows}
+        extra = [{"announced": d.get("announced"), "eligibility": d["eligibility"], "paid": None,
+                  "method": "Account Transfer", "amount": d["amount"]}
+                 for d in (adv or {}).get("dists") or [] if d.get("eligibility") and d["eligibility"] not in have]
+        if extra:
+            rows = sorted(rows + extra, key=lambda r: str(r.get("eligibility")))
+    except Exception:                                             # noqa: BLE001
+        pass
     out = shape(rows)
     cache.set(ck, out or {}, _TTL if out else 3600)
     return out
