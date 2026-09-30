@@ -54,5 +54,6 @@ check("from app.services.reit_advisor import cached as _reit" in dv and "reit_ad
 td = (ROOT / "backend/app/services/tadawul_disclosure.py").read_text(encoding="utf-8")
 check('ck = f"tadawul:annlist:v3:{sym}"' in td and 'r.get("SHORT_DESC") or r.get("TITLE")' in td,
       "٧ D555 مفتاحُ قائمة الإفصاحات بإصدارٍ يحمل العنوان — والعنوانُ من SHORT_DESC لا TITLE (اسمُ الصندوق)")
+check("days > 460:" in src, "٨ D556 لا يُعتمد صافٍ أقدمُ من 15 شهراً سعراً عادلاً (ميفك ريت 10.00 منذ 2023)")
 print(f"{'FAIL' if fail else 'PASS'} D554 — مستشارُ الريت")
 sys.exit(fail)

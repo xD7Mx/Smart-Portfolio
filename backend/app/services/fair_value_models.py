@@ -1032,6 +1032,10 @@ async def _reit_nav_value(sym: str) -> dict | None:
     adv = await build(sym, price)
     if not adv or not adv.get("nav") or not price:
         return None
+    # ‏D556: صافٍ أقدمُ من 15 شهراً ليس تقييماً (ميفك ريت: 10.00 بتاريخ 2023 — قيمةُ الطرح)
+    import datetime as _dt
+    if (_dt.date.today() - _dt.date.fromisoformat(adv["nav_date"])).days > 460:
+        return None
     hist = [h["v"] for h in adv.get("nav_history") or []][-2:] or [adv["nav"]]
     nav = adv["nav"]
     last = (adv.get("distributions") or [{}])[-1]
@@ -1050,7 +1054,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v25:{sym}"
+    ck = f"fvm:v26:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
