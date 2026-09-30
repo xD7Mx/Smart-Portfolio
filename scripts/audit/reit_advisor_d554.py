@@ -51,5 +51,8 @@ check('if _arch(sym) == "reit":' in src and '"weights_kind": "reit_nav"' in src,
       "٥ السعرُ العادلُ للريت صافي أصوله المنشور لا نماذجُ الشركات")
 check("from app.services.reit_advisor import cached as _reit" in dv and "reit_advisor import cached, summarize" in am,
       "٦ جدولُ التوزيعات يُكمَل بإعلانات الصندوق، وعقلُ التطبيق يقرأ المستشار")
+td = (ROOT / "backend/app/services/tadawul_disclosure.py").read_text(encoding="utf-8")
+check('ck = f"tadawul:annlist:v2:{sym}"' in td,
+      "٧ D555 مفتاحُ قائمة الإفصاحات بإصدارٍ يحمل العنوان — القديمُ المخزَّن بلا TITLE أخفى التوزيعاتِ كلَّها")
 print(f"{'FAIL' if fail else 'PASS'} D554 — مستشارُ الريت")
 sys.exit(fail)

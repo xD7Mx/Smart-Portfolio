@@ -60,7 +60,7 @@ async def list_for(symbol: str, size: int = 40) -> list[dict]:
     sym = re.sub(r"\D", "", str(symbol or ""))[:4]
     if len(sym) != 4:
         return []
-    ck = f"tadawul:annlist:{sym}"
+    ck = f"tadawul:annlist:v2:{sym}"          # D555: v2 يحمل TITLE — القديمُ بلا عنوانٍ فلا تُرى التوزيعات
     hit = cache.get(ck)
     if hit is not None:
         return hit
