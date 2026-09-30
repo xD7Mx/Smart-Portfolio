@@ -77,7 +77,7 @@ export function retainedCashPct(deployTarget: number): number {
 export type RebalanceInput = {
   currentWeight: number;      // ٪ من رأس المال القابل للاستثمار
   targetWeight: number;       // ٪ مستهدفة
-  investable: number;         // المدفوعُ في الأسهم + النقد (D562)
+  investable: number;         // القيمةُ السوقية + النقد (D563)
   lastPrice: number;
   freshCash: number;          // النقد الجديد (بلا حوض إعادة الاستثمار)
   reinvestPool: number;

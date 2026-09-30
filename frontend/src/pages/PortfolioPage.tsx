@@ -1371,7 +1371,7 @@ export function RebalanceCard() {
     const rb = rebalanceRow({
       currentWeight: Number(it.current_weight) || 0,
       targetWeight: tw,
-      investable: Number(alloc?.investable) || 0,   // ‏D562: المدفوعُ + السيولة، من الخادم نفسِه
+      investable: Number(alloc?.investable) || 0,   // ‏D563: القيمةُ السوقية + السيولة، من الخادم نفسِه
       lastPrice: Number(it.last_price) || 0,
       freshCash: availCash,
       reinvestPool: pool,
