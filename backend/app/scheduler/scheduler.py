@@ -211,10 +211,10 @@ async def job_file_reader():
             "import asyncio, sys; sys.path.insert(0, '/app'); "
             "from app.services.file_reader import nightly; asyncio.run(nightly())")
         try:
-            await asyncio.wait_for(p.wait(), timeout=90 * 60)
+            await asyncio.wait_for(p.wait(), timeout=6 * 60 * 60)   # ‏D560: ينتهي قبل السادسة والنصف
         except asyncio.TimeoutError:
             p.kill()
-            logger.warning("القارئ البصري: جاوز ساعةً ونصفاً فأُوقف")
+            logger.warning("القارئ البصري: جاوز ستَّ ساعاتٍ فأُوقف")
     except Exception as e:
         logger.error(f"القارئ البصري: {e}")
 
@@ -613,10 +613,11 @@ def start_scheduler():
         id="investor_calls_evening",
         replace_existing=True,
     )
-    # ‏D557: بعد حصاد XBRL وقبل الفجر — والسوقُ مغلقٌ والخادمُ هادئ
+    # ‏D557 · D560: من منتصف الليل حتى السادسة والنصف كحدٍّ أقصى — والسوقُ مغلقٌ والخادمُ هادئ؛
+    # وإن ضاقت الذاكرةُ لحظةَ حصاد XBRL انتظر ولم يتوقّف
     _scheduler.add_job(
         job_file_reader,
-        CronTrigger(hour=3, minute=10),
+        CronTrigger(hour=0, minute=20),
         id="file_reader_night",
         replace_existing=True,
     )

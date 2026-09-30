@@ -63,6 +63,7 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
       .then(res => { if (res.every(r => r.status === "fulfilled")) setRoomSymbols([]); invalidateWatchlist(qc); });
   }, [owner, gid, isLoading, roomSymbols, rows]);
 
+  const [editing, setEditing] = useState(false);
   const setActive = (id: number) => { setActiveId(id); localStorage.setItem(KEY, String(id)); };
 
   return (
@@ -72,6 +73,13 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
         <h2 className="card-title">قائمة المراقبة</h2>
         <div className="ms-auto flex items-center gap-2">
           <span className="text-[11px] text-[var(--ink-muted)]">{rows.length} شركة</span>
+          {owner && rows.length > 0 && (
+            <button onClick={() => setEditing(e => !e)} aria-label={editing ? "إنهاء التعديل" : "تعديل القائمة"}
+              className="w-8 h-8 grid place-items-center rounded-lg transition-colors"
+              style={{ color: editing ? "var(--brand-ink)" : "var(--ink-muted)", background: editing ? "var(--field)" : undefined }}>
+              {editing ? <Check size={15} /> : <Pencil size={14} />}
+            </button>
+          )}
           <GroupSwitcher groups={groups} active={active} owner={owner} onSwitch={setActive} />
         </div>
       </div>
@@ -82,13 +90,15 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
         <div className="py-12 text-center text-[var(--ink-muted)] text-sm">لا شركات في هذه القائمة</div>
       ) : (
         /* الشركات ظاهرة مباشرةً — لا قائمة منسدلة تُخفي ما جئتَ لرؤيته. */
-        /* ‏D558: صفّان لا صفٌّ واحد — تتّسع لشركاتٍ أكثر */
-        <div className="grid grid-cols-2 gap-1.5 mt-3">
-          {rows.map((r: any) => {
+        /* ‏D558 · D560: بطاقةٌ واحدةٌ بصفّين — خلايا تفصلها خطوطٌ رفيعة لا مربّعاتٌ متراصّة،
+           وزرُّ الإزالة في وضع التعديل وحده */
+        <div className="grid grid-cols-2 mt-3 -mx-1">
+          {rows.map((r: any, i: number) => {
             const up = (r.change_pct ?? 0) >= 0;
+            const lastRow = i >= rows.length - (rows.length % 2 === 0 ? 2 : 1);
             return (
-              /* خليّةٌ مدمجة بسطرين: الشعارُ والاسم، ثمّ السعرُ يميناً والنسبةُ يساراً */
-              <div key={r.symbol} className="relative p-2.5 rounded-xl panel hover:bg-[var(--field)] transition-colors min-w-0">
+              /* خليّةٌ بسطرين: الشعارُ والاسم، ثمّ السعرُ يميناً والنسبةُ يساراً */
+              <div key={r.symbol} className={`relative px-3 py-2.5 hover:bg-[var(--field)] transition-colors min-w-0 border-[var(--hairline)]${i % 2 === 0 ? " border-e" : ""}${lastRow ? "" : " border-b"}`}>
                 <button onClick={() => onOpen(r.symbol)} className="w-full text-start min-w-0 block">
                   <span className="flex items-center gap-2 min-w-0 pe-5">
                     <CompanyLogo symbol={r.symbol} size={26} />
@@ -108,7 +118,7 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
                     )}
                   </span>
                 </button>
-                {owner && (
+                {owner && editing && (
                   <button onClick={() => remove.mutate(r.symbol)} aria-label="إزالة"
                     className="icon-live absolute top-1.5 end-1.5 w-8 h-8 grid place-items-center rounded-lg text-[var(--ink-muted)] hover:text-[var(--neg-ink)] transition-all" title="إزالة"><X size={13} /></button>
                 )}

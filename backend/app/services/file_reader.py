@@ -31,7 +31,10 @@ MAX_MB = 10                      # حدُّ الملفّ: ذروةُ الذاك�
 # ‏لا يُفتح الملفُّ هنا فلا يلزم حدُّ المحلّل الثقيل (350MB): قِيس المتاحُ على الخادم 155MB،
 # والذروةُ هنا ~40MB — فيُترك للنظام أكثرُ من مئة.
 MIN_FREE_MB = 150
-NIGHT_FILES = 24                 # ملفّاتُ الليلة الواحدة — بالتتابع، لا أكثر
+# ‏D560: قال المالك «شهران كثير، أقصاه يومان أو أسبوع». السوقُ ~273 شركة × 6 ملفّات ≈ 1,640:
+# بـ400 ليلاً تكتمل في أربع ليالٍ، والمحفظةُ في ساعتها الأولى. العددُ لا يرفع ذروةَ الذاكرة —
+# الملفّاتُ بالتتابع وكلٌّ يُحرَّر قبل التالي — وإنما يطيل الوقت، والليلُ متّسع.
+NIGHT_FILES = 400
 BUDGET_SHARE = 0.6               # لا تُقرأ ملفّاتٌ إن استُهلك 60٪ من حصّة اليوم
 
 
@@ -160,6 +163,7 @@ async def learn(symbol: str, name: str = "", budget: int = 3, report: dict | Non
         if free is not None and free < MIN_FREE_MB:
             if report is not None:
                 report["ذاكرةٌ غيرُ كافية"] = report.get("ذاكرةٌ غيرُ كافية", 0) + 1
+                report["_mem"] = True                             # الدفعةُ تنتظر ولا تتوقّف
             break
         try:
             st, data = await fetch_bytes(f["url"], referer=f["referer"])
@@ -183,8 +187,10 @@ async def learn(symbol: str, name: str = "", budget: int = 3, report: dict | Non
                       "auditor": obj.get("auditor"), "verdict": obj.get("verdict"),
                       "read_at": date.today().isoformat()}
         done += 1
-    if done or files != (rec.get("files") or {}):
-        lastgood.save(STORE.format(sym), {"files": prune(files), "at": date.today().isoformat()})
+    # ‏«مكتملة» إن قُرئ كلُّ مختار — فلا تُترك شركةٌ قُرئ بعضُها أسبوعاً كاملاً (عطبٌ قِيس بالقراءة)
+    complete = all(f["url"].rsplit("/", 1)[-1] in files for f in pick(links))
+    if done or files != (rec.get("files") or {}) or complete != rec.get("complete"):
+        lastgood.save(STORE.format(sym), {"files": prune(files), "at": date.today().isoformat(), "complete": complete})
     return done
 
 
@@ -215,12 +221,15 @@ async def _priority() -> list[tuple[str, str]]:
     """المحفظةُ أوّلاً، ثمّ غرفةُ التداول، ثمّ السوقُ بحجمه."""
     seen: dict[str, str] = {}
     try:
+        # ‏الحيازةُ لا تحمل رمزاً — الرمزُ في الشركة (كان هذا يفشل صامتاً فتضيع أولويةُ المحفظة)
         from sqlalchemy import select
         from app.core.database import AsyncSessionLocal
-        from app.models.portfolio import Holding
+        from app.models.portfolio import Company, Holding
         async with AsyncSessionLocal() as db:
-            for s, in (await db.execute(select(Holding.symbol).where(Holding.quantity > 0))).all():
-                seen.setdefault(_sym(s), "")
+            q = select(Company.symbol).join(Holding, Holding.company_id == Company.id).distinct()
+            for s, in (await db.execute(q)).all():
+                if s:
+                    seen.setdefault(_sym(s), "")
     except Exception as e:                                        # noqa: BLE001
         logger.debug("القارئ البصري: المحفظة {}", e)
     try:
@@ -240,8 +249,10 @@ async def nightly(max_files: int = NIGHT_FILES) -> dict:
     """دفعةُ الليلة: ملفّاتٌ قليلةٌ بالتتابع، بالأولوية، ضمن نصيبٍ من حصّة النموذج."""
     from datetime import timedelta
     from app.services.usage_tracker import background, remaining_fraction
-    rep: dict = {"read": 0}
+    import asyncio
+    rep: dict = {"read": 0, "companies": 0}
     week = (date.today() - timedelta(days=7)).isoformat()
+    waits = 0
     with background():
         for sym, name in await _priority():
             if remaining_fraction("gemini") <= 1 - BUDGET_SHARE:
@@ -249,13 +260,26 @@ async def nightly(max_files: int = NIGHT_FILES) -> dict:
                 break
             if rep["read"] >= max_files:
                 break
-            if load(sym).get("at", "") >= week:                    # فُحصت هذا الأسبوع
+            rec = load(sym)
+            if rec.get("complete") and rec.get("at", "") >= week:  # مكتملةٌ وفُحصت هذا الأسبوع
                 continue
-            try:
-                n = await learn(sym, name, budget=min(3, max_files - rep["read"]), report=rep)
-            except Exception as e:                                # noqa: BLE001
-                logger.warning("القارئ البصري {}: {}", sym, e)
-                continue
-            rep["read"] += n
+            for _ in range(3):
+                rep.pop("_mem", None)
+                try:
+                    n = await learn(sym, name, budget=min(YEARS + 1, max_files - rep["read"]), report=rep)
+                except Exception as e:                            # noqa: BLE001
+                    logger.warning("القارئ البصري {}: {}", sym, e)
+                    n = 0
+                rep["read"] += n
+                # ذاكرةٌ قليلةٌ لحظياً (حصادُ XBRL مثلاً): ينتظر دقيقةً ويعيد — لا يُنهي الليلة
+                if rep.get("_mem") and waits < 40:
+                    waits += 1
+                    await asyncio.sleep(60)
+                    continue
+                break
+            rep["companies"] += 1
+            await asyncio.sleep(2)                                # رفقٌ بـ«تداول» بين الشركات
+    rep.pop("_mem", None)
+    rep["waits"] = waits
     logger.info("القارئ البصري: {}", json.dumps(rep, ensure_ascii=False))
     return rep

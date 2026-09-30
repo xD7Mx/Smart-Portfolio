@@ -41,7 +41,7 @@ src = (ROOT / "backend/app/services/file_reader.py").read_text(encoding="utf-8")
 check('"mime_type":"application/pdf"' in src and "fitz" not in src and "parse_pdf" not in src and "ocr" not in src.lower().replace("القراءة الضوئية", ""),
       "٥ خفيف: الملفُّ يُرسَل للنموذج كما هو ولا يُفتح على الخادم (لا PyMuPDF ولا OCR)")
 check("mem_available_mb()" in src and "remaining_fraction(\"gemini\")" in src and "with background():" in src
-      and "MAX_MB * 1024 * 1024" in src and F.NIGHT_FILES <= 30,
+      and "MAX_MB * 1024 * 1024" in src and 300 <= F.NIGHT_FILES <= 500,
       "٦ محروس (حدُّ ذاكرته الخاصّ، وملفُّ الربع الأول في أبريل لا يُحسب سنوياً): ذاكرةٌ، ونصيبُ الحصّة، وحدُّ الحجم، ودفعةٌ ليليّةٌ محدودة")
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 check("job_file_reader" in sch and 'id="file_reader_night"' in sch and "create_subprocess_exec" in sch
@@ -53,5 +53,9 @@ ui = (ROOT / "frontend/src/components/analysis/StockOpinion.tsx").read_text(enco
 check("المستشارُ الماليّ الخاصّ" in ai and '"advisor_bullets"' in ai and "{files_ctx}" in ai and "ai:opinion:v6:" in ai
       and "file_reader import coverage, knowledge" in am and "data.advisor_bullets" in ui and "data.files_bullets" in ui,
       "٨ رأيُ الذكاء بصوت المستشار، يقرأ معرفةَ الملفّات، وتُعرض")
+check('join(Holding, Holding.company_id == Company.id)' in src and "select(Holding.symbol)" not in src
+      and 'rec.get("complete") and rec.get("at", "") >= week' in src and 'report["_mem"] = True' in src
+      and "timeout=6 * 60 * 60" in sch and "CronTrigger(hour=0, minute=20)" in sch,
+      "٩ D560 أيامٌ لا شهران: 400 ملفٍّ ليلاً من منتصف الليل، والمحفظةُ أوّلاً فعلاً، والمقروءةُ جزئياً لا تُترك أسبوعاً، والذاكرةُ القليلةُ انتظارٌ لا توقّف")
 print(f"{'FAIL' if fail else 'PASS'} D557 — القارئ البصري")
 sys.exit(fail)
