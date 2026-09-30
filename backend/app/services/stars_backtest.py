@@ -51,6 +51,23 @@ def _month_end(ym: str) -> date:
     return date.fromisoformat(_ym_add(ym, 1) + "-01") - timedelta(days=1)
 
 
+def clean_months(months: list) -> list:
+    """السلسلةُ الشهريةُ بعد آخر قفزةٍ مستحيلة (D549).
+
+    قِيس (كاشف bonus_door): ياهو يسجّل منحَ الأسهم السعودية تجزئةً ويعدّل بها، لكنّ
+    بياناتِه في 2010–2012 فيها أشهرٌ منفردةٌ بسعرٍ أربعةَ أضعافٍ ثمّ يعود (الراجحي
+    ‎0.224 في 2010-05 · الدريس ‎0.317 · سابك ‎0.762) — فخرج للراجحي «أقصى تراجع −83.8٪»
+    وعائدٌ سالبٌ منذ 2010. فالسعرُ لا ينصف ولا يتضاعف في شهرٍ واحدٍ بلا سبب: تبدأ
+    السلسلةُ بعد آخر شهرٍ يتغيّر فيه السعرُ بأكثرَ من الضعف أو دون النصف."""
+    ms = [tuple(x) for x in months or [] if x and x[1]]
+    cut = 0
+    for i in range(1, len(ms)):
+        r = ms[i][1] / ms[i - 1][1]
+        if r < 0.5 or r > 2.0:
+            cut = i
+    return ms[cut:]
+
+
 # ══ البيانات ═══════════════════════════════════════════════════════════════
 async def _yahoo_monthly(client, sym: str) -> dict | None:
     for host in ("query1", "query2"):
@@ -190,7 +207,7 @@ def run(data: dict, uni: dict[str, dict], stm: dict, off: set[str] | None = None
     from app.services.tasi_stars import _pct_rank
     off = set(off or ())
     fams = [f for f in FAMILY_KEYS if f not in off]
-    px = {s: dict(d.get("m") or []) for s, d in (data.get("px") or {}).items() if s in uni}
+    px = {s: dict(clean_months(d.get("m"))) for s, d in (data.get("px") or {}).items() if s in uni}
     divs = {s: d.get("div") or [] for s, d in (data.get("px") or {}).items() if s in uni}
     tasi = data.get("tasi") or {}
     last = date.today().isoformat()[:7]          # الشهرُ الجاري حتى آخر إغلاق — فالمسارُ يبلغ اليوم

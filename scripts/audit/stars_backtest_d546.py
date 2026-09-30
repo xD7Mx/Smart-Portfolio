@@ -62,5 +62,8 @@ cands = [{"symbol": str(k), "ret_12m": float(k), "finance_score": 50, "sector": 
 only_m = F.score_all(cands, set(), set(B.FAMILY_KEYS) - {"momentum"})
 check(only_m["4"]["score"] == 100.0 and only_m["0"]["score"] == 0.0,
       "٩ العائلةُ المطفأةُ لا تدخل الدرجة — والمفعّلةُ بأوزانٍ متساوية", f"{only_m['4']['score']} · {only_m['0']['score']}")
+bad = [["2010-04", 83.0], ["2010-05", 18.6], ["2010-06", 19.0], ["2020-03", 12.0], ["2020-04", 9.0]]
+check(B.clean_months(bad)[0] == ("2010-05", 18.6) and len(B.clean_months(bad)) == 4,
+      "١٠ D549 السلسلةُ تبدأ بعد آخر قفزةٍ مستحيلة (بياناتُ ياهو 2010–2012) ولا تمسّ هبوطاً حقيقياً (مارس 2020)")
 print(f"{'FAIL' if fail else 'PASS'} D546 — نجومُ تاسي منذ 2015 ومفاتيحُ المعايير")
 sys.exit(fail)

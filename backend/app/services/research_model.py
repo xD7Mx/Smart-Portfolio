@@ -261,7 +261,7 @@ def pe_band(annual: list[dict], months: dict[str, float], price: float | None) -
 def note(symbol: str, price: float | None = None) -> dict:
     """المذكّرةُ الكاملة لشركة: توقّعاتٌ مدرَّبةٌ وقراءةٌ تاريخية — من مخازن التطبيق وحدها."""
     from app.services import lastgood, tadawul_xbrl
-    from app.services.stars_backtest import DATA_KEY
+    from app.services.stars_backtest import DATA_KEY, clean_months
     sym = str(symbol).replace(".SR", "").strip()
     q = tadawul_xbrl.for_symbol(sym, "quarterly") or []
     a = tadawul_xbrl.for_symbol(sym, "annual") or []
@@ -271,7 +271,7 @@ def note(symbol: str, price: float | None = None) -> dict:
     main = "bank_op_income" if bank else "revenue"
     bt = lastgood.load(DATA_KEY) or {}
     px = (bt.get("px") or {}).get(sym) or {}
-    months = [tuple(x) for x in px.get("m") or []]
+    months = clean_months(px.get("m"))
     return {"symbol": sym, "bank": bank,
             "forecast": {k: v for k, v in fc.items() if v},
             "growth": growth(a),
