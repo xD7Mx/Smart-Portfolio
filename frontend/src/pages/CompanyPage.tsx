@@ -1,4 +1,5 @@
 import QuarterReport from "../components/analysis/QuarterReport";
+import InvestorCalls from "../components/analysis/InvestorCalls";
 import React, { useState } from "react";
 import { invalidateWatchlist } from "../services/watchlistCache";
 import { useParams, useNavigate } from "react-router-dom";
@@ -1042,7 +1043,7 @@ export default function CompanyPage() {
       )}
 
       {tab === "calendar" && <StockCalendar symbol={company.symbol} name={nameAr} />}
-      {tab === "reports" && <QuarterReport symbol={company.symbol} />}
+      {tab === "reports" && <div className="space-y-4"><InvestorCalls symbol={company.symbol} /><QuarterReport symbol={company.symbol} /></div>}
 
       {tab === "opinion" && (
         <div className="card">

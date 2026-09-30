@@ -203,6 +203,18 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
             </div>
           </div>
         )}
+        {!!(r?.insights || []).length && (
+          <div>
+            <Title>من ملفّات الشركة ومؤتمراتها</Title>
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 6 }}>
+              {(r.insights as string[]).map((t, i) => (
+                <li key={i} style={{ fontSize: 11.5, lineHeight: 1.7, color: NAVY, fontWeight: 300, display: "flex", gap: 8 }}>
+                  <span style={{ color: MUTED }}>•</span><span>{t}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
       <div style={{ height: 6, background: `linear-gradient(90deg, ${NAVY}, ${NAVY_2}, ${NAVY})` }} />
     </div>

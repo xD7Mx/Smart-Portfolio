@@ -188,6 +188,17 @@ async def job_xbrl_statements():
         logger.error(f"XBRL batch failed: {e}")
 
 
+async def job_investor_calls():
+    """مؤتمراتُ المحلّلين (D559): صفحاتُ البحث الأحدث مساءً، وتفاصيلُ الجديد فقط.
+    وأوّلَ مرّةٍ يُملأ الأرشيفُ (نحو 300 إعلان) على دفعاتٍ من ستّين."""
+    try:
+        from app.services.investor_calls import load, refresh
+        full = len(load().get("calls") or {}) < 250
+        logger.info(f"مؤتمرات المحلّلين: {await refresh(pages=7 if full else 2)}")
+    except Exception as e:
+        logger.error(f"مؤتمرات المحلّلين: {e}")
+
+
 async def job_file_reader():
     """القارئُ البصريّ (D557): ملفّاتٌ قليلةٌ ليلاً بالتتابع — المحفظةُ أوّلاً.
 
@@ -593,6 +604,13 @@ def start_scheduler():
         job_xbrl_statements,
         CronTrigger(hour=1, minute=30),
         id="xbrl_statements_night",
+        replace_existing=True,
+    )
+    # ‏D559: مساءً بعد إغلاق السوق — إعلاناتُ المؤتمرات تنزل نهاراً
+    _scheduler.add_job(
+        job_investor_calls,
+        CronTrigger(hour=19, minute=40),
+        id="investor_calls_evening",
         replace_existing=True,
     )
     # ‏D557: بعد حصاد XBRL وقبل الفجر — والسوقُ مغلقٌ والخادمُ هادئ

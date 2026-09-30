@@ -712,6 +712,15 @@ async def get_quarter_reports(symbol: str):
     return success_response(data=catalog(symbol))
 
 
+@router.get("/investor-calls")
+async def get_investor_calls(symbol: str | None = None):
+    """مؤتمراتُ المحلّلين (D559) من إعلانات «تداول»: لشركةٍ بعينها، أو القادمُ في السوق."""
+    from app.services import investor_calls as IC
+    if symbol:
+        return success_response(data=IC.for_symbol(symbol, 12))
+    return success_response(data=IC.upcoming()[:60])
+
+
 @router.get("/tasi-stars")
 async def get_tasi_stars(off: str | None = None):
     """«نجوم تاسي 20» (D522): السلّة وأداؤها منذ 2015 (D546)؛ و`off` معاييرُ مطفأة بفواصل."""
@@ -1312,6 +1321,19 @@ async def get_events(db: AsyncSession = Depends(get_db)):
                     "date_kind": it.get("date_kind"),
                     "url": it.get("url"),
                 })
+
+    # ‏D559: مؤتمراتُ المحلّلين لشركات المحفظة — موعدُها حدثٌ في المفكرة
+    try:
+        from app.services.investor_calls import for_symbol as _calls
+        for sym, name in pairs:
+            for c in _calls(sym, 4):
+                out.append({"id": f"call-{c['id']}", "type": "مؤتمر المحللين",
+                            "title": ("مؤتمرُ المحلّلين والمستثمرين" + (f" — {c['period']}" if c.get("period") else "")
+                                      + (f" · {c['time']}" if c.get("time") else "")),
+                            "symbol": sym, "company_name": name, "date": c.get("date"),
+                            "date_kind": "event", "url": c.get("join") or c.get("deck") or c.get("url")})
+    except Exception:                                             # noqa: BLE001
+        pass
 
     # Stored calendar events (strictly-filtered announcements) fill in
     # anything the live merge didn't produce.

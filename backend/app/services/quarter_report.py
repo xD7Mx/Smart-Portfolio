@@ -28,6 +28,22 @@ GENERAL = [("revenue", "الإيرادات", "flow"),
            ("eps", "ربحية السهم", "flow")]
 
 
+def _insights(sym: str) -> list[str]:
+    """‏D557 · D559: ما قرأه القارئُ البصريُّ من ملفّات الشركة، ومؤتمراتُ محلّليها."""
+    out: list[str] = []
+    try:
+        from app.services.file_reader import knowledge
+        out += knowledge(sym, 7)
+    except Exception:                                             # noqa: BLE001
+        pass
+    try:
+        from app.services.investor_calls import lines
+        out += lines(sym)
+    except Exception:                                             # noqa: BLE001
+        pass
+    return out
+
+
 def _d(p) -> date | None:
     try:
         return date.fromisoformat(str(p.get("as_of"))[:10])
@@ -219,6 +235,7 @@ async def build(symbol: str, as_of: str | None = None, kind: str = "quarter") ->
                    "market_cap": mcap, "shares": round(mcap / price) if mcap and price else None},
         "performance": perf,
         "research": _research(sym, price) if latest else None,
+        "insights": _insights(sym),
     }
 
 

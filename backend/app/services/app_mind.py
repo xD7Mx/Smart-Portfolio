@@ -87,6 +87,12 @@ def engines(analysis: dict, sym: str) -> list[str]:
                 out.append(f"آخرُ تقرير تقييمٍ لأصول الصندوق أُعلن في {r['valuations'][0]}")
     except Exception:                                             # noqa: BLE001
         pass
+    # ‏D559: مؤتمراتُ المحلّلين من إعلانات «تداول»
+    try:
+        from app.services.investor_calls import lines as _call_lines
+        out += _call_lines(sym)
+    except Exception:                                             # noqa: BLE001
+        pass
     st = _stars(sym)
     if st:
         where = "ضمن نجوم تاسي" if st["group"] == "member" else "تحت مراقبة نجوم تاسي"
