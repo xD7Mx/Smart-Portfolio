@@ -336,7 +336,7 @@ def apply_fair_value_ceiling(decision: "Decision", price, fair_value,
         return Decision(
             decision="انتظار",
             matched_rule_id=f"{decision.matched_rule_id}+سقف_القيمة_العادلة",
-            reason=(f"السعر {price:,.2f} أعلى من هدف المحللين "
+            reason=(f"السعر {price:,.2f} أعلى من سعرنا العادل "
                     f"{fair_value:,.2f} بـ{gap:.0f}٪ — "
                     f"{decision.reason}"),
         )
@@ -345,7 +345,7 @@ def apply_fair_value_ceiling(decision: "Decision", price, fair_value,
         return Decision(
             decision="شراء",
             matched_rule_id=f"{decision.matched_rule_id}+هامش_الأمان",
-            reason=(f"السعر {price:,.2f} دون هدف المحللين "
+            reason=(f"السعر {price:,.2f} دون سعرنا العادل "
                     f"{fair_value:,.2f} وفوق سعر الدخول "
                     f"{entry_price:,.2f} — {decision.reason}"),
         )
