@@ -56,11 +56,10 @@ async def _snapshot(db: AsyncSession):
 async def get_allocation(db: AsyncSession = Depends(get_db)):
     holdings, cash, total_mv, investable, targets = await _snapshot(db)
 
-    # نصيب كل شركة من السيولة ومن رصيد إعادة الاستثمار — **بنسبة وزنها
-    # المستهدف مباشرةً**، لا بحصّة حاجتها كما كان سابقاً. أبسط وأصرح: شركة
-    # وزنها ٣٠٪ تأخذ ٣٠٪ من كل مصدر، بصرف النظر عن قربها أو بعدها عن هدفها
-    # حالياً. شركة بلا وزن مستهدف لا حصّة لها أصلاً — تُترك None فتُعرض
-    # الواجهة «لم تحدد» بدل رقم مُختلَق.
+    # نصيب كل شركة — ‏D561 بأمر المالك: **ما ينقصها لبلوغ وزنها المستهدف من رأس
+    # المال كلّه** (القيمة السوقية + السيولة). كان سابقاً «الوزن × كل مصدر» بلا
+    # نظرٍ إلى ما تملكه الشركة، فتتجاوز هدفها بقدر ما تملك. شركة بلا وزن مستهدف لا
+    # حصّة لها أصلاً — تُترك None فتُعرض الواجهة «لم تحدد» بدل رقم مُختلَق.
     #
     # ── إزالة ازدواج الحساب ───────────────────────────────────────────────
     # حوض إعادة الاستثمار **جزءٌ من السيولة لا إضافةٌ إليها**: نفس الريالات
@@ -100,9 +99,14 @@ async def get_allocation(db: AsyncSession = Depends(get_db)):
         tw = targets.get(h.company_id, 0)
         lp = float(h.last_price or 0)
         if tw > 0:
-            liquidity_share = round(tw / 100 * fresh_cash, 2)
-            reinvest_share = round(tw / 100 * pool, 2)
-            total_amount = round(liquidity_share + reinvest_share, 2)
+            # ‏D561 بأمر المالك: الهدفُ من رأس المال كلّه (القيمةُ السوقية + السيولة) — المبلغُ
+            # ما ينقص الشركةَ لبلوغ هدفها، لا «الوزنُ × السيولة» الذي يُهمل ما تملكه أصلاً
+            # (قِيس: الراجحي ريت 2.35٪ وهدفُه 2.8٪ — اقتُرح له 6,976 فيصير 4.5٪؛ وحاجتُه ~1,490).
+            # تموّله إعادةُ الاستثمار بحصّة الوزن أوّلاً ثمّ السيولةُ الباقي — كإعادة التوازن.
+            need = max(0.0, tw / 100 * investable - mv)
+            reinvest_share = round(min(need, tw / 100 * pool), 2)
+            liquidity_share = round(need - reinvest_share, 2)
+            total_amount = round(need, 2)
             total_shares = round(total_amount / lp, 1) if lp else None
         else:
             liquidity_share = reinvest_share = total_amount = total_shares = None

@@ -116,9 +116,14 @@ export function rebalanceRow(i: RebalanceInput): RebalanceResult {
     };
   }
 
-  const liquidityShare = tw / 100 * (Number(i.freshCash) || 0);
-  const reinvestShare = tw / 100 * (Number(i.reinvestPool) || 0);
-  const totalAmount = liquidityShare + reinvestShare;
+  /* ‏D561 بأمر المالك: الهدفُ من **رأس المال كلّه** (القيمةُ السوقية + السيولة)، لا من السيولة
+     وحدها. كان النصيبُ «الوزنَ × السيولة» فيُهمل ما يملكه المالكُ أصلاً — الراجحي ريت بوزن 2.8٪
+     اقتُرح له 6,976 ريالاً فيصير 4.5٪، وحاجتُه الحقيقية ~1,490. فالشراءُ = ما ينقص للهدف،
+     تموّله إعادةُ الاستثمار بحصّة الوزن أوّلاً ثمّ السيولةُ الباقي — كبطاقة إعادة التوازن تماماً. */
+  const need = Math.max(0, -excessPct) / 100 * (Number(i.investable) || 0);
+  const reinvestShare = Math.min(need, tw / 100 * (Number(i.reinvestPool) || 0));
+  const liquidityShare = need - reinvestShare;
+  const totalAmount = need;
   return {
     side: totalAmount > 0 ? "buy" : "none",
     liquidityShare, reinvestShare, totalAmount,

@@ -150,11 +150,20 @@ const RB = { investable: 1_000_000, lastPrice: 50, freshCash: 100_000, reinvestP
       "١٧ ولا نصيبَ لها من النقد الجديد", `${r.liquidityShare} · ${r.reinvestShare}`);
 }
 
-// ١٨ · دون المستهدف ⇒ شراءٌ بنصيب وزنه من النقد (‏10٪ × 100,000).
+// ١٨ · ‏D561: دون المستهدف ⇒ شراءُ ما ينقصه من رأس المال كلّه (‏(10−6)٪ × 1,000,000).
 {
   const r = rebalanceRow({ ...RB, currentWeight: 6, targetWeight: 10 });
-  say(r.side === "buy" && near(r.totalAmount, 10000),
-      "١٨ دون المستهدف ⇒ شراءٌ بنصيب وزنه", `${r.side} · ${r.totalAmount}`);
+  say(r.side === "buy" && near(r.totalAmount, 40000),
+      "١٨ دون المستهدف ⇒ شراءُ ما ينقصه من رأس المال كلّه (D561)", `${r.side} · ${r.totalAmount}`);
+}
+
+// ١٨ب · ‏D561 بأرقام المالك: الراجحي ريت 2.35٪ من 331,278 وهدفُه 2.8٪ ⇒ ~1,491 لا 6,976.
+{
+  const r = rebalanceRow({ investable: 331277.74, lastPrice: 7.73, freshCash: 242759.1, reinvestPool: 6388.74,
+                           currentWeight: 7784.11 / 331277.74 * 100, targetWeight: 2.8 });
+  say(r.side === "buy" && Math.abs(r.totalAmount - 1491.67) < 1 && near(r.reinvestShare + r.liquidityShare, r.totalAmount),
+      "١٨ب الراجحي ريت: يُكمَّل إلى هدفه من رأس المال كلّه (~1,491) ولا يُعطى 2.8٪ من السيولة (6,976)",
+      `${r.totalAmount?.toFixed(2)} · إعادة ${r.reinvestShare?.toFixed(2)} · سيولة ${r.liquidityShare?.toFixed(2)}`);
 }
 
 // ١٩ · فائضٌ لا يبلغ سعرَ سهمٍ واحد لا يُقترح — رقمٌ لا يُنفَّذ ليس نصيحة.
@@ -171,11 +180,11 @@ const RB = { investable: 1_000_000, lastPrice: 50, freshCash: 100_000, reinvestP
       "٢٠ بلا وزنٍ مستهدفٍ لا شراءَ ولا بيع", r.side);
 }
 
-// ٢١ · عند التساوي يبقى نصيبُ النقد الجديد — التوازنُ لا يمنع التوظيف.
+// ٢١ · ‏D561: عند بلوغ الهدف من رأس المال كلّه لا شراء — الهدفُ سقفٌ لا نصيبٌ متجدّد.
 {
   const r = rebalanceRow({ ...RB, currentWeight: 10, targetWeight: 10 });
-  say(r.side === "buy" && r.totalAmount > 0,
-      "٢١ عند التساوي يبقى نصيبُ النقد الجديد", `${r.side} · ${r.totalAmount}`);
+  say(r.side === "none" && !(r.totalAmount > 0),
+      "٢١ عند بلوغ الهدف لا شراء (D561)", `${r.side} · ${r.totalAmount}`);
 }
 
 // ٢٢ · حجمُ البيع يتناسب مع حجم التجاوز — لا رقمَ ثابت.
