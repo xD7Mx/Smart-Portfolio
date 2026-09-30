@@ -88,26 +88,35 @@ async def _read_pdf(data: bytes, name: str, sym: str) -> dict | None:
     if not settings.AI_API_KEY or not can_call("gemini"):
         return None
     from app.services.ai_content import _extract_json_obj
-    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{settings.AI_MODEL}:generateContent?key={settings.AI_API_KEY}")
+    import asyncio
     body = {"contents": [{"parts": [
                 {"inline_data": {"mime_type": "application/pdf", "data": base64.b64encode(data).decode()}},
                 {"text": PROMPT.format(name=name, sym=sym)}]}],
             "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1500}}
     del data
-    try:
-        record("gemini")
-        async with httpx.AsyncClient(timeout=120) as c:
-            r = await c.post(url, json=body)
-        if r.status_code != 200:
-            logger.warning("القارئ البصري {}: HTTP {}", sym, r.status_code)
+    # ‏503 «مشغول» عارضٌ عند المزوّد (قِيس مرّتين): محاولةٌ ثانيةٌ بعد مهلة، ثمّ ثالثة (لا بديلَ: 2.5-flash غيرُ متاحٍ لهذا الحساب، و3.5 حصّتُه 20 يومياً)
+    for i, model in enumerate((settings.AI_MODEL,) * 3):
+        if not can_call("gemini"):
             return None
-        text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-        obj = _extract_json_obj(text)
-        return obj if isinstance(obj, dict) and obj.get("points") else None
-    except Exception as e:                                        # noqa: BLE001
-        logger.warning("القارئ البصري {}: {}", sym, type(e).__name__)
-        return None
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.AI_API_KEY}"
+        try:
+            record("gemini")
+            async with httpx.AsyncClient(timeout=120) as c:
+                r = await c.post(url, json=body)
+            if r.status_code in (429, 500, 503) and i < 2:
+                logger.info("القارئ البصري {}: HTTP {} — يُعاد: {}", sym, r.status_code, r.text[:160].replace(settings.AI_API_KEY, "***"))
+                await asyncio.sleep(15 * (i + 1))
+                continue
+            if r.status_code != 200:
+                logger.warning("القارئ البصري {}: HTTP {} بـ{}: {}", sym, r.status_code, model, r.text[:200].replace(settings.AI_API_KEY, "***"))
+                return None
+            text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+            obj = _extract_json_obj(text)
+            return obj if isinstance(obj, dict) and obj.get("points") else None
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning("القارئ البصري {}: {}", sym, type(e).__name__)
+            return None
+    return None
 
 
 def prune(files: dict, today: date | None = None) -> dict:
