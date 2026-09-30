@@ -56,13 +56,13 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
   const hist: { l: string; v: string; c?: string; text?: boolean }[] = [
     ...(g.rev_cagr != null ? [{ l: `نموّ الإيراد السنوي المركّب ${yr(g)}`, v: pct(g.rev_cagr), c: col(g.rev_cagr) }] : []),
     ...(g.ni_cagr != null ? [{ l: `نموّ صافي الدخل السنوي المركّب ${yr(g)}`, v: pct(g.ni_cagr), c: col(g.ni_cagr) }] : []),
-    ...(g.margin_last != null ? [{ l: `هامش صافي الربح ${g.years[0]} ← ${g.years[g.years.length - 1]}`, v: `${g.margin_first}% ← ${g.margin_last}%` }] : []),
+    ...(g.margin_last != null ? [{ l: `هامش صافي الربح من ${g.years[0]} إلى ${g.years[g.years.length - 1]}`, v: `من ${g.margin_first}٪ إلى ${g.margin_last}٪`, text: true }] : []),
     ...(se ? [{ l: `أقوى الأرباع (${se.years} سنوات)`, v: `الربع ${se.strongest}`, text: true }] : []),
     ...(ph.cagr != null ? [{ l: `عائد السهم السنوي منذ ${String(ph.since).slice(0, 4)}`, v: pct(ph.cagr), c: col(ph.cagr) }] : []),
     ...(ph.tasi_cagr != null ? [{ l: `تاسي السنوي في المدّة نفسها`, v: pct(ph.tasi_cagr), c: col(ph.tasi_cagr) }] : []),
     ...(ph.max_dd != null ? [{ l: "أقصى تراجع للسهم", v: pct(ph.max_dd), c: col(ph.max_dd) }] : []),
     ...(ph.best ? [{ l: `أفضل سنة (${ph.best.y}) · أسوأ سنة (${ph.worst.y})`, v: `${pct(ph.best.r)} · ${pct(ph.worst.r)}` }] : []),
-    ...(ph.div ? [{ l: `التوزيعات منذ ${ph.div.since}`, v: `${ph.div.years_paid} سنة · انتظام ${ph.div.regularity}%`, text: true }] : []),
+    ...(ph.div ? [{ l: `التوزيعات منذ ${ph.div.since}`, v: `${ph.div.years_paid} سنة · انتظام ${ph.div.regularity}٪`, text: true }] : []),
     ...(ph.div?.cagr != null ? [{ l: "نموّ التوزيعات السنوي", v: pct(ph.div.cagr), c: col(ph.div.cagr) }] : []),
     ...(pb?.current != null ? [{ l: `مكرّر الربحية ونطاقه (${pb.points[0][0]}–${pb.points[pb.points.length - 1][0]})`, v: `${pb.current}x · ${pb.low}–${pb.high}x` }] : []),
   ];
