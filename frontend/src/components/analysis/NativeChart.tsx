@@ -133,7 +133,7 @@ function Meter({ v, solid = false }: { v: number; solid?: boolean }) {
   );
 }
 
-export default function NativeChart({ symbol, theme = "dark" }: { symbol: string; theme?: "dark" | "light" }) {
+export default function NativeChart({ symbol, theme = "dark", identity }: { symbol: string; theme?: "dark" | "light"; identity?: React.ReactNode }) {
   const el = useRef<HTMLDivElement>(null);
   // المدّةُ الافتراضيّةُ خمسُ سنوات للسوقين (بأمر المالك)
   const [range, setRange] = useState("5y");
@@ -162,6 +162,7 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
   const [tick, setTick] = useState(0);
   const stroke = useRef<{ t: any; p: number }[] | null>(null);
   const [live, setLive] = useState<{ x: number; y: number }[]>([]);
+  const [hy, setHy] = useState<number | null>(null);      // موضعُ الخطّ الأفقيّ قبل اعتماده (D550)
   /* ══ الرسمُ يبقى للشركة حتى يمسحه المالك (بأمر المالك · D496) ══ يُحفظ على
      الخادم لكلّ رمزٍ على حدة، والنسخةُ المحلّيةُ للعرض الفوريّ وحين يتعذّر الخادم. */
   useEffect(() => {
@@ -412,21 +413,11 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         if (d.c) { const ci = tIndex(d.c.t); if (ci >= 0) { const slope = (v2 - v1) / (i2 - i1);
           const off = d.c.p - (v1 + slope * (ci - i1)); mk(v1 + off, v2 + off); } }
       }
-      if (tool === "line") {
-        chart.subscribeClick((param: any) => {
-          if (!param?.time || !param.point) return;
-          const p = candle.coordinateToPrice(param.point.y); if (p == null) return;
-          // الشارتُ اليوميّ يُرجع الزمنَ كائناً {year, month, day} لا نصّاً، فكان
-          // الرسمُ يُحفظ بزمنٍ لا يطابق أيَّ شمعةٍ فلا يُرسم أبداً (D496).
-          const tm = param.time;
-          const t = (tm && typeof tm === "object" && "year" in tm)
-            ? `${tm.year}-${String(tm.month).padStart(2, "0")}-${String(tm.day).padStart(2, "0")}` : tm;
-          pending.current.push({ t, p });
-          if (pending.current.length >= 2) {
-            const [a, b] = pending.current; pending.current = [];
-            saveDraws([...draws, { a, b }]); setTool(null);
-          }
-        });
+      // ══ خطٌّ أفقيٌّ مثبَّت (D550) — كخطّ التقاطع العرضيّ على امتداد الرسم، يُعتمد بـ«+» ══
+      for (const d of draws) {
+        if (typeof d.h !== "number") continue;
+        candle.createPriceLine({ price: d.h, color: cfg.colors?.draw || tok("--brand-ink", "#5b52d3"), lineWidth: 2,
+          lineStyle: 0, axisLabelVisible: true, title: "" });
       }
       chart.timeScale().fitContent();
       chartRef.current = chart; candleRef.current = candle;
@@ -473,6 +464,23 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
     if (pts && pts.length > 1) { saveDraws([...draws, { free: pts }]); setTool(null); }
   };
 
+  useEffect(() => {
+    if (tool !== "line") { setHy(null); return; }
+    const k = candleRef.current, last = bars[bars.length - 1];
+    const y = k && last ? k.priceToCoordinate(last.close) : null;
+    setHy(y == null ? 180 : y);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool]);
+  const hyPrice = hy != null && candleRef.current ? candleRef.current.coordinateToPrice(hy) : null;
+  const moveH = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    setHy(Math.max(4, Math.min(r.height - 4, e.clientY - r.top)));
+  };
+  const commitH = () => {
+    if (hyPrice == null) return;
+    saveDraws([...draws, { h: Math.round(hyPrice * 100) / 100 }]); setTool(null);
+  };
+
   const toggle = (k: keyof typeof ind) => setInd(s => ({ ...s, [k]: !s[k] }));
 
   return (
@@ -483,7 +491,8 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
         const last = bars[bars.length - 1], prev = bars[bars.length - 2];
         const ch = prev?.close ? (last.close / prev.close - 1) * 100 : null;
         return (
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {identity}
             <span className="text-xl font-bold tabular-nums text-[var(--ink)]" dir="ltr">{last.close.toFixed(2)}</span>
             {ch != null && (
               <span className={"text-[13px] font-bold tabular-nums " + (ch >= 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]")} dir="ltr">
@@ -553,6 +562,22 @@ export default function NativeChart({ symbol, theme = "dark" }: { symbol: string
                 strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ stroke: cfg.colors?.draw || "var(--brand-ink)" }} />
             )}
           </svg>
+          {tool === "line" && hy != null && (
+            <div className="absolute inset-0" style={{ zIndex: 4, touchAction: "none", cursor: "row-resize" }}
+              onPointerDown={e => { (e.target as Element).setPointerCapture?.(e.pointerId); moveH(e); }}
+              onPointerMove={moveH}>
+              <div className="absolute inset-x-0" style={{ top: hy, borderTop: `2px dashed ${cfg.colors?.draw || "var(--brand-ink)"}` }} />
+              {hyPrice != null && (
+                <span className="absolute text-[11px] font-bold tabular-nums px-1.5 py-0.5 rounded"
+                  style={{ top: hy - 11, right: 4, background: cfg.colors?.draw || "var(--brand-ink)", color: "var(--bg)" }} dir="ltr">
+                  {hyPrice.toFixed(2)}</span>
+              )}
+              <button type="button" aria-label="اعتماد الخطّ" title="اعتماد الخطّ"
+                onPointerDown={e => e.stopPropagation()} onClick={commitH}
+                className="absolute flex items-center justify-center rounded-full text-[20px] font-bold leading-none"
+                style={{ top: hy - 16, left: 8, width: 32, height: 32, background: cfg.colors?.draw || "var(--brand-ink)", color: "var(--bg)" }}>+</button>
+            </div>
+          )}
           {ind.d7m && zones.filter(z => z.y > 0).map((z, k) => (
             <div key={k} className="d7m-zone" style={{ top: z.y - 8, left: z.x, color: cfg.colors?.zone || undefined }}>{z.title}</div>
           ))}

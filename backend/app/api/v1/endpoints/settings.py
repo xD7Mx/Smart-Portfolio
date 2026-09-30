@@ -54,7 +54,7 @@ async def get_layout():
 # الحقول المعروفة للتخطيط — مكانٌ واحد يُضاف إليه، فلا يُنسى حقلٌ في
 # الحفظ ويُذكر في القراءة.
 _LAYOUT_FIELDS = ("pageOrder", "hiddenPages", "startPage",
-                  "layouts", "activeLayout", "portfolioCols")
+                  "layouts", "activeLayout", "portfolioCols", "roomSymbols")
 
 
 @router.post("/layout")

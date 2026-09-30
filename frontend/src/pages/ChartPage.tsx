@@ -4,7 +4,6 @@ import { CandlestickChart, ChevronDown } from "lucide-react";
 import NativeChart from "../components/analysis/NativeChart";
 import CompanyLogo from "../components/common/CompanyLogo";
 import InlineStockSearch from "../components/market/InlineStockSearch";
-import { lookupCompany } from "../data/saudiCompanies";
 import { holdingsApi } from "../services/api";
 import { useAppStore } from "../store/appStore";
 
@@ -42,7 +41,7 @@ export default function ChartPage() {
   // الافتراضيّ: أوّلُ شركةٍ في المحفظة، وإلا تاسي — فلا تبدأ الغرفةُ فارغة.
   const symbol = chosen ?? (chips[0]?.symbol ?? "^TASI.SR");
   const pick = (s: string) => { setChosen(s.toUpperCase()); setDrawer(null); };
-  const title = INDICES.find(([s]) => s === symbol)?.[1] || lookupCompany(symbol)?.name_ar || symbol;
+  const idxLabel = INDICES.find(([s]) => s === symbol)?.[1];
   const flip = (d: Drawer) => setDrawer(o => (o === d ? null : d));
 
   const tab = (d: Exclude<Drawer, null>, label: string) => (
@@ -57,19 +56,17 @@ export default function ChartPage() {
 
   return (
     <div className="space-y-4 fade-in">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-medium text-[var(--ink)] flex items-center gap-2">
-          <CandlestickChart size={22} className="text-[var(--brand-ink)]" /> الرسم البياني
-        </h1>
-        <InlineStockSearch onPick={pick} global />
-      </div>
+      <h1 className="text-2xl font-medium text-[var(--ink)] flex items-center gap-2">
+        <CandlestickChart size={22} className="text-[var(--brand-ink)]" /> الرسم البياني
+      </h1>
 
       {/* الدرجُ ملتصقٌ بالتبويبات: ينزل منها بحركةٍ ويعود إليها — بلا فراغٍ حين يُطوى. */}
       <div>
         <div className="flex items-center gap-2">
           {chips.length > 0 && tab("mine", "محفظتك")}
           {tab("idx", "المؤشرات")}
-          <span className="ms-auto min-w-0 truncate text-sm font-semibold text-[var(--ink)]">{title}</span>
+          {/* ‏D550: البحثُ بجانب المؤشرات (بأمر المالك) — واسمُ الشركة انتقل إلى سطر السعر شعاراً ورمزاً */}
+          <InlineStockSearch onPick={pick} global />
         </div>
         <div style={{ display: "grid", gridTemplateRows: drawer ? "1fr" : "0fr", opacity: drawer ? 1 : 0,
                       transform: drawer ? "translateY(0)" : "translateY(-6px)",
@@ -91,7 +88,11 @@ export default function ChartPage() {
       </div>
 
       <div className="card chart-lock">
-        <NativeChart symbol={symbol} theme={theme === "light" ? "light" : "dark"} />
+        <NativeChart symbol={symbol} theme={theme === "light" ? "light" : "dark"}
+          identity={<span className="flex items-center gap-1.5 shrink-0">
+            {!idxLabel && <CompanyLogo symbol={symbol} size={26} />}
+            <span className="text-[14px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{idxLabel || symbol.replace(".SR", "")}</span>
+          </span>} />
       </div>
     </div>
   );

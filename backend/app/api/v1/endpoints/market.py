@@ -719,6 +719,40 @@ async def get_tasi_stars(off: str | None = None):
     return success_response(data=await get(parse_off(off)))
 
 
+@router.get("/room")
+async def get_room(symbols: str = ""):
+    """غرفةُ التداول (D551): أسعارُ ما اختاره المالك — «تداول» أوّلاً (بأمره: هو الأساس)،
+    وتاسي من خدمة مؤشّره، والعالميُّ من ياهو. وما لا سعرَ له يُعاد بلا سعر ولا يُختلق."""
+    import asyncio
+    import re as _re
+    from app.services.market_data import market_service
+    from app.services.tadawul_market import index_quote, row_for, usable_rows
+    syms = [x.strip() for x in symbols.split(",") if x.strip()][:60]
+    _rows, live, at = usable_rows()
+    out: list[dict] = []
+
+    async def one(sym: str) -> dict:
+        base = sym.replace(".SR", "")
+        if sym.upper() in ("^TASI.SR", "^TASI", "TASI"):
+            q = await index_quote() or {}
+            return {"symbol": "^TASI.SR", "label": "TASI", "price": q.get("price"), "change": q.get("change"),
+                    "change_pct": q.get("change_pct"), "time": q.get("as_of"), "source": "تداول"}
+        if _re.fullmatch(r"\d{4}", base):
+            r = row_for(base) or {}
+            px, prev = r.get("price"), r.get("prev_close")
+            chg = round(px - prev, 4) if isinstance(px, (int, float)) and isinstance(prev, (int, float)) else None
+            return {"symbol": base, "label": base, "name": r.get("name"), "price": px, "change": chg,
+                    "change_pct": r.get("change_pct"), "time": at, "live": live, "source": "تداول"}
+        try:
+            p = await market_service.get_price(sym)
+        except Exception:                                         # noqa: BLE001
+            p = None
+        return {"symbol": sym, "label": sym, "price": getattr(p, "price", None), "change": getattr(p, "change", None),
+                "change_pct": getattr(p, "change_pct", None), "time": None, "source": "ياهو"}
+    out = list(await asyncio.gather(*(one(x) for x in syms)))
+    return success_response(data=out)
+
+
 @router.get("/official-names")
 async def get_official_names():
     """أسماءُ «تداول» الرسمية (D520) — تُطبَّق فوق دليل الواجهة الساكن."""

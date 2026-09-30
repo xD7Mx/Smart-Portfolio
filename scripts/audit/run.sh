@@ -302,6 +302,7 @@ python3 scripts/audit/stars_backtest_d546.py || _note "$LINENO"
 python3 scripts/audit/research_model_d547.py || _note "$LINENO"
 python3 scripts/audit/app_mind_d548.py || _note "$LINENO"
 python3 scripts/audit/xbrl_perkey_d549.py || _note "$LINENO"
+python3 scripts/audit/room_chart_d550.py || _note "$LINENO"
 
 # D160 (عودة): لا فحصَ في اللجنة يكتب في بيانات المالك المتتبَّعة. عولج
 # في أربعة سكربتاتٍ وتخلّف `rank_check` فعاد يلوّث lastgood.json ويمنع

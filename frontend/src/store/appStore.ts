@@ -17,6 +17,7 @@ function _pushLayout(payload: any) {
     settingsApi.saveLayout({
       pageOrder: s.pageOrder, hiddenPages: s.hiddenPages, startPage: s.startPage,
       layouts: s.layouts, activeLayout: s.activeLayout, portfolioCols: s.portfolioCols,
+      roomSymbols: s.roomSymbols,
       ...payload,
     }).catch(() => {});
   }, 500);
@@ -78,10 +79,12 @@ interface AppState {
   hiddenPages: string[];
   startPage: string;
   portfolioCols: Record<string, boolean>;
+  roomSymbols: string[];
+  setRoomSymbols: (syms: string[]) => void;
   movePage: (id: string, dir: -1 | 1) => void;
   togglePage: (id: string) => void;
   setStartPage: (id: string) => void;
-  applyServerLayout: (layout: { pageOrder?: string[]; hiddenPages?: string[]; startPage?: string; portfolioCols?: Record<string, boolean> } | null) => void;
+  applyServerLayout: (layout: { pageOrder?: string[]; hiddenPages?: string[]; startPage?: string; portfolioCols?: Record<string, boolean>; roomSymbols?: string[] } | null) => void;
   togglePortfolioCol: (id: string) => void;
 
   setTheme: (t: "light" | "dark") => void;
@@ -125,9 +128,12 @@ export const useAppStore = create<AppState>()(
       activeLayout: "default",
       layouts: DEFAULT_LAYOUTS,
 
-      pageOrder: ["portfolio", "market", "chart", "stars", "governance", "library", "ai", "calculators", "reports", "notifications", "settings"],
+      pageOrder: ["portfolio", "market", "chart", "room", "stars", "governance", "library", "ai", "calculators", "reports", "notifications", "settings"],
       hiddenPages: ["notifications"],   // الإشعارات مطفأة افتراضياً
       startPage: "portfolio",
+      // ‏D551: غرفةُ التداول — رموزُ المالك، تعبر الأجهزة مع التخطيط
+      roomSymbols: ["^TASI.SR", "1120", "1150", "2222", "7010", "4190", "4030", "2270", "4340", "2020", "7202", "4164", "4013", "1321", "2286", "4001"],
+      setRoomSymbols: (syms) => { set({ roomSymbols: syms }); _pushLayout({ roomSymbols: syms }); },
       portfolioCols: { sector: true, shares: true, avgCost: true, lastPrice: true, marketValue: true, weight: true, pnl: true, dividends: false, actions: true },
       movePage: (id, dir) => set((s) => {
         const order = [...s.pageOrder];
@@ -160,6 +166,10 @@ export const useAppStore = create<AppState>()(
           order = order.filter((p) => p !== "library");
           const gi = order.indexOf("governance");
           order = gi >= 0 ? [...order.slice(0, gi + 1), "library", ...order.slice(gi + 1)] : [...order, "library"];
+          if (!order.includes("room")) {            // D551
+            const ci = order.indexOf("chart");
+            order = ci >= 0 ? [...order.slice(0, ci + 1), "room", ...order.slice(ci + 1)] : [...order, "room"];
+          }
           if (!order.includes("stars")) {           // D536
             const ci = order.indexOf("chart");
             order = ci >= 0 ? [...order.slice(0, ci + 1), "stars", ...order.slice(ci + 1)] : [...order, "stars"];
@@ -186,6 +196,7 @@ export const useAppStore = create<AppState>()(
           patch.layouts = layout.layouts;
           if (layout.activeLayout) patch.activeLayout = layout.activeLayout;
         }
+        if (Array.isArray(layout.roomSymbols)) patch.roomSymbols = layout.roomSymbols;
         if (Object.keys(patch).length) set(patch);
       },
       /* أعمدة الجدول تعبر الأجهزة بأمر المالك: من يُخفي عمودَين على المكتب
@@ -303,6 +314,11 @@ export const useAppStore = create<AppState>()(
           const i = order.indexOf("market");
           if (i >= 0) order = [...order.slice(0, i + 1), "chart", ...order.slice(i + 1)];
           else order = [...order, "chart"];
+        }
+        // ‏D551: «غرفة التداول» بعد الرسم البياني.
+        if (!order.includes("room")) {
+          const i = order.indexOf("chart");
+          order = i >= 0 ? [...order.slice(0, i + 1), "room", ...order.slice(i + 1)] : [...order, "room"];
         }
         // ‏D536: «نجوم تاسي» صفحةٌ مستقلّةٌ بعد الرسم البياني.
         if (!order.includes("stars")) {
