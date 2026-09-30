@@ -54,34 +54,45 @@ export default function RoomPage() {
         </div>
       </div>
 
-      <div className="card p-0 overflow-hidden">
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-px" style={{ background: "var(--hairline)" }}>
+      {/* ‏D551: قائمةٌ كويدجت تريدنق فيو — صفوفٌ بفواصلَ رقيقةٍ تبدأ بعد الشعار، بلا مربّعات */}
+      <div className="rounded-3xl border border-[var(--hairline)] px-2 sm:px-4 py-2"
+        style={{ background: "var(--raised)", boxShadow: "0 8px 30px -12px color-mix(in srgb, var(--ink) 18%, transparent)" }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 sm:gap-x-6">
           {roomSymbols.map((s) => {
             const q = by[s] || {};
             const label = IDX[s] || s;
+            const pct = typeof q.change_pct === "number" ? q.change_pct : null;
             return (
-              <div key={s} className="relative" style={{ background: "var(--surface)" }}>
+              <div key={s} className="relative group">
                 <button type="button" onClick={() => !edit && /^\d{4}$/.test(s) && setSheet(s)}
-                  className="w-full flex items-center gap-3 px-3 sm:px-4 py-3 min-h-[76px] text-start hover:bg-[var(--field)]">
+                  className="w-full flex items-center gap-3 px-2 py-3 min-h-[68px] text-start rounded-2xl hover:bg-[var(--field)] transition-colors">
                   {IDX[s]
-                    ? <span className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-[10px] font-bold"
-                        style={{ background: "var(--brand)", color: "var(--bg)" }} dir="ltr">{label.slice(0, 4)}</span>
-                    : <CompanyLogo symbol={s} size={40} />}
-                  <span className="flex-1 min-w-0">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className="text-[15px] font-bold text-[var(--ink)] tabular-nums truncate" dir="ltr">{label}</span>
-                      <span className="text-[11px] text-[var(--ink-muted)] tabular-nums" dir="ltr">{hhmm(q.time)}</span>
+                    ? <span className="w-11 h-11 shrink-0 rounded-full flex items-center justify-center text-[10px] font-bold tracking-wide"
+                        style={{ background: "var(--brand)", color: "var(--bg)" }} dir="ltr">{label.slice(0, 5)}</span>
+                    : <span className="w-11 h-11 shrink-0 rounded-full overflow-hidden flex items-center justify-center"
+                        style={{ background: "var(--bg)", boxShadow: "inset 0 0 0 1px var(--hairline)" }}>
+                        <CompanyLogo symbol={s} size={44} />
+                      </span>}
+                  <span className="flex-1 min-w-0 border-b border-[var(--hairline)] pb-3 -mb-3 group-last:border-0">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 min-w-0" dir="ltr">
+                        <span className="text-[16px] font-semibold text-[var(--ink)] tabular-nums truncate">{label}</span>
+                        <span className="text-[11px] font-bold" style={{ color: "var(--warn-ink)" }}>D</span>
+                      </span>
+                      <span className="text-[12px] text-[var(--ink-muted)] tabular-nums" dir="ltr">{hhmm(q.time)}</span>
                     </span>
-                    <span className="block text-[15px] font-bold tabular-nums text-[var(--ink)] mt-0.5 truncate" dir="ltr" style={{ textAlign: "right" }}>{fmt(q.price)}</span>
-                    <span className={"block text-[12px] font-bold tabular-nums truncate " + tone(q.change)} dir="ltr" style={{ textAlign: "right" }}>
-                      {typeof q.change === "number" ? `${q.change > 0 ? "+" : ""}${fmt(q.change)}` : ""}
-                      {typeof q.change_pct === "number" ? ` (${q.change_pct > 0 ? "+" : ""}${q.change_pct.toFixed(2)}%)` : ""}</span>
+                    <span className="flex items-baseline gap-2 mt-0.5" dir="ltr">
+                      <span className="text-[16px] font-medium tabular-nums text-[var(--ink)]">{fmt(q.price)}</span>
+                      <span className={"text-[13px] font-medium tabular-nums " + tone(q.change)}>
+                        {typeof q.change === "number" ? `${q.change > 0 ? "+" : ""}${fmt(q.change)}` : ""}
+                        {pct != null ? ` (${pct > 0 ? "+" : ""}${pct.toFixed(2)}%)` : ""}</span>
+                    </span>
                   </span>
                 </button>
                 {edit && (
                   <button type="button" onClick={() => remove(s)} aria-label={`حذف ${label}`}
-                    className="absolute top-1 end-1 w-8 h-8 rounded-full flex items-center justify-center text-[var(--neg-ink)]"
-                    style={{ background: "var(--panel)" }}>
+                    className="absolute top-1/2 -translate-y-1/2 end-2 w-8 h-8 rounded-full flex items-center justify-center text-[var(--neg-ink)] border border-[var(--hairline)]"
+                    style={{ background: "var(--raised)" }}>
                     <X size={15} />
                   </button>
                 )}

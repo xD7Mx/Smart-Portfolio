@@ -31,5 +31,9 @@ check('"/room"' in ml and "roomSymbols" in st and "setRoomSymbols" in rp and '"r
       "٤ غرفةُ التداول صفحةٌ رئيسية ورموزُها تُحفظ مع التخطيط على الخادم")
 check('@router.get("/room")' in mk and "row_for(base)" in mk and "index_quote()" in mk,
       "٥ أسعارُ الغرفة من «تداول» أوّلاً وتاسي من خدمة مؤشّره")
+css = (F / "styles/globals.css").read_text(encoding="utf-8")
+check("--beige-strength: 10%;" in css and "color-mix(in srgb, var(--beige) var(--beige-strength), var(--bg))" in css
+      and "gap-px" not in rp and "rounded-3xl" in rp,
+      "٦ D552 البيجُ بنسبة 10٪ من مقبضٍ واحد، والغرفةُ قائمةٌ لا مربّعات")
 print(("FAIL" if fail else "PASS") + " D550 · D551 — الرسمُ وغرفةُ التداول")
 sys.exit(fail)

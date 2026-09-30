@@ -1225,7 +1225,11 @@ html.light .modal-title { color: var(--ink); }
    لا رقعةً داكنة على بياض. */
 html.light {
   --bg:        #ffffff;
-  --surface:   #f7f3ec;   /* لوحٌ داخلي: شريط، خبر، إشعار */
+  /* ══ البيجُ المعتمد في البطاقات بنسبة وضوحٍ يعدّلها المالك (D552) ══
+     --beige-strength وحدَه: 10% الآن (بأمر المالك)، و100% يعيد البيجَ كاملاً. */
+  --beige:          #f7f3ec;
+  --beige-strength: 10%;
+  --surface:   color-mix(in srgb, var(--beige) var(--beige-strength), var(--bg));   /* لوحٌ داخلي: شريط، خبر، إشعار */
   --raised:    #ffffff;   /* الطافي: لوح الشركة، النوافذ، القوائم */
   --brand-ink: #4f46e5;   /* ٦٫٢٩:١ على الأبيض */
   --field:     #f7f3ec;   /* الحقول والأزرار الشبحية */
