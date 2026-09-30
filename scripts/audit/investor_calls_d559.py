@@ -46,5 +46,8 @@ check('@router.get("/investor-calls")' in mk and '"type": "مؤتمر المحل
       and "from app.services.investor_calls import lines" in qr and "r.insights" in doc and "<InvestorCalls symbol=" in cp
       and 'id="investor_calls_evening"' in sch,
       "٥ يصل: صفحةَ الشركة، والمفكرة، وعقلَ التطبيق ورأيَ الذكاء، والتقرير — ويُحدَّث مساءً")
+src = R("backend/app/services/investor_calls.py")
+check('"earnings call"' in src and "for q in QUERIES:" in src and src.index('< cut:') < src.index("await fetch(url)"),
+      "٦ بحثٌ بالصيغ كلّها (earnings call …)، والأقدمُ من الحفظ لا يُفتح ليُحذف")
 print(f"{'FAIL' if fail else 'PASS'} D559 — مؤتمرات المحلّلين")
 sys.exit(fail)

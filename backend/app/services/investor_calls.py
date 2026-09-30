@@ -20,6 +20,7 @@ from datetime import date
 from loguru import logger
 
 STORE = "calls:market"
+QUERIES = ("conference call", "earnings call", "investor call", "analysts call")
 KEEP_DAYS = 3 * 365
 _JOIN = re.compile(r"webex|zoom\.|teams\.|register|gotowebinar|meet\.|livestorm|webinar|bigmarker|on24", re.I)
 _MONTHS = {m: i for i, m in enumerate(("january", "february", "march", "april", "may", "june", "july", "august",
@@ -134,26 +135,31 @@ async def refresh(pages: int = 2, max_details: int = 60) -> dict:
         rep["err"] = "لا نقطةَ بيانات"
         return rep
     rows: list[dict] = []
-    for pg in range(1, pages + 1):
-        form = {"annoucmentType": "1_-1", "symbol": "", "sectorDpId": "", "searchType": "", "fromDate": "",
-                "toDate": "", "datePeriod": "", "productType": "", "advisorsList": "", "textSearch": "conference call",
-                "pageNumberDb": str(pg), "pageSize": "50"}
-        try:
-            st, raw = await smart_fetch(ep, method="POST", data=form, referer=D.PAGE, warm=D.PAGE,
-                                        headers={"X-Requested-With": "XMLHttpRequest"})
-            got = (json.loads(raw) or {}).get("announcementList") or [] if st == 200 else []
-        except Exception as e:                                    # noqa: BLE001
-            logger.debug("مؤتمرات المحلّلين ص{}: {}", pg, e)
-            got = []
-        rows += got
-        if len(got) < 50:
-            break
+    # ‏«conference call» وحده فاتَه مَن يسمّيه «earnings call» (قِيس: أرامكو والراجحي بلا سجلّ)
+    for q in QUERIES:
+        for pg in range(1, pages + 1):
+            form = {"annoucmentType": "1_-1", "symbol": "", "sectorDpId": "", "searchType": "", "fromDate": "",
+                    "toDate": "", "datePeriod": "", "productType": "", "advisorsList": "", "textSearch": q,
+                    "pageNumberDb": str(pg), "pageSize": "50"}
+            try:
+                st, raw = await smart_fetch(ep, method="POST", data=form, referer=D.PAGE, warm=D.PAGE,
+                                            headers={"X-Requested-With": "XMLHttpRequest"})
+                got = (json.loads(raw) or {}).get("announcementList") or [] if st == 200 else []
+            except Exception as e:                                # noqa: BLE001
+                logger.debug("مؤتمرات المحلّلين {} ص{}: {}", q, pg, e)
+                got = []
+            rows += got
+            if len(got) < 50:
+                break
     rep["seen"] = len(rows)
+    cut = date.fromordinal(date.today().toordinal() - KEEP_DAYS).isoformat()
     for r in rows:
         rid = str(r.get("announcementNumber") or r.get("PRESS_REL_ID") or "")
         if not rid or rid in calls or not r.get("announcementUrl"):
             continue
-        if not re.search(r"conference call|earnings call|analyst", r.get("SHORT_DESC") or "", re.I):
+        if not re.search(r"conference call|earnings call|investor call|analysts? call|analyst", r.get("SHORT_DESC") or "", re.I):
+            continue
+        if (D._date(r.get("PR_DATE")) or "9") < cut:              # أقدمُ من الحفظ — لا يُفتح ليُحذف (قِيس: أُعيد فتحُه كلَّ دورة)
             continue
         if rep["new"] >= max_details:
             break
@@ -169,7 +175,6 @@ async def refresh(pages: int = 2, max_details: int = 60) -> dict:
         calls[rid] = {**c, "id": rid, "symbol": str(r.get("SYMBOL")), "announced": D._date(r.get("PR_DATE")),
                       "title": (r.get("SHORT_DESC") or "")[:200], "url": url}
         rep["new"] += 1
-    cut = date.fromordinal(date.today().toordinal() - KEEP_DAYS).isoformat()
     calls = {k: v for k, v in calls.items() if (v.get("date") or v.get("announced") or "9") >= cut}
     # قادمٌ مضى موعدُه صار «عُقد» — بلا فتحٍ جديد
     t = date.today().isoformat()

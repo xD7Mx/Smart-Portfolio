@@ -190,11 +190,11 @@ async def job_xbrl_statements():
 
 async def job_investor_calls():
     """مؤتمراتُ المحلّلين (D559): صفحاتُ البحث الأحدث مساءً، وتفاصيلُ الجديد فقط.
-    وأوّلَ مرّةٍ يُملأ الأرشيفُ (نحو 300 إعلان) على دفعاتٍ من ستّين."""
+    وأوّلَ مرّةٍ يُملأ الأرشيف، ثمّ الصفحةُ الأحدثُ لكلّ صيغةٍ كلَّ مساء."""
     try:
         from app.services.investor_calls import load, refresh
-        full = len(load().get("calls") or {}) < 250
-        logger.info(f"مؤتمرات المحلّلين: {await refresh(pages=7 if full else 2)}")
+        full = not load().get("calls")                 # الأرشيفُ يُملأ مرّةً، ثمّ الأحدثُ وحدَه
+        logger.info(f"مؤتمرات المحلّلين: {await refresh(pages=7 if full else 1)}")
     except Exception as e:
         logger.error(f"مؤتمرات المحلّلين: {e}")
 
