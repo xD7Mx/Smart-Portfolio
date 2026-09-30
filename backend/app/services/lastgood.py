@@ -178,6 +178,12 @@ def save(key: str, data) -> None:
     _ensure_flusher()
 
 
+def keys_with_prefix(prefix: str) -> list[str]:
+    """مفاتيحُ المخزن التي تبدأ بالبادئة — لمخازنَ مفتاحُها لكلّ رمزٍ (D549)."""
+    with _lock:
+        return [k for k in _load() if k.startswith(prefix)]
+
+
 def load(key: str, max_age_seconds: int | None = None):
     """Return the last good payload, or None if absent/too old.
     The payload gets `_stale_since` (ISO) injected when it's a dict, so the

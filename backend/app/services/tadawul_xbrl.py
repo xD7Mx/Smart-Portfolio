@@ -652,9 +652,34 @@ async def _pdf_supplement(symbol: str, annual: list[dict], quarterly: list[dict]
 
 
 def _store() -> dict:
+    """المخزنُ كلُّه: المفتاحُ الجامعُ القديم ثمّ مفتاحُ كلّ شركةٍ فوقه (D549)."""
     from app.services import lastgood
     rec = lastgood.load(STORE_KEY)
-    return rec if isinstance(rec, dict) else {}
+    out = dict(rec) if isinstance(rec, dict) else {}
+    out.pop("_stale_since", None)
+    for k in lastgood.keys_with_prefix(STORE_KEY + ":") if hasattr(lastgood, "keys_with_prefix") else []:
+        v = lastgood.load(k)
+        if isinstance(v, dict):
+            v.pop("_stale_since", None)
+            out[k[len(STORE_KEY) + 1:]] = v
+    return out
+
+
+def _get(symbol: str) -> dict | None:
+    """سجلُّ شركةٍ واحدة: مفتاحُها الخاصّ أوّلاً ثمّ الجامعُ القديم (D549).
+
+    ‏D549: كانت الشركاتُ كلُّها تحت مفتاحٍ واحد، فكلُّ عمليةٍ تحفظ شركةً تكتب السوقَ
+    كلَّه من نسختها — وقِيس: الحصادُ العميقُ (عمليةٌ مستقلّة) كتب تاريخَ 2021 لـ247
+    شركة، ثمّ كتب الخادمُ نسختَه الأقدمَ للمفتاح نفسِه فمحا تاريخَ أكثرها (الراجحي
+    وأرامكو وصافولا عادت إلى 2023). فلكلّ شركةٍ مفتاحُها، ولا يكتب أحدٌ ما لا يملك."""
+    from app.services import lastgood
+    rec = lastgood.load(f"{STORE_KEY}:{symbol}")
+    if isinstance(rec, dict):
+        rec.pop("_stale_since", None)
+        return rec
+    old = lastgood.load(STORE_KEY)
+    v = (old or {}).get(str(symbol)) if isinstance(old, dict) else None
+    return v if isinstance(v, dict) else None
 
 
 def _merge_old(old: dict | None, rec: dict) -> dict:
@@ -676,16 +701,14 @@ def _merge_old(old: dict | None, rec: dict) -> dict:
 
 def save_symbol(symbol: str, rec: dict) -> None:
     from app.services import lastgood
-    st = _store()
-    rec = _merge_old(st.get(str(symbol)), rec)
-    st[str(symbol)] = rec
-    lastgood.save(STORE_KEY, st)
+    rec = _merge_old(_get(str(symbol)), rec)
+    lastgood.save(f"{STORE_KEY}:{symbol}", rec)
 
 
 def for_symbol(symbol, kind: str = "annual") -> list[dict]:
     """فتراتُ الشركة المحفوظة — أو فارغةٌ إن غابت أو شاخ إيداعُها."""
     sym = str(symbol or "").replace(".SR", "").strip()
-    rec = _store().get(sym)
+    rec = _get(sym)
     if not isinstance(rec, dict):
         return []
     try:
