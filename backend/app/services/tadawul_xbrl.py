@@ -803,7 +803,11 @@ async def refresh(symbols: list[str], conc: int = 4, max_files: int = 8) -> dict
             return
         async with sem:
             try:
-                rec = await read_symbol(sym, max_files=max_files, reasons=why_empty)
+                # ‏D553: الحصادُ الليليُّ يُصلح نفسَه — شركةٌ تاريخُها المحفوظُ دون اثني عشر
+                # ربعاً تُقرأ ملفّاتُها كلُّها (قِيس: الراجحي بقي من 2023 وملفّاتُه الثمانيةَ عشرَ
+                # تُقرأ كاملةً حتى 2021)؛ وما عمُق يكفيه أحدثُ الملفّات.
+                mf = max_files if len(for_symbol(_b, "quarterly") or []) >= 12 else max(max_files, 30)
+                rec = await read_symbol(sym, max_files=mf, reasons=why_empty)
             except Exception as e:                                # noqa: BLE001
                 logger.debug("XBRL {}: {}", sym, e)
                 rec = None

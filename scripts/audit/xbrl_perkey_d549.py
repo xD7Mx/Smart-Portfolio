@@ -33,5 +33,8 @@ check([p["as_of"] for p in X.for_symbol("2222", "annual")] == ["2021-12-31"] and
 raw = json.load(open(os.environ["LASTGOOD_PATH"]))
 check(f"{X.STORE_KEY}:1120" in raw and "_stale_since" not in raw[f"{X.STORE_KEY}:1120"]["data"],
       "٣ يُحفظ السجلُّ بلا وسمِ «آخر بيانات» المحقون عند القراءة")
+src = open(X.__file__, encoding="utf-8").read()
+check('len(for_symbol(_b, "quarterly") or []) >= 12 else max(max_files, 30)' in src,
+      "٤ D553 الحصادُ الليليُّ يقرأ ملفّاتِ الشركة كلَّها متى كان تاريخُها المحفوظُ دون 12 ربعاً")
 print(f"{'FAIL' if fail else 'PASS'} D549 — قوائمُ كلّ شركةٍ بمفتاحها")
 sys.exit(fail)
