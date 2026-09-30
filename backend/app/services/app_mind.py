@@ -138,7 +138,13 @@ def dossier(symbol: str, analysis: dict) -> dict:
         note = _note(sym, (analysis or {}).get("price"))
     except Exception:                                             # noqa: BLE001
         note = None
-    return {"engines": engines(analysis, sym), "research": research(note), "note": note}
+    try:
+        from app.services.file_reader import coverage, knowledge
+        files, cov = knowledge(sym), coverage(sym)
+    except Exception:                                             # noqa: BLE001
+        files, cov = [], {}
+    return {"engines": engines(analysis, sym), "research": research(note), "note": note,
+            "files": files, "files_cov": cov}
 
 
 def attach(opinion: dict, dos: dict) -> dict:
@@ -151,4 +157,9 @@ def attach(opinion: dict, dos: dict) -> dict:
     if dos.get("research"):
         opinion["research_headline"] = "فريق الأبحاث"
         opinion["research_bullets"] = dos["research"]
+    if dos.get("files"):
+        cov = dos.get("files_cov") or {}
+        opinion["files_headline"] = (f"من ملفّات الشركة ({cov.get('files')} ملفّات، {str(cov.get('from') or '')[:4]}–{str(cov.get('to') or '')[:4]})"
+                                     if cov.get("files") else "من ملفّات الشركة")
+        opinion["files_bullets"] = dos["files"]
     return opinion

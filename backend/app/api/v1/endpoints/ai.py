@@ -360,7 +360,8 @@ async def get_stock_opinion(symbol: str, name: str = "", db: AsyncSession = Depe
     try:
         opinion = await stock_opinion(symbol, name or analysis.get("name") or symbol, analysis,
                                       headlines=list(rows), evidence_lines_ar=_ev_lines,
-                                      mind_lines=(_mind.get("engines") or []) + (_mind.get("research") or []))
+                                      mind_lines=(_mind.get("engines") or []) + (_mind.get("research") or []),
+                                      file_lines=_mind.get("files") or [])
     except Exception:
         opinion = None
     if not opinion:

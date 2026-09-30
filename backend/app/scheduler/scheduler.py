@@ -188,6 +188,15 @@ async def job_xbrl_statements():
         logger.error(f"XBRL batch failed: {e}")
 
 
+async def job_file_reader():
+    """القارئُ البصريّ (D557): ملفّاتٌ قليلةٌ ليلاً بالتتابع — المحفظةُ أوّلاً."""
+    try:
+        from app.services.file_reader import nightly
+        await nightly()
+    except Exception as e:
+        logger.error(f"القارئ البصري: {e}")
+
+
 async def job_sector_betas():
     """بيتا قطاعيةٌ مقيسةٌ من سوقنا — شهرياً (D257).
 
@@ -573,6 +582,13 @@ def start_scheduler():
         job_xbrl_statements,
         CronTrigger(hour=1, minute=30),
         id="xbrl_statements_night",
+        replace_existing=True,
+    )
+    # ‏D557: بعد حصاد XBRL وقبل الفجر — والسوقُ مغلقٌ والخادمُ هادئ
+    _scheduler.add_job(
+        job_file_reader,
+        CronTrigger(hour=3, minute=10),
+        id="file_reader_night",
         replace_existing=True,
     )
 

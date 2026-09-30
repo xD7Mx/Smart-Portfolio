@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles, Compass, LineChart, Target, Zap, Landmark, Loader2, BookOpen, Cpu, FlaskConical } from "lucide-react";
+import { Sparkles, Compass, LineChart, Target, Zap, Landmark, Loader2, BookOpen, Cpu, FlaskConical, UserCheck, FileSearch } from "lucide-react";
 import { aiApi } from "../../services/api";
 
 /* لصقُ لاحقةٍ ستّ عشرية على اللون (`${color}33`) يعمل مع قيمةٍ ثابتة فقط،
@@ -83,6 +83,9 @@ export default function StockOpinion({ symbol, name }: { symbol: string; name?: 
           ))}
         </ul>
       </div>
+      {/* ‏D557: صوتُ المستشار — ما يقوله لصاحب المحفظة صراحةً */}
+      <Section icon={UserCheck} color="var(--brand-ink)" headline={data.advisor_headline} bullets={data.advisor_bullets} />
+      <Section icon={FileSearch} color="var(--chart-4)" headline={data.files_headline} bullets={data.files_bullets} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <Section icon={Cpu} color="var(--brand-ink)" headline={data.engines_headline} bullets={data.engines_bullets} />
         <Section icon={FlaskConical} color="var(--chart-2)" headline={data.research_headline} bullets={data.research_bullets} />
