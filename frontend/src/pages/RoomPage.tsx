@@ -81,11 +81,12 @@ export default function RoomPage() {
                       </span>
                       <span className="text-[12px] text-[var(--ink-muted)] tabular-nums" dir="ltr">{hhmm(q.time)}</span>
                     </span>
-                    <span className="flex items-baseline justify-end gap-2 mt-0.5" dir="ltr">
-                      <span className="text-[16px] font-medium tabular-nums text-[var(--ink)]">{fmt(q.price)}</span>
-                      <span className={"text-[13px] font-medium tabular-nums " + tone(q.change)}>
+                    {/* ‏D552: السعرُ يميناً والتغيّرُ ونسبتُه يساراً (بأمر المالك) */}
+                    <span className="flex items-baseline justify-between gap-2 mt-0.5" dir="ltr">
+                      <span className={"text-[13px] font-medium tabular-nums truncate " + tone(q.change)}>
                         {typeof q.change === "number" ? `${q.change > 0 ? "+" : ""}${fmt(q.change)}` : ""}
                         {pct != null ? ` (${pct > 0 ? "+" : ""}${pct.toFixed(2)}%)` : ""}</span>
+                      <span className="text-[16px] font-medium tabular-nums text-[var(--ink)]">{fmt(q.price)}</span>
                     </span>
                   </span>
                 </button>
