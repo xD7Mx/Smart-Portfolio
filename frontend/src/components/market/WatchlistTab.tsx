@@ -7,6 +7,7 @@ import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { searchCompanies } from "../../data/saudiCompanies";
 import CompanyLogo from "../common/CompanyLogo";
+import { useAppStore } from "../../store/appStore";
 
 /* لوحةُ الاختيار من عائلة الرسوم وحدها: الرموز الدلالية (ربح/خسارة/تحذير)
    ليست هويّاتٍ تُختار، واستعمالها هنا كان يُدخل الأحمر والأصفر الصارخين في
@@ -49,6 +50,19 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
     onSuccess: () => invalidateWatchlist(qc),
   });
 
+  /* ‏D558: أُلغيت «غرفة التداول» بأمر المالك — شركاتُها تُنقل مرّةً إلى هذه القائمة في المحفظة الحالية */
+  const roomSymbols = useAppStore((s: any) => s.roomSymbols) as string[] | undefined;
+  const setRoomSymbols = useAppStore((s: any) => s.setRoomSymbols);
+  const moved = useRef(false);
+  useEffect(() => {
+    if (moved.current || !owner || gid == null || isLoading || !roomSymbols?.length) return;
+    moved.current = true;
+    const have = new Set(rows.map((r: any) => String(r.symbol)));
+    const todo = roomSymbols.filter(x => /^\d{4}$/.test(x) && !have.has(x));
+    Promise.allSettled(todo.map(x => marketApi.watchAdd(x, undefined, gid)))
+      .then(res => { if (res.every(r => r.status === "fulfilled")) setRoomSymbols([]); invalidateWatchlist(qc); });
+  }, [owner, gid, isLoading, roomSymbols, rows]);
+
   const setActive = (id: number) => { setActiveId(id); localStorage.setItem(KEY, String(id)); };
 
   return (
@@ -68,30 +82,35 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
         <div className="py-12 text-center text-[var(--ink-muted)] text-sm">لا شركات في هذه القائمة</div>
       ) : (
         /* الشركات ظاهرة مباشرةً — لا قائمة منسدلة تُخفي ما جئتَ لرؤيته. */
-        <div className="space-y-1.5 mt-3">
+        /* ‏D558: صفّان لا صفٌّ واحد — تتّسع لشركاتٍ أكثر */
+        <div className="grid grid-cols-2 gap-1.5 mt-3">
           {rows.map((r: any) => {
             const up = (r.change_pct ?? 0) >= 0;
             return (
-              <div key={r.symbol} className="flex items-center gap-3 p-2.5 rounded-xl panel hover:bg-[var(--field)] transition-colors">
-                <button onClick={() => onOpen(r.symbol)} className="flex items-center gap-3 min-w-0 flex-1 text-start">
-                  <CompanyLogo symbol={r.symbol} size={32} />
-                  <span className="min-w-0">
-                    <span className="text-[var(--ink)] text-[13px] font-semibold truncate block">{r.name}</span>
-                    <span className="tag-b" style={{ fontSize: 10 }}>{r.symbol}</span>
+              /* خليّةٌ مدمجة بسطرين: الشعارُ والاسم، ثمّ السعرُ يميناً والنسبةُ يساراً */
+              <div key={r.symbol} className="relative p-2.5 rounded-xl panel hover:bg-[var(--field)] transition-colors min-w-0">
+                <button onClick={() => onOpen(r.symbol)} className="w-full text-start min-w-0 block">
+                  <span className="flex items-center gap-2 min-w-0 pe-5">
+                    <CompanyLogo symbol={r.symbol} size={26} />
+                    <span className="min-w-0">
+                      <span className="text-[var(--ink)] text-[12.5px] font-semibold truncate block">{r.name}</span>
+                      <span className="text-[10px] text-[var(--ink-muted)] tabular-nums">{r.symbol}</span>
+                    </span>
+                  </span>
+                  <span className="flex items-baseline justify-between gap-2 mt-1.5">
+                    <span className="text-[var(--ink)] tabular-nums text-sm font-semibold">
+                      <LivePrice symbol={r.symbol} fallback={r.price} />
+                    </span>
+                    {r.change_pct != null && (
+                      <span className="text-[11px] font-bold tabular-nums" style={{ color: up ? "var(--pos-ink)" : "var(--neg-ink)" }}>
+                        <span className="chg-arrow">{up ? "▲" : "▼"}</span> {up ? "+" : ""}{r.change_pct.toFixed(2)}%
+                      </span>
+                    )}
                   </span>
                 </button>
-                <div className="text-end shrink-0">
-                  <div className="text-[var(--ink)] tabular-nums text-sm">
-                    <LivePrice symbol={r.symbol} fallback={r.price} />
-                  </div>
-                  {r.change_pct != null && (
-                    <div className="text-[11px] font-bold" style={{ color: up ? "var(--pos-ink)" : "var(--neg-ink)" }}>
-                      <span className="chg-arrow">{up ? "▲" : "▼"}</span> {up ? "+" : ""}{r.change_pct.toFixed(2)}%
-                    </div>
-                  )}
-                </div>
                 {owner && (
-                  <button onClick={() => remove.mutate(r.symbol)} className="icon-live p-1.5 rounded-lg text-[var(--ink-muted)] hover:text-[var(--neg-ink)] transition-all shrink-0" title="إزالة"><X size={14} /></button>
+                  <button onClick={() => remove.mutate(r.symbol)} aria-label="إزالة"
+                    className="icon-live absolute top-1.5 end-1.5 w-8 h-8 grid place-items-center rounded-lg text-[var(--ink-muted)] hover:text-[var(--neg-ink)] transition-all" title="إزالة"><X size={13} /></button>
                 )}
               </div>
             );

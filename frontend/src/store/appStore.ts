@@ -128,7 +128,7 @@ export const useAppStore = create<AppState>()(
       activeLayout: "default",
       layouts: DEFAULT_LAYOUTS,
 
-      pageOrder: ["portfolio", "market", "chart", "room", "stars", "governance", "library", "ai", "calculators", "reports", "notifications", "settings"],
+      pageOrder: ["portfolio", "market", "chart", "stars", "governance", "library", "ai", "calculators", "reports", "notifications", "settings"],
       hiddenPages: ["notifications"],   // الإشعارات مطفأة افتراضياً
       startPage: "portfolio",
       // ‏D551: غرفةُ التداول — رموزُ المالك، تعبر الأجهزة مع التخطيط
@@ -166,10 +166,7 @@ export const useAppStore = create<AppState>()(
           order = order.filter((p) => p !== "library");
           const gi = order.indexOf("governance");
           order = gi >= 0 ? [...order.slice(0, gi + 1), "library", ...order.slice(gi + 1)] : [...order, "library"];
-          if (!order.includes("room")) {            // D551
-            const ci = order.indexOf("chart");
-            order = ci >= 0 ? [...order.slice(0, ci + 1), "room", ...order.slice(ci + 1)] : [...order, "room"];
-          }
+          order = order.filter((p) => p !== "room");   // ‏D558: أُلغيت «غرفة التداول»
           if (!order.includes("stars")) {           // D536
             const ci = order.indexOf("chart");
             order = ci >= 0 ? [...order.slice(0, ci + 1), "stars", ...order.slice(ci + 1)] : [...order, "stars"];
@@ -315,11 +312,7 @@ export const useAppStore = create<AppState>()(
           if (i >= 0) order = [...order.slice(0, i + 1), "chart", ...order.slice(i + 1)];
           else order = [...order, "chart"];
         }
-        // ‏D551: «غرفة التداول» بعد الرسم البياني.
-        if (!order.includes("room")) {
-          const i = order.indexOf("chart");
-          order = i >= 0 ? [...order.slice(0, i + 1), "room", ...order.slice(i + 1)] : [...order, "room"];
-        }
+        order = order.filter((p) => p !== "room");     // ‏D558: أُلغيت «غرفة التداول» — شركاتُها في المراقبة
         // ‏D536: «نجوم تاسي» صفحةٌ مستقلّةٌ بعد الرسم البياني.
         if (!order.includes("stars")) {
           const i = order.indexOf("chart");
