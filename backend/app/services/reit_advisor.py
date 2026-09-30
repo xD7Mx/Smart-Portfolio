@@ -116,9 +116,10 @@ async def build(symbol: str, price: float | None = None, force: bool = False) ->
         known = {d.get("id"): d for d in old.get("dists") or []}
         for it in items:
             title = it.get("title") or ""
-            if "تقييم" in title:
+            low = title.lower()
+            if "تقييم" in title or "valuation" in low:
                 vals.append(it.get("date"))
-            if "توزيع" not in title:
+            if "توزيع" not in title and "distribut" not in low and "dividend" not in low:
                 continue
             if it.get("id") in known:
                 dists.append(known[it["id"]])

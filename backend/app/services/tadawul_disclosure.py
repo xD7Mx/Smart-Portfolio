@@ -60,7 +60,7 @@ async def list_for(symbol: str, size: int = 40) -> list[dict]:
     sym = re.sub(r"\D", "", str(symbol or ""))[:4]
     if len(sym) != 4:
         return []
-    ck = f"tadawul:annlist:v2:{sym}"          # D555: v2 يحمل TITLE — القديمُ بلا عنوانٍ فلا تُرى التوزيعات
+    ck = f"tadawul:annlist:v3:{sym}"          # D555: v2 يحمل TITLE — القديمُ بلا عنوانٍ فلا تُرى التوزيعات
     hit = cache.get(ck)
     if hit is not None:
         return hit
@@ -84,7 +84,7 @@ async def list_for(symbol: str, size: int = 40) -> list[dict]:
         if str(r.get("SYMBOL")) != sym or not r.get("announcementUrl"):
             continue
         out.append({"date": _date(r.get("PR_DATE")), "id": str(r.get("announcementNumber") or r.get("PRESS_REL_ID")),
-                    "title": str(r.get("TITLE") or ""),
+                    "title": str(r.get("SHORT_DESC") or r.get("TITLE") or ""),   # D555: TITLE اسمُ الصندوق، والعنوانُ في SHORT_DESC
                     "url": O + r["announcementUrl"].replace("locale=en", "locale=ar")})
     cache.set(ck, out, 60 * 60 if out else 10 * 60)
     return out
