@@ -46,7 +46,7 @@ check("mem_available_mb()" in src and "remaining_fraction(\"gemini\")" in src an
       "٦ محروس (حدُّ ذاكرته الخاصّ، وملفُّ الربع الأول في أبريل لا يُحسب سنوياً): ذاكرةٌ، ونصيبُ الحصّة، وحدُّ الحجم، ودفعةٌ ليليّةٌ محدودة")
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 check("job_file_reader" in sch and 'id="file_reader_night"' in sch and "create_subprocess_exec" in sch
-      and "malloc_trim" in src and "content=chunks()" in src and "os.remove(tmp)" in src,
+      and "malloc_trim" in src and "content=chunks()" in src and "async def chunks()" in src and "os.remove(tmp)" in src,
       "٧ ليلاً في عمليةٍ منفصلة، وذاكرةٌ تُعاد بعد كلّ ملفّ، والرفعُ قطعاً والملفُّ المؤقّتُ يُحذف (D565)")
 ai = (ROOT / "backend/app/services/ai_content.py").read_text(encoding="utf-8")
 am = (ROOT / "backend/app/services/app_mind.py").read_text(encoding="utf-8")

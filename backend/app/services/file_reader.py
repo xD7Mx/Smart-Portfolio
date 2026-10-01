@@ -95,7 +95,9 @@ async def _upload(path: str, sym: str) -> tuple[str | None, str | None]:
     size = os.path.getsize(path)
     base = "https://generativelanguage.googleapis.com"
 
-    def chunks():
+    # ‏مولّدٌ **غيرُ متزامن**: العميلُ غيرُ المتزامن يرفض المولّدَ العاديّ — قِيس (كاشف file_upload_diag):
+    # بالبايتات نجح الرفعُ والقراءة، وبالمولّد العاديّ سقط كلُّ ملفٍّ بصمت
+    async def chunks():
         with open(path, "rb") as fh:
             while True:
                 b = fh.read(256 * 1024)
