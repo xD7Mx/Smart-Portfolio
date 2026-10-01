@@ -34,7 +34,8 @@ def lint(txt: str, needs_end: bool) -> list[str]:
 async def main():
     from sqlalchemy import select
     from app.core.database import AsyncSessionLocal
-    from app.core.portfolio_scope import reset_scope, set_scope
+    from app.core.portfolio_scope import install_scope_listeners, reset_scope, set_scope
+    install_scope_listeners()          # ‏D573: بلا هذا لا عزلَ في الكاشف فتُحفظ نصائحُ وهميةٌ لمحفظةٍ فارغة
     from app.models.portfolio import Portfolio
     from app.services.advisor_weekly import review
     from app.services.ai_chat import answer
