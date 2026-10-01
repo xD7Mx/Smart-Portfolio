@@ -269,6 +269,32 @@ def signals(f: dict) -> dict:
     return s
 
 
+def reit_facts(f: dict) -> list[str]:
+    """جملٌ محسوبةٌ لا يُترك للنموذج استنتاجُها — قِيس: قرأ جدولَ الأقران معكوساً فقال عن الراجحي ريت
+    «أفضلُ من معظم أقرانه» وخصمُه من أصغرها (أي أغلاها نسبةً إلى صافي أصوله)."""
+    out: list[str] = []
+    r, peers = f.get("reit") or {}, [p for p in (f.get("peers") or []) if not p.get("self")]
+    prem = r.get("premium")
+    if prem is not None and peers:
+        deeper = sum(1 for p in peers if p["premium"] < prem)
+        med = sorted(p["premium"] for p in peers)[len(peers) // 2]
+        out.append(f"خصمُه على صافي الأصول {prem:+.1f}٪ مقابل وسيطِ أقرانه {med:+.1f}٪: "
+                   f"{deeper} من {len(peers)} أقرانٍ خصمُهم أعمق — "
+                   + ("فهو **أغلى** من أكثرهم نسبةً إلى صافي أصوله" if deeper > len(peers) / 2
+                      else "فهو **أرخص** من أكثرهم نسبةً إلى صافي أصوله"))
+        ys = sorted(p["yield"] for p in peers if p.get("yield"))
+        if r.get("yield") and ys:
+            higher = sum(1 for y in ys if y > r["yield"])
+            out.append(f"عائدُ توزيعه {r['yield']}٪ مقابل وسيطِ أقرانه {ys[len(ys) // 2]}٪ ({higher} من {len(ys)} عائدُهم أعلى)")
+    hist = [h["v"] for h in r.get("nav_history") or []]
+    if len(hist) >= 2:
+        drops = [(b / a - 1) * 100 for a, b in zip(hist, hist[1:])]
+        worst = min(drops)
+        if worst <= -5:
+            out.append(f"صافي أصوله هبط {abs(worst):.1f}٪ في أحد التقييمات الأخيرة، وتغيّرُه في آخر تقييم {drops[-1]:+.1f}٪")
+    return out
+
+
 def _shares(amount: float, price: float | None) -> int:
     return int(math.floor(amount / price)) if price and amount > 0 else 0
 
@@ -281,7 +307,7 @@ def stance(f: dict) -> dict:
     noise = max(px or 0, cap * 0.002)
     rem = f.get("remaining")
     target_amt = (f.get("target") or 0) / 100 * cap if f.get("target") else None
-    out: dict = {"signals": sg, "tranches": [], "stop_rules": []}
+    out: dict = {"signals": sg, "tranches": [], "stop_rules": [], "facts": reit_facts(f)}
     due = f.get("results_due")
     res_cond = (f"بعد إعلان النتائج القادمة (متوقَّعةٌ حتى {due})" if due else "بعد إعلان النتائج القادمة") + \
         (" إن صمد التوزيعُ وصافي الأصول" if f.get("is_reit") else
@@ -368,6 +394,7 @@ CHARTER = """أنت «صقر»، المستشارُ الماليُّ الخاص�
 • ناقدٌ لا مجامل: قل ما لا يحبّ سماعه إن كانت الأرقامُ تقوله. افصل جودةَ الشركة عن جاذبية سهمها عند سعره.
 • ربحُ المركز أو خسارتُه **غيرُ محقّقة** ما لم يُبع — لا تقل «محقّقة».
 • حجمُ المركز قبل «اشترِ»: انظر وزنه من رأس المال (القيمةُ السوقية + السيولة) مقابل هدفه والمتبقّي.
+• «الحقائق» في الموقف (مقارنةُ الأقران وتاريخُ صافي الأصول) محسوبةٌ — انقلها كما هي ولا تستنتج عكسها.
 • «الموقف» المرفقُ محسوبٌ بقواعد التطبيق: **الإجراءُ والمبالغُ وعددُ الأسهم والشروطُ منه حرفياً** — لا تغيّرها ولا تخترع غيرها. مهمّتك أن تشرحها وتعلّلها من الملفّ.
 • استند إلى ما قرأه التطبيقُ من ملفّات الشركة (بفتراتها) إن وُجد: ما الذي تغيّر، ولماذا، وهل التوزيعُ مغطّى. وإن لم يُقرأ شيءٌ فقل ذلك ولا تدّعِ قراءته.
 • إن كانت المشترياتُ الأخيرة في الملفّ فاذكرها: ما نُفّذ وما بقي — الخطةُ تتواكب مع ما فعله.
@@ -395,6 +422,8 @@ def render(fs: list[dict], sts: list[dict], cmp: list[dict] | None = None) -> st
         if f.get("recent"):
             r = f["recent"][0]
             out.append(f"• آخرُ عمليةٍ: {r['type']} {(r.get('qty') or 0):g} سهماً بسعر {r.get('price')} في {r['date']}")
+        for x in st.get("facts") or []:
+            out.append(f"• {x.replace('**', '')}")
         for t in st.get("tranches") or []:
             out.append(f"• الدفعة {t['n']}: {t['amount']:,.0f} ريال (نحو {t['shares']} سهماً) — {t['when']}")
         for s in st.get("stop_rules") or []:
