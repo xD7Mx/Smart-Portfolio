@@ -70,9 +70,20 @@ check(wins["العائد على حقوق الملكية٪"] == "2270" and wins["
       "١٠ المقارنة: الأفضلُ في كلّ بند، وكلفةُ الاستبدال تُذكر (خسارةٌ تُثبَّت)", A.switch_cost(SAD) or "")
 txt = A.render([SAD], [st])
 check("الدفعة 1" in txt and "انتظر" in txt and "القرارُ لك" in txt, "١١ بلا نموذج يُكتب الجوابُ من الموقف نفسِه — المستشارُ لا يصمت")
+# ‏«الراجحي ريت» شركةٌ واحدة لا اثنتان (قِيس على الخادم: فُهمت مصرفَ الراجحي معها)
+import app.services.market_screener as _ms
+_ms.get_cached_screener = lambda: [{"symbol": "2280", "name": "المراعي"}, {"symbol": "1120", "name": "الراجحي"}]
+CTX = {"المحفظة": {"المراكز": [{"الرمز": "1120", "الشركة": "مصرف الراجحي"}, {"الرمز": "4340", "الشركة": "صندوق الراجحي ريت"},
+                               {"الرمز": "2270", "الشركة": "سدافكو"}]}}
+c1 = [c["symbol"] for c in A.companies("هل اضخ في الراجحي ريت في هذا المستوى؟", CTX)]
+c2 = [c["symbol"] for c in A.companies("ماذا عن سدافكو هل اغيره بشركة المراعي", CTX)]
+c3 = [c["symbol"] for c in A.companies("هل أضيف على مصرف الراجحي؟", CTX)]
+check(c1 == ["4340"] and sorted(c2) == ["2270", "2280"] and c3 == ["1120"],
+      "١٣ التعرّف: «الراجحي ريت» الصندوقُ وحده، و«سدافكو … المراعي» شركتان، و«مصرف الراجحي» المصرف", f"{c1} · {c2} · {c3}")
 src = (ROOT / "backend/app/services/advisor.py").read_text(encoding="utf-8")
 chat = (ROOT / "backend/app/services/ai_chat.py").read_text(encoding="utf-8")
-check("حرفياً" in src and "لا تغيّرها ولا تخترع" in src and "from app.services import advisor" in chat
+check("غيرُ محقّقة" in src and '"SELL": "بيع"' in src and "for i in range(2):" in src
+      and "حرفياً" in src and "لا تغيّرها ولا تخترع" in src and "from app.services import advisor" in chat
       and "advisor.intent(question)" in chat and chat.index("advisor.intent(question)") < chat.index("llm_ready = bool("),
       "١٢ صقرٌ (التطبيق وتلغرام) يمرّ بالمستشار قبل أيّ مسار، والنموذجُ ملزَمٌ بأرقام الموقف")
 print(f"{'FAIL' if fail else 'PASS'} D567 — مستشارُ المحفظة")

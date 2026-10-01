@@ -48,33 +48,54 @@ def asks(question: str) -> bool:
 
 
 def companies(question: str, ctx: dict, limit: int = 2) -> list[dict]:
-    """الشركاتُ المذكورة — الحيازاتُ أوّلاً ثمّ السوق، بلا تكرارٍ ولا تداخل (لمقارنة «أ أم ب»)."""
-    from app.services.ai_chat import _mentions
+    """الشركاتُ المذكورة — الحيازاتُ أوّلاً ثمّ السوق، بلا تكرارٍ ولا تداخل (لمقارنة «أ أم ب»).
+
+    ‏«الراجحي ريت» لا تعني مصرفَ الراجحي معه: المطابقةُ بكلمتين متتاليتين من الاسم تتقدّم على
+    كلمةٍ واحدة، ومن طابق بكلمةٍ تحملها مطابقةٌ أقوى يسقط (قِيس: فُهمت شركتين)."""
+    from app.services.ai_chat import _STOP_WORDS
     from app.services.ai_chat_rules import _n
     q = _n(question or "")
-    found: dict[str, dict] = {}
+    cands: dict[str, dict] = {}
 
-    def score(name):
+    def consider(sym, name, bonus=0):
         key = _n(str(name or ""))
-        return len(key) + 100 if key and key in q else max(
-            [len(t) for t in key.split() if len(t) >= 4 and t in q] or [0])
+        toks = key.split()
+        if not sym or len(key) < 3:
+            return
+        sc, hit = 0, set()
+        if key in q:
+            sc, hit = 300 + len(key), set(toks)
+        else:
+            for x, y in zip(toks, toks[1:]):
+                if f"{x} {y}" in q and not ({x, y} <= _STOP_WORDS):
+                    sc, hit = max(sc, 200 + len(x) + len(y)), hit | {x, y}
+            if not sc:
+                for t in toks:
+                    if len(t) >= 4 and t not in _STOP_WORDS and t in q:
+                        sc, hit = max(sc, len(t)), hit | {t}
+        if not sc and str(sym) in (question or ""):
+            sc = 250
+        if sc and (sym not in cands or cands[sym]["score"] < sc + bonus):
+            cands[sym] = {"symbol": str(sym), "name": name, "score": sc + bonus, "hit": hit}
 
     for h in ((ctx.get("المحفظة") or {}).get("المراكز") or []):
-        s, n = str(h.get("الرمز") or ""), h.get("الشركة")
-        if s and _mentions(question, n, s):
-            found[s] = {"symbol": s, "name": n, "score": score(n) + 5}
+        consider(str(h.get("الرمز") or ""), h.get("الشركة"), 5)
     try:
         from app.services.market_screener import get_cached_screener
         for r in get_cached_screener() or []:
-            s, n = str(r.get("symbol") or ""), r.get("name")
-            if s and s not in found and _mentions(question, n, s):
-                found[s] = {"symbol": s, "name": n, "score": score(n)}
+            consider(str(r.get("symbol") or ""), r.get("name"))
     except Exception:                                             # noqa: BLE001
         pass
-    for m in re.findall(r"\b(\d{4})\b", question or ""):
-        found.setdefault(m, {"symbol": m, "name": m, "score": 200})
-    out = sorted(found.values(), key=lambda x: -x["score"])
-    return out[:limit]
+    ranked = sorted(cands.values(), key=lambda x: (-len(x["hit"]), -x["score"]))
+    out: list[dict] = []
+    for c in ranked:
+        # كلماتُها كلُّها داخلَ مطابقةٍ أطول لشركةٍ أخرى ⇒ ليست شركةً ثانية
+        # (المصرفُ مسجَّلٌ في الفرز باسم «الراجحي» وحده — فيطابق كاملاً وهو جزءٌ من «الراجحي ريت»)
+        if c["hit"] and any(len(o["hit"]) > len(c["hit"]) and c["hit"] <= o["hit"] for o in cands.values()):
+            continue
+        out.append(c)
+    out.sort(key=lambda x: -x["score"])
+    return [{"symbol": c["symbol"], "name": c["name"], "score": c["score"]} for c in out[:limit]]
 
 
 # ── ملفُّ القرار ───────────────────────────────────────────────────────────
@@ -131,7 +152,8 @@ async def dossier(db, symbol: str, name: str = "") -> dict:
                                           Transaction.quantity, Transaction.price)
                                    .where(Transaction.company_id == row[5], Transaction.executed_at >= since)
                                    .order_by(Transaction.executed_at.desc()))).all()
-            f["recent"] = [{"date": str(t[0])[:10], "type": getattr(t[1], "value", str(t[1])),
+            _ar = {"BUY": "شراء", "SELL": "بيع", "BONUS": "منحة", "DIVIDEND": "توزيع", "SPLIT": "تجزئة"}
+            f["recent"] = [{"date": str(t[0])[:10], "type": _ar.get(str(getattr(t[1], "value", t[1])).upper(), str(getattr(t[1], "value", t[1]))),
                             "qty": _f(t[2]), "price": _f(t[3])} for t in tx][:8]
     except Exception as e:                                        # noqa: BLE001
         logger.debug("advisor holding {}: {}", sym, e)
@@ -150,7 +172,8 @@ async def dossier(db, symbol: str, name: str = "") -> dict:
                   "pe": _f(fu.get("pe_ratio")), "dy": _f(fu.get("dividend_yield")), "roe": _f(fu.get("roe")),
                   "eps_g": _f(fu.get("earnings_growth")), "w52_low": _f(fu.get("week52_low")),
                   "w52_high": _f(fu.get("week52_high")), "sharia": a.get("sharia_status") or None})
-        f["name"] = a.get("name") or f["name"]
+        if not re.search(r"[\u0600-\u06FF]", str(f.get("name") or "")):   # الاسمُ العربيّ يبقى
+            f["name"] = a.get("name") or f["name"]
     except Exception as e:                                        # noqa: BLE001
         logger.debug("advisor analysis {}: {}", sym, e)
 
@@ -343,6 +366,7 @@ CHARTER = """أنت «صقر»، المستشارُ الماليُّ الخاص�
 
 منهجك (ملزم):
 • ناقدٌ لا مجامل: قل ما لا يحبّ سماعه إن كانت الأرقامُ تقوله. افصل جودةَ الشركة عن جاذبية سهمها عند سعره.
+• ربحُ المركز أو خسارتُه **غيرُ محقّقة** ما لم يُبع — لا تقل «محقّقة».
 • حجمُ المركز قبل «اشترِ»: انظر وزنه من رأس المال (القيمةُ السوقية + السيولة) مقابل هدفه والمتبقّي.
 • «الموقف» المرفقُ محسوبٌ بقواعد التطبيق: **الإجراءُ والمبالغُ وعددُ الأسهم والشروطُ منه حرفياً** — لا تغيّرها ولا تخترع غيرها. مهمّتك أن تشرحها وتعلّلها من الملفّ.
 • استند إلى ما قرأه التطبيقُ من ملفّات الشركة (بفتراتها) إن وُجد: ما الذي تغيّر، ولماذا، وهل التوزيعُ مغطّى. وإن لم يُقرأ شيءٌ فقل ذلك ولا تدّعِ قراءته.
@@ -411,10 +435,19 @@ async def answer(db, question: str, picked: list[dict], history: list | None = N
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
            f"{settings.AI_MODEL}:generateContent?key={settings.AI_API_KEY}")
     try:
-        record("gemini")
-        async with httpx.AsyncClient(timeout=40) as c:
-            r = await c.post(url, json={"contents": [{"parts": [{"text": prompt}]}],
-                                        "generationConfig": {"temperature": 0.25, "maxOutputTokens": 1800}})
+        import asyncio
+        body = {"contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.25, "maxOutputTokens": 1800}}
+        for i in range(2):                                        # ‏503 «مشغول» عارض — محاولةٌ ثانية (قِيس)
+            if not can_call("gemini"):
+                break
+            record("gemini")
+            async with httpx.AsyncClient(timeout=40) as c:
+                r = await c.post(url, json=body)
+            if r.status_code in (429, 500, 503) and i == 0:
+                await asyncio.sleep(4)
+                continue
+            break
         if r.status_code != 200:
             logger.warning("advisor: HTTP {}", r.status_code)
             return {"reply": fallback, "grounded": True, "source": "advisor-rules"}
