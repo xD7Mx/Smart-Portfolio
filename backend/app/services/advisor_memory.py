@@ -26,9 +26,17 @@ def _today() -> str:
     return date.today().isoformat()
 
 
-def recall(sym: str) -> dict | None:
+def _key(sym: str, pid: int | None = None) -> str:
+    """‏D573: نصيحةٌ لكلّ محفظةٍ على حدة — الشركةُ نفسُها قد تكون في محفظتين بخطّتين."""
+    if pid is None:
+        from app.core.portfolio_scope import active_pid
+        pid = active_pid()
+    return f"advice:{pid or 0}:{sym}"
+
+
+def recall(sym: str, pid: int | None = None) -> dict | None:
     from app.services import lastgood
-    a = lastgood.load(STORE.format(sym)) or None
+    a = lastgood.load(_key(sym, pid)) or None
     return a if a and a.get("status") == "active" else None
 
 
@@ -63,11 +71,11 @@ def remember(f: dict, st: dict, pid: int | None) -> dict | None:
     from app.services import lastgood
     if not st.get("tranches"):
         return None
-    old = recall(f["symbol"])
+    old = recall(f["symbol"], pid)
     if old and old.get("action") == st.get("action") and old.get("at", "") >= (date.today() - timedelta(days=30)).isoformat():
         return old
     a = fresh(f, st, pid)
-    lastgood.save(STORE.format(f["symbol"]), a)
+    lastgood.save(_key(f["symbol"], pid), a)
     return a
 
 
@@ -130,16 +138,18 @@ def evaluate(a: dict, live: dict, today: str | None = None) -> tuple[dict, list[
                 t["status"] = "paused"
 
     # ما تحقّق
-    for t in a["tranches"]:
+    for i, t in enumerate(a["tranches"]):
         if t.get("status") != "pending":
             continue
+        # ‏D573: الدفعاتُ بالترتيب — لا تتقدّم دفعةٌ وما قبلها ينتظر شرطَه، إلا شرطُ «هبوط السعر» (فرصةٌ مستقلّة)
+        earlier_waiting = any(x.get("status") == "pending" for x in a["tranches"][:i])
         hit = None
         for c in t.get("cond") or []:
             k = c.get("k")
-            if k == "results" and len(pub) >= c.get("nth", 1) and not a.get("_res_bad"):
+            if k == "results" and len(pub) >= c.get("nth", 1) and not a.get("_res_bad") and not earlier_waiting:
                 hit = f"صدرت النتائجُ ({pub[c.get('nth', 1) - 1]}) وجاء الربحُ عند توقّع التطبيق أو فوقه" \
                     if fc.get("net_income") and live.get("ni_latest") is not None else f"صدرت النتائج ({pub[-1]}) — راجعها"
-            elif k == "reclaim" and px and c.get("level") and px >= c["level"]:
+            elif k == "reclaim" and px and c.get("level") and px >= c["level"] and not earlier_waiting:
                 hit = f"ثبت السعرُ {px} فوق متوسط 200 يوم ({c['level']})"
             elif k == "below" and px and c.get("level") and px <= c["level"]:
                 hit = f"بلغ السعرُ {px} مستوى الشراء ({c['level']})"
@@ -238,6 +248,10 @@ async def watch() -> dict:
         for k in lastgood.keys_with_prefix("advice:"):
             a = lastgood.load(k) or {}
             if a.get("status") != "active":
+                continue
+            if k.count(":") < 2:                                  # ‏D573: صيغةٌ قديمةٌ بشروطٍ معيبة — تُطوى ولا تُبلِّغ
+                a["status"] = "superseded"
+                lastgood.save(k, a)
                 continue
             rep["advices"] += 1
             a, ev = evaluate(a, await _live(db, a))

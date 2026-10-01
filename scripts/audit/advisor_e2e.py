@@ -21,7 +21,7 @@ QS = ["مراجعة الأسبوع",
       "بع لي سدافكو",
       "كم النقد المتاح؟"]
 BAD = [(r"[٠-٩]", "أرقامٌ هندية"), (r"\b(new_target|current_weight|target_weight|action|tranches|why)\b", "حقلٌ إنجليزيّ"),
-       (r"خسارة[^.\n]{0,12}محقّ?قة(?! عند البيع)", "«محقّقة» لخسارةٍ قائمة"), (r"^(أهلاً|مرحباً|السلام)", "تحيّة")]
+       (r"خسارة(?![^.\n]{0,8}غير)[^.\n]{0,12}(?<!غير )محقّ?قة(?! عند البيع)", "«محقّقة» لخسارةٍ قائمة"), (r"^(أهلاً|مرحباً|السلام)", "تحيّة")]
 
 
 def lint(txt: str, needs_end: bool) -> list[str]:
@@ -68,9 +68,14 @@ async def main():
                 print("-" * 30)
         finally:
             reset_scope()
-    from app.services.advisor_memory import watch
+    # المتابعةُ تُقيَّم **بلا إرسال** (قِيس: تشغيلُها في الاختبار أرسل للمالك تنبيهاً)
+    from app.services import advisor_memory as AM
     from app.services import lastgood
-    print("@@ADVICES@@", len(lastgood.keys_with_prefix("advice:")), "@@WATCH@@", await watch())
+    sent = []
+    async def _no_send(title, lines, raw=False):
+        sent.append((title, lines))
+    AM.notify = _no_send
+    print("@@ADVICES@@", len(lastgood.keys_with_prefix("advice:")), "@@WATCH@@", await AM.watch(), "@@WOULD_SEND@@", sent)
     from app.services.saqr_bot import bot
     me = await bot._call("getMe") if bot.token else None
     print("@@TELEGRAM@@ مفعّل" if bot.enabled else "@@TELEGRAM@@ غيرُ مفعّل", "· البوت:", (me or {}).get("username"))

@@ -116,10 +116,24 @@ old, ev = M.evaluate(old, {"price": 180, "qty": 22}, "2026-10-01")
 check(old["status"] == "expired" and ev, "١٦ نصيحةٌ عمرُها أكثرُ من 200 يوم تنتهي ويُطلب سؤالٌ جديد")
 M.remember(SAD, st, 1)
 from app.services import lastgood
-x = lastgood.load("advice:2270"); x["tranches"][0]["status"] = "done"; lastgood.save("advice:2270", x)
+x = lastgood.load("advice:1:2270"); x["tranches"][0]["status"] = "done"; lastgood.save("advice:1:2270", x)
 M.remember(SAD, st, 1)
-check(lastgood.load("advice:2270")["tranches"][0]["status"] == "done", "١٧ سؤالٌ متكرّر لا يصفّر حالاتِ الدفعات — النصيحةُ تُتابَع")
+check(lastgood.load("advice:1:2270")["tranches"][0]["status"] == "done", "١٧ سؤالٌ متكرّر لا يصفّر حالاتِ الدفعات — النصيحةُ تُتابَع")
 
+# ‏D573: سعرٌ فوق متوسط 200 يوم أصلاً ⇒ لا شرطَ «ثبت فوقه»؛ والدفعةُ الثانية لا تسبق الأولى
+INMA = {**SAD, "symbol": "1150", "name": "الإنماء", "price": 24.26, "sma200": 23.78, "decision": "انتظار", "eps_g": 2,
+        "remaining": 13500, "next_q": {"as_of": "2026-09-30", "net_income": 1.5e9, "mape": 8}}
+sti = A.stance(INMA)
+check(all(c.get("k") != "reclaim" for t in sti["tranches"] for c in t.get("cond") or [])
+      and all("متوسط 200" not in t["when"] for t in sti["tranches"]),
+      "١٩ D573 السعرُ فوق متوسط 200 يوم ⇒ لا شرطَ «ثبت فوقه» (كان يتحقّق يومَ النصيحة)", str([t["when"] for t in sti["tranches"]]))
+SAD_LOW = {**SAD, "price": 180, "sma200": 216.05}
+d = M.fresh(SAD_LOW, A.stance(SAD_LOW), 1)
+d, ev = M.evaluate(d, {"price": 220, "qty": 22, "results": []}, "2026-10-10")
+check(d["tranches"][1]["status"] == "pending" and not any("الدفعة 2" in e for e in ev),
+      "٢٠ D573 الدفعةُ الثانية لا تسبق الأولى وهي تنتظر النتائج — ولو تحقّق شرطُ السعر", " | ".join(ev))
+check('k.count(":") < 2' in (ROOT / "backend/app/services/advisor_memory.py").read_text(encoding="utf-8")
+      and M._key("2270", 1) == "advice:1:2270" and M._key("2270", 2) == "advice:2:2270", "٢١ D573 نصيحةٌ لكلّ محفظةٍ على حدة")
 src = (ROOT / "backend/app/services/advisor.py").read_text(encoding="utf-8")
 chat = (ROOT / "backend/app/services/ai_chat.py").read_text(encoding="utf-8")
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")

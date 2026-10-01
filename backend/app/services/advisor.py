@@ -381,7 +381,10 @@ def stance(f: dict) -> dict:
     after = (f.get("next_q") or {}).get("as_of")
     c_res = {"k": "results", "after": after, "due": due, "nth": 1}
     c_res2 = {"k": "results", "after": after, "due": due, "nth": 2}
-    c_rec = {"k": "reclaim", "level": f.get("sma200")} if f.get("sma200") else None
+    # ‏D573: شرطُ «ثبت فوق متوسط 200 يوم» لا معنى له والسعرُ فوقه أصلاً — كان يتحقّق يومَ النصيحة
+    # (قِيس: نُبّه المالكُ أنّ الدفعة الثانية للإنماء وجرير جاهزة والأولى تنتظر النتائج)
+    below_ma = bool(f.get("sma200") and px and px < f["sma200"])
+    c_rec = {"k": "reclaim", "level": f.get("sma200")} if below_ma else None
     if f.get("is_reit"):
         nav = (f.get("reit") or {}).get("nav")
         deep = round(nav * 0.85, 2) if nav else None
@@ -391,11 +394,11 @@ def stance(f: dict) -> dict:
         lvl = round(px * 0.9, 2) if px else None
         value_cond = f"إن هبط السعرُ نحو {lvl} (−10٪) دون خفضٍ للتوزيع" if lvl else "عند هبوطٍ أعمق دون خفضٍ للتوزيع"
         c_val = {"k": "below", "level": lvl} if lvl else None
-    reclaim = (f"أو ثبت السعرُ فوق متوسط 200 يوم ({f['sma200']})" if f.get("sma200") else "أو تحسّن الاتجاهُ الفنيّ")
+    reclaim = (f"أو ثبت السعرُ فوق متوسط 200 يوم ({f['sma200']})" if below_ma else "")
     any_ = lambda *cs: [c for c in cs if c]
 
     if gated:
-        parts = [(0.34, res_cond, any_(c_res)), (0.33, "بعد تأكيد التحسّن في الربع التالي " + reclaim, any_(c_res2, c_rec)),
+        parts = [(0.34, res_cond, any_(c_res)), (0.33, ("بعد تأكيد التحسّن في الربع التالي " + reclaim).strip(), any_(c_res2, c_rec)),
                  (0.33, value_cond, any_(c_val))]
         out["action"] = "انتظر الشرط ثمّ أضف على دفعات"
         out["why"] = "؛ ".join(w for w, on in (
@@ -404,7 +407,7 @@ def stance(f: dict) -> dict:
     else:
         first = "الآن" + (" — السعرُ عند قاع 52 أسبوعاً بتشبّعٍ بيعيّ" if sg["at_low"] and sg["oversold"] else "")
         parts = [(0.5, first, [{"k": "now"}]),
-                 (0.5, res_cond + " " + reclaim, any_(c_res, c_rec)) if sg["trend_down"]
+                 (0.5, (res_cond + " " + reclaim).strip(), any_(c_res, c_rec)) if sg["trend_down"]
                  else (0.5, value_cond + " أو " + res_cond, any_(c_val, c_res))]
         out["action"] = "أضف على دفعتين"
         out["why"] = ("قرارُ التطبيق غيرُ متوفّرٍ الآن ولا إشارةَ تحذير" if sg["app_unknown"] else "قرارُ التطبيق شراءٌ ولا إشارةَ تحذير") + ("، والاتجاهُ هابطٌ فالتدرّجُ أسلم" if sg["trend_down"] else "")
