@@ -52,6 +52,17 @@ F = {"symbol": "1111", "name": "ضعيفة", "held": True, "value": 1000, "price
 st = A.stance(F)
 check(st["action"] == "استبدل" and st["replace_with"]["symbol"] == "2222" and st["swap"]["shares"] == 20,
       "٦ الحلُّ لا التحليلُ وحده: شركةٌ ضعيفةٌ لها بديلٌ أفضل ⇒ «استبدل» بالمبلغ والأسهم", str(st.get("swap")))
+# مركزٌ مُغلقٌ (قيمته صفر) لا يُعدّ، والقياديةُ بحجمها لا بقرارها
+plan2 = S.consolidate(ITEMS + [{"symbol": "5555", "name": "مغلق", "market_value": 0, "target_weight": 0, "cap": 1e9}], ROWS, 2, 300000)
+check(plan2["before"] == 4 and all(x["symbol"] != "5555" for x in plan2["exits"]) and all(x.get("note") for x in plan2["exits"]),
+      "٦ب المركزُ المُغلقُ لا يُعدّ، ولكلّ خارجٍ سببٌ مكتوب")
+SADV = {"name": "سدافكو", "held": True, "value": 4045.8, "invested": 4904.9, "decision": "شراء",
+        "alternatives": [{"symbol": "2286", "name": "المطاحن الرابعة", "quality": 91.2, "base_quality": 71.9, "decision": "شراء"}]}
+v = S.swap_verdict(SADV, {"action": "انتظر الشرط ثمّ أضف على دفعات"}, {"2286", "2270"})
+check(v["الحكم"].startswith("احتفظ الآن") and "خسارة 859" in v["كلفة التبديل"] and v["تملكه أصلاً"].startswith("نعم"),
+      "٦ج حكمُ الاستبدال محسوب: فارقٌ 19 دون الحدّ وقرارُها شراء ⇒ احتفظ مع شرطٍ يقلبه، وكلفةُ التبديل، والبديلُ مملوكٌ أصلاً", v["الحكم"])
+v2 = S.swap_verdict({**SADV, "decision": "تجنّب"}, {"action": "استبدل"}, set())
+check(v2["الحكم"].startswith("استبدل"), "٦د الشركةُ الضعيفة ⇒ «استبدل» صريحاً")
 check(A.portfolio_intent("أريد تقليل عدد الشركات والاكتفاء بالقيادية") and A.wants_alternatives("هل لها بديل أفضل؟")
       and A.intent("ما الشركات التي أتخلص منها؟"), "٧ نيّةُ الهيكلة والبدائل تصل المستشار")
 

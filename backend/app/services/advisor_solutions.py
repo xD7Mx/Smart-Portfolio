@@ -112,12 +112,14 @@ def consolidate(items: list[dict], rows: list[dict], keep_n: int, capital: float
     `items`: صفوفُ التوزيع النسبي (symbol, name, market_value, target_weight, current_weight) + invested."""
     by = {str(r.get("symbol")): r for r in rows}
     scored = []
+    items = [it for it in items if float(it.get("market_value") or 0) > 0]      # مراكزُ مُغلقة لا تُعدّ
     for it in items:
         s = str(it["symbol"])
         r = by.get(s, {})
         cap = it.get("cap") if it.get("cap") is not None else _cap(s, r)
         q = quality(r) if r else 40.0
-        leader = bool(cap and cap >= LEADER_CAP and "شراء" in str(r.get("decision") or ""))
+        # القياديةُ بحجمها في السوق — لا بقرار التطبيق (قِيس: اشتراطُ «شراء» أخرج الاتصالاتِ والحبيب)
+        leader = bool(cap and cap >= LEADER_CAP)
         scored.append({**it, "quality": q, "cap": cap, "leader": leader, "decision": r.get("decision"),
                        "halal": _sharia_ok(r.get("sharia")) if r.get("sharia") is not None else None,
                        "sector": r.get("sector")})
@@ -131,6 +133,10 @@ def consolidate(items: list[dict], rows: list[dict], keep_n: int, capital: float
             continue
         keep.remove(x)
         exits.append(x)
+    for x in exits:
+        x["note"] = ("غيرُ شرعية" if x["halal"] is False else
+                     "جودتُها عالية لكنها ليست قيادية — خروجُها ثمنُ الاكتفاء بالقيادية" if x["quality"] >= 80 and not x["leader"]
+                     else "الأدنى درجةً بين غير القيادية")
     freed_w = sum(float(x.get("target_weight") or 0) for x in exits)
     base_w = sum(float(k.get("target_weight") or 0) for k in keep) or 1.0
     for k in keep:
@@ -141,3 +147,27 @@ def consolidate(items: list[dict], rows: list[dict], keep_n: int, capital: float
     return {"before": len(items), "after": len(keep), "keep": sorted(keep, key=lambda k: -k["quality"]),
             "exits": exits, "proceeds": round(proceeds, 2), "realized": round(realized, 2),
             "freed_weight": round(freed_w, 2), "sectors_after": sorted({k.get("sector") for k in keep if k.get("sector")})}
+
+
+def swap_verdict(f: dict, st: dict, held: set[str]) -> dict | None:
+    """حكمُ الاستبدال حين يُسأل عن بديل — محسوبٌ لا مستنتج (قِيس: قال النموذجُ «يوجد بديلٌ أفضل» و«ابقَ» معاً).
+
+    يُستبدل إن كانت الشركةُ ضعيفة (الموقفُ «استبدل»)، أو تفوّق البديلُ بـ25 درجةً فأكثر؛ وإلا فالبقاءُ مع شرطٍ يقلب الحكم."""
+    alts = f.get("alternatives") or []
+    if not alts:
+        return {"الحكم": "لا بديلَ أفضلَ في قطاعها بمعايير التطبيق — البقاءُ هو الحلّ", "البديل": None}
+    b = alts[0]
+    gap = round((b.get("quality") or 0) - (b.get("base_quality") or 0), 1)
+    cost = None
+    if f.get("held") and f.get("value") and f.get("invested"):
+        pnl = f["value"] - f["invested"]
+        cost = f"{'خسارة' if pnl < 0 else 'ربح'} {abs(pnl):,.0f} ريال تُثبَّت بالبيع"
+    owned = str(b.get("symbol")) in held
+    if st.get("action") == "استبدل" or gap >= 25:
+        v = f"استبدل: {b.get('name')} أعلى بـ{gap} درجة"
+    else:
+        v = (f"احتفظ الآن: {b.get('name')} أعلى بـ{gap} درجة، لكنّ الفارق دون حدّ التبديل (25) وقرارُ التطبيق "
+             f"لـ{f.get('name')} {f.get('decision') or 'غير متوفّر'}؛ ويصبح التبديلُ هو الحلّ إن خيّبت النتائجُ القادمة")
+    return {"الحكم": v, "البديل": {k: b.get(k) for k in ("symbol", "name", "quality", "base_quality", "decision", "fin", "upside", "dy", "pe")},
+            "فارق الدرجة": gap, "كلفة التبديل": cost,
+            "تملكه أصلاً": ("نعم — رفعُ وزنه يكون بتعديل هدفه في التوزيع النسبي، وتركيزُه يزيد" if owned else "لا")}

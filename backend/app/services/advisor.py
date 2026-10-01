@@ -462,6 +462,8 @@ CHARTER = """أنت «صقر»، المستشارُ الماليُّ الخاص�
 • لا رقمَ من خارج الملفّ. ما لا تعرفه قُل «غير متوفّر».
 • لا تحفيز ولا تهويل ولا عبارات تنصّل طويلة.
 
+ابدأ بالقرار مباشرةً بلا تحيّةٍ ولا تعريفٍ بنفسك، ولا تكتب أسماءَ حقولٍ إنجليزية.
+• إن ورد «حكم الاستبدال» فهو الحكمُ — انقله صريحاً في السطر الأوّل ولا تخلطه بنقيضه.
 البنية (نصٌّ عربيٌّ نظيف، بلا رموز تنسيق ولا نجوم، والتعدادُ بـ«•»):
 ١) سطرٌ أوّل: القرارُ صريحاً.
 ٢) مركزك: الكمية والتكلفة والربح أو الخسارة، والوزنُ مقابل الهدف والمتبقّي.
@@ -530,6 +532,19 @@ async def answer(db, question: str, picked: list[dict], history: list | None = N
     if not settings.AI_API_KEY or not can_call("gemini"):
         return {"reply": fallback, "grounded": True, "source": "advisor-rules"}
     pack = {"ملفّات القرار": fs, "الموقف المحسوب": sts, "اليوم": date.today().isoformat()}
+    # ‏D568: سُئل عن بديل ⇒ حكمُ الاستبدال محسوبٌ لا مستنتج
+    if wants_alternatives(question):
+        try:
+            from app.services.advisor_solutions import swap_verdict
+            from sqlalchemy import select
+            from app.models.portfolio import Company, Holding
+            held = {s for s, in (await db.execute(select(Company.symbol).join(Holding, Holding.company_id == Company.id)
+                                                  .where(Holding.quantity > 0))).all()}
+            pack["حكم الاستبدال"] = [swap_verdict(f, st, held) for f, st in zip(fs, sts)]
+            fallback = "\n".join(f"{f['name']}: {v['الحكم']}" + (f" — {v['كلفة التبديل']}" if v.get("كلفة التبديل") else "")
+                                 for f, v in zip(fs, pack["حكم الاستبدال"]) if v) + "\n\n" + fallback
+        except Exception as e:                                    # noqa: BLE001
+            logger.debug("advisor swap verdict: {}", e)
     if cmp:
         pack["المقارنة"] = cmp
         pack["كلفة الاستبدال"] = switch_cost(fs[0])
@@ -572,6 +587,7 @@ PORT_CHARTER = """أنت «صقر»، المستشارُ الماليُّ الخ
 مهمّتك: احكم صريحاً، ثمّ اشرح لماذا خرج كلُّ خارجٍ (درجتُه، قرارُه، وزنُه، شرعيّتُه) ولماذا بقيت القيادية، وما الذي
 يُثبَّت من ربحٍ أو خسارة عند البيع، وأين تذهب المبالغ (الأوزانُ الجديدة للباقين)، وإن وُجد لخارجٍ بديلٌ أفضل في قطاعه فاذكره.
 نبّهه أنّ التنفيذ بيده: يُحدَّث الوزنُ المستهدف في «التوزيع النسبي» فيحسب التطبيقُ المبالغ.
+ابدأ بالحكم مباشرةً بلا تحيّةٍ ولا تعريفٍ بنفسك. ولا تكتب أسماءَ حقولٍ إنجليزية.
 نصٌّ عربيٌّ نظيف بلا رموز تنسيق، والتعدادُ بـ«•»، واختم: «رأيٌ تحليليّ من بيانات التطبيق، والقرارُ لك.»"""
 
 
@@ -592,9 +608,11 @@ async def portfolio_pack(db, question: str) -> dict:
     for x in plan["exits"]:
         alts = S.alternatives(str(x["symbol"]), rows, n=1)
         x["better_in_sector"] = alts[0] if alts else None
-    slim = lambda k: {key: k.get(key) for key in ("symbol", "name", "market_value", "current_weight", "target_weight",
-                                                  "new_target", "quality", "decision", "leader", "halal", "sector",
-                                                  "invested", "better_in_sector")}
+    _AR_K = {"symbol": "الرمز", "name": "الشركة", "market_value": "القيمة", "current_weight": "الوزن الحالي٪",
+             "target_weight": "الهدف الحالي٪", "new_target": "الهدف الجديد٪", "quality": "الدرجة", "decision": "قرار التطبيق",
+             "leader": "قيادية", "halal": "شرعية", "sector": "القطاع", "invested": "المدفوع", "note": "سبب الخروج",
+             "better_in_sector": "بديلٌ أفضل في قطاعها"}
+    slim = lambda k: {_AR_K[key]: k.get(key) for key in _AR_K if key in k or key == "new_target"}
     return {"عدد الشركات": f"{plan['before']} ⇒ {plan['after']}", "يبقى": [slim(k) for k in plan["keep"]],
             "يخرج": [slim(x) for x in plan["exits"]], "حصيلة البيع": plan["proceeds"],
             "ربحٌ أو خسارةٌ تُثبَّت": plan["realized"], "وزنٌ يُعاد توزيعه٪": plan["freed_weight"],
@@ -604,13 +622,13 @@ async def portfolio_pack(db, question: str) -> dict:
 def render_portfolio(p: dict) -> str:
     out = [f"خطة التركيز: {p['عدد الشركات']} شركات."]
     for x in p["يخرج"]:
-        alt = x.get("better_in_sector")
-        out.append(f"• يخرج {x['name']} ({x['symbol']}) — درجته {x['quality']}، قراره {x.get('decision')}، "
-                   f"وزنه {x.get('current_weight')}٪" + (" — غيرُ شرعي" if x.get("halal") is False else "")
+        alt = x.get("بديلٌ أفضل في قطاعها")
+        out.append(f"• يخرج {x['الشركة']} ({x['الرمز']}) — درجته {x['الدرجة']}، قراره {x.get('قرار التطبيق')}، "
+                   f"وزنه {x.get('الوزن الحالي٪')}٪ — {x.get('سبب الخروج')}"
                    + (f"؛ وبديلُه الأفضل في قطاعه {alt['name']} ({alt['symbol']})" if alt else ""))
     for k in p["يبقى"]:
-        out.append(f"• يبقى {k['name']} — هدفه الجديد {k.get('new_target')}٪ (كان {k.get('target_weight')}٪)"
-                   + (" — قيادية" if k.get("leader") else ""))
+        out.append(f"• يبقى {k['الشركة']} — هدفه الجديد {k.get('الهدف الجديد٪')}٪ (كان {k.get('الهدف الحالي٪')}٪)"
+                   + (" — قيادية" if k.get("قيادية") else ""))
     r = p["ربحٌ أو خسارةٌ تُثبَّت"]
     out.append(f"• حصيلةُ البيع {p['حصيلة البيع']:,.0f} ريال، و{'تُثبَّت خسارة' if r < 0 else 'يُثبَّت ربح'} {abs(r):,.0f} ريال.")
     out.append("• التنفيذ بيدك: حدِّث الأوزانَ المستهدفة في «التوزيع النسبي» فيحسب التطبيقُ المبالغ.")
