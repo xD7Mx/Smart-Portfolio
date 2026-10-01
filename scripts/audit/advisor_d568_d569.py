@@ -52,6 +52,17 @@ F = {"symbol": "1111", "name": "ضعيفة", "held": True, "value": 1000, "price
 st = A.stance(F)
 check(st["action"] == "استبدل" and st["replace_with"]["symbol"] == "2222" and st["swap"]["shares"] == 20,
       "٦ الحلُّ لا التحليلُ وحده: شركةٌ ضعيفةٌ لها بديلٌ أفضل ⇒ «استبدل» بالمبلغ والأسهم", str(st.get("swap")))
+plan3 = S.consolidate(ITEMS, ROWS, 4, 300000, leaders_only=True)
+check(plan3["after"] == 4 and not plan3["exits"], "٥ب وإن قلّت القياديةُ عن ثلاث لا تُفرَّغ المحفظة — يُعمل بالعدد",
+      f"{plan3['before']} ⇒ {plan3['after']}")
+ITEMS3 = ITEMS + [{"symbol": "6666", "name": "قيادية ثالثة", "market_value": 5000, "target_weight": 6, "invested": 4000, "cap": 40e9}]
+ROWS3 = ROWS + [{"symbol": "6666", "name": "قيادية ثالثة", "sector": "الطاقة", "decision": "انتظار", "finance_score": 60, "sharia": "COMPLIANT", "price": 30}]
+plan4 = S.consolidate(ITEMS3, ROWS3, 5, 300000, leaders_only=True)
+check(plan4["after"] == 3 and {k["symbol"] for k in plan4["keep"]} == {"2222", "4444", "6666"},
+      "٥ج «الاكتفاءُ بالقيادية»: تبقى القياديةُ الثلاث وحدها، ويخرج غيرُها", f"{plan4['before']} ⇒ {plan4['after']}")
+src_a = (ROOT / "backend/app/services/advisor.py").read_text(encoding="utf-8")
+check("لا تُخرج شركةً ليست في «يخرج»" in src_a and 'if float(it.get("market_value") or 0) > 0]' in src_a,
+      "٥د النموذجُ لا يُخرج إلا من في الخطة، والمراكزُ المُغلقةُ لا تُعدّ قبل حساب العدد")
 # مركزٌ مُغلقٌ (قيمته صفر) لا يُعدّ، والقياديةُ بحجمها لا بقرارها
 plan2 = S.consolidate(ITEMS + [{"symbol": "5555", "name": "مغلق", "market_value": 0, "target_weight": 0, "cap": 1e9}], ROWS, 2, 300000)
 check(plan2["before"] == 4 and all(x["symbol"] != "5555" for x in plan2["exits"]) and all(x.get("note") for x in plan2["exits"]),

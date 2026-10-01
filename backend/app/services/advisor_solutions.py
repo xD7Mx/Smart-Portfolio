@@ -106,7 +106,7 @@ def wanted_count(question: str, default: int = 10) -> int:
     return default
 
 
-def consolidate(items: list[dict], rows: list[dict], keep_n: int, capital: float) -> dict:
+def consolidate(items: list[dict], rows: list[dict], keep_n: int, capital: float, leaders_only: bool = False) -> dict:
     """خطةُ التركيز: من يبقى ومن يخرج، وأوزانُ الباقين الجديدة، وما يُثبَّت من ربحٍ أو خسارة.
 
     `items`: صفوفُ التوزيع النسبي (symbol, name, market_value, target_weight, current_weight) + invested."""
@@ -125,6 +125,10 @@ def consolidate(items: list[dict], rows: list[dict], keep_n: int, capital: float
                        "sector": r.get("sector")})
     # الترتيب: غيرُ الشرعيّ أوّلاً للخروج، ثمّ الأدنى درجةً؛ والقياديةُ لا تخرج إلا إن لم يبقَ غيرُها
     order = sorted(scored, key=lambda x: (x["halal"] is not False, x["leader"], x["quality"]))
+    # ‏«الاكتفاءُ بالقيادية» بلا عدد ⇒ يبقى القياديُّ وحده (إن بقي منه ثلاثٌ فأكثر)
+    n_lead = sum(1 for x in scored if x["leader"] and x["halal"] is not False)
+    if leaders_only and n_lead >= 3:
+        keep_n = n_lead
     exits, keep = [], list(scored)
     for x in order:
         if len(keep) <= keep_n:

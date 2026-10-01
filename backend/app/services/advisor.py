@@ -584,6 +584,8 @@ async def answer(db, question: str, picked: list[dict], history: list | None = N
 # ── على مستوى المحفظة: التركيزُ والاكتفاءُ بالقيادية (D568) ─────────────────
 PORT_CHARTER = """أنت «صقر»، المستشارُ الماليُّ الخاصّ لمالك المحفظة، بخبرة مدير صندوق. سألك عن هيكلة محفظته كلِّها.
 «خطةُ التركيز» المرفقةُ محسوبةٌ بقواعد التطبيق: من يبقى ومن يخرج والأوزانُ الجديدة والمبالغ — **انقلها حرفياً ولا تغيّرها**.
+**لا تُخرج شركةً ليست في «يخرج»، ولا تُبقِ شركةً فيه، ولا تصف قرارَ شركةٍ بغير «قرار التطبيق» المكتوب لها.**
+وإن كانت «يخرج» فارغةً فقل صراحةً إنّ محفظتك ضمن العدد المطلوب ولا خروجَ تقترحه الخطة.
 مهمّتك: احكم صريحاً، ثمّ اشرح لماذا خرج كلُّ خارجٍ (درجتُه، قرارُه، وزنُه، شرعيّتُه) ولماذا بقيت القيادية، وما الذي
 يُثبَّت من ربحٍ أو خسارة عند البيع، وأين تذهب المبالغ (الأوزانُ الجديدة للباقين)، وإن وُجد لخارجٍ بديلٌ أفضل في قطاعه فاذكره.
 نبّهه أنّ التنفيذ بيده: يُحدَّث الوزنُ المستهدف في «التوزيع النسبي» فيحسب التطبيقُ المبالغ.
@@ -600,11 +602,15 @@ async def portfolio_pack(db, question: str) -> dict:
     d = (json.loads(res.body) if hasattr(res, "body") else res)["data"]
     inv = {s: float(v or 0) for s, v in (await db.execute(
         select(Company.symbol, Holding.invested_amount).join(Holding, Holding.company_id == Company.id))).all()}
-    items = [{**it, "invested": inv.get(str(it["symbol"]))} for it in d.get("items") or []]
+    # المراكزُ الحيّة وحدها (قِيس: مراكزُ مُغلقةٌ بقيمة صفرٍ عُدّت فخرجت الخطةُ «10 ⇒ 10» بلا خروج)
+    items = [{**it, "invested": inv.get(str(it["symbol"]))} for it in d.get("items") or []
+             if float(it.get("market_value") or 0) > 0]
     n = len(items)
-    keep_n = S.wanted_count(question, default=10 if n > 12 else max(5, n - 3))
+    asked_n = S.wanted_count(question, default=0)
+    keep_n = asked_n or (10 if n > 12 else max(5, n - 3))
+    leaders_only = not asked_n and any(w in (question or "") for w in ("القيادية", "القياديه", "القيادي"))
     rows = S._rows()
-    plan = S.consolidate(items, rows, keep_n, d.get("investable") or 0)
+    plan = S.consolidate(items, rows, keep_n, d.get("investable") or 0, leaders_only=leaders_only)
     for x in plan["exits"]:
         alts = S.alternatives(str(x["symbol"]), rows, n=1)
         x["better_in_sector"] = alts[0] if alts else None
