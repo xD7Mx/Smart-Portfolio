@@ -185,7 +185,7 @@ async def build(symbols: list[str] | None = None, allow_fetch: bool = False) -> 
         meta = MARKET_UNIVERSE.get(str(raw).replace(".SR", "")) or {}
         try:
             feats, _info, _q = build_company_features(
-                periods, info=None, sector=meta.get("sector"))
+                periods, info=None, sector=meta.get("sector"), symbol=sym)
             arch, _ok = resolve_archetype_ex(meta.get("sector"), feats)
         except Exception:                                         # noqa: BLE001
             continue

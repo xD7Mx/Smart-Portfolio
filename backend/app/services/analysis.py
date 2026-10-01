@@ -84,7 +84,7 @@ async def _financial_from_statements(
     from app.services.four_scores import build_company_features
     features, info, _ = build_company_features(
         periods, info=info, sector=sector,
-        valuation_snapshot=valuation_snapshot, timing_snapshot=timing_snapshot)
+        valuation_snapshot=valuation_snapshot, timing_snapshot=timing_snapshot, symbol=symbol)
     four = compute_four_scores(features, sector=sector)
 
     # ══ محرّكُ المواصفة يحكم ويُعرض — لا يُحسب في الظلّ ══

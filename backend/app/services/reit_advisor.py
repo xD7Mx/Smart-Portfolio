@@ -64,6 +64,46 @@ def parse_distribution(text: str) -> dict | None:
             "units": _f(grab(r"عدد الوحدات القائمة"))}
 
 
+_AR_MONTHS = {"يناير": 1, "فبراير": 2, "مارس": 3, "أبريل": 4, "ابريل": 4, "مايو": 5, "يونيو": 6, "يوليو": 7,
+              "أغسطس": 8, "اغسطس": 8, "سبتمبر": 9, "أكتوبر": 10, "اكتوبر": 10, "نوفمبر": 11, "ديسمبر": 12}
+_STMT_TITLE = re.compile(r"interim financial statements|interim condensed|annual report|financial statements|"
+                         r"القوائم المالية|التقرير السنوي", re.I)
+
+
+def parse_statement(text: str) -> dict | None:
+    """‏D574: ملخّصُ القوائم المالية في إعلان الصندوق ← {as_of, net_assets, net_profit, units, nav, period_return}.
+
+    قِيس (كاشف reit_interim_door): إعلانُ «إتاحة القوائم المالية الأولية» يحمل جدولاً بنهاية الفترة وصافي الأصول
+    وصافي الربح وعدد الوحدات وصافي قيمة الوحدة وعائد الفترة — رسميٌّ ولا يصل تبويبَ القوائم في «تداول»."""
+    t = text or ""
+    m = re.search(r"المنتهية في\s*(\d{1,2})\s+(\S+?)\s+(20\d\d)", t)
+    as_of = None
+    if m and m.group(2).rstrip("م") in _AR_MONTHS:
+        as_of = f"{int(m.group(3)):04d}-{_AR_MONTHS[m.group(2).rstrip('م')]:02d}-{int(m.group(1)):02d}"
+    if not as_of:
+        g = re.search(r"المنتهية في\s*(20\d\d)-(\d\d)-(\d\d)", t)
+        as_of = f"{g.group(1)}-{g.group(2)}-{g.group(3)}" if g else None
+
+    def num(label):
+        mm = re.search(label + r"[^|\n]*\|\s*[%٪]?\s*(\(?-?[0-9][0-9,]*(?:\.[0-9]+)?\)?)", t)
+        if not mm:
+            return None
+        v = mm.group(1)
+        neg = v.startswith("(") or v.startswith("-")
+        f = _f(v.strip("()-"))
+        return -f if (f is not None and neg) else f
+    out = {"as_of": as_of, "net_assets": num(r"صافي الأصول"), "net_profit": num(r"صافي الربح"),
+           "units": num(r"عدد الوحدات"), "nav": num(r"صافي قيمة الوحدة"), "period_return": num(r"العائد للفترة")}
+    return out if as_of and (out["nav"] or out["net_assets"]) else None
+
+
+def latest_statement(symbol: str) -> dict | None:
+    """أحدثُ قوائمٍ أعلنها الصندوق (من إعلاناته) — لبوّابة القِدَم ولقراءة المستشار."""
+    raw = cached(symbol) or {}
+    st = sorted([x for x in raw.get("stmts") or [] if x.get("as_of")], key=lambda x: x["as_of"])
+    return st[-1] if st else None
+
+
 def summarize(dists: list[dict], valuations: list[str], price: float | None, today: date | None = None) -> dict:
     """دالّةٌ نقيّة: التوزيعاتُ وتقاريرُ التقييم ← قراءةُ المستشار."""
     today = today or date.today()
@@ -114,9 +154,21 @@ async def build(symbol: str, price: float | None = None, force: bool = False) ->
         items = await D.list_for(sym, size=80)
         dists, vals = [], []
         known = {d.get("id"): d for d in old.get("dists") or []}
+        known_st = {x.get("id"): x for x in old.get("stmts") or []}
+        stmts = []
         for it in items:
             title = it.get("title") or ""
             low = title.lower()
+            # ‏D574: إعلانُ القوائم المالية (الأولية والسنوية) — ملخّصُه يُقرأ
+            if _STMT_TITLE.search(title) and "valuation" not in low and "تقييم" not in title:
+                if it.get("id") in known_st:
+                    stmts.append(known_st[it["id"]])
+                else:
+                    det = await D.detail(it["url"])
+                    sm = parse_statement((det or {}).get("text") or "")
+                    if sm:
+                        stmts.append({**sm, "id": it.get("id"), "announced": it.get("date")})
+                continue
             if "تقييم" in title or "valuation" in low:
                 vals.append(it.get("date"))
             if "توزيع" not in title and "distribut" not in low and "dividend" not in low:
@@ -130,7 +182,9 @@ async def build(symbol: str, price: float | None = None, force: bool = False) ->
                 dists.append({**d, "id": it.get("id"), "announced": it.get("date")})
         if not dists and old.get("dists"):
             dists, vals = old["dists"], old.get("vals") or []
-        raw = {"at": date.today().isoformat(), "dists": dists, "vals": [v for v in vals if v]}
+        if not stmts and old.get("stmts"):
+            stmts = old["stmts"]
+        raw = {"at": date.today().isoformat(), "dists": dists, "vals": [v for v in vals if v], "stmts": stmts}
         if dists:
             lastgood.save(key, raw)
     if not raw.get("dists"):

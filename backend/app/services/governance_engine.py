@@ -75,6 +75,7 @@ async def evaluate_company(symbol: str, db=None, company_status: Optional[str] =
         valuation_snapshot=valuation_to_snapshot(info, valuation_ctx),
         timing_snapshot=technical_to_timing_snapshot(tech),
         hard_filter_flags=hard_filter_flags_from_company(company_status),
+        symbol=symbol,
     )
     scores = compute_four_scores(features, sector=resolved_sector)
     from app.services.decision_engine import evaluate_decision, ABSTAIN

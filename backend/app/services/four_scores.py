@@ -200,6 +200,7 @@ def build_company_features(
     valuation_snapshot: Optional[dict] = None,
     timing_snapshot: Optional[dict] = None,
     hard_filter_flags: Optional[dict] = None,
+    symbol: Optional[str] = None,
 ) -> tuple[dict, dict, dict]:
     """مصدرٌ واحد لسمات الشركة — يُعيد (‏السمات، الأساسيات المدقَّقة، تقرير التدقيق).
 
@@ -259,6 +260,14 @@ def build_company_features(
         _ao = (_last or {}).get("as_of") or (_last or {}).get("year")
         if _ao:
             feats["_asof"] = str(_ao)
+        # ‏D574: الريتُ يُعلن قوائمَه الأولية في إعلاناته ولا تصل تبويبَ القوائم — فأحدثُ ما أعلنه
+        # يُقدِّم تاريخَ آخر قائمة (قِيس: الراجحي ريت صار «بيانات غير كافية» لأنّ آخرَ ما وصلنا ديسمبر
+        # وقد أعلن قوائمَ يونيو)
+        if str(_arch or "") == "reit":
+            from app.services.reit_advisor import latest_statement
+            _ls = latest_statement(str(symbol or (info or {}).get("symbol") or "").replace(".SR", ""))
+            if _ls and _ls.get("as_of") and (not feats.get("_asof") or _ls["as_of"] > str(feats["_asof"])[:10]):
+                feats["_asof"] = _ls["as_of"]
     except Exception:                                             # noqa: BLE001
         pass
     return feats, info, q
