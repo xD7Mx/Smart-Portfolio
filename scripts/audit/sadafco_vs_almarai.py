@@ -24,7 +24,7 @@ async def main():
         rows = (await db.execute(select(Company.symbol, Holding.quantity, Holding.average_cost, Holding.invested_amount,
                                         Holding.market_value, Holding.unrealized_profit_pct, Holding.total_dividends_received)
                                  .join(Holding, Holding.company_id == Company.id))).all()
-    d = json.loads(res.body)["data"]
+    d = (json.loads(res.body) if hasattr(res, "body") else res)["data"]
     for r in d["items"]:
         if r["symbol"] in ("2270", "2280"):
             out("ALLOC_" + r["symbol"], r)
