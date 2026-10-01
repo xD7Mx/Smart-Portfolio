@@ -19,7 +19,6 @@
 """
 from __future__ import annotations
 
-import base64
 import json
 from datetime import date
 
@@ -27,10 +26,12 @@ from loguru import logger
 
 STORE = "know:{}"
 YEARS = 5
-MAX_MB = 10                      # حدُّ الملفّ: ذروةُ الذاكرة ~4 أضعافه (البايتات والترميز والطلب)
-# ‏لا يُفتح الملفُّ هنا فلا يلزم حدُّ المحلّل الثقيل (350MB): قِيس المتاحُ على الخادم 155MB،
-# والذروةُ هنا ~40MB — فيُترك للنظام أكثرُ من مئة.
-MIN_FREE_MB = 150
+# ‏D565: قِيس في ليلةٍ كاملة أنّ حدَّ 150MB أوقف القراءةَ كلَّها تقريباً (254 شركةً زيرت، 11 قُرئت،
+# و29 نداءً للنموذج): المتاحُ على الخادم 110–175MB. فلم يعد الملفُّ يُحمَل في الذاكرة إطلاقاً —
+# يُنزَّل قطعاً إلى القرص ويُرفع قطعاً إلى «ملفّات» النموذج ويُشار إليه — فالذروةُ قطعةٌ واحدة
+# (~256KB) لا أضعافُ الملفّ؛ ويكفي حدٌّ يترك للنظام هامشَه.
+MAX_MB = 40                      # حدُّ حجم الملفّ على القرص (لا يمسّ الذاكرة)
+MIN_FREE_MB = 60
 # ‏D560: قال المالك «شهران كثير، أقصاه يومان أو أسبوع». السوقُ ~273 شركة × 6 ملفّات ≈ 1,640:
 # بـ400 ليلاً تكتمل في أربع ليالٍ، والمحفظةُ في ساعتها الأولى. العددُ لا يرفع ذروةَ الذاكرة —
 # الملفّاتُ بالتتابع وكلٌّ يُحرَّر قبل التالي — وإنما يطيل الوقت، والليلُ متّسع.
@@ -84,43 +85,108 @@ PROMPT = """أنت محلّلٌ ماليٌّ سعوديٌّ خبير. أمامك
 }}"""
 
 
-async def _read_pdf(data: bytes, name: str, sym: str) -> dict | None:
+async def _upload(path: str, sym: str) -> tuple[str | None, str | None]:
+    """‏D565: يُرفع الملفُّ من القرص إلى «ملفّات» النموذج قطعاً — لا يُحمَل في الذاكرة كاملاً.
+    يعيد (file_uri, name) أو (None, None)."""
+    import asyncio
+    import os
+    import httpx
+    from app.core.config import settings
+    size = os.path.getsize(path)
+    base = "https://generativelanguage.googleapis.com"
+
+    def chunks():
+        with open(path, "rb") as fh:
+            while True:
+                b = fh.read(256 * 1024)
+                if not b:
+                    break
+                yield b
+
+    try:
+        async with httpx.AsyncClient(timeout=180) as c:
+            r = await c.post(f"{base}/upload/v1beta/files?key={settings.AI_API_KEY}",
+                             headers={"X-Goog-Upload-Protocol": "resumable", "X-Goog-Upload-Command": "start",
+                                      "X-Goog-Upload-Header-Content-Length": str(size),
+                                      "X-Goog-Upload-Header-Content-Type": "application/pdf",
+                                      "Content-Type": "application/json"},
+                             json={"file": {"display_name": f"sp-{sym}"}})
+            up = r.headers.get("x-goog-upload-url")
+            if r.status_code != 200 or not up:
+                logger.warning("القارئ البصري {}: بدءُ الرفع HTTP {}", sym, r.status_code)
+                return None, None
+            r = await c.post(up, content=chunks(), headers={"Content-Length": str(size), "X-Goog-Upload-Offset": "0",
+                                                            "X-Goog-Upload-Command": "upload, finalize"})
+            if r.status_code != 200:
+                logger.warning("القارئ البصري {}: الرفع HTTP {}", sym, r.status_code)
+                return None, None
+            f = (r.json() or {}).get("file") or {}
+            name, uri = f.get("name"), f.get("uri")
+            for _ in range(10):                                   # ‏PDF يُعالَج عادةً فوراً؛ وإلا ينتظر قليلاً
+                if f.get("state") in (None, "ACTIVE"):
+                    break
+                await asyncio.sleep(3)
+                g = await c.get(f"{base}/v1beta/{name}?key={settings.AI_API_KEY}")
+                f = g.json() if g.status_code == 200 else f
+            return uri, name
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("القارئ البصري {}: الرفع {}", sym, type(e).__name__)
+        return None, None
+
+
+async def _forget(name: str | None) -> None:
+    """يحذف الملفَّ المرفوع بعد قراءته (ينتهي وحده بعد يومين على أيّ حال)."""
+    if not name:
+        return
+    import httpx
+    from app.core.config import settings
+    try:
+        async with httpx.AsyncClient(timeout=30) as c:
+            await c.delete(f"https://generativelanguage.googleapis.com/v1beta/{name}?key={settings.AI_API_KEY}")
+    except Exception:                                             # noqa: BLE001
+        pass
+
+
+async def _read_pdf(path: str, name: str, sym: str) -> dict | None:
+    import asyncio
     import httpx
     from app.core.config import settings
     from app.services.usage_tracker import can_call, record
     if not settings.AI_API_KEY or not can_call("gemini"):
         return None
     from app.services.ai_content import _extract_json_obj
-    import asyncio
-    # ‏الطلبُ يُبنى بايتاتٍ مباشرةً: json.dumps لسلسلةٍ بميجابايتات ينسخها مرّتين أخريين
-    tail = json.dumps({"text": PROMPT.format(name=name, sym=sym)}, ensure_ascii=False).encode()
-    body = (b'{"contents":[{"parts":[{"inline_data":{"mime_type":"application/pdf","data":"'
-            + base64.b64encode(data) + b'"}},' + tail
-            + b']}],"generationConfig":{"temperature":0.1,"maxOutputTokens":1500}}')
-    del data
-    # ‏503 «مشغول» عارضٌ عند المزوّد (قِيس مرّتين): محاولةٌ ثانيةٌ بعد مهلة، ثمّ ثالثة (لا بديلَ: 2.5-flash غيرُ متاحٍ لهذا الحساب، و3.5 حصّتُه 20 يومياً)
-    for i, model in enumerate((settings.AI_MODEL,) * 3):
-        if not can_call("gemini"):
-            return None
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.AI_API_KEY}"
-        try:
-            record("gemini")
-            async with httpx.AsyncClient(timeout=120) as c:
-                r = await c.post(url, content=body, headers={"Content-Type": "application/json"})
-            if r.status_code in (429, 500, 503) and i < 2:
-                logger.info("القارئ البصري {}: HTTP {} — يُعاد: {}", sym, r.status_code, r.text[:160].replace(settings.AI_API_KEY, "***"))
-                await asyncio.sleep(15 * (i + 1))
-                continue
-            if r.status_code != 200:
-                logger.warning("القارئ البصري {}: HTTP {} بـ{}: {}", sym, r.status_code, model, r.text[:200].replace(settings.AI_API_KEY, "***"))
+    uri, fname = await _upload(path, sym)
+    if not uri:
+        return None
+    body = {"contents": [{"parts": [{"file_data": {"mime_type": "application/pdf", "file_uri": uri}},
+                                    {"text": PROMPT.format(name=name, sym=sym)}]}],
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1500}}
+    try:
+        # ‏503 «مشغول» عارضٌ عند المزوّد (قِيس مرّتين): محاولةٌ ثانيةٌ بعد مهلة، ثمّ ثالثة (لا بديلَ: 2.5-flash غيرُ متاحٍ لهذا الحساب، و3.5 حصّتُه 20 يومياً)
+        for i, model in enumerate((settings.AI_MODEL,) * 3):
+            if not can_call("gemini"):
                 return None
-            text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-            obj = _extract_json_obj(text)
-            return obj if isinstance(obj, dict) and obj.get("points") else None
-        except Exception as e:                                    # noqa: BLE001
-            logger.warning("القارئ البصري {}: {}", sym, type(e).__name__)
-            return None
-    return None
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.AI_API_KEY}"
+            try:
+                record("gemini")
+                async with httpx.AsyncClient(timeout=180) as c:
+                    r = await c.post(url, json=body)
+                if r.status_code in (429, 500, 503) and i < 2:
+                    logger.info("القارئ البصري {}: HTTP {} — يُعاد: {}", sym, r.status_code, r.text[:160].replace(settings.AI_API_KEY, "***"))
+                    await asyncio.sleep(15 * (i + 1))
+                    continue
+                if r.status_code != 200:
+                    logger.warning("القارئ البصري {}: HTTP {} بـ{}: {}", sym, r.status_code, model, r.text[:200].replace(settings.AI_API_KEY, "***"))
+                    return None
+                text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                obj = _extract_json_obj(text)
+                return obj if isinstance(obj, dict) and obj.get("points") else None
+            except Exception as e:                                # noqa: BLE001
+                logger.warning("القارئ البصري {}: {}", sym, type(e).__name__)
+                return None
+        return None
+    finally:
+        await _forget(fname)
 
 
 def _trim() -> None:
@@ -144,7 +210,7 @@ def prune(files: dict, today: date | None = None) -> dict:
 async def learn(symbol: str, name: str = "", budget: int = 3, report: dict | None = None) -> int:
     """يقرأ ما لم يُقرأ من ملفّات الشركة (حتى `budget`) ويحفظ نقاطه. يعيد عددَ المقروء."""
     from app.services import lastgood
-    from app.services.tadawul_http import fetch_bytes
+    from app.services.tadawul_http import fetch_to_file
     from app.services.tadawul_pdf import mem_available_mb, pdf_links
     sym = _sym(symbol)
     rec = load(sym)
@@ -165,17 +231,28 @@ async def learn(symbol: str, name: str = "", budget: int = 3, report: dict | Non
                 report["ذاكرةٌ غيرُ كافية"] = report.get("ذاكرةٌ غيرُ كافية", 0) + 1
                 report["_mem"] = True                             # الدفعةُ تنتظر ولا تتوقّف
             break
+        import os
+        import tempfile
+        fd, tmp = tempfile.mkstemp(prefix="sp-pdf-", suffix=".pdf")
+        os.close(fd)
         try:
-            st, data = await fetch_bytes(f["url"], referer=f["referer"])
-        except Exception:                                         # noqa: BLE001
-            continue
-        if st != 200 or not data.startswith(b"%PDF"):
-            continue
-        if len(data) > MAX_MB * 1024 * 1024:
-            files[fid] = {"filed": f["filed"], "skipped": "حجمٌ كبير"}
-            continue
-        obj = await _read_pdf(data, name or sym, sym)
-        del data
+            try:
+                st, size = await fetch_to_file(f["url"], tmp, referer=f["referer"], max_bytes=MAX_MB * 1024 * 1024 + 1)
+            except Exception:                                     # noqa: BLE001
+                continue
+            with open(tmp, "rb") as fh:
+                head = fh.read(5)
+            if st != 200 or head != b"%PDF-":
+                continue
+            if size > MAX_MB * 1024 * 1024:
+                files[fid] = {"filed": f["filed"], "skipped": "حجمٌ كبير"}
+                continue
+            obj = await _read_pdf(tmp, name or sym, sym)
+        finally:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
         _trim()
         if not obj:
             if report is not None:

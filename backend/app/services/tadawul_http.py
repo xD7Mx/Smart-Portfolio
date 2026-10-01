@@ -80,6 +80,37 @@ def _blocking_bytes(url: str, referer: str | None, timeout: int) -> tuple[int, b
         return r.status_code, r.content or b""
 
 
+def _blocking_to_file(url: str, referer: str | None, path: str, timeout: int, max_bytes: int) -> tuple[int, int]:
+    """‏D565: يُنزَّل الملفُّ قطعاً إلى القرص — لا يُحمَل في الذاكرة كاملاً."""
+    from curl_cffi import requests as cr
+    with cr.Session(impersonate=_IMPERSONATE) as s:
+        try:
+            s.get(HOME, timeout=timeout)
+        except Exception:                                         # noqa: BLE001
+            pass
+        r = s.get(url, headers={"Referer": referer} if referer else None, timeout=timeout, stream=True)
+        n = 0
+        with open(path, "wb") as fh:
+            for chunk in r.iter_content(chunk_size=256 * 1024):
+                if not chunk:
+                    continue
+                n += len(chunk)
+                if n > max_bytes:                                 # أكبرُ من الحدّ — يُترك
+                    break
+                fh.write(chunk)
+        try:
+            r.close()
+        except Exception:                                         # noqa: BLE001
+            pass
+        return r.status_code, n
+
+
+async def fetch_to_file(url: str, path: str, *, referer: str | None = None,
+                        timeout: int = 120, max_bytes: int = 60 * 1024 * 1024) -> tuple[int, int]:
+    """ملفٌّ من «تداول» إلى القرص بالبصمة نفسِها — (الحالة، الحجم بالبايت)."""
+    return await asyncio.to_thread(_blocking_to_file, url, referer, path, timeout, max_bytes)
+
+
 async def fetch_bytes(url: str, *, referer: str | None = None,
                       timeout: int = 90) -> tuple[int, bytes]:
     """ملفٌّ ثنائيٌّ من «تداول» (قوائمُ PDF) بالبصمة نفسِها — (الحالة، البايتات)."""
