@@ -19,9 +19,9 @@ async def main():
         p = await A.portfolio_pack(db, QS[0])
         print("@@PLAN@@", json.dumps({k: p[k] for k in ("عدد الشركات", "حصيلة البيع", "ربحٌ أو خسارةٌ تُثبَّت", "وزنٌ يُعاد توزيعه٪")}, ensure_ascii=False))
         for x in p["يخرج"]:
-            print("   يخرج", x["symbol"], x["name"], x["quality"], x["decision"], x["current_weight"], x["halal"], (x.get("better_in_sector") or {}).get("name"))
+            print("   يخرج", json.dumps(x, ensure_ascii=False, default=str)[:400])
         for k in p["يبقى"]:
-            print("   يبقى", k["symbol"], k["name"], k["quality"], k["leader"], k["target_weight"], "⇒", k["new_target"])
+            print("   يبقى", k.get("الرمز"), k.get("الشركة"), k.get("الدرجة"), "قيادية" if k.get("قيادية") else "-", k.get("الهدف الحالي٪"), "⇒", k.get("الهدف الجديد٪"))
         for q in QS:
             r = await answer(db, q, prefer_llm=True)
             print("@@Q@@", q, "@@SOURCE@@", r.get("source"))
