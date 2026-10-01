@@ -584,6 +584,10 @@ async def answer(db, question: str, history: list | None = None,
     # («بِع لي») يبقى مرفوضاً قبل ذلك كلّه.
     try:
         from app.services import advisor
+        # ‏D571: «مراجعة الأسبوع» — ورقةُ المستشار الأسبوعية
+        from app.services import advisor_weekly
+        if advisor_weekly.asks_weekly(question):
+            return await advisor_weekly.answer(db)
         if advisor.intent(question):
             from app.services.ai_chat_rules import _read_only
             light0 = await build_light_context(db, question)

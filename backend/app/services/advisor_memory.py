@@ -197,9 +197,9 @@ async def _live(db, a: dict) -> dict:
     return out
 
 
-async def notify(title: str, lines: list[str]) -> None:
-    """إشعارٌ في التطبيق ورسالةٌ على تلغرام — مرّةً لكلّ تحوّل."""
-    msg = "\n".join(f"• {l}" for l in lines)
+async def notify(title: str, lines: list[str], raw: bool = False) -> None:
+    """إشعارٌ في التطبيق ورسالةٌ على تلغرام — مرّةً لكلّ تحوّل. (`raw`: الأسطرُ منسَّقةٌ سلفاً)"""
+    msg = "\n".join(lines if raw else [f"• {l}" for l in lines])
     try:
         from app.core.database import AsyncSessionLocal
         from app.models.market import Notification, NotificationPriority
@@ -213,7 +213,17 @@ async def notify(title: str, lines: list[str]) -> None:
         import html
         from app.services.saqr_bot import bot
         if bot.enabled:
-            await bot.send(f"<b>{html.escape(title)}</b>\n{html.escape(msg)}", keyboard=False)
+            # تلغرام يقبل 4096 حرفاً في الرسالة — تُقسَّم على الأسطر لا في منتصفها
+            chunks, cur = [], f"<b>{html.escape(title)}</b>"
+            for ln in msg.split("\n"):
+                piece = "\n" + html.escape(ln)
+                if len(cur) + len(piece) > 3800:
+                    chunks.append(cur)
+                    cur = ""
+                cur += piece
+            chunks.append(cur)
+            for ch in chunks:
+                await bot.send(ch.lstrip("\n"), keyboard=False)
     except Exception as e:                                        # noqa: BLE001
         logger.warning("المستشار: تلغرام {}", e)
 

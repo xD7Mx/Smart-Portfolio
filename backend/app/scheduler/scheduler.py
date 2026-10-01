@@ -208,6 +208,15 @@ async def job_advisor_watch():
         logger.error(f"متابعة المستشار: {e}")
 
 
+async def job_advisor_weekly():
+    """المراجعةُ الأسبوعية (D571): كلَّ خميسٍ مساءً، ورقةٌ لكلّ محفظة في التطبيق وتلغرام."""
+    try:
+        from app.services.advisor_weekly import weekly
+        await weekly()
+    except Exception as e:
+        logger.error(f"المراجعة الأسبوعية: {e}")
+
+
 async def job_file_reader():
     """القارئُ البصريّ (D557): ملفّاتٌ قليلةٌ ليلاً بالتتابع — المحفظةُ أوّلاً.
 
@@ -615,6 +624,9 @@ def start_scheduler():
         id="xbrl_statements_night",
         replace_existing=True,
     )
+    # ‏D571: المراجعةُ الأسبوعية — الخميسَ بعد آخر جلسة، وقبل مؤتمرات المساء
+    _scheduler.add_job(job_advisor_weekly, CronTrigger(day_of_week="thu", hour=19, minute=15),
+                       id="advisor_weekly_thu", replace_existing=True)
     # ‏D569: متابعةُ نصائح المستشار — بعد الإغلاق، ومساءً بعد إعلانات النتائج
     _scheduler.add_job(job_advisor_watch, CronTrigger(hour=15, minute=40), id="advisor_watch_close", replace_existing=True)
     _scheduler.add_job(job_advisor_watch, CronTrigger(hour=21, minute=10), id="advisor_watch_evening", replace_existing=True)
