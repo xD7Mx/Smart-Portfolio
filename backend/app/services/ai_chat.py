@@ -578,6 +578,24 @@ async def answer(db, question: str, history: list | None = None,
         return {"reply": f"سؤالك طويل جداً ({len(question)} حرف). اختصره إلى "
                          f"{MAX_QUESTION} حرف أو أقل وسأجيبك.",
                 "grounded": False, "source": "guard"}
+    # ══ سؤالُ قرارٍ عن شركةٍ ⇒ مستشارُ المحفظة ══ (D567)
+    # «هل أضخّ في الراجحي ريت؟» · «أستبدل سدافكو بالمراعي؟» · «أنتظر أم أشتري؟» — يُجاب من
+    # ملفّ قرارٍ يُبنى تلقائياً وموقفٍ محسوبٍ بالقواعد، كما يجيب المستشار. وأمرُ التنفيذ
+    # («بِع لي») يبقى مرفوضاً قبل ذلك كلّه.
+    try:
+        from app.services import advisor
+        if advisor.intent(question):
+            from app.services.ai_chat_rules import _read_only
+            light0 = await build_light_context(db, question)
+            # «هل أشتري؟» · «أحذفها أم أنتظر؟» سؤالُ رأيٍ لا أمرُ تنفيذ — يُرفض الأمرُ وحدَه
+            refusal = None if advisor.asks(question) else _read_only(question, light0)
+            if refusal:
+                return {"reply": _strip_markup(refusal), "grounded": True, "source": "rule"}
+            picked = advisor.companies(question, light0)
+            if picked:
+                return await advisor.answer(db, question, picked, history)
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"advisor: سقط فعاد السؤالُ إلى المسار العام — {e}")
     # صمود: حتى بلا مفتاح أو بعد نفاد الحصّة، الطبقة القاعدية تُجيب النيّات
     # الشائعة من أرقامك الحقيقية — فالمساعد لا يصمت أبداً.
     from app.services.usage_tracker import can_call, record
