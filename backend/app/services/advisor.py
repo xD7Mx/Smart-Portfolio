@@ -610,6 +610,25 @@ async def portfolio_pack(db, question: str) -> dict:
     keep_n = asked_n or (10 if n > 12 else max(5, n - 3))
     leaders_only = not asked_n and any(w in (question or "") for w in ("القيادية", "القياديه", "القيادي"))
     rows = S._rows()
+    # ‏D570: قرارُ كلّ مركزٍ من التحليل الحيّ نفسِه الذي تعرضه صفحةُ السهم — لا من مخزن الفرز
+    # (قِيس: الخطةُ قالت عن سدافكو «انتظار» وصفحتُها «شراء»). مهلةٌ قصيرة، والفرزُ احتياط.
+    import asyncio
+    from app.services.analysis import analyze_company
+
+    async def _live_dec(sym):
+        try:
+            a = await asyncio.wait_for(analyze_company(f"{sym}.SR", None, db=db), timeout=8)
+            return sym, (a or {}).get("decision", {}).get("label"), (a or {}).get("financial", {}).get("score")
+        except Exception:                                         # noqa: BLE001
+            return sym, None, None
+    live = {s: (dl, fs) for s, dl, fs in [await _live_dec(str(it["symbol"])) for it in items]}
+    rows = [dict(r) for r in rows]
+    for r in rows:
+        dl, fs = live.get(str(r.get("symbol")), (None, None))
+        if dl:
+            r["decision"] = dl
+        if isinstance(fs, (int, float)):
+            r["finance_score"] = fs
     plan = S.consolidate(items, rows, keep_n, d.get("investable") or 0, leaders_only=leaders_only)
     for x in plan["exits"]:
         alts = S.alternatives(str(x["symbol"]), rows, n=1)

@@ -63,6 +63,8 @@ check(plan4["after"] == 3 and {k["symbol"] for k in plan4["keep"]} == {"2222", "
 src_a = (ROOT / "backend/app/services/advisor.py").read_text(encoding="utf-8")
 check("لا تُخرج شركةً ليست في «يخرج»" in src_a and 'if float(it.get("market_value") or 0) > 0]' in src_a,
       "٥د النموذجُ لا يُخرج إلا من في الخطة، والمراكزُ المُغلقةُ لا تُعدّ قبل حساب العدد")
+check('r["decision"] = dl' in src_a and "analyze_company(f\"{sym}.SR\"" in src_a,
+      "٥هـ D570 قرارُ كلّ مركزٍ في الخطة من التحليل الحيّ لا من مخزن الفرز")
 # مركزٌ مُغلقٌ (قيمته صفر) لا يُعدّ، والقياديةُ بحجمها لا بقرارها
 plan2 = S.consolidate(ITEMS + [{"symbol": "5555", "name": "مغلق", "market_value": 0, "target_weight": 0, "cap": 1e9}], ROWS, 2, 300000)
 check(plan2["before"] == 4 and all(x["symbol"] != "5555" for x in plan2["exits"]) and all(x.get("note") for x in plan2["exits"]),
