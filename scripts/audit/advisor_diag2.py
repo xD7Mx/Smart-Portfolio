@@ -13,7 +13,8 @@ async def main():
     from sqlalchemy import select, func
     from app.core.database import AsyncSessionLocal
     from app.core.portfolio_scope import reset_scope, set_scope
-    from app.models.market import Notification, Cash
+    from app.models.market import Notification
+    from app.models.transaction import Cash
     from app.models.portfolio import Holding, Portfolio
     async with AsyncSessionLocal() as db:
         ns = (await db.execute(select(Notification.created_at, Notification.title, Notification.message)
