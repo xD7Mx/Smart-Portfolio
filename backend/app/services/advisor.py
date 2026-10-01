@@ -625,7 +625,7 @@ async def portfolio_pack(db, question: str) -> dict:
     rows = [dict(r) for r in rows]
     for r in rows:
         dl, fs = live.get(str(r.get("symbol")), (None, None))
-        if dl:
+        if dl and "غير كافية" not in dl and "غير متوفر" not in dl:   # تحليلٌ تعثّر تحت المهلة ⇒ المخزنُ أصدق
             r["decision"] = dl
         if isinstance(fs, (int, float)):
             r["finance_score"] = fs
