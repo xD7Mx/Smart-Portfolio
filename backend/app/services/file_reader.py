@@ -218,7 +218,7 @@ def coverage(symbol: str) -> dict:
 
 
 async def _priority() -> list[tuple[str, str]]:
-    """المحفظةُ أوّلاً، ثمّ غرفةُ التداول، ثمّ السوقُ بحجمه."""
+    """المحفظةُ أوّلاً، ثمّ قوائمُ المراقبة، ثمّ السوقُ بحجمه (D564)."""
     seen: dict[str, str] = {}
     try:
         # ‏الحيازةُ لا تحمل رمزاً — الرمزُ في الشركة (كان هذا يفشل صامتاً فتضيع أولويةُ المحفظة)
@@ -227,11 +227,23 @@ async def _priority() -> list[tuple[str, str]]:
         from app.models.portfolio import Company, Holding
         async with AsyncSessionLocal() as db:
             q = select(Company.symbol).join(Holding, Holding.company_id == Company.id).distinct()
-            for s, in (await db.execute(q)).all():
+            for s, in (await db.execute(q.execution_options(skip_portfolio_scope=True))).all():
                 if s:
                     seen.setdefault(_sym(s), "")
     except Exception as e:                                        # noqa: BLE001
-        logger.debug("القارئ البصري: المحفظة {}", e)
+        logger.warning("القارئ البصري: المحفظة {}", e)
+    # ‏D564 بأمر المالك: قوائمُ المراقبة بعد المحفظة مباشرةً، ثمّ السوقُ بحجمه
+    try:
+        from sqlalchemy import select
+        from app.core.database import AsyncSessionLocal
+        from app.models.market import Watchlist
+        async with AsyncSessionLocal() as db:
+            q = select(Watchlist.symbol).order_by(Watchlist.sort_order.asc(), Watchlist.id.asc())
+            for s, in (await db.execute(q.execution_options(skip_portfolio_scope=True))).all():
+                if s:
+                    seen.setdefault(_sym(s), "")
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("القارئ البصري: المراقبة {}", e)
     try:
         from app.services.market_screener import get_cached_screener
         rows = sorted(get_cached_screener() or [], key=lambda r: -(r.get("market_cap") or 0))
@@ -281,5 +293,12 @@ async def nightly(max_files: int = NIGHT_FILES) -> dict:
             await asyncio.sleep(2)                                # رفقٌ بـ«تداول» بين الشركات
     rep.pop("_mem", None)
     rep["waits"] = waits
+    # ‏D564: تقريرُ الليلة محفوظٌ — يُعرف منه ما قُرئ ولماذا توقّف، بلا سجلّات الحاوية
+    try:
+        from datetime import datetime
+        from app.services import lastgood
+        lastgood.save("know:_last_run", {**rep, "at": datetime.now().isoformat(timespec="minutes")})
+    except Exception:                                             # noqa: BLE001
+        pass
     logger.info("القارئ البصري: {}", json.dumps(rep, ensure_ascii=False))
     return rep
