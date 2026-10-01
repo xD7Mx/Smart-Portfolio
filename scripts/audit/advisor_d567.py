@@ -66,6 +66,10 @@ fx = A.reit_facts({**REIT, "reit": {**REIT["reit"], "yield": 6.92,
                                      "nav_history": [{"v": 9.091}, {"v": 9.032}, {"v": 8.176}, {"v": 8.385}]}, "peers": PEERS})
 check(any("أغلى" in x and "13 من 17" in x for x in fx) and any("هبط 9.5٪" in x and "+2.6٪" in x for x in fx),
       "١٤ حقائقُ الأقران وصافي الأصول محسوبةٌ لا مستنتجة: «أغلى من أكثرهم» وهبوطُ 9.5٪ ثمّ +2.6٪", " | ".join(fx))
+# ‏D572: قرارٌ غائبٌ مؤقّتاً لا يُقرأ «ليس شراءً»
+un = A.stance({**REIT, "decision": "بيانات غير كافية"})
+check(un["action"] == "أضف على دفعتين" and "غيرُ متوفّر" in un["why"],
+      "١٥ قرارٌ غائبٌ مؤقّتاً (بعد إعادة تشغيل) لا يقلب النصيحة إلى «انتظر»", un["why"])
 # بلغ الهدف ⇒ احتفظ؛ وفوقه ⇒ خفّف بالفائض؛ ولا مركزَ ولا هدف ⇒ راقب
 check(A.stance({**REIT, "remaining": 0})["action"] == "احتفظ", "٧ بلغ هدفَه ⇒ احتفظ")
 over = A.stance({**REIT, "value": 15000, "weight": 4.5, "remaining": 0})

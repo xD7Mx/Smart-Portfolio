@@ -295,6 +295,8 @@ def signals(f: dict) -> dict:
         "pe_cheap": bool((f.get("pe_band") or {}).get("current") is not None and (f.get("pe_band") or {}).get("low") is not None
                          and f["pe_band"]["current"] <= f["pe_band"]["low"]),
         "app_buy": "شراء" in str(f.get("decision") or ""),
+        # ‏D572: قرارٌ غائبٌ مؤقّتاً (بعد إعادة تشغيلٍ قبل اكتمال الحسابات) ليس «ليس شراءً»
+        "app_unknown": (not f.get("decision")) or any(w in str(f.get("decision")) for w in ("غير كافية", "غير متوفر", "غير متوفّر")),
         "app_avoid": any(w in str(f.get("decision") or "") for w in ("تجنّب", "تجنب", "بيع", "رفض")),
         "auditor_flag": bool(re.search(r"متحفّظ|متحفظ|لفت انتباه|استمرارية", files)) and "غير متحفظ" not in files,
         "reit_deep_discount": bool((f.get("reit") or {}).get("premium") is not None and f["reit"]["premium"] <= -15),
@@ -373,7 +375,8 @@ def stance(f: dict) -> dict:
             out["stop_rules"].append("إن تكرّر تراجعُ الربح في النتائج القادمة فراجِع الهدفَ نفسَه")
         return out
 
-    gated = sg["profit_down"] or sg["app_avoid"] or sg["auditor_flag"] or sg["reit_overdue"] or not sg["app_buy"]
+    gated = sg["profit_down"] or sg["app_avoid"] or sg["auditor_flag"] or sg["reit_overdue"] or \
+        (not sg["app_buy"] and not sg["app_unknown"])
     # ‏D569: لكلّ شرطٍ صيغةٌ آليّة تراقبها المهمّةُ اليومية (cond) بجانب نصّه للمالك (when)
     after = (f.get("next_q") or {}).get("as_of")
     c_res = {"k": "results", "after": after, "due": due, "nth": 1}
@@ -396,7 +399,7 @@ def stance(f: dict) -> dict:
                  (0.33, value_cond, any_(c_val))]
         out["action"] = "انتظر الشرط ثمّ أضف على دفعات"
         out["why"] = "؛ ".join(w for w, on in (
-            ("الربحُ يتراجع", sg["profit_down"]), ("قرارُ التطبيق ليس شراءً", not sg["app_buy"]),
+            ("الربحُ يتراجع", sg["profit_down"]), ("قرارُ التطبيق ليس شراءً", not sg["app_buy"] and not sg["app_unknown"]),
             ("تحفّظٌ من المراجع", sg["auditor_flag"]), ("تأخّر توزيعُ الريت", sg["reit_overdue"])) if on)
     else:
         first = "الآن" + (" — السعرُ عند قاع 52 أسبوعاً بتشبّعٍ بيعيّ" if sg["at_low"] and sg["oversold"] else "")
@@ -404,7 +407,7 @@ def stance(f: dict) -> dict:
                  (0.5, res_cond + " " + reclaim, any_(c_res, c_rec)) if sg["trend_down"]
                  else (0.5, value_cond + " أو " + res_cond, any_(c_val, c_res))]
         out["action"] = "أضف على دفعتين"
-        out["why"] = "قرارُ التطبيق شراءٌ ولا إشارةَ تحذير" + ("، والاتجاهُ هابطٌ فالتدرّجُ أسلم" if sg["trend_down"] else "")
+        out["why"] = ("قرارُ التطبيق غيرُ متوفّرٍ الآن ولا إشارةَ تحذير" if sg["app_unknown"] else "قرارُ التطبيق شراءٌ ولا إشارةَ تحذير") + ("، والاتجاهُ هابطٌ فالتدرّجُ أسلم" if sg["trend_down"] else "")
     left = rem
     for i, (share, cond, mc) in enumerate(parts):
         amt = left if i == len(parts) - 1 else round(rem * share, 2)

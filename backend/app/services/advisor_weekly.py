@@ -74,7 +74,7 @@ def render(r: dict) -> str:
         L += ["", r["summary"]]
     p = r["portfolio"]
     L += ["", f"المحفظة: رأسُ المال {p['capital']:,.0f} ريال · السيولة {p['cash']:,.0f} · "
-              f"ما يلزم لبلوغ الأهداف {p['to_targets']:,.0f} · {p['count']} شركة"]
+              f"ما يلزم لبلوغ الأهداف {p['to_targets']:,.0f} · {p['count']} {'شركات' if 3 <= p['count'] <= 10 else 'شركة'}"]
     if p.get("spread"):
         L.append(f"• تنبيه: {p['count']} شركة — فوق {SPREAD_N}؛ اسأل صقر «قلّل عدد الشركات» لخطة تركيز")
     ready = [x for x in r["rows"] if x["ready"]]
