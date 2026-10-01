@@ -926,12 +926,39 @@ async def refresh_derived(rows: list) -> list:
     return rows
 
 
+def _label(d):
+    return d.get("label") if isinstance(d, dict) else d
+
+
+def with_live_decisions(rows: list | None) -> list | None:
+    """‏D575: قرارُ الصفّ هو آخرُ ما حكم به التطبيقُ على صفحة الشركة — لا لقطةُ آخر مسح.
+
+    قِيس: الفرزُ «انتظار» وصفحةُ السهم «شراء» للشركة نفسها؛ لأنّ صفوفَ المسح تُجمَّد
+    ساعاتٍ بينما يُحدَّث المخزنُ العميق كلّما فُتحت شركة. فيُقرأ القرارُ منه عند كلّ قراءة."""
+    if not rows:
+        return rows
+    try:
+        from app.services import lastgood
+        deep = lastgood.load("governance:deep") or {}
+    except Exception:                                             # noqa: BLE001
+        return rows
+    if not isinstance(deep, dict) or not deep:
+        return rows
+    out = []
+    for r in rows:
+        d = deep.get(str(r.get("symbol") or "").replace(".SR", ""))
+        if isinstance(d, dict) and d.get("decision") is not None and _label(d["decision"]) != r.get("decision"):
+            r = {**r, "decision": _label(d["decision"])}
+        out.append(r)
+    return out
+
+
 def get_cached_screener() -> list | None:
     data = cache.get(SCREENER_CACHE_KEY)
     if data is not None:
-        return data
+        return with_live_decisions(data)
     try:
         from app.services import lastgood
-        return lastgood.load("market:screener")
+        return with_live_decisions(lastgood.load("market:screener"))
     except Exception:
         return None

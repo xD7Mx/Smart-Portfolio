@@ -821,4 +821,17 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
             lastgood.save("governance:deep", store)
         except Exception:                                         # noqa: BLE001
             pass
+    elif allow_supplement and result.get("decision"):
+        # ‏D575: الامتناعُ حكمٌ أيضاً — وإلا بقي «شراء» قديمٌ في الفرز والصفحةُ تمتنع
+        try:
+            from app.services import lastgood
+            from datetime import datetime, timezone
+            store = lastgood.load("governance:deep") or {}
+            k = str(symbol).replace(".SR", "")
+            if isinstance(store, dict) and isinstance(store.get(k), dict):
+                store[k] = {**store[k], "decision": result.get("decision"),
+                            "at": datetime.now(timezone.utc).date().isoformat()}
+                lastgood.save("governance:deep", store)
+        except Exception:                                         # noqa: BLE001
+            pass
     return result
