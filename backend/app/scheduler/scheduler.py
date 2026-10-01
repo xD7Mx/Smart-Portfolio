@@ -199,6 +199,15 @@ async def job_investor_calls():
         logger.error(f"مؤتمرات المحلّلين: {e}")
 
 
+async def job_advisor_watch():
+    """متابعةُ نصائح صقر (D569): ما نُفّذ، وما تحقّق شرطُه، وما يوقفها — ويُبلَّغ الجديدُ وحده."""
+    try:
+        from app.services.advisor_memory import watch
+        await watch()
+    except Exception as e:
+        logger.error(f"متابعة المستشار: {e}")
+
+
 async def job_file_reader():
     """القارئُ البصريّ (D557): ملفّاتٌ قليلةٌ ليلاً بالتتابع — المحفظةُ أوّلاً.
 
@@ -606,6 +615,9 @@ def start_scheduler():
         id="xbrl_statements_night",
         replace_existing=True,
     )
+    # ‏D569: متابعةُ نصائح المستشار — بعد الإغلاق، ومساءً بعد إعلانات النتائج
+    _scheduler.add_job(job_advisor_watch, CronTrigger(hour=15, minute=40), id="advisor_watch_close", replace_existing=True)
+    _scheduler.add_job(job_advisor_watch, CronTrigger(hour=21, minute=10), id="advisor_watch_evening", replace_existing=True)
     # ‏D559: مساءً بعد إغلاق السوق — إعلاناتُ المؤتمرات تنزل نهاراً
     _scheduler.add_job(
         job_investor_calls,

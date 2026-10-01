@@ -592,6 +592,9 @@ async def answer(db, question: str, history: list | None = None,
             if refusal:
                 return {"reply": _strip_markup(refusal), "grounded": True, "source": "rule"}
             picked = advisor.companies(question, light0)
+            # ‏D568: هيكلةُ المحفظة كلِّها (تقليلُ العدد والاكتفاءُ بالقيادية) — حتى لو ذُكرت شركة
+            if advisor.portfolio_intent(question) and len(picked) < 2:
+                return await advisor.answer_portfolio(db, question, history)
             if picked:
                 return await advisor.answer(db, question, picked, history)
     except Exception as e:                                        # noqa: BLE001

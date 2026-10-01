@@ -31,10 +31,27 @@ _ACT = ("اضخ", "أضخ", "اضيف", "أضيف", "اضف", "أضف", "اشت�
         "هل يجوز", "يستاهل", "مستشار", "توصيتك", "قرارك", "اضخ فيه", "ضخ")
 
 
+_PORT = ("قلل عدد", "أقلل عدد", "اقلل عدد", "قلّل", "تقليل عدد", "اكتفي", "أكتفي", "الاكتفاء", "القيادية", "القياديه",
+         "تخلص", "أتخلص", "اتخلص", "ركز المحفظة", "تركيز المحفظة", "رتب المحفظة", "ترتيب المحفظة", "اعادة هيكلة", "إعادة هيكلة",
+         "اضعف شركات", "أضعف شركات", "الشركات الضعيفة")
+_ALT = ("بديل", "بدائل", "افضل منها", "أفضل منها", "افضل منه", "أفضل منه", "شركة افضل", "شركة أفضل", "استبدل", "أستبدل", "ابدل", "أبدل")
+
+
+def portfolio_intent(question: str) -> bool:
+    """سؤالٌ عن المحفظة كلِّها: تقليلُ العدد والاكتفاءُ بالقيادية، أو التخلّصُ من الضعيفة."""
+    q = (question or "").replace("ـ", "")
+    return any(w in q for w in _PORT)
+
+
+def wants_alternatives(question: str) -> bool:
+    q = (question or "").replace("ـ", "")
+    return any(w in q for w in _ALT)
+
+
 def intent(question: str) -> bool:
     """أهو سؤالُ قرارٍ استثماريّ (أضخّ/أبيع/أستبدل/أنتظر/ماذا أفعل)؟"""
     q = (question or "").replace("ـ", "")
-    return any(w in q for w in _ACT)
+    return any(w in q for w in _ACT) or portfolio_intent(q) or wants_alternatives(q)
 
 
 _ASK = ("؟", "?", "هل ", "ام ", "أم ", "او ", "أو ", "ماذا", "وش ", "ايش", "شو ", "رايك", "رأيك", "تنصح",
@@ -221,6 +238,23 @@ async def dossier(db, symbol: str, name: str = "") -> dict:
         f["calls"] = lines(sym)
     except Exception:                                             # noqa: BLE001
         f["calls"] = []
+    # ‏D569: ما نصح به صقرُ من قبل وما جرى له — النصيحةُ تُتابَع لا تُعاد من الصفر
+    try:
+        from app.services.advisor_memory import recall, summary
+        f["advice"] = summary(recall(sym))
+    except Exception:                                             # noqa: BLE001
+        f["advice"] = None
+    # ‏D568: البدائلُ الأفضل — الحلُّ لا التحليلُ وحده
+    try:
+        from app.services import advisor_solutions as S
+        if f.get("is_reit"):
+            own = {"premium": (f.get("reit") or {}).get("premium"), "yield": (f.get("reit") or {}).get("yield")}
+            f["alternatives"] = S.reit_alternatives(own, f.get("peers") or [])
+        else:
+            f["alternatives"] = S.alternatives(sym)
+    except Exception as e:                                        # noqa: BLE001
+        logger.debug("advisor alts {}: {}", sym, e)
+        f["alternatives"] = []
     return f
 
 
@@ -317,6 +351,17 @@ def stance(f: dict) -> dict:
         out["action"] = "راقب"
         out["why"] = "لا تملكها ولا وزنَ مستهدفاً لها — حدِّد وزنها في التوزيع النسبي أوّلاً إن أردت دخولها"
         return out
+    # ‏D568: الشركةُ الضعيفةُ ذاتُ البديل الأفضل تُستبدل — قبل حسابات الوزن كلِّها
+    weak = sg["app_avoid"] or sg["auditor_flag"] or (not sg["app_buy"] and (f.get("fin") or 100) < 55)
+    alts = f.get("alternatives") or []
+    if f.get("held") and weak and alts and f.get("value"):
+        best = alts[0]
+        from app.services.advisor_solutions import swap
+        out.update(action="استبدل", why="؛ ".join(w for w, on in (
+            ("قرارُ التطبيق تجنّب", sg["app_avoid"]), ("تحفّظٌ من المراجع", sg["auditor_flag"]),
+            ("جودةٌ ماليةٌ دون 55 وقرارٌ ليس شراءً", not sg["app_buy"] and (f.get("fin") or 100) < 55)) if on),
+                   replace_with=best, swap=swap(f["value"], best.get("price")))
+        return out
     if target_amt is not None and f.get("value") is not None and f["value"] - target_amt > noise:
         excess = f["value"] - target_amt
         out.update(action="خفّف", amount=round(excess, 2), shares=_shares(excess, px),
@@ -329,31 +374,42 @@ def stance(f: dict) -> dict:
         return out
 
     gated = sg["profit_down"] or sg["app_avoid"] or sg["auditor_flag"] or sg["reit_overdue"] or not sg["app_buy"]
+    # ‏D569: لكلّ شرطٍ صيغةٌ آليّة تراقبها المهمّةُ اليومية (cond) بجانب نصّه للمالك (when)
+    after = (f.get("next_q") or {}).get("as_of")
+    c_res = {"k": "results", "after": after, "due": due, "nth": 1}
+    c_res2 = {"k": "results", "after": after, "due": due, "nth": 2}
+    c_rec = {"k": "reclaim", "level": f.get("sma200")} if f.get("sma200") else None
     if f.get("is_reit"):
         nav = (f.get("reit") or {}).get("nav")
         deep = round(nav * 0.85, 2) if nav else None
         value_cond = f"عند خصمٍ 15٪ على صافي الأصول (نحو {deep})" if deep else "عند خصمٍ أعمق على صافي الأصول"
+        c_val = {"k": "below", "level": deep} if deep else None
     else:
         lvl = round(px * 0.9, 2) if px else None
         value_cond = f"إن هبط السعرُ نحو {lvl} (−10٪) دون خفضٍ للتوزيع" if lvl else "عند هبوطٍ أعمق دون خفضٍ للتوزيع"
+        c_val = {"k": "below", "level": lvl} if lvl else None
     reclaim = (f"أو ثبت السعرُ فوق متوسط 200 يوم ({f['sma200']})" if f.get("sma200") else "أو تحسّن الاتجاهُ الفنيّ")
+    any_ = lambda *cs: [c for c in cs if c]
 
     if gated:
-        parts = [(0.34, res_cond), (0.33, "بعد تأكيد التحسّن في الربع التالي " + reclaim), (0.33, value_cond)]
+        parts = [(0.34, res_cond, any_(c_res)), (0.33, "بعد تأكيد التحسّن في الربع التالي " + reclaim, any_(c_res2, c_rec)),
+                 (0.33, value_cond, any_(c_val))]
         out["action"] = "انتظر الشرط ثمّ أضف على دفعات"
         out["why"] = "؛ ".join(w for w, on in (
             ("الربحُ يتراجع", sg["profit_down"]), ("قرارُ التطبيق ليس شراءً", not sg["app_buy"]),
             ("تحفّظٌ من المراجع", sg["auditor_flag"]), ("تأخّر توزيعُ الريت", sg["reit_overdue"])) if on)
     else:
         first = "الآن" + (" — السعرُ عند قاع 52 أسبوعاً بتشبّعٍ بيعيّ" if sg["at_low"] and sg["oversold"] else "")
-        parts = [(0.5, first), (0.5, res_cond + " " + reclaim if sg["trend_down"] else value_cond + " أو " + res_cond)]
+        parts = [(0.5, first, [{"k": "now"}]),
+                 (0.5, res_cond + " " + reclaim, any_(c_res, c_rec)) if sg["trend_down"]
+                 else (0.5, value_cond + " أو " + res_cond, any_(c_val, c_res))]
         out["action"] = "أضف على دفعتين"
         out["why"] = "قرارُ التطبيق شراءٌ ولا إشارةَ تحذير" + ("، والاتجاهُ هابطٌ فالتدرّجُ أسلم" if sg["trend_down"] else "")
     left = rem
-    for i, (share, cond) in enumerate(parts):
+    for i, (share, cond, mc) in enumerate(parts):
         amt = left if i == len(parts) - 1 else round(rem * share, 2)
         left = round(left - amt, 2)
-        out["tranches"].append({"n": i + 1, "amount": round(amt, 2), "shares": _shares(amt, px), "when": cond})
+        out["tranches"].append({"n": i + 1, "amount": round(amt, 2), "shares": _shares(amt, px), "when": cond, "cond": mc})
     out["remaining"] = round(rem, 2)
     out["remaining_shares"] = _shares(rem, px)
     out["stop_rules"] += [r for r, on in (
@@ -399,6 +455,10 @@ CHARTER = """أنت «صقر»، المستشارُ الماليُّ الخاص�
 • استند إلى ما قرأه التطبيقُ من ملفّات الشركة (بفتراتها) إن وُجد: ما الذي تغيّر، ولماذا، وهل التوزيعُ مغطّى. وإن لم يُقرأ شيءٌ فقل ذلك ولا تدّعِ قراءته.
 • إن كانت المشترياتُ الأخيرة في الملفّ فاذكرها: ما نُفّذ وما بقي — الخطةُ تتواكب مع ما فعله.
 • إن قارن بين شركتين فاحكم صريحاً، واذكر كلفةَ الاستبدال إن وُجدت.
+• **قدّم حلاً لا تحليلاً فقط.** إن كان الإجراءُ «استبدل» فسمِّ البديلَ ومبلغَ النقل وأسهمَه كما في الموقف، ولماذا هو أفضل
+  (بالأرقام: الدرجة المالية، القرار، الفجوة، العائد). وإن سأل عن بديلٍ ووُجدت «البدائل» فاعرض أفضلها بأرقامه،
+  وإن لم يوجد بديلٌ أفضل فقل ذلك صراحةً — البقاءُ أحياناً هو الحلّ.
+• إن ورد «ما نصحتُ به سابقاً» فابدأ منه: ما الذي نُفّذ، وما الذي تحقّق شرطُه، وما الذي ما زال ينتظر — لا تبدأ من الصفر.
 • لا رقمَ من خارج الملفّ. ما لا تعرفه قُل «غير متوفّر».
 • لا تحفيز ولا تهويل ولا عبارات تنصّل طويلة.
 
@@ -422,6 +482,14 @@ def render(fs: list[dict], sts: list[dict], cmp: list[dict] | None = None) -> st
         if f.get("recent"):
             r = f["recent"][0]
             out.append(f"• آخرُ عمليةٍ: {r['type']} {(r.get('qty') or 0):g} سهماً بسعر {r.get('price')} في {r['date']}")
+        if st.get("replace_with"):
+            b, sw = st["replace_with"], st.get("swap") or {}
+            out.append(f"• الحلّ: استبدلها بـ{b.get('name')} ({b.get('symbol')}) — درجتُها {b.get('quality')} مقابل "
+                       f"{b.get('base_quality')}، وقرارُها {b.get('decision')}؛ انقل {sw.get('amount', 0):,.0f} ريال (نحو {sw.get('shares')} سهماً)")
+        adv = f.get("advice")
+        if adv:
+            st_ = " · ".join(f"الدفعة {t['n']}: {t['الحالة']}" for t in adv.get("الدفعات") or [])
+            out.append(f"• نصيحتي السابقة ({adv.get('بتاريخ')}): {adv.get('الإجراء')} — {st_}")
         for x in st.get("facts") or []:
             out.append(f"• {x.replace('**', '')}")
         for t in st.get("tranches") or []:
@@ -448,6 +516,15 @@ async def answer(db, question: str, picked: list[dict], history: list | None = N
     from app.services.usage_tracker import can_call, record
     fs = [await dossier(db, p["symbol"], p.get("name") or "") for p in picked]
     sts = [stance(f) for f in fs]
+    # ‏D569: النصيحةُ تُحفظ بدفعاتها وشروطها الآليّة، فتُراقَب وتُتابَع
+    try:
+        from app.core.portfolio_scope import active_pid
+        from app.services.advisor_memory import remember
+        for f, st in zip(fs, sts):
+            if f.get("held"):
+                remember(f, st, active_pid())
+    except Exception as e:                                        # noqa: BLE001
+        logger.debug("advisor remember: {}", e)
     cmp = compare(fs[0], fs[1]) if len(fs) == 2 else None
     fallback = render(fs, sts, cmp)
     if not settings.AI_API_KEY or not can_call("gemini"):
@@ -486,4 +563,90 @@ async def answer(db, question: str, picked: list[dict], history: list | None = N
         return {"reply": _strip_markup(text), "grounded": True, "source": "advisor"}
     except Exception as e:                                        # noqa: BLE001
         logger.warning("advisor: {}", type(e).__name__)
+        return {"reply": fallback, "grounded": True, "source": "advisor-rules"}
+
+
+# ── على مستوى المحفظة: التركيزُ والاكتفاءُ بالقيادية (D568) ─────────────────
+PORT_CHARTER = """أنت «صقر»، المستشارُ الماليُّ الخاصّ لمالك المحفظة، بخبرة مدير صندوق. سألك عن هيكلة محفظته كلِّها.
+«خطةُ التركيز» المرفقةُ محسوبةٌ بقواعد التطبيق: من يبقى ومن يخرج والأوزانُ الجديدة والمبالغ — **انقلها حرفياً ولا تغيّرها**.
+مهمّتك: احكم صريحاً، ثمّ اشرح لماذا خرج كلُّ خارجٍ (درجتُه، قرارُه، وزنُه، شرعيّتُه) ولماذا بقيت القيادية، وما الذي
+يُثبَّت من ربحٍ أو خسارة عند البيع، وأين تذهب المبالغ (الأوزانُ الجديدة للباقين)، وإن وُجد لخارجٍ بديلٌ أفضل في قطاعه فاذكره.
+نبّهه أنّ التنفيذ بيده: يُحدَّث الوزنُ المستهدف في «التوزيع النسبي» فيحسب التطبيقُ المبالغ.
+نصٌّ عربيٌّ نظيف بلا رموز تنسيق، والتعدادُ بـ«•»، واختم: «رأيٌ تحليليّ من بيانات التطبيق، والقرارُ لك.»"""
+
+
+async def portfolio_pack(db, question: str) -> dict:
+    from app.api.v1.endpoints.allocation import get_allocation
+    from app.services import advisor_solutions as S
+    from sqlalchemy import select
+    from app.models.portfolio import Company, Holding
+    res = await get_allocation(db)
+    d = (json.loads(res.body) if hasattr(res, "body") else res)["data"]
+    inv = {s: float(v or 0) for s, v in (await db.execute(
+        select(Company.symbol, Holding.invested_amount).join(Holding, Holding.company_id == Company.id))).all()}
+    items = [{**it, "invested": inv.get(str(it["symbol"]))} for it in d.get("items") or []]
+    n = len(items)
+    keep_n = S.wanted_count(question, default=10 if n > 12 else max(5, n - 3))
+    rows = S._rows()
+    plan = S.consolidate(items, rows, keep_n, d.get("investable") or 0)
+    for x in plan["exits"]:
+        alts = S.alternatives(str(x["symbol"]), rows, n=1)
+        x["better_in_sector"] = alts[0] if alts else None
+    slim = lambda k: {key: k.get(key) for key in ("symbol", "name", "market_value", "current_weight", "target_weight",
+                                                  "new_target", "quality", "decision", "leader", "halal", "sector",
+                                                  "invested", "better_in_sector")}
+    return {"عدد الشركات": f"{plan['before']} ⇒ {plan['after']}", "يبقى": [slim(k) for k in plan["keep"]],
+            "يخرج": [slim(x) for x in plan["exits"]], "حصيلة البيع": plan["proceeds"],
+            "ربحٌ أو خسارةٌ تُثبَّت": plan["realized"], "وزنٌ يُعاد توزيعه٪": plan["freed_weight"],
+            "القطاعات بعد التركيز": plan["sectors_after"], "رأس المال": d.get("investable")}
+
+
+def render_portfolio(p: dict) -> str:
+    out = [f"خطة التركيز: {p['عدد الشركات']} شركات."]
+    for x in p["يخرج"]:
+        alt = x.get("better_in_sector")
+        out.append(f"• يخرج {x['name']} ({x['symbol']}) — درجته {x['quality']}، قراره {x.get('decision')}، "
+                   f"وزنه {x.get('current_weight')}٪" + (" — غيرُ شرعي" if x.get("halal") is False else "")
+                   + (f"؛ وبديلُه الأفضل في قطاعه {alt['name']} ({alt['symbol']})" if alt else ""))
+    for k in p["يبقى"]:
+        out.append(f"• يبقى {k['name']} — هدفه الجديد {k.get('new_target')}٪ (كان {k.get('target_weight')}٪)"
+                   + (" — قيادية" if k.get("leader") else ""))
+    r = p["ربحٌ أو خسارةٌ تُثبَّت"]
+    out.append(f"• حصيلةُ البيع {p['حصيلة البيع']:,.0f} ريال، و{'تُثبَّت خسارة' if r < 0 else 'يُثبَّت ربح'} {abs(r):,.0f} ريال.")
+    out.append("• التنفيذ بيدك: حدِّث الأوزانَ المستهدفة في «التوزيع النسبي» فيحسب التطبيقُ المبالغ.")
+    out.append("رأيٌ تحليليّ من بيانات التطبيق، والقرارُ لك.")
+    return "\n".join(out)
+
+
+async def answer_portfolio(db, question: str, history: list | None = None) -> dict:
+    import httpx
+    from app.core.config import settings
+    from app.services.usage_tracker import can_call, record
+    p = await portfolio_pack(db, question)
+    fallback = render_portfolio(p)
+    if not settings.AI_API_KEY or not can_call("gemini"):
+        return {"reply": fallback, "grounded": True, "source": "advisor-rules"}
+    prompt = (f"{PORT_CHARTER}\n\n=== خطةُ التركيز (مصدرك الوحيد) ===\n{json.dumps(p, ensure_ascii=False, default=str)}\n"
+              f"=== نهاية الخطة ===\n\nسؤال المالك: {question}\n\nجوابك:")
+    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+           f"{settings.AI_MODEL}:generateContent?key={settings.AI_API_KEY}")
+    try:
+        import asyncio
+        body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.25, "maxOutputTokens": 2000}}
+        for i in range(2):
+            record("gemini")
+            async with httpx.AsyncClient(timeout=40) as c:
+                r = await c.post(url, json=body)
+            if r.status_code in (429, 500, 503) and i == 0:
+                await asyncio.sleep(4)
+                continue
+            break
+        if r.status_code != 200:
+            return {"reply": fallback, "grounded": True, "source": "advisor-rules"}
+        text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        text = re.sub(r"[٠-٩]", lambda m: str(ord(m.group()) - 0x0660), text)
+        from app.services.ai_chat import _strip_markup
+        return {"reply": _strip_markup(text), "grounded": True, "source": "advisor"}
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("advisor portfolio: {}", type(e).__name__)
         return {"reply": fallback, "grounded": True, "source": "advisor-rules"}
