@@ -81,8 +81,13 @@ def parse_statement(text: str) -> dict | None:
     if m and m.group(2).rstrip("م") in _AR_MONTHS:
         as_of = f"{int(m.group(3)):04d}-{_AR_MONTHS[m.group(2).rstrip('م')]:02d}-{int(m.group(1)):02d}"
     if not as_of:
-        g = re.search(r"المنتهية في\s*(20\d\d)-(\d\d)-(\d\d)", t)
-        as_of = f"{g.group(1)}-{g.group(2)}-{g.group(3)}" if g else None
+        # صيغٌ رقمية (قِيس على سبعة صناديق): 30/06/2026م · 2026/06/30 م · (2026/06/30) · 2026-06-30
+        g = re.search(r"المنتهية في\s*\(?\s*(20\d\d)[/-](\d{1,2})[/-](\d{1,2})", t)
+        if g:
+            as_of = f"{g.group(1)}-{int(g.group(2)):02d}-{int(g.group(3)):02d}"
+        else:
+            g = re.search(r"المنتهية في\s*\(?\s*(\d{1,2})[/-](\d{1,2})[/-](20\d\d)", t)
+            as_of = f"{g.group(3)}-{int(g.group(2)):02d}-{int(g.group(1)):02d}" if g else None
 
     def num(label):
         mm = re.search(label + r"[^|\n]*\|\s*[%٪]?\s*(\(?-?[0-9][0-9,]*(?:\.[0-9]+)?\)?)", t)
