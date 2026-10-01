@@ -15,10 +15,9 @@ def out(tag, obj):
 
 
 async def main():
-    from app.data.market_universe import MARKET_UNIVERSE as M
+    from app.services import lastgood
     from app.services import reit_advisor as R
-    reits = sorted(k for k, v in M.items() if "ريت" in str(v.get("sector")) or "REIT" in str(v.get("sector")).upper()
-                   or "ريت" in str(v.get("name")))
+    reits = sorted({k.split(":", 1)[1] for k in lastgood.keys_with_prefix("reit:")} | {"4340"})
     out("REITS", reits)
     for s in reits:
         try:
