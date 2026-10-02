@@ -29,16 +29,11 @@ GENERAL = [("revenue", "الإيرادات", "flow"),
 
 
 def _insights(sym: str) -> list[str]:
-    """‏D557 · D559: ما قرأه القارئُ البصريُّ من ملفّات الشركة، ومؤتمراتُ محلّليها."""
+    """‏D557: ما قرأه القارئُ البصريُّ من ملفّات الشركة."""
     out: list[str] = []
     try:
         from app.services.file_reader import knowledge
         out += knowledge(sym, 7)
-    except Exception:                                             # noqa: BLE001
-        pass
-    try:
-        from app.services.investor_calls import lines
-        out += lines(sym)
     except Exception:                                             # noqa: BLE001
         pass
     return out

@@ -188,17 +188,6 @@ async def job_xbrl_statements():
         logger.error(f"XBRL batch failed: {e}")
 
 
-async def job_investor_calls():
-    """مؤتمراتُ المحلّلين (D559): صفحاتُ البحث الأحدث مساءً، وتفاصيلُ الجديد فقط.
-    وأوّلَ مرّةٍ يُملأ الأرشيف، ثمّ الصفحةُ الأحدثُ لكلّ صيغةٍ كلَّ مساء."""
-    try:
-        from app.services.investor_calls import load, refresh
-        full = not load().get("calls")                 # الأرشيفُ يُملأ مرّةً، ثمّ الأحدثُ وحدَه
-        logger.info(f"مؤتمرات المحلّلين: {await refresh(pages=7 if full else 1)}")
-    except Exception as e:
-        logger.error(f"مؤتمرات المحلّلين: {e}")
-
-
 async def job_advisor_watch():
     """متابعةُ نصائح صقر (D569): ما نُفّذ، وما تحقّق شرطُه، وما يوقفها — ويُبلَّغ الجديدُ وحده."""
     try:
@@ -630,13 +619,6 @@ def start_scheduler():
     # ‏D569: متابعةُ نصائح المستشار — بعد الإغلاق، ومساءً بعد إعلانات النتائج
     _scheduler.add_job(job_advisor_watch, CronTrigger(hour=15, minute=40), id="advisor_watch_close", replace_existing=True)
     _scheduler.add_job(job_advisor_watch, CronTrigger(hour=21, minute=10), id="advisor_watch_evening", replace_existing=True)
-    # ‏D559: مساءً بعد إغلاق السوق — إعلاناتُ المؤتمرات تنزل نهاراً
-    _scheduler.add_job(
-        job_investor_calls,
-        CronTrigger(hour=19, minute=40),
-        id="investor_calls_evening",
-        replace_existing=True,
-    )
     # ‏D557 · D560: من منتصف الليل حتى السادسة والنصف كحدٍّ أقصى — والسوقُ مغلقٌ والخادمُ هادئ؛
     # وإن ضاقت الذاكرةُ لحظةَ حصاد XBRL انتظر ولم يتوقّف
     _scheduler.add_job(

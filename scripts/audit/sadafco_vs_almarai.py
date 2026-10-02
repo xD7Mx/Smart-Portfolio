@@ -35,7 +35,6 @@ async def main():
     from app.services.analysis import analyze_company
     from app.services.file_reader import coverage, knowledge
     from app.services.research_model import note
-    from app.services import investor_calls as IC
     for s in ("2270", "2280"):
         a = await analyze_company(f"{s}.SR", None) or {}
         f = a.get("fundamentals") or {}
@@ -58,7 +57,6 @@ async def main():
         out("KNOW_COV_" + s, coverage(s))
         for l in knowledge(s, 16):
             print("    ", s, l)
-        out("CALLS_" + s, IC.lines(s))
 
 
 asyncio.run(main())
