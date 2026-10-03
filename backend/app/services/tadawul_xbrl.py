@@ -705,6 +705,20 @@ def save_symbol(symbol: str, rec: dict) -> None:
     lastgood.save(f"{STORE_KEY}:{symbol}", rec)
 
 
+def stale_symbols(symbols: list[str], days: int = 45) -> list[str]:
+    """‏D579: رموزٌ قُرئت قوائمُها قبل `days` يوماً فأكثر — الأقدمُ أوّلاً، لتُعاد في الدفعة الليلية."""
+    out = []
+    for s in symbols:
+        rec = _get(str(s).replace(".SR", "").strip())
+        try:
+            age = (date.today() - date.fromisoformat(str((rec or {}).get("as_of")))).days
+        except Exception:                                         # noqa: BLE001
+            continue
+        if age >= days:
+            out.append((age, s))
+    return [s for _, s in sorted(out, reverse=True)]
+
+
 def for_symbol(symbol, kind: str = "annual") -> list[dict]:
     """فتراتُ الشركة المحفوظة — أو فارغةٌ إن غابت أو شاخ إيداعُها."""
     sym = str(symbol or "").replace(".SR", "").strip()

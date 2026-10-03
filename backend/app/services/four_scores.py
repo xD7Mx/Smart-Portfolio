@@ -263,6 +263,14 @@ def build_company_features(
         # ‏D574: الريتُ يُعلن قوائمَه الأولية في إعلاناته ولا تصل تبويبَ القوائم — فأحدثُ ما أعلنه
         # يُقدِّم تاريخَ آخر قائمة (قِيس: الراجحي ريت صار «بيانات غير كافية» لأنّ آخرَ ما وصلنا ديسمبر
         # وقد أعلن قوائمَ يونيو)
+        # ‏D579: قائمةٌ ربعيةٌ رسميةٌ منشورة تكفي لنفي القِدَم — ولو لم تكتمل منها «آخرُ 12 شهراً» المتحقَّقة.
+        # قِيس: البحر الأحمر (1810) والإنماء القابضة (2082) لدينا قوائمُ يونيو 2026 والقرارُ «9 أشهر».
+        _sy = str(symbol or (info or {}).get("symbol") or "").replace(".SR", "")
+        if _sy:
+            from app.services.tadawul_xbrl import for_symbol as _xq
+            _qs = [str(p.get("as_of"))[:10] for p in (_xq(_sy, "quarterly") or []) if p.get("as_of")]
+            if _qs and (not feats.get("_asof") or max(_qs) > str(feats["_asof"])[:10]):
+                feats["_asof"] = max(_qs)
         if str(_arch or "") == "reit":
             from app.services.reit_advisor import latest_statement
             _ls = latest_statement(str(symbol or (info or {}).get("symbol") or "").replace(".SR", ""))

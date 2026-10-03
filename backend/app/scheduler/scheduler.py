@@ -174,15 +174,19 @@ async def job_xbrl_statements():
         from app.data.market_universe import MARKET_UNIVERSE
         from app.data.universe import main_market
         from app.services.tadawul_market import snapshot
-        from app.services.tadawul_xbrl import for_symbol, refresh
+        from app.services.tadawul_xbrl import for_symbol, refresh, stale_symbols
 
         universe = list(snapshot() or {}) or list(main_market(MARKET_UNIVERSE))
         missing = [s for s in universe if not for_symbol(s)]
         logger.info("XBRL: {} مقروءةٌ من {} — الباقي {}",
                     len(universe) - len(missing), len(universe), len(missing))
-        if not missing:
+        # ‏D579: ومن قُرئ يُعاد إن شاخت قراءتُه — كانت الدفعةُ للفارغ وحدَه، فلا تصل شركةً قُرئت مرّةً
+        # نتائجُ ربعٍ جديد أبداً (قِيس: «9 أشهر» لثلاثين شركةً نشرت نتائجَ يونيو)
+        due = stale_symbols(universe, 45)
+        batch = (missing + [s for s in due if s not in missing])[:40]
+        if not batch:
             return
-        rec = await refresh(missing[:40])
+        rec = await refresh(batch)
         logger.info(f"XBRL batch: {rec}")
     except Exception as e:
         logger.error(f"XBRL batch failed: {e}")
