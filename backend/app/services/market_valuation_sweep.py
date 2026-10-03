@@ -120,9 +120,10 @@ def record_verdicts(done: dict, today: date | None = None, fresh_days: int = 7) 
             age = (today - date.fromisoformat(str((cur or {}).get("at"))[:10])).days
         except ValueError:
             age = 10 ** 6
-        if isinstance(cur, dict) and age < fresh_days:
+        page = isinstance(cur, dict) and cur.get("source") != "sweep"     # حكمُ صفحةٍ ببياناتٍ أوفى
+        if page and age < fresh_days:
             continue
-        if isinstance(cur, dict) and not vd.get("evaluable") and cur.get("decision") and age < 30:
+        if page and not vd.get("evaluable") and cur.get("decision") and age < 30:
             continue                      # امتناعُ المسحة (بياناتٌ أقلّ) لا يمحو حكماً عميقاً حديثاً
         base = cur if isinstance(cur, dict) else {}
         store[sym] = {**base, "decision": vd["decision"], "at": today.isoformat(), "source": "sweep",
