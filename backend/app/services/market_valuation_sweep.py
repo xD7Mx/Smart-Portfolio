@@ -94,7 +94,44 @@ async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
         if _prov.get("تاريخ الأرقام"):
             out["stmt_asof"] = _prov["تاريخ الأرقام"]
             out["stmt_age_days"] = _prov.get("عمر الأرقام أياماً")
+        # ‏D578: الحكمُ يُحسب هنا لكلّ السوق — فيُحمَل ليصل الفرز (يُنزع قبل مخزن الأساسيات)
+        out["_verdict"] = {"decision": a.get("decision"), "evaluable": bool(a.get("evaluable")),
+                           "quality": (a.get("spec") or {}).get("score"), "fair_value": a.get("fair_value")}
         return sym, out
+
+
+def record_verdicts(done: dict, today: date | None = None, fresh_days: int = 7) -> int:
+    """‏D578: حكمُ المسحة يُكتب في المخزن العميق الذي يقرؤه الفرز — لمن لا حكمَ له أو حكمُه أقدمُ من أسبوع.
+
+    قِيس: 147 شركةً من 282 بلا قرارٍ في الفرز، لأنّ المخزنَ يُملأ عند فتح الصفحة وحدَه، والمسحةُ
+    اليومية تحسب الحكمَ للسوق كلِّه ثمّ ترميه. وحكمُ الصفحة الأحدث (بياناتٌ أوفى) لا يُستبدل."""
+    from app.services import lastgood
+    today = today or date.today()
+    store = lastgood.load("governance:deep") or {}
+    if not isinstance(store, dict):
+        store = {}
+    n = 0
+    for sym, v in done.items():
+        vd = (v or {}).get("_verdict") or {}
+        if not vd.get("decision"):
+            continue
+        cur = store.get(sym)
+        try:
+            age = (today - date.fromisoformat(str((cur or {}).get("at"))[:10])).days
+        except ValueError:
+            age = 10 ** 6
+        if isinstance(cur, dict) and age < fresh_days:
+            continue
+        if isinstance(cur, dict) and not vd.get("evaluable") and cur.get("decision") and age < 30:
+            continue                      # امتناعُ المسحة (بياناتٌ أقلّ) لا يمحو حكماً عميقاً حديثاً
+        base = cur if isinstance(cur, dict) else {}
+        store[sym] = {**base, "decision": vd["decision"], "at": today.isoformat(), "source": "sweep",
+                      **({"quality": vd["quality"]} if vd.get("quality") is not None else {}),
+                      **({"fair_value": vd["fair_value"]} if vd.get("fair_value") is not None else {})}
+        n += 1
+    if n:
+        lastgood.save("governance:deep", store)
+    return n
 
 
 @_background_task   # D436: مهمّةٌ خلفية تقف عند 90٪ من حصّة ياهو
@@ -138,9 +175,10 @@ async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
             else:
                 failed += 1
         # كتابةٌ كلَّ خمسين: مسحةٌ تُقطع لا تُضيّع ما أنجزته
-        _fund_store_put_many({k: v for k, v in done.items()})
+        _fund_store_put_many({k: {kk: vv for kk, vv in v.items() if kk != "_verdict"} for k, v in done.items()})
         logger.info(f"مسحةُ التقييم: {len(done)} من {len(syms)}")
 
+    rep_verdicts = record_verdicts(done)
     have_fv = sum(1 for v in done.values() if v.get("fair_value") is not None)
     have_sc = sum(1 for v in done.values() if v.get("finance_score") is not None)
     stale = sum(1 for v in done.values() if v.get("fair_value_stale"))
@@ -152,6 +190,7 @@ async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
         "لها درجةُ جودة": have_sc,
         "شائخةُ الأرقام": stale,
         "تعذّرت": failed,
+        "أحكامٌ للفرز": rep_verdicts,
         "ثوانٍ": round(asyncio.get_event_loop().time() - t0, 1),
     }
     if _FAIL_KINDS:
