@@ -76,7 +76,8 @@ def parse_statement(text: str) -> dict | None:
     قِيس (كاشف reit_interim_door): إعلانُ «إتاحة القوائم المالية الأولية» يحمل جدولاً بنهاية الفترة وصافي الأصول
     وصافي الربح وعدد الوحدات وصافي قيمة الوحدة وعائد الفترة — رسميٌّ ولا يصل تبويبَ القوائم في «تداول»."""
     t = text or ""
-    m = re.search(r"المنتهية في\s*(\d{1,2})\s+(\S+?)\s+(20\d\d)", t)
+    t = re.sub(r"المنتهية في\s*[(\s]*م?\s*", "المنتهية في ", t)           # «( م30/06/2026» ← «30/06/2026» (ميفك)
+    m = re.search(r"المنتهية في\s*(\d{1,2})[\s-]+([^\s\d-]+?)[\s-]+(20\d\d)", t)
     as_of = None
     if m and m.group(2).rstrip("م") in _AR_MONTHS:
         as_of = f"{int(m.group(3)):04d}-{_AR_MONTHS[m.group(2).rstrip('م')]:02d}-{int(m.group(1)):02d}"
