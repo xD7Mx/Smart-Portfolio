@@ -39,8 +39,12 @@ b = R.parse(bupa, "Bupa Arabia announces its Interim Consolidated Financial Resu
 check(bool(b) and b["quarter"]["revenue"] == 5299909e3 and b["quarter"]["net_income"] == 306779e3, "٣ التأمين: إيرادُ التأمين بالآلاف")
 check(not R.is_results_title("X ANNOUNCES ITS ESTIMATED FINANCIAL RESULTS FOR THE PERIOD ENDED ON 30 JUNE 2026")
       and not R.is_results_title("X ANNOUNCES THE RESULTS OF THE 21st ORDINARY GENERAL ASSEMBLY MEETING")
+      and not R.is_results_title("stc announces that it has conducted an earnings conference call to discuss the financial results")
       and R.is_results_title("X ANNOUNCES ITS ANNUAL CONSOLIDATED FINANCIAL RESULTS FOR THE YEAR ENDED 31 DECEMBER 2025 ("),
       "٤ لا تقديريةَ ولا جمعيات")
+q = R.parse("صافي الربح (الخسارة) العائد لمساهمي المصدر | 16,027,777 | 15,288,727 | 4.833 | 1,828,520 | 776.543\nجميع الأرقام بالـ (حقيقي) ريال سعودي",
+            "Alamar Foods Co. announces its Interim Financial results for the Period Ending on 2026-06-30( Six Months )")
+check(bool(q) and q["quarter"]["net_income"] == 16027777.0, "٤ب «حقيقي» تعني بالريال (الأمار)", str(q))
 check(R.parse("لا جدولَ هنا | 5", "النتائج المالية") is None, "٥ بلا سطر وحدةٍ لا يُختلق شيء")
 
 from app.services import lastgood

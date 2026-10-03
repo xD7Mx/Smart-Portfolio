@@ -19,7 +19,7 @@ from datetime import date
 from loguru import logger
 
 STORE = "results:{}"
-_UNITS = {"مليار": 1e9, "مليون": 1e6, "الاف": 1e3, "آلاف": 1e3, "ألف": 1e3, "الف": 1e3}
+_UNITS = {"مليار": 1e9, "مليون": 1e6, "الاف": 1e3, "آلاف": 1e3, "ألف": 1e3, "الف": 1e3, "حقيقي": 1.0}   # «حقيقي» = بالريال
 _EN_MONTHS = {m: i for i, m in enumerate(("january", "february", "march", "april", "may", "june", "july", "august",
                                           "september", "october", "november", "december"), 1)}
 _AR_MONTHS = {"يناير": 1, "فبراير": 2, "مارس": 3, "أبريل": 4, "ابريل": 4, "مايو": 5, "يونيو": 6, "يوليو": 7,
@@ -39,7 +39,8 @@ _FIELDS = (
 def is_results_title(title: str) -> bool:
     """إعلانُ نتائجٍ ماليةٍ فعليّ — لا التقديريةُ ولا نتائجُ الجمعيات."""
     t = (title or "").lower()
-    if any(w in t for w in ("estimated", "تقديري", "assembly", "الجمعية", "corrective", "تصحيحي")):
+    if any(w in t for w in ("estimated", "تقديري", "assembly", "الجمعية", "corrective", "تصحيحي",
+                            "conference call", "call", "لقاء", "مؤتمر")):
         return False
     return "financial result" in t or "النتائج المالية" in t
 
@@ -172,7 +173,7 @@ def due(symbols: list[str], today: date | None = None) -> list[str]:
             checked = (today - date.fromisoformat(raw.get("at"))).days
         except (TypeError, ValueError):
             age, checked = 10 ** 5, 10 ** 5
-        if age > 80 and checked >= 3:
+        if age > 80 and checked >= (1 if not lt else 3):     # بلا نتيجةٍ أصلاً ⇒ يُعاد كلَّ ليلة
             out.append((age, s))
     return [s for _, s in sorted(out, reverse=True)]
 

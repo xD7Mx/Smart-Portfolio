@@ -13,7 +13,7 @@ async def main():
     from app.data.market_universe import MARKET_UNIVERSE
     from app.data.universe import main_market
     from app.services import results_announcements as R
-    syms = R.due(sorted(main_market(MARKET_UNIVERSE).keys()))
+    syms = [s for s in sorted(main_market(MARKET_UNIVERSE).keys()) if not R.latest(s)]
     rep = await R.refresh(syms, conc=4)
     have = {s: (R.latest(s) or {}).get("as_of") for s in syms}
     print("@@FILL@@ " + json.dumps({**rep, "with_result": sum(1 for v in have.values() if v),
