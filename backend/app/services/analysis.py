@@ -818,6 +818,7 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
                 "value_to_price": (round(_fvv / _px, 3)
                                    if _fvv and _px else None),
                 "at": datetime.now(timezone.utc).date().isoformat(),
+                "v": _ENGINE_V,
             }
             lastgood.save("governance:deep", store)
         except Exception:                                         # noqa: BLE001
@@ -830,7 +831,7 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
             store = lastgood.load("governance:deep") or {}
             k = str(symbol).replace(".SR", "")
             if isinstance(store, dict) and isinstance(store.get(k), dict):
-                store[k] = {**store[k], "decision": result.get("decision"),
+                store[k] = {**store[k], "decision": result.get("decision"), "v": _ENGINE_V,
                             "at": datetime.now(timezone.utc).date().isoformat()}
                 lastgood.save("governance:deep", store)
         except Exception:                                         # noqa: BLE001

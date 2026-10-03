@@ -100,12 +100,14 @@ async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
         return sym, out
 
 
-def record_verdicts(done: dict, today: date | None = None, fresh_days: int = 7) -> int:
+def record_verdicts(done: dict, today: date | None = None, fresh_days: int = 7, engine_v: str | None = None) -> int:
     """‏D578: حكمُ المسحة يُكتب في المخزن العميق الذي يقرؤه الفرز — لمن لا حكمَ له أو حكمُه أقدمُ من أسبوع.
 
     قِيس: 147 شركةً من 282 بلا قرارٍ في الفرز، لأنّ المخزنَ يُملأ عند فتح الصفحة وحدَه، والمسحةُ
     اليومية تحسب الحكمَ للسوق كلِّه ثمّ ترميه. وحكمُ الصفحة الأحدث (بياناتٌ أوفى) لا يُستبدل."""
     from app.services import lastgood
+    if engine_v is None:
+        from app.services.analysis import _ENGINE_V as engine_v
     today = today or date.today()
     store = lastgood.load("governance:deep") or {}
     if not isinstance(store, dict):
@@ -120,7 +122,9 @@ def record_verdicts(done: dict, today: date | None = None, fresh_days: int = 7) 
             age = (today - date.fromisoformat(str((cur or {}).get("at"))[:10])).days
         except ValueError:
             age = 10 ** 6
-        page = isinstance(cur, dict) and cur.get("source") != "sweep"     # حكمُ صفحةٍ ببياناتٍ أوفى
+        # حكمُ صفحةٍ ببياناتٍ أوفى — يُحمى إن حسبه المحرّكُ الحاليّ وحدَه؛ فحكمٌ من محرّكٍ أقدم يُجدَّد
+        # (قِيس: الإنماء القابضة بقيت «9 أشهر» من فتحٍ قبل D579 وقوائمُ يونيو عندنا)
+        page = isinstance(cur, dict) and cur.get("source") != "sweep" and cur.get("v") == engine_v
         if page and age < fresh_days:
             continue
         if page and not vd.get("evaluable") and cur.get("decision") and age < 30:

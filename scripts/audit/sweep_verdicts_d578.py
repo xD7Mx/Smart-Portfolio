@@ -21,20 +21,22 @@ from app.services import lastgood
 from app.services.market_valuation_sweep import record_verdicts
 T = date(2026, 10, 3)
 lastgood.save("governance:deep", {
-    "1120": {"decision": {"label": "شراء"}, "at": "2026-10-01", "quality": 80},        # حكمُ صفحةٍ حديث
+    "1120": {"decision": {"label": "شراء"}, "at": "2026-10-01", "quality": 80, "v": "E2"},  # حكمُ صفحةٍ حديث
+    "2082": {"decision": "بيانات غير كافية", "at": "2026-10-02", "v": "E1"},            # صفحةٌ بمحرّكٍ أقدم
     "2222": {"decision": {"label": "انتظار"}, "at": "2026-09-20", "red_lines": 0},     # أقدمُ من أسبوع
-    "4001": {"decision": {"label": "شراء"}, "at": "2026-09-20"},                        # والمسحةُ تمتنع
+    "4001": {"decision": {"label": "شراء"}, "at": "2026-09-20", "v": "E2"},                        # والمسحةُ تمتنع
     "1810": {"decision": "بيانات غير كافية", "at": "2026-10-03", "source": "sweep"}})    # مسحةٌ سابقةٌ اليوم
 v = lambda lab, ev=True: {"_verdict": {"decision": {"label": lab}, "evaluable": ev, "quality": 60, "fair_value": 10.0}}
 n = record_verdicts({"1120": v("تجنب"), "2222": v("شراء"), "4001": v("بيانات غير كافية", False),
-                     "1010": v("انتظار"), "1810": v("انتظار"), "9999": {"_verdict": {"decision": None}}}, T)
+                     "1010": v("انتظار"), "1810": v("انتظار"), "2082": v("شراء"), "9999": {"_verdict": {"decision": None}}}, T, engine_v="E2")
 s = lastgood.load("governance:deep")
 check(s["1010"]["decision"]["label"] == "انتظار" and s["1010"]["source"] == "sweep", "١ شركةٌ بلا حكمٍ تأخذ حكمَ المسحة")
 check(s["1120"]["decision"]["label"] == "شراء", "٢ حكمُ صفحةٍ حديث لا يُستبدل")
 check(s["2222"]["decision"]["label"] == "شراء" and s["2222"]["red_lines"] == 0, "٣ حكمٌ أقدمُ من أسبوع يُجدَّد وتبقى حقولُه")
 check(s["4001"]["decision"]["label"] == "شراء", "٤ امتناعُ المسحة لا يمحو حكماً عميقاً حديثاً")
 check(s["1810"]["decision"]["label"] == "انتظار", "٤ب حكمُ مسحةٍ سابقة يُستبدل بالأحدث ولو في اليوم نفسه")
-check("9999" not in s and n == 3, "٥ لا حكمَ لا يُكتب", str(n))
+check(s["2082"]["decision"]["label"] == "شراء", "٤ج حكمُ صفحةٍ من محرّكٍ أقدم يُجدَّد")
+check("9999" not in s and n == 4, "٥ لا حكمَ لا يُكتب", str(n))
 src = (ROOT / "backend/app/services/market_valuation_sweep.py").read_text()
 check('if kk != "_verdict"' in src and "rep_verdicts = record_verdicts(done)" in src, "٦ المسحةُ تكتب الأحكام ولا تُلوّث مخزن الأساسيات")
 sys.exit(fail)
