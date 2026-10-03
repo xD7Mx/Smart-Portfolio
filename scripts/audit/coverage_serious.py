@@ -79,7 +79,7 @@ check(not unknown,
 # ── ٤ · ٥ · دفعةُ القوائم ───────────────────────────────────────────────
 SCH = (ROOT / "backend" / "app" / "scheduler"
        / "scheduler.py").read_text(encoding="utf-8")
-check("missing[:40]" in SCH,
+check("(missing + [s for s in due if s not in missing])[:40]" in SCH,
       "٤ والدفعةُ أربعون لا اثنتا عشرة — تغطيةٌ في أيّامٍ لا أسابيع")
 check('id="xbrl_statements_night"' in SCH,
       "٤ب ودفعةٌ ثانيةٌ ليليةٌ تختصر المدّةَ إلى النصف")
