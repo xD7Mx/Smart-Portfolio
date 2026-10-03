@@ -192,6 +192,15 @@ async def job_xbrl_statements():
         logger.error(f"XBRL batch failed: {e}")
 
 
+async def job_results_announcements():
+    """‏D580: نتائجُ الشركات من إعلانات «تداول» — من لا نتيجةَ حديثةَ له، الأقدمُ أوّلاً، ثمانون في الجولة."""
+    try:
+        from app.services.results_announcements import refresh
+        logger.info(f"نتائجُ الإعلانات: {await refresh()}")
+    except Exception as e:
+        logger.error(f"نتائجُ الإعلانات: {e}")
+
+
 async def job_advisor_watch():
     """متابعةُ نصائح صقر (D569): ما نُفّذ، وما تحقّق شرطُه، وما يوقفها — ويُبلَّغ الجديدُ وحده."""
     try:
@@ -620,6 +629,9 @@ def start_scheduler():
     # ‏D571: المراجعةُ الأسبوعية — الخميسَ بعد آخر جلسة، وقبل مؤتمرات المساء
     _scheduler.add_job(job_advisor_weekly, CronTrigger(day_of_week="thu", hour=19, minute=15),
                        id="advisor_weekly_thu", replace_existing=True)
+    # ‏D580: مساءً بعد إغلاق السوق — إعلاناتُ النتائج تنزل نهاراً
+    _scheduler.add_job(job_results_announcements, CronTrigger(hour=20, minute=20), id="results_announcements_evening",
+                       replace_existing=True)
     # ‏D569: متابعةُ نصائح المستشار — بعد الإغلاق، ومساءً بعد إعلانات النتائج
     _scheduler.add_job(job_advisor_watch, CronTrigger(hour=15, minute=40), id="advisor_watch_close", replace_existing=True)
     _scheduler.add_job(job_advisor_watch, CronTrigger(hour=21, minute=10), id="advisor_watch_evening", replace_existing=True)

@@ -271,6 +271,13 @@ def build_company_features(
             _qs = [str(p.get("as_of"))[:10] for p in (_xq(_sy, "quarterly") or []) if p.get("as_of")]
             if _qs and (not feats.get("_asof") or max(_qs) > str(feats["_asof"])[:10]):
                 feats["_asof"] = max(_qs)
+            # ‏D580: وإعلانُ النتائج الرسميّ في «تداول» (جدولُه الموحَّد) حين لا يصل ملفُّ XBRL —
+            # قِيس: سابك وبوبا وستٌّ وخمسون شركةً نشرت نتائجَ يونيو وتبويبُ الملفّات متوقّف
+            from app.services.results_announcements import latest as _rl
+            _ra = _rl(_sy)
+            if _ra and _ra.get("as_of") and (_ra.get("quarter") or _ra.get("ytd") or {}).get("net_income") is not None \
+                    and (not feats.get("_asof") or _ra["as_of"] > str(feats["_asof"])[:10]):
+                feats["_asof"] = _ra["as_of"]
         if str(_arch or "") == "reit":
             from app.services.reit_advisor import latest_statement
             _ls = latest_statement(str(symbol or (info or {}).get("symbol") or "").replace(".SR", ""))
