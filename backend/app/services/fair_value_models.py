@@ -279,8 +279,10 @@ def _same_company(annual: list[dict], shares: float | None) -> list[dict]:
     ضعفَ هامشها الحاليّ والعادلُ +194٪."""
     if not shares:
         return annual
+    # عددٌ يبعد ألفَ ضعفٍ فأكثر خطأُ وحدة (بالآلاف) لا إعادةُ هيكلة (D503) — يُبقى
     keep = [p for p in annual if not _n(p.get("shares_outstanding"))
-            or shares / 1.5 <= p["shares_outstanding"] <= shares * 1.5]
+            or shares / 1.5 <= p["shares_outstanding"] <= shares * 1.5
+            or not (shares / 500 <= p["shares_outstanding"] <= shares * 500)]
     return keep or annual[-1:]
 
 
@@ -839,7 +841,9 @@ async def _hist_multiples(sym: str, annual: list[dict], shares: float | None) ->
     if not closes:
         return {}
     out: dict[str, list] = {"pe": [], "pb": [], "ps": []}
-    for per in annual[-5:]:
+    # ‏D577: سنواتُ الهيكل الحاليّ وحدَها — قِيس: صافولا قبل توزيع حصّة المراعي 945 مليونَ سهمٍ
+    # وحقوقٌ تضمّ الحصّة وربحُ 2024 9.9 مليار، فخرج مضاعفُها التاريخيّ 0.62× للدفترية و5.9× للربحية
+    for per in _same_company(annual[-5:], shares):
         d = str(per.get("as_of") or "")[:10]
         before = [c for dd, c in closes if dd <= d]
         if not d or not before:
