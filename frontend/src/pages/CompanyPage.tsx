@@ -816,6 +816,23 @@ export default function CompanyPage() {
     enabled: !!id,
     retry: 0,
   });
+  /* D581: بياناتُ التبويبات تُجلب في الخلفية بعد أن تظهر النظرةُ العامة — فالتنقّلُ بينها فوريّ.
+     المفاتيحُ والدوالُّ نفسُها التي يطلبها كلُّ تبويب، فلا نداءَ مكرّر. والمفكرةُ خارجها: مفتاحُها
+     لا يحمل الاسمَ الذي تبحث به، فلا يُملأ باسمٍ غيرِ اسمها. */
+  React.useEffect(() => {
+    const s = company?.symbol;
+    if (!s || !analysis) return;
+    const s4 = String(s).replace(".SR", "");
+    const t = window.setTimeout(() => {
+      qc.prefetchQuery({ queryKey: ["financials", s, "annual"], queryFn: () => marketApi.financials(s, "annual").then(r => r.data.data) });
+      qc.prefetchQuery({ queryKey: ["fvm", s4], queryFn: () => marketApi.fairValueModels(s4).then(x => x.data?.data || null), staleTime: 30 * 60 * 1000 });
+      qc.prefetchQuery({ queryKey: ["health", s4], queryFn: () => marketApi.health(s4).then(x => x.data?.data || null) });
+      qc.prefetchQuery({ queryKey: ["quarter-reports", s], queryFn: () => marketApi.quarterReports(s).then(x => x.data?.data || null), staleTime: 30 * 60 * 1000 });
+      qc.prefetchQuery({ queryKey: ["dividend-profile", s], queryFn: () => marketApi.dividends(s).then(r => r.data.data) });
+      qc.prefetchQuery({ queryKey: ["argaam-recs", s], queryFn: () => marketApi.recommendations(s).then(r => r.data?.data) });
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [company?.symbol, !!analysis, qc]);
   if (!company) return <div className="flex items-center justify-center h-64 text-[var(--ink-muted)] text-sm">جارٍ تحميل بيانات الشركة...</div>;
 
   const ref = lookupCompany(company.symbol);

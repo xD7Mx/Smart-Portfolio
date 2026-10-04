@@ -26,4 +26,9 @@ mw = (ROOT / "frontend/src/components/market/MarketWidgets.tsx").read_text()
 check("mirror width={1}" not in mw and 'orientation="right" width={44}' in mw, "٤ محورُ برنت وتاسي في حارةٍ خارجَ الرسم")
 check('background: "var(--hairline)"' in mw and "{unch}</div>" in mw and "unch > total * 0.05" not in mw,
       "٥ «ثابتة» حشوٌ محايدٌ مرئيٌّ ورقمُها دائماً")
+cp = (ROOT / "frontend/src/pages/CompanyPage.tsx").read_text()
+pre = cp.split("if (!company) return", 1)[0]
+check(all(k in pre for k in ('["financials", s, "annual"]', '["fvm", s4]', '["health", s4]', '["quarter-reports", s]',
+                            '["dividend-profile", s]', '["argaam-recs", s]')) and "prefetchQuery" in pre,
+      "٦ صفحةُ السهم تجلب بياناتِ التبويبات في الخلفية بمفاتيحها نفسِها — قبل أيّ رجوعٍ مبكّر")
 sys.exit(fail)
