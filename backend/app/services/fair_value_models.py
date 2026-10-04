@@ -1027,9 +1027,39 @@ def _calibrated(sym: str) -> dict | None:
     return None
 
 
+def _reit_peer_yield(sym: str) -> float | None:
+    """‏D593: وسيطُ عائد التوزيع لبقية الريتات (بلا الصندوق نفسِه) — من إفصاحاتها المحفوظة وأسعار السوق."""
+    import statistics
+    from app.services import lastgood
+    from app.services.reit_advisor import summarize
+    from app.services.tadawul_market import row_for
+    ys = []
+    for k in lastgood.keys_with_prefix("reit:"):
+        s = k.split(":", 1)[1]
+        if s == sym:
+            continue
+        raw = lastgood.load(k) or {}
+        p = (row_for(s) or {}).get("price")
+        if not raw.get("dists") or not p:
+            continue
+        y = summarize(raw["dists"], [], p).get("yield")
+        if y and 1.0 <= y <= 20.0:
+            ys.append(y)
+    return statistics.median(ys) if len(ys) >= 5 else None
+
+
+def reit_blend(nav: float, ttm: float | None, peer_yield: float | None) -> tuple[float, float | None]:
+    """‏D593: سعرُ الريت العادل = متوسّطُ صافي الأصول وقيمةِ التوزيع (توزيعُ سنةٍ ÷ وسيطِ عائد الأقران).
+    قِيس (fv_sector_door): صافي الأصول وحدَه أعطى وسيطَ صعودٍ ‎+41٪ للقطاع — والريتاتُ السعوديةُ تُتداول
+    بخصمٍ دائمٍ عن صافي أصولها منذ 2022، فالصافي وحدَه وعدٌ لا يتحقّق. والتوزيعُ نقدٌ يقبضه المالك فعلاً."""
+    income = (ttm / (peer_yield / 100)) if (ttm and peer_yield) else None
+    return ((nav + income) / 2 if income else nav), income
+
+
 async def _reit_nav_value(sym: str) -> dict | None:
-    """‏D554: سعرُ الريت العادل = صافي قيمة أصوله المنشور (مقيِّمان معتمدان) — لا نماذجُ
-    الشركات: قِيس أنها لا تُنتج قيمةً لـ17 ريتاً من 19، وتعطي سدكو ريت +222٪."""
+    """‏D554: سعرُ الريت العادل من صافي قيمة أصوله المنشور (مقيِّمان معتمدان) — لا نماذجُ
+    الشركات: قِيس أنها لا تُنتج قيمةً لـ17 ريتاً من 19، وتعطي سدكو ريت +222٪.
+    ‏D593: ممزوجاً بقيمة التوزيع — انظر `reit_blend`."""
     from app.services.reit_advisor import build
     from app.services.tadawul_market import row_for
     price = (row_for(sym) or {}).get("price")
@@ -1042,23 +1072,32 @@ async def _reit_nav_value(sym: str) -> dict | None:
         return None
     hist = [h["v"] for h in adv.get("nav_history") or []][-2:] or [adv["nav"]]
     nav = adv["nav"]
+    py = _reit_peer_yield(sym)
+    fv, income = reit_blend(nav, adv.get("ttm"), py)
     last = (adv.get("distributions") or [{}])[-1]
     model = {"key": "reit_nav", "family": "nav", "name": "صافي قيمة الأصول المنشور", "value": round(nav, 2),
              "low": round(min(hist), 2), "high": round(max(hist), 2),
              "assumptions": [["صافي قيمة الأصول للوحدة", f"{nav:.2f}", f"كما في {adv.get('nav_date')} · مقيِّمان معتمدان"],
                              ["المصدر", "إعلانُ التوزيع في «تداول»",
                               f"{last.get('amount')} ÷ {last.get('nav_pct')}٪"]]}
-    return {"value": round(nav, 2), "low": model["low"], "high": model["high"],
-            "upside": round((nav / price - 1) * 100, 2), "uncertainty": "منخفض", "count": 1,
-            "models": [model], "families": [], "excluded": [], "weights_kind": "reit_nav",
-            "model_set": "الصناديق العقارية: صافي قيمة الأصول المنشور", "price": price, "notes": [],
+    models = [model]
+    if income:
+        models.append({"key": "reit_income", "family": "income", "name": "قيمةُ التوزيع بعائد الأقران",
+                       "value": round(income, 2), "low": round(income, 2), "high": round(income, 2),
+                       "assumptions": [["توزيعُ اثني عشر شهراً", f"{adv['ttm']:.3f}", "إعلاناتُ التوزيع في «تداول»"],
+                                       ["وسيطُ عائد بقية الريتات", f"{py:.2f}٪", "بأسعار السوق اليوم"]]})
+    vals = [m["value"] for m in models]
+    return {"value": round(fv, 2), "low": round(min(vals + [min(hist)]), 2), "high": round(max(vals + [max(hist)]), 2),
+            "upside": round((fv / price - 1) * 100, 2), "uncertainty": "متوسط", "count": len(models),
+            "models": models, "families": [], "excluded": [], "weights_kind": "reit_nav",
+            "model_set": "الصناديق العقارية: صافي الأصول وقيمةُ التوزيع", "price": price, "notes": [],
             "reit": adv}
 
 
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v26:{sym}"
+    ck = f"fvm:v27:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

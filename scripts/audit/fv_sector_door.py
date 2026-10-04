@@ -13,7 +13,9 @@ from app.services.market_screener import get_cached_screener
 from app.services.statement_merge import archetype_of
 
 rows = get_cached_screener() or []
-GROUP = {"reit": "الريتات", "petrochem": "البتروكيماويات", "insurance": "التأمين", "bank": "البنوك"}
+GROUP = {"reit": "الريتات", "insurance": "التأمين", "bank": "البنوك"}
+# البتروكيماويات صناعةٌ داخل «المواد الأساسية» لا نمطَ لها — فبرموزها في «تداول»
+PETRO = {"2001", "2002", "2010", "2020", "2060", "2170", "2210", "2250", "2290", "2310", "2330", "2350", "2380"}
 by = defaultdict(list)
 for r in rows:
     s = str(r.get("symbol")).replace(".SR", "")
@@ -21,8 +23,8 @@ for r in rows:
         a = archetype_of(s) or ""
     except Exception:                                             # noqa: BLE001
         a = ""
-    g = next((v for k, v in GROUP.items() if k in str(a)), None)
-    if not g and "ريت" in str(r.get("name") or ""):
+    g = "البتروكيماويات" if s in PETRO else next((v for k, v in GROUP.items() if k == str(a)), None)
+    if not g and str(r.get("name") or "").strip().endswith("ريت"):     # «سينومي ريتيل» ليس ريتاً
         g = "الريتات"
     by[g or "بقية القطاعات"].append((a, r))
 out = {}

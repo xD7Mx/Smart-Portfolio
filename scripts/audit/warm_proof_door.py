@@ -24,7 +24,7 @@ async def main():
         up = os.stat("/proc/1").st_mtime          # إقلاعُ الحاوية تقريباً
     except OSError:
         pass
-    ttl = {"health:v5:": 86400, "fvm:v26:": 6 * 3600, "argaam:recs:": 7 * 86400}
+    ttl = {"health:v5:": 86400, "fvm:v27:": 6 * 3600, "argaam:recs:": 7 * 86400}
     rows = {}
     for sym, _n in (await targets())[:12]:
         r = {}
