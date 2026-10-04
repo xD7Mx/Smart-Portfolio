@@ -47,7 +47,7 @@ async def warm_one(sym: str, name: str = "") -> dict:
                         ("events", lambda: M.get_company_events(sym, name or "")),
                         ("divs", lambda: M.get_company_dividends(sym))):
         try:
-            await asyncio.wait_for(coro(), timeout=90)
+            await asyncio.wait_for(coro(), timeout=240)       # خلفيٌّ: قطاعُ المواد أكثرُ الأقران (2020 تجاوز 90 ث)
             out[label] = "ok"
         except Exception as e:                                    # noqa: BLE001
             out[label] = type(e).__name__

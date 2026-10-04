@@ -27,7 +27,11 @@ async def main():
              "/market/health/{s}", "/market/frames/{s}", "/market/recommendations/{s}", "/market/depth/{s}"]
     out = {}
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t/api/v1", timeout=120) as c:
-        for s in ("1120", "4340", "2280"):
+        syms = sys.argv[1:]
+        if not syms:
+            from app.services.stock_warm import targets
+            syms = [t[0] for t in (await targets())[:4]]
+        for s in syms:
             row = {}
             for p in paths:
                 u = p.format(s=s)
