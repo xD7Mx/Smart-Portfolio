@@ -13,6 +13,14 @@ from app.services.market_screener import get_cached_screener
 from app.services.statement_merge import archetype_of
 
 rows = get_cached_screener() or []
+# ما تعرضه الشاشةُ فعلاً: السعرُ العادل من مخزن المسحة لا من نسخة الصفّ المحفوظة (D458)
+from app.services.content_engine import fund_store_load
+_store = fund_store_load() or {}
+for r in rows:
+    st = _store.get(r.get("symbol")) or _store.get(str(r.get("symbol")).replace(".SR", "")) or {}
+    if "fair_value" in st:
+        r["fair_value"] = st.get("fair_value") if isinstance(st.get("fair_value"), (int, float)) and st["fair_value"] > 0 else None
+        r["fair_value_conf"] = st.get("fair_value_conf")
 GROUP = {"reit": "الريتات", "insurance": "التأمين", "bank": "البنوك"}
 # البتروكيماويات صناعةٌ داخل «المواد الأساسية» لا نمطَ لها — فبرموزها في «تداول»
 PETRO = {"2001", "2002", "2010", "2020", "2060", "2170", "2210", "2250", "2290", "2310", "2330", "2350", "2380"}
