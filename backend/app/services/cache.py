@@ -30,6 +30,11 @@ _PERSIST_MIN_TTL = 60 * 60
 _dirty = False
 _last_write = 0.0
 _WRITE_EVERY = 5.0        # ثوانٍ — تجميعُ الكتابات في مسحٍ كامل للسوق
+# ‏D582: الملفُّ مشتركٌ بين الخادم والمسحة والكواشف — كلُّ عمليةٍ كانت تكتبه كاملاً من ذاكرتها فتمحو ما
+# كتبه غيرُها (قِيس: مفاتيحُ السلامة والتوصيات التي جهّزها الخادمُ غابت عن القرص بعد مسحة النشر).
+# فالكتابةُ تدمج ما على القرص متى كتبه غيرُنا منذ آخر كتابةٍ لنا، والمسحُ الكلّيُّ (clear) وحده لا يدمج.
+_disk_mtime = 0.0
+_wipe = False
 
 
 def _path() -> str:
@@ -39,9 +44,11 @@ def _path() -> str:
 
 def _load_disk() -> None:
     """يُحمّل ما لم ينتهِ عمرُه بعد. والمنتهي يُترك فلا يُحيا ميت."""
+    global _disk_mtime
     try:
         with open(_path(), encoding="utf-8") as fh:
             raw = json.load(fh)
+        _disk_mtime = os.stat(_path()).st_mtime
     except (OSError, ValueError):
         return
     if not isinstance(raw, dict):
@@ -57,9 +64,40 @@ def _load_disk() -> None:
         logger.info(f"cache: restored {kept} long-lived keys from disk")
 
 
+def _merge_disk(out: dict, now: float) -> None:
+    """يضمّ ما على القرص ممّا ليس عندنا أو هو أحدثُ — إن كتبه غيرُنا منذ آخر كتابةٍ لنا (D582).
+
+    وما ليس في ذاكرتنا يُستوعب فيها أيضاً، فيصل الخادمَ الحيَّ ما حسبته المسحةُ أو التجهيز."""
+    try:
+        mt = os.stat(_path()).st_mtime
+    except OSError:
+        return
+    if mt == _disk_mtime:
+        return
+    try:
+        with open(_path(), encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except (OSError, ValueError):
+        return
+    if not isinstance(raw, dict):
+        return
+    for k, item in raw.items():
+        if not (isinstance(item, list) and len(item) == 2 and isinstance(item[0], (int, float))):
+            continue
+        exp = float(item[0])
+        if exp - now < _PERSIST_MIN_TTL - 1:
+            continue
+        mine = out.get(k)
+        if mine is None or exp > mine[0]:
+            out[k] = [exp, item[1]]
+            cur = _store.get(k)
+            if cur is None or exp > cur[0]:
+                _store[k] = (exp, item[1])
+
+
 def _flush(force: bool = False) -> None:
     """كتابةٌ ذرّية ومُجمَّعة. تُستدعى تحت القفل."""
-    global _dirty, _last_write
+    global _dirty, _last_write, _disk_mtime, _wipe
     if not _dirty:
         return
     now = time.time()
@@ -79,15 +117,28 @@ def _flush(force: bool = False) -> None:
             continue
         out[k] = [exp, v]
     tmp = None
+    lock_fh = None
     try:
         path = _path()
         os.makedirs(os.path.dirname(path), exist_ok=True)
+        try:
+            import fcntl
+            lock_fh = open(path + ".lock", "a")
+            fcntl.flock(lock_fh, fcntl.LOCK_EX)         # كاتبٌ واحدٌ في كلّ لحظة بين العمليات
+        except (ImportError, OSError):
+            lock_fh = None
+        if not _wipe:
+            _merge_disk(out, now)
         fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(out, fh, ensure_ascii=False)
         os.replace(tmp, path)
         tmp = None
-        _dirty, _last_write = False, now
+        _dirty, _last_write, _wipe = False, now, False
+        try:
+            _disk_mtime = os.stat(path).st_mtime
+        except OSError:
+            pass
     except OSError:
         # قرصٌ ممتلئ أو للقراءة فقط: الذاكرةُ تبقى عاملةً في الرام.
         _dirty = False
@@ -96,6 +147,11 @@ def _flush(force: bool = False) -> None:
         if tmp:
             try:
                 os.unlink(tmp)
+            except OSError:
+                pass
+        if lock_fh is not None:
+            try:
+                lock_fh.close()                         # يُحرّر القفل
             except OSError:
                 pass
 
@@ -149,10 +205,10 @@ def _ttl_hint(key: str) -> int:
 
 
 def clear() -> None:
-    global _dirty
+    global _dirty, _wipe
     with _lock:
         _store.clear()
-        _dirty = True
+        _dirty, _wipe = True, True                      # مسحٌ كلّيٌّ مقصود: لا يُدمج ما على القرص
         _flush(force=True)
 
 
