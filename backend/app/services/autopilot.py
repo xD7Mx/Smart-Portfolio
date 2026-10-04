@@ -76,7 +76,10 @@ def rules(pos: dict, mode: str = "investor") -> dict:
         if level and c and q and need > 0:
             mid = (level[0] + level[1]) / 2
             new_avg = (q * c + need) / (q + need / mid)
-            why.append(f"الشراء بـ{need:,.0f} ريال عند {mid:.2f} يجعل متوسطك {new_avg:.2f} بدل {c:.2f}")
+            if new_avg < c:
+                why.append(f"الشراء بـ{need:,.0f} ريال عند {mid:.2f} يخفض متوسطك من {c:.2f} إلى {new_avg:.2f}")
+            else:
+                why.append(f"الشراء عند {mid:.2f} يرفع متوسطك من {c:.2f} إلى {new_avg:.2f} — مبرَّرٌ بالقرار لا بالمتوسط")
     elif avoid:
         action = "لا تُضِف"
         why.append(f"قرار التطبيق {dec}")
@@ -94,6 +97,8 @@ def _rules_trader(pos: dict) -> dict:
     w_sup = W.get("where") == "داخل منطقة الدعم"
     if liq in ("انهيار بيعي", "تصريف بيعي"):
         blocks.append(f"لا دخول: سيولة اليوم {liq}")
+    elif liq == "جفاف سيولة":
+        blocks.append("انتظر دخول السيولة: اليوميُّ جافّ")
     if w_res:
         blocks.append("لا دخول: السعر عند مقاومة أسبوعية")
     if any(w in dec for w in ("تجنب", "تجنّب", "بيع")):
@@ -114,8 +119,12 @@ def _rules_trader(pos: dict) -> dict:
     elif not blocks and W.get("support"):
         action, level = "ادخل عند الدعم", W.get("support")
         why.append("الدخول الأنسب عند الدعم الأسبوعي")
-    if level and W.get("target_1_618") and action.startswith("ادخل"):
-        why.append(f"هدفه الأسبوعي {W['target_1_618']}")
+    if level and action.startswith("ادخل"):
+        tgt = W.get("target_1_618")
+        if not (tgt and tgt > level[1]):                          # الضلعُ الأخير هابط ⇒ هدفُه تحت الدخول؛ فالمقاومةُ هي الهدف
+            tgt = (W.get("resistance") or [None, None])[0]
+        if tgt and tgt > level[1]:
+            why.append(f"هدفه الأسبوعي {tgt:.2f} (+{(tgt / ((level[0] + level[1]) / 2) - 1) * 100:.0f}%)")
     return {"action": action, "level": level, "why": why, "blocks": blocks}
 
 
@@ -208,6 +217,21 @@ async def pack(db, mode: str = "investor") -> dict:
         pass
     wealth = investable
     goals = []
+    try:
+        # أهدافُ التطبيق المدمجة (المليون والدخل السنويّ) من مصدرها الواحد — الثروةُ كما تعرضها أشرطةُ الأهداف
+        from app.api.v1.endpoints.goals import get_builtin_goals
+        bg = await get_builtin_goals(db)
+        bg = (json.loads(bg.body) if hasattr(bg, "body") else bg).get("data") or {}
+        m = bg.get("million") or {}
+        if m.get("target"):
+            wealth = float(m.get("current") or wealth)
+            goals.append({"name": "المليون", "target": float(m["target"]), **goal_eta(wealth, float(m["target"]), cagr)})
+        inc = bg.get("income") or {}
+        if inc.get("target"):
+            goals.append({"name": f"دخل {inc.get('year')}", "target": float(inc["target"]),
+                          "current": inc.get("current"), "pct": round(float(inc.get("pct") or 0), 1), "status": "سنويّ"})
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"الطيار الآليّ — الأهداف المدمجة: {type(e).__name__}")
     for g in (await db.execute(select(Goal))).scalars().all():
         if (g.target_type or "AMOUNT") == "AMOUNT" and str(getattr(g.status, "value", g.status)) == "ACTIVE":
             goals.append({"name": g.goal_name, "target": float(g.target_value), **goal_eta(wealth, float(g.target_value), cagr)})
@@ -218,7 +242,7 @@ async def pack(db, mode: str = "investor") -> dict:
         flags.append(f"تركّز: {top['name']} {float(top['current_weight']):.1f}% من المحفظة")
     buys = [p for p in positions if p["autopilot"]["action"].startswith(("اشترِ", "ادخل"))]
     if investable and cash / investable > 0.15 and buys:
-        flags.append(f"سيولة معطّلة {cash:,.0f} ريال ({cash / investable * 100:.0f}%) وأمامها {len(buys)} فرصة شراء")
+        flags.append(f"سيولة معطّلة {cash:,.0f} ريال ({cash / investable * 100:.0f}%) وأمامها {len(buys)} {'فرص' if 2 <= len(buys) <= 10 else 'فرصة'} شراء")
     return {"date": date.today().isoformat(), "wealth": round(wealth, 2), "cash": round(cash, 2), "cagr_pct": cagr,
             "goals": goals, "flags": flags, "positions": positions, "principles": principles(24), "mode": mode}
 
@@ -241,8 +265,16 @@ def render(pk: dict) -> dict:
                         "level": f"{lv[0]:.2f}–{lv[1]:.2f}" if lv else None, "why": "؛ ".join(ap["why"])[:160]})
     n_buy = sum(1 for a in actions if a["action"].startswith(("اشترِ", "ادخل")))
     n_cut = sum(1 for a in actions if a["action"] in ("خفّف", "صفِّ جزئياً", "خذ الربح", "اخرج عند الارتداد"))
-    verdict = (f"المحفظة: {n_buy} فرصة شراء بشروطها، و{n_cut} مركز يحتاج تخفيفاً، و{len(blocks)} حماية مفعّلة."
-               if actions or blocks else "المحفظة على مسارها: لا إجراء الآن.")
+    def cnt(n, one, few, many):
+        return f"{one}" if n == 1 else f"{n} {few}" if 2 <= n <= 10 else f"{n} {many}"
+    parts = []
+    if n_buy:
+        parts.append(cnt(n_buy, "فرصةُ شراءٍ واحدة", "فرص شراء", "فرصة شراء") + " بشروطها")
+    if n_cut:
+        parts.append(cnt(n_cut, "مركزٌ يحتاج تخفيفاً", "مراكز تحتاج تخفيفاً", "مركزاً يحتاج تخفيفاً"))
+    if blocks:
+        parts.append(cnt(len(blocks), "حمايةٌ مفعّلة", "حمايات مفعّلة", "حمايةً مفعّلة"))
+    verdict = ("المحفظة: " + "، و".join(parts) + ".") if parts else "المحفظة على مسارها: لا إجراء الآن."
     return {"verdict": verdict, "goal": goal_line, "flags": pk.get("flags") or [], "actions": actions,
             "protections": blocks[:8], "principles": [], "source": "rules"}
 

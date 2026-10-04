@@ -78,6 +78,17 @@ check(r["action"] == "خذ الربح" and any("مقاومة أسبوعية" in 
 r = rules({**base, "price": 23.5, "avg_cost": 26, "fair_value": 30, "decision": "شراء", "weekly": W_sup, "monthly": M_ok,
            "daily_liquidity": "تصريف بيعي"}, "trader")
 check(not r["action"].startswith("ادخل") and any("تصريف" in b for b in r["blocks"]), "٧ مضارب: لا دخولَ وسيولةُ اليوم تصريف", str(r))
+r = rules({**base, "price": 23.5, "avg_cost": 26, "fair_value": 30, "decision": "شراء", "weekly": W_sup, "monthly": M_ok,
+           "daily_liquidity": "جفاف سيولة"}, "trader")
+check(not r["action"].startswith("ادخل") and any("جافّ" in b for b in r["blocks"]), "٧ب مضارب: اليوميُّ جافّ ⇒ انتظر دخول السيولة", str(r))
+W_dn = {**W_sup, "target_1_618": 19.0}
+r = rules({**base, "price": 23.5, "avg_cost": 26, "fair_value": 30, "decision": "شراء", "weekly": W_dn, "monthly": M_ok,
+           "daily_liquidity": "تجميع خفي"}, "trader")
+check(r["action"] == "ادخل الآن" and not any("19.00" in w for w in r["why"]) and any("30.00" in w for w in r["why"]),
+      "٧ج هدفُ المضارب فوق الدخول دائماً (ضلعٌ هابط ⇒ المقاومةُ هدفُه)", str(r))
+r = rules({**base, "price": 115, "avg_cost": 113.7, "fair_value": 140, "decision": "شراء", "weekly": W_sup | {"support": [114, 116]}, "monthly": M_ok})
+check(any("يرفع متوسطك" in w for w in r["why"]) and not any("يخفض" in w for w in r["why"]),
+      "٧د الشراء فوق المتوسط يُسمّى رفعاً لا خفضاً", str(r))
 r2 = rules({**base, "price": 23.5, "avg_cost": 26, "fair_value": 30, "decision": "شراء", "weekly": W_sup, "monthly": M_ok,
             "daily_liquidity": "تجميع خفي"}, "trader")
 check(r2["action"] == "ادخل الآن", "٨ مضارب: دعمٌ أسبوعيٌّ وسيولةُ تجميع ⇒ ادخل الآن", str(r2))
