@@ -79,3 +79,40 @@ async def warm(conc: int = 2) -> dict:
     except Exception:                                             # noqa: BLE001
         pass
     return summary
+
+
+async def warm_market(conc: int = 3) -> dict:
+    """‏D583: السوقُ كلُّه ليلاً — السلامةُ والتوصياتُ والمفكرة (نماذجُ القيمة تحسبها مسحةُ السوق أصلاً)،
+    فلا يُحسب أوّلُ فتحٍ لشركةٍ من الفرز. التوصياتُ تُجلب لمن لا مخزَّنَ له وحده (تعيش أسبوعاً)."""
+    from app.api.v1.endpoints import market as M
+    from app.data.market_universe import MARKET_UNIVERSE
+    from app.data.universe import main_market
+    from app.services import cache
+    syms = sorted(main_market(MARKET_UNIVERSE).keys())
+    sem = asyncio.Semaphore(conc)
+    fails: dict = {}
+    t0 = time.perf_counter()
+
+    async def one(sym):
+        async with sem:
+            steps = [("health", lambda: M.get_financial_health(sym)), ("events", lambda: M.get_company_events(sym, ""))]
+            if cache.get(f"argaam:recs:{sym}") is None:
+                steps.append(("recs", lambda: M.get_company_recommendations(sym)))
+            for label, coro in steps:
+                try:
+                    await asyncio.wait_for(coro(), timeout=120)
+                except Exception as e:                            # noqa: BLE001
+                    fails.setdefault(sym, {})[label] = type(e).__name__
+    await asyncio.gather(*(one(s) for s in syms))
+    summary = {"companies": len(syms), "seconds": round(time.perf_counter() - t0, 1), "failed": len(fails),
+               "sample_failed": dict(list(fails.items())[:5])}
+    logger.info(f"تجهيزُ السوق: {summary}")
+    try:
+        import os
+        from datetime import datetime, timezone
+        from app.services import lastgood
+        lastgood.save("stock_warm:_market", {**summary, "pid": os.getpid(),
+                                            "at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+    except Exception:                                             # noqa: BLE001
+        pass
+    return summary

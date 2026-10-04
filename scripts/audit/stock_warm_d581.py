@@ -32,4 +32,6 @@ pre = cp.split("if (!company) return", 1)[0]
 check(all(k in pre for k in ('["financials", s, "annual"]', '["fvm", s4]', '["health", s4]', '["quarter-reports", s]',
                             '["dividend-profile", s]', '["argaam-recs", s]')) and "prefetchQuery" in pre,
       "٦ صفحةُ السهم تجلب بياناتِ التبويبات في الخلفية بمفاتيحها نفسِها — قبل أيّ رجوعٍ مبكّر")
+check('id="market_warm_dawn"' in sch and "async def warm_market" in w,
+      "٧ D583: السوقُ كلُّه يُجهَّز قبل الفجر — لا يُحسب أوّلُ فتحٍ لشركةٍ من الفرز")
 sys.exit(fail)

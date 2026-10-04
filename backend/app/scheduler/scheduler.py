@@ -201,6 +201,15 @@ async def job_stock_warm():
         logger.error(f"تجهيزُ صفحات الأسهم: {e}")
 
 
+async def job_market_warm():
+    """‏D583: صفحاتُ أسهم السوق كلِّه — قبل الفجر، بعد القارئ البصريّ الأثقل."""
+    try:
+        from app.services.stock_warm import warm_market
+        await warm_market()
+    except Exception as e:
+        logger.error(f"تجهيزُ السوق: {e}")
+
+
 async def job_results_announcements():
     """‏D580: نتائجُ الشركات من إعلانات «تداول» — من لا نتيجةَ حديثةَ له، الأقدمُ أوّلاً، ثمانون في الجولة."""
     try:
@@ -642,6 +651,7 @@ def start_scheduler():
     _scheduler.add_job(job_stock_warm, CronTrigger(hour=8, minute=40), id="stock_warm_morning", replace_existing=True)
     _scheduler.add_job(job_stock_warm, CronTrigger(hour=16, minute=10), id="stock_warm_close", replace_existing=True)
     _scheduler.add_job(job_stock_warm, CronTrigger(hour=21, minute=30), id="stock_warm_evening", replace_existing=True)
+    _scheduler.add_job(job_market_warm, CronTrigger(hour=6, minute=50), id="market_warm_dawn", replace_existing=True)
     # وبعد كلِّ إقلاعٍ بأربع دقائق: الإعادةُ تمحو ذاكرةَ الخادم، والمخزَّنُ في القرص لا يقرؤه خادمٌ يعمل —
     # قِيس أنّ تجهيزاً من عمليةٍ أخرى لا يصل الخادمَ الحيّ؛ فالخادمُ يُجهّز نفسَه
     from datetime import datetime as _dt
