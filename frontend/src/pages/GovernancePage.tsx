@@ -15,6 +15,7 @@ import StockSheet from "../components/market/StockSheet";
 import { SafetyBar, safeColor } from "../components/common/ValueBars";
 import { ShariaBadge } from "../components/common/UI";
 import GovernanceV2Modal from "../components/governance/GovernanceV2Modal";
+import AutopilotCard from "../components/governance/AutopilotCard";
 import clsx from "clsx";
 
 /* اللوحة الأساسية الأولى (ما قبل 3d96cf1) بترتيبها الأصلي، لكنْ بالرموز
@@ -369,6 +370,7 @@ export default function GovernancePage() {
         </div>
       ) : (
         <>
+          <AutopilotCard />
           <div className="card">
             <ScoreGauge score={data.overall_score} label={data.overall_label} color={data.overall_color} />
             {data.overall_narrative && (

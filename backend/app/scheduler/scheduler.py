@@ -210,6 +210,39 @@ async def job_market_warm():
         logger.error(f"تجهيزُ السوق: {e}")
 
 
+async def job_autopilot():
+    """‏D587: رأيُ الطيار الآليّ لكلّ محفظةٍ بالوضعين، بعد الإغلاق — جاهزٌ حين يُفتح."""
+    try:
+        from sqlalchemy import select
+        from app.core.database import AsyncSessionLocal
+        from app.core.portfolio_scope import set_scope, reset_scope
+        from app.models.portfolio import Portfolio
+        from app.services.autopilot import opinion
+        async with AsyncSessionLocal() as db:
+            pids = [p.id for p in (await db.execute(select(Portfolio).execution_options(skip_portfolio_scope=True))).scalars().all()
+                    if not p.is_archived]
+        for pid in pids:
+            for mode in ("investor", "trader"):
+                set_scope(pid, False)
+                try:
+                    async with AsyncSessionLocal() as db:
+                        await opinion(db, force=True, mode=mode)
+                finally:
+                    reset_scope()
+        logger.info(f"الطيار الآليّ: {len(pids)} محفظة × وضعان")
+    except Exception as e:
+        logger.error(f"الطيار الآليّ: {e}")
+
+
+async def job_library_wisdom():
+    """‏D586: دراسةُ ما لم يُدرَس من كتب المكتبة — ليلاً، كتابٌ مرّةً ويبقى."""
+    try:
+        from app.services.library_wisdom import digest_all
+        await digest_all()
+    except Exception as e:
+        logger.error(f"المكتبة — المبادئ: {e}")
+
+
 async def job_results_announcements():
     """‏D580: نتائجُ الشركات من إعلانات «تداول» — من لا نتيجةَ حديثةَ له، الأقدمُ أوّلاً، ثمانون في الجولة."""
     try:
@@ -652,6 +685,8 @@ def start_scheduler():
     _scheduler.add_job(job_stock_warm, CronTrigger(hour=16, minute=10), id="stock_warm_close", replace_existing=True)
     _scheduler.add_job(job_stock_warm, CronTrigger(hour=21, minute=30), id="stock_warm_evening", replace_existing=True)
     _scheduler.add_job(job_market_warm, CronTrigger(hour=6, minute=50), id="market_warm_dawn", replace_existing=True)
+    _scheduler.add_job(job_autopilot, CronTrigger(hour=16, minute=35), id="autopilot_close", replace_existing=True)
+    _scheduler.add_job(job_library_wisdom, CronTrigger(hour=6, minute=40), id="library_wisdom_dawn", replace_existing=True)
     # وبعد كلِّ إقلاعٍ بأربع دقائق: الإعادةُ تمحو ذاكرةَ الخادم، والمخزَّنُ في القرص لا يقرؤه خادمٌ يعمل —
     # قِيس أنّ تجهيزاً من عمليةٍ أخرى لا يصل الخادمَ الحيّ؛ فالخادمُ يُجهّز نفسَه
     from datetime import datetime as _dt

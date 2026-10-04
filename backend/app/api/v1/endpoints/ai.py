@@ -323,6 +323,13 @@ async def get_portfolio_insight(db: AsyncSession = Depends(get_db)):
     return success_response(data={"companies": companies, "advice": advice})
 
 
+@router.get("/portfolio-autopilot")
+async def get_portfolio_autopilot(mode: str = "investor", force: bool = False, db: AsyncSession = Depends(get_db)):
+    """‏D587: الطيارُ الآليّ للمحفظة — مستشارٌ يرى المحفظةَ كلَّها ويحميها، بعين المستثمر أو المضارب (D588)."""
+    from app.services.autopilot import opinion
+    return success_response(data=await opinion(db, force=force, mode=mode))
+
+
 @router.get("/stock-opinion/{symbol}")
 async def get_stock_opinion(symbol: str, name: str = "", db: AsyncSession = Depends(get_db)):
     """One-click "رأي الذكاء" card for any single stock — same fixed prompt
