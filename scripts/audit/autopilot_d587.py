@@ -51,60 +51,61 @@ if esb.exists() and shutil.which("node"):
 else:
     print("… تعذّر فحصُ التطابق: node/esbuild غيرُ متاح")
 
-# ── D587/D588: القواعد ──
-from app.services.autopilot import rules, goal_eta
-W_sup = {"where": "داخل منطقة الدعم", "support": [23.0, 24.0], "resistance": [30, 31], "state": "صاعد", "target_1_618": 34}
+# ── D587/D590/D591: حكمٌ واحد، و«اشترِ» قناعةٌ مكتملة ──
+from app.services.autopilot import rules, goal_eta, judge
+W_sup = {"where": "داخل منطقة الدعم", "support": [23.0, 24.0], "resistance": [30, 31], "state": "صاعد"}
 W_res = {"where": "داخل منطقة المقاومة", "support": [20, 21], "resistance": [29.5, 30.5], "state": "صاعد"}
 M_ok = {"where": "بين الدعم والمقاومة", "support": [18, 19], "resistance": [33, 34], "state": "صاعد"}
 M_res = {"where": "داخل منطقة المقاومة", "support": [18, 19], "resistance": [29, 31], "state": "صاعد"}
 M_down = {"where": "تحت الدعم", "support": [18, 19], "resistance": [33, 34], "state": "هابط"}
-base = {"quantity": 1000, "current_weight": 8, "target_weight": 10, "need": 5000}
-r = rules({**base, "price": 23.5, "avg_cost": 26, "fair_value": 30, "decision": "شراء", "weekly": W_sup, "monthly": M_ok})
-check(r["action"] == "اشترِ الآن" and not r["blocks"] and any("متوسطك" in w for w in r["why"]),
-      "٢ مستثمر: شراءٌ في دعمٍ أسبوعيٍّ يخفض المتوسّط ويُحسب أثرُه", str(r))
-r = rules({**base, "price": 31, "avg_cost": 26, "fair_value": 28, "decision": "شراء", "weekly": W_res, "monthly": M_res})
-check(r["action"] == "صفِّ جزئياً" and any("فوق قيمته العادلة" in b for b in r["blocks"]),
-      "٣ مستثمر: فوق القيمة وعند مقاومةٍ شهرية ⇒ تصفيةٌ جزئية وحجبُ الشراء", str(r))
-r = rules({**base, "price": 20, "avg_cost": 26, "fair_value": 22, "decision": "انتظار", "weekly": W_sup, "monthly": M_down})
-check(any("لا تعديل متوسط" in b for b in r["blocks"]) and not r["action"].startswith("اشترِ"),
-      "٤ مستثمر: الشهريُّ مكسورٌ والقرارُ ليس شراء ⇒ لا تعديلَ متوسّط", str(r))
-r = rules({**base, "price": 25, "avg_cost": 20, "fair_value": 30, "decision": "انتظار", "current_weight": 18, "target_weight": 10,
-           "weekly": W_sup, "monthly": M_ok})
-check(r["action"] == "خفّف", "٥ التركّز فوق الهدف بخمس نقاط ⇒ خفّف", str(r))
-r = rules({**base, "price": 30, "avg_cost": 26, "fair_value": 40, "decision": "شراء", "weekly": W_res, "monthly": M_ok,
-           "daily_liquidity": "محايد"}, "trader")
-check(r["action"] == "خذ الربح" and any("مقاومة أسبوعية" in b for b in r["blocks"]),
-      "٦ مضارب: مقاومةٌ أسبوعيةٌ فوق المتوسّط ⇒ خذ الربح ولو تحت القيمة العادلة", str(r))
-r = rules({**base, "price": 23.5, "avg_cost": 26, "fair_value": 30, "decision": "شراء", "weekly": W_sup, "monthly": M_ok,
-           "daily_liquidity": "تصريف بيعي"}, "trader")
-check(not r["action"].startswith("ادخل") and any("تصريف" in b for b in r["blocks"]), "٧ مضارب: لا دخولَ وسيولةُ اليوم تصريف", str(r))
-r = rules({**base, "price": 23.5, "avg_cost": 26, "fair_value": 30, "decision": "شراء", "weekly": W_sup, "monthly": M_ok,
-           "daily_liquidity": "جفاف سيولة"}, "trader")
-check(not r["action"].startswith("ادخل") and any("جافّ" in b for b in r["blocks"]), "٧ب مضارب: اليوميُّ جافّ ⇒ انتظر دخول السيولة", str(r))
-W_dn = {**W_sup, "target_1_618": 19.0}
-r = rules({**base, "price": 23.5, "avg_cost": 26, "fair_value": 30, "decision": "شراء", "weekly": W_dn, "monthly": M_ok,
-           "daily_liquidity": "تجميع خفي"}, "trader")
-check(r["action"] == "ادخل الآن" and not any("19.00" in w for w in r["why"]) and any("30.00" in w for w in r["why"]),
-      "٧ج هدفُ المضارب فوق الدخول دائماً (ضلعٌ هابط ⇒ المقاومةُ هدفُه)", str(r))
-r = rules({**base, "price": 115, "avg_cost": 113.7, "fair_value": 140, "decision": "شراء", "weekly": W_sup | {"support": [114, 116]}, "monthly": M_ok})
-check(any("يرفع متوسطك" in w for w in r["why"]) and not any("يخفض" in w for w in r["why"]),
-      "٧د الشراء فوق المتوسط يُسمّى رفعاً لا خفضاً", str(r))
-r2 = rules({**base, "price": 23.5, "avg_cost": 26, "fair_value": 30, "decision": "شراء", "weekly": W_sup, "monthly": M_ok,
-            "daily_liquidity": "تجميع خفي"}, "trader")
-check(r2["action"] == "ادخل الآن", "٨ مضارب: دعمٌ أسبوعيٌّ وسيولةُ تجميع ⇒ ادخل الآن", str(r2))
+base = {"quantity": 1000, "current_weight": 8, "target_weight": 10, "need": 5000, "fair_value_conf": "متوسطة", "quality": 75}
+good = {**base, "price": 23.5, "avg_cost": 26, "fair_value": 30, "decision": "شراء", "weekly": W_sup, "monthly": M_ok, "daily_liquidity": "تجميع خفي"}
+r = rules(good)
+check(r["action"] == "اشترِ الآن" and len(r["conviction"]) == 5 and any("يخفض متوسطك" in w for w in r["why"]),
+      "٢ القناعةُ مكتملةُ الشروط الخمسة ⇒ اشترِ الآن، بالهدف ووقف الخسارة وأثر المتوسّط", str(r))
+r = rules({**good, "daily_liquidity": "جفاف سيولة"})
+check(r["action"] == "انتظر" and any("السيولة" in w for w in r["why"]), "٣ شرطٌ واحدٌ ناقص (السيولة) ⇒ انتظر ويُسمّى الناقص", str(r))
+r = rules({**good, "price": 26.5})
+check(r["action"] == "انتظر" and any("الدعم" in w for w in r["why"]), "٣ب خارجَ الدعم الأسبوعي ⇒ انتظر", str(r))
+r = rules({**good, "price": 31, "fair_value": 28, "weekly": W_res, "monthly": M_res})
+check(r["action"] == "صفِّ جزئياً", "٤ مقاومةٌ شهريةٌ والسعرُ فوق قيمته الموثوقة ⇒ تصفيةٌ جزئية", str(r))
+r = rules({**good, "current_weight": 18})
+check(r["action"] == "خفّف", "٥ التركّز فوق الهدف ⇒ خفّف", str(r))
+bad = {**good, "decision": "انتظار", "weekly": {**W_sup, "state": "هابط"}, "monthly": M_down,
+       "last_result": {"as_of": "2026-06-30", "net_income_q": -5e6}}
+r = rules(bad)
+check(not r["action"].startswith("اشترِ") and any("خاسر" in b for b in r["blocks"]),
+      "٦ (قضيةُ المالك) نتائجُ خاسرةٌ ومسارٌ هابطٌ في الدعم ⇒ لا شراء", str(r["action"]))
+r = rules({**good, "fair_value": 25, "fair_value_conf": "منخفضة", "quality": 60})
+check(r["action"] == "انتظر" and any("هامش أمان" in w for w in r["why"]), "٧ قيمةٌ عادلةٌ غيرُ موثوقةٍ وجودةٌ دون 70 ⇒ لا قناعة", str(r))
+r = rules({**good, "fair_value": 28, "fair_value_conf": "منخفضة", "quality": 82})
+check(r["action"] == "اشترِ الآن", "٧ب قيمةٌ غيرُ موثوقةٍ وجودةٌ عالية ⇒ الجودةُ هامشُ الأمان", str(r))
+import itertools
+Ws = [W_sup, W_res, {**W_sup, "state": "هابط"}, {"where": "بين الدعم والمقاومة", "support": [22, 23], "resistance": [30, 31], "state": "ضعيف"}]
+Ms = [M_ok, M_res, M_down]
+viol = n = 0
+for w, m, dec, liq, ni, conf, pr, ql in itertools.product(Ws, Ms, ["شراء", "انتظار", "تجنب"], ["محايد", "جفاف سيولة", "تجميع خفي", "تصريف بيعي"],
+                                                           [5e6, -5e6], ["متوسطة", "منخفضة"], [22.5, 23.5, 27, 31], [60, 80]):
+    pos = {**base, "price": pr, "avg_cost": 26, "fair_value": 28, "fair_value_conf": conf, "decision": dec, "weekly": w, "monthly": m,
+           "daily_liquidity": liq, "last_result": {"as_of": "2026-06-30", "net_income_q": ni}, "quality": ql}
+    r = rules(pos); n += 1
+    if r["action"] == "اشترِ الآن" and (len(r["conviction"]) != 5 or not judge(pos)["can_buy"] or m["state"] == "هابط"
+                                         or liq in ("جفاف سيولة", "تصريف بيعي") or ni < 0 or dec != "شراء"):
+        viol += 1
+check(viol == 0, f"٨ «اشترِ» قناعةٌ لا هلوسة: {n} حالةً — لا شراءَ ينقصه شرط", f"مخالفات {viol}")
 g = goal_eta(500_000, 1_000_000, 15.0)
 check(g["status"] == "على المسار" and abs(g["years"] - 4.96) < 0.05, "٩ زمنُ الوصول للهدف بالعائد المركّب الفعليّ", str(g))
 check(goal_eta(500_000, 1_000_000, None)["status"] == "غير متوفّر", "١٠ بلا عائدٍ مركّب ⇒ «غير متوفّر» لا تخمين")
 
 src = (ROOT / "backend/app/services/autopilot.py").read_text()
-check('"action": allowed[s]' in src and '"protections": base["protections"]' in src,
+check('"action": allowed[s]' in src and '"protections": base["protections"]' in src and "_rules_trader" not in src,
       "١١ الإجراءُ والحماياتُ من القواعد بأسماء شركاتها لا من النموذج")
 lw = (ROOT / "backend/app/services/library_wisdom.py").read_text()
 check("digest_visual" in lw and "MIN_FREE_MB" in lw and "_upload(path" in lw and "_forget(fname)" in lw and "pg in valid_pages" in lw,
       "١٢ المكتبة: مبادئُ بصفحاتٍ موجودة، والمصوَّرُ يُقرأ بصرياً قطعاً بحارس الذاكرة ويُحذف بعده")
 fe = (ROOT / "frontend/src/components/governance/AutopilotCard.tsx").read_text()
 gp = (ROOT / "frontend/src/pages/GovernancePage.tsx").read_text()
-check("<AutopilotCard />" in gp and '"seg-btn"' in fe and "مستثمر" in fe and "مضارب" in fe, "١٣ بطاقةُ الحوكمة ومفتاحُ مستثمر / مضارب بلغة التطبيق")
+check("<AutopilotCard />" in gp and "seg-btn" not in fe and "\"trader\"" not in fe and "setMode" not in fe, "١٣ بطاقةُ الحوكمة برأيٍ واحدٍ بلا مفتاح (D591)")
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text()
 check('id="autopilot_close"' in sch and 'id="library_wisdom_dawn"' in sch, "١٤ يُحسب بعد الإغلاق، والمكتبةُ تُدرَس فجراً")
 # ── D589: الحوار ──

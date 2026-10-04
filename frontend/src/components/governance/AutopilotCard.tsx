@@ -4,20 +4,19 @@ import { Plane, ShieldCheck, Target, BookOpen, Loader2, Send } from "lucide-reac
 import { aiApi } from "../../services/api";
 import CompanyLogo from "../common/CompanyLogo";
 
-/* D587 · D588 — الطيارُ الآليّ للمحفظة (بأمر المالك): مستشارٌ يرى المحفظةَ كلَّها ويحميها من قراراتها.
-   بجانب ردّه مفتاحُ «مستثمر / مضارب» بلغة `.seg` نفسِها، ويتغيّر الردُّ بما يقتضيه كلُّ وضع. */
-type Mode = "investor" | "trader";
+/* D587 · D591 — الطيارُ الآليّ للمحفظة (بأمر المالك): مستشارٌ يرى المحفظةَ كلَّها ويحميها من قراراتها.
+   رأيٌ واحد بلا مفتاح: يفكّر كمستثمرٍ بعيد المدى ويدخل بحذر مضارب — «اشترِ» قناعةٌ مكتملةُ الشروط لا هلوسة. */
 
 const ACTION_TONE: Record<string, string> = {
-  "اشترِ الآن": "var(--pos-ink)", "ادخل الآن": "var(--pos-ink)", "اشترِ عند الدعم": "var(--brand-ink)", "ادخل عند الدعم": "var(--brand-ink)",
+  "اشترِ الآن": "var(--pos-ink)", "انتظر": "var(--brand-ink)",
   "خفّف": "var(--warn-ink)", "صفِّ جزئياً": "var(--warn-ink)", "خذ الربح": "var(--warn-ink)",
   "لا تُضِف": "var(--neg-ink)", "اخرج عند الارتداد": "var(--neg-ink)", "احتفظ": "var(--ink-muted)",
 };
 const mixA = (c: string, pct: number) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
 
 /* D589 (بأمر المالك): مربعٌ يخاطب فيه المستشارَ بوجهة نظره — «سدافكو أفكّر بالخروج… رأسُ مالي قرض… أريد بديلاً» —
-   فيردّ بما لديه: مسارُها الحقيقيّ على D7M، وكلفةُ الخروج عليه، وبدائلُ متوازنةٌ من قطاعها. والردُّ يتبع المفتاح. */
-function AutopilotChat({ mode }: { mode: Mode }) {
+   فيردّ بما لديه: مسارُها الحقيقيّ على D7M، وكلفةُ الخروج عليه، وبدائلُ متوازنةٌ من قطاعها. */
+function AutopilotChat() {
   const [msgs, setMsgs] = useState<{ role: "user" | "advisor"; text: string; alts?: any[] }[]>([]);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,7 +27,7 @@ function AutopilotChat({ mode }: { mode: Mode }) {
     setMsgs(m => [...m, { role: "user", text }]);
     setQ(""); setBusy(true);
     try {
-      const r = await aiApi.askAutopilot(text, mode, history);
+      const r = await aiApi.askAutopilot(text, history);
       const d = r.data?.data || {};
       setMsgs(m => [...m, { role: "advisor", text: d.reply || "تعذّر الرد الآن.", alts: d.alternatives || [] }]);
     } catch {
@@ -79,13 +78,9 @@ function AutopilotChat({ mode }: { mode: Mode }) {
 }
 
 export default function AutopilotCard() {
-  const [mode, setMode] = useState<Mode>(() => {
-    try { return (localStorage.getItem("sp-autopilot-mode") as Mode) || "investor"; } catch { return "investor"; }
-  });
-  const pick = (m: Mode) => { setMode(m); try { localStorage.setItem("sp-autopilot-mode", m); } catch { /* خاصّ */ } };
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["autopilot", mode],
-    queryFn: () => aiApi.portfolioAutopilot(mode).then(r => r.data.data),
+    queryKey: ["autopilot"],
+    queryFn: () => aiApi.portfolioAutopilot().then(r => r.data.data),
     staleTime: 30 * 60 * 1000,
     retry: 0,
   });
@@ -96,11 +91,6 @@ export default function AutopilotCard() {
         <p className="card-title flex items-center gap-1.5">
           <Plane size={15} className="text-[var(--brand-ink)]" /> المستشار الآلي للمحفظة
         </p>
-        <div className="seg inline-flex w-fit" role="group" aria-label="عين المستشار">
-          {([["investor", "مستثمر"], ["trader", "مضارب"]] as [Mode, string][]).map(([k, lbl]) => (
-            <button key={k} onClick={() => pick(k)} aria-pressed={mode === k} className={"seg-btn" + (mode === k ? " on" : "")}>{lbl}</button>
-          ))}
-        </div>
       </div>
 
       {isLoading ? (
@@ -194,7 +184,7 @@ export default function AutopilotCard() {
           )}
         </div>
       )}
-      <div className="mt-3"><AutopilotChat mode={mode} /></div>
+      <div className="mt-3"><AutopilotChat /></div>
     </div>
   );
 }

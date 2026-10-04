@@ -30,102 +30,100 @@ def _f(x):
 MODES = {"investor": "مستثمر", "trader": "مضارب"}
 
 
-def rules(pos: dict, mode: str = "investor") -> dict:
-    """قواعدُ الحماية لمركزٍ واحد — حتمية. يعيد {action, level, why[], blocks[]}.
+def judge(pos: dict) -> dict:
+    """‏D590: الحكمُ على الشركة واحد — للمستثمر والمضارب معاً (بأمر المالك: «مصلحتُهما واحدة، والفرقُ مدّةُ توظيف رأس المال»).
 
-    ‏D588 بأمر المالك — مفتاحُ «مستثمر / مضارب»:
-      · المستثمر: الشهريُّ ثمّ الأسبوعيّ للحكم، يصبر على القيمة، ويصفّي عند مقاومةٍ شهريةٍ والسعرُ فوق قيمته.
-      · المضارب: الأسبوعيُّ للحكم، وسيولةُ اليوميّ للتوقيت (لا دخولَ في انهيارٍ أو تصريف)، ويأخذ الربحَ عند
-        المقاومة الأسبوعية ولو لم يتجاوز السعرُ قيمتَه."""
-    if mode == "trader":
-        return _rules_trader(pos)
+    قِيس: كان للمضارب قواعدُ مستقلّة (دعمٌ أسبوعيٌّ وسيولة)، فيقول «فرصة» عن شركةٍ نتائجُها سيئةٌ ومسارُها هابط
+    وهو نفسُه يقول للمستثمر «لا». فصار الحكمُ واحداً، ولا يملك الوضعُ نقضَه:
+      · لا شراءَ إن كان قرارُ التطبيق تجنّباً، أو آخرُ ربعٍ خاسراً، أو الشهريُّ هابطاً والقرارُ ليس شراء،
+        أو السعرُ عند مقاومةٍ أسبوعيةٍ أو شهرية، أو فوق قيمته العادلة **حين تكون ثقتُها متوسطةً فأعلى**
+        (السعرُ العادلُ بثقةٍ منخفضة لا يحجب ولا يجيز وحدَه — قِيس: 193 تقديراً من 267 ثقتُها منخفضة).
+      · ولا تعديلَ متوسّطٍ في شركةٍ شهريُّها هابطٌ وقرارُها ليس شراء."""
     p, c, fv = _f(pos.get("price")), _f(pos.get("avg_cost")), _f(pos.get("fair_value"))
+    conf = str(pos.get("fair_value_conf") or "")
+    fv_ok = bool(fv) and conf in ("متوسطة", "مرتفعة")
     dec = str(pos.get("decision") or "")
     W, M = pos.get("weekly") or {}, pos.get("monthly") or {}
-    cw, tw = _f(pos.get("current_weight")) or 0, _f(pos.get("target_weight")) or 0
     buy, avoid = "شراء" in dec, any(w in dec for w in ("تجنب", "تجنّب", "بيع"))
-    blocks, why = [], []
-    at_res = any(x.get("where") in ("داخل منطقة المقاومة", "فوق المقاومة") for x in (W, M) if x)
-    at_sup = any(x.get("where") == "داخل منطقة الدعم" for x in (W, M) if x)
+    lr = pos.get("last_result") or {}
+    q_loss = isinstance(lr.get("net_income_q"), (int, float)) and lr["net_income_q"] < 0
     m_down = M.get("state") == "هابط"
-    if fv and p and p > fv:
-        blocks.append(f"لا شراء: السعر {p:.2f} فوق قيمته العادلة {fv:.2f}")
+    at_res = [n for n, x in (("أسبوعية", W), ("شهرية", M)) if x.get("where") in ("داخل منطقة المقاومة", "فوق المقاومة")]
+    blocks, notes = [], []
+    if avoid:
+        blocks.append(f"قرار التطبيق {dec}")
+    if q_loss:
+        blocks.append(f"آخر ربعٍ خاسر ({lr.get('as_of')})")
+    if m_down and not buy:
+        blocks.append(f"الشهري هابط والقرار {dec or 'غير متوفّر'}")
     if at_res:
-        blocks.append("لا شراء: السعر عند مقاومة " + ("شهرية" if M.get("where", "").find("المقاومة") >= 0 else "أسبوعية"))
-    if c and p and p < c * 0.9 and m_down and not buy:
-        blocks.append(f"لا تعديل متوسط: الشهري هابط والقرار {dec or 'غير متوفّر'}")
-    action, level = "احتفظ", None
-    if p and fv and p >= fv * 1.05 and (at_res or M.get("where") == "فوق المقاومة"):
-        action = "صفِّ جزئياً"
-        r = (M.get("resistance") or W.get("resistance"))
-        level = r
-        why.append(f"السعر فوق قيمته العادلة بـ{(p / fv - 1) * 100:.0f}% وعند مقاومة")
-    elif cw > tw + 5 and tw > 0:
-        action = "خفّف"
-        why.append(f"وزنه {cw:.1f}% فوق هدفه {tw:.1f}%")
-    elif buy and not blocks:
-        zone = (W.get("support") if W.get("where") != "تحت الدعم" else None) or M.get("support")
-        if at_sup or (zone and p and p <= zone[1] * 1.03):
-            action, level = "اشترِ الآن", zone
-            why.append("السعر داخل منطقة دعم D7M والقرار شراء")
-        else:
-            action, level = "اشترِ عند الدعم", zone
-            why.append("القرار شراء، والدخولُ الأفضل عند الدعم لا الآن")
-        need = _f(pos.get("need")) or 0
-        q = _f(pos.get("quantity")) or 0
-        if level and c and q and need > 0:
-            mid = (level[0] + level[1]) / 2
-            new_avg = (q * c + need) / (q + need / mid)
-            if new_avg < c:
-                why.append(f"الشراء بـ{need:,.0f} ريال عند {mid:.2f} يخفض متوسطك من {c:.2f} إلى {new_avg:.2f}")
-            else:
-                why.append(f"الشراء عند {mid:.2f} يرفع متوسطك من {c:.2f} إلى {new_avg:.2f} — مبرَّرٌ بالقرار لا بالمتوسط")
-    elif avoid:
-        action = "لا تُضِف"
-        why.append(f"قرار التطبيق {dec}")
-    return {"action": action, "level": level, "why": why, "blocks": blocks}
+        blocks.append("السعر عند مقاومة " + " و".join(at_res))
+    if fv_ok and p and p > fv:
+        blocks.append(f"السعر {p:.2f} فوق قيمته العادلة {fv:.2f}")
+    elif fv and not fv_ok:
+        notes.append("قيمتُه العادلة بثقةٍ منخفضة — لا يُبنى عليها وحدَها")
+    can_buy = buy and not blocks
+    return {"can_buy": can_buy, "blocks": blocks, "notes": notes, "buy": buy, "avoid": avoid, "m_down": m_down,
+            "fv_ok": fv_ok, "q_loss": q_loss}
 
 
-def _rules_trader(pos: dict) -> dict:
+def rules(pos: dict, mode: str = "investor") -> dict:
+    """‏D591 (بأمر المالك — حُذف مفتاحُ مستثمر/مضارب): يفكّر على المدى البعيد كمستثمر، ويدخل بحذر المضارب.
+    «اشترِ» قرارٌ مدعومٌ بقناعةٍ صحيحة لا هلوسة — لا تُقال إلا إن اجتمعت شروطُ القناعة كلُّها، وإلا «انتظر» بالناقص منها:
+      ١ الحكمُ على الشركة يجيز الشراء (judge: القرار شراء، لا ربعَ خاسر، لا مقاومة، لا سعرَ فوق قيمةٍ موثوقة)
+      ٢ الشهريُّ غيرُ هابط
+      ٣ السعرُ داخلَ منطقة الدعم الأسبوعية
+      ٤ سيولةُ اليوم ليست جفافاً ولا تصريفاً ولا انهياراً
+      ٥ هامشُ أمانٍ موثوق: قيمةٌ عادلةٌ بثقةٍ متوسطةٍ فأعلى فوق السعر بـ10% — أو جودةٌ ماليةٌ 70 فأعلى حين لا تُوثَق القيمة
+    والهدفُ أفقُ مستثمر (القيمةُ العادلة أو المقاومةُ الشهرية)، ووقفُ الخسارة حذرُ مضارب (تحت الدعم الأسبوعيّ)."""
+    j = judge(pos)
     p, c, fv = _f(pos.get("price")), _f(pos.get("avg_cost")), _f(pos.get("fair_value"))
-    dec = str(pos.get("decision") or "")
-    W = pos.get("weekly") or {}
-    liq = str(pos.get("daily_liquidity") or "")
+    W, M = pos.get("weekly") or {}, pos.get("monthly") or {}
+    q = _f(pos.get("quantity")) or 0
     cw, tw = _f(pos.get("current_weight")) or 0, _f(pos.get("target_weight")) or 0
-    blocks, why = [], []
-    w_res = W.get("where") in ("داخل منطقة المقاومة", "فوق المقاومة")
-    w_sup = W.get("where") == "داخل منطقة الدعم"
-    if liq in ("انهيار بيعي", "تصريف بيعي"):
-        blocks.append(f"لا دخول: سيولة اليوم {liq}")
-    elif liq == "جفاف سيولة":
-        blocks.append("انتظر دخول السيولة: اليوميُّ جافّ")
-    if w_res:
-        blocks.append("لا دخول: السعر عند مقاومة أسبوعية")
-    if any(w in dec for w in ("تجنب", "تجنّب", "بيع")):
-        blocks.append(f"لا مضاربة على سهمٍ قراره {dec}")
-    action, level = "احتفظ", None
-    if w_res and c and p and p > c:
-        action, level = "خذ الربح", W.get("resistance")
-        why.append(f"السعر عند مقاومة أسبوعية وفوق متوسطك {c:.2f} بـ{(p / c - 1) * 100:.0f}%")
-    elif W.get("state") == "هابط" and c and p and p < c * 0.93:
-        action, level = "اخرج عند الارتداد", W.get("resistance")
-        why.append("الاتجاه الأسبوعي هابط والسعر دون متوسطك بأكثر من 7%")
-    elif cw > tw + 5 and tw > 0:
-        action = "خفّف"
-        why.append(f"وزنه {cw:.1f}% فوق هدفه {tw:.1f}%")
-    elif not blocks and w_sup:
-        action, level = "ادخل الآن", W.get("support")
-        why.append("السعر في دعم أسبوعي" + (f" والسيولة {liq}" if liq else ""))
-    elif not blocks and W.get("support"):
-        action, level = "ادخل عند الدعم", W.get("support")
-        why.append("الدخول الأنسب عند الدعم الأسبوعي")
-    if level and action.startswith("ادخل"):
-        tgt = W.get("target_1_618")
-        if not (tgt and tgt > level[1]):                          # الضلعُ الأخير هابط ⇒ هدفُه تحت الدخول؛ فالمقاومةُ هي الهدف
-            tgt = (W.get("resistance") or [None, None])[0]
-        if tgt and tgt > level[1]:
-            why.append(f"هدفه الأسبوعي {tgt:.2f} (+{(tgt / ((level[0] + level[1]) / 2) - 1) * 100:.0f}%)")
-    return {"action": action, "level": level, "why": why, "blocks": blocks}
+    liq = str(pos.get("daily_liquidity") or "")
+    quality = _f(pos.get("quality"))
+    why = list(j["notes"])
+    blocks = [f"لا شراء: {b}" for b in j["blocks"]]
+    # ── التصفية ──
+    if j["avoid"] and q:
+        return {"action": "خفّف", "level": None, "why": why + [f"قرار التطبيق {pos.get('decision')}"], "blocks": blocks, "conviction": []}
+    if cw > tw + 5 and tw > 0:
+        return {"action": "خفّف", "level": None, "why": why + [f"وزنه {cw:.1f}% فوق هدفه {tw:.1f}%"], "blocks": blocks, "conviction": []}
+    if q and c and p and M.get("where") in ("داخل منطقة المقاومة", "فوق المقاومة") and j["fv_ok"] and p >= fv * 1.05:
+        return {"action": "صفِّ جزئياً", "level": M.get("resistance"), "blocks": blocks, "conviction": [],
+                "why": why + [f"مقاومةٌ شهرية والسعر فوق قيمته العادلة بـ{(p / fv - 1) * 100:.0f}%"]}
+    # ── شروطُ القناعة ──
+    zone = W.get("support")
+    upside = (fv / p - 1) * 100 if (fv and p) else None
+    margin_ok = (j["fv_ok"] and upside is not None and upside >= 10) or (not j["fv_ok"] and quality is not None and quality >= 70)
+    checks = [
+        ("الحكم يجيز الشراء", j["can_buy"], "؛ ".join(j["blocks"]) or f"القرار {pos.get('decision') or 'غير متوفّر'}"),
+        ("الشهري غير هابط", M.get("state") not in ("هابط", None, "غير متوفّر"), f"الشهري {M.get('state') or 'غير متوفّر'}"),
+        ("السعر في الدعم الأسبوعي", bool(zone and p and zone[0] * 0.99 <= p <= zone[1] * 1.03),
+         f"الدعم {zone[0]:.2f}–{zone[1]:.2f}" if zone else "لا دعم محسوب"),
+        ("السيولة تدعم الدخول", liq not in ("جفاف سيولة", "تصريف بيعي", "انهيار بيعي", ""), f"سيولة اليوم {liq or 'غير متوفّرة'}"),
+        ("هامش أمان موثوق", bool(margin_ok),
+         (f"القيمة العادلة {fv:.2f} (+{upside:.0f}%)" if j["fv_ok"] and upside is not None else f"الجودة {quality if quality is not None else 'غير متوفّرة'}")),
+    ]
+    ok = [n for n, v, _ in checks if v]
+    missing = [f"{n}: {d}" for n, v, d in checks if not v]
+    if not j["can_buy"]:
+        return {"action": "لا تُضِف" if j["blocks"] else "احتفظ", "level": None, "why": why, "blocks": blocks, "conviction": ok}
+    if missing:
+        return {"action": "انتظر", "level": zone, "blocks": blocks, "conviction": ok,
+                "why": why + ["الناقص من القناعة — " + " · ".join(missing)]}
+    why.append("القناعة مكتملة: " + " · ".join(ok))
+    tgt = fv if (j["fv_ok"] and fv and zone and fv > zone[1]) else (M.get("resistance") or [None])[0]
+    if tgt and zone and tgt > zone[1]:
+        why.append(f"الهدف {'القيمة العادلة' if tgt == fv else 'المقاومة الشهرية'} {tgt:.2f}، ووقف الخسارة تحت {zone[0] * 0.97:.2f}")
+    need = _f(pos.get("need")) or 0
+    if c and q and need > 0 and zone:
+        mid = (zone[0] + zone[1]) / 2
+        new_avg = (q * c + need) / (q + need / mid)
+        why.append(f"الشراء بـ{need:,.0f} ريال عند {mid:.2f} " + (f"يخفض متوسطك من {c:.2f} إلى {new_avg:.2f}" if new_avg < c
+                   else f"يرفع متوسطك من {c:.2f} إلى {new_avg:.2f} — مبرَّرٌ بالحكم لا بالمتوسط"))
+    return {"action": "اشترِ الآن", "level": zone, "why": why, "blocks": blocks, "conviction": ok}
 
 
 def goal_eta(current: float, target: float, cagr_pct: float | None) -> dict:
@@ -192,7 +190,8 @@ async def pack(db, mode: str = "investor") -> dict:
         pos = {"symbol": sym, "name": it.get("name"), "price": a.get("price") or t.get("price"),
                "quantity": q, "avg_cost": ac or None, "market_value": mv, "current_weight": it.get("current_weight"),
                "target_weight": tw, "need": round(need, 2), "decision": (a.get("decision") or {}).get("label"),
-               "fair_value": a.get("fair_value"), "quality": (a.get("financial") or {}).get("score"),
+               "fair_value": a.get("fair_value"), "fair_value_conf": a.get("fair_value_conf"),
+               "quality": (a.get("financial") or {}).get("score"),
                "weekly": t.get("weekly"), "monthly": t.get("monthly"), "daily_liquidity": (t.get("daily_liquidity") or {}).get("state"),
                "last_result": ({"as_of": r.get("as_of"), "net_income_q": (r.get("quarter") or {}).get("net_income"),
                                 "revenue_q": (r.get("quarter") or {}).get("revenue")} if r else None),
@@ -240,7 +239,7 @@ async def pack(db, mode: str = "investor") -> dict:
     top = max(positions, key=lambda x: float(x.get("current_weight") or 0), default=None)
     if top and float(top.get("current_weight") or 0) > 25:
         flags.append(f"تركّز: {top['name']} {float(top['current_weight']):.1f}% من المحفظة")
-    buys = [p for p in positions if p["autopilot"]["action"].startswith(("اشترِ", "ادخل"))]
+    buys = [p for p in positions if p["autopilot"]["action"].startswith(("اشترِ", "انتظر السيولة"))]
     if investable and cash / investable > 0.15 and buys:
         flags.append(f"سيولة معطّلة {cash:,.0f} ريال ({cash / investable * 100:.0f}%) وأمامها {len(buys)} {'فرص' if 2 <= len(buys) <= 10 else 'فرصة'} شراء")
     return {"date": date.today().isoformat(), "wealth": round(wealth, 2), "cash": round(cash, 2), "cagr_pct": cagr,
@@ -263,7 +262,7 @@ def render(pk: dict) -> dict:
         lv = ap.get("level")
         actions.append({"symbol": p["symbol"], "name": p["name"], "action": ap["action"],
                         "level": f"{lv[0]:.2f}–{lv[1]:.2f}" if lv else None, "why": "؛ ".join(ap["why"])[:160]})
-    n_buy = sum(1 for a in actions if a["action"].startswith(("اشترِ", "ادخل")))
+    n_buy = sum(1 for a in actions if a["action"].startswith(("اشترِ", "انتظر السيولة")))
     n_cut = sum(1 for a in actions if a["action"] in ("خفّف", "صفِّ جزئياً", "خذ الربح", "اخرج عند الارتداد"))
     def cnt(n, one, few, many):
         return f"{one}" if n == 1 else f"{n} {few}" if 2 <= n <= 10 else f"{n} {many}"
@@ -283,8 +282,8 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
     from app.core.portfolio_scope import active_pid
     from app.services import cache
     pid = active_pid()
-    mode = mode if mode in MODES else "investor"
-    ck = f"autopilot:v1:{pid}:{mode}:{date.today().isoformat()}"
+    mode = "investor"                                            # ‏D591: لا مفتاح — رأيٌ واحد
+    ck = f"autopilot:v2:{pid}:{date.today().isoformat()}"
     if not force:
         hit = cache.get(ck)
         if hit:
@@ -299,9 +298,8 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
                                                "daily_liquidity", "last_result", "upcoming", "disclosures")} | {"قرار_الطيار": p["autopilot"]}
                         for p in pk["positions"]],
             "مبادئ_المكتبة": [f"{x['p']} — «{x['book']}» ص{x['page']}" for x in pk["principles"]]}
-    lens = ("بعين المستثمر: الإطاران الشهريُّ والأسبوعيّ، والقيمةُ قبل السعر، والصبرُ على الجودة، وتصفيةٌ عند المقاومة الشهرية."
-            if mode == "investor" else
-            "بعين المضارب: الإطارُ الأسبوعيّ للحكم وسيولةُ اليوميّ للتوقيت، ودخولٌ عند الدعم وجنيُ ربحٍ عند المقاومة الأسبوعية، ووقفُ خسارةٍ حين يُكسر الاتجاه.")
+    lens = ("بعقل مستثمرٍ بعيد المدى يدخل بحذر مضارب: «اشترِ» لا تُقال إلا بقناعةٍ مكتملة الشروط (conviction)، "
+            "وكلُّ «انتظر» يُسمّى ناقصُها.")
     prompt = f"""أنت الطيارُ الآليّ لمحفظة المالك: مستشارٌ ماليٌّ متخرّجٌ من مكتبته. تتكلّم الآن {lens}
 هدفُك هدفُه: الوصولُ إلى أهداف المحفظة بأسرع وقتٍ ممكن دون مخاطرةٍ تهدم رأس المال، ومتوسّطُ التكلفة سلاحُك — تشتري عند الدعوم التاريخية وتصفّي عند المقاومات.
 
@@ -326,7 +324,7 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
 والنقاطُ أربعٌ إلى ستّ، والإجراءاتُ ستٌّ على الأكثر مرتّبةً بالأهمية."""
     obj = None
     try:
-        obj = await _generate_obj(prompt, f"ai:autopilot:v1:{pid}:{mode}:{date.today().isoformat()}:{len(pk['positions'])}", 6 * 3600)
+        obj = await _generate_obj(prompt, f"ai:autopilot:v2:{pid}:{date.today().isoformat()}:{len(pk['positions'])}", 6 * 3600)
     except Exception as e:                                        # noqa: BLE001
         logger.warning(f"الطيار الآليّ — النموذج: {type(e).__name__}")
     out = dict(base)
@@ -344,7 +342,7 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
                     # الحماياتُ من القواعد بأسماء شركاتها — لا عباراتٌ عامةٌ يكتبها النموذج (قِيس: «الالتزام بوقف الخسارة»)
                     "protections": base["protections"], "principles": prin, "source": "ai"})
     out["asof"] = pk["date"]
-    out["mode"] = mode
+    out["conviction"] = {p["symbol"]: p["autopilot"].get("conviction") for p in pk["positions"]}
     out["positions"] = [{"symbol": p["symbol"], "name": p["name"], "action": p["autopilot"]["action"],
                          "weekly": (p.get("weekly") or {}).get("where"), "monthly": (p.get("monthly") or {}).get("where"),
                          "liquidity": p.get("daily_liquidity")} for p in pk["positions"]]
@@ -454,9 +452,9 @@ async def _alt_paths(sym: str, n: int = 4) -> list[dict]:
 async def ask(db, question: str, mode: str = "investor", history: list | None = None) -> dict:
     from app.core.portfolio_scope import active_pid
     from app.services import cache
-    mode = mode if mode in MODES else "investor"
+    mode = "investor"
     pid = active_pid()
-    ck = f"autopilot:pack:{pid}:{mode}:{date.today().isoformat()}"
+    ck = f"autopilot:pack:v2:{pid}:{date.today().isoformat()}"
     pk = cache.get(ck)
     if not pk:
         pk = await pack(db, mode)
@@ -492,7 +490,7 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
         except Exception:                                         # noqa: BLE001
             item["بدائل_من_قطاعها"] = []
         focus.append(item)
-    ctx = {"الوضع": MODES[mode], "الثروة": pk["wealth"], "السيولة": pk["cash"], "العائد_المركّب٪": pk["cagr_pct"],
+    ctx = {"الثروة": pk["wealth"], "السيولة": pk["cash"], "العائد_المركّب٪": pk["cagr_pct"],
            "الأهداف": pk["goals"], "تنبيهات": pk["flags"], "الشركات_المذكورة": focus,
            "بقية_المحفظة": [{"name": p["name"], "symbol": p["symbol"], "action": p["autopilot"]["action"],
                               "weight": p.get("current_weight")} for p in pk["positions"] if p["symbol"] not in syms],
@@ -500,8 +498,7 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
     hist = "\n".join(f"{'المالك' if h.get('role') == 'user' else 'المستشار'}: {str(h.get('text'))[:400]}"
                      for h in (history or [])[-6:])
     hist_block = ("المحادثةُ السابقة:\n" + hist) if hist else ""
-    lens = ("بعين المستثمر (الشهريُّ والأسبوعيّ، القيمةُ والصبر)" if mode == "investor"
-            else "بعين المضارب (الأسبوعيُّ وسيولةُ اليوميّ، الدخولُ والتصفيةُ بدقّة)")
+    lens = "بعقل مستثمرٍ بعيد المدى يدخل بحذر مضارب"
     prompt = f"""أنت المستشارُ الآليّ لمحفظة المالك، تحاوره {lens}. يكلّمك بوجهة نظره، وتردّ كمستشارٍ أمين: توافقه إن صدقت الأرقام، وتخالفه صراحةً إن خالفته — ولا تجامله.
 
 المعطياتُ (مصدرك الوحيد — لا رقمَ ولا شركةَ من خارجها):
@@ -518,6 +515,7 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
 - الخسارةُ قبل البيع غيرُ محقّقة: قل «البيعُ يُثبّت خسارةً قدرها…» لا «خسارةٌ محقّقة». ونسبتُها من كلفة المركز («من كلفتك فيها») لا من رأس المال كلِّه.
 - إن ذكر أنّ رأسَ ماله قرضٌ أو دَين: حمايةُ رأس المال أوّلاً، وتفضيلُ الجودة والتوزيع المنتظم، وتجنّبُ ما يحتاج سنواتٍ ليتعافى، ولا رافعةَ فوق القرض.
 - «قرار_الطيار» حتميّ: لا تنصح بشراءٍ حجبته الحماية.
+- لا تقل «اشترِ» أو «ادخل» إلا لما «قرار_الطيار» فيه «اشترِ الآن» (قناعةٌ مكتملة). وكلُّ ما سواه «انتظر» مع ذكر الناقص من القناعة كما ورد.
 - إن ذكر شركةً لا معطياتَ لها فقُل «غير متوفّر» ولا تخمّن.
 - جملٌ قصيرة (أربع عشرة كلمة على الأكثر)، بصيغة المتكلّم، بلا تحوّطٍ ولا إخلاءِ مسؤولية، في ستّة أسطرٍ إلى عشرة.
 - اختم بسطرٍ واحد: «ما أفعله لو كنتُ مكانك: …».

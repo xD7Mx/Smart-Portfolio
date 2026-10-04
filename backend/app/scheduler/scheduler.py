@@ -222,14 +222,13 @@ async def job_autopilot():
             pids = [p.id for p in (await db.execute(select(Portfolio).execution_options(skip_portfolio_scope=True))).scalars().all()
                     if not p.is_archived]
         for pid in pids:
-            for mode in ("investor", "trader"):
-                set_scope(pid, False)
-                try:
-                    async with AsyncSessionLocal() as db:
-                        await opinion(db, force=True, mode=mode)
-                finally:
-                    reset_scope()
-        logger.info(f"الطيار الآليّ: {len(pids)} محفظة × وضعان")
+            set_scope(pid, False)
+            try:
+                async with AsyncSessionLocal() as db:
+                    await opinion(db, force=True)
+            finally:
+                reset_scope()
+        logger.info(f"الطيار الآليّ: {len(pids)} محفظة")
     except Exception as e:
         logger.error(f"الطيار الآليّ: {e}")
 

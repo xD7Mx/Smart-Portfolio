@@ -24,7 +24,7 @@ async def main():
     async with AsyncSessionLocal() as db:
         ps = (await db.execute(select(Portfolio).execution_options(skip_portfolio_scope=True))).scalars().all()
     pid = next((p.id for p in ps if p.is_default), ps[0].id if ps else None)
-    for mode in ("investor", "trader"):
+    for mode in ("investor",):
         set_scope(pid, False)
         try:
             t0 = time.perf_counter()
