@@ -67,7 +67,7 @@ function AutopilotChat({ mode }: { mode: Mode }) {
       <div className="flex items-end gap-2">
         <textarea value={q} onChange={e => setQ(e.target.value)} rows={2} maxLength={800}
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="مثال: سدافكو أفكّر بالخروج منها لأنها في مسار هابط ورأس مالي قرض — أريد بديلاً متوازناً"
+          aria-label="وجهة نظرك للمستشار"
           className="input flex-1 text-[13px] resize-none min-h-[44px]" />
         <button onClick={send} disabled={busy || !q.trim()} aria-label="أرسل"
           className="btn-primary !p-0 min-w-[40px] min-h-[40px] justify-center">

@@ -370,7 +370,6 @@ export default function GovernancePage() {
         </div>
       ) : (
         <>
-          <AutopilotCard />
           <div className="card">
             <ScoreGauge score={data.overall_score} label={data.overall_label} color={data.overall_color} />
             {data.overall_narrative && (
@@ -386,6 +385,9 @@ export default function GovernancePage() {
             <TopDividendsChart rows={data.holdings} />
             <SectorConcentration sectors={data.sectors} />
           </div>
+
+          {/* بأمر المالك: المستشارُ الآليّ قبل «يحتاج انتباهك» */}
+          <AutopilotCard />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <HoldingsHeatmap rows={data.holdings} onOpenV2={(symbol, name) => setV2Target({ symbol, name })} />
