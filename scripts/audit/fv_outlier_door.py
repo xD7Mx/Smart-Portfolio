@@ -31,11 +31,11 @@ async def main():
                "ttm": {k: v for k, v in (getattr(i, "ttm", None) or {}).items() if k in
                        ("revenue", "net_income", "operating_income", "ocf", "fcf", "capex")},
                "equity": (getattr(i, "balance", None) or {}).get("equity"),
-               "peers": {k: [x if isinstance(x, (tuple, list)) else round(x, 2) for x in v][:6] for k, v in (getattr(i, "peers", None) or {}).items()},
+               "peers": {k: str(v)[:240] for k, v in (getattr(i, "peers", None) or {}).items()},
                "peer_syms": (getattr(i, "peer_symbols", None) or [])[:10],
                "models": [(m.get("key"), m.get("value")) for m in (r or {}).get("models") or []],
                "excluded": [(m.get("key"), m.get("value"), m.get("why") or m.get("reason")) for m in (r or {}).get("excluded") or []][:10],
                "notes": (r or {}).get("notes")}
-        print(f"@@{s}@@ " + json.dumps(out, ensure_ascii=False, default=str)[:3500])
+        print(f"@@{s}@@ " + json.dumps(out, ensure_ascii=False, default=str)[:3500], flush=True)
 
 asyncio.run(main())
