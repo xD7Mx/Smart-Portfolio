@@ -59,4 +59,27 @@ cache.clear()
 """)
 disk = json.load(open(os.path.join(SB, "cache_store.json"), encoding="utf-8"))
 check(disk == {}, "٤ المسحُ الكلّيُّ المقصود يُفرغ الملفّ ولا يُدمج ما عليه", str(disk)[:80])
+# ‏D592: الكتابةُ لا تقع في مسار الطلب — ملفٌّ ضخمٌ كتبته عمليةٌ أخرى لا يُبطئ `set`
+big = {f"k{i}": [__import__("time").time() + 7200, {"v": "x" * 400}] for i in range(40000)}
+json.dump(big, open(os.path.join(SB, "cache_store.json"), "w"))
+out = run("""
+import time, os, json
+from app.services import cache
+cache.set('warm', 1, 7200); cache.flush()                  # الملفُّ الآن ملفُّنا
+p = os.path.join(os.environ['SP_STATE_DIR'], 'cache_store.json')
+d = json.load(open(p)); d.update({f'z{i}': [time.time() + 7200, 'y' * 400] for i in range(40000)})
+json.dump(d, open(p, 'w'))                                  # «المسحة» كتبت ملفّاً ضخماً
+time.sleep(6)                                               # بعد نافذة التجميع: الكتابةُ التالية كانت تدمج داخل الطلب
+dt = 0.0
+for i in range(50):
+    t0 = time.perf_counter()
+    cache.set(f'n{i}', i, 7200)
+    dt = max(dt, (time.perf_counter() - t0) * 1000)
+time.sleep(12)                                              # الكاتبُ الخلفيّ يدمج ويكتب
+d2 = json.load(open(p))
+print(round(dt, 1), 'z1' in d2 and 'n49' in d2)
+""")
+ms, merged = out.split()
+check(float(ms) < 50, f"٥ أبطأُ كتابةٍ في المخزّن {ms}ms — لا تنتظر القرصَ ولو كتب غيرُنا ملفّاً ضخماً", ms)
+check(merged == "True", "٦ والكاتبُ الخلفيّ يدمج الملفَّين بعدها")
 sys.exit(fail)

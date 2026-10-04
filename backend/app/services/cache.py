@@ -64,86 +64,76 @@ def _load_disk() -> None:
         logger.info(f"cache: restored {kept} long-lived keys from disk")
 
 
-def _merge_disk(out: dict, now: float) -> None:
-    """يضمّ ما على القرص ممّا ليس عندنا أو هو أحدثُ — إن كتبه غيرُنا منذ آخر كتابةٍ لنا (D582).
+def _write_merged(force_wipe: bool = False) -> None:
+    """‏D592: الكتابةُ إلى القرص خارجَ مسار الطلبات — التحليلُ والتسلسلُ خارجَ القفل، والدمجُ تحته سريع.
 
-    وما ليس في ذاكرتنا يُستوعب فيها أيضاً، فيصل الخادمَ الحيَّ ما حسبته المسحةُ أو التجهيز."""
-    try:
-        mt = os.stat(_path()).st_mtime
-    except OSError:
-        return
-    if mt == _disk_mtime:
-        return
-    try:
-        with open(_path(), encoding="utf-8") as fh:
-            raw = json.load(fh)
-    except (OSError, ValueError):
-        return
-    if not isinstance(raw, dict):
-        return
-    for k, item in raw.items():
-        if not (isinstance(item, list) and len(item) == 2 and isinstance(item[0], (int, float))):
-            continue
-        exp = float(item[0])
-        if exp - now < _PERSIST_MIN_TTL - 1:
-            continue
-        mine = out.get(k)
-        if mine is None or exp > mine[0]:
-            out[k] = [exp, item[1]]
-            cur = _store.get(k)
-            if cur is None or exp > cur[0]:
-                _store[k] = (exp, item[1])
-
-
-def _flush(force: bool = False) -> None:
-    """كتابةٌ ذرّية ومُجمَّعة. تُستدعى تحت القفل."""
+    قِيس على الخادم: كان الدمجُ (D582) يُجرى داخل `set` تحت القفل وفي حلقة الأحداث، فكلّما كتبت المسحةُ الملفَّ
+    أعاد الخادمُ تحليلَ ميجابايتاتٍ في كتابته التالية، والمسحةُ كذلك — فتوقّف ردُّ الصحة (مهلةُ 10 ثوانٍ)
+    وطالت المسحةُ من ربع ساعةٍ إلى أكثر من ساعة. فصار الخيطُ الخلفيُّ وحده يقرأ ويكتب."""
     global _dirty, _last_write, _disk_mtime, _wipe
-    if not _dirty:
-        return
     now = time.time()
-    if not force and (now - _last_write) < _WRITE_EVERY:
-        return
-    # ══ قيمةٌ عصيّةٌ تُترك وحدَها، ولا تُسقط الملفَّ كلَّه ══
-    # كان `json.dump` على القاموس جملةً واحدة، فأوّلُ قيمةٍ لا تُسلسَل
-    # ترفع TypeError فيضيع **كلُّ** ما كان سينزل معها. تُفحص كلُّ قيمةٍ
-    # على حِدة فتُستبعد وحدَها ويَسلم الباقي.
+    with _lock:                                                   # لقطةٌ سريعة: مراجعُ لا نسخٌ عميقة
+        wipe = _wipe or force_wipe
+        snap = {k: (exp, v) for k, (exp, v) in _store.items() if exp - now >= _PERSIST_MIN_TTL - 1}
+        _dirty = False
+        known_mtime = _disk_mtime
     out = {}
-    for k, (exp, v) in _store.items():
-        if exp - now < _PERSIST_MIN_TTL - 1:
-            continue
+    for k, (exp, v) in snap.items():                              # التحقّقُ من قابلية التسلسل خارجَ القفل
         try:
             json.dumps(v, ensure_ascii=False)
         except (TypeError, ValueError):
             continue
         out[k] = [exp, v]
-    tmp = None
+    path = _path()
     lock_fh = None
+    tmp = None
     try:
-        path = _path()
         os.makedirs(os.path.dirname(path), exist_ok=True)
         try:
             import fcntl
             lock_fh = open(path + ".lock", "a")
-            fcntl.flock(lock_fh, fcntl.LOCK_EX)         # كاتبٌ واحدٌ في كلّ لحظة بين العمليات
+            fcntl.flock(lock_fh, fcntl.LOCK_EX)                   # كاتبٌ واحدٌ بين العمليات
         except (ImportError, OSError):
             lock_fh = None
-        if not _wipe:
-            _merge_disk(out, now)
+        absorb = {}
+        if not wipe:
+            try:
+                mt = os.stat(path).st_mtime
+            except OSError:
+                mt = known_mtime
+            if mt != known_mtime:                                  # كتبه غيرُنا ⇒ يُدمج (D582)
+                try:
+                    with open(path, encoding="utf-8") as fh:
+                        raw = json.load(fh)
+                except (OSError, ValueError):
+                    raw = {}
+                for k, item in (raw.items() if isinstance(raw, dict) else []):
+                    if not (isinstance(item, list) and len(item) == 2 and isinstance(item[0], (int, float))):
+                        continue
+                    exp = float(item[0])
+                    if exp - now < _PERSIST_MIN_TTL - 1:
+                        continue
+                    mine = out.get(k)
+                    if mine is None or exp > mine[0]:
+                        out[k] = [exp, item[1]]
+                        absorb[k] = (exp, item[1])
         fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(out, fh, ensure_ascii=False)
         os.replace(tmp, path)
         tmp = None
-        _dirty, _last_write, _wipe = False, now, False
-        try:
-            _disk_mtime = os.stat(path).st_mtime
-        except OSError:
-            pass
+        new_mtime = os.stat(path).st_mtime
+        with _lock:                                               # يستوعب ما ينقصه — دمجُ قواميسَ سريع
+            for k, item in absorb.items():
+                cur = _store.get(k)
+                if cur is None or item[0] > cur[0]:
+                    _store[k] = item
+            _disk_mtime, _last_write = new_mtime, now
+            if wipe:
+                _wipe = False
     except OSError:
-        # قرصٌ ممتلئ أو للقراءة فقط: الذاكرةُ تبقى عاملةً في الرام.
-        _dirty = False
+        pass                                                      # قرصٌ ممتلئ أو للقراءة: الذاكرةُ تبقى عاملة
     finally:
-        # المؤقّتُ لا يُترك خلفنا: تراكمُه يملأ القرصَ بصمت.
         if tmp:
             try:
                 os.unlink(tmp)
@@ -151,9 +141,38 @@ def _flush(force: bool = False) -> None:
                 pass
         if lock_fh is not None:
             try:
-                lock_fh.close()                         # يُحرّر القفل
+                lock_fh.close()
             except OSError:
                 pass
+
+
+_wake = None
+_writer = None
+
+
+def _writer_loop() -> None:
+    while True:
+        _wake.wait(_WRITE_EVERY)
+        _wake.clear()
+        time.sleep(_WRITE_EVERY)                                  # تجميعُ ما يتلاحق من حفظات
+        if _dirty:
+            try:
+                _write_merged()
+            except Exception:                                     # noqa: BLE001
+                pass
+
+
+def _flush(force: bool = False) -> None:
+    """تُستدعى تحت القفل: لا تكتب — توقظ الكاتبَ الخلفيّ وحده (D592)."""
+    global _wake, _writer
+    import threading
+    if _wake is None:
+        _wake = threading.Event()
+    if _writer is None or not _writer.is_alive():
+        _writer = threading.Thread(target=_writer_loop, name="cache-writer", daemon=True)
+        _writer.start()
+    _wake.set()
+
 
 # ── Lifetimes per data type (seconds) ─────────────────────────
 PRICE_TTL        = 15 * 60            # 15 minutes  — intraday prices
@@ -182,9 +201,9 @@ def set(key: str, value, ttl: int) -> None:
 
 
 def flush() -> None:
-    """يُنزل ما تبقّى إلى القرص فوراً — عند الإطفاء أو بعد مسحٍ كامل."""
-    with _lock:
-        _flush(force=True)
+    """يُنزل ما تبقّى إلى القرص فوراً — عند الإطفاء أو بعد مسحٍ كامل (متزامنٌ عمداً)."""
+    if _dirty or _wipe:
+        _write_merged()
 
 
 def age(key: str):
@@ -209,7 +228,7 @@ def clear() -> None:
     with _lock:
         _store.clear()
         _dirty, _wipe = True, True                      # مسحٌ كلّيٌّ مقصود: لا يُدمج ما على القرص
-        _flush(force=True)
+    _write_merged(force_wipe=True)
 
 
 def purge_expired() -> int:
