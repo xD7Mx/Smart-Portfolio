@@ -35,6 +35,28 @@ function Section({ icon: Icon, color, headline, bullets }: { icon: any; color: s
   );
 }
 
+/* التفاصيلُ مطويّة: محرّكاتُ التطبيق ونموذجُ الأبحاث وملفّاتُ الشركة وشواهدُ «أرقام» — لمن أراد السند */
+function Details({ data }: { data: any }) {
+  const [open, setOpen] = useState(false);
+  const has = [data.engines_bullets, data.research_bullets, data.files_bullets, data.evidence_bullets].some(b => b && b.length);
+  if (!has) return null;
+  return (
+    <div>
+      <button onClick={() => setOpen(o => !o)} className="text-xs font-bold text-[var(--ink-muted)] hover:text-[var(--ink)] min-h-[32px]">
+        {open ? "إخفاء السند" : "السند: المحرّكات والملفّات والشواهد"}
+      </button>
+      {open && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-2">
+          <Section icon={Cpu} color="var(--brand-ink)" headline={data.engines_headline} bullets={data.engines_bullets} />
+          <Section icon={FlaskConical} color="var(--chart-2)" headline={data.research_headline} bullets={data.research_bullets} />
+          <Section icon={FileSearch} color="var(--chart-4)" headline={data.files_headline} bullets={data.files_bullets} />
+          <Section icon={BookOpen} color="var(--ink-muted)" headline={data.evidence_headline} bullets={data.evidence_bullets} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * "رأي الذكاء" — one button, one fixed prompt template (only the symbol
  * changes), same idea as investing.com's WarrenAI shortcut. Renders the
@@ -69,6 +91,36 @@ export default function StockOpinion({ symbol, name }: { symbol: string; name?: 
   }
 
   const sentColor = data.decision_color || SENTIMENT_COLOR[data.sentiment_label] || "var(--ink-muted)";
+  /* D584 (بأمر المالك): «كثيرُ الفقرات ويردّ كأنه محامٍ» — حكمٌ في سطر، ونقاطٌ قصيرةٌ بإشارتها،
+     وماذا أفعل، وما يغيّر رأيي. والتفاصيلُ مطويّةٌ لمن أرادها. */
+  if (data.verdict && Array.isArray(data.points) && data.points.length) {
+    const toneOf = (t: string) => t === "+" ? { mark: "▲", c: "var(--pos-ink)" } : t === "-" ? { mark: "▼", c: "var(--neg-ink)" } : { mark: "•", c: "var(--ink-muted)" };
+    return (
+      <div className="space-y-3">
+        <div className="p-3.5 rounded-xl" style={{ background: mixA(sentColor, 8), border: `1px solid ${mixA(sentColor, 22)}` }}>
+          <p className="text-[11px] font-bold mb-1" style={{ color: sentColor }}>{data.sentiment_label}</p>
+          <p className="text-sm font-bold leading-relaxed ai-opinion-text">{data.verdict}</p>
+        </div>
+        <ul className="space-y-2 px-1">
+          {data.points.map((p: any, i: number) => {
+            const tn = toneOf(p.tone);
+            return (
+              <li key={i} className="text-[13px] leading-relaxed flex gap-2.5 ai-opinion-text">
+                <span className="text-[10px] mt-1 shrink-0" style={{ color: tn.c }}>{tn.mark}</span><span>{p.t}</span>
+              </li>
+            );
+          })}
+        </ul>
+        {(data.action || data.change) && (
+          <div className="grid gap-2 pt-2 border-t border-[var(--hairline)]">
+            {data.action && <p className="text-[13px] leading-relaxed ai-opinion-text"><span className="font-bold text-[var(--brand-ink)]">ماذا أفعل: </span>{data.action}</p>}
+            {data.change && <p className="text-[13px] leading-relaxed ai-opinion-text"><span className="font-bold text-[var(--ink-muted)]">ما يغيّر رأيي: </span>{data.change}</p>}
+          </div>
+        )}
+        <Details data={data} />
+      </div>
+    );
+  }
   return (
     <div className="space-y-2.5">
       <div className="p-3.5 rounded-xl" style={{ background: mixA(sentColor, 8), border: `1px solid ${mixA(sentColor, 20)}` }}>

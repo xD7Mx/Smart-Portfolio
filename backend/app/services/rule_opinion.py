@@ -176,9 +176,10 @@ def build_stock_opinion(symbol: str, name: str, analysis: dict) -> dict:
                 "note": ("الحكم مبنيٌّ على الدرجات المالية والحوكمية، "
                          "وهذه الشواهد تعارضه ولم تُسقطه — تُقرأ معه لا بدلاً منه."),
             }
-    summary_parts.append("القرار النهائي يبقى بيد المستثمر.")
 
+    compact = compact_opinion(analysis, label, signed)
     return {
+        **compact,
         "sentiment_label": label,
         "sentiment_bullets": sentiment_bullets,
         "technical_headline": "القراءة الفنية" if technical_bullets else None,
@@ -194,3 +195,72 @@ def build_stock_opinion(symbol: str, name: str, analysis: dict) -> dict:
         "tension": tension,
         "source": "rule",
     }
+
+
+# جملُ إخلاء المسؤولية تُحذف كاملة (لا كلماتٌ من داخل جمل — «قد» داخلةٌ في «النقد»)
+_DISCLAIM = ("لا يُعدّ نصيحة", "لا يعد نصيحة", "لا تُعدّ نصيحة", "القرار بيد", "القرار النهائي", "ليست توصية")
+
+
+def _short(txt: str, n: int = 16) -> str:
+    """جملةٌ قصيرة: يُقصّ ما بعد الشرطة الطويلة إن طالت، ولا يُقصّ رقم."""
+    t = " ".join(str(txt or "").split()).rstrip(".")
+    if len(t.split()) > n and " — " in t:
+        t = t.split(" — ")[0]
+    return t + "."
+
+
+def compact_opinion(analysis: dict, label: str | None, signed: list | None = None) -> dict:
+    """‏D584: رأيٌ مختصر بصوت مستشار — حكمٌ في سطر، ونقاطٌ قصيرةٌ بإشارتها، وماذا أفعل، وما يغيّر رأيي.
+
+    يُبنى من أرقام التطبيق وحدها (البديلُ حين يتعذّر النموذج، ويكمل رأياً مخزَّناً قديمَ الصيغة)."""
+    dec = analysis.get("decision") or {}
+    label = label or dec.get("label") or "—"
+    reason = (dec.get("reason") or "").strip().rstrip(".")
+    price = analysis.get("price")
+    fv = analysis.get("fair_value")
+    up = analysis.get("fair_value_upside_pct")
+    fin = (analysis.get("financial") or {}).get("score")
+    f = analysis.get("fundamentals") or {}
+    pts: list[dict] = []
+    if fin is not None:
+        pts.append({"t": f"جودتُها المالية {fin:.0f} من 100" + (" — قوية." if fin >= 70 else " — ضعيفة." if fin < 50 else " — متوسطة."),
+                    "tone": "+" if fin >= 70 else "-" if fin < 50 else "="})
+    if fv and price and up is not None:
+        pts.append({"t": f"سعرُها {price} وقيمتُها العادلة عندنا {fv:.2f} ({up:+.0f}%).",
+                    "tone": "+" if up >= 10 else "-" if up <= -5 else "="})
+    if f.get("roe") is not None:
+        pts.append({"t": f"العائدُ على حقوق المساهمين {f['roe']:.1f}%.", "tone": "+" if f["roe"] >= 15 else "-" if f["roe"] < 8 else "="})
+    if f.get("dividend_yield"):
+        pts.append({"t": f"عائدُ التوزيعات {f['dividend_yield']:.1f}%.", "tone": "+" if f["dividend_yield"] >= 4 else "="})
+    for b, g in (signed or []):
+        if len(pts) >= 6:
+            break
+        pts.append({"t": _short(b), "tone": "+" if g > 0 else "-" if g < 0 else "="})
+    buy = "شراء" in label
+    avoid = any(w in label for w in ("تجنب", "تجنّب", "بيع"))
+    action = ("أشتري على دفعات، ولا أطارد السعر." if buy else
+              "لا أشتري، وإن كنتُ أملكه أراجع وزنه." if avoid else
+              "أنتظر ولا أضيف الآن." if "غير كافية" not in label else
+              "لا أبني قراراً قبل أن تكتمل البيانات.")
+    change = (f"يتغيّر رأيي إن تجاوز السعرُ قيمتَه العادلة {fv:.2f}." if (buy and fv) else
+              f"يتغيّر رأيي إن نزل السعرُ دون {fv * 0.9:.2f} مع ثبات الجودة." if (fv and not avoid) else
+              "يتغيّر رأيي إن تحسّنت نتائجُ الربع القادم بوضوح.")
+    verdict = f"{label}: {reason}." if reason else f"{label}."
+    return {"verdict": verdict, "points": pts[:6], "action": action, "change": change}
+
+
+def tidy(op: dict) -> dict:
+    """يُلزم الرأيَ بالاختصار: ستُّ نقاطٍ على الأكثر، وبلا عبارات تحوّط."""
+    pts = []
+    for p in (op.get("points") or [])[:6]:
+        t = p.get("t") if isinstance(p, dict) else str(p)
+        if not t:
+            continue
+        if any(h in t for h in _DISCLAIM):
+            continue
+        pts.append({"t": " ".join(t.split()), "tone": (p.get("tone") if isinstance(p, dict) else "=") or "="})
+    op["points"] = pts
+    for k in ("verdict", "action", "change"):
+        if any(h in str(op.get(k) or "") for h in _DISCLAIM):
+            op[k] = None
+    return op

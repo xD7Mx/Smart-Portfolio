@@ -384,6 +384,12 @@ async def get_stock_opinion(symbol: str, name: str = "", db: AsyncSession = Depe
         opinion["evidence_bullets"] = _ev_lines[:3]
     if opinion and _mind:
         opinion = attach(opinion, _mind)
+    # ‏D584: الصيغةُ المختصرة دائماً — رأيٌ مخزَّنٌ بالصيغة القديمة يُكمَل من أرقام التطبيق
+    if opinion:
+        from app.services.rule_opinion import compact_opinion, tidy
+        if not opinion.get("verdict") or not opinion.get("points"):
+            opinion.update(compact_opinion(analysis, (analysis.get("decision") or {}).get("label")))
+        opinion = tidy(opinion)
     unified = (analysis.get("decision") or {}).get("label")
     if opinion and unified:
         opinion["sentiment_label"] = unified

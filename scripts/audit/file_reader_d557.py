@@ -51,8 +51,9 @@ check("job_file_reader" in sch and 'id="file_reader_night"' in sch and "create_s
 ai = (ROOT / "backend/app/services/ai_content.py").read_text(encoding="utf-8")
 am = (ROOT / "backend/app/services/app_mind.py").read_text(encoding="utf-8")
 ui = (ROOT / "frontend/src/components/analysis/StockOpinion.tsx").read_text(encoding="utf-8")
-check("المستشارُ الماليّ الخاصّ" in ai and '"advisor_bullets"' in ai and "{files_ctx}" in ai and "ai:opinion:v6:" in ai
-      and "file_reader import coverage, knowledge" in am and "data.advisor_bullets" in ui and "data.files_bullets" in ui,
+# ‏D584 حلّ محلَّ أقسام المستشار: الصوتُ نفسُه بحكمٍ في سطرٍ ونقاطٍ قصيرة، والملفّاتُ تُقرأ وتُعرض في السند
+check("المستشارُ الماليّ الخاصّ" in ai and '"verdict"' in ai and "{files_ctx}" in ai and "ai:opinion:v7:" in ai
+      and "file_reader import coverage, knowledge" in am and "data.verdict" in ui and "data.files_bullets" in ui,
       "٨ رأيُ الذكاء بصوت المستشار، يقرأ معرفةَ الملفّات، وتُعرض")
 check('join(Holding, Holding.company_id == Company.id)' in src and "select(Holding.symbol)" not in src
       and 'rec.get("complete") and rec.get("at", "") >= week' in src and 'report["_mem"] = True' in src
