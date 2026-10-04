@@ -330,6 +330,17 @@ async def get_portfolio_autopilot(mode: str = "investor", force: bool = False, d
     return success_response(data=await opinion(db, force=force, mode=mode))
 
 
+@router.post("/portfolio-autopilot/ask")
+async def ask_portfolio_autopilot(payload: dict, db: AsyncSession = Depends(get_db)):
+    """‏D589: حوارُ المستشار الآليّ — وجهةُ نظر المالك، وردٌّ بما لدى التطبيق."""
+    from app.services.autopilot import ask
+    q = str(payload.get("question") or "").strip()[:800]
+    if not q:
+        return success_response(data={"reply": "اكتب وجهة نظرك أو سؤالك عن المحفظة.", "source": "rules"})
+    return success_response(data=await ask(db, q, mode=str(payload.get("mode") or "investor"),
+                                           history=payload.get("history") or []))
+
+
 @router.get("/stock-opinion/{symbol}")
 async def get_stock_opinion(symbol: str, name: str = "", db: AsyncSession = Depends(get_db)):
     """One-click "رأي الذكاء" card for any single stock — same fixed prompt

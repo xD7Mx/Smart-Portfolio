@@ -316,6 +316,8 @@ export const aiApi = {
   risk:        () => api.get<APIResponse>("/ai/risk"),
   fullReport:  () => api.get<APIResponse>("/ai/full-report"),
   portfolioInsight: () => api.get<APIResponse>("/ai/portfolio-insight"),
+  askAutopilot: (question: string, mode: "investor" | "trader", history: { role: string; text: string }[]) =>
+    api.post<APIResponse>("/ai/portfolio-autopilot/ask", { question, mode, history }, { timeout: 180000 }),
   portfolioAutopilot: (mode: "investor" | "trader" = "investor") => api.get<APIResponse>("/ai/portfolio-autopilot", { params: { mode }, timeout: 180000 }),
   stockOpinion: (symbol: string, name?: string) => api.get<APIResponse>(`/ai/stock-opinion/${symbol}`, { params: name ? { name } : undefined }),
 };

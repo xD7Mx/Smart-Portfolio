@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plane, ShieldCheck, Target, BookOpen, Loader2 } from "lucide-react";
+import { Plane, ShieldCheck, Target, BookOpen, Loader2, Send } from "lucide-react";
 import { aiApi } from "../../services/api";
 import CompanyLogo from "../common/CompanyLogo";
 
@@ -14,6 +14,69 @@ const ACTION_TONE: Record<string, string> = {
   "لا تُضِف": "var(--neg-ink)", "اخرج عند الارتداد": "var(--neg-ink)", "احتفظ": "var(--ink-muted)",
 };
 const mixA = (c: string, pct: number) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
+
+/* D589 (بأمر المالك): مربعٌ يخاطب فيه المستشارَ بوجهة نظره — «سدافكو أفكّر بالخروج… رأسُ مالي قرض… أريد بديلاً» —
+   فيردّ بما لديه: مسارُها الحقيقيّ على D7M، وكلفةُ الخروج عليه، وبدائلُ متوازنةٌ من قطاعها. والردُّ يتبع المفتاح. */
+function AutopilotChat({ mode }: { mode: Mode }) {
+  const [msgs, setMsgs] = useState<{ role: "user" | "advisor"; text: string; alts?: any[] }[]>([]);
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const send = async () => {
+    const text = q.trim();
+    if (!text || busy) return;
+    const history = msgs.map(m => ({ role: m.role === "user" ? "user" : "advisor", text: m.text }));
+    setMsgs(m => [...m, { role: "user", text }]);
+    setQ(""); setBusy(true);
+    try {
+      const r = await aiApi.askAutopilot(text, mode, history);
+      const d = r.data?.data || {};
+      setMsgs(m => [...m, { role: "advisor", text: d.reply || "تعذّر الرد الآن.", alts: d.alternatives || [] }]);
+    } catch {
+      setMsgs(m => [...m, { role: "advisor", text: "تعذّر الرد الآن — حاول بعد قليل." }]);
+    } finally { setBusy(false); }
+  };
+  return (
+    <div className="pt-3 border-t border-[var(--hairline)] space-y-2.5">
+      <p className="text-xs font-bold text-[var(--ink-muted)]">حاور المستشار بوجهة نظرك</p>
+      {msgs.length > 0 && (
+        <div className="space-y-2">
+          {msgs.map((m, i) => (
+            <div key={i} className={m.role === "user" ? "flex justify-start" : "flex justify-end"}>
+              <div className="max-w-[92%] rounded-xl px-3 py-2 text-[13px] leading-relaxed whitespace-pre-line"
+                style={m.role === "user"
+                  ? { background: "var(--surface)", color: "var(--ink)" }
+                  : { background: mixA("var(--brand)", 8), border: `1px solid ${mixA("var(--brand)", 20)}`, color: "var(--ink)" }}>
+                {m.text}
+                {m.alts && m.alts.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-[var(--hairline)] space-y-1.5">
+                    {m.alts.map((a: any) => (
+                      <div key={a.symbol} className="flex items-center gap-2 text-xs">
+                        <CompanyLogo symbol={a.symbol} size={20} />
+                        <span className="font-semibold">{a.name}</span>
+                        <span className="text-[var(--ink-muted)]">جودة {a.quality ?? "—"} · الشهري {a.monthly?.state ?? "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {busy && <div className="flex justify-end"><span className="text-xs text-[var(--ink-muted)] flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" /> يقرأ أرقامها ومسارها وبدائلها…</span></div>}
+        </div>
+      )}
+      <div className="flex items-end gap-2">
+        <textarea value={q} onChange={e => setQ(e.target.value)} rows={2} maxLength={800}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder="مثال: سدافكو أفكّر بالخروج منها لأنها في مسار هابط ورأس مالي قرض — أريد بديلاً متوازناً"
+          className="input flex-1 text-[13px] resize-none min-h-[44px]" />
+        <button onClick={send} disabled={busy || !q.trim()} aria-label="أرسل"
+          className="btn-primary !p-0 min-w-[40px] min-h-[40px] justify-center">
+          <Send size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function AutopilotCard() {
   const [mode, setMode] = useState<Mode>(() => {
@@ -131,6 +194,7 @@ export default function AutopilotCard() {
           )}
         </div>
       )}
+      <div className="mt-3"><AutopilotChat mode={mode} /></div>
     </div>
   );
 }

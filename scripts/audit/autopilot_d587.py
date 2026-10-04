@@ -107,4 +107,18 @@ gp = (ROOT / "frontend/src/pages/GovernancePage.tsx").read_text()
 check("<AutopilotCard />" in gp and '"seg-btn"' in fe and "مستثمر" in fe and "مضارب" in fe, "١٣ بطاقةُ الحوكمة ومفتاحُ مستثمر / مضارب بلغة التطبيق")
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text()
 check('id="autopilot_close"' in sch and 'id="library_wisdom_dawn"' in sch, "١٤ يُحسب بعد الإغلاق، والمكتبةُ تُدرَس فجراً")
+# ── D589: الحوار ──
+from app.services.autopilot import mentioned, _ask_rules
+pos = [{"symbol": "2270", "name": "الشركة السعودية لمنتجات الألبان والأغذية"}, {"symbol": "4340", "name": "صندوق الراجحي ريت"},
+       {"symbol": "1120", "name": "مصرف الراجحي"}, {"symbol": "4190", "name": "جرير للتسويق"}, {"symbol": "4164", "name": "النهدي الطبية"}]
+cases = {"سدافكو افكر بالخروج منها لانها في مسار هابط وراس مالي قرض": ["2270"], "هل اضخ في الراجحي ريت؟": ["4340"],
+         "مصرف الراجحي هابط": ["1120"], "الأمل كبير في السوق": []}
+bad = {q: mentioned(q, pos) for q, want in cases.items() if mentioned(q, pos) != want}
+check(not bad, "١٥ الحوار: الاسمُ المختصر يُفهم، و«مسارٌ هابط» ليست شركة «مسار»، و«الراجحي ريت» ليست المصرف", str(bad))
+r = _ask_rules([{"symbol": "2270", "name": "سدافكو", "monthly": {"state": "هابط", "where": "داخل منطقة الدعم"}, "weekly": {"state": "ضعيف"},
+                 "كلفة_الخروج": {"ربح_أو_خسارة_تُثبَّت": -18000.0, "النسبة٪": -21.8}, "قرار_الطيار": {"action": "اشترِ الآن", "why": ["دعم"]},
+                 "بدائل_من_قطاعها": [{"name": "المراعي", "quality": 80, "monthly": {"state": "صاعد"}, "balanced": True}]}], "investor")
+check("يثبّت خسارة 18,000" in r and "المراعي" in r and "الشهري هابط" in r, "١٦ ردُّ الأرقام: المسار وكلفةُ الخروج والبديلُ المتوازن", r)
+ep = (ROOT / "backend/app/api/v1/endpoints/ai.py").read_text()
+check('"/portfolio-autopilot/ask"' in ep and "AutopilotChat" in fe, "١٧ مربعُ الحوار في البطاقة ومساره")
 sys.exit(fail)

@@ -357,3 +357,218 @@ def _int(x):
         return int(x)
     except (TypeError, ValueError):
         return None
+
+
+# ══ ‏D589: حوارُ المستشار الآليّ — يخاطبه المالكُ بوجهة نظره، فيردّ بما لديه ══
+# بأمر المالك: «سدافكو أفكّر بالخروج منها لأنها في مسارٍ هابط ورأسُ مالي قرض — أريد بديلاً في مسارٍ متوازن».
+# فيُقرأ ما ذُكر من شركات (بالاسم المختصر أو الكامل أو الرمز)، ولكلٍّ: موقفُها الحقيقيّ على D7M، وكلفةُ الخروج عليه،
+# وبدائلُ من قطاعها شرعيةٌ إن كانت شرعية، في مسارٍ شهريٍّ غير هابط، بجودتها وعائدها — والنموذجُ يحاور ولا يخترع.
+
+def _directory() -> dict:
+    import json as _j
+    import pathlib
+    try:
+        p = pathlib.Path(__file__).resolve().parents[1] / "data" / "saudi_directory.json"
+        return _j.loads(p.read_text(encoding="utf-8"))
+    except Exception:                                             # noqa: BLE001
+        return {}
+
+
+_GENERIC = {"الشركة", "شركة", "السعودية", "السعودي", "العربية", "الوطنية", "مصرف", "بنك", "البنك", "صندوق", "مجموعة",
+            "للتسويق", "الطبية", "للخدمات", "القابضة", "للتأمين", "التعاوني", "التعاونية", "للتنمية", "للاستثمار", "والأغذية",
+            "الأهلية", "المتحدة", "الدولية", "المتقدمة", "للصناعات", "الصناعية", "لمنتجات", "الألبان", "خدمات", "ريت", "المالية"}
+
+
+def mentioned(question: str, positions: list[dict], limit: int = 3) -> list[str]:
+    """الرموزُ المذكورة: الرمزُ نفسُه، أو الاسمُ المختصر في الدليل، أو الاسمُ الكامل — الحيازاتُ أوّلاً."""
+    q = " ".join(str(question or "").replace("ـ", "").split())
+    found: list[tuple[int, str]] = []
+    held = {p["symbol"] for p in positions}
+    names = {p["symbol"]: [p.get("name") or ""] for p in positions}
+    for sym, v in _directory().items():
+        names.setdefault(str(sym), []).append((v or {}).get("name") or "")
+    import re as _re
+
+    def has(n: str) -> bool:
+        return bool(_re.search(r"(?<![\w])(?:ال|بال|و|ب|ل)?" + _re.escape(n) + r"(?![\w])", q))
+
+    full_hits: list[str] = []                # أسماءٌ كاملةٌ طوبقت — تُسقط ما طابق بكلمةٍ منها وحدها
+    token_of: dict[str, str] = {}
+    for sym, ns in names.items():
+        score = 0
+        if _re.search(r"(?<!\d)" + _re.escape(sym) + r"(?!\d)", q):
+            score = 300
+        for n in ns:
+            n = " ".join(str(n).split())
+            if len(n) < 3 or not has(n):
+                continue
+            # اسمٌ قصيرٌ بكلمةٍ واحدة خارجَ المحفظة قد يكون كلمةً عادية («في مسارٍ هابط» ليست شركة «مسار»)
+            if sym not in held and " " not in n and len(n) <= 5 and not _re.search(r"(شركة|سهم|أسهم)\s+" + _re.escape(n), q):
+                continue
+            score = max(score, 200 + len(n))
+            full_hits.append(n)
+        if not score:
+            # الكلمةُ المميِّزةُ من الاسم («جرير» من «جرير للتسويق»، «النهدي» من «النهدي الطبية»)
+            for n in ns:
+                for tok in str(n).split():
+                    t = tok.strip("()،,.")
+                    if len(t) >= 4 and t not in _GENERIC and has(t) and (sym in held or len(t) >= 6):
+                        score = max(score, 150 + len(t))
+                        token_of[sym] = t
+        if score:
+            found.append((score + (50 if sym in held else 0), sym))
+    out = []
+    for _, s in sorted(found, reverse=True):
+        t = token_of.get(s)
+        if t and any(t in fh.split() for fh in full_hits):
+            continue                          # «الراجحي» داخلَ «الراجحي ريت» المطابَق كاملاً ⇒ ليست المصرفَ ولا التكافل
+        if s not in out:
+            out.append(s)
+    return out[:limit]
+
+
+async def _alt_paths(sym: str, n: int = 4) -> list[dict]:
+    """بدائلُ من القطاع نفسِه بمسارها على D7M — «متوازن» = الشهريُّ غيرُ هابط والأسبوعيُّ غيرُ هابط."""
+    from app.services import advisor_solutions as S
+    from app.services import d7m
+    rows = S._rows()
+    alts = S.alternatives(sym, rows, n=8, margin=0)
+    out = []
+    for a in alts:
+        try:
+            t = await asyncio.wait_for(d7m.read(a["symbol"]), timeout=25) or {}
+        except Exception:                                         # noqa: BLE001
+            t = {}
+        M, W = t.get("monthly") or {}, t.get("weekly") or {}
+        balanced = M.get("state") != "هابط" and W.get("state") != "هابط" and bool(M)
+        out.append({"symbol": a["symbol"], "name": a.get("name"), "price": a.get("price"), "decision": a.get("decision"),
+                    "quality": a.get("quality"), "dividend_yield": a.get("dy"), "upside": a.get("upside"),
+                    "monthly": {k: M.get(k) for k in ("state", "where", "support", "resistance")} if M else None,
+                    "weekly": {k: W.get(k) for k in ("state", "where", "support")} if W else None, "balanced": balanced})
+    out.sort(key=lambda x: (not x["balanced"], -(x.get("quality") or 0)))
+    return out[:n]
+
+
+async def ask(db, question: str, mode: str = "investor", history: list | None = None) -> dict:
+    from app.core.portfolio_scope import active_pid
+    from app.services import cache
+    mode = mode if mode in MODES else "investor"
+    pid = active_pid()
+    ck = f"autopilot:pack:{pid}:{mode}:{date.today().isoformat()}"
+    pk = cache.get(ck)
+    if not pk:
+        pk = await pack(db, mode)
+        cache.set(ck, pk, 3 * 3600)
+    syms = mentioned(question, pk["positions"])
+    focus = []
+    for s in syms:
+        pos = next((p for p in pk["positions"] if p["symbol"] == s), None)
+        item = {"symbol": s, "held": bool(pos)}
+        if pos:
+            q, c, pr = _f(pos.get("quantity")) or 0, _f(pos.get("avg_cost")), _f(pos.get("price"))
+            item.update({k: pos.get(k) for k in ("name", "price", "avg_cost", "quantity", "decision", "fair_value", "quality",
+                                                 "weekly", "monthly", "daily_liquidity", "last_result", "upcoming",
+                                                 "disclosures", "current_weight", "target_weight")})
+            item["قرار_الطيار"] = pos["autopilot"]
+            if q and c and pr:
+                item["كلفة_الخروج"] = {"قيمة_البيع": round(q * pr, 2), "المدفوع": round(q * c, 2),
+                                       "ربح_أو_خسارة_تُثبَّت": round(q * (pr - c), 2), "النسبة٪": round((pr / c - 1) * 100, 1)}
+        else:
+            try:
+                from app.services import d7m
+                from app.services.analysis import analyze_company
+                a = await asyncio.wait_for(analyze_company(f"{s}.SR", None), timeout=20) or {}
+                t = await asyncio.wait_for(d7m.read(s), timeout=25) or {}
+                item.update({"name": a.get("name"), "price": a.get("price"), "decision": (a.get("decision") or {}).get("label"),
+                             "fair_value": a.get("fair_value"), "quality": (a.get("financial") or {}).get("score"),
+                             "weekly": t.get("weekly"), "monthly": t.get("monthly"),
+                             "daily_liquidity": (t.get("daily_liquidity") or {}).get("state")})
+            except Exception:                                     # noqa: BLE001
+                pass
+        try:
+            item["بدائل_من_قطاعها"] = await _alt_paths(s)
+        except Exception:                                         # noqa: BLE001
+            item["بدائل_من_قطاعها"] = []
+        focus.append(item)
+    ctx = {"الوضع": MODES[mode], "الثروة": pk["wealth"], "السيولة": pk["cash"], "العائد_المركّب٪": pk["cagr_pct"],
+           "الأهداف": pk["goals"], "تنبيهات": pk["flags"], "الشركات_المذكورة": focus,
+           "بقية_المحفظة": [{"name": p["name"], "symbol": p["symbol"], "action": p["autopilot"]["action"],
+                              "weight": p.get("current_weight")} for p in pk["positions"] if p["symbol"] not in syms],
+           "مبادئ_المكتبة": [f"{x['p']} — «{x['book']}» ص{x['page']}" for x in pk["principles"]]}
+    hist = "\n".join(f"{'المالك' if h.get('role') == 'user' else 'المستشار'}: {str(h.get('text'))[:400]}"
+                     for h in (history or [])[-6:])
+    hist_block = ("المحادثةُ السابقة:\n" + hist) if hist else ""
+    lens = ("بعين المستثمر (الشهريُّ والأسبوعيّ، القيمةُ والصبر)" if mode == "investor"
+            else "بعين المضارب (الأسبوعيُّ وسيولةُ اليوميّ، الدخولُ والتصفيةُ بدقّة)")
+    prompt = f"""أنت المستشارُ الآليّ لمحفظة المالك، تحاوره {lens}. يكلّمك بوجهة نظره، وتردّ كمستشارٍ أمين: توافقه إن صدقت الأرقام، وتخالفه صراحةً إن خالفته — ولا تجامله.
+
+المعطياتُ (مصدرك الوحيد — لا رقمَ ولا شركةَ من خارجها):
+{json.dumps(ctx, ensure_ascii=False, default=str)}
+{hist_block}
+
+كلامُ المالك الآن: {question}
+
+قواعد:
+- ابدأ بالحكم في جملةٍ واحدة: هل أوافقه أم لا، ولماذا بالرقم.
+- إن ذكر مساراً هابطاً فتحقّق من D7M الشهريّ والأسبوعيّ وقل ما تراه فعلاً. وإن كان السعرُ في دعمٍ فقُل إنّ البيعَ في القاع يثبّت الخسارة، واذكرها من «كلفة_الخروج».
+- البدائلُ من «بدائل_من_قطاعها» وحدها؛ قدّم المتوازنةَ (balanced) واذكر لكلٍّ مسارَه وجودتَه وعائدَه. وإن لم يوجد بديلٌ متوازنٌ فقُل ذلك.
+- إن ذكر أنّ رأسَ ماله قرضٌ أو دَين: حمايةُ رأس المال أوّلاً، وتفضيلُ الجودة والتوزيع المنتظم، وتجنّبُ ما يحتاج سنواتٍ ليتعافى، ولا رافعةَ فوق القرض.
+- «قرار_الطيار» حتميّ: لا تنصح بشراءٍ حجبته الحماية.
+- إن ذكر شركةً لا معطياتَ لها فقُل «غير متوفّر» ولا تخمّن.
+- جملٌ قصيرة (أربع عشرة كلمة على الأكثر)، بصيغة المتكلّم، بلا تحوّطٍ ولا إخلاءِ مسؤولية، في ستّة أسطرٍ إلى عشرة.
+- اختم بسطرٍ واحد: «ما أفعله لو كنتُ مكانك: …».
+
+اكتب الردّ نصّاً عربياً مباشراً بلا عناوين ولا رموز تنسيق."""
+    from app.core.config import settings
+    from app.services.usage_tracker import can_call, record
+    reply, source = None, "rules"
+    if settings.AI_API_KEY and can_call("gemini"):
+        import httpx
+        body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.25, "maxOutputTokens": 1400}}
+        url = (f"https://generativelanguage.googleapis.com/v1beta/models/{settings.AI_MODEL}:generateContent"
+               f"?key={settings.AI_API_KEY}")
+        for i in range(2):
+            try:
+                record("gemini")
+                async with httpx.AsyncClient(timeout=60) as c:
+                    r = await c.post(url, json=body)
+                if r.status_code in (429, 500, 503) and i == 0:
+                    await asyncio.sleep(4)
+                    continue
+                if r.status_code == 200:
+                    reply = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    reply = reply.replace("**", "").replace("##", "")
+                    source = "ai"
+                break
+            except Exception as e:                                # noqa: BLE001
+                logger.warning(f"حوار المستشار: {type(e).__name__}")
+                break
+    if not reply:
+        reply = _ask_rules(focus, mode)
+    return {"reply": reply, "source": source, "mentioned": [{"symbol": f["symbol"], "name": f.get("name")} for f in focus],
+            "alternatives": [{"for": f["symbol"], **a} for f in focus for a in (f.get("بدائل_من_قطاعها") or []) if a.get("balanced")][:4]}
+
+
+def _ask_rules(focus: list[dict], mode: str) -> str:
+    """الردُّ من الأرقام وحدها حين يتعذّر النموذج."""
+    if not focus:
+        return "لم أتعرّف على شركةٍ في كلامك. اذكر اسمها أو رمزها، وأردّ عليك بأرقامها."
+    lines = []
+    for f in focus:
+        M, W = f.get("monthly") or {}, f.get("weekly") or {}
+        lines.append(f"{f.get('name') or f['symbol']}: الشهري {M.get('state') or 'غير متوفّر'} ({M.get('where') or '—'})، "
+                     f"والأسبوعي {W.get('state') or 'غير متوفّر'} ({W.get('where') or '—'}).")
+        ce = f.get("كلفة_الخروج")
+        if ce:
+            v = ce["ربح_أو_خسارة_تُثبَّت"]
+            lines.append(f"الخروج الآن {'يثبّت خسارة' if v < 0 else 'يثبّت ربحاً'} {abs(v):,.0f} ريال ({ce['النسبة٪']:+.1f}%).")
+        ap = f.get("قرار_الطيار")
+        if ap:
+            lines.append(f"قرار الطيار: {ap['action']}" + (f" — {'؛ '.join(ap['why'])}" if ap.get("why") else "") + ".")
+        bal = [a for a in f.get("بدائل_من_قطاعها") or [] if a.get("balanced")]
+        if bal:
+            lines.append("بدائل متوازنة من قطاعها: " + "، ".join(
+                f"{a['name']} (جودة {a.get('quality')}، الشهري {(a.get('monthly') or {}).get('state')})" for a in bal[:3]) + ".")
+        else:
+            lines.append("لا بديل متوازن في قطاعها بمعايير التطبيق الآن.")
+    return "\n".join(lines)
