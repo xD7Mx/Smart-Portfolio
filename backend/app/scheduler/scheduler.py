@@ -192,6 +192,15 @@ async def job_xbrl_statements():
         logger.error(f"XBRL batch failed: {e}")
 
 
+async def job_stock_warm():
+    """‏D581: صفحاتُ أسهم المحافظ والمراقبة تُحسب مسبقاً — فلا ينتظر المالكُ أوّلَ فتحٍ (حتى 56 ثانية)."""
+    try:
+        from app.services.stock_warm import warm
+        await warm()
+    except Exception as e:
+        logger.error(f"تجهيزُ صفحات الأسهم: {e}")
+
+
 async def job_results_announcements():
     """‏D580: نتائجُ الشركات من إعلانات «تداول» — من لا نتيجةَ حديثةَ له، الأقدمُ أوّلاً، ثمانون في الجولة."""
     try:
@@ -629,6 +638,10 @@ def start_scheduler():
     # ‏D571: المراجعةُ الأسبوعية — الخميسَ بعد آخر جلسة، وقبل مؤتمرات المساء
     _scheduler.add_job(job_advisor_weekly, CronTrigger(day_of_week="thu", hour=19, minute=15),
                        id="advisor_weekly_thu", replace_existing=True)
+    # ‏D581: قبل الافتتاح وبعد الإغلاق — والمخزَّنُ يعيش يوماً فيبقى جاهزاً بينهما
+    _scheduler.add_job(job_stock_warm, CronTrigger(hour=8, minute=40), id="stock_warm_morning", replace_existing=True)
+    _scheduler.add_job(job_stock_warm, CronTrigger(hour=16, minute=10), id="stock_warm_close", replace_existing=True)
+    _scheduler.add_job(job_stock_warm, CronTrigger(hour=21, minute=30), id="stock_warm_evening", replace_existing=True)
     # ‏D580: مساءً بعد إغلاق السوق — إعلاناتُ النتائج تنزل نهاراً
     _scheduler.add_job(job_results_announcements, CronTrigger(hour=20, minute=20), id="results_announcements_evening",
                        replace_existing=True)

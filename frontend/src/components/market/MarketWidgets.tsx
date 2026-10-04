@@ -75,7 +75,7 @@ export function IndexHistoryCard({ symbol, title, icon, defaultRange = "6mo", va
       {isLoading ? <div className="h-[200px] skeleton" /> : points.length >= 2 ? (
         <div style={{ height: 200 }} dir="ltr">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={points} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+            <AreaChart data={points} margin={{ top: 5, right: 4, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id={`ih-${symbol}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={color} stopOpacity={0.28} />
@@ -84,8 +84,10 @@ export function IndexHistoryCard({ symbol, title, icon, defaultRange = "6mo", va
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,.12)" />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--ink-muted)" }} tickFormatter={(d: string) => d.slice(5)} minTickGap={30} />
-              <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10, fill: "var(--ink-muted)" }} orientation="right" mirror width={1} tickLine={false} axisLine={false}
-                tickFormatter={(v: number) => fmtNum(v)} />
+              {/* D581: محورُ السعر في حارةٍ له خارجَ الرسم — كان `mirror` بعرض 1 فيُرسم الرقمُ داخل المساحة
+                  ويمرّ الخطُّ فوقه (برنت وتاسي) */}
+              <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10, fill: "var(--ink-muted)" }} orientation="right" width={44} tickLine={false} axisLine={false}
+                tickMargin={6} tickCount={5} tickFormatter={(v: number) => fmtNum(v)} />
               <Tooltip {...TIP} formatter={(v: any) => [fmtNum(Number(v), 2) + suffix, valueLabel]} />
               <Area type="monotone" dataKey="close" stroke={color} strokeWidth={2} fill={`url(#ih-${symbol})`} />
             </AreaChart>
@@ -261,7 +263,9 @@ export function BreadthBarCard({ movers }: { movers: any }) {
             {/* الشريحة الثابتة كانت `--ink-muted` — كتلةٌ سوداء بين الأخضر
                 والأحمر. والثبات ليس دلالةً ملوّنة، فتأخذ سطح التطبيق
                 وحبره الطبيعيّ بدل البياض الذي كان يحتاج أرضيةً داكنة. */}
-            {unch > 0 && <div style={{ width: `${pct(unch)}%`, background: "var(--surface)", color: "var(--ink)" }} className="flex items-center justify-center">{unch > total * 0.05 ? unch : ""}</div>}
+            {/* D581: كانت سطحَ الصفحة (بيضاءَ) ورقمُها يختفي دون 5٪ — صارت حشواً محايداً يُرى في المظهرين،
+                ورقمُها حاضرٌ دائماً بعرضٍ أدنى يتّسع له */}
+            {unch > 0 && <div style={{ width: `${pct(unch)}%`, minWidth: 26, background: "var(--hairline)", color: "var(--ink)" }} className="flex items-center justify-center">{unch}</div>}
             {dec > 0 && <div style={{ width: `${pct(dec)}%`, background: "var(--neg-fill)" }} className="flex items-center justify-center">{dec}</div>}
           </div>
           {/* dir=ltr مطابقٌ لاتجاه الشريط أعلاه: كانت التسميات ترث RTL بينما

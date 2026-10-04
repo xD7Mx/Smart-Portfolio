@@ -201,22 +201,27 @@ async def for_symbol(symbol: str) -> dict | None:
     tk = f"health:table:v2:{sector}"
     table = cache.get(tk)
     if table is None:
+        # ‏D581: توزيعاتُ الأقران تُقرأ متوازيةً — قِيس: 30–56 ثانيةً لأوّل فتحٍ لأنها تُقرأ واحدةً بعد أخرى
+        import asyncio
+        from datetime import date, timedelta
+        from app.services.tadawul_dividends import read as _div
+        cut = (date.today() - timedelta(days=365)).isoformat()
+        sem = asyncio.Semaphore(6)
+
+        async def _dps(s):
+            async with sem:
+                try:
+                    d = await _div(s) or {}
+                    return sum(h["amount"] for h in (d.get("history") or []) if str(h.get("date")) >= cut) or None
+                except Exception:                                  # noqa: BLE001
+                    return None
+        dpss = await asyncio.gather(*(_dps(s) for s in peers))
         table = {}
-        for s in peers:
-            r = rows.get(s) or rows.get(s + ".SR") or {}
-            dps = None
-            try:
-                from app.services.tadawul_dividends import read as _div
-                from datetime import date, timedelta
-                d = await _div(s) or {}
-                cut = (date.today() - timedelta(days=365)).isoformat()
-                dps = sum(h["amount"] for h in (d.get("history") or []) if str(h.get("date")) >= cut) or None
-            except Exception:                                      # noqa: BLE001
-                pass
-            m = metrics_of(s, r, dps)
+        for s, dps in zip(peers, dpss):
+            m = metrics_of(s, rows.get(s) or rows.get(s + ".SR") or {}, dps)
             if m:
                 table[s] = m
-        cache.set(tk, table, 6 * 60 * 60)
+        cache.set(tk, table, 24 * 60 * 60)
     try:
         from app.services.statement_merge import archetype_of
         res = score(sym, table, archetype_of(sym))
@@ -225,5 +230,5 @@ async def for_symbol(symbol: str) -> dict | None:
     except Exception as e:                                         # noqa: BLE001
         logger.warning("السلامةُ الماليةُ لـ{}: {}", sym, e)
         res = None
-    cache.set(ck, res or {}, 6 * 60 * 60 if res else 30 * 60)
+    cache.set(ck, res or {}, 24 * 60 * 60 if res else 30 * 60)
     return res
