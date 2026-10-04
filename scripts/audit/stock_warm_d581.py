@@ -14,7 +14,8 @@ def check(ok, label):
     print(f"{'PASS' if ok else 'FAIL'} {label}")
 
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text()
-check(all(f'id="stock_warm_{k}"' in sch for k in ("morning", "close", "evening")), "١ تجهيزُ صفحات الأسهم ثلاثَ مرّاتٍ يومياً")
+check(all(f'id="stock_warm_{k}"' in sch for k in ("morning", "close", "evening", "boot")),
+      "١ تجهيزُ صفحات الأسهم ثلاثَ مرّاتٍ يومياً وبعد كلِّ إقلاع (الإعادةُ تمحو ذاكرةَ الخادم)")
 w = (ROOT / "backend/app/services/stock_warm.py").read_text()
 check(all(x in w for x in ("get_fair_value_models", "get_financial_health", "get_company_recommendations",
                            "get_company_events", "get_company_dividends", "analyze_company", "Watchlist", "Holding")),
