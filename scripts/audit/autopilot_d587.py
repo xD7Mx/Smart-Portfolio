@@ -119,6 +119,7 @@ r = _ask_rules([{"symbol": "2270", "name": "سدافكو", "monthly": {"state": 
                  "كلفة_الخروج": {"ربح_أو_خسارة_تُثبَّت": -18000.0, "النسبة٪": -21.8}, "قرار_الطيار": {"action": "اشترِ الآن", "why": ["دعم"]},
                  "بدائل_من_قطاعها": [{"name": "المراعي", "quality": 80, "monthly": {"state": "صاعد"}, "balanced": True}]}], "investor")
 check("يثبّت خسارة 18,000" in r and "المراعي" in r and "الشهري هابط" in r, "١٦ ردُّ الأرقام: المسار وكلفةُ الخروج والبديلُ المتوازن", r)
+check('balanced = M.get("state") in ("صاعد", "ضعيف")' in src, "١٦ب «متوازن» بمسارٍ شهريٍّ معلوم — «غير متوفّر» ليس توازناً")
 ep = (ROOT / "backend/app/api/v1/endpoints/ai.py").read_text()
 check('"/portfolio-autopilot/ask"' in ep and "AutopilotChat" in fe, "١٧ مربعُ الحوار في البطاقة ومساره")
 sys.exit(fail)
