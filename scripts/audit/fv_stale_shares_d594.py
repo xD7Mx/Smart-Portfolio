@@ -27,6 +27,9 @@ r = blend(dict(stale), {"value": 3.27, "low": 3.0, "high": 3.5}, "insurance", No
 check(r.get("value") is None, "٤ وامتناعُ القِدَم لا يعوّضه المحرّكُ المُعايَر (سلامة 3.27 بقوائم 2022)", str(r.get("value")))
 r2 = blend({"value": None, "reason": "لا إيراد", "price": 7.0}, {"value": 5.0}, "insurance", None)
 check(r2.get("value") == 5.0, "٥ أمّا غيابُ النماذج لسببٍ آخر فالمُعايَرُ احتياطُه كما كان")
+src = (ROOT / "backend/app/services/fair_value_models.py").read_text()
+check("results_announcements import latest" in src and "market_shares_check(shares, _mc" in src,
+      "٧ وحين تغيب القيمةُ السوقية فالحَكَمُ آخرُ إعلان نتائج (الربحُ ÷ ربحيةِ السهم بعد المنحة)")
 ana = (ROOT / "backend/app/services/analysis.py").read_text()
 check('"خمسة عشر شهراً" in str(_new.get("reason")' in ana, "٦ والصفحةُ لا تعرض رقمَ المحرّك القديم حين يمتنع الجديدُ للقِدَم")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")

@@ -746,6 +746,28 @@ def _shares_of(annual: list[dict], quarterly: list[dict]) -> float | None:
     return ref
 
 
+def announcement_year(ra: dict | None) -> dict | None:
+    """‏D595: إعلانُ نتائجٍ ← سنةٌ للتقييم: الفترةُ حتى تاريخه مُسنوَنةً (× 12 ÷ أشهرِها)، والحقوقُ كما أُعلنت.
+    لا تُختلق خانة: ما لم يحمله الإعلانُ يبقى فارغاً."""
+    if not ra or not ra.get("as_of") or not ra.get("months"):
+        return None
+    y, q = ra.get("ytd") or {}, ra.get("quarter") or {}
+    m = int(ra["months"])
+    if m not in (3, 6, 9, 12) or _n(y.get("net_income") if y else None) is None:
+        if m == 3 and _n(q.get("net_income")) is not None:
+            y = q                                   # الربعُ الأوّل: الفترةُ هي الربع
+        else:
+            return None
+    k = 12 / m
+    ni, rev, eps = _n(y.get("net_income")), _n(y.get("revenue")), _n(y.get("eps"))
+    eq = _n(q.get("equity")) or _n(y.get("equity"))
+    if not eq or eq <= 0:
+        return None
+    return {"year": ra["as_of"][:4], "as_of": ra["as_of"], "revenue": rev * k if rev else None,
+            "net_income": ni * k, "equity": eq, "eps": eps * k if eps else None,
+            "_src": f"إعلانِ نتائج {m} أشهرٍ حتى {ra['as_of']} (مُسنوَناً)"}
+
+
 def market_shares_check(shares: float, market_cap: float | None, price: float | None, notes: list) -> float:
     """‏D594: عددُ الأسهم من القوائم (الربحُ ÷ ربحيةِ السهم) يتخلّف عن المنح والتجزئة حتى تُنشر قوائمُ بعدها —
     قِيس: «المتحدة الدولية» 25 مليوناً والسوقُ يقول 250، فتضخّمت ربحيةُ السهم عشراً وصار سعرُها العادل 156 على 27.
@@ -914,7 +936,18 @@ async def gather(symbol: str) -> Inputs | None:
     shares = _shares_of(annual, quarterly)
     if not shares:
         return None
-    shares = market_shares_check(shares, _n(me.get("market_cap")), price, notes)
+    _mc = _n(me.get("market_cap"))
+    if not _mc:
+        # ‏D594: «تداول» لا يملأ القيمةَ السوقية — فالحَكَمُ آخرُ إعلان نتائج (بعد المنح): الربحُ ÷ ربحيةِ السهم
+        try:
+            from app.services.results_announcements import latest as _ra
+            _q = ((_ra(sym) or {}).get("quarter") or {})
+            _ni, _eps = _n(_q.get("net_income")), _n(_q.get("eps"))
+            if _ni and _eps and abs(_eps) > 0.01 and abs(_ni) > 1e6:
+                _mc = abs(_ni / _eps) * price
+        except Exception:                                          # noqa: BLE001
+            pass
+    shares = market_shares_check(shares, _mc, price, notes)
     ttm, src = _ttm_of(quarterly, annual)
     stale = None
     try:
@@ -923,6 +956,28 @@ async def gather(symbol: str) -> Inputs | None:
         stale = (date.today() - date.fromisoformat(last)).days
     except Exception:                                              # noqa: BLE001
         pass
+    # ══ ‏D595: المالياتُ التي توقّفت ملفّاتُها في «تداول» تُقيَّم من إعلان نتائجها ══
+    # قِيس: 16 شركة تأمينٍ من 26 امتنعت لأنّ آخرَ XBRL لها 2022 (منذ المعيار 17) وهي نشرت نتائجَ 2026.
+    # وإعلانُ النتائج جدولٌ موحَّدٌ منشور: الإيراداتُ والربحُ والحقوقُ وربحيةُ السهم — فتُبنى منه سنةٌ
+    # (الفترةُ حتى تاريخه مُسنوَنةً) للمالياتِ وحدَها: نماذجُها حقوقٌ وأرباحٌ لا تدفّقٌ ولا قيمةُ منشأة،
+    # فلا يُفتقد ما لا يحمله الإعلانُ من دَينٍ ونقد.
+    if stale is not None and stale > STALE_STOP and archetype_of(sym) in FIN_TYPES:
+        try:
+            from app.services.results_announcements import latest as _ra
+            syn = announcement_year(_ra(sym))
+            if syn:
+                from datetime import date
+                age = (date.today() - date.fromisoformat(syn["as_of"])).days
+                if age <= STALE_STOP:
+                    annual = annual + [syn]
+                    ttm = {k: _n(syn.get(k)) for k in ttm}
+                    src = syn["_src"]
+                    stale = age
+                    if syn.get("eps") and syn.get("net_income"):
+                        shares = market_shares_check(shares, abs(syn["net_income"] / syn["eps"]) * price, price, notes)
+                    notes.append(f"قوائمُ «تداول» التفصيلية متوقّفة — قُيِّمت من {syn['_src']}")
+        except Exception as e:                                     # noqa: BLE001
+            logger.debug("إعلانُ نتائج {}: {}", sym, e)
     sector = me.get("sector_en")
     try:
         from app.data.universe import is_main
@@ -1112,7 +1167,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v28:{sym}"
+    ck = f"fvm:v30:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
