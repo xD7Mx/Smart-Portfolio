@@ -69,4 +69,13 @@ async def warm(conc: int = 2) -> dict:
     summary = {"companies": len(ts), "seconds": round(time.perf_counter() - t0, 1),
                "failed": {s: f for s, f in fails.items() if f}}
     logger.info(f"تجهيزُ صفحات الأسهم: {summary}")
+    # سجلٌّ يُقرأ: متى جرى، وفي أيّ عمليةٍ (الخادمُ الحيُّ لا عمليةٌ أخرى)، وزمنُ كلِّ شركة
+    try:
+        import os
+        from datetime import datetime, timezone
+        from app.services import lastgood
+        lastgood.save("stock_warm:_last", {**summary, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                                           "pid": os.getpid(), "per": {s: r.get("s") for s, r in rep.items()}})
+    except Exception:                                             # noqa: BLE001
+        pass
     return summary
