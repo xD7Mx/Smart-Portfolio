@@ -97,7 +97,8 @@ check(g["status"] == "على المسار" and abs(g["years"] - 4.96) < 0.05, "�
 check(goal_eta(500_000, 1_000_000, None)["status"] == "غير متوفّر", "١٠ بلا عائدٍ مركّب ⇒ «غير متوفّر» لا تخمين")
 
 src = (ROOT / "backend/app/services/autopilot.py").read_text()
-check('"action": allowed[s]' in src, "١١ الإجراءُ من القواعد لا من النموذج")
+check('"action": allowed[s]' in src and '"protections": base["protections"]' in src,
+      "١١ الإجراءُ والحماياتُ من القواعد بأسماء شركاتها لا من النموذج")
 lw = (ROOT / "backend/app/services/library_wisdom.py").read_text()
 check("digest_visual" in lw and "MIN_FREE_MB" in lw and "_upload(path" in lw and "_forget(fname)" in lw and "pg in valid_pages" in lw,
       "١٢ المكتبة: مبادئُ بصفحاتٍ موجودة، والمصوَّرُ يُقرأ بصرياً قطعاً بحارس الذاكرة ويُحذف بعده")

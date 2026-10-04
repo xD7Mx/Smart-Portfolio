@@ -341,7 +341,8 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
         prin = [x for x in (obj.get("principles") or []) if (x.get("book"), _int(x.get("page"))) in known][:3]
         out.update({"verdict": obj["verdict"], "goal": obj.get("goal") or base["goal"],
                     "points": (obj.get("points") or [])[:6], "actions": acts or base["actions"],
-                    "protections": (obj.get("protections") or base["protections"])[:8], "principles": prin, "source": "ai"})
+                    # الحماياتُ من القواعد بأسماء شركاتها — لا عباراتٌ عامةٌ يكتبها النموذج (قِيس: «الالتزام بوقف الخسارة»)
+                    "protections": base["protections"], "principles": prin, "source": "ai"})
     out["asof"] = pk["date"]
     out["mode"] = mode
     out["positions"] = [{"symbol": p["symbol"], "name": p["name"], "action": p["autopilot"]["action"],
