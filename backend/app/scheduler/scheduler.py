@@ -645,7 +645,8 @@ def start_scheduler():
     # وبعد كلِّ إقلاعٍ بأربع دقائق: الإعادةُ تمحو ذاكرةَ الخادم، والمخزَّنُ في القرص لا يقرؤه خادمٌ يعمل —
     # قِيس أنّ تجهيزاً من عمليةٍ أخرى لا يصل الخادمَ الحيّ؛ فالخادمُ يُجهّز نفسَه
     from datetime import datetime as _dt
-    _scheduler.add_job(job_stock_warm, "date", run_date=_dt.now(_RIYADH_TZ) + timedelta(minutes=4),
+    from apscheduler.triggers.date import DateTrigger
+    _scheduler.add_job(job_stock_warm, DateTrigger(run_date=_dt.now(_RIYADH_TZ) + timedelta(minutes=4), timezone=_RIYADH_TZ),
                        id="stock_warm_boot", replace_existing=True)
     # ‏D580: مساءً بعد إغلاق السوق — إعلاناتُ النتائج تنزل نهاراً
     _scheduler.add_job(job_results_announcements, CronTrigger(hour=20, minute=20), id="results_announcements_evening",
