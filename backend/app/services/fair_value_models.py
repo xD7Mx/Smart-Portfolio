@@ -746,6 +746,20 @@ def _shares_of(annual: list[dict], quarterly: list[dict]) -> float | None:
     return ref
 
 
+def market_shares_check(shares: float, market_cap: float | None, price: float | None, notes: list) -> float:
+    """‏D594: عددُ الأسهم من القوائم (الربحُ ÷ ربحيةِ السهم) يتخلّف عن المنح والتجزئة حتى تُنشر قوائمُ بعدها —
+    قِيس: «المتحدة الدولية» 25 مليوناً والسوقُ يقول 250، فتضخّمت ربحيةُ السهم عشراً وصار سعرُها العادل 156 على 27.
+    فالقيمةُ السوقية ÷ السعر حَكَمٌ: إن ابتعد عنها عددُ القوائم أكثرَ من مرّةٍ ونصف أُخذ عددُ السوق ويُعلَن."""
+    if not (market_cap and price and price > 0):
+        return shares
+    mkt = market_cap / price
+    if shares and (shares > mkt * 1.5 or shares < mkt / 1.5):
+        notes.append(f"عددُ الأسهم من القوائم {shares / 1e6:,.1f} مليون يخالف السوق {mkt / 1e6:,.1f} مليون "
+                     "(منحةٌ أو تجزئةٌ بعد آخر قوائم) — أُخذ عددُ السوق")
+        return mkt
+    return shares
+
+
 def _latest(quarterly: list[dict], annual: list[dict]) -> dict:
     """أحدثُ ميزانيةٍ بين الربعيّ والسنويّ — لا الربعيُّ لأنه ربعيّ (D476)."""
     cands = [x for x in (quarterly[-1:] + annual[-1:])]
@@ -900,6 +914,7 @@ async def gather(symbol: str) -> Inputs | None:
     shares = _shares_of(annual, quarterly)
     if not shares:
         return None
+    shares = market_shares_check(shares, _n(me.get("market_cap")), price, notes)
     ttm, src = _ttm_of(quarterly, annual)
     stale = None
     try:
@@ -1003,7 +1018,7 @@ def blend(res: dict, calibrated: dict | None, archetype: str | None, dy: float |
             res.setdefault("notes", []).append("القيمةُ في هذا النمط من المحرّك المُعايَر وحده — "
                                                "أدقُّ قياساً هنا؛ والنماذجُ أدناه للاطّلاع لا تدخل الرقم")
         res["blend"] = {"alpha": a, "calibrated": round(old_v, 2)}
-    elif old_v and not new_v:
+    elif old_v and not new_v and "خمسة عشر شهراً" not in str(res.get("reason") or ""):   # D594: لا احتياطَ لقوائمَ قديمة
         res["value"], res["low"], res["high"] = round(old_v, 2), _n(calibrated.get("low")), _n(calibrated.get("high"))
     if res.get("value") and res.get("price"):
         res["upside"] = round((res["value"] / res["price"] - 1) * 100, 2)
@@ -1097,7 +1112,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v27:{sym}"
+    ck = f"fvm:v28:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
