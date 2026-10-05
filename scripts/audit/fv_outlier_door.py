@@ -9,7 +9,7 @@ import json
 import sys
 
 sys.path.insert(0, "/app")
-SYMS = ["8313", "8050", "8250", "2020", "2001", "4083", "1201", "4193", "1303", "4330", "4335", "4336", "4340"]
+SYMS = ["2010", "8070", "8020", "1835", "4083", "2170", "8010", "7030"]
 
 
 async def main():
@@ -35,7 +35,9 @@ async def main():
                "peer_syms": (getattr(i, "peer_symbols", None) or [])[:10],
                "models": [(m.get("key"), m.get("value")) for m in (r or {}).get("models") or []],
                "excluded": [(m.get("key"), m.get("value"), m.get("why") or m.get("reason")) for m in (r or {}).get("excluded") or []][:10],
-               "notes": (r or {}).get("notes")}
+               "notes": (r or {}).get("notes"),
+               "annual_tail": [(p.get("as_of"), p.get("source", "x")[:5], p.get("revenue"), p.get("net_income"), p.get("eps"), p.get("equity"))
+                               for p in (getattr(i, "annual", None) or [])[-3:]]}
         print(f"@@{s}@@ " + json.dumps(out, ensure_ascii=False, default=str)[:3500], flush=True)
 
 asyncio.run(main())
