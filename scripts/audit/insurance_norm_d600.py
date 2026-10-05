@@ -26,5 +26,15 @@ up = [dict(p, net_income=p["net_income"] * (0.5 if j < 2 else 2)) for j, p in en
 ins_up = base_of(Inputs(symbol="8020", price=8.8, shares=50e6, annual=up, ttm=dict(up[-1]), balance=up[-1],
                         ttm_source="t", archetype="insurance"))
 check(ins_up and ins_up.ni_n < up[-1]["net_income"], "٣ وسنةٌ استثنائيةٌ مرتفعةٌ تُطبَّع نزولاً كما كانت — التحفّظُ في الاتجاهين")
+from app.services.tadawul_financials import parse_issued_shares
+from app.services.fair_value_models import market_shares_check
+h = ('<td>Authorized Capital &nbsp;(<span>^</span>)</td><td>750,000,000</td>'
+     '<td>Total Issued Shares</td><td>75,000,000</td><td>Paid Capital</td><td>750,000,000</td>')
+iss = parse_issued_shares(h)
+check(iss == 75e6, "٤ الأسهمُ المصدرةُ تُقرأ من ملفّ الشركة (المتحدة الدولية 75 مليوناً)", str(iss))
+check(abs(market_shares_check(25e6, iss * 26.76, 26.76, []) - 75e6) < 1, "٥ وتُصحّح عددَ القوائم 25 مليوناً إلى 75")
+check(parse_issued_shares("<td>Paid Capital</td><td>1</td>") is None, "٦ وبلا البند لا رقمَ مختلق")
+src = (ROOT / "backend/app/services/fair_value_models.py").read_text()
+check("issued_shares as _iss" in src, "٧ والمحرّكُ يحكّمها قبل إعلان النتائج")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

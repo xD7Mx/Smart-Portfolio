@@ -128,6 +128,25 @@ def parse_page(html: str) -> dict:
     return {"annual": sorted(annual.values(), key=lambda p: p["as_of"]), "quarterly": q}
 
 
+def parse_issued_shares(html: str) -> float | None:
+    """‏D600: «Total Issued Shares» من ملفّ الشركة في الصفحة نفسِها — حَكَمُ عدد الأسهم بعد المنح والتجزئة.
+    قِيس: المتحدة الدولية 75 مليوناً والقوائمُ تقول 25 (فتضخّم سعرُها العادل ثلاثاً)، وأرامكو 242 ملياراً."""
+    txt = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " | ", html or ""))
+    m = re.search(r"Total Issued Shares[ |]*([\d,]{4,})", txt)
+    if not m:
+        return None
+    try:
+        v = float(m.group(1).replace(",", ""))
+    except ValueError:
+        return None
+    return v if v > 0 else None
+
+
+def issued_shares(symbol: str) -> float | None:
+    v = (read(symbol) or {}).get("issued_shares")
+    return float(v) if isinstance(v, (int, float)) and v > 0 else None
+
+
 def read(symbol: str) -> dict | None:
     from app.services import lastgood
     rec = lastgood.load(STORE.format(str(symbol).replace(".SR", "").strip()))
@@ -173,11 +192,14 @@ async def read_symbol(symbol: str) -> dict:
     if st != 200 or not page:
         return {"symbol": sym, "ok": False, "why": f"HTTP {st}"}
     got = parse_page(page)
+    iss = parse_issued_shares(page)
     del page
     if not got["annual"] and not got["quarterly"]:
         return {"symbol": sym, "ok": False, "why": "لا جدولَ بالصيغة الموحَّدة"}
     old = read(sym) or {}
     rec = {"at": date.today().isoformat()}
+    if iss or old.get("issued_shares"):
+        rec["issued_shares"] = iss or old.get("issued_shares")
     for kind in ("annual", "quarterly"):
         rec[kind] = merge(got[kind], old.get(kind) or [])
     lastgood.save(STORE.format(sym), rec)

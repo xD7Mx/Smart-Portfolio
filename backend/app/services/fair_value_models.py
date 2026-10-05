@@ -968,6 +968,15 @@ async def gather(symbol: str) -> Inputs | None:
         return None
     _mc = _n(me.get("market_cap"))
     if not _mc:
+        # ‏D600: الأسهمُ المصدرةُ من ملفّ الشركة في «تداول» — الحَكَمُ الأوّل
+        try:
+            from app.services.tadawul_financials import issued_shares as _iss
+            _is = _iss(sym)
+            if _is:
+                _mc = _is * price
+        except Exception:                                          # noqa: BLE001
+            pass
+    if not _mc:
         # ‏D594: «تداول» لا يملأ القيمةَ السوقية — فالحَكَمُ آخرُ إعلان نتائج (بعد المنح): الربحُ ÷ ربحيةِ السهم
         try:
             from app.services.results_announcements import latest as _ra
