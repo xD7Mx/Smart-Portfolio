@@ -133,6 +133,11 @@ def flush() -> None:
             json.dump(merged, f, ensure_ascii=False)
         os.replace(tmp, _PATH)
         with _lock:
+            # ‏D597: ما حُفظ **أثناء** هذه الكتابة ليس في `merged` — كان يُمحى من الذاكرة
+            # فيتخطّاه الإفراغُ التالي (`k in _mem`) فيضيع بصمت (قِيس: 94 من 252 ورقة).
+            for k in _dirty_keys:
+                if _mem is not None and k in _mem:
+                    merged[k] = _mem[k]
             _mem = merged
             try:
                 _mtime = os.stat(_PATH).st_mtime
