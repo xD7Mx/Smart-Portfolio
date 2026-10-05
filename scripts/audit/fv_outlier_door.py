@@ -9,7 +9,7 @@ import json
 import sys
 
 sys.path.insert(0, "/app")
-SYMS = ["2010", "8070", "8020", "1835", "4083", "2170", "8010", "7030"]
+SYMS = ["8010", "2001", "8260", "8060"]
 
 
 async def main():
@@ -36,6 +36,7 @@ async def main():
                "models": [(m.get("key"), m.get("value")) for m in (r or {}).get("models") or []],
                "excluded": [(m.get("key"), m.get("value"), m.get("why") or m.get("reason")) for m in (r or {}).get("excluded") or []][:10],
                "notes": (r or {}).get("notes"),
+               "issued": __import__("app.services.tadawul_financials", fromlist=["x"]).issued_shares(s),
                "annual_tail": [(p.get("as_of"), p.get("source", "x")[:5], p.get("revenue"), p.get("net_income"), p.get("eps"), p.get("equity"))
                                for p in (getattr(i, "annual", None) or [])[-3:]]}
         print(f"@@{s}@@ " + json.dumps(out, ensure_ascii=False, default=str)[:3500], flush=True)
