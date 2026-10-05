@@ -80,7 +80,7 @@ def parse_table(html_table: str) -> list[dict] | None:
         if r and r[0].lower().startswith("all figures in"):
             u = next((v for v in r[1:] if v), "").lower()
             unit = _UNIT.get(u, unit)
-    periods = [{"as_of": d, "year": d[:4], "source": SOURCE} for d in dates]
+    periods = [{"as_of": d, "year": int(d[:4]), "source": SOURCE} for d in dates]   # رقماً كـXBRL (D598)
     for r in rows[1:]:
         if not r:
             continue
@@ -135,7 +135,13 @@ def read(symbol: str) -> dict | None:
 
 
 def periods(symbol: str, kind: str) -> list[dict]:
-    return list((read(symbol) or {}).get(kind) or [])
+    out = []
+    for p in (read(symbol) or {}).get(kind) or []:
+        p = dict(p)
+        if isinstance(p.get("year"), str) and p["year"].isdigit():
+            p["year"] = int(p["year"])            # D598: سنةٌ نصّيةٌ تكسر الترتيب مع XBRL
+        out.append(p)
+    return out
 
 
 def merge(xbrl: list[dict], prof: list[dict]) -> list[dict]:

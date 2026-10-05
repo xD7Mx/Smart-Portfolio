@@ -67,6 +67,12 @@ check(m["2025-06-30"]["revenue"] == 1.0 and m["2025-06-30"]["capex"] == 9.0, "٩
 check(m["2025-06-30"].get("equity") == 4_963_139_000, "١٠ والجدولُ يملأ ما غاب عن XBRL في الفترة نفسِها")
 check("2026-06-30" in m and "2022-12-31" in m, "١١ والفترةُ الأحدثُ تُضاف ولا تُمحى القديمة")
 check(not any(k.startswith("_ytd_") for p in m.values() for k in p), "١٢ ولا تتسرّب خاناتُ التراكم الداخلية")
+check(all(isinstance(p["year"], int) for p in g["annual"] + g["quarterly"]),
+      "١٥ D598: السنةُ رقمٌ كما في XBRL — نصٌّ يكسر الترتيبَ المدموج (تعذّرت 37 ورقةً في المسحة)")
+mixed = merge([{"as_of": "2022-12-31", "year": 2022}], [{"as_of": "2026-06-30", "year": "2026"}])
+from app.services import tadawul_financials as TF
+TF.read = lambda s: {"annual": [{"as_of": "2026-06-30", "year": "2026"}]}
+check(isinstance(TF.periods("x", "annual")[0]["year"], int), "١٦ والمحفوظُ قبلُ بسنةٍ نصّيةٍ يُسوّى عند القراءة")
 src = (ROOT / "backend/app/services/tadawul_xbrl.py").read_text()
 check("from app.services.tadawul_financials import merge, periods" in src, "١٣ و`for_symbol` يُرجع المدموج — فكلُّ محرّكٍ يراه")
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text()
