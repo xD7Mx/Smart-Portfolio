@@ -330,10 +330,16 @@ def base_of(i: Inputs) -> Base | None:
     revs = [p["revenue"] for p in a if _n(p.get("revenue")) and p["revenue"] > 0]
     g = ((revs[-1] / revs[0]) ** (1 / (len(revs) - 1)) - 1) if len(revs) >= 2 else 0.03
     g = min(max(g, 0.0), 0.12)
+    # ‏D600: التأمينُ لا يُطبَّع صعوداً — ربحُ الاكتتاب دوريٌّ لا يُضمن عودُه، و«عند الشكّ يُخفَّض لا يُرفَع»
+    # (الميثاق). قِيس: ملاذ هامشُها 1.5٪ رُفع إلى 2.7٪ فصار سعرُها العادل 19.6 على 8.8، ووسيطُ القطاع +37٪.
+    _ni_norm = (m_ni * rev) if m_ni is not None else ni
+    if i.archetype == "insurance" and ni is not None and _ni_norm is not None and _ni_norm > ni:
+        _ni_norm = ni
+        notes.append("التأمينُ لا يُطبَّع صعوداً: ربحُ الاكتتاب الأخيرُ أدنى من وسيطه فيُعتمد هو")
     return Base(ke=ke, wacc=max(wacc, RISK_FREE + 0.02), tax=tax, net_debt=debt - cash, rev=rev,
                 margin_n=m_ni, ebit_margin_n=m_ebit, fcf_margin_n=m_fcf,
                 ocf=_n(i.ttm.get("operating_cash_flow")),
-                ni_n=(m_ni * rev) if m_ni is not None else ni,
+                ni_n=_ni_norm,
                 ebit_n=(m_ebit * rev) if m_ebit is not None else _n(i.ttm.get("ebit")),
                 bvps=bvps, roe_n=roe_n, growth=g, notes=notes,
                 ebitda_margin_n=m_ebitda,
@@ -1191,7 +1197,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v31:{sym}"
+    ck = f"fvm:v32:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
