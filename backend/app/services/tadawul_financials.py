@@ -75,11 +75,13 @@ def parse_table(html_table: str) -> list[dict] | None:
     dates = [d for d in rows[0][1:] if re.fullmatch(r"20\d\d-\d\d-\d\d", d)]
     if not dates:
         return None
-    unit = 1e3
+    # ‏D601: الوحدةُ لكلّ عمودٍ لا للجدول — قِيس: ولاء 2023 بالآلاف و2024–2025 بغيرها، فقُرئت حقوقُها
+    # 1.68 مليوناً بدل 1.68 مليار. وعمودٌ وحدتُه مجهولةٌ لا يُقرأ (لا يُفترض).
+    units = [1e3] * len(dates)
     for r in rows:
         if r and r[0].lower().startswith("all figures in"):
-            u = next((v for v in r[1:] if v), "").lower()
-            unit = _UNIT.get(u, unit)
+            vals_u = [v for v in r[1:] if v != ""][:len(dates)]
+            units = [_UNIT.get(v.strip().lower()) for v in vals_u] + [None] * (len(dates) - len(vals_u))
     periods = [{"as_of": d, "year": int(d[:4]), "source": SOURCE} for d in dates]   # رقماً كـXBRL (D598)
     for r in rows[1:]:
         if not r:
@@ -88,11 +90,11 @@ def parse_table(html_table: str) -> list[dict] | None:
         if not k:
             continue
         vals = [v for v in r[1:] if v != ""][:len(dates)]
-        for p, v in zip(periods, vals):
+        for p, v, u in zip(periods, vals, units):
             n = _num(v)
-            if n is None:
+            if n is None or (u is None and k != "eps"):
                 continue
-            p.setdefault(k, n if k == "eps" else n * unit)
+            p.setdefault(k, n if k == "eps" else n * u)
     return [p for p in periods if len(p) > 3]
 
 

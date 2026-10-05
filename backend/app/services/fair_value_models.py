@@ -705,6 +705,14 @@ def value(i: Inputs) -> dict:
         return {"value": None, "reason": "لا إيرادَ أو لا عددَ أسهمٍ موثوق في الإفصاح"}
     set_name, allowed = model_set(i.sector, i.archetype)
     every = cashflow_models(i, bs) + equity_models(i, bs) + multiple_models(i, bs)
+    # ‏D601: الخاسرُ ثلاثَ سنواتٍ لا يُقيَّم بمضاعف مبيعات أقرانٍ رابحين — المبيعاتُ بلا ربحٍ ليست قيمة.
+    # قِيس: الميثانول هامشُها −87٪ فأعطاها «السعر للمبيعات» 85 على 26.
+    if bs.margin_n is not None and bs.margin_n < 0:
+        _sales = {"peer_ps", "peer_ev_sales", "dcf_exit_5", "dcf_exit_10"}
+        _drop = [m for m in every if m.get("key") in _sales]
+        if _drop:
+            every = [m for m in every if m.get("key") not in _sales]
+            bs.notes.append("خاسرةٌ في وسيط ثلاث سنوات — استُبعدت نماذجُ المبيعات: المبيعاتُ بلا ربحٍ ليست قيمة")
     # ══ نموذجٌ بعشرة أضعاف السعر أو عُشره خطأُ مدخلاتٍ لا رأيٌ ══
     # (قِيس: 1321 خرج بخمسة ملياراتٍ للسهم — عددُ أسهمٍ بوحدةٍ مغلوطة)
     sane = lambda m: i.price / 10 <= m["value"] <= i.price * 10    # noqa: E731
@@ -1206,7 +1214,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v32:{sym}"
+    ck = f"fvm:v33:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
