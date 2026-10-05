@@ -301,10 +301,12 @@ def base_of(i: Inputs) -> Base | None:
         return statistics.median(ms) if ms else None
 
     m_ni, m_ebit, m_ebitda = margin("net_income"), margin("ebit"), margin("ebitda")
-    fcfs = [(_n(p.get("operating_cash_flow")) or 0) - (_n(p.get("capex")) or 0) for p in a
-            if _n(p.get("operating_cash_flow")) is not None]
-    m_fcf = (statistics.median([f / p["revenue"] for f, p in zip(fcfs, a) if _n(p.get("revenue"))])
-             if fcfs else None)
+    # ‏D599: الإنفاقُ الرأسماليُّ الغائبُ ليس صفراً — جدولُ «المعلومات المالية» لا يحمله، فكان التدفّقُ
+    # الحرُّ يساوي التشغيليَّ كلَّه (سابك 158 على 47). فلا تدفّقَ حرٌّ إلا من سنةٍ معروفٍ إنفاقُها.
+    _fp = [p for p in a if _n(p.get("operating_cash_flow")) is not None and _n(p.get("capex")) is not None
+           and _n(p.get("revenue")) and p["revenue"] > 0]
+    fcfs = [p["operating_cash_flow"] - abs(p["capex"]) for p in _fp]
+    m_fcf = statistics.median([f / p["revenue"] for f, p in zip(fcfs, _fp)]) if fcfs else None
     ttm_m = (_n(i.ttm.get("net_income")) or 0) / rev
     if m_ni is not None and abs(ttm_m - m_ni) > max(0.02, abs(m_ni) * 0.5):
         notes.append(f"هامشُ صافي الربح لاثني عشر شهراً {ttm_m*100:.1f}٪ يبعد عن متوسّط ثلاث "
@@ -782,6 +784,28 @@ def market_shares_check(shares: float, market_cap: float | None, price: float | 
     return shares
 
 
+_CARRY = ("total_debt", "ending_cash", "borrowings_current", "borrowings_noncurrent",
+          "lease_current", "lease_noncurrent")
+
+
+def balance_of(quarterly: list[dict], annual: list[dict]) -> dict:
+    """‏D599: أحدثُ ميزانية — والدَّينُ والنقدُ من أحدث فترةٍ **نشرتهما** إن غابا عنها.
+    جدولُ «المعلومات المالية» يحمل الحقوقَ والأصولَ ولا يحمل الدَّين؛ فلمّا صار هو الأحدثَ حُسب
+    الدَّينُ صفراً وتضخّمت نماذجُ المنشأة والتدفّق (زين 33–40 على 9.9). ويُعلَن تاريخُ المنقول."""
+    b = dict(_latest(quarterly, annual))
+    if _n(b.get("total_debt")) is not None:
+        return b
+    src = sorted([p for p in quarterly + annual if _n(p.get("total_debt")) is not None],
+                 key=lambda p: str(p.get("as_of") or ""))
+    if src:
+        ref = src[-1]
+        for k in _CARRY:
+            if b.get(k) is None and ref.get(k) is not None:
+                b[k] = ref[k]
+        b["debt_asof"] = ref.get("as_of")
+    return b
+
+
 def _latest(quarterly: list[dict], annual: list[dict]) -> dict:
     """أحدثُ ميزانيةٍ بين الربعيّ والسنويّ — لا الربعيُّ لأنه ربعيّ (D476)."""
     cands = [x for x in (quarterly[-1:] + annual[-1:])]
@@ -843,7 +867,7 @@ def _peer_multiples(sym: str, peers: list[str], rows: dict) -> dict:
         if not sh:
             continue
         ttm, _ = _ttm_of(qu, an)
-        bal = _latest(qu, an)
+        bal = balance_of(qu, an)
         mcap = px * sh
         ev = mcap + (_n(bal.get("total_debt")) or 0) - (_n(bal.get("ending_cash")) or 0)
         eq, rev, ni = _n(bal.get("equity")), _n(ttm.get("revenue")), _n(ttm.get("net_income"))
@@ -991,7 +1015,7 @@ async def gather(symbol: str) -> Inputs | None:
                      if (r or {}).get("sector_en") == sector and is_main(str(s).replace(".SR", "")))
     peers = [p for p in members if p != sym]
     from app.services import cache
-    ck = f"fvm:peers:v6:{sector}"
+    ck = f"fvm:peers:v7:{sector}"
     table = cache.get(ck)
     if table is None:
         table = _peer_multiples(sym, members, rows)
@@ -1045,7 +1069,7 @@ async def gather(symbol: str) -> Inputs | None:
         pass
     hist = await _hist_multiples(sym, annual, shares)
     return Inputs(symbol=sym, price=price, shares=shares, annual=annual, ttm=ttm, hist=hist,
-                  balance=_latest(quarterly, annual), ttm_source=src, archetype=archetype_of(sym),
+                  balance=balance_of(quarterly, annual), ttm_source=src, archetype=archetype_of(sym),
                   sector=sector, beta=beta, dps_ttm=dps, peers=pm, peer_symbols=peers, notes=notes,
                   stale_days=stale)
 
@@ -1167,7 +1191,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v30:{sym}"
+    ck = f"fvm:v31:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
