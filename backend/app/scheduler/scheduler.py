@@ -251,6 +251,15 @@ async def job_results_announcements():
         logger.error(f"نتائجُ الإعلانات: {e}")
 
 
+async def job_tadawul_financials():
+    """‏D596: جدولُ «المعلومات المالية» لكلّ السوق — الطبقةُ المعتمدة للقوائم (أحدثُ من XBRL في أكثر الأوراق)."""
+    try:
+        from app.services.tadawul_financials import refresh
+        logger.info(f"المعلوماتُ المالية: {await refresh()}")
+    except Exception as e:
+        logger.error(f"المعلوماتُ المالية: {e}")
+
+
 async def job_advisor_watch():
     """متابعةُ نصائح صقر (D569): ما نُفّذ، وما تحقّق شرطُه، وما يوقفها — ويُبلَّغ الجديدُ وحده."""
     try:
@@ -686,6 +695,7 @@ def start_scheduler():
     _scheduler.add_job(job_market_warm, CronTrigger(hour=6, minute=50), id="market_warm_dawn", replace_existing=True)
     _scheduler.add_job(job_autopilot, CronTrigger(hour=16, minute=35), id="autopilot_close", replace_existing=True)
     _scheduler.add_job(job_library_wisdom, CronTrigger(hour=6, minute=40), id="library_wisdom_dawn", replace_existing=True)
+    _scheduler.add_job(job_tadawul_financials, CronTrigger(hour=19, minute=50), id="tadawul_financials_night", replace_existing=True)
     # وبعد كلِّ إقلاعٍ بأربع دقائق: الإعادةُ تمحو ذاكرةَ الخادم، والمخزَّنُ في القرص لا يقرؤه خادمٌ يعمل —
     # قِيس أنّ تجهيزاً من عمليةٍ أخرى لا يصل الخادمَ الحيّ؛ فالخادمُ يُجهّز نفسَه
     from datetime import datetime as _dt

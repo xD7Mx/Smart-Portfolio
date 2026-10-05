@@ -234,7 +234,8 @@ _ENGINE_FILES = ("analysis.py", "fair_value.py", "data_quality.py",
                  "statement_merge.py", "scores.py", "expert_panel.py",
                  "sector_multiples.py", "governance_rules.py",
                  "valuation_fields.py", "four_scores.py",
-                 "fair_value_models.py")    # D577: نموذجُ القيمة العادلة يُبطل المخزَّن متى تغيّر
+                 "fair_value_models.py",    # D577: نموذجُ القيمة العادلة يُبطل المخزَّن متى تغيّر
+                 "tadawul_financials.py")   # D596: طبقةُ القوائم المعتمدة
 
 
 def engine_version() -> str:

@@ -720,8 +720,22 @@ def stale_symbols(symbols: list[str], days: int = 45) -> list[str]:
 
 
 def for_symbol(symbol, kind: str = "annual") -> list[dict]:
-    """فتراتُ الشركة المحفوظة — أو فارغةٌ إن غابت أو شاخ إيداعُها."""
+    """فتراتُ الشركة: ملفّاتُ XBRL مدموجةً بجدول «المعلومات المالية» (D596) — الأحدثُ لا يضيع."""
     sym = str(symbol or "").replace(".SR", "").strip()
+    xb = _xbrl_for(sym, kind)
+    try:
+        from app.services.tadawul_financials import merge, periods
+        pr = periods(sym, kind)
+    except Exception:                                             # noqa: BLE001
+        pr = []
+    if not pr:
+        return xb
+    rows = merge(xb, pr)
+    return _fill_depreciation(rows, _get(sym) or {}) if kind == "annual" else rows
+
+
+def _xbrl_for(sym: str, kind: str) -> list[dict]:
+    """فتراتُ ملفّات XBRL المحفوظة — أو فارغةٌ إن غابت أو شاخ إيداعُها."""
     rec = _get(sym)
     if not isinstance(rec, dict):
         return []
