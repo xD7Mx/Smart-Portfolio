@@ -77,5 +77,7 @@ src = (ROOT / "backend/app/services/tadawul_xbrl.py").read_text()
 check("from app.services.tadawul_financials import merge, periods" in src, "١٣ و`for_symbol` يُرجع المدموج — فكلُّ محرّكٍ يراه")
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text()
 check("job_tadawul_financials" in sch and "tadawul_financials_night" in sch, "١٤ ويُقرأ السوقُ كلُّه كلَّ ليلة")
+check('_arch_of(sym) == "bank"' in src and 'k != "revenue"' in src,
+      "١٧ D611: إيرادُ البنك لا يُملأ من الجدول — يفتح مسارَ مبيعاتٍ لا يليق بالبنوك فتنزل ثقتُها")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

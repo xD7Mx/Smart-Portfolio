@@ -730,6 +730,10 @@ def for_symbol(symbol, kind: str = "annual") -> list[dict]:
         pr = []
     if not pr:
         return xb
+    # ‏D611: «Total Revenue» في جدول البنك دخلُ عملياته كلُّه، وXBRL يترك إيرادَ البنك فارغاً عمداً (لا يُقيَّم بالمبيعات).
+    # فملؤه فتح للبنوك مسارَ مبيعاتٍ متباعداً (64–77٪) فنزلت ثقتُها — فلا يُملأ إيرادُ بنكٍ من الجدول.
+    if _arch_of(sym) == "bank":
+        pr = [{k: v for k, v in p.items() if k != "revenue"} for p in pr]
     rows = merge(xb, pr)
     return _fill_depreciation(rows, _get(sym) or {}) if kind == "annual" else rows
 
