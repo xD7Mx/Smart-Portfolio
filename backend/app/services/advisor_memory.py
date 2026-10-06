@@ -113,12 +113,20 @@ def evaluate(a: dict, live: dict, today: str | None = None) -> tuple[dict, list[
     stop = None
     fc = a.get("forecast") or {}
     pub = [d for d in live.get("results") or [] if fc.get("as_of") and d >= fc["as_of"]]
-    if pub and fc.get("net_income") and live.get("ni_latest") is not None:
+    if pub and fc.get("net_income") and live.get("ni_latest") is not None and forecast_comparable(fc["net_income"], live.get("ni_hist")):
         floor = fc["net_income"] * (1 - (fc.get("mape") or 0) / 100)
         if live["ni_latest"] < floor and not a.get("_res_bad"):
             a["_res_bad"] = True
             stop = (f"{name}: صدرت نتائجُ {pub[-1]} بصافي ربح {live['ni_latest'] / 1e6:,.1f} مليون — دون توقّع التطبيق "
                     f"({fc['net_income'] / 1e6:,.1f} مليون بهامش خطئه) — توقّفت الدفعاتُ المعلّقة، اسأل صقر قبل أيّ إضافة")
+    # ‏D603: إيقافٌ سابقٌ بُني على توقّعٍ غيرِ مقارَن يُرفع، ويُبلَّغ التصحيحُ مرّةً
+    if a.get("_res_bad") and fc.get("net_income") and not forecast_comparable(fc["net_income"], live.get("ni_hist")) \
+            and not a.get("_res_fixed"):
+        a["_res_bad"], a["_res_fixed"] = False, True
+        for t in a["tranches"]:
+            if t.get("status") == "paused":
+                t["status"] = "pending"
+        ev.append(f"{name}: تصحيح — إيقافُ الدفعات السابق قام على توقّعٍ لا يقارَن بالربع الفعليّ؛ أُعيدت الدفعاتُ إلى شروطها")
     r = live.get("reit") or {}
     if r.get("last_amount") is not None and r.get("prev_amount") is not None and r["last_amount"] < r["prev_amount"] \
             and not a.get("_cut"):
@@ -190,6 +198,8 @@ async def _live(db, a: dict) -> dict:
         if qs:
             last = qs[-1]
             out["ni_latest"] = last.get("net_income_parent") if last.get("net_income_parent") is not None else last.get("net_income")
+            out["ni_hist"] = [(p.get("net_income_parent") if p.get("net_income_parent") is not None else p.get("net_income"))
+                              for p in qs[-5:-1]]
     except Exception:                                             # noqa: BLE001
         pass
     if a.get("reit") is not None:
@@ -214,7 +224,7 @@ async def notify(title: str, lines: list[str], raw: bool = False) -> None:
         from app.core.database import AsyncSessionLocal
         from app.models.market import Notification, NotificationPriority
         async with AsyncSessionLocal() as db:
-            db.add(Notification(category="advisor", priority=NotificationPriority.HIGH, title=title, message=msg,
+            db.add(Notification(category="advisor", priority=NotificationPriority.HIGH, title=title or "المستشار", message=msg,
                                 extra_data={"source": "advisor"}))
             await db.commit()
     except Exception as e:                                        # noqa: BLE001
@@ -224,7 +234,7 @@ async def notify(title: str, lines: list[str], raw: bool = False) -> None:
         from app.services.saqr_bot import bot
         if bot.enabled:
             # تلغرام يقبل 4096 حرفاً في الرسالة — تُقسَّم على الأسطر لا في منتصفها
-            chunks, cur = [], f"<b>{html.escape(title)}</b>"
+            chunks, cur = [], (f"<b>{html.escape(title)}</b>" if title else "")   # D603: بلا عنوانٍ تبريريّ
             for ln in msg.split("\n"):
                 piece = "\n" + html.escape(ln)
                 if len(cur) + len(piece) > 3800:
@@ -236,6 +246,20 @@ async def notify(title: str, lines: list[str], raw: bool = False) -> None:
                 await bot.send(ch.lstrip("\n"), keyboard=False)
     except Exception as e:                                        # noqa: BLE001
         logger.warning("المستشار: تلغرام {}", e)
+
+
+def forecast_comparable(forecast: float, hist: list | None) -> bool:
+    """‏D603: لا يُحكَم بتوقّعٍ أساسُه غيرُ أساس الفعليّ — قِيس: المغذيات توقّعٌ 2,330.7 مليوناً للربع والربعُ
+    الفعليّ 378.7 (والأرباعُ قبله بالحجم نفسِه): التوقّعُ بُني على أرباعٍ تراكمية، فأوقف الدفعاتِ بلا سبب.
+    فالتوقّعُ يُقارَن إن كان بين 0.4 و2.5 ضعفاً من وسيط آخر الأرباع الفعلية؛ وإلا فلا حكمَ به."""
+    import statistics
+    if hist is None:
+        return True                                   # بلا سجلٍّ معروفٍ يُقارَن كما كان — الامتناعُ بشاهدٍ لا بغياب
+    h = [abs(x) for x in hist if isinstance(x, (int, float)) and x]
+    if len(h) < 2 or not forecast:
+        return False
+    med = statistics.median(h)
+    return 0.4 * med <= abs(forecast) <= 2.5 * med
 
 
 async def watch() -> dict:
@@ -259,6 +283,6 @@ async def watch() -> dict:
             all_ev += ev
     rep["events"] = len(all_ev)
     if all_ev:
-        await notify("صقر — متابعةُ نصائحك", all_ev)
+        await notify("", all_ev)                              # D603: بلا سطرٍ تبريريّ — الحدثُ نفسُه أوّلاً
     logger.info("المستشار: {}", rep)
     return rep

@@ -260,6 +260,15 @@ async def job_tadawul_financials():
         logger.error(f"المعلوماتُ المالية: {e}")
 
 
+async def job_close_digest():
+    """‏D604: ملخّصُ الإغلاق على تلغرام — المؤشرُ والقطاعاتُ ومحفظتُك وأهمُّ الأخبار، بلا حشو."""
+    try:
+        from app.services.market_close_digest import send
+        logger.info(f"ملخّصُ الإغلاق: {await send()}")
+    except Exception as e:
+        logger.error(f"ملخّصُ الإغلاق: {e}")
+
+
 async def job_advisor_watch():
     """متابعةُ نصائح صقر (D569): ما نُفّذ، وما تحقّق شرطُه، وما يوقفها — ويُبلَّغ الجديدُ وحده."""
     try:
@@ -696,6 +705,7 @@ def start_scheduler():
     _scheduler.add_job(job_autopilot, CronTrigger(hour=16, minute=35), id="autopilot_close", replace_existing=True)
     _scheduler.add_job(job_library_wisdom, CronTrigger(hour=6, minute=40), id="library_wisdom_dawn", replace_existing=True)
     _scheduler.add_job(job_tadawul_financials, CronTrigger(hour=19, minute=50), id="tadawul_financials_night", replace_existing=True)
+    _scheduler.add_job(job_close_digest, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=15, minute=35), id="close_digest", replace_existing=True)
     # وبعد كلِّ إقلاعٍ بأربع دقائق: الإعادةُ تمحو ذاكرةَ الخادم، والمخزَّنُ في القرص لا يقرؤه خادمٌ يعمل —
     # قِيس أنّ تجهيزاً من عمليةٍ أخرى لا يصل الخادمَ الحيّ؛ فالخادمُ يُجهّز نفسَه
     from datetime import datetime as _dt
