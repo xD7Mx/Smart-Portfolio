@@ -236,6 +236,13 @@ async def refresh(symbols: list[str] | None = None, conc: int = 2) -> dict:
         from app.data.market_universe import MARKET_UNIVERSE
         from app.data.universe import main_market
         symbols = sorted(main_market(MARKET_UNIVERSE).keys())
+    # ‏D610: عمليةٌ جديدةٌ خارجَ الجلسة تبدأ بلقطةٍ فارغة — فلا روابطَ لصفحات الشركات (قِيس: 285 من 285 «لا رابط»)
+    from app.services import tadawul_market as TM
+    if not (TM.usable_rows()[0] or {}):
+        try:
+            await TM.refresh()
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning(f"المعلوماتُ المالية: لقطةُ السوق {type(e).__name__}")
     sem = asyncio.Semaphore(conc)
     rep = {"symbols": len(symbols), "ok": 0, "failed": 0, "why": {}}
 
