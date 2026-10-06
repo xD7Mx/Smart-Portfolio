@@ -330,6 +330,32 @@ async def get_portfolio_autopilot(mode: str = "investor", force: bool = False, d
     return success_response(data=await opinion(db, force=force, mode=mode))
 
 
+@router.get("/portfolio-autopilot/plan")
+async def get_autopilot_plan(years: int = 4, db: AsyncSession = Depends(get_db)):
+    """‏D609: المستشارُ مساعدُ تداولٍ استثماريّ نحو الهدف — في الموعد الذي يريده المالك:
+    العائدُ المطلوب، والضخُّ الشهريّ، وأين يذهب المالُ (ما قرارُه «اشترِ الآن» وحده) وما يُخفَّف."""
+    from datetime import date
+    from app.api.v1.endpoints.goals import get_builtin_goals
+    from app.core.portfolio_scope import active_pid
+    from app.services import cache
+    from app.services.autopilot import goal_plan
+    from app.services.portfolio_return import unified_cagr_pct
+    import json as _json
+    years = max(1, min(int(years or 4), 30))
+    res = await get_builtin_goals(db)
+    g = ((_json.loads(res.body) if hasattr(res, "body") else res).get("data") or {}).get("million") or {}
+    wealth, target = float(g.get("current") or 0), float(g.get("target") or 0)
+    cagr = await unified_cagr_pct(db)
+    plan = goal_plan(wealth, target, years, cagr) if wealth and target else {}
+    pk = cache.get(f"autopilot:pack:v2:{active_pid()}:{date.today().isoformat()}") or {}
+    pos = pk.get("positions") or []
+    buy = [{"symbol": p["symbol"], "name": p.get("name")} for p in pos if (p.get("autopilot") or {}).get("action") == "اشترِ الآن"]
+    trim = [{"symbol": p["symbol"], "name": p.get("name"), "action": p["autopilot"]["action"]} for p in pos
+            if (p.get("autopilot") or {}).get("action") in ("خفّف", "صفِّ جزئياً", "خذ الربح", "اخرج عند الارتداد")]
+    return success_response(data={"wealth": wealth, "target": target, "cagr_pct": cagr, "plan": plan,
+                                  "buy_now": buy, "trim": trim, "pack_ready": bool(pos)})
+
+
 @router.post("/portfolio-autopilot/ask")
 async def ask_portfolio_autopilot(payload: dict, db: AsyncSession = Depends(get_db)):
     """‏D589: حوارُ المستشار الآليّ — وجهةُ نظر المالك، وردٌّ بما لدى التطبيق."""

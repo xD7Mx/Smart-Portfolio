@@ -77,6 +77,65 @@ function AutopilotChat() {
   );
 }
 
+/* ‏D609 (بأمر المالك): المستشارُ مساعدُ تداولٍ استثماريّ نحو الهدف في الموعد الذي يريده المستثمر —
+   لا «متى يأتي الهدف» بل «كيف آتيه في كذا سنة»: العائدُ المطلوب، والضخُّ الشهريّ، وأين يذهب المالُ وما يُخفَّف. */
+function GoalPlan() {
+  const [years, setYears] = useState<number>(() => { try { return Number(localStorage.getItem("sp_goal_years")) || 4; } catch { return 4; } });
+  const pick = (y: number) => { setYears(y); try { localStorage.setItem("sp_goal_years", String(y)); } catch {} };
+  const { data } = useQuery({
+    queryKey: ["autopilot-plan", years], staleTime: 10 * 60 * 1000, retry: 0,
+    queryFn: () => aiApi.autopilotPlan(years).then(r => r.data.data),
+  });
+  const p = data?.plan || {};
+  const n = (v: any) => typeof v === "number" ? Math.round(v).toLocaleString("en-US") : "—";
+  return (
+    <div className="pt-3 border-t border-[var(--hairline)] space-y-2.5">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-xs font-bold text-[var(--ink-muted)] flex items-center gap-1.5"><Target size={14} /> الهدفُ في موعدك</p>
+        <div className="flex gap-1">
+          {[2, 3, 4, 5, 7, 10].map(y => (
+            <button key={y} onClick={() => pick(y)}
+              className="min-w-[32px] min-h-[32px] rounded-lg text-[11px] font-bold border tabular-nums"
+              style={years === y ? { color: "var(--brand-ink)", borderColor: "var(--brand)" } : { color: "var(--ink-muted)", borderColor: "var(--hairline)" }}>
+              {y}
+            </button>
+          ))}
+        </div>
+      </div>
+      {!p["العائد_المطلوب_بلا_ضخ٪"] && p["العائد_المطلوب_بلا_ضخ٪"] !== 0 ? (
+        <p className="text-[13px] text-[var(--ink-muted)]">غير متوفّر</p>
+      ) : (
+        <>
+          <p className="text-[13px] text-[var(--ink)] leading-relaxed">
+            لتبلغ <b className="tabular-nums">{n(data?.target)}</b> خلال <b className="tabular-nums">{years}</b> سنوات:
+            عائدٌ مركّب <b className="tabular-nums" dir="ltr">{p["العائد_المطلوب_بلا_ضخ٪"]}%</b> سنوياً بلا ضخّ — {p["الحكم"]}.
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="kpi"><div className="kpi-lbl">عائدك الحاليّ</div><div className="kpi-val tabular-nums" dir="ltr" style={{ textAlign: "right" }}>{p["عائدك_الحالي٪"] != null ? `${p["عائدك_الحالي٪"]}%` : "—"}</div></div>
+            <div className="kpi"><div className="kpi-lbl">تبلغ به</div><div className="kpi-val tabular-nums">{n(p["ما_تبلغه_بعائدك_الحالي"])}</div></div>
+            <div className="kpi"><div className="kpi-lbl">ضخٌّ شهريٌّ مطلوب</div><div className="kpi-val tabular-nums" style={{ color: "var(--brand-ink)" }}>{n(p["الضخ_الشهري_المطلوب"])}</div></div>
+          </div>
+          {(data?.buy_now?.length > 0 || data?.trim?.length > 0) && (
+            <div className="space-y-1.5">
+              {data.buy_now?.length > 0 && (
+                <p className="text-[12px] text-[var(--ink)]"><span className="font-bold" style={{ color: "var(--pos-ink)" }}>يذهب الضخّ إلى: </span>
+                  {data.buy_now.map((x: any) => x.name || x.symbol).join("، ")}</p>
+              )}
+              {data.trim?.length > 0 && (
+                <p className="text-[12px] text-[var(--ink)]"><span className="font-bold" style={{ color: "var(--warn-ink)" }}>يُخفَّف: </span>
+                  {data.trim.map((x: any) => `${x.name || x.symbol} (${x.action})`).join("، ")}</p>
+              )}
+            </div>
+          )}
+          {data?.pack_ready && !data?.buy_now?.length && (
+            <p className="text-[12px] text-[var(--ink-muted)]">لا شركةَ اكتملت قناعةُ شرائها اليوم — الضخُّ يُحفظ نقداً حتى تكتمل.</p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function AutopilotCard() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["autopilot"],
@@ -184,7 +243,8 @@ export default function AutopilotCard() {
           )}
         </div>
       )}
-      <div className="mt-3"><AutopilotChat /></div>
+      <div className="mt-3"><GoalPlan />
+          <AutopilotChat /></div>
     </div>
   );
 }

@@ -320,6 +320,7 @@ export const aiApi = {
   askAutopilot: (question: string, history: { role: string; text: string }[]) =>
     api.post<APIResponse>("/ai/portfolio-autopilot/ask", { question, history }, { timeout: 180000 }),
   portfolioAutopilot: () => api.get<APIResponse>("/ai/portfolio-autopilot", { timeout: 180000 }),
+  autopilotPlan: (years: number) => api.get<APIResponse>("/ai/portfolio-autopilot/plan", { params: { years } }),
   stockOpinion: (symbol: string, name?: string) => api.get<APIResponse>(`/ai/stock-opinion/${symbol}`, { params: name ? { name } : undefined }),
 };
 

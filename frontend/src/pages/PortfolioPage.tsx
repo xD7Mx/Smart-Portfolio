@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Search, Pencil, Trash2, TrendingUp, TrendingDown, ShoppingCart, X, SlidersHorizontal, Wallet, Scale, Columns3, RefreshCw, Coins, LayoutGrid, Briefcase, Newspaper, CalendarDays, GripVertical, Star, ChevronDown, AlertTriangle, Droplets, Save } from "lucide-react";
 import { GridLayout, useContainerWidth, verticalCompactor } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
-import { companiesApi, holdingsApi, transactionsApi, cashApi, allocationApi, portfolioApi, profileApi } from "../services/api";
+import { companiesApi, holdingsApi, transactionsApi, cashApi, allocationApi, portfolioApi, profileApi, goalsApi } from "../services/api";
+import { yearsToGoal, yearsLabel } from "../utils/goal";
 import { useT } from "../i18n";
 import { searchCompanies, lookupCompany, SaudiCompany } from "../data/saudiCompanies";
 import StockSheet from "../components/market/StockSheet";
@@ -1115,6 +1116,7 @@ function DeleteModal({ company, onClose }: { company: any; onClose: () => void }
    لا يقول شيئاً عن قيمته. واختلاف اللون هو ما يمنع جمعها في الذهن مع النقد. */
 function PortfolioMetricsCard() {
   const { data: m } = useQuery({ queryKey: ["portfolio-metrics"], queryFn: () => portfolioApi.metrics().then(r => r.data.data), retry: 0 });
+  const { data: goals } = useQuery({ queryKey: ["goals-builtin"], queryFn: () => goalsApi.builtin().then((r: any) => r.data.data), retry: 0 });
   const { data: s } = useQuery({ queryKey: ["portfolio-summary"], queryFn: () => portfolioApi.summary().then((r: any) => r.data.data), retry: 0 });
   if (!m) return null;
   const pct = (v: any, d = 1) => v == null ? null : (v >= 0 ? "+" : "") + Number(v).toFixed(d) + "%";
@@ -1182,6 +1184,14 @@ function PortfolioMetricsCard() {
           </div>
         ))}
       </div>
+      {/* ‏D609: الوصولُ إلى الهدف بالعائد المركّب نفسِه — الرقمُ الذي يحكم به المستشار */}
+      {goals?.million?.target > 0 && (
+        <div className="kpi mt-2 flex items-center justify-between gap-3">
+          <div className="kpi-lbl">الوصول إلى {Number(goals.million.target).toLocaleString("en-US")} بعائدك المركّب</div>
+          <div className="kpi-val tabular-nums" style={{ color: "var(--brand-ink)" }}>
+            {yearsLabel(yearsToGoal(goals.million.current, goals.million.target, m.cagr_pct))}</div>
+        </div>
+      )}
     </div>
   );
 }

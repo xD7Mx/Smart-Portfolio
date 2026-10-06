@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Star } from "lucide-react";
-import { marketApi } from "../services/api";
+import { marketApi, goalsApi, portfolioApi } from "../services/api";
+import { yearsToGoal, yearsLabel } from "../utils/goal";
 import CompanyLogo from "../components/common/CompanyLogo";
 import StockSheet from "../components/market/StockSheet";
 import { Curve } from "../components/market/TasiStarsPanel";
@@ -137,6 +138,8 @@ export default function StarsPage() {
               {info("الأوزان", data.weighting || "متساوية")}
             </div>
           </div>
+
+          <StarsMetrics bt={bt} s={s} members={data.members} />
 
           {!!bt?.years?.length && (
             <div className="card p-0">
@@ -334,6 +337,55 @@ function LabCard({ onPick }: { onPick: (s: string) => void }) {
               <span className="text-[11px] text-[var(--ink-muted)] w-12 text-center">{it.conf || "—"}</span>
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ‏D609: مؤشراتٌ ماليةٌ لمحفظة النجوم بأسلوب مؤشرات المحفظة الأساسية — والوصولُ إلى هدفك بعائدها مقابل عائدك. */
+function StarsMetrics({ bt, s, members }: { bt: any; s: any; members: any[] }) {
+  const { data: goals } = useQuery({ queryKey: ["goals-builtin"], queryFn: () => goalsApi.builtin().then((r: any) => r.data.data), retry: 0 });
+  const { data: pm } = useQuery({ queryKey: ["portfolio-metrics"], queryFn: () => portfolioApi.metrics().then((r: any) => r.data.data), retry: 0 });
+  if (!bt) return null;
+  const med = (xs: number[]) => { const v = xs.filter(x => typeof x === "number").sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null; };
+  const avg = (xs: number[]) => { const v = xs.filter(x => typeof x === "number"); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const pe = med(members.map(m => m.pe));
+  const up = avg(members.map(m => m.upside));
+  const cells: { lbl: string; val: string | null; color?: string }[] = [
+    { lbl: "العائد المركّب", val: pct(bt.cagr) },
+    { lbl: "تاسي المركّب", val: pct(bt.tasi_cagr) },
+    { lbl: "التفوّقُ السنويّ", val: typeof bt.cagr === "number" && typeof bt.tasi_cagr === "number" ? pct(bt.cagr - bt.tasi_cagr) : null },
+    { lbl: "العائد الإجماليّ", val: pct(s?.total) },
+    { lbl: "أقصى تراجع", val: pct(bt.max_dd), color: "var(--neg-ink)" },
+    { lbl: "أشهرُ التفوّق", val: bt.beat_pct != null ? `${bt.beat_pct}%` : null },
+    { lbl: "مكرر الربحية", val: pe != null ? pe.toFixed(1) : null },
+    { lbl: "اتجاهٌ إلى العادل", val: up != null ? pct(up) : null },
+    { lbl: "الشركات", val: String(members.length) },
+  ];
+  const g = goals?.million;
+  return (
+    <div className="card space-y-2">
+      <p className="card-title">المؤشرات المالية</p>
+      <div className="grid grid-cols-3 gap-2">
+        {cells.map(c => (
+          <div key={c.lbl} className="kpi">
+            <div className="kpi-lbl">{c.lbl}</div>
+            <div className="kpi-val tabular-nums" dir="ltr" style={{ textAlign: "right", color: c.val == null ? "var(--ink-muted)" : c.color }}>{c.val ?? "—"}</div>
+          </div>
+        ))}
+      </div>
+      {g?.target > 0 && (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="kpi">
+            <div className="kpi-lbl">الوصول إلى {Number(g.target).toLocaleString("en-US")} بعائد النجوم</div>
+            <div className="kpi-val tabular-nums" style={{ color: "var(--brand-ink)" }}>{yearsLabel(yearsToGoal(g.current, g.target, bt.cagr))}</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-lbl">وبعائد محفظتك</div>
+            <div className="kpi-val tabular-nums">{yearsLabel(yearsToGoal(g.current, g.target, pm?.cagr_pct))}</div>
+          </div>
         </div>
       )}
     </div>
