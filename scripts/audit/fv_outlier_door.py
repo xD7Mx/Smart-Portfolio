@@ -9,7 +9,7 @@ import json
 import sys
 
 sys.path.insert(0, "/app")
-SYMS = ["8010", "2001", "8260", "8060"]
+SYMS = ["4262", "6017", "4050", "8060", "1835"]
 
 
 async def main():
