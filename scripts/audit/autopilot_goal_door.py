@@ -37,7 +37,7 @@ async def main():
         c = await unified_cagr_pct(db)
         r = await get_autopilot_plan(4, db)
     print("@@CAGR@@", c, flush=True)
-    print("@@PLAN@@ " + r.body.decode()[:2000], flush=True)
+    print("@@PLAN@@ " + json.dumps(r if isinstance(r, dict) else json.loads(r.body), ensure_ascii=False, default=str)[:2000], flush=True)
     async with AsyncSessionLocal() as db:
         a = await ask(db, "اريد الوصول للهدف خلال اربع سنوات ماذا افعل واغير")
     print("@@ASK@@ " + json.dumps(a, ensure_ascii=False, default=str)[:2500], flush=True)
