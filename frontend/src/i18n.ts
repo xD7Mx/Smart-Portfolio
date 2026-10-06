@@ -9,7 +9,7 @@ export const STRINGS: Dict = {
   "nav.portfolio":   { ar: "المحفظة", en: "Portfolio" },
   "nav.market":      { ar: "السوق", en: "Market" },
   "nav.chart":       { ar: "الرسم البياني", en: "Chart" },
-  "nav.stars":       { ar: "نجوم تاسي", en: "TASI Stars" },
+  "nav.stars":       { ar: "مختبر الأبحاث", en: "Research Lab" },
   "nav.governance":  { ar: "الحوكمة", en: "Governance" },
   "nav.ai":          { ar: "تحليل AI", en: "AI Analysis" },
   "nav.calculators": { ar: "الحاسبات", en: "Calculators" },

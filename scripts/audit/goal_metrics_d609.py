@@ -18,8 +18,8 @@ check(abs(math.log(1e6 / 4e5) / math.log(1.09) - 10.63) < 0.01, "٢ مثالٌ �
 pp = (ROOT / "frontend/src/pages/PortfolioPage.tsx").read_text()
 check("yearsToGoal(goals.million.current, goals.million.target, m.cagr_pct)" in pp, "٣ مؤشراتُ المحفظة: الوصولُ إلى الهدف بالعائد المركّب نفسِه")
 sp = (ROOT / "frontend/src/pages/StarsPage.tsx").read_text()
-check("<StarsMetrics" in sp and "yearsToGoal(g.current, g.target, bt.cagr)" in sp and "pm?.cagr_pct" in sp,
-      "٤ محفظةُ النجوم: مؤشراتٌ ماليةٌ والوصولُ إلى الهدف بعائدها مقابل عائد المحفظة")
+check("yearsToGoal(g.current, g.target, data.cagr)" in sp and "pm?.cagr_pct" in sp,
+      "٤ مختبرُ الأبحاث: الوصولُ إلى الهدف بعائد السلّة مقابل عائد المحفظة (D612)")
 ai = (ROOT / "backend/app/api/v1/endpoints/ai.py").read_text()
 seg = ai.split('@router.get("/portfolio-autopilot/plan")')[1].split("@router")[0]
 check("goal_plan(" in seg and "unified_cagr_pct" in seg and '"اشترِ الآن"' in seg, "٥ خطةُ المستشار بالعائد الموحّد، والضخُّ إلى ما اكتملت قناعتُه وحده")

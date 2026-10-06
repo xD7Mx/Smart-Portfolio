@@ -3,7 +3,7 @@ import { Outlet, NavLink, useLocation } from "react-router-dom";
 import {
   Briefcase, TrendingUp, Brain,
   FileText, Bell, Settings, Shield, Calculator,
-  Menu, X, CandlestickChart, Book, Activity, Star } from "lucide-react";
+  Menu, X, CandlestickChart, Book, Activity, FlaskConical } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { notificationsApi } from "../../services/api";
 import { useT } from "../../i18n";
@@ -18,7 +18,7 @@ export const PAGES: Record<string, { to: string; icon: any; key: string }> = {
   portfolio:     { to: "/portfolio",     icon: Briefcase,        key: "nav.portfolio" },
   market:        { to: "/market",        icon: TrendingUp,       key: "nav.market" },
   chart:         { to: "/chart",         icon: CandlestickChart, key: "nav.chart" },
-  stars:         { to: "/stars",         icon: Star,             key: "nav.stars" },
+  stars:         { to: "/stars",         icon: FlaskConical,     key: "nav.stars" },
   governance:    { to: "/governance",    icon: Shield,           key: "nav.governance" },
   library:       { to: "/library",       icon: Book,             key: "nav.library" },
   ai:            { to: "/ai",            icon: Brain,            key: "nav.ai" },

@@ -26,7 +26,7 @@ mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text()
 seg = mk.split('@router.get("/stars-lab")')[1].split("@router")[0]
 check("lab(" in seg and "Holding" not in seg and "commit" not in seg, "٥ المختبرُ قراءةٌ فقط — لا يكتب في المحفظة")
 sp = (ROOT / "frontend/src/pages/StarsPage.tsx").read_text()
-check("<LabCard" in sp and "الماضي ليس وعداً" not in sp, "٦ بطاقةُ المختبر في صفحة النجوم — بلا حاشيةٍ تفسيرية أسفلها")
+check("starsLab(syms, start)" in sp and "الماضي ليس وعداً" not in sp, "٦ المختبرُ هو الصفحة (D612) — بلا حاشيةٍ تفسيرية أسفلها")
 cp = (ROOT / "frontend/src/pages/CompanyPage.tsx").read_text()
 nc = (ROOT / "frontend/src/components/analysis/NativeChart.tsx").read_text()
 check("<PriceOrChart" in cp and 'preset="d7m-weekly"' in cp and 'preset === "d7m-weekly"' in nc,

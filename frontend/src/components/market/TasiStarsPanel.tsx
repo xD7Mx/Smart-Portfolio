@@ -23,7 +23,7 @@ export function Curve({ track: raw }: { track: { d: string; s: number; t: number
   const area = path("s") + `L${x(track.length - 1)},${H - P}L${x(0)},${H - P}Z`;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[140px]" preserveAspectRatio="none" role="img"
-      aria-label="أداءُ نجوم تاسي مقابلَ تاسي">
+      aria-label="أداءُ السلّة مقابلَ تاسي">
       <path d={area} style={{ fill: "color-mix(in srgb, var(--brand) 14%, transparent)" }} />
       <path d={path("t")} fill="none" style={{ stroke: "var(--ink-muted)" }} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
       <path d={path("s")} fill="none" style={{ stroke: "var(--brand-ink)" }} strokeWidth={2} vectorEffect="non-scaling-stroke" />
