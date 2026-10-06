@@ -646,7 +646,15 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
             تقريبُه إلى رقمٍ صحيح يُخفي فرقاً يُحسب عليه قرار الشراء. */}
         <div className="tx-context grid grid-cols-3 gap-2 text-center">
           <div><p className="text-[10px] text-[var(--ink-muted)]">أسهمك</p><p className="text-xs font-bold text-[var(--ink)] tabular-nums">{fmt(holdingCtx?.total_shares ?? 0)}</p></div>
-          <div><p className="text-[10px] text-[var(--ink-muted)]">متوسط التكلفة</p><p className="text-xs font-bold text-[var(--ink)] tabular-nums" dir="ltr">{fmt2(holdingCtx?.average_cost ?? 0)}</p></div>
+          <div>
+            <p className="text-[10px] text-[var(--ink-muted)]">متوسط التكلفة</p>
+            <p className="text-xs font-bold text-[var(--ink)] tabular-nums" dir="ltr">{fmt2(holdingCtx?.average_cost ?? 0)}</p>
+            {/* المتوسطُ الجديد يظهر حين تُكتب الكميةُ والسعر — ولا يُعتمد إلا بالتأكيد */}
+            {type === "BUY" && addQty > 0 && Number(f.price) > 0 && (
+              <p className="text-[10px] font-bold tabular-nums mt-0.5" dir="ltr" style={{ color: "var(--brand-ink)" }}
+                 title="المتوسط بعد هذه العملية">← {fmt2(newAvgCost)}</p>
+            )}
+          </div>
           <div>
             <p className="text-[10px] text-[var(--ink-muted)]">نصيبه من التوازن</p>
             {!myAlloc || !Number(myAlloc.target_weight) ? (
@@ -657,20 +665,34 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
               const lp  = Number(myAlloc.last_price) || 0;
               const total = Math.round(liq) + Math.round(rei);
               const shr = (v: number) => lp > 0 ? Math.floor(v / lp) : 0;
+              /* معاينةٌ حيّة لا اعتماد: اختيارُ «سيولة» أو «إعادة استثمار» وكتابةُ الكمية
+                 تُنقص الرقمَ هنا فوراً، ولا يُكتب شيءٌ حتى «تأكيد العملية»؛ والإلغاءُ يعيده. */
+              const live = type === "BUY" && addQty > 0;
+              const row = (label: string, src: string, base: number, color: string) => {
+                const on = type === "BUY" && fundingSource === src;
+                const after = on && live ? Math.max(0, base - addQty) : base;
+                return (
+                  <button type="button" onClick={() => { if (type !== "BUY") changeType("BUY"); setFundingSource(src); }}
+                    className="flex items-center justify-start gap-2 w-full rounded-md px-1 min-h-[22px]"
+                    style={on ? { background: mixA(color, 10) } : undefined}>
+                    <span className="text-[9.5px] text-[var(--ink-muted)]">{label}</span>
+                    <span className="text-[10px] font-bold tabular-nums" dir="ltr" style={{ color }}>
+                      {on && live && after !== base && (
+                        <span className="line-through opacity-60 me-1">{base.toLocaleString("en-US")}</span>
+                      )}
+                      {after.toLocaleString("en-US")} سهم
+                    </span>
+                  </button>
+                );
+              };
               return (
                 <div className="space-y-0.5">
-                  <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center justify-start gap-2 px-1">
                     <span className="text-[9.5px] text-[var(--ink-muted)]">المبلغ</span>
                     <span className="text-[10px] font-bold tabular-nums" dir="ltr">{fmt(total)}</span>
                   </div>
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-[9.5px] text-[var(--ink-muted)]">سيولة</span>
-                    <span className="text-[10px] font-bold tabular-nums" dir="ltr" style={{ color: "var(--pos-ink)" }}>{shr(liq).toLocaleString("en-US")} سهم</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-[9.5px] text-[var(--ink-muted)]">إعادة استثمار</span>
-                    <span className="text-[10px] font-bold tabular-nums" dir="ltr" style={{ color: "var(--brand-ink)" }}>{shr(rei).toLocaleString("en-US")} سهم</span>
-                  </div>
+                  {row("سيولة", "", shr(liq), "var(--pos-ink)")}
+                  {row("إعادة استثمار", "REINVEST", shr(rei), "var(--brand-ink)")}
                 </div>
               );
             })()}

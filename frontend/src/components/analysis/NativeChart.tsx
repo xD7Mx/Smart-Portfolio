@@ -133,11 +133,17 @@ function Meter({ v, solid = false }: { v: number; solid?: boolean }) {
   );
 }
 
-export default function NativeChart({ symbol, theme = "dark", identity }: { symbol: string; theme?: "dark" | "light"; identity?: React.ReactNode }) {
+export default function NativeChart({ symbol, theme = "dark", identity, preset, height = 440 }: {
+  symbol: string; theme?: "dark" | "light"; identity?: React.ReactNode;
+  /* ‏D607: «d7m-weekly» — صفحةُ السهم: D7M بإعداداته المحفوظة على الإطار الأسبوعيّ (خمسُ سنوات = شموعٌ أسبوعية) */
+  preset?: "d7m-weekly"; height?: number;
+}) {
   const el = useRef<HTMLDivElement>(null);
   // المدّةُ الافتراضيّةُ خمسُ سنوات للسوقين (بأمر المالك)
   const [range, setRange] = useState("5y");
-  const [ind, setInd] = useState({ sma20: true, sma50: true, sma200: false, macd: true, rsi: false, d7m: false });
+  const [ind, setInd] = useState(preset === "d7m-weekly"
+    ? { sma20: false, sma50: false, sma200: false, macd: false, rsi: false, d7m: true }
+    : { sma20: true, sma50: true, sma200: false, macd: true, rsi: false, d7m: false });
   const [err, setErr] = useState(false);
   // ══ إعداداتُ مؤشّر D7M — تُحفظ في المتصفّح (بأمر المالك: زرُّ إعدادات) ══
   const [cfg, setCfg] = useState<D7MSettings>(() => {
@@ -548,7 +554,7 @@ export default function NativeChart({ symbol, theme = "dark", identity }: { symb
         <div className="h-[420px] flex items-center justify-center text-[var(--ink-muted)] text-sm">لا توجد بيانات سعرية تاريخية لهذا الرمز حالياً.</div>
       ) : (
         <div className="relative">
-        <div className="relative chart-frame" style={{ height: 440, width: "100%" }}>
+        <div className="relative chart-frame" style={{ height, width: "100%" }}>
           <div ref={el} style={{ position: "absolute", inset: 0 }} />
           <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: tool === "free" ? "auto" : "none",
                touchAction: tool === "free" ? "none" : undefined, cursor: tool === "free" ? "crosshair" : undefined, zIndex: 3 }}

@@ -350,3 +350,93 @@ async def get(off: set[str] | None = None) -> dict | None:
     if res.get("track"):
         cache.set(key, res, 12 * 3600)
     return res
+
+
+# ══ مختبرُ السلّة (D608) ══ بأمر المالك: «خلطةُ شركاتٍ أختارها بنفسي ويريني أداءها حتى أعتمدها لمحفظتي —
+# كأنه مختبرُ أبحاثٍ للسوق». البياناتُ نفسُها التي يُختبر بها «نجوم تاسي»: أوزانٌ متساوية تُعاد شهرياً،
+# بالسعر وحده (بلا توزيعات — كما في اختبار النجوم)، مقابلَ تاسي. وشركةٌ لم تُدرَج بعد تدخل حين يبدأ سعرُها.
+def basket(data: dict, symbols: list[str], start: str = START) -> dict:
+    """دالّةٌ نقيّة: سلّةُ المالك ← مسارُها وتاسي شهرياً وملخّصُها، وما ساهم به كلُّ سهم."""
+    tasi = data.get("tasi") or {}
+    px = {s: dict(clean_months((data.get("px") or {}).get(s, {}).get("m"))) for s in symbols}
+    px = {s: m for s, m in px.items() if m}
+    missing = [s for s in symbols if s not in px]
+    last = date.today().isoformat()[:7]
+    months, ym = [], start
+    while ym <= last:
+        months.append(ym)
+        ym = _ym_add(ym, 1)
+    level, tlevel = 100.0, 100.0
+    track = [{"d": start, "s": 100.0, "t": 100.0}]
+    beat = n_m = 0
+    contrib = {s: 0.0 for s in px}
+    for t, nxt in zip(months, months[1:] + [None]):
+        if nxt is None or t not in tasi or nxt not in tasi:
+            continue
+        live = [s for s, m in px.items() if m.get(t) and m.get(nxt)]
+        if not live:
+            continue
+        rs = {s: px[s][nxt] / px[s][t] - 1 for s in live}
+        r = statistics.fmean(rs.values())
+        for s, v in rs.items():
+            contrib[s] += level * v / len(live)
+        tr = tasi[nxt] / tasi[t] - 1
+        level *= 1 + r
+        tlevel *= 1 + tr
+        beat += r > tr
+        n_m += 1
+        track.append({"d": nxt, "s": round(level, 2), "t": round(tlevel, 2)})
+    if n_m == 0:
+        return {"track": [], "months": 0, "missing": missing}
+    yrs_n = n_m / 12
+    peak, dd = 100.0, 0.0
+    for p in track:
+        peak = max(peak, p["s"])
+        dd = min(dd, p["s"] / peak - 1)
+    years = []
+    for y in sorted({p["d"][:4] for p in track[1:]}):
+        prev = [p for p in track if p["d"] < f"{y}-01"][-1:] or track[:1]
+        end = [p for p in track if p["d"][:4] == y][-1]
+        years.append({"y": y, "s": round((end["s"] / prev[0]["s"] - 1) * 100, 1),
+                      "t": round((end["t"] / prev[0]["t"] - 1) * 100, 1)})
+    return {"start": track[0]["d"], "months": n_m, "track": track,
+            "total": round(level - 100, 1), "tasi_total": round(tlevel - 100, 1), "excess": round(level - tlevel, 1),
+            "cagr": round(((level / 100) ** (1 / yrs_n) - 1) * 100, 1),
+            "tasi_cagr": round(((tlevel / 100) ** (1 / yrs_n) - 1) * 100, 1),
+            "beat_pct": round(beat / n_m * 100), "max_dd": round(dd * 100, 1), "years": years,
+            "contrib": sorted(({"symbol": s, "pts": round(v, 1)} for s, v in contrib.items()), key=lambda x: -x["pts"]),
+            "missing": missing}
+
+
+def forward(symbols: list[str]) -> dict:
+    """النظرةُ القادمة — ما تقوله المحرّكاتُ اليوم لا تنبّؤٌ بالسعر: الصعودُ إلى العادل بثقته، والجودة، والقرار."""
+    from app.services.content_engine import fund_store_load
+    from app.services.market_screener import get_cached_screener
+    store = fund_store_load() or {}
+    rows = {str(r.get("symbol")).replace(".SR", ""): r for r in (get_cached_screener() or [])}
+    out, ups = [], []
+    for s in symbols:
+        st = store.get(s) or store.get(s + ".SR") or {}
+        r = rows.get(s) or {}
+        px, fv = _n(r.get("price")), _n(st.get("fair_value"))
+        up = round((fv / px - 1) * 100, 1) if px and fv else None
+        conf = st.get("fair_value_conf")
+        out.append({"symbol": s, "name": r.get("name"), "price": px, "fair_value": fv, "upside": up, "conf": conf,
+                    "quality": st.get("finance_score"), "decision": (r.get("decision") or {}).get("label")
+                    if isinstance(r.get("decision"), dict) else r.get("decision")})
+        if up is not None and conf in ("مرتفعة", "متوسطة"):
+            ups.append(up)
+    return {"items": out, "upside_reliable": round(statistics.fmean(ups), 1) if ups else None,
+            "reliable_n": len(ups), "n": len(symbols)}
+
+
+async def lab(symbols: list[str], start: str = START) -> dict | None:
+    from app.services import lastgood
+    syms = list(dict.fromkeys(str(s).replace(".SR", "").strip() for s in symbols if str(s).strip()))[:30]
+    data = lastgood.load(DATA_KEY) or {}
+    if not data.get("px"):
+        kick()
+        return None
+    res = await asyncio.to_thread(basket, data, syms, start)
+    res["forward"] = forward(syms)
+    return res

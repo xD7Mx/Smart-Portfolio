@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plane, ShieldCheck, Target, BookOpen, Loader2, Send } from "lucide-react";
+import { Briefcase, ShieldCheck, Target, BookOpen, Loader2, Send } from "lucide-react";
 import { aiApi } from "../../services/api";
 import CompanyLogo from "../common/CompanyLogo";
 
@@ -89,7 +89,7 @@ export default function AutopilotCard() {
     <div className="card">
       <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
         <p className="card-title flex items-center gap-1.5">
-          <Plane size={15} className="text-[var(--brand-ink)]" /> المستشار الآلي للمحفظة
+          <Briefcase size={15} className="text-[var(--brand-ink)]" /> المستشار الآلي للمحفظة
         </p>
       </div>
 

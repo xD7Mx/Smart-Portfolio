@@ -31,7 +31,7 @@ import os as _os
 _R = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
 _css = open(_os.path.join(_R, "frontend/src/styles/globals.css"), encoding="utf-8").read()
 _i18 = open(_os.path.join(_R, "frontend/src/i18n.ts"), encoding="utf-8").read()
-check("62vh" not in nc and "height: 440" in nc and ".chart-frame { contain: strict" in _css
+check("62vh" not in nc and ("height: 440" in nc or ("height = 440" in nc and "style={{ height, width" in nc)) and "vh" not in nc.split("chart-frame")[1][:80] and ".chart-frame { contain: strict" in _css
       and "pinch-zoom" not in _css.split(".chart-lock {")[1].split("/* إشعار")[0],
       "٦ D521 الرسمُ إطارٌ مقفلُ الارتفاع لا يتبع vh، والقرصُ والمحوران للرسم لا للصفحة")
 check("<Drop label={(RANGES.find" in nc and "<Drop label={IND.filter" in nc and "RANGES.map(([id, lbl]) => (\n            <button key={id} onClick={() => setRange(id)}" not in nc,

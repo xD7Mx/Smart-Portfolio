@@ -719,6 +719,19 @@ async def get_tasi_stars(off: str | None = None):
     return success_response(data=await get(parse_off(off)))
 
 
+@router.get("/stars-lab")
+async def get_stars_lab(symbols: str, start: str = "2015-01"):
+    """مختبرُ السلّة (D608): شركاتُ المالك بأوزانٍ متساوية منذ `start` مقابل تاسي، ونظرةُ المحرّكات القادمة.
+    قراءةٌ فقط — لا يكتب شيئاً في المحفظة."""
+    import re as _re
+    from app.services.stars_backtest import lab
+    syms = [x for x in _re.split(r"[,\s]+", symbols or "") if _re.fullmatch(r"\d{4}(\.SR)?", x)]
+    if not syms:
+        return success_response(data=None)
+    st = start if _re.fullmatch(r"20\d\d-\d\d", start or "") else "2015-01"
+    return success_response(data=await lab(syms, st))
+
+
 @router.get("/official-names")
 async def get_official_names():
     """أسماءُ «تداول» الرسمية (D520) — تُطبَّق فوق دليل الواجهة الساكن."""

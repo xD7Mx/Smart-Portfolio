@@ -139,6 +139,47 @@ def goal_eta(current: float, target: float, cagr_pct: float | None) -> dict:
             "note": "بالعائد المركّب الفعليّ، ودون إيداعاتٍ جديدة"}
 
 
+_AR_NUM = {"سنة": 1, "سنتين": 2, "سنتان": 2, "ثلاث": 3, "أربع": 4, "اربع": 4, "خمس": 5, "ست": 6, "سبع": 7,
+           "ثمان": 8, "تسع": 9, "عشر": 10}
+
+
+def years_in(question: str) -> int | None:
+    """‏D606: «خلال أربع سنوات» · «في 5 سنين» · «بعد سنتين» ← عددُ السنوات المطلوبة للهدف."""
+    import re
+    q = question or ""
+    m = re.search(r"(\d{1,2})\s*(?:سنوات|سنة|سنين|أعوام|عام|سنه)", q)
+    if m:
+        n = int(m.group(1))
+        return n if 1 <= n <= 30 else None
+    for w, n in _AR_NUM.items():
+        if re.search(rf"{w}\S*\s*(?:سنوات|سنين|أعوام)", q) or (w in ("سنتين", "سنتان") and w in q):
+            return n
+    return None
+
+
+def goal_plan(wealth: float, target: float, years: int, cagr_pct: float | None) -> dict:
+    """‏D606: الهدفُ في موعدٍ يحدّده المالك — ما العائدُ المطلوب بلا ضخّ، وما الضخُّ الشهريّ المطلوب بعائده الحاليّ.
+    بأمر المالك: «لا أريد بعد كم سنة يأتي الهدف — أريد الوصول خلال أربع سنوات: ماذا أفعل وأغيّر؟»"""
+    if not wealth or wealth <= 0 or not target or years <= 0:
+        return {}
+    need = ((target / wealth) ** (1 / years) - 1) * 100
+    r = (cagr_pct or 0) / 100
+    grown = wealth * (1 + r) ** years
+    gap = max(0.0, target - grown)
+    if gap <= 0:
+        monthly = 0.0
+    elif r > 0:
+        mr = (1 + r) ** (1 / 12) - 1
+        monthly = gap * mr / ((1 + mr) ** (years * 12) - 1)
+    else:
+        monthly = gap / (years * 12)
+    realism = ("في متناول المحفظة" if need <= 12 else "طموحٌ يحتاج انضباطاً وضخّاً" if need <= 20
+               else "غيرُ واقعيٍّ بالعائد وحده — الضخُّ هو الطريق")
+    return {"السنوات": years, "العائد_المطلوب_بلا_ضخ٪": round(need, 1), "عائدك_الحالي٪": round(cagr_pct, 1) if cagr_pct else None,
+            "ما_تبلغه_بعائدك_الحالي": round(grown), "الفجوة": round(gap), "الضخ_الشهري_المطلوب": round(monthly),
+            "الحكم": realism}
+
+
 async def _events(sym: str) -> list[dict]:
     """مفكرةُ الشركة القادمة (المخزَّنةُ المجهَّزة) — أقربُ حدثين."""
     from app.api.v1.endpoints import market as M
@@ -211,7 +252,8 @@ async def pack(db, mode: str = "investor") -> dict:
     positions = [p for p in await asyncio.gather(*(guarded(it) for it in items)) if p]
     cagr = None
     try:
-        cagr = await compute_cagr_pct(db)
+        from app.services.portfolio_return import unified_cagr_pct
+        cagr = await unified_cagr_pct(db)                         # D605: الرقمُ نفسُه في المؤشرات المالية
     except Exception:                                             # noqa: BLE001
         pass
     wealth = investable
@@ -490,7 +532,13 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
         except Exception:                                         # noqa: BLE001
             item["بدائل_من_قطاعها"] = []
         focus.append(item)
-    ctx = {"الثروة": pk["wealth"], "السيولة": pk["cash"], "العائد_المركّب٪": pk["cagr_pct"],
+    plan = None
+    yrs = years_in(question)
+    if yrs:
+        g = next((x for x in pk["goals"] if x.get("target")), None)
+        if g:
+            plan = {"الهدف": g["name"], "المبلغ": g["target"], **goal_plan(pk["wealth"], g["target"], yrs, pk["cagr_pct"])}
+    ctx = {"الثروة": pk["wealth"], "السيولة": pk["cash"], "العائد_المركّب٪": pk["cagr_pct"], "خطة_الهدف_في_موعد": plan,
            "الأهداف": pk["goals"], "تنبيهات": pk["flags"], "الشركات_المذكورة": focus,
            "بقية_المحفظة": [{"name": p["name"], "symbol": p["symbol"], "action": p["autopilot"]["action"],
                               "weight": p.get("current_weight")} for p in pk["positions"] if p["symbol"] not in syms],
@@ -517,6 +565,9 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
 - «قرار_الطيار» حتميّ: لا تنصح بشراءٍ حجبته الحماية.
 - لا تقل «اشترِ» أو «ادخل» إلا لما «قرار_الطيار» فيه «اشترِ الآن» (قناعةٌ مكتملة). وكلُّ ما سواه «انتظر» مع ذكر الناقص من القناعة كما ورد.
 - إن ذكر شركةً لا معطياتَ لها فقُل «غير متوفّر» ولا تخمّن.
+- إن كانت «خطة_الهدف_في_موعد» حاضرة فهو يسأل: كيف أبلغ الهدف في هذا الموعد؟ فأجب بأرقامها: العائدُ المطلوب بلا ضخّ مقابل عائده الحاليّ،
+  والضخُّ الشهريّ المطلوب، وحكمُ الواقعية. ثمّ ما يغيّره عملياً في المحفظة: أيُّ مراكزَ تُعاد إلى أوزانها، وأين يذهب الضخّ (ما «قرار_الطيار» فيه «اشترِ الآن» وحده)،
+  وما يُخفَّف. لا تعِد بعائدٍ لم يحقّقه، ولا ترفع المخاطرة لتعويض الوقت.
 - جملٌ قصيرة (أربع عشرة كلمة على الأكثر)، بصيغة المتكلّم، بلا تحوّطٍ ولا إخلاءِ مسؤولية، في ستّة أسطرٍ إلى عشرة.
 - اختم بسطرٍ واحد: «ما أفعله لو كنتُ مكانك: …».
 
@@ -546,9 +597,22 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
                 logger.warning(f"حوار المستشار: {type(e).__name__}")
                 break
     if not reply:
-        reply = _ask_rules(focus, mode)
+        reply = _ask_rules(focus, mode) if focus or not plan else _plan_text(plan)
     return {"reply": reply, "source": source, "mentioned": [{"symbol": f["symbol"], "name": f.get("name")} for f in focus],
             "alternatives": [{"for": f["symbol"], **a} for f in focus for a in (f.get("بدائل_من_قطاعها") or []) if a.get("balanced")][:4]}
+
+
+def _plan_text(p: dict) -> str:
+    """الردُّ من الأرقام وحدها حين يتعذّر النموذج — خطةُ الهدف في موعد."""
+    lines = [f"لبلوغ {p.get('الهدف')} ({p.get('المبلغ'):,.0f} ريال) خلال {p['السنوات']} سنوات:",
+             f"تحتاج عائداً مركّباً {p['العائد_المطلوب_بلا_ضخ٪']}٪ سنوياً بلا ضخّ — {p['الحكم']}."]
+    if p.get("عائدك_الحالي٪") is not None:
+        lines.append(f"بعائدك الحاليّ {p['عائدك_الحالي٪']}٪ تبلغ {p['ما_تبلغه_بعائدك_الحالي']:,} ريال.")
+    if p.get("الفجوة"):
+        lines.append(f"الفجوة {p['الفجوة']:,} ريال، تُسدّ بضخٍّ شهريٍّ نحو {p['الضخ_الشهري_المطلوب']:,} ريال.")
+    else:
+        lines.append("عائدك الحاليّ يكفي إن ثبت — حافظ على الأوزان ولا ترفع المخاطرة.")
+    return "\n".join(lines)
 
 
 def _ask_rules(focus: list[dict], mode: str) -> str:

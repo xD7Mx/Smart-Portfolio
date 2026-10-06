@@ -289,9 +289,9 @@ async def get_portfolio_metrics(db: AsyncSession = Depends(get_db)):
     project_start = get_project_start()
     if project_start is not None:
         flow_days = (datetime.now(timezone.utc).date() - project_start).days
-        cagr = annualize(net.get("capital_growth_pct"), flow_days)
-    else:
-        cagr = await compute_cagr_pct(db) if (flow_days or 0) >= 90 else None
+    # D605: مصدرٌ واحدٌ للعائد المركّب — يقرؤه المستشارُ نفسُه فلا يتنازع رقمان
+    from app.services.portfolio_return import unified_cagr_pct
+    cagr = await unified_cagr_pct(db, net)
 
     # ── مكرر الربحية مقارناً بوسيط السوق ─────────────────────────────────
     # رقمٌ مجرّد لا يُعرف أمرتفعٌ هو أم منخفض. والوسيط محسوبٌ سلفاً في صفوف

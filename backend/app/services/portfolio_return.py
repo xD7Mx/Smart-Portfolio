@@ -600,3 +600,26 @@ async def compute_capital_recovery(db) -> dict | None:
         "invested_capital": round(invested, 2),
         "remaining_to_recover": round(max(0.0, invested - production), 2),
     }
+
+
+async def unified_cagr_pct(db, net: dict | None = None) -> float | None:
+    """‏D605: العائدُ المركّبُ الواحد — ما تعرضه المؤشراتُ المالية للمحفظة ويحكم به المستشار.
+    قِيس: المستشارُ كان يحسب `compute_cagr_pct` وحده، والمؤشراتُ تحوّل «عائد المحفظة» إلى معدّلٍ سنويّ من
+    تاريخ بداية المشروع متى ضُبط — فتنازع رقمان. والقاعدةُ (CLAUDE.md): العائدُ المركّب من تاريخ بداية
+    المشروع، ويمتنع دون تسعين يوماً."""
+    from datetime import datetime, timezone
+    from sqlalchemy import select
+    from app.models.transaction import CashLedger
+    from app.services.project_start import get_project_start, annualize
+    start = get_project_start()
+    if start is not None:
+        days = (datetime.now(timezone.utc).date() - start).days
+        if net is None:
+            net = await compute_net_profit(db)
+        return annualize((net or {}).get("capital_growth_pct"), days)
+    first = (await db.execute(select(CashLedger.created_at).order_by(CashLedger.created_at).limit(1))).scalar()
+    if first is None:
+        return None
+    if first.tzinfo is None:
+        first = first.replace(tzinfo=timezone.utc)
+    return await compute_cagr_pct(db) if (datetime.now(timezone.utc) - first).days >= 90 else None

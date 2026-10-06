@@ -216,7 +216,126 @@ export default function StarsPage() {
           </div>
         ))}
       </div>
+      <LabCard onPick={setSheet} />
       {sheet && <StockSheet symbol={sheet} onClose={() => setSheet(null)} />}
+    </div>
+  );
+}
+
+/* ══ مختبرُ السلّة (D608) ══ بأمر المالك: شركاتٌ يختارها هو، فيرى أداءها منذ 2015 مقابل تاسي
+   بمحرّك «نجوم تاسي» نفسِه، وما تقوله المحرّكاتُ عنها اليوم — قبل أن يعتمدها. قراءةٌ فقط. */
+const LAB_KEY = "stars:lab";
+function LabCard({ onPick }: { onPick: (s: string) => void }) {
+  const [syms, setSyms] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(LAB_KEY) || "[]"); } catch { return []; } });
+  const [q, setQ] = useState("");
+  const [start, setStart] = useState("2015-01");
+  const [run, setRun] = useState<string[] | null>(null);
+  const save = (n: string[]) => { setSyms(n); try { localStorage.setItem(LAB_KEY, JSON.stringify(n)); } catch { /* محلّيّ */ } };
+  const { data: rows = [] } = useQuery({
+    queryKey: ["screener-lite"], staleTime: 30 * 60_000,
+    queryFn: () => marketApi.screener().then(r => (r.data?.data || []) as any[]),
+  });
+  const nameOf = (s: string) => (rows.find((r: any) => String(r.symbol).replace(".SR", "") === s) || {}).name || s;
+  const hits = q.trim().length < 2 ? [] : rows.filter((r: any) => {
+    const sym = String(r.symbol).replace(".SR", "");
+    return !syms.includes(sym) && (sym.startsWith(q.trim()) || String(r.name || "").includes(q.trim()));
+  }).slice(0, 6);
+  const { data, isFetching } = useQuery({
+    queryKey: ["stars-lab", (run || []).join(","), start], enabled: !!run?.length,
+    queryFn: () => marketApi.starsLab(run || [], start).then(r => r.data?.data || null),
+  });
+  const fw = data?.forward;
+  const box = (label: string, v: any, isPct = true) => (
+    <div className="rounded-xl border border-[var(--hairline)] px-3 py-2 min-w-0">
+      <div className="text-[11px] text-[var(--ink-muted)] truncate">{label}</div>
+      <div className={"text-[15px] font-bold tabular-nums " + (isPct ? tone(v) : "text-[var(--ink)]")} dir="ltr" style={{ textAlign: "right" }}>
+        {isPct ? pct(v) : v}</div>
+    </div>
+  );
+  return (
+    <div className="card space-y-3">
+      <div>
+        <p className="card-title">مختبرُ السلّة</p>
+        <p className="text-[12px] text-[var(--ink-muted)] mt-1">اختر شركاتك، فترى أداءها مقابل تاسي بمحرّك النجوم نفسِه، وما تقوله المحرّكاتُ عنها اليوم.</p>
+      </div>
+      <div className="relative">
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="اسم الشركة أو رمزها"
+          className="w-full min-h-[40px] rounded-xl px-3 text-[13px] bg-[var(--field)] border border-[var(--hairline)] text-[var(--ink)]" />
+        {hits.length > 0 && (
+          <div className="absolute z-10 inset-x-0 mt-1 rounded-xl border border-[var(--line)] bg-[var(--pop)] overflow-hidden">
+            {hits.map((r: any) => {
+              const sym = String(r.symbol).replace(".SR", "");
+              return (
+                <button key={sym} type="button" onClick={() => { save([...syms, sym].slice(0, 30)); setQ(""); }}
+                  className="w-full flex items-center justify-between gap-2 px-3 min-h-[40px] text-start hover:bg-[var(--field)]">
+                  <span className="text-[13px] text-[var(--ink)] truncate">{r.name}</span>
+                  <span className="text-[11px] text-[var(--ink-muted)] tabular-nums">{sym}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      {syms.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {syms.map(s => (
+            <button key={s} type="button" onClick={() => save(syms.filter(x => x !== s))}
+              className="flex items-center gap-1 px-2.5 min-h-[32px] rounded-full border border-[var(--hairline)] text-[12px] text-[var(--ink)]">
+              {nameOf(s)} <span className="text-[var(--ink-muted)]">×</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-2 flex-wrap">
+        <select value={start} onChange={e => setStart(e.target.value)}
+          className="min-h-[36px] rounded-lg px-2 text-[12px] bg-[var(--field)] border border-[var(--hairline)] text-[var(--ink)]">
+          {["2015-01", "2018-01", "2020-01", "2022-01", "2024-01"].map(v => <option key={v} value={v}>منذ {v.slice(0, 4)}</option>)}
+        </select>
+        <button type="button" disabled={!syms.length} onClick={() => setRun([...syms])}
+          className="btn-primary min-h-[36px] px-4 rounded-lg text-[13px] font-bold disabled:opacity-50">اختبر السلّة</button>
+        {isFetching && <span className="w-3 h-3 rounded-full skeleton" aria-hidden />}
+      </div>
+
+      {run && !isFetching && !data && <p className="text-[13px] text-[var(--ink-muted)]">غير متوفّر — بياناتُ الأسعار التاريخية تُجمع الآن؛ أعد المحاولة بعد دقائق.</p>}
+      {data?.track?.length > 1 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 text-[11px] text-[var(--ink-muted)]">
+            <span className="flex items-center gap-1"><span className="w-2.5 h-0.5 inline-block" style={{ background: "var(--brand-ink)" }} />سلّتك</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-0.5 inline-block" style={{ background: "var(--ink-muted)" }} />تاسي</span>
+          </div>
+          <Curve track={data.track} />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {box("العائد الإجماليّ", data.total)}
+            {box("تاسي", data.tasi_total)}
+            {box("العائد السنويّ المركّب", data.cagr)}
+            {box("أقصى تراجع", data.max_dd)}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {box("أشهرُ التفوّق على تاسي", `${data.beat_pct}%`, false)}
+            {box("تاسي السنويّ المركّب", data.tasi_cagr)}
+          </div>
+          {!!data.missing?.length && <p className="text-[12px] text-[var(--warn-ink)]">بلا سجلّ أسعار: {data.missing.map(nameOf).join("، ")}</p>}
+        </div>
+      )}
+      {fw?.items?.length > 0 && (
+        <div className="rounded-xl border border-[var(--hairline)] overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--hairline)]">
+            <span className="text-[13px] font-semibold text-[var(--ink)]">النظرةُ القادمة — ما تقوله المحرّكاتُ اليوم</span>
+            <span className="text-[12px] tabular-nums text-[var(--ink-muted)]">
+              {fw.upside_reliable != null ? <>إلى العادل <b className={tone(fw.upside_reliable)} dir="ltr">{pct(fw.upside_reliable)}</b> ({fw.reliable_n}/{fw.n} موثوقة)</> : "لا قيمةَ عادلةَ موثوقة"}
+            </span>
+          </div>
+          {fw.items.map((it: any) => (
+            <button key={it.symbol} type="button" onClick={() => onPick(it.symbol)}
+              className="w-full grid grid-cols-[1fr_auto_auto] items-center gap-3 px-3 min-h-[40px] text-start border-b border-[var(--hairline)] last:border-0 hover:bg-[var(--field)]">
+              <span className="text-[13px] text-[var(--ink)] truncate">{it.name || it.symbol}
+                <span className="block text-[11px] text-[var(--ink-muted)]">{it.decision || "—"} · جودة {it.quality ?? "—"}</span></span>
+              <span className={"text-[13px] font-bold tabular-nums " + tone(it.upside)} dir="ltr">{pct(it.upside)}</span>
+              <span className="text-[11px] text-[var(--ink-muted)] w-12 text-center">{it.conf || "—"}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
