@@ -235,7 +235,8 @@ _ENGINE_FILES = ("analysis.py", "fair_value.py", "data_quality.py",
                  "sector_multiples.py", "governance_rules.py",
                  "valuation_fields.py", "four_scores.py",
                  "fair_value_models.py",    # D577: نموذجُ القيمة العادلة يُبطل المخزَّن متى تغيّر
-                 "tadawul_financials.py")   # D596: طبقةُ القوائم المعتمدة
+                 "tadawul_financials.py",   # D596: طبقةُ القوائم المعتمدة
+                 "tadawul_xbrl.py")         # D611: دمجُ الطبقتين يُبطل المخزَّن متى تغيّر
 
 
 def engine_version() -> str:
