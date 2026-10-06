@@ -658,6 +658,7 @@ echo
 python3 scripts/audit/ts_undefined.py || _note "$LINENO"
 echo
 node scripts/audit/render_smoke.mjs || _note "$LINENO"
+node scripts/audit/lab_render.mjs || _note "$LINENO"
 
 # D301: الفوريةُ تُقاس على شاشةٍ حقيقية — لا بالشيفرة ولا بالوعد. يُخدَم
 # بناءُ الواجهة ومجرًى يدفع، ويُلتقَط نصُّ الرقم فيُحسَب تغيّرُه وفجواته.

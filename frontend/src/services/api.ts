@@ -44,9 +44,11 @@ api.interceptors.request.use((config) => {
   if (did) config.headers["X-Device-Id"] = did;
   // المحفظة النشطة — تُعزَل بياناتها في الخادم عبر هذه الترويسة.
   const pid = getActivePortfolioId();
-  if (pid) config.headers["X-Portfolio-Id"] = pid;
+  // ‏D613: نداءٌ يطلب محفظةً بعينها (مختبرُ الأبحاث) لا تغلبه المحفظةُ النشطة ولا التوحيد
+  const explicit = !!config.headers["X-Portfolio-Id"];
+  if (pid && !explicit) config.headers["X-Portfolio-Id"] = pid;
   // توحيد الثروة: قراءة مُجمَّعة عبر كل المحافظ (الإدخال يبقى للمحفظة النشطة).
-  if (getWealthUnified()) config.headers["X-Portfolio-Aggregate"] = "1";
+  if (getWealthUnified() && !explicit) config.headers["X-Portfolio-Aggregate"] = "1";
   // للرفع بـFormData (استعادة النسخة الاحتياطية): نزيل Content-Type الافتراضي
   // (application/json) كي يضبطه المتصفح تلقائياً إلى multipart مع الـboundary
   // الصحيح — بدونه لا يستطيع الخادم قراءة الملف وتفشل الاستعادة.
@@ -148,6 +150,7 @@ export const companiesApi = {
 export const holdingsApi = {
   production: (companyId: number) => api.get<APIResponse>(`/holdings/${companyId}/production`),
   list: () => api.get<APIResponse>("/holdings"),
+  listFor: (pid: number | string) => api.get<APIResponse>("/holdings", { headers: { "X-Portfolio-Id": String(pid) } }),
   closed: () => api.get<APIResponse>("/holdings/closed"),
   reconcile: (data: { items: { company_id: number; quantity: number }[]; cash?: number }) =>
     api.post<APIResponse>("/holdings/reconcile", data),
