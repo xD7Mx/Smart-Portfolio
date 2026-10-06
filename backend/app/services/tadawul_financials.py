@@ -19,7 +19,7 @@ from datetime import date
 
 from loguru import logger
 
-STORE = "tfin:{}"
+STORE = "tfin2:{}"     # D610: مخزنٌ جديدٌ تُقرأ فيه الوحداتُ لكلّ عمود من الصفر — لا بقايا D601
 SOURCE = "تداول — المعلومات المالية"
 _UNIT = {"thousands": 1e3, "millions": 1e6, "units": 1.0, "billions": 1e9}
 # البندُ ← المفتاحُ في مخطّط XBRL نفسِه (فلا يتغيّر قارئٌ واحد)
@@ -144,6 +144,23 @@ def parse_issued_shares(html: str) -> float | None:
     return v if v > 0 else None
 
 
+def parse_page_pe(html: str) -> float | None:
+    """‏D610: «P/E Ratio» المنشورُ في رأس صفحة الشركة — حَكَمُ الربح: قِيس تمكين مكرّرُها 11.91 والربحُ المحسوب
+    يجعله 3.9 (ثلاثةُ أضعاف). والسالبُ أو الغائبُ لا يُحكَّم."""
+    txt = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " | ", html or ""))
+    m = re.search(r"P/E Ratio[ |]*(-?[\d,.]+)", txt)
+    try:
+        v = float(m.group(1).replace(",", "")) if m else None
+    except ValueError:
+        return None
+    return v if v and 0 < v < 500 else None
+
+
+def page_pe(symbol: str) -> float | None:
+    v = (read(symbol) or {}).get("page_pe")
+    return float(v) if isinstance(v, (int, float)) and v > 0 else None
+
+
 def issued_shares(symbol: str) -> float | None:
     v = (read(symbol) or {}).get("issued_shares")
     return float(v) if isinstance(v, (int, float)) and v > 0 else None
@@ -195,11 +212,14 @@ async def read_symbol(symbol: str) -> dict:
         return {"symbol": sym, "ok": False, "why": f"HTTP {st}"}
     got = parse_page(page)
     iss = parse_issued_shares(page)
+    ppe = parse_page_pe(page)
     del page
     if not got["annual"] and not got["quarterly"]:
         return {"symbol": sym, "ok": False, "why": "لا جدولَ بالصيغة الموحَّدة"}
     old = read(sym) or {}
     rec = {"at": date.today().isoformat()}
+    if ppe:
+        rec["page_pe"] = ppe
     if iss or old.get("issued_shares"):
         rec["issued_shares"] = iss or old.get("issued_shares")
     for kind in ("annual", "quarterly"):

@@ -8,7 +8,7 @@ sys.path.insert(0, "/app")
 from app.services import lastgood
 from app.services.tadawul_xbrl import for_symbol, _xbrl_for
 
-keys = lastgood.keys_with_prefix("tfin:")
+keys = lastgood.keys_with_prefix("tfin2:")
 lat, gain = {}, 0
 for k in keys:
     r = lastgood.load(k) or {}

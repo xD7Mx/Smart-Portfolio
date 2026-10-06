@@ -336,6 +336,10 @@ def base_of(i: Inputs) -> Base | None:
     if i.archetype == "insurance" and ni is not None and _ni_norm is not None and _ni_norm > ni:
         _ni_norm = ni
         notes.append("التأمينُ لا يُطبَّع صعوداً: ربحُ الاكتتاب الأخيرُ أدنى من وسيطه فيُعتمد هو")
+    elif i.archetype != "commodity" and ni is not None and ni > 0 and _ni_norm is not None and _ni_norm > ni:
+        # ‏D610: الربحُ المتراجعُ يُطبَّع صعوداً إلى المنتصف لا إلى الوسيط كلِّه — «عند الشكّ يُخفَّض» (جاهز 2.3٪ ← 6.7٪).
+        # والدوريُّ (السلع) يُطبَّع عبر الدورة كما كان: قاعُ الدورة ليس مستقبلها.
+        _ni_norm = (ni + _ni_norm) / 2
     return Base(ke=ke, wacc=max(wacc, RISK_FREE + 0.02), tax=tax, net_debt=debt - cash, rev=rev,
                 margin_n=m_ni, ebit_margin_n=m_ebit, fcf_margin_n=m_fcf,
                 ocf=_n(i.ttm.get("operating_cash_flow")),
@@ -809,6 +813,35 @@ def quarters_to_year(q: list[dict]) -> dict:
     return out
 
 
+def sanity_ttm(ttm: dict, src: str, annual: list[dict], shares: float, price: float, sym: str, notes: list) -> tuple[dict, str]:
+    """‏D610: حَكَمان على «آخر اثني عشر شهراً» قبل أن يُبنى عليها سعر:
+    (١) أرباعٌ مجموعُ إيرادها فوق 1.4 ضعفٍ من آخر سنةٍ منشورة — قِيس: لومي 2.84 مليار والسنةُ 1.67 (أرباعٌ تراكمية
+        بين المنفصلة) — فتُعتمد السنة؛
+    (٢) مكرّرُ الربحية المنشور في صفحة الشركة على «تداول»: إن خالفه ربحُنا بأكثر من ضعفين (تمكين: ربحٌ 295 مليوناً
+        والمكرّرُ 11.91 يقول 97) يُعتمد ربحُ «تداول» = القيمةُ السوقية ÷ المكرّر، ويُعلَن."""
+    ttm = dict(ttm)
+    a = annual[-1] if annual else {}
+    ra, rt = _n(a.get("revenue")), _n(ttm.get("revenue"))
+    if ra and rt and ra > 0 and rt > 1.4 * ra and not str(src).startswith("سنةُ"):
+        ttm = {k: _n(a.get(k)) for k in ttm}
+        notes.append(f"إيرادُ الأرباع الأخيرة {rt / 1e6:,.0f} مليوناً فوق 1.4 ضعفٍ من سنة {a.get('year')} "
+                     f"({ra / 1e6:,.0f}) — أرباعٌ تراكمية؛ اعتُمدت السنة")
+        src = f"سنةُ {a.get('year')}"
+    try:
+        from app.services.tadawul_financials import page_pe
+        pe = page_pe(sym)
+    except Exception:                                              # noqa: BLE001
+        pe = None
+    ni = _n(ttm.get("net_income"))
+    if pe and shares and price and ni and ni > 0:
+        implied = price * shares / pe
+        if ni > 2 * implied or ni < implied / 2:
+            notes.append(f"ربحُ اثني عشر شهراً {ni / 1e6:,.0f} مليوناً يخالف مكرّرَ «تداول» {pe:g} "
+                         f"(يقول {implied / 1e6:,.0f}) — اعتُمد ربحُ «تداول»")
+            ttm["net_income"] = implied
+    return ttm, src
+
+
 def market_shares_check(shares: float, market_cap: float | None, price: float | None, notes: list) -> float:
     """‏D594: عددُ الأسهم من القوائم (الربحُ ÷ ربحيةِ السهم) يتخلّف عن المنح والتجزئة حتى تُنشر قوائمُ بعدها —
     قِيس: «المتحدة الدولية» 25 مليوناً والسوقُ يقول 250، فتضخّمت ربحيةُ السهم عشراً وصار سعرُها العادل 156 على 27.
@@ -1048,6 +1081,7 @@ async def gather(symbol: str) -> Inputs | None:
                     notes.append(f"قوائمُ «تداول» التفصيلية متوقّفة — قُيِّمت من {syn['_src']}")
         except Exception as e:                                     # noqa: BLE001
             logger.debug("إعلانُ نتائج {}: {}", sym, e)
+    ttm, src = sanity_ttm(ttm, src, annual, shares, price, sym, notes)
     sector = me.get("sector_en")
     try:
         from app.data.universe import is_main
@@ -1237,7 +1271,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v34:{sym}"
+    ck = f"fvm:v35:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

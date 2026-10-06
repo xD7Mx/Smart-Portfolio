@@ -21,7 +21,7 @@ mk = lambda arch: Inputs(symbol="8020", price=8.8, shares=50e6, annual=ann, ttm=
                          ttm_source="t", archetype=arch)
 ins, oth = base_of(mk("insurance")), base_of(mk("consumer_defensive"))
 check(ins and abs(ins.ni_n - 21.7e6) < 1, "١ التأمين: الربحُ الأخيرُ الأدنى هو المعتمد (21.7 مليون لا 39)", str(ins and ins.ni_n))
-check(oth and oth.ni_n > 30e6, "٢ وغيرُ التأمين يبقى على وسيط هامشه كما كان", str(oth and round(oth.ni_n)))
+check(oth and abs(oth.ni_n - (21.7e6 + 38_469_635) / 2) < 2, "٢ وغيرُ التأمين يُطبَّع صعوداً إلى المنتصف لا إلى الوسيط كلِّه (D610)", str(oth and round(oth.ni_n)))
 up = [dict(p, net_income=p["net_income"] * (0.5 if j < 2 else 2)) for j, p in enumerate(ann)]
 ins_up = base_of(Inputs(symbol="8020", price=8.8, shares=50e6, annual=up, ttm=dict(up[-1]), balance=up[-1],
                         ttm_source="t", archetype="insurance"))
