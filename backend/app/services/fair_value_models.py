@@ -784,6 +784,31 @@ def announcement_year(ra: dict | None) -> dict | None:
             "_src": f"إعلانِ نتائج {m} أشهرٍ حتى {ra['as_of']} (مُسنوَناً)"}
 
 
+_FLOW = ("revenue", "net_income", "ebit", "operating_cash_flow", "capex", "interest_expense", "pretax_income")
+
+
+def quarters_to_year(q: list[dict]) -> dict:
+    """‏D602: سنةٌ من أرباع شركةٍ حديثةِ الإدراج — بجمع الأرباع، **إلا** إن كانت تراكميةً من أوّل السنة.
+    قِيس: تمكين بُنيت سنتُها بجمع 3 + 6 + 9 أشهر فصار ربحُها 295 مليوناً ومكرّرُها في «تداول» 11.9
+    يقول نحو 97 — فتضخّم سعرُها العادل 161 على 44. والتراكميُّ يُعرف: أرباعٌ من السنة نفسِها إيرادُها
+    يتصاعد بنسبة أشهرها. فيُسنوَن آخرُها (× 12 ÷ أشهرِه) بدل الجمع."""
+    q = sorted([x for x in q if x.get("as_of")], key=lambda x: str(x["as_of"]))
+    years = {str(x["as_of"])[:4] for x in q}
+    revs = [_n(x.get("revenue")) for x in q]
+    months = [int(str(x["as_of"])[5:7]) for x in q]
+    cumulative = (len(q) >= 2 and len(years) == 1 and all(r and r > 0 for r in revs)
+                  and all(b / a >= 0.75 * (mb / ma) for a, b, ma, mb in zip(revs, revs[1:], months, months[1:])))
+    if cumulative:
+        last, m = q[-1], months[-1]
+        out = {k: (_n(last.get(k)) * 12 / m if _n(last.get(k)) is not None else None) for k in _FLOW}
+        out["_basis"] = f"تراكميٌّ حتى {last['as_of']} مُسنوَناً"
+        return out
+    k = 4 / len(q) if q else 1
+    out = {key: sum(_n(x.get(key)) or 0 for x in q) * k for key in _FLOW}
+    out["_basis"] = f"مجموعُ {len(q)} أرباع"
+    return out
+
+
 def market_shares_check(shares: float, market_cap: float | None, price: float | None, notes: list) -> float:
     """‏D594: عددُ الأسهم من القوائم (الربحُ ÷ ربحيةِ السهم) يتخلّف عن المنح والتجزئة حتى تُنشر قوائمُ بعدها —
     قِيس: «المتحدة الدولية» 25 مليوناً والسوقُ يقول 250، فتضخّمت ربحيةُ السهم عشراً وصار سعرُها العادل 156 على 27.
@@ -959,9 +984,7 @@ async def gather(symbol: str) -> Inputs | None:
     # بدل الامتناع، ويُعلَن قصرُ السجلّ ويرتفع عدمُ اليقين — لا تُسعَّر بسجلٍّ لا تملكه.
     if not annual and len(quarterly) >= 2:
         q = quarterly[-4:]
-        k = 4 / len(q)
-        syn = {key: sum(_n(x.get(key)) or 0 for x in q) * k
-               for key in ("revenue", "net_income", "ebit", "operating_cash_flow", "capex", "interest_expense", "pretax_income")}
+        syn = quarters_to_year(q)
         syn.update({key: q[-1].get(key) for key in ("equity", "total_debt", "ending_cash", "total_assets", "shares_outstanding", "as_of")})
         syn["eps"] = (syn["net_income"] / _n(q[-1].get("shares_outstanding"))) if _n(q[-1].get("shares_outstanding")) else None
         syn["year"] = str(q[-1].get("as_of"))[:4]
@@ -1214,7 +1237,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v33:{sym}"
+    ck = f"fvm:v34:{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
