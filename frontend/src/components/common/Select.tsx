@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Check } from "lucide-react";
 
 /* ‏D617: قائمةٌ منسدلةٌ مرسومة بدل <select> الأصليّ — بلاغُ المالك: «عند تغيير المحفظة في مختبر الأبحاث
@@ -45,11 +46,19 @@ export default function Select({ value, onChange, children, className = "", styl
   const btn = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLDivElement>(null);
 
-  useLayoutEffect(() => {
-    if (!open || !btn.current) return;
+  // الموضعُ يُحسب عند الفتح ويُتابَع مع التمرير — كان التمريرُ يُغلقها، فتنغلق لحظةَ فتحها إن كانت الصفحةُ
+  // ما تزال تنزلق (التمريرُ الناعم) أو مع أدنى حركةٍ للإصبع على الجوّال
+  const place = () => {
+    if (!btn.current) return false;
     const r = btn.current.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > window.innerHeight) return false;
     const up = window.innerHeight - r.bottom < 240 && r.top > 240;
     setPos({ top: up ? r.top - 6 : r.bottom + 6, left: r.left, width: Math.max(r.width, 160), up });
+    return true;
+  };
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
     setHi(Math.max(0, opts.findIndex(o => o.value === cur)));
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -59,7 +68,7 @@ export default function Select({ value, onChange, children, className = "", styl
       const t = e.target as Node;
       if (!btn.current?.contains(t) && !list.current?.contains(t)) setOpen(false);
     };
-    const away = (e: Event) => { if (!list.current?.contains(e.target as Node)) setOpen(false); };
+    const away = (e: Event) => { if (!list.current?.contains(e.target as Node) && !place()) setOpen(false); };
     document.addEventListener("mousedown", off);
     window.addEventListener("scroll", away, true);
     window.addEventListener("resize", away);
@@ -96,12 +105,16 @@ export default function Select({ value, onChange, children, className = "", styl
   return (
     <>
       <button ref={btn} type="button" disabled={disabled} title={title} aria-label={rest["aria-label"]}
-              aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(o => !o)} onKeyDown={onKey}
+              aria-haspopup="listbox" aria-expanded={open}
+              // داخل <label> (حقولُ النماذج): نقرةُ الأيقونة تُعيد الوسمُ إرسالَها إلى الزرّ فتنفتح وتنغلق في لحظة — يُمنع ذلك
+              onClick={e => { e.preventDefault(); setOpen(o => !o); }} onKeyDown={onKey}
               className={`sp-select ${className}`} style={style}>
         <span className="truncate">{sel ? sel.label : "—"}</span>
         <ChevronDown size={14} className={`sp-select-chev${open ? " is-open" : ""}`} />
       </button>
-      {open && (
+      {/* القائمةُ في جسم الصفحة لا بجوار الزرّ: داخل <label> (صفوفُ إعدادات D7M) كانت نقرةُ الخيار
+          يُعيدها الوسمُ إلى الزرّ فتنفتح القائمةُ ثانيةً بعد الاختيار */}
+      {open && createPortal(
         <div ref={list} role="listbox" className="menu-pop sp-select-list"
              style={{ position: "fixed", left: pos.left, width: pos.width, zIndex: 80,
                       ...(pos.up ? { bottom: window.innerHeight - pos.top, transformOrigin: "bottom" } : { top: pos.top }) }}>
@@ -113,7 +126,7 @@ export default function Select({ value, onChange, children, className = "", styl
               {o.value === cur && <Check size={14} />}
             </div>
           ))}
-        </div>
+        </div>, document.body
       )}
     </>
   );
