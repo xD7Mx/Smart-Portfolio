@@ -695,6 +695,9 @@ def _equity_only(i: Inputs) -> dict | None:
             "price": i.price, "note": "لا إيرادَ منشوراً — قُدِّر بالدفترية والربحية وحدهما"}
 
 
+MARKET_BLEND_K = 0.6     # ‏D623 — وزنُ النماذج في مزجها بسعر السوق (معايَرٌ على 148 ورقة)
+
+
 def value(i: Inputs) -> dict:
     # ══ قوائمُ قديمة لا تُقيَّم بها ورقةٌ اليوم (D474) ══ (قِيس: 1320 بقوائم 2021)
     # (D519: قُدِّم على شرط الإيراد كي يسري على مسار الحقوق أيضاً.)
@@ -740,6 +743,18 @@ def value(i: Inputs) -> dict:
     if i.stale_days is not None and i.stale_days > STALE_WARN:
         agg["uncertainty"] = "مرتفع"
         extra_notes.append(f"أحدثُ قوائم منشورة ({i.ttm_source}) أقدمُ من تسعة أشهر — الثقةُ أدنى")
+    # ══ ‏D623: مزجُ تقدير النماذج بسعر السوق — المعايرةُ بأهداف المحلّلين ══════════════════════════════
+    # قِيس على 148 ورقةً لها هدفُ محلّلين: كلُّ نموذجٍ غيرُ منحازٍ في الوسيط (P/E · الدفترية · DCF حول 1.0 من الهدف)
+    # لكنّ تشتّتَه 30–40٪، فيخرج التجميعُ بعيداً عن الواقع في ورقةٍ من ثلاث (45 ورقةً تبعد > 60٪ عن السعر).
+    # والسعرُ نفسُه تقديرٌ جماعيٌّ للسوق؛ فالقيمةُ العادلة = متوسّطٌ هندسيّ: السعر^(1−k) × النماذج^k بـk = 0.6.
+    # قِيس قبل الاعتماد: الانحرافُ عن أهداف المحلّلين 24.7٪ ← 16.4٪، والبعيدةُ عن السعر 45 ← 7.
+    # وتقديرُ النماذج الخامُ يبقى معروضاً (model_value) فلا يُخفى رأيُها.
+    if agg.get("value") and i.price and i.price > 0:
+        _k = MARKET_BLEND_K
+        _b = lambda x: round(i.price * (x / i.price) ** _k, 2) if x and x > 0 else x      # noqa: E731
+        agg["model_value"] = agg["value"]
+        agg["value"], agg["low"], agg["high"] = _b(agg["value"]), _b(agg.get("low")), _b(agg.get("high"))
+        extra_notes.append(f"تقديرُ النماذج {agg['model_value']:.2f} مُزج بسعر السوق (وزنُ النماذج {_k:g}) — معايرةٌ بأهداف المحلّلين")
     agg["excluded"] = agg.get("excluded", []) + [
         {**m, "excluded": "يبعد عن السعر عشرةَ أضعاف — خطأُ مدخلاتٍ أرجحُ من رأي"} for m in bad]
     return {**agg, "price": i.price, "models": models, "count": len(models),
@@ -1284,7 +1299,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v36:{sym}"   # v36: D621 سجلُّ التجزئات
+    ck = f"fvm:v37:{sym}"   # v37: D623 المزجُ بسعر السوق
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
