@@ -175,6 +175,9 @@ export const transactionsApi = {
   // مراجعة الأوسمة: كشف ما يستحيل حسابياً، وإزالته بقرار المالك وحده.
   tagAudit: () => api.get<APIResponse>("/transactions/tag-audit"),
   untag:  (ids: number[]) => api.post<APIResponse>("/transactions/untag", { ids }),
+  // D614: تجزئاتٌ لم تُطبَّق — اقتراحٌ يطبّقه المالكُ بزرّ
+  pendingSplits: () => api.get<APIResponse>("/transactions/pending-splits"),
+  dismissSplit: (key: string) => api.post<APIResponse>("/transactions/pending-splits/dismiss", { key }),
   // تحرير كامل للعملية عدا نوعها. الخادم يعكس أثر النقد القديم ويطبّق الجديد،
   // ويعيد بناء الحيازة من إعادة تشغيل السجل — فلا يفسد رصيدٌ ولا كمية.
   patch:  (id: number, data: {

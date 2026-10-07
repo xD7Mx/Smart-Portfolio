@@ -269,6 +269,15 @@ async def job_close_digest():
         logger.error(f"ملخّصُ الإغلاق: {e}")
 
 
+async def job_split_watch():
+    """‏D614: كاشفُ التجزئة — صباحاً بعد الافتتاح يُنبِّه، وبعد الإغلاق يُنبِّه ويحفظ أسعار اليوم مرجعاً للغد."""
+    try:
+        from app.services.split_watch import job
+        logger.info(f"كاشفُ التجزئة: {await job()}")
+    except Exception as e:
+        logger.error(f"كاشفُ التجزئة: {e}")
+
+
 async def job_advisor_watch():
     """متابعةُ نصائح صقر (D569): ما نُفّذ، وما تحقّق شرطُه، وما يوقفها — ويُبلَّغ الجديدُ وحده."""
     try:
@@ -706,6 +715,8 @@ def start_scheduler():
     _scheduler.add_job(job_library_wisdom, CronTrigger(hour=6, minute=40), id="library_wisdom_dawn", replace_existing=True)
     _scheduler.add_job(job_tadawul_financials, CronTrigger(hour=19, minute=50), id="tadawul_financials_night", replace_existing=True)
     _scheduler.add_job(job_close_digest, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=15, minute=35), id="close_digest", replace_existing=True)
+    _scheduler.add_job(job_split_watch, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=10, minute=20), id="split_watch_am", replace_existing=True)
+    _scheduler.add_job(job_split_watch, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=15, minute=40), id="split_watch_pm", replace_existing=True)
     # وبعد كلِّ إقلاعٍ بأربع دقائق: الإعادةُ تمحو ذاكرةَ الخادم، والمخزَّنُ في القرص لا يقرؤه خادمٌ يعمل —
     # قِيس أنّ تجهيزاً من عمليةٍ أخرى لا يصل الخادمَ الحيّ؛ فالخادمُ يُجهّز نفسَه
     from datetime import datetime as _dt

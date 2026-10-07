@@ -736,6 +736,24 @@ async def get_audit(company_id: int | None = None, limit: int = 200,
     } for r in rows])
 
 
+@router.get("/pending-splits")
+async def pending_splits(db: AsyncSession = Depends(get_db)):
+    """‏D614: تجزئاتٌ معلنةٌ أو مقيسةٌ من السعر لم تُطبَّق على حيازة المالك — اقتراحٌ لا تعديل."""
+    from app.services.split_watch import pending
+    return success_response(data=await pending(db))
+
+
+class _SplitKey(BaseModel):
+    key: str
+
+
+@router.post("/pending-splits/dismiss")
+async def dismiss_split(body: _SplitKey):
+    from app.services.split_watch import dismiss
+    dismiss(body.key)
+    return success_response(data={"dismissed": body.key})
+
+
 @router.get("/{tx_id}")
 async def get_transaction(tx_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Transaction).where(Transaction.id == tx_id))
