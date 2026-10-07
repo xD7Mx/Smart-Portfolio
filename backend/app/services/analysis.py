@@ -266,7 +266,9 @@ def confidence_of(fvm: dict) -> str:
     notes = " ".join(str(n) for n in (fvm.get("notes") or []))
     loser = "خاسر" in notes or "خسارة" in notes
     stale = "أقدمُ من تسعة أشهر" in notes
-    if loser or (fvm.get("uncertainty") == "مرتفع" and disp > 0.14):
+    # ‏D628: «عدمُ اليقين المرتفع» لا يُنزل الثقةَ وحده — قِيس على 148 ورقة: خطؤه 17٪ ومعتدلُه 16٪.
+    # والخاسرةُ (24٪) والتشتّتُ فوق 30٪ (22٪ فأكثر) ونموذجان فأقلّ (31٪) هي ما يتجاوز عتبةَ العشرين
+    if loser:
         return "منخفضة"
     if disp <= 0.14 and len(ms) >= 4 and not stale:
         return "مرتفعة"
@@ -538,6 +540,17 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         _fv.update({"value": None, "low": None, "high": None, "model_value": None,
                     "unavailable_reason": f"أحدثُ قوائم منشورة لدينا أقدمُ من خمسة عشر شهراً ({_fv['age_days']} يوماً) — "
                                           "لا تُقيَّم ورقةٌ اليوم بقوائمَ قديمة"})
+
+    # ‏D628: رقمٌ نماذجُه غيرُ متّفقةٍ ويبعد عن السعر أكثرَ من 60٪ لا يُنشر سعراً عادلاً — قِيس: 14 من 19 بعيدةً «منخفضة»
+    try:
+        _p1 = (price or {}).get("price")
+        if (_fv or {}).get("confidence") == "منخفضة" and isinstance(_fv.get("value"), (int, float)) \
+                and isinstance(_p1, (int, float)) and _p1 > 0 and abs(_fv["value"] / _p1 - 1) > 0.60:
+            _fv = dict(_fv)
+            _fv.update({"value": None, "low": None, "high": None,
+                        "unavailable_reason": "تقديرُ النماذج غيرُ متّفقٍ ويبعد عن سعر السوق أكثرَ من 60٪ — لا يُنشر رقماً عادلاً"})
+    except Exception:                                             # noqa: BLE001
+        pass
 
     _analyst_fv = (info or {}).get("target_mean_price")
     if not isinstance(_analyst_fv, (int, float)) or _analyst_fv <= 0:
