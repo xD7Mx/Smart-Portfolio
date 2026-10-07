@@ -20,11 +20,11 @@ from app.services.content_engine import fund_store_load
 uni = main_market(MARKET_UNIVERSE)
 rows = {str(r.get("symbol")).replace(".SR", ""): r for r in (get_cached_screener() or [])}
 store = fund_store_load()
-N = len(uni)
 res = []
 for s, meta in uni.items():
     r, st = rows.get(s) or {}, store.get(s) or {}
-    fv = r.get("fair_value") if isinstance(r.get("fair_value"), (int, float)) else st.get("fair_value")
+    # المخزنُ أوّلاً: يُحدَّث فور إعادة التقييم، وصفُّ الفرز قد يحمل نسخةً أقدم (قِيس: سلوشنز 307 في الفرز و160.6 في المخزن)
+    fv = st.get("fair_value") if isinstance(st.get("fair_value"), (int, float)) else r.get("fair_value")
     px = r.get("price")
     res.append({"s": s, "name": meta.get("name_ar") or s, "sector": meta.get("sector_ar") or meta.get("sector") or "—",
                 "fv": fv if isinstance(fv, (int, float)) and fv > 0 else None,
@@ -34,6 +34,9 @@ for s, meta in uni.items():
                 "age": st.get("fair_value_age_days"), "stale": st.get("fair_value_stale"),
                 "why": st.get("fair_value_unavailable"), "vtp": st.get("value_to_price")})
 
+# الصناديقُ المتداولة أوراقٌ لا شركات: سعرُها صافي أصولها، فلا تُعدّ في المقام
+res = [x for x in res if "صندوق" not in str(x["why"] or "")]
+N = len(res)
 verdict = {}
 def line(k, ok, msg):
     verdict[k] = ok

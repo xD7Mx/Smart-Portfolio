@@ -151,6 +151,15 @@ async def pending(db, scoped: bool = True) -> list[dict]:
             pf = factor_from_prices(prev, now)
             if pf and (e is not None or c is None):
                 f, src, when = (f or pf), (src or "السعر"), (when or today)
+        if not f:
+            for r in reversed((lastgood.load(LEDGER) or {}).get(s) or []):
+                try:
+                    rd = date.fromisoformat(r["d"])
+                except (KeyError, ValueError):
+                    continue
+                if (today - rd).days <= WINDOW_DAYS:
+                    f, when, src = float(r["f"]), rd, "تداول"
+                    break
         old = seen_store.get(s)
         if not f and old and (today - date.fromisoformat(old["d"])).days <= WINDOW_DAYS:
             f, when, src = float(old["f"]), date.fromisoformat(old["d"]), old.get("src")
@@ -335,3 +344,51 @@ async def backfill_ledger() -> int:
             record_split(sym, at.date().isoformat() if hasattr(at, "date") else str(at), float(q))
             n += 1
     return n
+
+
+# ══ ‏D622: «تداول» مصدرُ الحدث — عددُ الأسهم المصدرة ليلةً بليلة ═══════════════════════════════
+# بأمر المالك بعد أن عدّل Investing Pro قيمةَ «سلوشنز» يومَ تجزئتها: الحدثُ يُقرأ من المصدر الرسميّ لا من
+# تسجيل المالك ولا من هبوط السعر. صفحةُ كلّ شركةٍ في «تداول» تنشر الأسهمَ المصدرة (تُقرأ كلَّ ليلةٍ في D596)؛
+# فإن تغيّر العددُ بنسبة تجزئةٍ أو منحةٍ معروفة سُجّل الحدثُ بتاريخه وأُعيد التقييم.
+ISSUED = "split:issued"     # {sym: {"n": issued_shares, "d": date}}
+ISSUE_RATIOS = (1.05, 1.1, 1.2, 1.25, 1.3, 1.4, 1.5, 2, 2.5, 3, 4, 5, 10)
+
+
+def ratio_of(prev: float | None, now: float | None) -> float | None:
+    if not (isinstance(prev, (int, float)) and isinstance(now, (int, float)) and prev > 0 and now > prev):
+        return None
+    r = now / prev
+    for f in ISSUE_RATIOS:
+        if abs(r / f - 1) <= 0.01:
+            return float(f)
+    return None
+
+
+def issued_watch(today: str | None = None) -> list[dict]:
+    """يقارن الأسهمَ المصدرة اليوم بالمحفوظة لكلّ السوق الرئيسيّ — ويسجّل ما تغيّر بنسبةٍ معروفة."""
+    from app.services import lastgood
+    from app.services.tadawul_financials import issued_shares
+    from app.data.market_universe import MARKET_UNIVERSE
+    from app.data.universe import main_market
+    d = today or date.today().isoformat()
+    store = dict(lastgood.load(ISSUED) or {})
+    events = []
+    for s in main_market(MARKET_UNIVERSE):
+        n = issued_shares(s)
+        if not n:
+            continue
+        prev = (store.get(s) or {}).get("n")
+        f = ratio_of(prev, n)
+        if f:
+            record_split(s, d, f)
+            try:
+                invalidate_valuations(s)
+            except Exception as e:                                # noqa: BLE001
+                logger.warning("الأسهمُ المصدرة {}: {}", s, e)
+            events.append({"symbol": s, "factor": f, "from": prev, "to": n, "date": d})
+        if prev != n:
+            store[s] = {"n": n, "d": d}
+    lastgood.save(ISSUED, store)
+    if events:
+        logger.info("الأسهمُ المصدرة: أحداثُ رأس مال {}", events)
+    return events

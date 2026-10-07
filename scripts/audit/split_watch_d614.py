@@ -69,5 +69,22 @@ from app.services.split_watch import invalidate_valuations
 invalidate_valuations("7202")
 check(cache.get("fvm:v36:7202") is None and cache.get("fvm:v36:72020") == {"value": 9},
       "٢١ والتجزئةُ تُبطل كاشَ نماذج القيمة العادلة للشركة (كان يُعيد 307)")
+# D622: «تداول» مصدرُ الحدث — الأسهمُ المصدرة ليلةً بليلة
+from app.services.split_watch import ratio_of, issued_watch, ISSUED
+import app.services.tadawul_financials as TF
+check(ratio_of(120e6, 240e6) == 2 and ratio_of(100e6, 110e6) == 1.1 and ratio_of(100e6, 117e6) is None and ratio_of(100e6, 100e6) is None,
+      "٢٢ نسبةُ تجزئةٍ أو منحةٍ معروفة من الأسهم المصدرة، ولا تخمين")
+from app.services import lastgood as _lg
+_lg.save(ISSUED, {"7202": {"n": 120e6, "d": "2026-10-06"}, "2222": {"n": 242e9, "d": "2026-10-06"}})
+_orig = TF.issued_shares
+TF.issued_shares = lambda s: {"7202": 240e6, "2222": 242e9}.get(s)
+try:
+    ev = issued_watch(today="2026-10-07")
+finally:
+    TF.issued_shares = _orig
+check([(e["symbol"], e["factor"]) for e in ev] == [("7202", 2.0)] and factor_after("7202", "2026-06-30") >= 2,
+      "٢٣ تضاعفُ أسهم «سلوشنز» في «تداول» يُسجّل تجزئتها تلقائياً، وما لم يتغيّر لا", str(ev))
+sch2 = (ROOT / "backend/app/scheduler/scheduler.py").read_text()
+check("issued_watch()" in sch2, "٢٤ ويُفحص كلَّ ليلةٍ بعد قراءة صفحات «تداول»")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

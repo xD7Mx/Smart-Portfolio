@@ -258,6 +258,12 @@ async def job_tadawul_financials():
         logger.info(f"المعلوماتُ المالية: {await refresh()}")
     except Exception as e:
         logger.error(f"المعلوماتُ المالية: {e}")
+    # ‏D622: بعد قراءة الصفحات — أحداثُ رأس المال من الأسهم المصدرة
+    try:
+        from app.services.split_watch import issued_watch
+        logger.info(f"الأسهمُ المصدرة: {issued_watch()}")
+    except Exception as e:
+        logger.error(f"الأسهمُ المصدرة: {e}")
 
 
 async def job_close_digest():
