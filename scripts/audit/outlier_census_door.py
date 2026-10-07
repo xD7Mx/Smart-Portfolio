@@ -59,8 +59,12 @@ async def main():
         tags = list(dict.fromkeys(tags)) or ["أخرى"]
         for t in tags:
             sig[t.split("(")[0]] += 1
-        ms = " ".join(f"{m['key']}={m['value']:.0f}" for m in (r.get("models") or []))
-        lines.append(f"  {s} {i.archetype} · قيمة {fv:.1f} سعر {px} ({fv / px - 1:+.0%}) · {' · '.join(tags)} · [{ms}]")
+        at = (rows.get(s) or {}).get("analyst_target")
+        pe_o = (px * i.shares / ni) if (ni and ni > 0 and i.shares) else None
+        h = getattr(i, "hist", None) or {}
+        lines.append(f"  {s} {i.archetype} · قيمة {fv:.1f} سعر {px} ({fv / px - 1:+.0%}) · هدف {at} · "
+                     f"أسهمنا/تداول {(i.shares / iss) if iss and i.shares else None} · مكرّرنا {pe_o and round(pe_o, 1)} · تداول {pe_t} · "
+                     f"تاريخيّ {h.get('pe') if isinstance(h, dict) else None} · {' · '.join(tags)}")
     print("التوقيعات:", dict(sig.most_common()))
     for l in lines:
         print(l)
