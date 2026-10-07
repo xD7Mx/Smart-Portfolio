@@ -544,7 +544,7 @@ async def add_transaction(data: TransactionCreate, db: AsyncSession = Depends(ge
             raise HTTPException(
                 422,
                 f"قبل هذه التجزئة {prior} عملية مسجَّلة. التجزئة تضرب كمياتها كلّها، "
-                f"فإن كنت أدخلتها بكمياتٍ مقروءةٍ من الوسيط **بعد** التجزئة فستُضرب "
+                f"فإن كنت أدخلتها بكمياتٍ مقروءةٍ من الوسيط بعد التجزئة فستُضرب "
                 f"مرّتين وتفسد حيازتك. أكّد أن الكميات السابقة مسجَّلة قبل التجزئة.",
             )
     total, realized_gain, div_row = await _apply(db, data)
