@@ -67,7 +67,8 @@ async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
             _k = "التحليلُ ردّ فارغاً بلا استثناء"
             _FAIL_KINDS[_k] = _FAIL_KINDS.get(_k, 0) + 1
             logger.warning(f"مسحةُ التقييم {sym}: {_k}")
-            return None
+            # ‏D626: والغيابُ يُسمّى في المخزن — لا تُمسّ قيمةٌ سابقة، فالدمجُ يُبقيها
+            return sym, {"_failed": True, "fair_value_unavailable": "تعذّر جلبُ بيانات الشركة من المزوّد في هذه الجولة — تُعاد في المسحة التالية"}
         fv = a.get("fair_value_detail") or {}
         out: dict = {
             "fair_value": a.get("fair_value"),
@@ -176,6 +177,8 @@ async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
                                    return_exceptions=True)
         for r in res:
             if isinstance(r, tuple):
+                if r[1].pop("_failed", False):
+                    failed += 1
                 done[r[0]] = r[1]
             else:
                 failed += 1

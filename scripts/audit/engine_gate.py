@@ -30,7 +30,7 @@ for s, meta in uni.items():
                 "fv": fv if isinstance(fv, (int, float)) and fv > 0 else None,
                 "px": px if isinstance(px, (int, float)) and px > 0 else None,
                 "at": r.get("analyst_target") if isinstance(r.get("analyst_target"), (int, float)) and r.get("analyst_target") > 0 else None,
-                "conf": r.get("fair_value_conf") or st.get("fair_value_conf"),
+                "conf": st.get("fair_value_conf") or r.get("fair_value_conf"),
                 "age": st.get("fair_value_age_days"), "stale": st.get("fair_value_stale"),
                 "why": st.get("fair_value_unavailable"), "vtp": st.get("value_to_price")})
 

@@ -28,5 +28,9 @@ check(C({"models": [{"value": 10}, {"value": 12}, {"value": 7.8}]}) == "متوس
 check(C({"models": [{"value": 10}, {"value": 20}, {"value": 5}]}) == "منخفضة" and C({"models": [{"value": 10}]}) == "منخفضة",
       "٩ تشتّتٌ واسعٌ أو نموذجٌ واحد ← منخفضة")
 check(C({"models": [{"value": 10}] * 4, "notes": ["الشركةُ خاسرة"]}) == "منخفضة", "١٠ والخاسرةُ منخفضةٌ وإن اتّفقت نماذجُها")
+sw = (ROOT / "backend/app/services/market_valuation_sweep.py").read_text()
+check('"fair_value_unavailable": "تعذّر جلبُ بيانات الشركة من المزوّد' in sw, "١١ وغيابُ الردّ يُسمّى في المخزن (‏D626: بتروكيم وبروج ودور بلا سبب)")
+gt = (ROOT / "scripts/audit/engine_gate.py").read_text()
+check('"conf": st.get("fair_value_conf") or r.get' in gt, "١٢ والبوابةُ تقرأ الثقةَ من المخزن أوّلاً كالقيمة")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)
