@@ -24,7 +24,8 @@ res = []
 for s, meta in uni.items():
     r, st = rows.get(s) or {}, store.get(s) or {}
     # المخزنُ أوّلاً: يُحدَّث فور إعادة التقييم، وصفُّ الفرز قد يحمل نسخةً أقدم (قِيس: سلوشنز 307 في الفرز و160.6 في المخزن)
-    fv = st.get("fair_value") if isinstance(st.get("fair_value"), (int, float)) else r.get("fair_value")
+    # ومتى كتبت المسحةُ الورقةَ فقولُها هو الحكم ولو «لا قيمة» — لا يُستعاد رقمُ الفرز الأقدم (‏D627: قِيس الدرع العربي)
+    fv = st.get("fair_value") if "fair_value" in st else r.get("fair_value")
     px = r.get("price")
     res.append({"s": s, "name": meta.get("name_ar") or s, "sector": meta.get("sector_ar") or meta.get("sector") or "—",
                 "fv": fv if isinstance(fv, (int, float)) and fv > 0 else None,
