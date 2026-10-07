@@ -23,6 +23,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { portfolioApi, goalsApi, cashApi, marketApi, aiApi, notificationsApi, notesApi } from "../services/api";
 import SectorInfographic, { buildSectorData } from "../components/common/SectorInfographic";
 import { lookupCompany } from "../data/saudiCompanies";
+import DateInput from "../components/common/DateInput";
 
 /* اللوحة الأساسية الأولى (ما قبل 3d96cf1) بترتيبها الأصلي، لكنْ بالرموز
    لا بقيمٍ ثابتة: القيمة الثابتة لا تعرف المظهر ولا يطالها تغييرٌ لاحق.
@@ -468,7 +469,7 @@ function GoalAddModal({ onClose }: { onClose: () => void }) {
           </div>
           <div>
             <label className="label">تاريخ مستهدف (اختياري)</label>
-            <input className="input" type="date" lang="en" value={deadline} onChange={e => setDeadline(e.target.value)} />
+            <DateInput className="input" value={deadline} onChange={e => setDeadline(e.target.value)} />
           </div>
         </div>
         <button className="btn-primary w-full" disabled={!name || !target || addMut.isPending} onClick={() => addMut.mutate()}>

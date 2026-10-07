@@ -26,6 +26,7 @@ import StockCalendar from "../components/analysis/StockCalendar";
 import CompanyProfileCards from "../components/analysis/CompanyProfileCards";
 import StockOpinion from "../components/analysis/StockOpinion";
 import clsx from "clsx";
+import DateInput from "../components/common/DateInput";
 
 const fmt  = (n: number, dec = 2) => (n ?? 0).toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 const fmt0 = (n: number) => (n ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -268,7 +269,7 @@ function TxModal({ companyId, onClose }: { companyId: number; onClose: () => voi
               </span>
             </div>
           )}
-          <div><label className="label">التاريخ</label><input className="input" type="date" lang="en" max={new Date().toISOString().slice(0, 10)} value={f.date} onChange={set("date")} /></div>
+          <div><label className="label">التاريخ</label><DateInput className="input" max={new Date().toISOString().slice(0, 10)} value={f.date} onChange={set("date")} /></div>
         </div>
         {blockReason && baseValid && <p className="text-[var(--warn-ink)] text-xs mt-3">{blockReason}</p>}
         <button className="btn-primary w-full mt-4" disabled={!valid || mut.isPending} onClick={() => mut.mutate()}>
@@ -436,7 +437,7 @@ function TxEditForm({ t, ed, all = [] }: { t: any; ed: any; all?: any[] }) {
         {t.type === "DIVIDEND" && F("مبلغ التوزيع", "amount")}
         <div>
           <label className="label">التاريخ</label>
-          <input className="input" type="date" lang="en" max={new Date().toISOString().slice(0, 10)}
+          <DateInput className="input" max={new Date().toISOString().slice(0, 10)}
             value={ed.f.date} onChange={ed.set("date")} />
         </div>
       </div>

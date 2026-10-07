@@ -27,6 +27,7 @@ import PortfolioSwitcher from "../components/portfolio/PortfolioSwitcher";
 import { AvatarImg } from "../components/common/Avatar";
 import WatchlistTab from "../components/market/WatchlistTab";
 import CollapsibleList from "../components/common/CollapsibleList";
+import DateInput from "../components/common/DateInput";
 
 const MOBILE_BREAKPOINT = 680;
 const TABLET_BREAKPOINT = 1024;
@@ -763,7 +764,7 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
         )}
 
         {/* لا تاريخ مستقبلي: يُقفل في المتصفح أيضاً لا في الخادم وحده. */}
-        <Field label={tr("port.txDate")}><input className="input" type="date" lang="en" max={new Date().toISOString().slice(0, 10)} value={f.date} onChange={upd("date")} /></Field>
+        <Field label={tr("port.txDate")}><DateInput className="input" max={new Date().toISOString().slice(0, 10)} value={f.date} onChange={upd("date")} /></Field>
 
         <div className="panel rounded-xl p-3 text-xs text-[var(--ink-muted)]">{hint[type]}</div>
 
@@ -883,8 +884,8 @@ function StatementModal({ onClose }: { onClose: () => void }) {
     <Modal title="كشف الحساب" onClose={onClose} wide>
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
-          <Field label="من"><input type="date" className="input" value={from} max={to} onChange={e => setFrom(e.target.value)} /></Field>
-          <Field label="إلى"><input type="date" className="input" value={to} min={from} onChange={e => setTo(e.target.value)} /></Field>
+          <Field label="من"><DateInput className="input" value={from} max={to} onChange={e => setFrom(e.target.value)} /></Field>
+          <Field label="إلى"><DateInput className="input" value={to} min={from} onChange={e => setTo(e.target.value)} /></Field>
         </div>
         {isLoading && <div className="h-24 skeleton" />}
         {isError && <p className="text-sm text-[var(--neg-ink)]">تعذّر جلب الكشف.</p>}
@@ -990,7 +991,7 @@ function CashModal({ onClose }: { onClose: () => void }) {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Field label="المبلغ"><NumInput value={amount} onChange={setAmount} placeholder="0.00" /></Field>
-              <Field label="التاريخ"><input type="date" className="input" value={valueDate} max={new Date().toISOString().slice(0, 10)} onChange={e => setValueDate(e.target.value)} /></Field>
+              <Field label="التاريخ"><DateInput className="input" value={valueDate} max={new Date().toISOString().slice(0, 10)} onChange={e => setValueDate(e.target.value)} /></Field>
             </div>
             <div className="flex gap-3">
               <button className="btn-primary flex-1" onClick={() => mutation.mutate()} disabled={mutation.isPending || !(Number(amount) > 0)}>تأكيد</button>

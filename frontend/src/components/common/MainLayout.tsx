@@ -202,7 +202,8 @@ export default function MainLayout() {
         {/* Main */}
         <main ref={mainRef} className="app-main flex-1 overflow-y-auto flex flex-col">
           <div className="p-3 sm:p-5 lg:p-6 max-w-[1600px] w-full mx-auto flex-1">
-            <Outlet />
+            {/* D615: الانتقالُ بين الصفحات يتلاشى وينزلق انزلاقاً خفيفاً بدل القفز */}
+            <div key={location.pathname} className="route-in"><Outlet /></div>
             <footer className="sp-footer">حقوق النشر محفوظة لـ D7M ©</footer>
           </div>
         </main>

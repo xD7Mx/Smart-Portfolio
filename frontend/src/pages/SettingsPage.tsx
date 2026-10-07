@@ -9,6 +9,7 @@ import CollapsibleList from "../components/common/CollapsibleList";
 import { IDLE_OPTIONS, getIdleMinutes, setIdleMinutes } from "../hooks/useIdleLock";
 import { useT } from "../i18n";
 import { PAGES } from "../components/common/MainLayout";
+import DateInput from "../components/common/DateInput";
 
 const SECTIONS = [
   { id: "general",   labelKey: "set.general",  icon: Settings },
@@ -53,7 +54,7 @@ function ProjectStartCard() {
         منه يُحسب «العائد المركّب» سنوياً. لا يغيّر أي رقمٍ آخر في المحفظة.
       </p>
       <div className="flex items-center gap-2 flex-wrap">
-        <input type="date" className="input w-auto" value={val} max={new Date().toISOString().slice(0, 10)}
+        <DateInput className="input w-auto" value={val} max={new Date().toISOString().slice(0, 10)}
           onChange={e => setVal(e.target.value)} />
         <button className="btn-primary text-xs" disabled={save.isPending} onClick={() => save.mutate(val)}>حفظ</button>
         {val && <button className="btn-ghost text-xs" onClick={() => { setVal(""); save.mutate(""); }}>مسح</button>}
