@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""بوابةُ قبول المحرّك — بأمر المالك: «أريد الانتهاء من المحرّكات». مسطرةٌ ثابتةٌ على شركات السوق الرئيسيّ كلّها،
+ولا يُقال «جاهز» حتى تجتاز بنودُها الخمسة. قارئٌ فقط.
+
+    docker exec sp_backend python /app/scripts/audit/engine_gate.py
+
+  ١ التغطية      ≥ 90٪ لها قيمةٌ عادلة، وكلُّ غائبةٍ بسببٍ مسمّى
+  ٢ الحداثة      صفرُ قيمةٍ على قوائمَ أقدم من 15 شهراً، وصفرُ قيمةٍ محسوبةٍ قبل تجزئةٍ/منحة
+  ٣ المعقولية    ≤ 5٪ تبتعد عن السعر أكثر من 60٪
+  ٤ المرجع       وسيطُ |تقديرنا÷هدف المحلّلين − 1| ≤ 20٪ للسوق، ولكلّ قطاعٍ فيه ≥ 5 شركات
+  ٥ الثقة        ≥ 50٪ ثقتُها «متوسطة» أو «مرتفعة»، وكلُّ «منخفضة» بسببٍ مسمّى
+"""
+import collections, statistics, sys
+sys.path.insert(0, "/app")
+from app.data.market_universe import MARKET_UNIVERSE
+from app.data.universe import main_market
+from app.services.market_screener import get_cached_screener
+from app.services.content_engine import fund_store_load
+
+uni = main_market(MARKET_UNIVERSE)
+rows = {str(r.get("symbol")).replace(".SR", ""): r for r in (get_cached_screener() or [])}
+store = fund_store_load()
+N = len(uni)
+res = []
+for s, meta in uni.items():
+    r, st = rows.get(s) or {}, store.get(s) or {}
+    fv = r.get("fair_value") if isinstance(r.get("fair_value"), (int, float)) else st.get("fair_value")
+    px = r.get("price")
+    res.append({"s": s, "name": meta.get("name_ar") or s, "sector": meta.get("sector_ar") or meta.get("sector") or "—",
+                "fv": fv if isinstance(fv, (int, float)) and fv > 0 else None,
+                "px": px if isinstance(px, (int, float)) and px > 0 else None,
+                "at": r.get("analyst_target") if isinstance(r.get("analyst_target"), (int, float)) and r.get("analyst_target") > 0 else None,
+                "conf": r.get("fair_value_conf") or st.get("fair_value_conf"),
+                "age": st.get("fair_value_age_days"), "stale": st.get("fair_value_stale"),
+                "why": st.get("fair_value_unavailable"), "vtp": st.get("value_to_price")})
+
+verdict = {}
+def line(k, ok, msg):
+    verdict[k] = ok
+    print(f"{'✔' if ok else '✘'} {k} — {msg}")
+
+have = [x for x in res if x["fv"]]
+miss = [x for x in res if not x["fv"]]
+cov = len(have) / N if N else 0
+named = [x for x in miss if x["why"]]
+line("١ التغطية", cov >= 0.90 and len(named) == len(miss),
+     f"{len(have)}/{N} = {cov:.0%} · غائبةٌ بسببٍ مسمّى {len(named)}/{len(miss)}")
+why = collections.Counter(x["why"] or "بلا سبب" for x in miss)
+for w, n in why.most_common(6):
+    print(f"     {n:>3} × {w}")
+
+old = [x for x in have if isinstance(x["age"], (int, float)) and x["age"] > 456]
+# قيمةٌ قبل حدثِ رأس مال: سعرُ يوم الحساب (القيمةُ ÷ نسبتِها) يبعد عن سعر اليوم بنسبة تجزئة/منحة
+cap = []
+for x in have:
+    if x["vtp"] and x["px"]:
+        then = x["fv"] / x["vtp"]
+        r_ = then / x["px"]
+        if r_ >= 1.4 or r_ <= 1 / 1.4:
+            cap.append((x, round(r_, 2)))
+line("٢ الحداثة", not old and not cap, f"قوائمُ أقدم من 15 شهراً {len(old)} · محسوبةٌ قبل حدثِ رأس مال {len(cap)}")
+for x, r_ in cap[:8]:
+    print(f"     {x['s']} {x['name']} · سعرُ الحساب÷اليوم {r_} · قيمة {x['fv']} · سعر {x['px']}")
+for x in old[:5]:
+    print(f"     {x['s']} {x['name']} · عمرُ القوائم {x['age']} يوماً")
+
+far = [x for x in have if x["px"] and abs(x["fv"] / x["px"] - 1) > 0.60]
+line("٣ المعقولية", len(far) <= 0.05 * max(1, len(have)), f"تبتعد عن السعر > 60٪: {len(far)}/{len(have)}")
+for x in sorted(far, key=lambda x: -abs(x["fv"] / x["px"] - 1))[:10]:
+    print(f"     {x['s']} {x['name']} ({x['sector']}) · قيمة {x['fv']:.2f} · سعر {x['px']} · {x['fv']/x['px']-1:+.0%} · ثقة {x['conf']}")
+
+pairs = [x for x in have if x["at"]]
+dev = [abs(x["fv"] / x["at"] - 1) for x in pairs]
+med = statistics.median(dev) if dev else None
+by = collections.defaultdict(list)
+for x in pairs:
+    by[x["sector"]].append(abs(x["fv"] / x["at"] - 1))
+bad_sec = {k: statistics.median(v) for k, v in by.items() if len(v) >= 5 and statistics.median(v) > 0.20}
+line("٤ المرجع", med is not None and med <= 0.20 and not bad_sec,
+     f"لها هدفُ محلّلين {len(pairs)} · وسيطُ الانحراف {med:.0%}" if med is not None else "لا أهدافَ محلّلين")
+for k, v in sorted(by.items(), key=lambda kv: -statistics.median(kv[1])):
+    if len(v) >= 3:
+        print(f"     {'✘' if k in bad_sec else ' '} {k:<28} n={len(v):>3} · وسيط {statistics.median(v):.0%}")
+
+cc = collections.Counter(x["conf"] or "—" for x in have)
+good = cc.get("متوسطة", 0) + cc.get("مرتفعة", 0)
+line("٥ الثقة", good >= 0.5 * max(1, len(have)), f"{dict(cc)} · متوسطةٌ فأعلى {good}/{len(have)}")
+
+print("\nالحكم:", "✔ اجتاز المحرّكُ البوابة" if all(verdict.values()) else
+      f"✘ لم يجتز — البنودُ الساقطة: {[k for k, v in verdict.items() if not v]}")
