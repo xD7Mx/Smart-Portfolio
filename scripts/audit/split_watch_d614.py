@@ -43,5 +43,17 @@ check(not _re.search(r"#[0-9a-fA-F]{3,6}\b|rgba?\(", sb) and "var(--warn-ink)" i
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text()
 check('job_split_watch, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=10' in sch and "hour=15, minute=40" in sch,
       "١٥ يُفحص بعد الافتتاح وبعد الإغلاق، أيامَ التداول")
+# D619: التجزئةُ تُبطل التقييماتِ المحفوظة (قِيس: سلوشنز 307 على 103.6 = قيمةُ ما قبل التجزئة)
+os.environ["SP_STATE_DIR"] = tempfile.mkdtemp()
+from app.services import cache
+cache.set("analysis:7202.SR:r:v", {"fair_value": 307}, 7 * 24 * 3600)
+cache.set("analysis:72020.SR:r:v", {"fair_value": 9}, 7 * 24 * 3600)
+n = cache.expire_prefix("analysis:7202.SR:")
+check(n == 1 and cache.get("analysis:7202.SR:r:v") is None and cache.get("analysis:72020.SR:r:v") == {"fair_value": 9},
+      "١٦ إبطالُ تحليل الشركة بشاهد قبرٍ لا يمسّ غيرَها", str(n))
+sw2 = (ROOT / "backend/app/services/split_watch.py").read_text()
+check("def invalidate_valuations" in sw2 and "invalidate_valuations(s)" in sw2 and "sweep([s])" in sw2,
+      "١٧ الكاشفُ يُبطل التقييمَ عند كشف التجزئة ويُعيد حسابه")
+check("invalidate_valuations(_sym)" in tx, "١٨ وتسجيلُ المالك للتجزئة يُبطله كذلك")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

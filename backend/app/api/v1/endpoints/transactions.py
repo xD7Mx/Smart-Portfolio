@@ -572,6 +572,16 @@ async def add_transaction(data: TransactionCreate, db: AsyncSession = Depends(ge
     await _ledger_gate(db, data.company_id, _before)
     await db.commit()
     await db.refresh(tx)
+    # D619: تجزئةٌ سُجّلت ⇒ تقييماتُ الشركة المحفوظة على عدد الأسهم القديم تُبطَل فتُحسب من جديد
+    if data.transaction_type == "SPLIT":
+        try:
+            from app.models.portfolio import Company as _C
+            from app.services.split_watch import invalidate_valuations
+            _sym = (await db.execute(select(_C.symbol).where(_C.id == data.company_id))).scalar()
+            if _sym:
+                invalidate_valuations(_sym)
+        except Exception:                                         # noqa: BLE001
+            pass
     return success_response(data={"id": tx.id}, message="Transaction recorded.")
 
 

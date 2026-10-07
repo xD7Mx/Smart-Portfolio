@@ -200,6 +200,22 @@ def set(key: str, value, ttl: int) -> None:
             _flush()
 
 
+def expire_prefix(prefix: str, ttl: int = 7 * 24 * 3600) -> int:
+    """‏D619: يُبطل كلَّ مفتاحٍ يبدأ بـ`prefix` بشاهدِ قبرٍ (قيمةٌ فارغةٌ طويلةُ العمر) لا بحذف —
+    الحذفُ وحده يُعيد الدمجُ مع القرص القيمةَ القديمة، والشاهدُ يغلبها في الدمج ويُقرأ «لا شيء» فيُعاد الحساب."""
+    global _dirty
+    n = 0
+    with _lock:
+        for k in list(_store):
+            if k.startswith(prefix) and _store[k][1] is not None:
+                _store[k] = (time.time() + ttl, None)
+                n += 1
+        if n:
+            _dirty = True
+            _flush()
+    return n
+
+
 def flush() -> None:
     """يُنزل ما تبقّى إلى القرص فوراً — عند الإطفاء أو بعد مسحٍ كامل (متزامنٌ عمداً)."""
     if _dirty or _wipe:

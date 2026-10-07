@@ -167,6 +167,11 @@ async def pending(db, scoped: bool = True) -> list[dict]:
             Transaction.executed_at >= datetime.combine(when - timedelta(days=WINDOW_DAYS), datetime.min.time())))).first()
         if done:
             continue
+        if not old or old.get("d") != when.isoformat():
+            try:
+                invalidate_valuations(s)
+            except Exception as e:                            # noqa: BLE001
+                logger.warning("التجزئة: الإبطال {}", e)
         out.append({"key": key, "company_id": cid, "symbol": s, "portfolio_id": pid,
                     "name": (MARKET_UNIVERSE.get(s) or {}).get("name_ar") or name or s,
                     "factor": f, "date": when.isoformat(), "source": src,
@@ -231,3 +236,39 @@ async def _remember_held() -> None:
         if isinstance(p, (int, float)):
             prices[s] = p
     remember_closes(prices)
+
+
+def invalidate_valuations(symbol: str) -> dict:
+    """‏D619: بعد التجزئة تبقى القيمةُ العادلةُ المحفوظة على عدد الأسهم القديم — قِيس: «سلوشنز» 307 على سعرٍ 103.6
+    (صعودٌ 197٪)، وهي قيمةُ ما قبل التجزئة (~207) تُقارن بسعر ما بعدها. فكلُّ تجزئةٍ — يسجّلها المالكُ أو يكشفها
+    الكاشف — تُبطل تقييماتِ الشركة المحفوظة كلَّها، فتُحسب من جديد على العدد الجديد (حَكَمُ القيمة السوقية ÷ السعر).
+    لا يمسّ شيئاً من أرقام المالك: ما يُبطَل حساباتٌ مشتقّة وحدها."""
+    from app.services import cache, lastgood
+    s = _sym(symbol)
+    out = {"cache": cache.expire_prefix(f"analysis:{s}:") + cache.expire_prefix(f"analysis:{s}.SR:")}
+    for key in ("market:fundamentals", "governance:deep"):
+        store = lastgood.load(key)
+        if isinstance(store, dict):
+            hit = [k for k in (s, s + ".SR") if isinstance(store.get(k), dict)]
+            for k in hit:
+                store[k] = {kk: vv for kk, vv in store[k].items()
+                            if not (kk.startswith("fair_value") or kk in ("value_to_price", "upside", "fv", "fv_conf"))}
+            if hit:
+                lastgood.save(key, store)
+            out[key] = len(hit)
+    # النسخةُ الاحتياطية للتحليل (تُعرض عند انقطاع المصادر) تبقى، بلا قيمتها العادلة القديمة
+    for k in (f"analysis:{s}", f"analysis:{s}.SR"):
+        old = lastgood.load(k)
+        if isinstance(old, dict) and old.get("fair_value") is not None:
+            lastgood.save(k, {**old, "fair_value": None, "valuation": None})
+            out[k] = 1
+    logger.info("التجزئة {}: أُبطلت التقييماتُ المحفوظة {}", s, out)
+    # ويُعاد التقييمُ فوراً في الخلفية (مسحةٌ لرمزٍ واحد) فلا تبقى الشركةُ بلا قيمةٍ حتى المسحة الليلية
+    try:
+        import asyncio
+        from app.services.market_valuation_sweep import sweep
+        asyncio.get_running_loop().create_task(sweep([s]))
+        out["resweep"] = True
+    except Exception:                                             # noqa: BLE001
+        out["resweep"] = False
+    return out

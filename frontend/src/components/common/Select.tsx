@@ -104,10 +104,10 @@ export default function Select({ value, onChange, children, className = "", styl
 
   return (
     <>
-      <button ref={btn} type="button" disabled={disabled} title={title} aria-label={rest["aria-label"]}
+      {/* داخل <label> (حقولُ النماذج): نقرةُ الأيقونة يُعيدها الوسمُ إلى الزرّ فتنفتح وتنغلق في لحظة — يُمنع ذلك */}
+      <button ref={btn} type="button" onClick={e => { e.preventDefault(); setOpen(o => !o); }} onKeyDown={onKey}
+              disabled={disabled} title={title} aria-label={rest["aria-label"]}
               aria-haspopup="listbox" aria-expanded={open}
-              // داخل <label> (حقولُ النماذج): نقرةُ الأيقونة تُعيد الوسمُ إرسالَها إلى الزرّ فتنفتح وتنغلق في لحظة — يُمنع ذلك
-              onClick={e => { e.preventDefault(); setOpen(o => !o); }} onKeyDown={onKey}
               className={`sp-select ${className}`} style={style}>
         <span className="truncate">{sel ? sel.label : "—"}</span>
         <ChevronDown size={14} className={`sp-select-chev${open ? " is-open" : ""}`} />
