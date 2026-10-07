@@ -777,7 +777,7 @@ async def get_announcement_text(symbol: str = "", title: str = "", date: str = "
             logger.debug("مطابقةُ تداول: {}", e)
             t = None
         if t:
-            return success_response(data={"text": t["text"], "source": "تداول", "full": True})
+            return success_response(data={"text": t["text"], "source": "تداول", "full": True, "url": t.get("url")})
     a = await read(u) if u else None
     if a:
         return success_response(data={**a, "source": "أرقام"})

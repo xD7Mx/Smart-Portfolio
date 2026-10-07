@@ -65,7 +65,7 @@ for bad in ("https://evil.example/ar/article/articledetail/id/1", "http://www.ar
 check(len(calls) == n, "٤ ولا يُجلب إلا مقالُ «أرقام» (لا مضيفَ آخر ولا صفحةَ شركة)")
 ev = (ROOT / "frontend/src/components/market/EventsList.tsx").read_text(encoding="utf-8")
 modal = ev[ev.index("function EventDetailModal"):ev.index("function", ev.index("function EventDetailModal") + 30)]
-check("المصدر\n" not in modal and "resolveNewsUrl" not in modal and ("articleBody(" in modal or "announcementText(" in modal) and "<ArgaamButton" in modal,
-      "٥ النافذةُ بلا زرّ «المصدر»، تجلب المحتوى، وزرُّ أرقام باقٍ")
+check("المصدر\n" not in modal and "resolveNewsUrl" not in modal and ("articleBody(" in modal or "announcementText(" in modal) and "<ArgaamButton" not in modal,
+      "٥ النافذةُ بلا زرّ «المصدر»، تجلب المحتوى، وزرُّ «أرقام» محذوفٌ بأمر المالك (D620)")
 print(f"{'FAIL' if fail else 'PASS'} D466 — محتوى الإعلان داخل النافذة")
 sys.exit(fail)

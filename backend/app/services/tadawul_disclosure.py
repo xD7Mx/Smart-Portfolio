@@ -151,6 +151,36 @@ def similar(a: str, b: str, name: str = "") -> float:
     return len(inter) / min(len(ta), len(tb)) if len(inter) >= 2 else 0.0
 
 
+# ‏D620: حدثُ المفكرة يحمل تاريخَ وقوعه (صرفُ الأرباح، الأحقية، الجمعية) لا تاريخَ إعلانه — قِيس: «صرف أرباح نقدية»
+# للراجحي في 2026/10/01 وإعلانُه في «تداول» قبلها بأسابيع، فنافذةُ ±3 أيام لا تجده ويختفي مربّعُ النصّ.
+# فلهذه الأنواع: أحدثُ إعلانٍ من نوعها قبل الحدث بخمسة أشهرٍ على الأكثر.
+_KINDS = (
+    (("صرف", "توزيع", "أرباح نقدية", "أحقية", "احقية"), ("أرباح",)),
+    (("جمعية",), ("جمعية",)),
+)
+
+
+def kind_fallback(rows: list[dict], title: str, d0) -> dict | None:
+    if d0 is None:
+        return None
+    for keys, need in _KINDS:
+        if not any(k in (title or "") for k in keys):
+            continue
+        best = None
+        for r in rows:
+            try:
+                rd = dt.date.fromisoformat(r["date"]) if r.get("date") else None
+            except ValueError:
+                rd = None
+            if rd is None or not (d0 - dt.timedelta(days=150) <= rd <= d0 + dt.timedelta(days=3)):
+                continue
+            t = r.get("title") or ""
+            if all(n in t for n in need) and (best is None or rd > best[0]):
+                best = (rd, r)
+        return best[1] if best else None
+    return None
+
+
 async def match(symbol: str, title: str, date: str | None, name: str = "") -> dict | None:
     """إفصاحُ «تداول» المطابقُ لإعلانٍ في التطبيق — أو None."""
     rows = await list_for(symbol)
@@ -170,4 +200,11 @@ async def match(symbol: str, title: str, date: str | None, name: str = "") -> di
         if s > score:
             best, score = {**d, "url": r["url"]}, s
     # بلا تاريخٍ يُطابَق به (بعضُ إفصاحات «أرقام» تصل بلا تاريخ) يُشدَّد الحدّ
-    return best if best and score >= (0.5 if d0 else 0.6) else None
+    if best and score >= (0.5 if d0 else 0.6):
+        return best
+    fb = kind_fallback(rows, title, d0)
+    if fb:
+        d = await detail(fb["url"])
+        if d:
+            return {**d, "url": fb["url"]}
+    return None

@@ -4,7 +4,7 @@ import { CalendarDays, X, Share2, Loader2 } from "lucide-react";
 import CompanyLogo from "../common/CompanyLogo";
 import { lookupCompany } from "../../data/saudiCompanies";
 import { marketApi } from "../../services/api";
-import { ShareButton, ArgaamButton } from "../common/ShareOpen";
+import { ShareButton } from "../common/ShareOpen";
 
 /**
  * اللغة التصميمية الموحدة للمفكرة — every corporate-action announcement is
@@ -144,7 +144,7 @@ function EventDetailModal({ e, onClose }: { e: any; onClose: () => void }) {
   /* محتوى المصدر داخل النافذة (D466 · D467) — بأمر المالك: لا خروجَ من التطبيق.
      مقالُ «أرقام» يُقرأ بالجلب الذكيّ في الخادم؛ وما ليس مقالاً (صفحةُ
      شركة) لا نصَّ له فلا يظهر مربّعٌ فارغ. */
-  const [body, setBody] = useState<{ s: "off" | "load" | "ok"; t?: string }>(
+  const [body, setBody] = useState<{ s: "off" | "load" | "ok"; t?: string; u?: string }>(
     !e.detail_id && (e.symbol || /argaam\.com\/ar\/article\/articledetail\//.test(e.url || "")) ? { s: "load" } : { s: "off" }
   );
   React.useEffect(() => {
@@ -152,20 +152,10 @@ function EventDetailModal({ e, onClose }: { e: any; onClose: () => void }) {
     let alive = true;
     // «تداول» أوّلاً (الإفصاحُ الرسميّ) و«أرقام» مكمِّلاً — بأمر المالك (D467)
     marketApi.announcementText({ symbol: e.symbol || "", title, date: e.date || "", u: e.url || "", name: name || "" })
-      .then(r => { const t = r.data?.data?.text; if (alive) setBody(t ? { s: "ok", t } : { s: "off" }); })
+      .then(r => { const t = r.data?.data?.text; if (alive) setBody(t ? { s: "ok", t, u: r.data?.data?.source === "تداول" ? r.data?.data?.url : undefined } : { s: "off" }); })
       .catch(() => { if (alive) setBody({ s: "off" }); });
     return () => { alive = false; };
   }, [e.url]);
-
-  const share = async () => {
-    const url = e.url || window.location.href;
-    const data = { title, text: title, url };
-    if ((navigator as any).share) {
-      try { await (navigator as any).share(data); } catch { /* أُلغيت */ }
-    } else {
-      try { await navigator.clipboard.writeText(url); } catch { /* لا شيء */ }
-    }
-  };
 
   return (
     <div className="modal-overlay" onClick={ev => { if (ev.target === ev.currentTarget) onClose(); }}>
@@ -199,7 +189,7 @@ function EventDetailModal({ e, onClose }: { e: any; onClose: () => void }) {
                 أنه «لا تفاصيل لهذا الإعلان» — وهو غير صحيح. */}
             {detail.s === "bad" && (
               <span className="text-xs" style={{ color: "var(--ink-muted)" }}>
-                تعذّر جلب نصّ الإعلان — افتحه في أرقام.
+                تعذّر جلب نصّ الإعلان.
               </span>
             )}
           </div>
@@ -216,12 +206,9 @@ function EventDetailModal({ e, onClose }: { e: any; onClose: () => void }) {
           </div>
         )}
         <div className="flex gap-2 flex-wrap">
-          <ShareButton title={title} url={e.url} />
-          {/* «افتح في أرقام» بالرمز لا بالمعرّف المرفق: الإعلان قد يأتي من
-              ياهو بلا معرّف أرقام، والشركة نفسها معروفة في الخريطة. فربطُ
-              الزرّ بالرمز يجعله يظهر لكل شركةٍ في السوق لا للمنسوب وحده —
-              وهو سبب غيابه عن المالك. */}
-          <ArgaamButton symbol={e.symbol} />
+          <ShareButton title={`${name ? `${name}${e.symbol ? ` (${e.symbol})` : ""} — ` : ""}${title}`}
+            text={[fmtDate(e.date), (body.t || detail.t || "").slice(0, 400)].filter(Boolean).join("\n")}
+            url={body.u || null} />
         </div>
       </div>
     </div>

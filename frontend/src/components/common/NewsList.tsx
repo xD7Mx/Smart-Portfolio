@@ -4,6 +4,7 @@ import { marketApi } from "../../services/api";
 import CompanyLogo from "./CompanyLogo";
 import SourceLogo, { hasSourceLogo } from "./SourceLogo";
 import { lookupCompany } from "../../data/saudiCompanies";
+import { ShareButton } from "./ShareOpen";
 
 /**
  * اللغة التصميمية الموحّدة للأخبار — مكوّن واحد يخدم «أخبار السوق» و«أخبار
@@ -53,16 +54,6 @@ export function NewsDetailModal({ n, onClose }: { n: any; onClose: () => void })
   }, [n.url]);
 
   const summary = n.summary;   // بلا حشو: إن لم يوفّر المصدر ملخّصاً لا نعرض مربعاً
-  const share = async () => {
-    const url = link.url || n.url || window.location.href;
-    const shareData = { title: n.headline, text: n.headline, url };
-    if ((navigator as any).share) {
-      try { await (navigator as any).share(shareData); } catch { /* أُلغيت */ }
-    } else {
-      try { await navigator.clipboard.writeText(url); } catch { /* لا شيء */ }
-    }
-  };
-
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-box fade-in" style={{ maxWidth: 480 }}>
@@ -86,7 +77,7 @@ export function NewsDetailModal({ n, onClose }: { n: any; onClose: () => void })
           </div>
         )}
         <div className="flex gap-2">
-          <button onClick={share} className="btn-primary flex-1 justify-center"><Share2 size={14} /> مشاركة الخبر</button>
+          <ShareButton title={n.headline} text={(summary || "").slice(0, 400) || null} url={link.url || n.url || null} />
           {link.state === "checking" && (
             <span className="btn-ghost flex items-center gap-1.5 opacity-60"><Loader2 size={14} className="animate-spin" /> المصدر</span>
           )}
