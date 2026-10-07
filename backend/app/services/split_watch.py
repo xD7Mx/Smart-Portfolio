@@ -99,6 +99,19 @@ async def pending(db, scoped: bool = True) -> list[dict]:
         MarketEvent.event_type == MarketEventType.SPLIT, MarketEvent.event_date >= since,
         MarketEvent.event_date <= datetime.now(timezone.utc) + timedelta(days=1)))).scalars().all()
     ev_by = {}
+    # ‏المصدرُ الرابع (قيس حيّاً: مفكرةُ السوق خلت من تجزئة سلوشنز، والإغلاقُ السابقُ معدَّلٌ من المزوّد):
+    # عناوينُ أخبار الشركة نفسِها في نافذة الأيام — «تجزئة» ونسبتُها من النصّ
+    from types import SimpleNamespace
+    from app.models.market import MarketNews
+    news = (await db.execute(select(MarketNews).where(
+        MarketNews.published_at >= since - timedelta(days=20),
+        MarketNews.headline.like("%تجزئة%")))).scalars().all()
+    for n in news:
+        s = _sym(n.company_symbol)
+        txt = f"{n.headline} {n.summary or ''}"
+        if s in syms and "سلع" not in txt and factor_from_text(txt):
+            ev_by.setdefault(s, SimpleNamespace(description=txt, value=None,
+                                                event_date=n.published_at))
     for e in evs:
         s = _sym(e.company_symbol)
         if s in syms:

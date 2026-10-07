@@ -31,3 +31,17 @@ async def main():
         print("المفكرة:", e)
 
 asyncio.run(main())
+
+
+async def news():
+    from sqlalchemy import select
+    from app.core.database import AsyncSessionLocal
+    from app.models.market import MarketNews
+    async with AsyncSessionLocal() as db:
+        rows = (await db.execute(select(MarketNews).where(MarketNews.headline.like("%تجزئة%"))
+                                 .order_by(MarketNews.published_at.desc()).limit(10))).scalars().all()
+    from app.services.split_watch import factor_from_text
+    for r in rows:
+        print("خبر:", r.company_symbol, r.published_at, r.headline[:110], "→", factor_from_text(f"{r.headline} {r.summary or ''}"))
+
+asyncio.run(news())
