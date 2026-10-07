@@ -169,6 +169,7 @@ async def pending(db, scoped: bool = True) -> list[dict]:
             continue
         if not old or old.get("d") != when.isoformat():
             try:
+                record_split(s, when.isoformat(), f)
                 invalidate_valuations(s)
             except Exception as e:                            # noqa: BLE001
                 logger.warning("التجزئة: الإبطال {}", e)
@@ -210,6 +211,10 @@ async def job() -> dict:
             lastgood.save(NOTIFIED, sorted(told | {i["key"] for i in new})[-200:])
         except Exception as e:                                # noqa: BLE001
             logger.warning("كاشف التجزئة: الإشعار {}", e)
+    try:
+        await backfill_ledger()
+    except Exception as e:                                    # noqa: BLE001
+        logger.warning("كاشف التجزئة: السجلّ {}", e)
     try:
         await _remember_held()
     except Exception as e:                                    # noqa: BLE001
@@ -272,3 +277,53 @@ def invalidate_valuations(symbol: str) -> dict:
     except Exception:                                             # noqa: BLE001
         out["resweep"] = False
     return out
+
+
+# ══ ‏D621: سجلُّ أحداث رأس المال — يقرؤه محرّكُ القيمة العادلة ══════════════════════════════
+# قِيس بعد D619: إعادةُ حساب «سلوشنز» أعطت 307 كما كانت. فالمحرّكُ نفسُه لا يرى التجزئة: عددُ الأسهم من قوائم
+# ما قبلها، وحَكَمُ القيمة السوقية يتبع مزوّداً عددُ أسهمه قديمٌ كذلك (سعرٌ جديد × عددٌ قديم) فلا يرى خلافاً.
+# فالسجلُّ مصدرٌ ثالث: كلُّ تجزئةٍ يسجّلها المالكُ أو يكشفها الكاشف تُكتب هنا بتاريخها ومعاملها.
+LEDGER = "split:ledger"     # {sym: [{"d": "YYYY-MM-DD", "f": factor}]}
+
+
+def record_split(symbol: str, when: str, factor: float) -> None:
+    from app.services import lastgood
+    if not (isinstance(factor, (int, float)) and factor > 1):
+        return
+    s = _sym(symbol)
+    led = dict(lastgood.load(LEDGER) or {})
+    rows = [r for r in (led.get(s) or []) if r.get("d") != str(when)[:10]]
+    rows.append({"d": str(when)[:10], "f": float(factor)})
+    led[s] = sorted(rows, key=lambda r: r["d"])
+    lastgood.save(LEDGER, led)
+
+
+def factor_after(symbol: str, as_of: str | None) -> float:
+    """حاصلُ معاملات التجزئة بعد تاريخ آخر قوائم — 1 إن لا شيء."""
+    from app.services import lastgood
+    if not as_of:
+        return 1.0
+    f = 1.0
+    for r in (lastgood.load(LEDGER) or {}).get(_sym(symbol)) or []:
+        if r.get("d", "") > str(as_of)[:10] and isinstance(r.get("f"), (int, float)) and r["f"] > 1:
+            f *= r["f"]
+    return f
+
+
+async def backfill_ledger() -> int:
+    """تجزئاتُ المالك المسجَّلة (عملياتُ SPLIT) إلى السجلّ — لكلّ المحافظ."""
+    from sqlalchemy import select
+    from app.core.database import AsyncSessionLocal
+    from app.models.portfolio import Company
+    from app.models.transaction import Transaction
+    async with AsyncSessionLocal() as db:
+        rows = (await db.execute(select(Company.symbol, Transaction.executed_at, Transaction.quantity)
+                                 .join(Transaction, Transaction.company_id == Company.id)
+                                 .where(Transaction.transaction_type == "SPLIT")
+                                 .execution_options(skip_portfolio_scope=True))).all()
+    n = 0
+    for sym, at, q in rows:
+        if at and q and float(q) > 1:
+            record_split(sym, at.date().isoformat() if hasattr(at, "date") else str(at), float(q))
+            n += 1
+    return n

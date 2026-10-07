@@ -11,6 +11,8 @@ async def main():
     sym = "7202"
     before = (fund_store_load().get(sym) or {}).get("fair_value")
     print("قبل:", before)
+    from app.services.split_watch import backfill_ledger, factor_after
+    print("سجلُّ التجزئات من عمليات المالك:", await backfill_ledger(), "· معاملُ 7202 بعد 2026-06-30 =", factor_after(sym, "2026-06-30"))
     print("الإبطال:", invalidate_valuations(sym))
     from app.services.market_valuation_sweep import sweep
     print("المسحة:", {k: v for k, v in (await sweep([sym])).items() if not isinstance(v, (list, dict))})

@@ -55,5 +55,13 @@ sw2 = (ROOT / "backend/app/services/split_watch.py").read_text()
 check("def invalidate_valuations" in sw2 and "invalidate_valuations(s)" in sw2 and "sweep([s])" in sw2,
       "١٧ الكاشفُ يُبطل التقييمَ عند كشف التجزئة ويُعيد حسابه")
 check("invalidate_valuations(_sym)" in tx, "١٨ وتسجيلُ المالك للتجزئة يُبطله كذلك")
+# D621: سجلُّ أحداث رأس المال يقرؤه المحرّك — إعادةُ الحساب وحدها أعطت 307 كما كانت
+from app.services.split_watch import record_split, factor_after
+record_split("7202.SR", "2026-10-07", 2)
+check(factor_after("7202", "2026-06-30") == 2 and factor_after("7202", "2026-10-08") == 1 and factor_after("2222", "2026-06-30") == 1,
+      "١٩ التجزئةُ بعد آخر قوائم تُضاعف عددَ الأسهم، وما بعدها أو لغيرها لا")
+fvm = (ROOT / "backend/app/services/fair_value_models.py").read_text()
+check("factor_after(sym, _last)" in fvm and "1 / 1.5 <= shares / _sh0 <= 1.5" in fvm and "_fa(sym, str(h.get(\"date\"))[:10])" in fvm,
+      "٢٠ المحرّكُ يطبّقها على عدد الأسهم (ما لم يصحّحه حَكَمُ السوق) وعلى التوزيعات قبلها")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

@@ -576,9 +576,11 @@ async def add_transaction(data: TransactionCreate, db: AsyncSession = Depends(ge
     if data.transaction_type == "SPLIT":
         try:
             from app.models.portfolio import Company as _C
-            from app.services.split_watch import invalidate_valuations
+            from app.services.split_watch import invalidate_valuations, record_split
             _sym = (await db.execute(select(_C.symbol).where(_C.id == data.company_id))).scalar()
             if _sym:
+                _w = data.executed_at
+                record_split(_sym, _w.date().isoformat() if hasattr(_w, "date") else str(_w), float(data.factor or data.quantity or 0))
                 invalidate_valuations(_sym)
         except Exception:                                         # noqa: BLE001
             pass

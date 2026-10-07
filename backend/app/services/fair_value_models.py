@@ -1050,7 +1050,18 @@ async def gather(symbol: str) -> Inputs | None:
                 _mc = abs(_ni / _eps) * price
         except Exception:                                          # noqa: BLE001
             pass
+    _sh0 = shares
     shares = market_shares_check(shares, _mc, price, notes)
+    # ‏D621: تجزئةٌ بعد آخر قوائم (من سجلّ أحداث رأس المال) — إن لم يكن حَكَمُ السوق قد صحّح العددَ أصلاً
+    try:
+        from app.services.split_watch import factor_after
+        _last = max((str(x.get("as_of") or f"{x.get('year')}-12-31")[:10] for x in (quarterly[-1:] + annual[-1:])), default=None)
+        _f = factor_after(sym, _last)
+        if _f > 1 and shares and _sh0 and 1 / 1.5 <= shares / _sh0 <= 1.5:
+            notes.append(f"تجزئةٌ بمعامل {_f:g} بعد آخر قوائم ({_last}) — عددُ الأسهم {shares / 1e6:,.1f} ← {shares * _f / 1e6:,.1f} مليون")
+            shares = shares * _f
+    except Exception:                                              # noqa: BLE001
+        pass
     ttm, src = _ttm_of(quarterly, annual)
     stale = None
     try:
@@ -1131,7 +1142,9 @@ async def gather(symbol: str) -> Inputs | None:
         from datetime import date, timedelta
         d = await _div(sym) or {}
         cut = (date.today() - timedelta(days=365)).isoformat()
-        amt = [h["amount"] for h in (d.get("history") or []) if str(h.get("date")) >= cut]
+        # ‏D621: توزيعٌ قبل تجزئةٍ يُقسم على معاملها — فالسهمُ اليوم غيرُ سهمِ يومِ التوزيع
+        from app.services.split_watch import factor_after as _fa
+        amt = [h["amount"] / _fa(sym, str(h.get("date"))[:10]) for h in (d.get("history") or []) if str(h.get("date")) >= cut]
         dps = sum(amt) if amt else None
     except Exception as e:                                         # noqa: BLE001
         logger.debug("توزيعات {}: {}", sym, e)
