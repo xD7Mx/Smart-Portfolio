@@ -30,7 +30,6 @@ async def main():
     except Exception as e:  # noqa: BLE001
         print("المفكرة:", e)
 
-asyncio.run(main())
 
 
 async def news():
@@ -44,4 +43,8 @@ async def news():
     for r in rows:
         print("خبر:", r.company_symbol, r.published_at, r.headline[:110], "→", factor_from_text(f"{r.headline} {r.summary or ''}"))
 
-asyncio.run(news())
+async def both():
+    await main()
+    await news()
+
+asyncio.run(both())
