@@ -255,6 +255,26 @@ def engine_version() -> str:
 _ENGINE_V = engine_version()
 
 
+def confidence_of(fvm: dict) -> str:
+    """‏D625: ثقةُ القيمة العادلة من اتّفاق نماذجها وعددها وحداثة قوائمها وربحيّتها."""
+    import statistics as _st
+    ms = [m.get("value") for m in (fvm or {}).get("models") or [] if isinstance(m.get("value"), (int, float)) and m["value"] > 0]
+    if len(ms) < 3:
+        return "منخفضة"
+    med = _st.median(ms)
+    disp = _st.median([abs(v / med - 1) for v in ms]) if med else 1
+    notes = " ".join(str(n) for n in (fvm.get("notes") or []))
+    loser = "خاسر" in notes or "خسارة" in notes
+    stale = "أقدمُ من تسعة أشهر" in notes
+    if loser or (fvm.get("uncertainty") == "مرتفع" and disp > 0.14):
+        return "منخفضة"
+    if disp <= 0.14 and len(ms) >= 4 and not stale:
+        return "مرتفعة"
+    if disp <= 0.30:
+        return "متوسطة"
+    return "منخفضة"
+
+
 async def analyze_company(symbol: str, name: str | None = None, db=None, allow_supplement: bool = True) -> Optional[dict]:
     from app.services.governance_rules import rules_version
     # يتبدّل بتعديل القواعد أو شيفرة المحرّك (D448)
@@ -481,6 +501,10 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
             _fv = dict(_fv or {})
             _fv.update({"value": _new["value"], "low": _new.get("low"), "high": _new.get("high"),
                         "engine": "fair_value_models"})
+            # ‏D625: الثقةُ من المحرّك الذي أنتج الرقم — كانت تُؤخذ من الاحتياطيّ وهو لم يُنتجه.
+            # ومعيارُها اتّفاقُ النماذج، معايَرٌ على 145 ورقةً لها هدفُ محلّلين: تشتّتٌ ≤ 14٪ ← خطأٌ وسيطُه 12٪
+            # (71٪ ضمن 20٪)، وفوقه 18–19٪. فلا تُرفع ثقةٌ بلا قياسٍ يسندها.
+            _fv.update({"confidence": confidence_of(_new), "model_value": _new.get("model_value")})
             if _new.get("weights_kind") == "reit_nav":        # D554/D593: صافي الأصول ممزوجاً بقيمة التوزيع
                 # «متوسطة» لا «مرتفعة»: السوقُ يخصم صافي الأصول خصماً دائماً، فلا يُعدّ وعدُه هامشَ أمان
                 _fv.update({"confidence": "متوسطة", "implausible": False, "single_path": False})
@@ -492,6 +516,28 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
     except Exception as _e:                                       # noqa: BLE001
         from loguru import logger as _lg_fvm
         _lg_fvm.warning(f"fvm {symbol}: {_e}")
+
+    # ‏D623: المحرّكُ الاحتياطيّ يُمزج بالسعر كالجديد — قِيس بعد المزج: «أيان» و«ولاء» و«متطورة» بقيت على
+    # أرقامها القديمة (+229٪ · +126٪ · +97٪) لأنّها من الاحتياطيّ، والمزجُ كان في الجديد وحده
+    try:
+        _p0 = (price or {}).get("price")
+        if (_fv or {}).get("engine") != "fair_value_models" and isinstance((_fv or {}).get("value"), (int, float)) \
+                and _fv["value"] > 0 and isinstance(_p0, (int, float)) and _p0 > 0:
+            from app.services.fair_value_models import MARKET_BLEND_K as _K
+            _bl = lambda x: round(_p0 * (x / _p0) ** _K, 2) if isinstance(x, (int, float)) and x > 0 else x  # noqa: E731
+            _fv = dict(_fv)
+            _fv.update({"model_value": _fv["value"], "value": _bl(_fv["value"]),
+                        "low": _bl(_fv.get("low")), "high": _bl(_fv.get("high"))})
+    except Exception:                                             # noqa: BLE001
+        pass
+
+    # ‏D624: لا قيمةَ على قوائمَ أقدم من خمسة عشر شهراً، أيّاً كان المحرّك — قِيس في البوابة: ستُّ أوراقٍ
+    # (الدرع العربي 1011 يوماً · جي آي جي 920 · الصقر 645 · ليفا 464 · جدوى ريت الحرمين 1011) قيّمها الاحتياطيّ
+    if isinstance((_fv or {}).get("age_days"), (int, float)) and _fv["age_days"] > 456 and _fv.get("value") is not None:
+        _fv = dict(_fv)
+        _fv.update({"value": None, "low": None, "high": None, "model_value": None,
+                    "unavailable_reason": f"أحدثُ قوائم منشورة لدينا أقدمُ من خمسة عشر شهراً ({_fv['age_days']} يوماً) — "
+                                          "لا تُقيَّم ورقةٌ اليوم بقوائمَ قديمة"})
 
     _analyst_fv = (info or {}).get("target_mean_price")
     if not isinstance(_analyst_fv, (int, float)) or _analyst_fv <= 0:

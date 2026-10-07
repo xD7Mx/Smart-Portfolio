@@ -51,6 +51,9 @@ line("١ التغطية", cov >= 0.90 and len(named) == len(miss),
 why = collections.Counter(x["why"] or "بلا سبب" for x in miss)
 for w, n in why.most_common(6):
     print(f"     {n:>3} × {w}")
+for x in miss:
+    if not x["why"]:
+        print(f"     بلا سبب: {x['s']} {x['name']} ({x['sector']})")
 
 old = [x for x in have if isinstance(x["age"], (int, float)) and x["age"] > 456]
 # قيمةٌ قبل حدثِ رأس مال: سعرُ يوم الحساب (القيمةُ ÷ نسبتِها) يبعد عن سعر اليوم بنسبة تجزئة/منحة
