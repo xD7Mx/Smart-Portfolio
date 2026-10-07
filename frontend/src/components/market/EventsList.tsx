@@ -161,11 +161,19 @@ function EventDetailModal({ e, onClose }: { e: any; onClose: () => void }) {
     <div className="modal-overlay" onClick={ev => { if (ev.target === ev.currentTarget) onClose(); }}>
       <div className="modal-box fade-in" style={{ maxWidth: 480 }}>
         <div className="flex items-center justify-between mb-4">
-          {e.symbol ? <CompanyLogo symbol={e.symbol} size={40} /> : <CalendarDays size={26} className="text-[var(--brand-ink)]" />}
+          {/* D621: اسمُ الشركة بجانب شعارها في الأعلى — بأمر المالك */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            {e.symbol ? <CompanyLogo symbol={e.symbol} size={40} /> : <CalendarDays size={26} className="text-[var(--brand-ink)]" />}
+            {name && (
+              <div className="min-w-0 text-right">
+                <p className="text-[14px] font-bold text-[var(--ink)] truncate">{name}</p>
+                {e.symbol && <p className="text-[11px] text-[var(--ink-muted)] tabular-nums">{e.symbol}</p>}
+              </div>
+            )}
+          </div>
           <button onClick={onClose} title="إغلاق" aria-label="إغلاق" className="text-[var(--ink-muted)] hover:text-[var(--ink)] p-1"><X size={18} /></button>
         </div>
         <div className="flex items-center gap-2 flex-wrap mb-2.5">
-          {name && <span className="tag-b" style={{ fontSize: 10 }}>{name}{e.symbol ? ` (${e.symbol})` : ""}</span>}
           <span className="ev-tag ms-auto" style={{ background: meta.bg, color: meta.fg }}>{meta.label}</span>
         </div>
         <h2 className="text-lg font-bold text-[var(--ink)] leading-snug mb-2">{title}</h2>
