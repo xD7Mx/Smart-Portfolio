@@ -3025,3 +3025,29 @@ button:not(:disabled):active, a:active, [role="tab"]:active { transform: scale(.
   .route-in, .card, .fixed.inset-0, .fixed.inset-0 > *, .date-pop { animation: none; }
   button:active, a:active, [role="tab"]:active { transform: none; }
 }
+
+/* ══ D616: القوائمُ المنسدلة ومفاتيحُ التفعيل والإغلاق — بلاغُ المالك بعد D615 ══════
+   · القائمةُ تنفتح من حافّتها بتكبيرٍ خفيف وتلاشٍ، لا تظهر دفعةً واحدة.
+   · مفتاحُ التفعيل: المقبضُ ينزلق بمنحنى نابضٍ قليلاً، والمسارُ يتدرّج لونُه معه.
+   · الإغلاق: نسخةٌ صامتة من النافذة أو القائمة تتلاشى (utils/exitMotion.ts) بدل الاختفاء الفوريّ. */
+.menu-pop { transform-origin: top; animation: menuIn 190ms var(--ease-out) backwards; }
+@keyframes menuIn { from { opacity: 0; transform: translateY(-4px) scale(.97); } to { opacity: 1; transform: none; } }
+.switch { transition: background-color 220ms var(--ease-out), box-shadow 220ms var(--ease-out) !important; }
+.switch::after { transition: transform 260ms cubic-bezier(.34, 1.36, .64, 1), width 160ms var(--ease-out) !important; }
+.switch:active::after { width: 24px; }
+.switch.on:active::after { transform: translateX(-14px); }
+html[dir="ltr"] .switch.on:active::after { transform: translateX(14px); }
+.exit-anim { pointer-events: none !important; animation: exitFade 170ms ease-in forwards !important; }
+.exit-anim.menu-pop, .exit-anim.date-pop, .exit-anim.clock-pop { animation-name: menuOut !important; }
+.exit-anim .modal-box { animation: boxOut 170ms ease-in forwards !important; }
+.exit-anim .mobile-drawer { animation: drawerOut 190ms ease-in forwards !important; }
+@keyframes exitFade { to { opacity: 0; } }
+@keyframes menuOut { to { opacity: 0; transform: translateY(-4px) scale(.97); } }
+@keyframes boxOut { to { opacity: 0; transform: translateY(8px) scale(.98); } }
+@keyframes drawerOut { to { transform: translateX(100%); } }
+html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !important; }
+@keyframes drawerOutL { to { transform: translateX(-100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .menu-pop, .exit-anim, .exit-anim .modal-box, .exit-anim .mobile-drawer { animation: none !important; }
+  .switch::after { transition: none !important; }
+}

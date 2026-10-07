@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { installExitMotion } from "./utils/exitMotion";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAppStore, applyTheme } from "./store/appStore";
@@ -181,6 +182,9 @@ function App() {
       .catch(() => {})
       .finally(() => { layoutLoaded = true; });
   }, []);
+
+  // D616: النوافذُ والقوائمُ تتلاشى عند الإغلاق بدل الاختفاء الفوريّ
+  useEffect(() => installExitMotion(), []);
 
   useEffect(() => {
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";

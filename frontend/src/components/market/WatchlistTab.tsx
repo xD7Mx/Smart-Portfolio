@@ -175,7 +175,7 @@ function GroupSwitcher({ groups, active, owner, onSwitch }: {
       </button>
 
       {open && (
-        <div className="absolute top-full mt-2 end-0 z-40 w-60 rounded-2xl overflow-hidden shadow-2xl"
+        <div className="menu-pop absolute top-full mt-2 end-0 z-40 w-60 rounded-2xl overflow-hidden shadow-2xl"
           style={{ background: "var(--bg)", border: "1px solid var(--field-line)" }}>
           <div className="px-3 pt-2.5 pb-1.5 text-[11px] text-[var(--ink-muted)]">القوائم</div>
           <div className="max-h-72 overflow-auto">

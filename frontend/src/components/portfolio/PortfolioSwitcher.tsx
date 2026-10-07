@@ -110,7 +110,7 @@ export default function PortfolioSwitcher() {
 
       {open && (
         <div
-          className="sp-menu absolute top-full mt-2 end-0 z-40 w-64 rounded-2xl overflow-hidden shadow-2xl"
+          className="sp-menu menu-pop absolute top-full mt-2 end-0 z-40 w-64 rounded-2xl overflow-hidden shadow-2xl"
         >
           <div className="px-3 pt-2.5 pb-1.5 text-[11px] text-[var(--ink-muted)]">المحافظ</div>
 

@@ -878,7 +878,7 @@ export default function CompanyPage() {
                     <>
                       {/* طبقة إغلاق شفافة: أي ضغطة خارج القائمة تُغلقها. */}
                       <span className="fixed inset-0 z-30" onClick={() => setWatchOpen(false)} />
-                      <div className="watch-menu absolute z-40 top-full mt-1.5 end-0 w-56 rounded-xl shadow-xl overflow-hidden">
+                      <div className="watch-menu menu-pop absolute z-40 top-full mt-1.5 end-0 w-56 rounded-xl shadow-xl overflow-hidden">
                         <p className="px-3 py-2 text-[11px] font-bold text-[var(--ink-muted)]">قوائم المراقبة</p>
                         {groups.length === 0 && (
                           <p className="px-3 pb-2.5 text-[11px] text-[var(--ink-muted)]">لا توجد قوائم بعد.</p>

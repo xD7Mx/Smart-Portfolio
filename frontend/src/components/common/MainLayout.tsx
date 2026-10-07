@@ -185,7 +185,7 @@ export default function MainLayout() {
 
         {/* Mobile drawer */}
         {drawer && (
-          <div className="md:hidden fixed inset-0 z-50" onClick={() => setDrawer(false)}>
+          <div className="drawer-pop md:hidden fixed inset-0 z-50" onClick={() => setDrawer(false)}>
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
             <aside dir={isRtl ? "rtl" : "ltr"}
               className={`mobile-drawer drawer-safe absolute top-0 ${isRtl ? "right-0" : "left-0"} h-full w-64 bg-[var(--field)] ${isRtl ? "border-l" : "border-r"} border-[var(--hairline)] flex flex-col drawer-in`}

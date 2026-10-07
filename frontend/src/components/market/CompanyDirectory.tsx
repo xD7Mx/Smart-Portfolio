@@ -73,7 +73,7 @@ export default function CompanyDirectory({ onPick }: { onPick: (symbol: string) 
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+        <div className="drawer-pop fixed inset-0 z-50 flex items-end sm:items-center justify-center"
              style={{ background: "rgb(0 0 0 / .45)" }}
              onClick={() => setOpen(false)}>
           <div className="w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl overflow-hidden"

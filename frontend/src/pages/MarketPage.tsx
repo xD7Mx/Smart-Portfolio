@@ -1214,7 +1214,7 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
       {/* ══ لوحة الفلاتر السفلية (جوال) ══
           مجمّعة بعناوين، بمساحة تنفّس، وأزرار إجراء واضحة أسفلها. */}
       {sheet && (
-        <div className="md:hidden fixed inset-0 z-50 flex items-end" onClick={e => e.target === e.currentTarget && setSheet(false)}>
+        <div className="drawer-pop md:hidden fixed inset-0 z-50 flex items-end" onClick={e => e.target === e.currentTarget && setSheet(false)}>
           <div className="absolute inset-0 bg-black/60" />
           <div className="relative w-full rounded-t-3xl p-4 pb-6 max-h-[85vh] overflow-y-auto fade-in"
             style={{ background: "var(--pop)", borderTop: "1px solid var(--line)" }}>

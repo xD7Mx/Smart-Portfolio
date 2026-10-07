@@ -37,7 +37,7 @@ export default function MarketStatusDot({ withLabel = false, className = "", mar
     <span className={`relative inline-flex items-center gap-1.5 ${className}`} title={`${label} — ${s.detail}`}
       onClick={showNote} role={tappable ? "button" : undefined}>
       {note && (
-        <span className="absolute top-full mt-1.5 start-1/2 -translate-x-1/2 z-40 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] shadow-xl fade-in"
+        <span className="absolute top-full mt-1.5 start-1/2 -translate-x-1/2 z-40 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] shadow-xl menu-pop"
           style={{ background: "var(--bg)", border: "1px solid var(--field-line)", color: "var(--ink)" }}>
           <span className="font-bold" style={{ color: tone }}>{label}</span>
           <span className="opacity-80"> — {s.detail}</span>
