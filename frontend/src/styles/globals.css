@@ -3051,3 +3051,25 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
   .menu-pop, .exit-anim, .exit-anim .modal-box, .exit-anim .mobile-drawer { animation: none !important; }
   .switch::after { transition: none !important; }
 }
+
+/* ══ D617: القائمةُ المنسدلة المرسومة (components/common/Select) ════════════════════ */
+.sp-select { display: inline-flex; align-items: center; justify-content: space-between; gap: .5rem;
+  text-align: right; cursor: pointer; min-height: 32px; }
+.sp-select:disabled { opacity: .5; cursor: not-allowed; }
+.sp-select-chev { flex-shrink: 0; color: var(--ink-muted); transition: transform 220ms var(--ease-out); }
+.sp-select-chev.is-open { transform: rotate(180deg); }
+.sp-select-list { max-height: 280px; overflow-y: auto; padding: 4px; border-radius: 14px;
+  background: var(--raised, var(--surface)); border: 1px solid var(--hairline);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--ink) 16%, transparent); }
+.sp-select-opt { display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+  min-height: 36px; padding: 0 10px; border-radius: 10px; font-size: 13px; color: var(--ink); cursor: pointer;
+  transition: background-color 120ms var(--ease-out); }
+.sp-select-opt.is-hi { background: color-mix(in srgb, var(--brand) 12%, transparent); }
+.sp-select-opt.is-sel { font-weight: 700; color: var(--brand-ink, var(--brand)); }
+.sp-select-opt.is-off { opacity: .4; cursor: not-allowed; }
+/* القائمةُ المرسومة ترث قواعدَ <select> القديمة في مواضعها */
+.seg > .sp-select.seg-btn { padding-inline: 14px; border: 0; line-height: 1; justify-content: center; }
+@media (max-width: 767px) { .seg > .sp-select.seg-btn { padding-inline: 4px; max-width: 92px; } }
+.d7m-row .sp-select { background: var(--field); color: var(--ink); border: 1px solid var(--hairline);
+  border-radius: 6px; padding: 3px 6px; min-width: 96px; }
+.sp-select:not([class*="px-"]):not(.input):not(.seg-btn) { padding-inline: 8px; }

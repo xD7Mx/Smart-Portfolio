@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BookOpen, X, ExternalLink } from "lucide-react";
 import { marketApi } from "../../services/api";
 import CompanyLogo from "../common/CompanyLogo";
+import Select from "../common/Select";
 
 /* ══ دليلُ الشركات ══ (بأمر المالك · D256)
 
@@ -104,12 +105,12 @@ export default function CompanyDirectory({ onPick }: { onPick: (symbol: string) 
                   className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-[12px] text-[var(--ink)]"
                   style={{ background: "var(--field)", border: "1px solid var(--hairline)", minHeight: 32 }}
                 />
-                <select value={sector} onChange={e => setSector(e.target.value)} aria-label="القطاع"
+                <Select value={sector} onChange={e => setSector(e.target.value)} aria-label="القطاع"
                   className="shrink-0 max-w-[45%] rounded-lg px-2 py-1.5 text-[12px] text-[var(--ink)]"
                   style={{ background: "var(--field)", border: "1px solid var(--hairline)", minHeight: 32 }}>
                   <option value="">كل القطاعات</option>
                   {sectors.map(x => <option key={x} value={x}>{x}</option>)}
-                </select>
+                </Select>
               </div>
               <label className="flex items-center gap-2 text-[12px] text-[var(--ink)] cursor-pointer select-none" style={{ minHeight: 32 }}>
                 <input type="checkbox" checked={showNomu} onChange={e => setShowNomu(e.target.checked)}

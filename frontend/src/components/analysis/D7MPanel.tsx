@@ -1,4 +1,5 @@
 import { D7M_COLORS, D7M_DEFAULTS, FIB_LEVELS, type D7MSettings } from "./d7m";
+import Select from "../common/Select";
 
 /** لونُ الرمز الحاليّ بصيغة #rrggbb ليظهر في منتقي اللون. */
 function tokenHex(name: string): string {
@@ -88,10 +89,10 @@ export default function D7MPanel({ cfg, onChange, onClose }: Props) {
         <fieldset><legend>VWAP</legend>
           <Check k="vwap" label="إظهار" />
           <label className="d7m-row"><span>المرساة</span>
-            <select value={cfg.vwapAnchor} onChange={e => set("vwapAnchor", e.target.value)}>
+            <Select value={cfg.vwapAnchor} onChange={e => set("vwapAnchor", e.target.value)}>
               <option value="Session">جلسة</option><option value="Week">أسبوع</option>
               <option value="Month">شهر</option><option value="Year">سنة</option>
-            </select>
+            </Select>
           </label>
           <Check k="vwapBand" label="النطاقات" />
           <Num k="vwapMult" label="مضاعف النطاق" step={0.5} />
@@ -111,10 +112,10 @@ export default function D7MPanel({ cfg, onChange, onClose }: Props) {
         <fieldset><legend>اللوحات</legend>
           <Check k="dashboard" label="لوحة الاتجاه" />
           <label className="d7m-row"><span>مكان اللوحة</span>
-            <select value={cfg.dashPos} onChange={e => set("dashPos", e.target.value)}>
+            <Select value={cfg.dashPos} onChange={e => set("dashPos", e.target.value)}>
               <option value="tr">أعلى اليمين</option><option value="tl">أعلى اليسار</option>
               <option value="br">أسفل اليمين</option><option value="bl">أسفل اليسار</option>
-            </select>
+            </Select>
           </label>
           <Num k="bull" label="حدّ الصعود" /><Num k="bear" label="حدّ الهبوط" />
           <Check k="macdDash" label="المحلّل الذكي" />

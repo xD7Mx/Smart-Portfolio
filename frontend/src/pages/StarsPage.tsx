@@ -6,6 +6,7 @@ import CompanyLogo from "../components/common/CompanyLogo";
 import StockSheet from "../components/market/StockSheet";
 import { Curve } from "../components/market/TasiStarsPanel";
 import { yearsToGoal, yearsLabel } from "../utils/goal";
+import Select from "../components/common/Select";
 
 /* ══ مختبرُ الأبحاث ══ (بأمر المالك · D612 · D613)
    شاشاتٌ: الأولى لشركات محفظته تلقائياً، والثانيةُ لمحفظةٍ أخرى — ولكلّ شاشةٍ مفتاحُ «شركاتُ المحفظة تلقائياً»
@@ -127,12 +128,12 @@ export default function StarsPage() {
         </div>
 
         <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
-          <select value={pid ?? ""} onChange={e => patch({ pid: e.target.value ? Number(e.target.value) : null, drop: [] })}
+          <Select value={pid ?? ""} onChange={e => patch({ pid: e.target.value ? Number(e.target.value) : null, drop: [] })}
             aria-label="محفظةُ الشاشة"
             className="min-h-[40px] rounded-lg px-2 text-[13px] bg-[var(--field)] border border-[var(--hairline)] text-[var(--ink)]">
             <option value="">بلا محفظة</option>
             {portfolios.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          </Select>
           <button type="button" role="switch" aria-checked={sc.auto} onClick={() => patch({ auto: !sc.auto })}
             disabled={pid == null}
             className="flex items-center gap-2 min-h-[40px] text-[12px] text-[var(--ink)] disabled:opacity-50">

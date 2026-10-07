@@ -54,6 +54,27 @@ if (await sw.count()) {
   const tr = await sw.evaluate(e => getComputedStyle(e, "::after").transitionTimingFunction);
   say(/cubic-bezier\(0\.34/.test(tr), "٥ مقبضُ مفتاح التفعيل ينزلق بمنحنى نابض", tr);
 } else say(false, "٥ لا مفتاحَ تفعيلٍ في الصفحة");
+// D617: قائمةُ المحفظة في مختبر الأبحاث — مرسومةٌ لا <select> أصليّ، تنفتح بحركة وتختار وتُغلق بتلاشٍ
+await page.route("**/api/v1/portfolios**", r => r.fulfill({ status: 200, contentType: "application/json",
+  body: JSON.stringify({ success: true, data: [{ id: 1, name: "الرئيسية", is_default: true }, { id: 2, name: "الأخرى" }] }) }));
+await page.goto(`http://localhost:${PORT}/stars`, { waitUntil: "load", timeout: 30000 });
+await page.waitForTimeout(1500);
+say(await page.locator("select").count() === 0, "٧ لا قائمةَ أصليّةً في مختبر الأبحاث");
+const pick = page.locator('button[aria-label="محفظةُ الشاشة"]');
+say(await pick.count() === 1, "٨ قائمةُ المحفظة مرسومة");
+if (await pick.count()) {
+  await pick.click(); await page.waitForTimeout(220);
+  const lb = page.locator('[role="listbox"]');
+  const an = await lb.evaluate(e => getComputedStyle(e).animationName).catch(() => "");
+  say(an === "menuIn", "٩ وتنفتح من حافّتها بحركة", an);
+  await page.locator('[role="option"]', { hasText: "الأخرى" }).click();
+  await page.waitForTimeout(60);
+  const g = await page.locator(".exit-anim").count();
+  await page.waitForTimeout(400);
+  const txt = (await pick.textContent()) || "";
+  say(g >= 1 && txt.includes("الأخرى") && await page.locator('[role="listbox"]').count() === 0,
+      "١٠ والاختيارُ يُطبَّق وتُغلق بتلاشٍ", `نسخ ${g} · ${txt}`);
+}
 say(errs.length === 0, "٦ بلا خطأٍ في الصفحة", errs.join(" ‖ "));
 await browser.close(); stop();
 console.log("\nالنتيجة:", fail ? "عطب ✖" : "نظيف ✔");

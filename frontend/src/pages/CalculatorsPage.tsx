@@ -5,6 +5,7 @@ import {
 import { Calculator, Layers, Coins, Target, TrendingUp, Plus, X, Building2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { marketApi } from "../services/api";
+import Select from "../components/common/Select";
 
 const money = (n: number) => (isFinite(n) ? Math.round(n) : 0).toLocaleString("en-US");
 const money2 = (n: number) => (isFinite(n) ? n : 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -248,14 +249,14 @@ function IpoValueCalc() {
     <Card icon={Building2} title="تقييم اكتتاب — السعر العادل" tint="var(--chart-2)">
       <div className="grid grid-cols-2 gap-3">
         <Field label="قطاع الشركة">
-          <select className="input" value={sector} onChange={e => { setSector(e.target.value); setRes(null); }}>
+          <Select className="input" value={sector} onChange={e => { setSector(e.target.value); setRes(null); }}>
             <option value="">اختر القطاع</option>
             {(sectors || []).map((s: any) => (
               <option key={s.sector} value={s.sector} disabled={!!s.why}>
                 {s.sector}{s.why ? ` — ${s.why}` : ""}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label="عدد الأسهم بعد الطرح">
           <input className="input" type="text" inputMode="decimal" lang="en" placeholder="0" value={shares} onChange={e => setShares(e.target.value)} />

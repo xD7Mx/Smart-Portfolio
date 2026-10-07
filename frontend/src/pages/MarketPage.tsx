@@ -28,6 +28,7 @@ import NewsList, { hasNewsIdentity, CATEGORY_STYLE } from "../components/common/
 import FlashPrice from "../components/common/FlashPrice";
 import LivePrice, { LivePct } from "../components/common/LivePrice";
 import MarketStatusDot from "../components/common/MarketStatusDot";
+import Select from "../components/common/Select";
 
 const fmtTime = (d: string) => d ? new Date(d).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
 const fmtNum = (n: number) => (n ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -841,12 +842,12 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
           {/* القطاعات بإطار المبدّلات نفسه — كان صندوقاً بحوافَّ أخرى
               وارتفاعٍ أخفض، فيبدو غريباً بين نظيريه. */}
           <div className="min-w-0 justify-self-center seg inline-flex w-fit max-w-full">
-            <select value={sector} onChange={e => setSector(e.target.value)}
+            <Select value={sector} onChange={e => setSector(e.target.value)}
               className="seg-btn bg-transparent focus:outline-none truncate"
               style={{ fontWeight: sector ? 800 : 400, color: sector ? "var(--ink)" : "var(--ink-muted)" }}>
               <option value="">كل القطاعات</option>
               {sectors.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            </Select>
           </div>
 
           <div className="min-w-0 justify-self-end flex items-center gap-2">
@@ -934,12 +935,12 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                   <span className="text-[10px] text-[var(--ink-muted)]">شرعي</span>
                   <Seg value={sharia} set={setSharia} opts={[["COMPLIANT", "متوافق"]]} />
                   <span className="text-[10px] text-[var(--ink-muted)]">مقابل القطاع</span>
-                  <select value={verdict} onChange={e => setVerdict(e.target.value)}
+                  <Select value={verdict} onChange={e => setVerdict(e.target.value)}
                     className="border border-[var(--hairline)] rounded-lg px-2 py-1 text-[12px] text-[var(--ink)] focus:outline-none"
                     style={{ background: "var(--field)" }}>
                     <option value="">الكل</option>
                     {VERDICT_FILTERS.map(k => <option key={k} value={k}>{VERDICTS[k].label}</option>)}
-                  </select>
+                  </Select>
                 </div>
               </div>
             </div>
@@ -1230,11 +1231,11 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                   يُعرض. جمعُهما في لوحةٍ واحدة يُفرغ الشريط للأهمّ. */}
               <FilterGroup title="ترتيب النتائج">
                 <div className="flex items-center gap-2">
-                  <select value={sort.key} onChange={e => setSort(st => ({ key: e.target.value, dir: st.dir }))}
+                  <Select value={sort.key} onChange={e => setSort(st => ({ key: e.target.value, dir: st.dir }))}
                     className="flex-1 rounded-xl px-3 py-2.5 text-[13px] text-[var(--ink)] focus:outline-none"
                     style={{ background: "var(--field)", border: "1px solid var(--field-line)" }}>
                     {SORT_OPTS.map(([k, lbl]) => <option key={k} value={k}>{lbl}</option>)}
-                  </select>
+                  </Select>
                   <button onClick={() => setSort(st => ({ ...st, dir: st.dir === "desc" ? "asc" : "desc" }))}
                     className="flex items-center gap-1.5 px-3 text-[12px]"
                     style={{ background: "var(--field)", border: "1px solid transparent",
@@ -1247,11 +1248,11 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
               </FilterGroup>
 
               <FilterGroup title="القطاع">
-                <select value={sector} onChange={e => setSector(e.target.value)}
+                <Select value={sector} onChange={e => setSector(e.target.value)}
                   className="w-full bg-[var(--field)] border border-[var(--hairline)] rounded-xl px-3 py-2.5 text-[13px] text-[var(--ink)] focus:outline-none">
                   <option value="">كل القطاعات</option>
                   {sectors.map(x => <option key={x} value={x}>{x}</option>)}
-                </select>
+                </Select>
               </FilterGroup>
 
               <FilterGroup title="المتوسطات المتحركة">
@@ -1276,11 +1277,11 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
                     className="w-20 bg-[var(--field)] border border-[var(--hairline)] rounded-lg px-2 py-1.5 text-[13px] text-[var(--ink)] text-center focus:outline-none placeholder:text-[var(--ink-muted)]" />
                 </SheetRow>
                 <SheetRow label="الحكم">
-                  <select value={verdict} onChange={e => setVerdict(e.target.value)}
+                  <Select value={verdict} onChange={e => setVerdict(e.target.value)}
                     className="bg-[var(--field)] border border-[var(--hairline)] rounded-lg px-2 py-1.5 text-[13px] text-[var(--ink)] focus:outline-none">
                     <option value="">الكل</option>
                     {VERDICT_FILTERS.map(k => <option key={k} value={k}>{VERDICTS[k].label}</option>)}
-                  </select>
+                  </Select>
                 </SheetRow>
               </FilterGroup>
 

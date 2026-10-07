@@ -28,6 +28,7 @@ import { AvatarImg } from "../components/common/Avatar";
 import WatchlistTab from "../components/market/WatchlistTab";
 import CollapsibleList from "../components/common/CollapsibleList";
 import DateInput from "../components/common/DateInput";
+import Select from "../components/common/Select";
 
 const MOBILE_BREAKPOINT = 680;
 const TABLET_BREAKPOINT = 1024;
@@ -478,14 +479,14 @@ function CompanyModal({ company, onClose }: { company?: any; onClose: () => void
         <Field label={t("port.nameAr")}><input className="input" value={form.name_ar} onChange={set("name_ar")} placeholder="أرامكو السعودية" /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label={t("port.marketField")}>
-            <select className="input" value={form.market} onChange={set("market")}>
+            <Select className="input" value={form.market} onChange={set("market")}>
               <option>تداول</option><option>نوماد</option><option>السوق الموازية</option>
-            </select>
+            </Select>
           </Field>
           <Field label={t("port.currency")}>
-            <select className="input" value={form.currency} onChange={set("currency")}>
+            <Select className="input" value={form.currency} onChange={set("currency")}>
               <option>SAR</option><option>USD</option>
-            </select>
+            </Select>
           </Field>
         </div>
         <div className="flex gap-3 pt-2">
