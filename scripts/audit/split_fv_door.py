@@ -19,9 +19,9 @@ async def main():
     print("المخزن بعد:", {k: v for k, v in (fund_store_load().get(sym) or {}).items() if k.startswith("fair_value")})
     r = await analyze_company(sym + ".SR")
     fv, px = (r or {}).get("fair_value"), (r or {}).get("price")
-    v = (r or {}).get("valuation") or {}
+    v = (r or {}).get("fair_value_detail") or (r or {}).get("valuation") or {}
     print(f"بعد: القيمةُ العادلة {fv} · السعر {px} · الصعود {round((fv / px - 1) * 100, 1) if fv and px else None}٪ · الثقة {v.get('confidence') or v.get('conf')}")
-    for n in (v.get("notes") or [])[:8]:
+    for n in [x for x in (v.get("notes") or []) if "تجزئة" in str(x) or "الأسهم" in str(x)][:6]:
         print("  ملاحظة:", n)
 
 asyncio.run(main())

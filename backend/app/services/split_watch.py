@@ -243,6 +243,12 @@ async def _remember_held() -> None:
     remember_closes(prices)
 
 
+def _fvm_keys(s: str) -> list[str]:
+    from app.services import cache
+    with cache._lock:
+        return sorted({k for k in cache._store if k.startswith("fvm:") and (k.endswith(f":{s}") or k.endswith(f":{s}.SR"))})
+
+
 def invalidate_valuations(symbol: str) -> dict:
     """‏D619: بعد التجزئة تبقى القيمةُ العادلةُ المحفوظة على عدد الأسهم القديم — قِيس: «سلوشنز» 307 على سعرٍ 103.6
     (صعودٌ 197٪)، وهي قيمةُ ما قبل التجزئة (~207) تُقارن بسعر ما بعدها. فكلُّ تجزئةٍ — يسجّلها المالكُ أو يكشفها
@@ -250,7 +256,9 @@ def invalidate_valuations(symbol: str) -> dict:
     لا يمسّ شيئاً من أرقام المالك: ما يُبطَل حساباتٌ مشتقّة وحدها."""
     from app.services import cache, lastgood
     s = _sym(symbol)
-    out = {"cache": cache.expire_prefix(f"analysis:{s}:") + cache.expire_prefix(f"analysis:{s}.SR:")}
+    # ‏D621: ومعه كاشُ نماذج القيمة العادلة (fvm:vNN:رمز) — كان يُعيد 307 بعد كلّ إبطالٍ لغيره
+    out = {"cache": cache.expire_prefix(f"analysis:{s}:") + cache.expire_prefix(f"analysis:{s}.SR:")
+           + cache.expire_keys(_fvm_keys(s))}
     for key in ("market:fundamentals", "governance:deep"):
         store = lastgood.load(key)
         if isinstance(store, dict):

@@ -63,5 +63,11 @@ check(factor_after("7202", "2026-06-30") == 2 and factor_after("7202", "2026-10-
 fvm = (ROOT / "backend/app/services/fair_value_models.py").read_text()
 check("factor_after(sym, _last)" in fvm and "1 / 1.5 <= shares / _sh0 <= 1.5" in fvm and "_fa(sym, str(h.get(\"date\"))[:10])" in fvm,
       "٢٠ المحرّكُ يطبّقها على عدد الأسهم (ما لم يصحّحه حَكَمُ السوق) وعلى التوزيعات قبلها")
+cache.set("fvm:v36:7202", {"value": 307}, 6 * 3600)
+cache.set("fvm:v36:72020", {"value": 9}, 6 * 3600)
+from app.services.split_watch import invalidate_valuations
+invalidate_valuations("7202")
+check(cache.get("fvm:v36:7202") is None and cache.get("fvm:v36:72020") == {"value": 9},
+      "٢١ والتجزئةُ تُبطل كاشَ نماذج القيمة العادلة للشركة (كان يُعيد 307)")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

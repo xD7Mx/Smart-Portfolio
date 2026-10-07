@@ -1284,7 +1284,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v35:{sym}"
+    ck = f"fvm:v36:{sym}"   # v36: D621 سجلُّ التجزئات
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
