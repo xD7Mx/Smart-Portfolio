@@ -78,8 +78,12 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
   const up = (data.change_pct ?? 0) >= 0;
 
   const fv = data.fair_value_detail || {};
-  const fvValue: number | null = fvm?.value ?? data.fair_value ?? null;
-  const fvUp: number | null = fvm?.upside ?? data.fair_value_upside_pct ?? null;
+  /* ‏D629: الرقمُ من التحليل أوّلاً — هو رقمُ المحرّك نفسه (‏D512) بعد شروط النشر (‏D624 · D628)، ويصل مع الصفحة.
+     كان الصندوقُ ينتظر نداءَ النماذج وحدَه: حسابٌ باردٌ يتجاوز مهلةَ 30 ثانيةً فيُعاد مرّتين، فبقي الهيكلُ
+     دقيقةً ونصفاً والشريطُ تحته مرسومٌ من رقم التحليل (رآه المالك في سدافكو). */
+  const fvValue: number | null = data.fair_value ?? fvm?.value ?? null;
+  const fvUp: number | null = data.fair_value != null ? (data.fair_value_upside_pct ?? null) : (fvm?.upside ?? null);
+  const fvWaiting = fvmLoading && data.fair_value == null && !data.fair_value_unavailable_reason;
   // أصلُ الأرقام وتاريخُها — يصلان من المحرّك ويُعرضان مع الدرجة (D381)
   const prov: Record<string, any> = data.governance_provenance || {};
   // بطاقةُ النمط وركنُ الحوكمة — يصلان في جذر التحليل أو داخل المالية.
@@ -180,7 +184,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
                 «—». لا يحلّ محلَّه هدفُ المحللين ولا النسبيُّ إلى القطاع. */}
             <div className="text-[10px] text-[var(--ink-muted)] mb-1">السعر العادل</div>
             {/* ‏D512: لا رقمَ قبل جواب المحرّك — كان يُرسَم رقمٌ ثمّ يُستبدَل بآخر */}
-            {fvmLoading ? (
+            {fvWaiting ? (
               <div className="h-6 w-24 skeleton rounded" />
             ) : fvValue != null ? (
               <div className="flex items-baseline gap-1.5 flex-wrap"
@@ -211,6 +215,7 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
         </div>
         {open === "hl" && <div className="mt-3"><HealthPanel symbol={symbol} quality={fin.score ?? null} /></div>}
         {open === "fv" && <div className="mt-3"><FairValuePanel symbol={symbol} analystTarget={null}
+                                   withheld={data.fair_value == null ? data.fair_value_unavailable_reason : null}
                                    week52={{ low: f.week52_low, high: f.week52_high }} /></div>}
 
         {/* ══ حُذف سعرُ الدخول وحكمُه وسطرُ «خلاصة المجلس» ══

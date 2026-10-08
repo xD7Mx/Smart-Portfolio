@@ -3,7 +3,9 @@
 import datetime as dt, os, pathlib, sys, tempfile
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
-os.environ["SP_STATE_DIR"] = tempfile.mkdtemp()
+_SB = tempfile.mkdtemp()
+os.environ["LASTGOOD_PATH"] = os.path.join(_SB, "lastgood.json")   # ‏D630: مخزنُ الحالة مؤقّتٌ قبل استيراد المحرّك
+os.environ["SP_STATE_DIR"] = _SB
 fail = 0
 def check(ok, label, det=""):
     global fail

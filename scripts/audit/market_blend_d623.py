@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """حارسُ D623: القيمةُ العادلة = السعر^(1−k) × تقدير النماذج^k بـk = 0.6، وتقديرُ النماذج الخامُ يبقى معروضاً."""
-import pathlib, re, sys
+import os, pathlib, re, sys, tempfile
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
+_SB = tempfile.mkdtemp()
+os.environ["LASTGOOD_PATH"] = os.path.join(_SB, "lastgood.json")   # ‏D630: مخزنُ الحالة مؤقّتٌ قبل استيراد المحرّك
+os.environ["SP_STATE_DIR"] = _SB
 fail = 0
 def check(ok, label, det=""):
     global fail
@@ -20,8 +23,6 @@ px, mv, k = 10.0, 25.0, 0.6
 check(abs(px * (mv / px) ** k - 17.33) < 0.01, "٥ مثالٌ: سعر 10 ونماذج 25 ← 17.33 (لا 25، ولا 10)")
 # D624: لا قيمةَ على قوائمَ أقدم من 15 شهراً أيّاً كان المحرّك · D625: الثقةُ من اتّفاق النماذج
 check('_fv["age_days"] > 456' in an, "٦ لا قيمةَ على قوائمَ أقدم من خمسة عشر شهراً — ولا من الاحتياطيّ")
-import os, tempfile
-os.environ["SP_STATE_DIR"] = tempfile.mkdtemp()
 from app.services.analysis import confidence_of as C
 check(C({"models": [{"value": 10}, {"value": 10.5}, {"value": 9.6}, {"value": 10.2}]}) == "مرتفعة", "٧ نماذجُ متّفقةٌ (أربعةٌ فأكثر) ← مرتفعة")
 check(C({"models": [{"value": 10}, {"value": 12}, {"value": 7.8}]}) == "متوسطة", "٨ تشتّتٌ معتدل ← متوسطة")

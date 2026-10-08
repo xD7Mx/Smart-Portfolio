@@ -20,7 +20,7 @@ check('<HealthPanel symbol={symbol} quality=' in A and "<FairValuePanel symbol={
       and 'setOpen(open === "fv"' in A and 'setOpen(open === "hl"' in A,
       "٢ مكانُهما «تقييم الأداء»، والتفاصيلُ تُفتح بلمسةٍ على الصندوق")
 check("ChevronDown" not in A + H + F, "٣ «الضغطُ خفيٌّ وليس سهماً» — لا أسهم")
-check("fvm?.value ?? data.fair_value" in A and 'queryKey: ["fvm", sym4]' in A,
+check("data.fair_value ?? fvm?.value" in A and 'queryKey: ["fvm", sym4]' in A,
       "٤ رقمٌ واحد: الصندوقُ وتفاصيلُه من المحرّك المرجَّح نفسِه")
 check("من 5" not in H and "toFixed(2)" not in H and "<SafetyBar" in H and "quality" in H,
       "٥ الجودةُ المالية نسبةٌ من نموذجنا بشريط السلامة — لا «من خمسة»")

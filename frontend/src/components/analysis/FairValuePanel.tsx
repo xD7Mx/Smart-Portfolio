@@ -80,8 +80,9 @@ function ModelRow({ m, price }: { m: any; price: number }) {
   );
 }
 
-export default function FairValuePanel({ symbol, analystTarget, week52 }: {
+export default function FairValuePanel({ symbol, analystTarget, week52, withheld }: {
   symbol: string; analystTarget?: number | null; week52?: { low?: number | null; high?: number | null };
+  withheld?: string | null;
 }) {
   const sym = symbol.replace(".SR", "");
   const { data: r, isLoading } = useQuery({
@@ -89,6 +90,8 @@ export default function FairValuePanel({ symbol, analystTarget, week52 }: {
     queryFn: () => marketApi.fairValueModels(sym).then(x => x.data?.data || null),
     staleTime: 30 * 60 * 1000,
   });
+  /* ‏D629: ما حجبه التحليلُ (قوائمُ قديمة · نماذجُ متباينةٌ بعيدةٌ عن السعر) لا تُظهره التفاصيلُ رقماً — جوابٌ واحدٌ في الشاشة */
+  if (withheld) return <div className="py-10 text-right text-sm text-[var(--ink-muted)]">غير متوفّر — {withheld}</div>;
   if (isLoading) return <div className="h-64 skeleton rounded-xl" />;
   if (!r || r.value == null) {
     return <div className="py-10 text-center text-sm text-[var(--ink-muted)]">غير متوفّر</div>;

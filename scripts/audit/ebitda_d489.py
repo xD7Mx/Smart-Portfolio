@@ -172,7 +172,7 @@ check(all("peer_yield" not in v and "peer_ev_sales" in v for v in _ipsets),
 _AN = open(os.path.join(ROOT, "backend/app/services/analysis.py"), encoding="utf-8").read()
 _AP = open(os.path.join(ROOT, "frontend/src/components/analysis/AnalysisPanel.tsx"), encoding="utf-8").read()
 check("_new = await _fvm_for(" in _AN and _AN.find("_new = await _fvm_for(") < _AN.find('"fair_value": _fv.get("value")')
-      and "{fvmLoading ? (" in _AP,
+      and "{fvWaiting ? (" in _AP and "data.fair_value ?? fvm?.value" in _AP,   # ‏D629: رقمُ التحليل هو رقمُ المحرّك نفسه فلا استبدال
       "٢٧ D512 سعرٌ عادلٌ واحدٌ من محرّكٍ واحد: التحليلُ والفرزُ من محرّك InvestingPro، ولا رقمَ يُرسم قبل جوابه ثمّ يُستبدَل")
 from app.services import tadawul_xbrl as _XB
 _fd = _XB._fill_depreciation([{"as_of": "2025-12-31", "revenue": 4e9, "ebit": 8e8}],
