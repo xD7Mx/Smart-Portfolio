@@ -3,7 +3,8 @@
 import sys
 sys.path.insert(0, "/app")
 from app.services import tadawul_market as tm
-rows, meta = tm.usable_rows() if hasattr(tm, "usable_rows") else ({}, None)
+rows, live, at = tm.usable_rows()
+meta = {"live": live, "at": at}
 print("لقطةُ تداول:", len(rows or {}), "رمزاً ·", meta)
 for s in ("2002", "8270", "4010", "6022", "2310", "4290"):
     r = tm.row_for(s)
