@@ -866,7 +866,8 @@ async def refresh_derived(rows: list) -> list:
             if "fair_value" in _st:
                 _fvs = _st.get("fair_value")
                 r["fair_value"] = _fvs if isinstance(_fvs, (int, float)) and _fvs > 0 else None
-                for _k in ("fair_value_conf", "fair_value_low", "fair_value_high"):
+                for _k in ("fair_value_conf", "fair_value_low", "fair_value_high",
+                           "fair_value_calibrated", "fair_value_calibration_note"):   # ‏D634
                     if _k in _st:
                         r[_k] = _st.get(_k)
                 _pxr = r.get("price")

@@ -255,6 +255,11 @@ def engine_version() -> str:
 _ENGINE_V = engine_version()
 
 
+# ‏D634: قطاعاتٌ لم تجتز المعايرةَ الأخيرة للإصدار الأوّل (sector_calib_door · 2026-10-08) — تُراجع في الإصدار الثاني وحده
+V1_UNCALIBRATED = frozenset({"إدارة وتطوير العقارات", "السلع الرأسمالية", "التطبيقات وخدمات التقنية",
+                             "الخدمات الاستهلاكية", "الطاقة", "التأمين"})
+
+
 def confidence_of(fvm: dict) -> str:
     """‏D625: ثقةُ القيمة العادلة من اتّفاق نماذجها وعددها وحداثة قوائمها وربحيّتها."""
     import statistics as _st
@@ -552,6 +557,19 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
     except Exception:                                             # noqa: BLE001
         pass
 
+    # ‏D634 · الإصدارُ الأوّل (`docs/ENGINES_V1.md` — القاعدةُ مسجَّلةٌ قبل القياس): القطاعُ الذي لم يجتز المعايرةَ الأخيرة
+    # (لم يتفوّق خيارٌ من القائمة المغلقة على السعر نفسِه في التحقّق المتقاطع) يُنشر رقمُه بثقةٍ منخفضةٍ وسببٍ مسمّى،
+    # ويُستبعد من ترتيب المختبر بالقيمة. يُطبَّق بعد D628 فلا يحجب رقماً لأجل الوسم وحده.
+    try:
+        from app.data.market_universe import MARKET_UNIVERSE as _MU
+        _sec = (_MU.get(str(symbol).replace(".SR", "")) or {}).get("sector")
+        if _sec in V1_UNCALIBRATED and isinstance((_fv or {}).get("value"), (int, float)):
+            _fv = dict(_fv)
+            _fv.update({"confidence": "منخفضة", "calibrated": False,
+                        "calibration_note": f"قطاعُ «{_sec}» لم يجتز معايرةَ المحرّك: تقديرُه أبعدُ عن أهداف المحلّلين من سعر السوق نفسِه"})
+    except Exception:                                             # noqa: BLE001
+        pass
+
     _analyst_fv = (info or {}).get("target_mean_price")
     if not isinstance(_analyst_fv, (int, float)) or _analyst_fv <= 0:
         _analyst_fv = None
@@ -818,6 +836,8 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         "fair_value_age_days": _fv.get("age_days"),
         "fair_value_stale": _fv.get("stale"),
         "fair_value_unavailable_reason": _fv.get("unavailable_reason"),
+        "fair_value_calibrated": _fv.get("calibrated", True) if _fv.get("value") is not None else None,
+        "fair_value_calibration_note": _fv.get("calibration_note"),
         # وهدفُ بيوت الخبرة باسمه ومصدرِه — مسانِدٌ لا منافس
         "analyst_target": _shown_fv,
         "analyst_target_source": _fv_source,

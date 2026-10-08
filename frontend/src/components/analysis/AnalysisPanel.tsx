@@ -190,7 +190,8 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
               <div className="flex items-baseline gap-1.5 flex-wrap"
                 title={`المدى ${fmt(fvm?.low ?? data.fair_value_low)} – ${fmt(fvm?.high ?? data.fair_value_high)}`
                        + (data.fair_value_conf ? ` · ثقة ${data.fair_value_conf}` : "")
-                       + (data.fair_value_asof ? ` · أرقامٌ حتى ${data.fair_value_asof}` : "")}>
+                       + (data.fair_value_asof ? ` · أرقامٌ حتى ${data.fair_value_asof}` : "")
+                       + (data.fair_value_calibration_note ? ` · ${data.fair_value_calibration_note}` : "")}>
                 <span className="text-xl tabular-nums leading-none text-[var(--ink)]" style={{ fontWeight: 800 }}>{fmt(fvValue)}</span>
                 {fvUp != null && (
                   <span className="text-[11px] tabular-nums" dir="ltr"

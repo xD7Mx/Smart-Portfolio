@@ -116,7 +116,9 @@ def score_all(cands: list[dict], bonus: set[str] | None = None, off: set[str] | 
         frames = (r.get("frames") or {}).get("D") or r
         raw[s] = {
             "financial": {"q": _n(r.get("finance_score"))},
-            "multiples": {"up": min(_n(r.get("fair_value_upside_pct")) or 0, 60.0) if _n(r.get("fair_value_upside_pct")) is not None else None,
+            # ‏D634: قطاعٌ لم يجتز معايرةَ المحرّك لا يُرتَّب بالقيمة — صعودُه رقمٌ منشورٌ لا مِقياسٌ مُعايَر
+            "multiples": {"up": (min(_n(r.get("fair_value_upside_pct")) or 0, 60.0)
+                                 if _n(r.get("fair_value_upside_pct")) is not None and r.get("fair_value_calibrated") is not False else None),
                           "cheap": (-(pe / spe)) if pe and spe and pe > 0 and spe > 0 else None},
             "momentum": {"r12": _n(r.get("ret_12m")), "d200": _n(frames.get("dist_sma200")),
                          "d50": _n(frames.get("dist_sma50"))},

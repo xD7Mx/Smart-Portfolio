@@ -78,6 +78,8 @@ async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
             "fair_value_asof": a.get("fair_value_asof"),
             "fair_value_age_days": a.get("fair_value_age_days"),
             "fair_value_stale": a.get("fair_value_stale"),
+            "fair_value_calibrated": a.get("fair_value_calibrated"),           # ‏D634
+            "fair_value_calibration_note": a.get("fair_value_calibration_note"),
             "fair_value_unavailable": (fv.get("unavailable_reason")
                                        if a.get("fair_value") is None else None),
             "score_asof": date.today().isoformat(),
