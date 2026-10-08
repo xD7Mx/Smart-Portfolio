@@ -30,5 +30,8 @@ check('"fair_value_calibrated": a.get("fair_value_calibrated")' in sw, "٥ ال�
 check('"fair_value_calibrated", "fair_value_calibration_note"' in sc, "٦ والفرزُ يقرؤها من المخزن")
 check('r.get("fair_value_calibrated") is not False else None' in sf, "٧ والمختبرُ لا يرتّب بالقيمة ما لم يُعايَر")
 check("data.fair_value_calibration_note" in ap, "٨ والسببُ ظاهرٌ مع الرقم")
+gt = (ROOT / "scripts/audit/engine_gate.py").read_text()
+check("bad_open = {k: v for k, v in bad_sec.items() if k not in V1_UNCALIBRATED}" in gt and '"@@METRICS@@"' in gt,
+      "٩ البوابةُ تحكم بالبند ٤ على غير الموسوم وحده، وتُخرج مقاييسَها لحارس التجميد")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

@@ -92,13 +92,21 @@ for x in pairs:
 bad_sec = {k: statistics.median(v) for k, v in by.items()
            if len(v) >= 5 and px_by.get(k) and statistics.median(v) > statistics.median(px_by[k])}
 _pxall = [abs(x["px"] / x["at"] - 1) for x in pairs if x["px"]]
-line("٤ المرجع", med is not None and med <= 0.20 and not bad_sec,
+# ‏D634 · الإصدارُ الأوّل (القاعدةُ مسجَّلةٌ قبل القياس): البندُ ٤ لكلّ قطاعٍ غير موسومٍ بأنّه لم يجتز المعايرة،
+# والموسومُ يبقى ظاهراً في الجدول بعلامته — رقمُه منشورٌ بثقةٍ منخفضةٍ وسببٍ مسمّى.
+try:
+    from app.services.analysis import V1_UNCALIBRATED
+except Exception:                                                  # noqa: BLE001
+    V1_UNCALIBRATED = frozenset()
+bad_open = {k: v for k, v in bad_sec.items() if k not in V1_UNCALIBRATED}
+line("٤ المرجع", med is not None and med <= 0.20 and not bad_open,
      (f"لها هدفُ محلّلين {len(pairs)} · وسيطُ الانحراف {med:.0%}"
       + (f" · والسعرُ نفسُه {statistics.median(_pxall):.0%}" if _pxall else "")) if med is not None else "لا أهدافَ محلّلين")
 for k, v in sorted(by.items(), key=lambda kv: -statistics.median(kv[1])):
     if len(v) >= 3:
         _p = px_by.get(k) or []
-        print(f"     {'✘' if k in bad_sec else ' '} {k:<28} n={len(v):>3} · وسيط {statistics.median(v):.0%}"
+        mark = "◌" if k in V1_UNCALIBRATED else "✘" if k in bad_sec else " "
+        print(f"     {mark} {k:<28} n={len(v):>3} · وسيط {statistics.median(v):.0%}"
               + (f" · السعرُ نفسُه {statistics.median(_p):.0%}" if _p else ""))
 
 cc = collections.Counter(x["conf"] or "—" for x in have)
@@ -107,3 +115,14 @@ line("٥ الثقة", good >= 0.5 * max(1, len(have)), f"{dict(cc)} · متوس�
 
 print("\nالحكم:", "✔ اجتاز المحرّكُ البوابة" if all(verdict.values()) else
       f"✘ لم يجتز — البنودُ الساقطة: {[k for k, v in verdict.items() if not v]}")
+
+# ══ مقاييسُ آلية لحارس التجميد (‏D635) — خطُّ الأساس يُقارَن بها كلُّ إصدارٍ لاحق ══
+import json as _json
+print("@@METRICS@@" + _json.dumps({
+    "coverage": round(cov, 4), "unnamed_missing": len(miss) - len(named), "stale": len(old), "precapital": len(cap),
+    "far_share": round(len(far) / max(1, len(have)), 4), "median_dev": round(med, 4) if med is not None else None,
+    "sector_dev": {k: round(statistics.median(v), 4) for k, v in by.items() if len(v) >= 5},
+    "sector_price": {k: round(statistics.median(px_by[k]), 4) for k in by if len(by[k]) >= 5 and px_by.get(k)},
+    "flagged": sorted(V1_UNCALIBRATED), "conf_share": round(good / max(1, len(have)), 4),
+    "verdict": {k: bool(v) for k, v in verdict.items()},
+}, ensure_ascii=False))

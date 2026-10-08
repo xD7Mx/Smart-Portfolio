@@ -37,7 +37,8 @@ check(C({"models": [{"value": 10}, {"value": 13}, {"value": 7.5}], "uncertainty"
       "١٣ عدمُ اليقين المرتفع وحده لا يُنزل الثقة (‏D628: 17٪ مقابل 16٪)")
 check("لا يُنشر رقماً عادلاً\"" in an and 'abs(_fv["value"] / _p1 - 1) > 0.60' in an, "١٤ ومنخفضةُ الثقة البعيدةُ عن السعر > 60٪ لا تُنشر")
 check('if "fair_value" in st else r.get("fair_value")' in gt, "١٥ والبوابةُ لا تستعيد رقمَ الفرز متى قالت المسحةُ «لا قيمة» (‏D627)")
-check("statistics.median(v) > statistics.median(px_by[k])" in gt and "med <= 0.20 and not bad_sec" in gt,
+check("statistics.median(v) > statistics.median(px_by[k])" in gt and "med <= 0.20 and not bad_open" in gt
+      and "bad_open = {k: v for k, v in bad_sec.items() if k not in V1_UNCALIBRATED}" in gt,
       "١٦ بقرار المالك (‏D632): وسيطُ السوق ≤ 20٪، وكلُّ قطاعٍ يتفوّق فيه المحرّكُ على السعر نفسِه")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)
