@@ -353,6 +353,39 @@ async def job_valuation_sweep():
         logger.error(f"Valuation sweep failed: {e}")
 
 
+async def job_engine_ledger():
+    """سجلُّ التحقّق — تقديرُ كلِّ شركةٍ يُسجَّل يومياً ليُقاس بالزمن لا بالرأي (‏D638)."""
+    try:
+        from app.services.engine_ledger import snapshot
+        n = snapshot()
+        logger.info(f"📒 سجلُّ التحقّق: {n} صفّاً")
+    except Exception as e:                                        # noqa: BLE001
+        logger.error(f"Engine ledger failed: {e}")
+
+
+async def job_engine_outcomes():
+    """تقريرُ التحقّق الشهريّ — ما قدّره المحرّكُ قبل 90 و180 و365 يوماً مقابل ما حدث (‏D638).
+    يُحفظ دائماً، ويُرسَل للمالك متى وُجد أفقٌ مكتمل — ولا رسالةَ فارغةً قبل ذلك."""
+    try:
+        from app.services import lastgood
+        from app.services.engine_ledger import outcomes
+        res = outcomes()
+        lastgood.save("engine:outcomes", {"at": __import__("datetime").date.today().isoformat(), "res": res})
+        if not res:
+            return
+        lines = ["📒 تقريرُ التحقّق الشهريّ — المحرّكُ مقابل ما حدث فعلاً"]
+        for h, v in res.items():
+            a = v.get("all") or {}
+            lines.append(f"بعد {h} يوماً: {a.get('n')} تقديراً · إصابةُ الاتجاه {a.get('hit')} · "
+                         f"ارتباطُ الرتبة {a.get('rank_corr')} · الفجوةُ المُغلَقة {a.get('gap_closed')}")
+            for c, b in (v.get("by_conf") or {}).items():
+                lines.append(f"   ثقة {c}: {b.get('n')} · إصابة {b.get('hit')} · ارتباط {b.get('rank_corr')}")
+        from app.services.advisor_memory import notify
+        await notify("", lines, raw=True)
+    except Exception as e:                                        # noqa: BLE001
+        logger.error(f"Engine outcomes failed: {e}")
+
+
 async def job_risk_free():
     """المعدَّلُ الخالي من المخاطر بالريال — أسبوعياً (D249).
 
@@ -761,6 +794,20 @@ def start_scheduler():
         job_valuation_sweep,
         CronTrigger(hour=17, minute=30, day_of_week=TRADING_DAYS),
         id="valuation_sweep_daily",
+        replace_existing=True,
+    )
+
+    # ‏D638: سجلُّ التحقّق بعد المسحة بساعة وعشر دقائق، وتقريرُه أوّلَ كلّ شهر
+    _scheduler.add_job(
+        job_engine_ledger,
+        CronTrigger(hour=18, minute=40, day_of_week=TRADING_DAYS),
+        id="engine_ledger_daily",
+        replace_existing=True,
+    )
+    _scheduler.add_job(
+        job_engine_outcomes,
+        CronTrigger(day=1, hour=9, minute=10),
+        id="engine_outcomes_monthly",
         replace_existing=True,
     )
 
