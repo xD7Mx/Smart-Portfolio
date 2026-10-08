@@ -99,5 +99,7 @@ check(kind_of("Electrical Industries Co. Announces Resignation of a Board Member
 check(kind_of("Saudi Printing and Packaging Co. Announces Resignation of a CEO") == "leadership", "١٨ استقالةُ الرئيس التنفيذي حدثٌ قيادي")
 check(losses_pct("Allied Cooperative Insurance Group Announces the Decrease of its Accumulated Losses to 47.5 % of the Capital") == 47.5,
       "١٩ نسبةُ الخسائر المتراكمة من العنوان")
+_src = (ROOT / "backend/app/services/material_events.py").read_text()
+check('e["annual"] > 2 * rev_last' in _src, "٢٠ عقدٌ فوق ضعفَي إيراد الشركة قراءةٌ معطوبة لا تُعدّ (نجران 14220٪ · الأبحاث 386 تريليوناً)")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

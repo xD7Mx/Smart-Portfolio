@@ -200,6 +200,11 @@ async def events_for(symbol: str, days: int = 365) -> dict:
         elif k == "losses":
             ev["pct"] = losses_pct(a.get("title") or "")
         events.append(ev)
+    # ‏D633: عقدٌ إيرادُه السنويّ فوق ضعفَي إيراد الشركة قراءةٌ معطوبة لا صفقة — قِيس في المحاكاة: أسمنت نجران
+    # «14220٪ من الإيراد» والأبحاثُ والإعلام «386 تريليوناً». فلا يُعدّ، ويُعلَّم للمراجعة.
+    for e in events:
+        if e.get("counted") and (not rev_last or e["annual"] > 2 * rev_last):
+            e.update({"counted": False, "why_not": "قيمةٌ غيرُ معقولةٍ مقابل إيراد الشركة — تُراجَع ولا تُعدّ", "annual": None})
     counted = [e for e in events if e.get("counted")]
     annual = sum(e["annual"] for e in counted)
     flags = sorted({e["kind"] for e in events if e["kind"] in ("losses", "regulator", "litigation", "leadership")})
