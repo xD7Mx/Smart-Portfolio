@@ -4,6 +4,7 @@ import {
   CheckCircle, XCircle, TrendingUp, Activity, Sparkles, ShieldCheck
 } from "lucide-react";
 import { marketApi } from "../../services/api";
+import MaterialEvents from "./MaterialEvents";
 import { lookupCompany } from "../../data/saudiCompanies";
 import { TrendBar, SafetyBar, FairValueBar } from "../common/ValueBars";
 import FairValuePanel from "./FairValuePanel";
@@ -251,6 +252,8 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
           </div>
         </div>
       )}
+
+      <MaterialEvents symbol={symbol} />
 
       {gov && Array.isArray(gov.reads) && gov.reads.length > 0 && (
         <div className="card">

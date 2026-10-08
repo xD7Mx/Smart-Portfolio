@@ -1,5 +1,5 @@
 {
-  "fingerprint": "47f14f50eddf",
+  "fingerprint": "93f2d4457028",
   "measured_at": "2026-10-08",
   "metrics": {
     "coverage": 0.9164,
@@ -58,24 +58,17 @@
       "٤ الشرعي": true,
       "٥ الفنّي": true
     },
-    "q_coverage": 0.9673,
+    "q_coverage": 0.8327,
+    "q_verdict_coverage": 0.9782,
+    "q_excluded": 40,
     "q_unnamed": 1,
     "q_stale_unlabeled": 0,
-    "q_redline_high": 13,
+    "q_redline_high": 0,
     "d_bad": 0,
     "d_noreason": 0,
     "s_nosrc": 0,
     "t_unrecorded_jumps": 0,
     "t_no_tech": 0,
-    "t_bad_rsi": 0,
-    "q_verdict_coverage": 0.9818,
-    "q_excluded": 4
-  },
-  "version": "1.0",
-  "sources": {
-    "engine_gate": "run 37799477133 · 2026-10-08 15:17 UTC",
-    "engines_gate_v1": "run 37799539021 · 2026-10-08 15:17 UTC · commit 341882c (= البصمة المجمَّدة)",
-    "note": "D639: مقاييسُ المحرّكات ٢–٥ للإصدار 1.0 أُضيفت من قياسها على البصمة نفسِها — تُشدّد الأساسَ ولا تُرخيه",
-    "engines_gate_v1_remeasured": "run 37814374395 · 2026-10-08 17:09 UTC · مخزنُ الإنتاج (الإصدار 1.0) بمسطرة D641/D643 — يُقاس المرشَّحُ والأساسُ بالشيفرة نفسِها"
+    "t_bad_rsi": 0
   }
 }

@@ -273,6 +273,7 @@ export const marketApi = {
     `/market/special-deals?days=${days}` + (symbol ? `&symbol=${symbol}` : "")),
   history:  (symbol: string, range = "3mo") => api.get<APIResponse>(`/market/history/${encodeURIComponent(symbol)}?range=${range}`),
   fairValueModels: (symbol: string) => api.get<APIResponse>(`/market/fair-value-models/${encodeURIComponent(symbol)}`),
+  materialEvents: (symbol: string) => api.get<APIResponse>(`/market/material-events/${encodeURIComponent(symbol)}`),
   health: (symbol: string) => api.get<APIResponse>(`/market/health/${encodeURIComponent(symbol)}`),
   frames:   (symbol: string) => api.get<APIResponse>(`/market/frames/${encodeURIComponent(symbol)}`),
   recommendations: (symbol: string) => api.get<APIResponse>(`/market/recommendations/${symbol}`),

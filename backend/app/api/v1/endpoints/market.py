@@ -759,6 +759,13 @@ async def get_fair_value_models(symbol: str):
     return success_response(data=await for_symbol(_normalize_symbol(symbol).replace(".SR", "")))
 
 
+@router.get("/material-events/{symbol}")
+async def get_material_events(symbol: str):
+    """الأحداثُ الجوهرية من إفصاحات «تداول» لسنة (‏D644) — عرضٌ لا يمسّ رقماً."""
+    from app.services.events_view import for_display
+    return success_response(data=await for_display(_normalize_symbol(symbol).replace(".SR", "")))
+
+
 @router.get("/health/{symbol}")
 async def get_financial_health(symbol: str):
     """السلامةُ الماليةُ بخمسة محاور داخل قطاع «تداول» الرسميّ (D469)."""
