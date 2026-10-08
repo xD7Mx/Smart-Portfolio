@@ -37,5 +37,7 @@ check(C({"models": [{"value": 10}, {"value": 13}, {"value": 7.5}], "uncertainty"
       "١٣ عدمُ اليقين المرتفع وحده لا يُنزل الثقة (‏D628: 17٪ مقابل 16٪)")
 check("لا يُنشر رقماً عادلاً\"" in an and 'abs(_fv["value"] / _p1 - 1) > 0.60' in an, "١٤ ومنخفضةُ الثقة البعيدةُ عن السعر > 60٪ لا تُنشر")
 check('if "fair_value" in st else r.get("fair_value")' in gt, "١٥ والبوابةُ لا تستعيد رقمَ الفرز متى قالت المسحةُ «لا قيمة» (‏D627)")
+check("statistics.median(v) > 0.20" in gt and "med <= 0.20 and not bad_sec" in gt and "السعرُ نفسُه" in gt,
+      "١٦ عمودُ «السعرُ نفسُه» للقراءة، والحكمُ وعتبتُه 20٪ كما أُقرّا (‏D631)")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

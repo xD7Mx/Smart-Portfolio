@@ -80,14 +80,23 @@ pairs = [x for x in have if x["at"]]
 dev = [abs(x["fv"] / x["at"] - 1) for x in pairs]
 med = statistics.median(dev) if dev else None
 by = collections.defaultdict(list)
+# ‏D631: مرجعٌ للقراءة لا للحكم — بُعدُ **سعر السوق نفسِه** عن هدف المحلّلين. هدفُهم سعرٌ بعد اثني عشر شهراً لا قيمةُ اليوم،
+# فحيث يبعد السعرُ نفسُه أكثرَ من 20٪ يقيس البندُ تفاؤلَ المحلّلين لا خطأَ المحرّك. والحكمُ وعتبتُه كما أُقرّا.
+px_by = collections.defaultdict(list)
 for x in pairs:
     by[x["sector"]].append(abs(x["fv"] / x["at"] - 1))
+    if x["px"]:
+        px_by[x["sector"]].append(abs(x["px"] / x["at"] - 1))
 bad_sec = {k: statistics.median(v) for k, v in by.items() if len(v) >= 5 and statistics.median(v) > 0.20}
+_pxall = [abs(x["px"] / x["at"] - 1) for x in pairs if x["px"]]
 line("٤ المرجع", med is not None and med <= 0.20 and not bad_sec,
-     f"لها هدفُ محلّلين {len(pairs)} · وسيطُ الانحراف {med:.0%}" if med is not None else "لا أهدافَ محلّلين")
+     (f"لها هدفُ محلّلين {len(pairs)} · وسيطُ الانحراف {med:.0%}"
+      + (f" · والسعرُ نفسُه {statistics.median(_pxall):.0%}" if _pxall else "")) if med is not None else "لا أهدافَ محلّلين")
 for k, v in sorted(by.items(), key=lambda kv: -statistics.median(kv[1])):
     if len(v) >= 3:
-        print(f"     {'✘' if k in bad_sec else ' '} {k:<28} n={len(v):>3} · وسيط {statistics.median(v):.0%}")
+        _p = px_by.get(k) or []
+        print(f"     {'✘' if k in bad_sec else ' '} {k:<28} n={len(v):>3} · وسيط {statistics.median(v):.0%}"
+              + (f" · السعرُ نفسُه {statistics.median(_p):.0%}" if _p else ""))
 
 cc = collections.Counter(x["conf"] or "—" for x in have)
 good = cc.get("متوسطة", 0) + cc.get("مرتفعة", 0)
