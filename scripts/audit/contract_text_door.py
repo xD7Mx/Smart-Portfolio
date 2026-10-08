@@ -7,13 +7,14 @@ RX = re.compile(r"contract|award|purchase order|signing of an? (?:agreement|memo
 FIN = re.compile(r"facilit|financing|loan|sukuk|murabaha", re.I)
 
 async def main():
-    for s in ("4090", "2381", "7203", "4322", "4100"):
+    for s in ("4090", "2381", "7203", "4322", "4325", "1303"):
         rows = [a for a in await list_for(s, 60) if RX.search(a.get("title") or "") and not FIN.search(a.get("title") or "")]
         print(f"\n══ {s} · {len(rows)} عقود")
         for a in rows[:3]:
             d = await detail(a["url"]) or {}
             print(f"  ── {a['date']} · {a['title'][:110]}")
-            for ln in (d.get("text") or "").split("\n"):
-                if ln.strip():
-                    print("     ", ln[:220])
+            body = (d.get("text") or "").split("لا تتحمل أي من هيئة السوق المالية")[0]   # ما بعد إخلاء المسؤولية حشوُ الصفحة
+            for ln in body.split("\n"):
+                if "|" in ln:
+                    print("     ", ln[:240])
 asyncio.run(main())
