@@ -697,6 +697,23 @@ def _equity_only(i: Inputs) -> dict | None:
 
 MARKET_BLEND_K = 0.6     # ‏D623 — وزنُ النماذج في مزجها بسعر السوق (معايَرٌ على 148 ورقة)
 
+# ‏D646 · الإصدارُ الثاني (`docs/ENGINES_V2.md` — القاعدةُ مسجَّلةٌ قبل القياس): قطاعان من الستّة الموسومة اجتازا
+# القائمةَ المغلقة بتحقّقٍ متقاطعٍ بإسقاط ورقة، بتفوّقٍ على السعر نفسِه ≥ نقطةٍ كاملة (sector_shrink_door · 2026-10-08):
+#   التأمين 12.2٪ مقابل 14.2٪ · الخدماتُ الاستهلاكية 11.4٪ مقابل 18.1٪. والأربعةُ الباقية لم تجتز فبقيت موسومة.
+# فالنماذجُ هناك أقلُّ موثوقيةً لا عديمتُها: وزنٌ أقلّ في المزج بالسعر، وإسقاطُ ما قيس أنّه يُضلّ في القطاع.
+SECTOR_TUNING = {
+    "التأمين": {"k": 0.3, "drop_family": "multiples"},
+    "الخدمات الاستهلاكية": {"k": 0.4, "drop_key": "epv"},
+}
+
+
+def _tuning(symbol: str) -> dict:
+    try:
+        from app.data.market_universe import MARKET_UNIVERSE
+        return SECTOR_TUNING.get((MARKET_UNIVERSE.get(str(symbol).replace(".SR", "")) or {}).get("sector")) or {}
+    except Exception:                                              # noqa: BLE001
+        return {}
+
 
 def value(i: Inputs) -> dict:
     # ══ قوائمُ قديمة لا تُقيَّم بها ورقةٌ اليوم (D474) ══ (قِيس: 1320 بقوائم 2021)
@@ -737,6 +754,10 @@ def value(i: Inputs) -> dict:
             models = models + more
             extra_notes.append(f"مجموعةُ القطاع أنتجت {len(models) - len(more)} نموذجاً صالحاً فقط — "
                                f"استُكملت بـ{len(more)} من النموذج الكامل")
+    _tune = _tuning(i.symbol)                                      # ‏D646
+    if _tune:
+        _drop = lambda m: (m.get("family") == _tune.get("drop_family")) or (m.get("key") == _tune.get("drop_key"))   # noqa: E731
+        models = [m for m in models if not _drop(m)] or models
     agg = aggregate(models, i.price, i.archetype)
     if any(n.startswith(("إدراجٌ حديث", "سجلٌّ قصير")) for n in i.notes) or extra_notes:
         agg["uncertainty"] = "مرتفع"
@@ -750,7 +771,7 @@ def value(i: Inputs) -> dict:
     # قِيس قبل الاعتماد: الانحرافُ عن أهداف المحلّلين 24.7٪ ← 16.4٪، والبعيدةُ عن السعر 45 ← 7.
     # وتقديرُ النماذج الخامُ يبقى معروضاً (model_value) فلا يُخفى رأيُها.
     if agg.get("value") and i.price and i.price > 0:
-        _k = MARKET_BLEND_K
+        _k = _tune.get("k", MARKET_BLEND_K)                            # ‏D646: وزنٌ معايَرٌ للقطاع حيث اجتاز
         _b = lambda x: round(i.price * (x / i.price) ** _k, 2) if x and x > 0 else x      # noqa: E731
         agg["model_value"] = agg["value"]
         agg["value"], agg["low"], agg["high"] = _b(agg["value"]), _b(agg.get("low")), _b(agg.get("high"))
@@ -1299,7 +1320,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v37:{sym}"   # v37: D623 المزجُ بسعر السوق
+    ck = f"fvm:v38:{sym}"   # v38: D646 وزنُ القطاعين المعايَرين
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

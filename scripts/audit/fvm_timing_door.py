@@ -7,7 +7,7 @@ from app.services.fair_value_models import gather, value
 
 async def main():
     for s in ("2270", "2280", "1120", "4190"):
-        hit = cache.get(f"fvm:v37:{s}")
+        hit = cache.get(f"fvm:v38:{s}")
         a = cache.get_prefix if hasattr(cache, "get_prefix") else None
         t0 = time.monotonic()
         try:

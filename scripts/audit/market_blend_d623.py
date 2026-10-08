@@ -16,7 +16,7 @@ m = re.search(r"MARKET_BLEND_K = ([0-9.]+)", src)
 check(m and float(m.group(1)) == 0.6, "١ وزنُ النماذج 0.6 — المعايَرُ على 148 ورقة (24.7٪ ← 16.4٪)", m and m.group(1))
 check('agg["model_value"] = agg["value"]' in src and "i.price * (x / i.price) ** _k" in src, "٢ المزجُ هندسيٌّ، والخامُ محفوظ")
 check('agg["low"], agg["high"] = _b(agg["value"]), _b(agg.get("low")), _b(agg.get("high"))' in src, "٣ والنطاقُ يُمزج كالقيمة")
-check('fvm:v37:' in src, "٤ وكاشُ النماذج بإصدارٍ جديد فلا تبقى قيمةٌ قبل المزج")
+check('fvm:v38:' in src, "٤ وكاشُ النماذج بإصدارٍ جديد فلا تبقى قيمةٌ قبل المزج")
 an = (ROOT / "backend/app/services/analysis.py").read_text()
 check('"engine") != "fair_value_models"' in an and "MARKET_BLEND_K as _K" in an, "٤ب والمحرّكُ الاحتياطيّ يُمزج كذلك (أيان وولاء ومتطورة بقيت بلا مزج)")
 px, mv, k = 10.0, 25.0, 0.6
