@@ -120,7 +120,7 @@ async def _financial_from_statements(
     # والخصمُ من درجةٍ يذوب في المتوسّط، والاستبعادُ لا يذوب.
     # ‏D640: الخطوطُ والدرجةُ من المنتِج الواحد (`scores.governed_finance_score`) الذي تقرؤه البطاقةُ وجدولُ القوائم
     from app.services.scores import governed_finance_score
-    _governed_score, lines = governed_finance_score(periods, symbol)
+    _governed_score, lines, warnings = governed_finance_score(periods, symbol)
 
     # ══ ركنُ الحوكمة بمعناه الذي يضرّ المساهم ══
     # تركّزُ الملكية · التداولُ الحرّ · تخفيفُ الحصّة · تمويلُ التوزيع.
@@ -205,6 +205,8 @@ async def _financial_from_statements(
         "score_engine": engine,
         # وقائعُ مطلقة تُبطِل الترتيب — تُعرض أوّلاً في الشاشة.
         "red_lines": lines,
+        # ‏D643: تحذيراتٌ لا تُبطل (دَينٌ فوق السقف · تدفّقٌ حرٌّ سالب …) — تُعرض بجانب الدرجة
+        "warnings": warnings,
         # ركنُ الحوكمة الحقيقيّ: ملكيةٌ وتخفيفٌ وتخصيصُ رأس مال.
         "governance": gov_pillar,
         # درجةُ المواصفة بمؤشّراتها — هي ركنُ الجودة نفسه حين تحكم.
@@ -759,6 +761,7 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         # الخطوطُ الحمراء وركنُ الحوكمة يمرّان إلى الشاشة — الحقلُ الذي
         # يُحسب ولا يصل الواجهةَ معطَّلٌ لا موجود.
         "red_lines": fin.get("red_lines") or [],
+        "warnings": fin.get("warnings") or [],                  # ‏D643
         "governance": fin.get("governance"),
         "technical": tech,
         # ══ القيمة العادلة — تُحسب من ماليّة الشركة ══ (خطٌّ أحمر للمالك)

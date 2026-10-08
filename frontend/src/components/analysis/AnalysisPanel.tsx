@@ -240,6 +240,18 @@ export default function AnalysisPanel({ symbol, name }: { symbol: string; name?:
         </div>
       )}
 
+      {/* ‏D643 (بقرار المالك): ما لا يهدّد البقاء تحذيرٌ يُعرض بجانب الدرجة ولا يُخفيها — دَينٌ فوق السقف · تدفّقٌ حرٌّ سالب */}
+      {Array.isArray(data.warnings) && data.warnings.length > 0 && (
+        <div className="card" style={{ borderInlineStart: "3px solid var(--warn-ink)" }}>
+          <p className="card-title mb-2" style={{ color: "var(--warn-ink)" }}>تحذيرات</p>
+          <div className="space-y-1.5">
+            {data.warnings.map((r: any, i: number) => (
+              <p key={i} className="text-[12.5px] text-[var(--ink)]">{r.message}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
       {gov && Array.isArray(gov.reads) && gov.reads.length > 0 && (
         <div className="card">
           <p className="card-title mb-3">مؤشّرات الحوكمة</p>

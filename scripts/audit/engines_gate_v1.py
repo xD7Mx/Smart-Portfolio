@@ -43,8 +43,13 @@ named = [s for s in miss if (store.get(s) or {}).get("finance_score_unavailable"
 old = [s for s in have if ((store.get(s) or {}).get("stmt_age_days") or 0) > 456 and not (store.get(s) or {}).get("stmt_asof")]
 red = [s for s in have if (rows[s].get("red_lines") or 0) and rows[s]["finance_score"] >= 65]
 cov = len(have) / len(syms) if syms else 0
-line("٢ الجودة", cov >= 0.95 and len(named) == len(miss) and not old and not red,
-     f"تغطية {len(have)}/{len(syms)} = {cov:.0%} · غائبةٌ بسببٍ مسمّى {len(named)}/{len(miss)} · قديمةٌ بلا وسم {len(old)} · ≥65 مع خطٍّ أحمر {len(red)}")
+# ‏D643 (بقرار المالك): المُستبعَدُ لتهديد البقاء «حكمٌ صادرٌ بسببه» كاستبعاد الخسارة التشغيلية — فالتغطيةُ حكمٌ صادر
+# (درجةٌ أو استبعادٌ مسمّى)، وتُقاس بها الإصداراتُ كلُّها بالمسطرة نفسِها (الإصدارُ 1.0 أُعيد قياسُه بها).
+excluded = [s for s in miss if str((store.get(s) or {}).get("finance_score_unavailable") or "").startswith("استُبعدت الشركة من التقييم")]
+vcov = (len(have) + len(excluded)) / len(syms) if syms else 0
+line("٢ الجودة", vcov >= 0.95 and len(named) == len(miss) and not old and not red,
+     f"حكمٌ صادر {len(have) + len(excluded)}/{len(syms)} = {vcov:.0%} (درجة {len(have)} · استبعادٌ مسمّى {len(excluded)}) · "
+     f"غائبةٌ بسببٍ مسمّى {len(named)}/{len(miss)} · قديمةٌ بلا وسم {len(old)} · ≥65 مع خطٍّ أحمر {len(red)}")
 show([f"بلا سبب: {s} {uni[s].get('name_ar')}" for s in miss if s not in named])
 show([f"خطٌّ أحمر بدرجة {rows[s]['finance_score']}: {s} {uni[s].get('name_ar')}" for s in red])
 
@@ -146,7 +151,8 @@ show(jumps)
 # ══ مقاييسُ آلية لحارس التجميد (‏D639) — تُضمّ إلى مقاييس بوابة السعر العادل ══
 import json as _json
 print("@@METRICS@@" + _json.dumps({
-    "q_coverage": round(cov, 4), "q_unnamed": len(miss) - len(named), "q_stale_unlabeled": len(old),
+    "q_coverage": round(cov, 4), "q_verdict_coverage": round(vcov, 4), "q_excluded": len(excluded),
+    "q_unnamed": len(miss) - len(named), "q_stale_unlabeled": len(old),
     "q_redline_high": len(red), "d_bad": len(bad), "d_noreason": len(noreason), "s_nosrc": len(nosrc),
     "t_unrecorded_jumps": len(jumps), "t_no_tech": len(no_tech), "t_bad_rsi": len(bad_rsi),
     "verdict": {k: bool(v) for k, v in verdict.items()},

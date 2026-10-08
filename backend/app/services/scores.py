@@ -513,7 +513,7 @@ async def refresh_company_scores(db: AsyncSession) -> int:
 
 
 def governed_finance_score(periods: list, symbol: str | None = None) -> tuple:
-    """‏D640 · الإصدارُ الثاني: الدرجةُ الأصليةُ مع الخطوط الحمراء من منتِجٍ واحد ← (الدرجة، الخطوط).
+    """‏D640 · الإصدارُ الثاني: الدرجةُ الأصليةُ مع الخطوط الحمراء من منتِجٍ واحد ← (الدرجة، الخطوط، التحذيرات).
 
     الخطُّ الأحمر «يُبطل الترتيبَ ولا يُخصم منه — يُستبعد ويُقال السبب» (red_lines.py)، كما تُستبعد الخسارةُ
     التشغيلية ثلاثَ سنوات بدرجةٍ صفر. وكانت الدرجةُ النسبيةُ تُنشر معه — قِيس في بوابة الإصدار الأوّل: سينومي ريتيل
@@ -532,12 +532,12 @@ def governed_finance_score(periods: list, symbol: str | None = None) -> tuple:
             arch = None
     try:
         from app.services import red_lines as _rl
-        lines = _rl.check({}, periods or [], arch)
+        lines, warnings = _rl.split(_rl.check({}, periods or [], arch))   # ‏D643: الإقصاءُ لتهديد البقاء وحده
     except Exception:                                              # noqa: BLE001
-        lines = []
+        lines, warnings = [], []
     if lines and isinstance(base, (int, float)) and base > 0:
-        return 0, lines
-    return base, lines
+        return 0, lines, warnings
+    return base, lines, warnings
 
 
 def exclusion_verdict(lines: list) -> str:
