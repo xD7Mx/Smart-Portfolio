@@ -380,6 +380,8 @@ async def job_engine_outcomes():
                          f"ارتباطُ الرتبة {a.get('rank_corr')} · الفجوةُ المُغلَقة {a.get('gap_closed')}")
             for c, b in (v.get("by_conf") or {}).items():
                 lines.append(f"   ثقة {c}: {b.get('n')} · إصابة {b.get('hit')} · ارتباط {b.get('rank_corr')}")
+            for fp, b in (v.get("by_fp") or {}).items():               # ‏D647: كلُّ إصدارٍ بأيّامه
+                lines.append(f"   بصمة {fp}: {b.get('n')} · إصابة {b.get('hit')} · ارتباط {b.get('rank_corr')}")
         from app.services.advisor_memory import notify
         await notify("", lines, raw=True)
     except Exception as e:                                        # noqa: BLE001

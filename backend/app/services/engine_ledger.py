@@ -29,12 +29,10 @@ def _dir(dirpath: str | None = None) -> pathlib.Path:
 
 
 def _fingerprint() -> str | None:
+    """بصمةُ الشيفرة العاملة لا الأساسِ المجمَّد (‏D647): يومُ الإصدار الثاني يُنسب إليه لا إلى 1.0."""
     try:
-        root = pathlib.Path(__file__).resolve().parents[3]
-        base = root / "scripts/audit/engine_baseline.json"
-        if not base.exists():
-            base = pathlib.Path("/app/scripts/audit/engine_baseline.json")
-        return json.loads(base.read_text(encoding="utf-8")).get("fingerprint") if base.exists() else None
+        from app.services.engine_identity import fingerprint
+        return fingerprint()
     except Exception:                                              # noqa: BLE001
         return None
 
@@ -139,7 +137,8 @@ def outcomes(rows: list[dict] | None = None, today: dt.date | None = None, facto
             d1 = min(later, key=lambda k: abs((dt.date.fromisoformat(k) - d0).days - h))
             realized = series[d1] * (factor(r["s"], r["d"], d1) or 1) / r["px"] - 1
             up = r["fv"] / r["px"] - 1
-            pts.append({"up": up, "real": realized, "conf": r.get("conf"), "cal": r.get("cal"), "sec": r.get("sec")})
+            pts.append({"up": up, "real": realized, "conf": r.get("conf"), "cal": r.get("cal"), "sec": r.get("sec"),
+                        "fp": r.get("fp")})
         if not pts:
             continue
 
@@ -152,5 +151,7 @@ def outcomes(rows: list[dict] | None = None, today: dt.date | None = None, facto
         res[h] = {"all": summ(pts),
                   "by_conf": {c: summ([p for p in pts if p["conf"] == c]) for c in ("مرتفعة", "متوسطة", "منخفضة")
                               if any(p["conf"] == c for p in pts)},
-                  "uncalibrated": summ([p for p in pts if p["cal"] is False]) if any(p["cal"] is False for p in pts) else None}
+                  "uncalibrated": summ([p for p in pts if p["cal"] is False]) if any(p["cal"] is False for p in pts) else None,
+                  # ‏D647: كلُّ إصدارٍ يُحكم عليه بأيّامه — لا يختلط 1.0 بالثاني
+                  "by_fp": {fp: summ([p for p in pts if p["fp"] == fp]) for fp in sorted({p["fp"] for p in pts if p["fp"]})}}
     return res
