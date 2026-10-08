@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """يحفظ مقاييسَ البوابة لبصمة المحرّكات الحالية (‏D635).
 
-    python3 scripts/audit/engine_report_save.py <ملفُّ مخرَج engine_gate> [--baseline 1.0]
+    python3 scripts/audit/engine_report_save.py <مخرَج engine_gate> [<مخرَج engines_gate_v1>] [--baseline 1.0]
 
 بلا `--baseline`: يكتب `engine_reports/<البصمة>.json` — تقريرُ إصدارٍ مقترَح يحكم فيه حارسُ التجميد.
 ومع `--baseline <الإصدار>`: يكتب خطَّ الأساس المجمَّد `engine_baseline.json` (عند التجميد وحده)."""
@@ -16,12 +16,19 @@ def main() -> int:
     if not args:
         print(__doc__)
         return 2
-    text = pathlib.Path(args[0]).read_text(encoding="utf-8", errors="replace")
-    lines = [ln for ln in text.splitlines() if "@@METRICS@@" in ln]
-    if not lines:
-        print("لا سطرَ @@METRICS@@ في المخرَج")
-        return 1
-    metrics = json.loads(lines[-1].split("@@METRICS@@", 1)[1])
+    # ‏D639: مخرَجا البوابتين (السعر العادل · المحرّكات ٢–٥) يُدمجان في تقريرٍ واحد، والأحكامُ تُجمع
+    files = [a for a in args if not a.startswith("--") and (args.index(a) == 0 or args[args.index(a) - 1] != "--baseline")]
+    metrics: dict = {}
+    for fpath in files:
+        text = pathlib.Path(fpath).read_text(encoding="utf-8", errors="replace")
+        lines = [ln for ln in text.splitlines() if "@@METRICS@@" in ln]
+        if not lines:
+            print(f"لا سطرَ @@METRICS@@ في {fpath}")
+            return 1
+        m = json.loads(lines[-1].split("@@METRICS@@", 1)[1])
+        verdict = {**(metrics.get("verdict") or {}), **(m.pop("verdict", None) or {})}
+        metrics.update(m)
+        metrics["verdict"] = verdict
     doc = {"fingerprint": fingerprint(), "measured_at": dt.date.today().isoformat(), "metrics": metrics}
     if "--baseline" in args:
         doc["version"] = args[args.index("--baseline") + 1]

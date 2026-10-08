@@ -94,7 +94,8 @@ def main() -> int:
 
     rows, bad = [], []
 
-    from app.services.scores import _finance_score_from_periods
+    # ‏D640: المصدرُ الأصليّ صار `governed_finance_score` — الدرجةُ بخطوطها الحمراء، تقرؤه البطاقةُ والصفحةُ والجدول
+    from app.services.scores import governed_finance_score
 
     async def run():
         for sym in CASES:
@@ -107,7 +108,7 @@ def main() -> int:
             # المصدرُ الأصليُّ مباشرةً — هو ما يقرؤه قسمُ السوق وجدولُ
             # القوائم عبر `/financials`. فتُقارَن الثلاثةُ بأصلها لا
             # بعضُها ببعض: تطابقٌ على رقمٍ خاطئ تطابقٌ أيضاً.
-            src = (_finance_score_from_periods(CASES[sym])
+            src = (governed_finance_score(CASES[sym], sym)[0]
                    if CASES[sym] else None)
             rows.append((sym, c, a, src))
             if not (c == a == src):

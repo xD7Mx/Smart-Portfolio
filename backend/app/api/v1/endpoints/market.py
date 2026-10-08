@@ -320,7 +320,8 @@ async def get_company_financials(symbol: str, period: str = "annual"):
     # لم يُطابِق رُدّ السطرُ كلُّه وكُتب القاعديّ.
     from app.services.financial_brief import brief as _brief
     _b = await _brief(periods, kind="annual", symbol=sym)
-    health = _finance_score_from_periods(periods)
+    from app.services.scores import governed_finance_score     # ‏D640: الجدولُ كالبطاقة والصفحة
+    health, _red = governed_finance_score(periods, sym)
     return success_response(data={
         "symbol": symbol,
         "years": [p["year"] for p in periods],

@@ -118,9 +118,9 @@ async def _financial_from_statements(
     # مطلقة — خسارةٌ ثلاثَ سنوات · تدفّقٌ سالبٌ خمساً · فائدةٌ لا تُغطّى ·
     # تخفيفٌ يبتلع حصّةَ المساهم — تُستبعد بها الورقةُ ولا تُرتَّب.
     # والخصمُ من درجةٍ يذوب في المتوسّط، والاستبعادُ لا يذوب.
-    from app.services import red_lines as _rl
-    _arch = spec.archetype if spec is not None else None
-    lines = _rl.check(features, periods, _arch)
+    # ‏D640: الخطوطُ والدرجةُ من المنتِج الواحد (`scores.governed_finance_score`) الذي تقرؤه البطاقةُ وجدولُ القوائم
+    from app.services.scores import governed_finance_score
+    _governed_score, lines = governed_finance_score(periods, symbol)
 
     # ══ ركنُ الحوكمة بمعناه الذي يضرّ المساهم ══
     # تركّزُ الملكية · التداولُ الحرّ · تخفيفُ الحصّة · تمويلُ التوزيع.
@@ -170,8 +170,7 @@ async def _financial_from_statements(
     explanation = explain(four, decision)
     # الدرجةُ من المحرّك الأصليّ — نفسُها التي تعرضها بطاقةُ الحوكمة
     # وقسمُ السوق. رقمٌ واحدٌ لا يختلف باختلاف الشاشة. (D151)
-    from app.services.scores import _finance_score_from_periods
-    score = _finance_score_from_periods(periods)
+    score = _governed_score          # ‏D640: صفرٌ لمن وقع في خطٍّ أحمر — يُستبعد ويُقال السبب
     evaluable = decision.matched_rule_id != "insufficient_data"
     # The SAME governance outputs the panel shows — so تقييم الأداء renders the
     # identical expert consensus, four scores and confidence, never a variant.
@@ -189,7 +188,8 @@ async def _financial_from_statements(
         # An analytical sentence about the statements, not a buy/avoid label
         # (the decision lives at the score). Rule-based here — the Gemini
         # layer is applied on the dedicated /financials narrative only.
-        "verdict": rule_based_narrative(four, explanation),
+        "verdict": (__import__("app.services.scores", fromlist=["exclusion_verdict"]).exclusion_verdict(lines)
+                    if (lines and score == 0) else rule_based_narrative(four, explanation)),   # ‏D640
         "strengths": list(explanation.strengths),
         "weaknesses": list(explanation.weaknesses),
         "has_statements": bool(periods),

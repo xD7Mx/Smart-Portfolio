@@ -89,11 +89,9 @@ async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
         # ودرجةُ الجودة من مصدرها الواحد — إن حسبها التحليلُ في هذه الجولة
         _fin = a.get("financial") or {}
         _sc = _fin.get("score") if isinstance(_fin, dict) else None
-        if _sc is None:
-            _sc = (a.get("governance") or {}).get("score") if isinstance(
-                a.get("governance"), dict) else None
-        if isinstance(_sc, (int, float)):
-            out["finance_score"] = round(float(_sc), 1)
+        # ‏D641: لا احتياطَ بركن الحوكمة — ذاك ملكيةٌ وتخفيف، لا جودةُ أعمال؛ قِيس: دي بي اس «بيانات مالية محدودة» في
+        # الصفحة و72.5 في المخزن. وما لا درجةَ له يُكتب صراحةً «لا شيء» فلا تبقى درجةُ مسحةٍ سابقة.
+        out["finance_score"] = round(float(_sc), 1) if isinstance(_sc, (int, float)) else None
         # ‏D637: وغيابُ الدرجة يُسمّى سببُه — الاستبعادُ («استُبعدت الشركة من التقييم…») أو البياناتُ المحدودة كانت
         # في التحليل ولا تصل المخزن، فبدت البوابةُ ترى «غائبةً بلا سبب»
         out["finance_score_unavailable"] = (None if _sc else

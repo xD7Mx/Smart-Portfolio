@@ -940,22 +940,48 @@ def with_live_decisions(rows: list | None) -> list | None:
     """‏D575: قرارُ الصفّ هو آخرُ ما حكم به التطبيقُ على صفحة الشركة — لا لقطةُ آخر مسح.
 
     قِيس: الفرزُ «انتظار» وصفحةُ السهم «شراء» للشركة نفسها؛ لأنّ صفوفَ المسح تُجمَّد
-    ساعاتٍ بينما يُحدَّث المخزنُ العميق كلّما فُتحت شركة. فيُقرأ القرارُ منه عند كلّ قراءة."""
+    ساعاتٍ بينما يُحدَّث المخزنُ العميق كلّما فُتحت شركة. فيُقرأ القرارُ منه عند كلّ قراءة.
+
+    ‏D641: وكذلك ما تكتبه المسحةُ الليلية — درجةُ الجودة والسعرُ العادلُ بحقوله وعددُ الخطوط الحمراء. قِيس في بوابة
+    الإصدار الأوّل: صالح الراشد (77) وأرماح (82) في المخزن و«—» في الفرز، لأنّ الصفوفَ بُنيت قبل وصول درجتيهما،
+    والمختبرُ يقرأ الفرز. فالصفُّ يحمل آخرَ قياسٍ عند كلّ قراءة، والسعرُ الحيّ يبقى سعرَه."""
     if not rows:
         return rows
     try:
         from app.services import lastgood
         deep = lastgood.load("governance:deep") or {}
     except Exception:                                             # noqa: BLE001
+        deep = {}
+    try:
+        from app.services.content_engine import fund_store_load
+        store = fund_store_load() or {}
+    except Exception:                                             # noqa: BLE001
+        store = {}
+    if not isinstance(deep, dict):
+        deep = {}
+    if not deep and not store:
         return rows
-    if not isinstance(deep, dict) or not deep:
-        return rows
+    _pos = lambda v: v if isinstance(v, (int, float)) and v > 0 else None   # noqa: E731
     out = []
     for r in rows:
-        d = deep.get(str(r.get("symbol") or "").replace(".SR", ""))
-        if isinstance(d, dict) and d.get("decision") is not None and _label(d["decision"]) != r.get("decision"):
-            r = {**r, "decision": _label(d["decision"])}
-        out.append(r)
+        sym = str(r.get("symbol") or "").replace(".SR", "")
+        upd = {}
+        d = deep.get(sym)
+        if isinstance(d, dict):
+            if d.get("decision") is not None and _label(d["decision"]) != r.get("decision"):
+                upd["decision"] = _label(d["decision"])
+            if "red_lines" in d and (d.get("red_lines") or 0) != (r.get("red_lines") or 0):
+                upd["red_lines"] = d.get("red_lines") or 0
+        st = store.get(sym) or {}
+        if "finance_score" in st and _pos(st.get("finance_score")) != r.get("finance_score"):
+            upd["finance_score"] = _pos(st.get("finance_score"))
+        if "fair_value" in st:
+            fv, px = _pos(st.get("fair_value")), r.get("price")
+            upd.update({"fair_value": fv,
+                        "fair_value_upside_pct": round((fv - px) / px * 100, 1) if fv and isinstance(px, (int, float)) and px > 0 else None,
+                        **{k: st.get(k) for k in ("fair_value_conf", "fair_value_low", "fair_value_high",
+                                                  "fair_value_calibrated", "fair_value_calibration_note") if k in st}})
+        out.append({**r, **upd} if upd else r)
     return out
 
 

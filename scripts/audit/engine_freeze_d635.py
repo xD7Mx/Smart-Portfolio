@@ -25,7 +25,11 @@ REPORTS = ROOT / "scripts/audit/engine_reports"
 
 # اتجاهُ كلّ مقياس: أعلى أفضل (+1) أو أدنى أفضل (−1)، وسماحُ الضجيج
 DIRECTION = {"coverage": (+1, 0.005), "unnamed_missing": (-1, 0), "stale": (-1, 0), "precapital": (-1, 0),
-             "far_share": (-1, 0.005), "median_dev": (-1, 0.005), "conf_share": (+1, 0.01)}
+             "far_share": (-1, 0.005), "median_dev": (-1, 0.005), "conf_share": (+1, 0.01),
+             # ‏D639: محرّكاتُ ٢–٥ — فإصلاحُ الجودة أو الفنّيّ يُقاس بها، لا يُردّ «بلا فائدة» لأنّ السعرَ العادل لم يتغيّر
+             "q_coverage": (+1, 0.005), "q_unnamed": (-1, 0), "q_stale_unlabeled": (-1, 0), "q_redline_high": (-1, 0),
+             "d_bad": (-1, 0), "d_noreason": (-1, 0), "s_nosrc": (-1, 0),
+             "t_unrecorded_jumps": (-1, 0), "t_no_tech": (-1, 0), "t_bad_rsi": (-1, 0)}
 
 
 def fingerprint() -> str:

@@ -510,3 +510,36 @@ async def refresh_company_scores(db: AsyncSession) -> int:
         await db.commit()
         logger.info(f"Company scores refreshed for {updated} companies.")
     return updated
+
+
+def governed_finance_score(periods: list, symbol: str | None = None) -> tuple:
+    """‏D640 · الإصدارُ الثاني: الدرجةُ الأصليةُ مع الخطوط الحمراء من منتِجٍ واحد ← (الدرجة، الخطوط).
+
+    الخطُّ الأحمر «يُبطل الترتيبَ ولا يُخصم منه — يُستبعد ويُقال السبب» (red_lines.py)، كما تُستبعد الخسارةُ
+    التشغيلية ثلاثَ سنوات بدرجةٍ صفر. وكانت الدرجةُ النسبيةُ تُنشر معه — قِيس في بوابة الإصدار الأوّل: سينومي ريتيل
+    68 بحقوقٍ سالبةٍ وخسارةِ أربع سنوات، وريدان 65 بخسارةِ ستّ، وتسعُ شركاتٍ ≥ 65.
+
+    ويُحسب هنا لا في شاشةٍ واحدة: البطاقةُ والصفحةُ وجدولُ القوائم تقرأ هذه الدالّةَ نفسَها (D149) — طُبّق في الإصدار
+    الأوّل في مخرَج الصفحة وحده فأمسكه حارسُ «محرّكٍ واحد» (البطاقة 0 والجدول 25). والخطوطُ تُقرأ من القوائم ونمطِ
+    الورقة من قطاع «تداول» الرسميّ (`archetype_of`) — مصدرٌ واحدٌ للنمط فلا يشتعل خطٌّ في شاشةٍ دون أخرى."""
+    base = _finance_score_from_periods(periods)
+    arch = None
+    if symbol:
+        try:
+            from app.services.statement_merge import archetype_of
+            arch = archetype_of(symbol)
+        except Exception:                                          # noqa: BLE001
+            arch = None
+    try:
+        from app.services import red_lines as _rl
+        lines = _rl.check({}, periods or [], arch)
+    except Exception:                                              # noqa: BLE001
+        lines = []
+    if lines and isinstance(base, (int, float)) and base > 0:
+        return 0, lines
+    return base, lines
+
+
+def exclusion_verdict(lines: list) -> str:
+    """جملةُ الاستبعاد بالخطّ الأحمر — بنصّ استبعاد الخسارة التشغيلية نفسِه، وبسبب الخطّ لا بوصفٍ عامّ (D640)."""
+    return "استُبعدت الشركة من التقييم: خطٌّ أحمر — " + " · ".join(str(r.get("message") or "") for r in (lines or [])[:2])

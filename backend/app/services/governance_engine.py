@@ -93,9 +93,12 @@ async def evaluate_company(symbol: str, db=None, company_status: Optional[str] =
     # تُعفى من ثلاثٍ منها، ويُستدَلّ عليها **من البيانات لا من اسم
     # القطاع**. وكانت الدرجةُ تأتي من `composite_finance_score` فانفصل
     # الرقمُ عن الجدول الذي تحته. (D151)
-    from app.services.scores import _finance_score_from_periods
-    finance = _finance_score_from_periods(periods)
+    from app.services.scores import governed_finance_score     # ‏D640: المنتِجُ الواحد بخطوطه الحمراء
+    finance, _red = governed_finance_score(periods, symbol)
     narrative = rule_based_narrative(scores, explanation)
+    if _red and finance == 0:                                    # ‏D640: يُستبعد ويُقال السبب — كالصفحة
+        from app.services.scores import exclusion_verdict
+        narrative = exclusion_verdict(_red)
     panel = build_expert_panel(features, resolved_sector, scores)  # the expert consensus
 
     # When the panel couldn't be adequately informed, the system abstained —
