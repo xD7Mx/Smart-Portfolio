@@ -189,6 +189,10 @@ async def _row_for(symbol: str, name: str, sector: str | None, sem: asyncio.Sema
             logger.debug(f"Screener: history fetch failed for {symbol}: {e}")
             points = []
     points = points or []
+    # ‏D636: السلسلةُ كما تُحسب عليها المؤشّراتُ وعائدُ السنة — قفزةٌ يوميةٌ فوق 40٪ (وحدُّ «تداول» 10٪) حدثُ رأس مالٍ
+    # يُعدَّل له ما قبله، أو شريحةٌ معطوبةٌ تُحذف. قِيس: الميثانول +350٪ · الأسماك 64←18←65 ثلاثَ مرّات.
+    from app.services.technical import clean_series
+    points, _tev = clean_series(points)
     closes = [p["close"] for p in points if p.get("close") is not None]
     if len(closes) < 60:
         return None  # too little history to say anything technical honestly
@@ -211,6 +215,7 @@ async def _row_for(symbol: str, name: str, sector: str | None, sem: asyncio.Sema
         # الفاصل اليومي مبسوط في الجذر (توافقاً مع أي مستهلك سابق)…
         **daily,
         # …والفواصل الثلاثة مُهيكلة ليختار المستخدم بينها.
+        "tech_events": _tev,                     # ‏D636: ما اكتُشف في السلسلة وعُدِّل له — مسجَّلٌ لا مخفيّ
         "frames": {
             "D": daily,
             "W": _frame_metrics(_resample(points, "W")),

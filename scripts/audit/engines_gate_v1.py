@@ -121,8 +121,11 @@ fetched = {s: p for s, p in pts.items() if p}
 long_ = [s for s, p in fetched.items() if len([x for x in p if x.get("close")]) >= 200]
 no_tech = [s for s in long_ if not isinstance((rows.get(s) or {}).get("rsi"), (int, float))]
 bad_rsi = [s for s in syms if isinstance((rows.get(s) or {}).get("rsi"), (int, float)) and not 0 <= rows[s]["rsi"] <= 100]
-jumps = []
+from app.services.technical import clean_series
+jumps, recorded = [], 0
 for s, p in fetched.items():
+    # الحدثُ «مسجَّلٌ» إن سجّله دفترُ التجزئة، أو سجّله المحرّكُ الفنّيّ نفسُه حين عدّل السلسلةَ له (‏D636)
+    tech_dates = {d for e in clean_series(p)[1] for d in (e.get("date"), e.get("until")) if d}
     cl = [(str(x.get("date"))[:10], x["close"]) for x in p if x.get("close")]
     for (d0, a), (d1, b) in zip(cl, cl[1:]):
         if a > 0 and abs(b / a - 1) > 0.40:
@@ -130,10 +133,13 @@ for s, p in fetched.items():
                 f = factor_after(s, d0) / (factor_after(s, d1) or 1)   # حدثٌ بين يومَي القفزة وحدهما
             except Exception:                                      # noqa: BLE001
                 f = 1
+            if d1 in tech_dates or d0 in tech_dates:
+                recorded += 1
+                continue
             if not f or abs(f - 1) < 1e-9:
                 jumps.append(f"{s} {uni[s].get('name_ar')} · {d0}→{d1} · {a}→{b} ({b/a-1:+.0%})")
 line("٥ الفنّي", not no_tech and not bad_rsi and not jumps,
-     f"سلاسلُ وصلت {len(fetched)}/{len(syms)} · لها 200 يومٍ فأكثر {len(long_)} · بلا مؤشّرات {len(no_tech)} · RSI خارج مداه {len(bad_rsi)} · قفزاتٌ بلا حدث {len(jumps)}")
+     f"سلاسلُ وصلت {len(fetched)}/{len(syms)} · لها 200 يومٍ فأكثر {len(long_)} · بلا مؤشّرات {len(no_tech)} · RSI خارج مداه {len(bad_rsi)} · قفزاتٌ بلا حدث {len(jumps)} · قفزاتٌ سجّلها المحرّكُ وعدّل لها {recorded}")
 show([f"بلا مؤشّرات: {s} {uni[s].get('name_ar')}" for s in no_tech])
 show(jumps)
 

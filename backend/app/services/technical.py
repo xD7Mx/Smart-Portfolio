@@ -53,8 +53,48 @@ def _macd(values: list[float]):
     return round(macd_line[-1], 3), round(signal[-1], 3)
 
 
+# ‏D636: حدُّ التذبذب اليوميّ في «تداول» 10٪ — فقفزةٌ يوميةٌ فوق 40٪ ليست حركةَ سوقٍ بل حدثُ رأس مالٍ أو بيانٌ معطوب.
+# قِيس في بوابة الإصدار الأوّل: كيمائيات الميثانول +350٪ (تخفيضُ رأس مال) · التعاونية +50٪ · نسيج +49٪، والأسماك
+# 64←18←65 ثلاثَ مرّاتٍ في شهر (شرائحُ معطوبةٌ من المزوّد). والمؤشّراتُ المحسوبةُ عبرها تقيس القفزةَ لا السوق.
+LIMIT_JUMP = 0.40
+_REVERT_WITHIN = 15      # قفزتان متعاكستان خلال 15 جلسةً يلغي حاصلُهما الأخرى ← الشريحةُ بينهما معطوبة
+
+
+def clean_series(history: list) -> tuple[list, list[dict]]:
+    """السلسلةُ كما تُحسب عليها المؤشّرات ← (السلسلةُ المصحَّحة، الأحداثُ المكتشَفة بتاريخها ونوعها).
+
+    ١ شريحةٌ معطوبة: قفزةٌ تعقبها خلال 15 جلسةً قفزةٌ تعاكسها (حاصلُهما بين 0.85 و1.15) ← تُحذف الشريحة.
+    ٢ قفزةٌ دائمة: حدثُ رأس مال ← يُعدَّل ما قبلها بنسبتها كما يُعدَّل التاريخُ عند التجزئة."""
+    pts = [dict(p) for p in (history or []) if p.get("close") not in (None, 0)]
+    events: list[dict] = []
+    jump = lambda a, b: a > 0 and abs(b / a - 1) > LIMIT_JUMP   # noqa: E731
+    i = 1
+    while i < len(pts):
+        a, b = float(pts[i - 1]["close"]), float(pts[i]["close"])
+        if jump(a, b):
+            for j in range(i + 1, min(i + 1 + _REVERT_WITHIN, len(pts))):
+                c, d = float(pts[j - 1]["close"]), float(pts[j]["close"])
+                if jump(c, d) and 0.85 <= (b / a) * (d / c) <= 1.15:
+                    events.append({"date": str(pts[i].get("date"))[:10], "kind": "شريحةٌ معطوبة",
+                                   "days": j - i, "until": str(pts[j].get("date"))[:10]})
+                    del pts[i:j]
+                    break
+        i += 1
+    for k in range(len(pts) - 1, 0, -1):
+        a, b = float(pts[k - 1]["close"]), float(pts[k]["close"])
+        if jump(a, b):
+            f = b / a
+            for p in pts[:k]:
+                for key in ("open", "high", "low", "close"):
+                    if isinstance(p.get(key), (int, float)):
+                        p[key] = p[key] * f
+            events.append({"date": str(pts[k].get("date"))[:10], "kind": "حدثُ رأس مال", "factor": round(f, 4)})
+    return pts, events
+
+
 def analyze(history: list) -> Optional[dict]:
     """history: [{'date','close'}, ...] ascending. Returns indicators + verdict."""
+    history, _events = clean_series(history)
     closes = [float(p["close"]) for p in (history or []) if p.get("close") is not None]
     if len(closes) < 15:
         return None

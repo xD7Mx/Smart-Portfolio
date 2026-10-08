@@ -68,7 +68,9 @@ async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
             _FAIL_KINDS[_k] = _FAIL_KINDS.get(_k, 0) + 1
             logger.warning(f"مسحةُ التقييم {sym}: {_k}")
             # ‏D626: والغيابُ يُسمّى في المخزن — لا تُمسّ قيمةٌ سابقة، فالدمجُ يُبقيها
-            return sym, {"_failed": True, "fair_value_unavailable": "تعذّر جلبُ بيانات الشركة من المزوّد في هذه الجولة — تُعاد في المسحة التالية"}
+            return sym, {"_failed": True,
+                         "finance_score_unavailable": "تعذّر جلبُ بيانات الشركة من المزوّد في هذه الجولة — تُعاد في المسحة التالية",
+                         "fair_value_unavailable": "تعذّر جلبُ بيانات الشركة من المزوّد في هذه الجولة — تُعاد في المسحة التالية"}
         fv = a.get("fair_value_detail") or {}
         out: dict = {
             "fair_value": a.get("fair_value"),
@@ -92,6 +94,11 @@ async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
                 a.get("governance"), dict) else None
         if isinstance(_sc, (int, float)):
             out["finance_score"] = round(float(_sc), 1)
+        # ‏D637: وغيابُ الدرجة يُسمّى سببُه — الاستبعادُ («استُبعدت الشركة من التقييم…») أو البياناتُ المحدودة كانت
+        # في التحليل ولا تصل المخزن، فبدت البوابةُ ترى «غائبةً بلا سبب»
+        out["finance_score_unavailable"] = (None if _sc else
+                                            (_fin.get("verdict") if isinstance(_fin, dict) and _fin.get("verdict") else
+                                             "درجةُ الجودة غيرُ محسوبة — لا قوائمَ كافية"))
         # وتاريخُ القوائم التي بُنيت عليها الدرجة (‏D381 · D384)
         _prov = a.get("governance_provenance") or {}
         if _prov.get("تاريخ الأرقام"):
@@ -99,6 +106,7 @@ async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
             out["stmt_age_days"] = _prov.get("عمر الأرقام أياماً")
         # ‏D578: الحكمُ يُحسب هنا لكلّ السوق — فيُحمَل ليصل الفرز (يُنزع قبل مخزن الأساسيات)
         out["_verdict"] = {"decision": a.get("decision"), "evaluable": bool(a.get("evaluable")),
+                           "red_lines": len(a.get("red_lines") or []),       # ‏D637: يُحدَّث كلَّ مسحة لا يشيخ
                            "quality": (a.get("spec") or {}).get("score"), "fair_value": a.get("fair_value")}
         return sym, out
 
@@ -115,12 +123,16 @@ def record_verdicts(done: dict, today: date | None = None, fresh_days: int = 7, 
     store = lastgood.load("governance:deep") or {}
     if not isinstance(store, dict):
         store = {}
-    n = 0
+    n = touched = 0
     for sym, v in done.items():
         vd = (v or {}).get("_verdict") or {}
         if not vd.get("decision"):
             continue
         cur = store.get(sym)
+        # ‏D637: عددُ الخطوط الحمراء يُحدَّث كلَّ مسحةٍ ولو حُمي الحكم — قِيس: جبل عمر وشري بخطٍّ أحمرٍ مخزَّنٍ زال من التحليل
+        if isinstance(cur, dict) and "red_lines" in vd and cur.get("red_lines") != vd["red_lines"]:
+            store[sym] = cur = {**cur, "red_lines": vd["red_lines"]}
+            touched += 1
         try:
             age = (today - date.fromisoformat(str((cur or {}).get("at"))[:10])).days
         except ValueError:
@@ -134,10 +146,11 @@ def record_verdicts(done: dict, today: date | None = None, fresh_days: int = 7, 
             continue                      # امتناعُ المسحة (بياناتٌ أقلّ) لا يمحو حكماً عميقاً حديثاً
         base = cur if isinstance(cur, dict) else {}
         store[sym] = {**base, "decision": vd["decision"], "at": today.isoformat(), "source": "sweep",
+                      **({"red_lines": vd["red_lines"]} if "red_lines" in vd else {}),
                       **({"quality": vd["quality"]} if vd.get("quality") is not None else {}),
                       **({"fair_value": vd["fair_value"]} if vd.get("fair_value") is not None else {})}
         n += 1
-    if n:
+    if n or touched:
         lastgood.save("governance:deep", store)
     return n
 
