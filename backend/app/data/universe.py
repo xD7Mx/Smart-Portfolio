@@ -80,12 +80,35 @@ def is_nomu(symbol: str | None) -> bool:
     return market_of(symbol) == NOMU
 
 
-def main_market(universe: dict | None = None) -> dict:
-    """شركاتُ السوق الرئيسة وحدها — وهذا هو الكونُ المعتمَد."""
+def delisted(universe: dict | None = None) -> set[str]:
+    """رموزُ السوق الرئيسيّ الغائبةُ عن لقطة «تداول» الحيّة — لم تعد مدرجة (‏D645).
+
+    قِيس: بتروكيم وبروج ودور خارجَ اللقطة (396 رمزاً) وبلا إغلاقٍ واحد، فكانت البوابةُ تعدّها فجواتٍ بسببٍ كاذب
+    («تُعاد في المسحة التالية»). ولقطةٌ ناقصة (أقلُّ من 90٪ من الرئيسيّ) لا تُسقط أحداً — الغيابُ فيها عطبُ جلبٍ لا شطب."""
     if universe is None:
         from app.data.market_universe import MARKET_UNIVERSE
         universe = MARKET_UNIVERSE
-    return {s: m for s, m in universe.items() if is_main(s)}
+    try:
+        from app.services import tadawul_market as _tm
+        rows, _live, _at = _tm.usable_rows()
+    except Exception:                                              # noqa: BLE001
+        return set()
+    main = [s for s in universe if is_main(s)]
+    if not rows or not main:
+        return set()
+    present = [s for s in main if s in rows]
+    if len(present) < 0.9 * len(main):
+        return set()
+    return {s for s in main if s not in rows}
+
+
+def main_market(universe: dict | None = None) -> dict:
+    """شركاتُ السوق الرئيسة المدرجةُ اليوم — وهذا هو الكونُ المعتمَد (والمشطوبُ خارجه · D645)."""
+    if universe is None:
+        from app.data.market_universe import MARKET_UNIVERSE
+        universe = MARKET_UNIVERSE
+    gone = delisted(universe)
+    return {s: m for s, m in universe.items() if is_main(s) and s not in gone}
 
 
 def census(universe: dict | None = None) -> dict:

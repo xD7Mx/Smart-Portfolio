@@ -195,7 +195,13 @@ async def _row_for(symbol: str, name: str, sector: str | None, sem: asyncio.Sema
     points, _tev = clean_series(points)
     closes = [p["close"] for p in points if p.get("close") is not None]
     if len(closes) < 60:
-        return None  # too little history to say anything technical honestly
+        # ‏D645: تاريخٌ قصيرٌ يمنع الفنّيَّ وحده لا الشركةَ كلَّها — قِيس: أرماح (31 جلسة) جودتُها 82 وقيمتُها 37.47 في
+        # المخزن وغائبةٌ عن الفرز والمختبر. فالصفُّ يُبنى بسعره، والأطرُ الفنّيةُ فارغةٌ بسببٍ مسمّى.
+        if not closes:
+            return None
+        return {"symbol": symbol, "name": name, "sector": sector, "price": closes[-1],
+                "technical_unavailable": f"تاريخُ تداولٍ قصير ({len(closes)} جلسة) — لا مؤشّراتَ فنّيةً قبل 60",
+                "tech_events": _tev, "frames": {}}
 
     price = closes[-1]
     # قمة/قاع ٥٢ أسبوعاً = آخر ٢٥٢ جلسة تقريباً (لا كامل العشر سنوات).
