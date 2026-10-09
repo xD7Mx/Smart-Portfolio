@@ -1,5 +1,5 @@
 {
-  "fingerprint": "8b766b22b3e7",
+  "fingerprint": "4573b0c8aa2a",
   "measured_at": "2026-10-09",
   "metrics": {
     "coverage": 0.9301,
@@ -56,7 +56,7 @@
       "٤ الشرعي": true,
       "٥ الفنّي": true,
       "٦ رقمُ اليوم": true,
-      "٧ ثباتُ رقم اليوم": false
+      "٧ ثباتُ رقم اليوم": true
     },
     "q_coverage": 0.8456,
     "q_verdict_coverage": 0.9926,
@@ -73,15 +73,16 @@
     "p_fv_mismatch": 0,
     "p_conf_mismatch": 0,
     "p_dec_mismatch": 0,
-    "p_fv_drift": 246,
+    "p_fv_drift": 0,
     "p_conf_drift": 0
   },
-  "version": "2.0",
+  "version": "2.1",
   "sources": {
-    "engine_gate": "run 37831212806 · 2026-10-08 19:20 UTC · الإنتاج بعد إعادة التشغيل",
-    "engines_gate_v1": "run 37831271781 · 2026-10-08 19:21 UTC · الإنتاج بعد إعادة التشغيل",
-    "approval": "المالك 2026-10-09: «موافق على التجميد»",
-    "previous": "الإصدار 1.0 · 47f14f50eddf — محفوظٌ في engine_reports/47f14f50eddf.json",
-    "parity": "D649: مقاييسُ رقم اليوم للإصدار 2.0 من قياسها على البصمة نفسِها — parity_gate run 37937155423 · parity_shift_gate run 37937208879 (2026-10-09 13:29–13:35 UTC، شيفرةُ a5e4eab = 8b766b22b3e7) — تُشدّد الأساسَ ولا تُرخيه"
+    "engine_gate": "run 37950024757 · 2026-10-09 15:12 UTC · الإنتاج بعد نشر D653",
+    "engines_gate_v1": "run 37953220727 · 2026-10-09 15:38 UTC · الإنتاج",
+    "parity_gate": "run 37953101858 · 2026-10-09 15:37 UTC · الإنتاج بعد مزامنة القرار (D654)",
+    "parity_shift_gate": "run 37949319007 · 2026-10-09 15:09 UTC · الإنتاج",
+    "approval": "المالك 2026-10-09: «موافق اكمل اريد الانتهاء من المهمة اليوم» — جواباً على «موافق على تجميد 2.1»",
+    "previous": "الإصدار 2.0 · 8b766b22b3e7 — محفوظٌ في engine_reports/8b766b22b3e7.json"
   }
 }

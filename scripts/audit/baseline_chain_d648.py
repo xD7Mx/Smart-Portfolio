@@ -30,7 +30,7 @@ else:
         old = json.loads(rep.read_text(encoding="utf-8")).get("metrics") or {}
         worse, better = F.compare(old, base.get("metrics") or {})
         check(not worse, f"٣ الأساسُ {ver} لا يتراجع عن سابقه في شيء", "؛ ".join(worse))
-        check(bool(better), f"٤ ويتفوّق عليه في مقياسٍ واحدٍ على الأقلّ", f"{len(better)} مقاييس")
+        check(bool(better), f"٤ ويتفوّق عليه في مقياسٍ واحدٍ على الأقلّ", {1: "مقياسٌ واحد", 2: "مقياسان"}.get(len(better), f"{len(better)} مقاييس" if len(better) <= 10 else f"{len(better)} مقياساً"))
 own = F.REPORTS / f"{base.get('fingerprint')}.json"
 if ver != "1.0":
     same = own.exists() and json.loads(own.read_text(encoding="utf-8")).get("metrics") == base.get("metrics")
