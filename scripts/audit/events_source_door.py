@@ -19,6 +19,11 @@ async def main():
         try:
             lst = await list_for(s, 60)
             print(f"   قائمةُ «تداول» الآن: {len(lst)} إفصاحاً · " + " · ".join(f"{a.get('date')}" for a in lst[:5]))
+            from app.services.material_events import kind_of, events_for
+            for a in lst[:12]:
+                print(f"     {a.get('date')} · نوعُه {kind_of(a.get('title') or '')} · {str(a.get('title'))[:110]}")
+            ev = await events_for(s)
+            print(f"   المستخرِجُ الآن: {len(ev.get('events') or [])} حدثاً")
         except Exception as e:                                     # noqa: BLE001
             print(f"   قائمةُ «تداول»: ✘ {type(e).__name__}: {str(e)[:100]}")
 
