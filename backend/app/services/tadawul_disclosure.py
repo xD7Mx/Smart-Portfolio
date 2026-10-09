@@ -64,7 +64,8 @@ async def list_for(symbol: str, size: int = 40) -> list[dict]:
     hit = cache.get(ck)
     if hit is not None:
         return hit
-    ep = await _endpoint()
+    # ‏D659: اكتشافُ نقطة البيانات في عمليّةٍ باردة قد يتعذّر أوّلَ مرّة — قِيس: «الغاز» أوّلُ رمزٍ صفرٌ وآخرُه «استحواذ ×3»
+    ep = await _endpoint() or await _endpoint()
     if not ep:
         return []
     from app.services.tadawul_http import smart_fetch
@@ -85,6 +86,8 @@ async def list_for(symbol: str, size: int = 40) -> list[dict]:
             rows = []
         if rows:
             break
+        cache.set("tadawul:annlist:ep", None, 1)                    # نقطةٌ مكتشفةٌ لا تُجيب تُكتشف من جديد قبل الإعادة
+        ep = await _endpoint() or ep
     out = []
     for r in rows:
         if str(r.get("SYMBOL")) != sym or not r.get("announcementUrl"):
