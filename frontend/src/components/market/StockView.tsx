@@ -17,7 +17,7 @@ import DividendProfile from "../analysis/DividendProfile";
 import StockOpinion from "../analysis/StockOpinion";
 import StockCalendar from "../analysis/StockCalendar";
 import CompanyProfileCards from "../analysis/CompanyProfileCards";
-import PriceChart from "../analysis/PriceChart";
+import PriceOrChart from "../analysis/PriceOrChart";
 import OwnershipBar from "../analysis/OwnershipBar";
 import clsx from "clsx";
 
@@ -269,7 +269,7 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
             {/* الشبكةُ مكوّنٌ مشتركٌ مع صفحة الشركة في الحيازات — تصميمٌ
                 واحدٌ لا نسختان (بأمر المالك). */}
             <KeyFigures fundamentals={data?.fundamentals} />
-            <PriceChart symbol={symbol} />
+            <PriceOrChart symbol={symbol} />
             <MarketDepth symbol={symbol} />
             <OwnershipBar symbol={symbol} />
             {/* ══ بطاقةُ التوافق الشرعيّ حُذفت ══ (بأمر المالك)

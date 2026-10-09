@@ -27,9 +27,14 @@ def _clamp(v, lo=0, hi=100):
 
 
 @router.get("/history/{symbol}")
-async def get_price_history(symbol: str, range: str = "3mo"):
-    """Daily close history for charts — cached 24h per symbol."""
-    from app.services.market_data import market_service
+async def get_price_history(symbol: str, range: str = "3mo", tf: str | None = None):
+    """Daily close history for charts — cached 24h per symbol.
+
+    ‏`tf` (ملاحظةُ المالك 2026-10-09): إطارُ الشمعة كتريدنق فيو — 1h · 4h · 1d · 1wk · 1mo — للرسم البيانيّ؛
+    و«حركة السعر» تبقى على المدّة (`range`)."""
+    from app.services.market_data import market_service, BAR_FRAMES
+    if tf in BAR_FRAMES:
+        return success_response(data=await market_service.get_bars(_normalize_symbol(symbol), tf) or [])
     if range not in ("1mo", "3mo", "6mo", "1y", "2y", "5y"):
         range = "6mo"
     # البابُ الواحد: `market_service.get_history` يختار المصدرَ لكلّ رمز (D438).

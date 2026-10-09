@@ -34,8 +34,9 @@ _i18 = open(_os.path.join(_R, "frontend/src/i18n.ts"), encoding="utf-8").read()
 check("62vh" not in nc and ("height: 440" in nc or ("height = 440" in nc and "style={{ height, width" in nc)) and "vh" not in nc.split("chart-frame")[1][:80] and ".chart-frame { contain: strict" in _css
       and "pinch-zoom" not in _css.split(".chart-lock {")[1].split("/* إشعار")[0],
       "٦ D521 الرسمُ إطارٌ مقفلُ الارتفاع لا يتبع vh، والقرصُ والمحوران للرسم لا للصفحة")
-check("<Drop label={(RANGES.find" in nc and "<Drop label={IND.filter" in nc and "RANGES.map(([id, lbl]) => (\n            <button key={id} onClick={() => setRange(id)}" not in nc,
-      "٧ D521 المدّةُ والمؤشراتُ قائمتان منسدلتان يظهر عليهما المختارُ وحدَه")
+# ‏D652: المدّةُ صارت إطاراً (ساعة · 4 ساعات · يوم · أسبوع · شهر) بملاحظة المالك — والقائمةُ المنسدلةُ باقية
+check("<Drop label={(TFS.find" in nc and "<Drop label={IND.filter" in nc and "TFS.map(([id, lbl]) => (\n            <button key={id} onClick={() => setRange(id)}" not in nc,
+      "٧ D521 الإطارُ والمؤشراتُ قائمتان منسدلتان يظهر عليهما المختارُ وحدَه")
 check('ar: "الرسم البياني"' in _i18 and 'tab("idx", "المؤشرات")' in src and 'tab("mine", "محفظتك")' in src
       and "stars" not in src,
       "٨ D529 التبويبُ «الرسم البياني» ودرجاه «محفظتك» و«المؤشرات» — بلا «نجوم تاسي»")

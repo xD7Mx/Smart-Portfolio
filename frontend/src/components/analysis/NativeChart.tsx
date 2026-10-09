@@ -91,7 +91,9 @@ function rsi(data: number[], p = 14): (number | null)[] {
 const tkey = (d: string): any =>
   d && d.length > 10 ? Math.floor(Date.parse(d.replace(" ", "T") + ":00+03:00") / 1000) : d;
 
-const RANGES: [string, string][] = [["1mo", "شهر"], ["3mo", "3 أشهر"], ["6mo", "6 أشهر"], ["1y", "سنة"], ["2y", "سنتان"], ["5y", "5 سنوات"]];
+/* ‏إطاراتٌ لا مدد (ملاحظةُ المالك 2026-10-09: «الفترة أتلخبط بها — خلّه إطارات مثل تريدنق»): المختارُ طولُ الشمعة،
+   والخادمُ يجلب ما يكفيها. و«حركة السعر» تبقى على المدد. */
+const TFS: [string, string][] = [["1h", "ساعة"], ["4h", "4 ساعات"], ["1d", "يوم"], ["1wk", "أسبوع"], ["1mo", "شهر"]];
 
 const IND = [["sma20", "SMA20", "var(--chart-1)"], ["sma50", "SMA50", "var(--warn-ink)"], ["sma200", "SMA200", "var(--chart-4)"],
   ["macd", "MACD", "var(--chart-1)"], ["rsi", "RSI", "var(--chart-5)"], ["d7m", "D7M", "var(--brand-ink)"]] as const;
@@ -139,8 +141,13 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
   preset?: "d7m-weekly"; height?: number;
 }) {
   const el = useRef<HTMLDivElement>(null);
-  // المدّةُ الافتراضيّةُ خمسُ سنوات للسوقين (بأمر المالك)
-  const [range, setRange] = useState("5y");
+  // الإطارُ الافتراضيُّ أسبوعيّ — ما كانت تعرضه «خمسُ سنوات» (بأمر المالك)، ويُحفظ اختيارُه
+  const [range, setRangeState] = useState<string>(() => {
+    try { const v = localStorage.getItem("sp_chart_tf"); return v && TFS.some(t => t[0] === v) ? v : "1wk"; } catch { return "1wk"; }
+  });
+  const setRange = (v: string) => { setRangeState(v); try { localStorage.setItem("sp_chart_tf", v); } catch {} };
+  // صفحةُ السهم: الرسمُ وحدَه (ملاحظةُ المالك) — لا جدولَ إطاراتٍ ولا قرارَ دخولٍ فوقه
+  const chartOnly = preset === "d7m-weekly";
   const [ind, setInd] = useState(preset === "d7m-weekly"
     ? { sma20: false, sma50: false, sma200: false, macd: false, rsi: false, d7m: true }
     : { sma20: true, sma50: true, sma200: false, macd: true, rsi: false, d7m: false });
@@ -190,8 +197,8 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
   };
 
   const { data: bars = [], isLoading } = useQuery({
-    queryKey: ["ohlc", symbol, range],
-    queryFn: () => marketApi.history(symbol, range).then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
+    queryKey: ["bars", symbol, range],
+    queryFn: () => marketApi.bars(symbol, range).then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
     enabled: !!symbol,
     retry: 0,
   });
@@ -208,7 +215,7 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
   const { data: frames } = useQuery({
     queryKey: ["frames", symbol],
     queryFn: () => marketApi.frames(symbol).then(r => r.data?.data || null),
-    enabled: ind.d7m && (cfg.dashboard || cfg.alertsDash) && !!symbol,
+    enabled: !chartOnly && ind.d7m && (cfg.dashboard || cfg.alertsDash) && !!symbol,
     staleTime: 5 * 60 * 1000, refetchInterval: 5 * 60 * 1000, retry: 0,
   });
   const today = new Date().toISOString().slice(0, 10);
@@ -510,8 +517,8 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
         );
       })()}
       <div className="flex items-center gap-1.5 flex-wrap">
-        <Drop label={(RANGES.find(r => r[0] === range) || RANGES[0])[1]}>
-          {close => RANGES.map(([id, lbl]) => (
+        <Drop label={(TFS.find(r => r[0] === range) || TFS[3])[1]}>
+          {close => TFS.map(([id, lbl]) => (
             <button key={id} type="button" onClick={() => { setRange(id); close(); }}
               className={"w-full text-start px-3 min-h-[32px] text-[12px] font-bold " + (range === id ? "text-[var(--brand-ink)]" : "text-[var(--ink)]")}>
               {lbl}
@@ -588,7 +595,7 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
             <div key={k} className="d7m-zone" style={{ top: z.y - 8, left: z.x, color: cfg.colors?.zone || undefined }}>{z.title}</div>
           ))}
         </div>
-          {ind.d7m && (dash || msmart || tt || alertsSt) && (
+          {!chartOnly && ind.d7m && (dash || msmart || tt || alertsSt) && (
             <div className={`d7m-panels d7m-at-${cfg.dashPos}`} dir="rtl"
               style={{ ["--d7m-axis" as any]: `${psw + 6}px` }}>
               {dash && (

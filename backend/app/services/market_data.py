@@ -318,6 +318,41 @@ def _persist_valuation(symbol: str, data: dict) -> None:
     _fund_store_put(symbol.split(".")[0], keep)
 
 
+# ══ إطاراتُ الرسم (ملاحظةُ المالك 2026-10-09) ══ طولُ الشمعة لا طولُ المدّة — كتريدنق فيو
+BAR_FRAMES = ("1h", "4h", "1d", "1wk", "1mo")
+
+
+def four_hour(rows: list, saudi: bool = True) -> list:
+    """شموعُ ساعة ← أربع ساعات. جلسةُ الرياض 10:00–15:00 فشمعتان كما في تريدنق فيو: 10:00 و14:00."""
+    out: list = []
+    for r in rows:
+        day, hm = str(r["date"])[:10], str(r["date"])[11:16] or "00:00"
+        h = int(hm[:2])
+        start = (10 + 4 * ((h - 10) // 4)) if saudi and h >= 10 else 4 * (h // 4)
+        key = f"{day} {start:02d}:00"
+        if out and out[-1]["date"] == key:
+            b = out[-1]
+            b["high"], b["low"], b["close"] = max(b["high"], r["high"]), min(b["low"], r["low"]), r["close"]
+            b["volume"] = (b.get("volume") or 0) + (r.get("volume") or 0)
+        else:
+            out.append({**r, "date": key})
+    return out
+
+
+def monthly(rows: list) -> list:
+    """شموعٌ يومية أو أسبوعية ← شهرية (فتحُ أوّل شمعة · أعلى · أدنى · إغلاقُ آخر شمعة)."""
+    out: list = []
+    for r in rows:
+        m = str(r["date"])[:7]
+        if out and str(out[-1]["date"])[:7] == m:
+            b = out[-1]
+            b["high"], b["low"], b["close"] = max(b["high"], r["high"]), min(b["low"], r["low"]), r["close"]
+            b["volume"] = (b.get("volume") or 0) + (r.get("volume") or 0)
+        else:
+            out.append({**r, "date": f"{m}-01"})
+    return out
+
+
 class YahooFinanceAdapter:
     """
     Wraps yfinance to provide a consistent interface.
@@ -512,6 +547,74 @@ class YahooFinanceAdapter:
         cache.set(ck, points, cache.HISTORY_TTL)
         cache.set(stale_k, points, 14 * 24 * 3600)
         return points
+
+    async def get_bars(self, symbol: str, tf: str) -> list:
+        """إطاراتُ الرسم كتريدنق فيو (ملاحظةُ المالك 2026-10-09): «الفترة أتلخبط بها — خلّه إطارات: ساعة · أربع ساعات ·
+        يوم · أسبوع · شهر». فالمختارُ طولُ الشمعة لا طولُ المدّة، والمدّةُ ما يكفي الإطار.
+
+        الأسبوعُ من اليوميّ الأحد–الخميس (D465)، والأربعُ ساعات تُجمع من الساعة على جلسة الرياض (10:00 · 14:00) — ياهو لا
+        يسلّم 4H. والساعةُ بتوقيت الرياض «YYYY-MM-DD HH:MM» كما يقرؤها الرسم."""
+        from app.services.usage_tracker import record, can_call
+        from app.services import cache
+        if tf not in BAR_FRAMES:
+            return []
+        ck, stale_k = f"bars:yahoo:{symbol}:{tf}:v1", f"bars:stale:{symbol}:{tf}"
+        hit = cache.get(ck)
+        if hit is not None:
+            return hit
+        if tf == "1wk":
+            pts = await self.get_history(symbol, "5y") or []
+        else:
+            if not can_call("yahoo"):
+                return cache.get(stale_k) or []
+            record("yahoo")
+            if tf == "1d":
+                pts = await self._fetch_chart_points(symbol, "2y", "1d")
+            elif tf == "1mo":
+                pts = await self._fetch_chart_points(symbol, "10y", "1mo")
+            else:
+                pts = await self._fetch_hourly(symbol, "3mo" if tf == "1h" else "1y")
+                if tf == "4h":
+                    pts = four_hour(pts, saudi=symbol.upper().endswith(".SR"))
+        if len(pts) < 2:
+            return cache.get(stale_k) or []
+        cache.set(ck, pts, 15 * 60 if tf in ("1h", "4h") else cache.HISTORY_TTL)
+        cache.set(stale_k, pts, 14 * 24 * 3600)
+        return pts
+
+    async def _fetch_hourly(self, symbol: str, range_: str) -> list:
+        """شموعُ ساعةٍ بتوقيت الرياض — لا تُدمج في يومٍ واحد كما يفعل `_fetch_chart_points`."""
+        from datetime import datetime, timezone, timedelta
+        res = None
+        try:
+            async with httpx.AsyncClient(timeout=12, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}) as client:
+                for host in ("query1", "query2"):
+                    try:
+                        r = await client.get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{symbol}?range={range_}&interval=60m")
+                        if r.status_code == 200 and (r.json().get("chart", {}).get("result")):
+                            res = r.json()["chart"]["result"][0]
+                            break
+                    except Exception:
+                        continue
+        except Exception:
+            return []
+        if not res:
+            return []
+        riyadh = timezone(timedelta(hours=3))
+        q = (res.get("indicators", {}).get("quote") or [{}])[0]
+        cols = {k: q.get(k) or [] for k in ("open", "high", "low", "close", "volume")}
+        rows, seen = [], set()
+        for i, t in enumerate(res.get("timestamp") or []):
+            vals = [cols[k][i] if i < len(cols[k]) else None for k in ("open", "high", "low", "close", "volume")]
+            if any(v is None for v in vals[:4]):
+                continue
+            d = datetime.fromtimestamp(t, tz=riyadh).strftime("%Y-%m-%d %H:%M")
+            if d in seen:
+                continue
+            seen.add(d)
+            rows.append({"date": d, "open": round(float(vals[0]), 3), "high": round(float(vals[1]), 3),
+                         "low": round(float(vals[2]), 3), "close": round(float(vals[3]), 3), "volume": vals[4] or 0})
+        return sorted(rows, key=lambda x: x["date"])
 
     async def get_intraday(self, symbol: str) -> list:
         """شموعُ 15 دقيقة لآخر جلسة (D465) — لصفوف لوحة D7M: 4س · 1س · 15د.
@@ -1611,6 +1714,14 @@ class MarketDataService:
 
     async def get_intraday(self, symbol: str) -> list:
         return await self._yahoo().get_intraday(symbol)
+
+    async def get_bars(self, symbol: str, tf: str) -> list:
+        """إطاراتُ الرسم (ساعة · 4 ساعات · يوم · أسبوع · شهر). «تاسي» من مولّد «تداول» (D438): ياهو لا يملك له تاريخاً."""
+        from app.services import tasi_history as _th
+        if symbol.upper() in _th.SYMBOLS:
+            pts = await _th.history({"1h": "1mo", "4h": "3mo", "1d": "1y", "1wk": "5y", "1mo": "5y"}.get(tf, "1y")) or []
+            return monthly(pts) if tf == "1mo" else pts
+        return await self._yahoo().get_bars(symbol, tf)
 
     async def get_history(self, symbol: str, range_: str = "3mo") -> Optional[list]:
         # «تاسي»: ياهو لا يملك له إلا يوماً — فالمصدرُ مولّدُ رسم «تداول» (D438).

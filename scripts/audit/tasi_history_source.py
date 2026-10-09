@@ -106,6 +106,8 @@ _ds = [_dtm.date.fromisoformat(p_["date"][:10]) for p_ in y5]
 check(len(_ds) >= 2 and all((b - a).days >= 5 for a, b in zip(_ds, _ds[1:-1])),
       "٨ وخمسُ السنوات أسبوعيّةٌ كالأسواق العالمية لا يوميّة", f"{len(_ds)} شمعة")
 _nc = (ROOT / "frontend/src/components/analysis/NativeChart.tsx").read_text(encoding="utf-8")
-check('useState("5y")' in _nc, "٩ والمدّةُ الافتراضيّةُ خمسُ سنوات للسوقين")
+# ‏D652 (ملاحظةُ المالك 2026-10-09): صار الاختيارُ إطاراً لا مدّة — والافتراضيُّ الأسبوعيّ، وهو ما كانت تعرضه «خمسُ سنوات»
+check('return v && TFS.some(t => t[0] === v) ? v : "1wk"; } catch { return "1wk"; }' in _nc,
+      "٩ والإطارُ الافتراضيُّ أسبوعيٌّ للسوقين — ما كانت تعرضه «خمسُ سنوات»")
 print(("FAIL" if fail else "PASS") + " D438 — منحنى تاسي من «تداول»")
 sys.exit(fail)
