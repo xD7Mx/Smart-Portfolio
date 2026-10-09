@@ -11,6 +11,13 @@
 ثمّ: `engine_report_save.py <مخرَج السعر العادل> <مخرَج المحرّكات ٢–٥>` لبصمة المرشَّح، ويحكم حارسُ التجميد."""
 import asyncio, runpy, sys
 sys.path.insert(0, "/app")
+# ‏D650: لا يمسّ الإنتاجَ شيءٌ من قياس المرشَّح. الكاشُ الطويل يُكتب إلى قرصٍ يشاركه الخادم ويمتصّ منه ما انتهاؤه أبعد
+# (D582) — فقيمةُ مرشَّحٍ تحت مفتاحٍ لم يتغيّر كانت تصل الإنتاجَ ساعات. فالكاشُ هنا في الذاكرة وحدها (عمرٌ دون عتبة
+# الحفظ)، ولقطاتُ «آخر سليم» لا تُكتب.
+from app.services import cache as _cache, lastgood as _lg   # noqa: E402
+_set0 = _cache.set
+_cache.set = lambda key, value, ttl: _set0(key, value, min(ttl, _cache._PERSIST_MIN_TTL - 60))
+_lg.save = lambda *a, **k: None
 from app.data.market_universe import MARKET_UNIVERSE
 from app.data.universe import main_market
 from app.data.universe import is_nomu
@@ -45,3 +52,7 @@ print("════ بوابةُ السعر العادل ════")
 runpy.run_path("/app/scripts/audit/engine_gate.py", run_name="__main__")
 print("\n════ بوابةُ المحرّكات ٢–٥ ════")
 runpy.run_path("/app/scripts/audit/engines_gate_v1.py", run_name="__main__")
+print("\n════ بوابةُ رقم اليوم ════")                         # ‏D649: صفحاتُ المرشَّح مقابل فرزه
+runpy.run_path("/app/scripts/audit/parity_gate.py", run_name="__main__")
+print("\n════ بوابةُ ثبات رقم اليوم (السعرُ +2٪ بعد المسحة) ════")
+runpy.run_path("/app/scripts/audit/parity_shift_gate.py", run_name="__main__")
