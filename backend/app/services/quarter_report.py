@@ -191,7 +191,20 @@ async def build(symbol: str, as_of: str | None = None, kind: str = "quarter") ->
     snap = row_for(sym)
     price = snap.get("price")
     fvm = await fair_value_models.for_symbol(sym) or {}
-    target = fvm.get("target_12m")
+    srow = next((r for r in get_cached_screener() or [] if str(r.get("symbol")) == sym), {})
+    # ‏D655: السعرُ العادل وهدفُه من المُنتِج الواحد (صفحةُ السهم): رقمُ اليوم بقواعد الحجب والوسم — لا حسابُ النماذج الخام
+    an: dict = {}
+    if latest:
+        try:
+            from app.services.analysis import analyze_company
+            an = await analyze_company(f"{sym}.SR", srow.get("name")) or {}
+        except Exception:                                         # noqa: BLE001
+            an = {}
+    from app.services.fair_value_view import target_from
+    fair = an.get("fair_value") if isinstance(an.get("fair_value"), (int, float)) and an["fair_value"] > 0 else None
+    target = target_from(fair, fvm)
+    fv_note = (an.get("fair_value_unavailable_reason") if fair is None
+               else an.get("fair_value_calibration_note") if an.get("fair_value_calibrated") is False else None)
     change = _chg(target, price)
     dy = None
     try:
@@ -199,7 +212,6 @@ async def build(symbol: str, as_of: str | None = None, kind: str = "quarter") ->
     except Exception:                                             # noqa: BLE001
         dy = None
     total = round(change + (dy or 0), 1) if change is not None else None
-    srow = next((r for r in get_cached_screener() or [] if str(r.get("symbol")) == sym), {})
     from app.services.tasi_stars import _cap
     mcap = _cap(sym, snap)                       # D542: السعر × الأسهم حين تغيب القيمةُ السوقيةُ خارجَ الجلسة
     perf = {}
@@ -213,18 +225,14 @@ async def build(symbol: str, as_of: str | None = None, kind: str = "quarter") ->
     except Exception:                                             # noqa: BLE001
         perf = {}
     # ══ توصيةُ التقرير قرارُ التطبيق الواحد (D548) ══ — لا قاعدةٌ ثانية (±15٪) بجواره.
-    decision = None
-    if latest:
-        try:
-            from app.services.analysis import analyze_company
-            decision = ((await analyze_company(f"{sym}.SR", srow.get("name")) or {}).get("decision") or {}).get("label")
-        except Exception:                                         # noqa: BLE001
-            decision = None
+    decision = (an.get("decision") or {}).get("label") if isinstance(an.get("decision"), dict) else None
     return {
         "symbol": sym, "name": srow.get("name") or snap.get("name"), "bank": arch == "bank",
         "latest": bool(latest), "kind": kind,
         "header": None if not latest else {"recommendation": decision or recommendation(total), "price": price, "target_12m": target,
-                   "change": change, "dividend_yield": dy, "total_return": total},
+                   "change": change, "dividend_yield": dy, "total_return": total,
+                   # ‏D655: الرقمُ نفسُه الذي في صفحة السهم والفرز، بثقته وسبب حجبه أو وسمه
+                   "fair_value": fair, "fair_value_conf": an.get("fair_value_conf") if fair else None, "fair_value_note": fv_note},
         "table": tbl,
         "market": {"high_52w": srow.get("high_52w"), "low_52w": srow.get("low_52w"),
                    "market_cap": mcap, "shares": round(mcap / price) if mcap and price else None},

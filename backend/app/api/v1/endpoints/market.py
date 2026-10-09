@@ -810,11 +810,12 @@ async def get_fair_value_models(symbol: str):
             if ov:
                 res.update({"low": off.get("fair_value_low") or res.get("low"), "high": off.get("fair_value_high") or res.get("high"),
                             "upside": round((ov / px - 1) * 100, 2) if isinstance(px, (int, float)) and px > 0 else None})
-                lv, t12 = res.get("live_value"), res.get("target_12m")
-                if isinstance(lv, (int, float)) and lv > 0 and isinstance(t12, (int, float)):
-                    res["target_12m"] = round(ov * t12 / lv, 2)      # الهدفُ يُبنى على الرقم المعروض نفسِه
+                from app.services.fair_value_view import target_from     # ‏D655: الصيغةُ الواحدة مع تقرير الشركة
+                t = target_from(ov, res)
+                if t is not None:
+                    res["target_12m"] = t                                  # الهدفُ يُبنى على الرقم المعروض نفسِه
                     if isinstance(px, (int, float)) and px > 0:
-                        res["target_12m_upside"] = round((res["target_12m"] / px - 1) * 100, 2)
+                        res["target_12m_upside"] = round((t / px - 1) * 100, 2)
             else:
                 res.update({"reason": off.get("fair_value_unavailable") or res.get("reason"), "upside": None})
     except Exception:                                              # noqa: BLE001
