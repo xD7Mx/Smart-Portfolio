@@ -9,6 +9,9 @@ const money = (v: number) =>
   v >= 1e9 ? `${(v / 1e9).toLocaleString("en-US", { maximumFractionDigits: 2 })} مليار ريال`
            : `${(v / 1e6).toLocaleString("en-US", { maximumFractionDigits: 1 })} مليون ريال`;
 
+/* الحدثُ الواحد بإفصاحاته (ملاحظةُ المالك): يُقال كم إفصاحاً جُمع، فلا يبدو المكرَّرُ محذوفاً */
+const filings = (n: number) => (n === 2 ? "إفصاحان" : n <= 10 ? `${n} إفصاحات` : `${n} إفصاحاً`);
+
 export default function MaterialEvents({ symbol }: { symbol: string }) {
   const sym = symbol.replace(".SR", "");
   const { data } = useQuery({
@@ -42,6 +45,7 @@ export default function MaterialEvents({ symbol }: { symbol: string }) {
                 {e.first_date && e.first_date !== e.date && (
                   <span>· أُعلن أوّلاً <span className="tabular-nums" dir="ltr">{e.first_date}</span></span>
                 )}
+                {(e.filings || 1) > 1 && <span>· {filings(e.filings)} جُمعت في بندٍ واحد</span>}
                 {e.kind === "contract" && e.value != null && <span>· {money(e.value)}{e.months ? ` · ${e.months} شهراً` : ""}</span>}
                 {e.kind === "contract" && (e.counted
                   ? <span style={{ color: "var(--pos-ink)" }}>· يُعدّ في سجلّ الأعمال</span>

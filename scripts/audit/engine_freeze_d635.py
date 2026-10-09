@@ -33,7 +33,9 @@ DIRECTION = {"coverage": (+1, 0.005), "unnamed_missing": (-1, 0), "stale": (-1, 
              "t_unrecorded_jumps": (-1, 0), "t_no_tech": (-1, 0), "t_bad_rsi": (-1, 0),
              # ‏D649: رقمُ اليوم واحد — صفحةُ الشركة مقابل الفرز (`parity_gate.py`)
              "p_fv_mismatch": (-1, 0), "p_conf_mismatch": (-1, 0), "p_dec_mismatch": (-1, 0),
-             "p_fv_drift": (-1, 0), "p_conf_drift": (-1, 0)}
+             "p_fv_drift": (-1, 0), "p_conf_drift": (-1, 0),
+             # ‏D658: قرارٌ يُقيَّد بـ«مسارٍ واحد» وقيمتُه من النماذج المتعدّدة
+             "d_single_contra": (-1, 0)}
 
 
 def fingerprint() -> str:

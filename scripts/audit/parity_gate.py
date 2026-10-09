@@ -40,7 +40,7 @@ async def main():
             except Exception as e:                                 # noqa: BLE001
                 return s, {"_err": type(e).__name__}
     res = dict(await asyncio.gather(*(one(s) for s in sorted(uni))))
-    fvm, cfm, dcm, err = [], [], [], []
+    fvm, cfm, dcm, err, single = [], [], [], [], []
     for s, a in res.items():
         if not a or "_err" in a:
             err.append(s)
@@ -53,6 +53,10 @@ async def main():
             fvm.append((s, pv, sv))
         elif pv and a.get("fair_value_conf") != st.get("fair_value_conf"):
             cfm.append((s, a.get("fair_value_conf"), st.get("fair_value_conf")))
+        # ‏D658: قرارٌ يقول «من مسارٍ واحد بلا شاهدٍ ثانٍ» وسعرُه العادل المعروض من محرّك النماذج المتعدّدة — تناقضٌ يراه المالك
+        _rule = str(((a.get("decision") or {}) if isinstance(a.get("decision"), dict) else {}).get("rule_id") or "")
+        if "مسار_واحد" in _rule and (a.get("fair_value_detail") or {}).get("engine") == "fair_value_models":
+            single.append(s)
         d = deep.get(s) if isinstance(deep.get(s), dict) else {}
         pl, dl = _label(a.get("decision")), _label(d.get("decision"))
         if pl and dl and pl != dl:
@@ -63,9 +67,12 @@ async def main():
           f"الثقةُ وحدها {len(cfm)} · القرار {len(dcm)}")
     for s, pv, sv in fvm[:12]:
         print(f"     {s} {uni[s].get('name_ar')} · الصفحة {pv} · الفرز {sv}")
+    print(f"{'✘' if single else '✔'} ٨ قرارٌ «من مسارٍ واحد» وقيمتُه من النماذج المتعدّدة: {len(single)}"
+          + (f" — {' · '.join(single[:12])}" if single else ""))
     for s, pl, dl in dcm[:8]:
         print(f"     قرار {s} {uni[s].get('name_ar')} · الصفحة {pl} · الفرز {dl}")
     print("@@METRICS@@" + json.dumps({"p_fv_mismatch": len(fvm), "p_conf_mismatch": len(cfm), "p_dec_mismatch": len(dcm),
+                                      "d_single_contra": len(single),
                                       "verdict": {"٦ رقمُ اليوم": ok}}, ensure_ascii=False))
 
 

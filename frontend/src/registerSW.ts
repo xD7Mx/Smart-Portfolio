@@ -52,6 +52,28 @@ export function registerSW() {
 
       // فحص دوري لوجود نسخة أحدث (كل ساعة) — بلا إزعاج.
       setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000);
+
+      /* ‏D657: نشرُ الواجهة لا يغيّر ملفَّ الـSW، فلا يُكتشف بحدثه — والصفحةُ المفتوحة تبقى على ملفّاتها القديمة حتى
+         تُعاد. قِيس: المالكُ لم يجد تعديلاتِه والخادمُ يقدّمها كلَّها. فيُقارَن ملفُّ البناء في index.html بما حُمِّل:
+         إن اختلف ظهر «نسخة جديدة جاهزة» وأُعيد التحميل متى خُفيت الصفحة — كلَّ خمس دقائق وعند العودة إليها. */
+      const loaded = () => (document.querySelector('script[type="module"][src*="/assets/"]') as HTMLScriptElement | null)
+        ?.getAttribute("src") || null;
+      let announced = false;
+      const checkBuild = async () => {
+        try {
+          const html = await (await fetch("/index.html", { cache: "no-store" })).text();
+          const live = (html.match(/src="(\/assets\/[^"]+\.js)"/) || [])[1];
+          const cur = loaded();
+          if (live && cur && live !== cur && !announced) {
+            announced = true;
+            window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: reg }));
+            document.addEventListener("visibilitychange", reloadWhenHidden);
+          }
+        } catch { /* بلا شبكة: يُعاد الفحصُ لاحقاً */ }
+      };
+      setInterval(checkBuild, 5 * 60 * 1000);
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkBuild(); });
+      checkBuild();
     } catch {
       /* التسجيل اختياري: التطبيق يعمل كاملاً بدونه */
     }

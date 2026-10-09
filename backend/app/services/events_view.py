@@ -80,5 +80,24 @@ async def for_display(symbol: str, limit: int = 12) -> dict:
     out = dedupe(out)
     res = {"symbol": sym, "events": out, "backlog_annual": ev.get("backlog_annual"),
            "backlog_ratio": ev.get("backlog_ratio"), "asof": ev.get("asof")}
-    cache.set(ck, res, 24 * 60 * 60)
+    # ‏D656: صفرُ أحداثٍ قد يكون تعذّرَ جلبٍ لحظيّاً من «تداول» لا غياباً — قِيس: «الغاز» صفرٌ في 16:59 وثلاثةٌ في 17:01،
+    # وكان الصفرُ يُحفظ يوماً فتختفي البطاقة. فما وصل يُحفظ لقطةً، والصفرُ لا يُحفظ إلا دقائق ويُعاد جلبُه، ويُعرض آخرُ ما عُرف
+    # إن كان حديثاً (أسبوعاً) — فلا يبدو حدثٌ محذوفاً وهو لم يُحذف.
+    from app.services import lastgood
+    snap = f"events:view:{sym}"
+    if out:
+        lastgood.save(snap, res)
+        cache.set(ck, res, 24 * 60 * 60)
+        return res
+    cache.expire_keys([f"events:v1:{sym}"], ttl=60)
+    prev = lastgood.load(snap)
+    try:
+        import datetime as _dt
+        fresh = isinstance(prev, dict) and prev.get("events") and \
+            (_dt.date.today() - _dt.date.fromisoformat(str(prev.get("asof"))[:10])).days <= 7
+    except ValueError:
+        fresh = False
+    if fresh:
+        res = {k: v for k, v in prev.items() if not str(k).startswith("_")}
+    cache.set(ck, res, 10 * 60)
     return res
