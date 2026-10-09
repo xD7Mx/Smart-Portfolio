@@ -22,7 +22,7 @@ async def main():
                 empty.append((s, k))
     syms = sorted({s for s, _ in empty})
     print(f"أصفارٌ محفوظة: {len(empty)} مفتاحاً في {len(syms)} شركة")
-    cache.expire_keys([k for _, k in empty], ttl=60)
+    cache.expire_keys([k for _, k in empty])                    # شاهدٌ طويلُ العمر يغلب القديمَ في الدمج (D619)
     sem = asyncio.Semaphore(3)
 
     async def one(s):

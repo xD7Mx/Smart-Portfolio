@@ -89,7 +89,9 @@ async def for_display(symbol: str, limit: int = 12) -> dict:
         lastgood.save(snap, res)
         cache.set(ck, res, 24 * 60 * 60)
         return res
-    cache.expire_keys([f"events:v1:{sym}"], ttl=60)
+    # شاهدُ قبرٍ طويلُ العمر (D619): القصيرُ يغلبه في الدمج مع القرص صفرُ المستخرِج المحفوظُ يوماً فيعود — قِيس: «الغاز» صفرٌ
+    # أوّلَ طلبٍ وحدثٌ في الثاني. والشاهدُ يُقرأ «لا شيء» فيُعاد الجلبُ، ويستبدله أوّلُ حسابٍ جديد.
+    cache.expire_keys([f"events:v1:{sym}"])
     prev = lastgood.load(snap)
     try:
         import datetime as _dt
