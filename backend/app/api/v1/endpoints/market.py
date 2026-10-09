@@ -60,6 +60,27 @@ async def get_market_library():
     return success_response(data=lib)
 
 
+def sync_page_verdict(ysym: str, data: dict) -> bool:
+    """‏D654: يكتب قرارَ الصفحة في المخزن العميق (الذي يقرؤه الفرز) إن خالفه — حكمٌ لا رقم. ← هل كتب."""
+    from datetime import datetime, timezone
+    from app.services import lastgood
+    from app.services.analysis import _ENGINE_V
+    dec = data.get("decision")
+    if not (data.get("evaluable") and isinstance(dec, dict) and dec.get("raw")):
+        return False
+    store = lastgood.load("governance:deep") or {}
+    if not isinstance(store, dict):
+        return False
+    k = str(ysym).replace(".SR", "")
+    cur = store.get(k) if isinstance(store.get(k), dict) else {}
+    old = cur.get("decision")
+    if (old.get("raw") if isinstance(old, dict) else old) == dec.get("raw"):
+        return False
+    store[k] = {**cur, "decision": dec, "v": _ENGINE_V, "at": datetime.now(timezone.utc).date().isoformat(), "source": "page"}
+    lastgood.save("governance:deep", store)
+    return True
+
+
 @router.get("/company/{symbol}")
 async def get_company_analysis(symbol: str, db: AsyncSession = Depends(get_db)):
     """Full automatic analysis (no button): live price + full multi-year
@@ -94,6 +115,12 @@ async def get_company_analysis(symbol: str, db: AsyncSession = Depends(get_db)):
             "unavailable_reason": reason,
         })
     data["symbol"] = symbol
+    # ‏D654: حكمُ الصفحة يصل الفرزَ ولو جاء التحليلُ من الكاش — كان يُكتب في المخزن العميق عند الحساب وحده، فإن كتبت
+    # المسحةُ بعده حكمَها (ببياناتٍ أقلّ) بقي الفرزُ يخالف الصفحة ما بقي الكاش (قِيس: سلوشنز 7202 «شراء» · «انتظار»)
+    try:
+        sync_page_verdict(ysym, data)
+    except Exception:                                              # noqa: BLE001
+        pass
     # ‏D649: الرقمُ ثابتٌ ليومه (رقمُ المسحة) والسعرُ حيّ — فالبعدُ عنه يُحسب بسعر اللحظة كما يحسبه الفرز، لا بسعر أوّل فتح
     try:
         from app.services.tadawul_market import row_for as _rf649

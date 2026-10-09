@@ -16,5 +16,24 @@ i_on = src.find("cache.set, lastgood.save = _set, _save")
 i_loop = src.find("for s, pl, dl in diff:")
 check(0 < i_off < i_diff < i_on < i_loop, "٢ الصفحاتُ تُحسب أوّلاً بلا كتابة، ولا يُكتب إلا حكمُ المخالِفة بعد ذلك")
 check("fair_value" not in src.split("cache.set, lastgood.save = _set, _save")[1], "٣ ولا تمسّ المزامنةُ رقماً — حكمُ الصفحة وحده")
+check('cache.expire_prefix(f"analysis:{s}.SR:")' in src, "٤ والمخالِفةُ يُبطَل كاشُها أوّلاً — التحليلُ المخزَّن لا يكتب حكمَه")
+mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
+body = mk[mk.index("async def get_company_analysis"):mk.index("async def get_company_analysis") + 2600]
+check("sync_page_verdict(ysym, data)" in body, "٥ وفتحُ صفحة السهم يكتب حكمَها في الفرز ولو جاء التحليلُ من الكاش")
+import os, tempfile                                                  # noqa: E401
+_SB = tempfile.mkdtemp()
+os.environ["LASTGOOD_PATH"] = os.path.join(_SB, "lastgood.json")
+os.environ["SP_STATE_DIR"] = _SB
+sys.path.insert(0, str(ROOT / "backend"))
+from app.services import lastgood                                   # noqa: E402
+from app.api.v1.endpoints.market import sync_page_verdict            # noqa: E402
+lastgood.save("governance:deep", {"7202": {"decision": {"raw": "انتظار", "label": "انتظار"}, "source": "sweep", "quality": 70}})
+w1 = sync_page_verdict("7202.SR", {"evaluable": True, "decision": {"raw": "شراء", "label": "شراء"}})
+row = lastgood.load("governance:deep")["7202"]
+check(w1 and row["decision"]["raw"] == "شراء" and row["source"] == "page" and row.get("quality") == 70,
+      "٦ حكمُ الصفحة يُكتب، وبقيّةُ الصفّ باقية، ومصدرُه «الصفحة» فتحميه المسحةُ (D578)")
+w2 = sync_page_verdict("7202.SR", {"evaluable": True, "decision": {"raw": "شراء", "label": "شراء"}})
+w3 = sync_page_verdict("7202.SR", {"evaluable": False, "decision": {"raw": "بيع", "label": "بيع"}})
+check(not w2 and not w3, "٧ ولا كتابةَ إن اتّفقا، ولا حكمَ من صفحةٍ لم تكتمل بياناتُها")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

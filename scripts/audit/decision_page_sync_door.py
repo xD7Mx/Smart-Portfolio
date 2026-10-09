@@ -36,8 +36,12 @@ async def main():
             diff.append((s, pl, dl))
     print(f"قراراتٌ تخالف فيها الصفحةُ الفرز: {len(diff)}")
     cache.set, lastgood.save = _set, _save                          # فتحُ الصفحة: يكتب حكمَها كما يفعل التطبيق
+    from app.api.v1.endpoints.market import sync_page_verdict
     for s, pl, dl in diff:
+        # تحليلُ الصفحة المخزَّن لا يكتب حكمَه (يُكتب عند الحساب وحده) — فيُبطَل كاشُ هذه الشركة وحدها فتُحسب كما عند فتحها
+        cache.expire_prefix(f"analysis:{s}.SR:")
         a = await analyze_company(f"{s}.SR", uni[s].get("name_ar"))
+        sync_page_verdict(f"{s}.SR", a or {})                     # ‏D654: وما تكتبه الصفحةُ عند فتحها ولو من الكاش
         now = _label(((lastgood.load("governance:deep") or {}).get(s) or {}).get("decision"))
         print(f"  {s} {uni[s].get('name_ar')} · الصفحة {pl} · الفرز كان {dl} ← صار {now}")
 
