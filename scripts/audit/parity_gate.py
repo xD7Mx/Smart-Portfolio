@@ -61,18 +61,22 @@ async def main():
         pl, dl = _label(a.get("decision")), _label(d.get("decision"))
         if pl and dl and pl != dl:
             dcm.append((s, pl, dl))
+    # والفرزُ: أحكامُ المسحة (بلا مصدرٍ مكمِّل) في المخزن العميق — كم منها مقيَّدٌ بـ«مسارٍ واحد» وقيمتُه من النماذج المتعدّدة
+    single_screen = [s for s, d in deep.items() if isinstance(d, dict) and isinstance(d.get("decision"), dict)
+                     and "مسار_واحد" in str(d["decision"].get("rule_id") or "") and _pos((store.get(s) or {}).get("fair_value"))
+                     and s in uni]
     n = len(res) - len(err)
     ok = not fvm and not dcm
     print(f"{'✔' if ok else '✘'} ٦ رقمُ اليوم — صفحاتٌ قِيست {n} (تعذّرت {len(err)}) · السعرُ العادل ≠ الفرز {len(fvm)} · "
           f"الثقةُ وحدها {len(cfm)} · القرار {len(dcm)}")
     for s, pv, sv in fvm[:12]:
         print(f"     {s} {uni[s].get('name_ar')} · الصفحة {pv} · الفرز {sv}")
-    print(f"{'✘' if single else '✔'} ٨ قرارٌ «من مسارٍ واحد» وقيمتُه من النماذج المتعدّدة: {len(single)}"
-          + (f" — {' · '.join(single[:12])}" if single else ""))
+    print(f"{'✘' if single or single_screen else '✔'} ٨ قرارٌ «من مسارٍ واحد» وقيمتُه من النماذج المتعدّدة: الصفحة {len(single)}"
+          f" · الفرز {len(single_screen)}" + (f" — {' · '.join((single + single_screen)[:14])}" if single or single_screen else ""))
     for s, pl, dl in dcm[:8]:
         print(f"     قرار {s} {uni[s].get('name_ar')} · الصفحة {pl} · الفرز {dl}")
     print("@@METRICS@@" + json.dumps({"p_fv_mismatch": len(fvm), "p_conf_mismatch": len(cfm), "p_dec_mismatch": len(dcm),
-                                      "d_single_contra": len(single),
+                                      "d_single_contra": len(single) + len(single_screen),
                                       "verdict": {"٦ رقمُ اليوم": ok}}, ensure_ascii=False))
 
 
