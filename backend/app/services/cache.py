@@ -216,6 +216,22 @@ def expire_prefix(prefix: str, ttl: int = 7 * 24 * 3600) -> int:
     return n
 
 
+def expire_containing(part: str, ttl: int = 7 * 24 * 3600) -> int:
+    """كـ`expire_prefix` لكلّ مفتاحٍ يحوي `part` (‏D653): حساباتُ المسحة («:fresh:») تُبطَل قبل مسحة الإقفال، فلا تقرأ
+    ما حسبته مسحةُ نشرٍ في منتصف الجلسة بسعرها."""
+    global _dirty
+    n = 0
+    with _lock:
+        for k in list(_store):
+            if part in k and _store[k][1] is not None:
+                _store[k] = (time.time() + ttl, None)
+                n += 1
+        if n:
+            _dirty = True
+            _flush()
+    return n
+
+
 def expire_keys(keys, ttl: int = 7 * 24 * 3600) -> int:
     """كـ`expire_prefix` لمفاتيحَ بعينها — البادئةُ «fvm:v36:7202» تُصيب «72020» كذلك."""
     global _dirty

@@ -346,9 +346,12 @@ async def job_valuation_sweep():
     """
     logger.info("🧮 Scheduler: market-wide quality + fair value sweep...")
     try:
+        from app.services import cache
         from app.services.market_valuation_sweep import sweep
+        # ‏D653: مسحةُ الإقفال تقيس الآن — لا تقرأ ما حسبته مسحةُ نشرٍ في منتصف الجلسة اليوم (مفتاحُها بيومها لا بساعتها)
+        n_old = cache.expire_containing(":fresh:")
         rep = await sweep()
-        logger.info(f"🧮 مسحةُ التقييم: {rep}")
+        logger.info(f"🧮 مسحةُ التقييم (أُبطل قبلها {n_old} حساباً سابقاً): {rep}")
     except Exception as e:                                        # noqa: BLE001
         logger.error(f"Valuation sweep failed: {e}")
 
