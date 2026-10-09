@@ -9,7 +9,7 @@ from app.services import cache, lastgood
 cache.set = lambda *a, **k: None
 lastgood.save = lambda *a, **k: None
 
-SYMS = ["2080", "2222", "1120", "2010", "7010", "4013"]
+SYMS = ["2080", "2222", "1120", "2010", "7010", "4013", "2080"]   # «الغاز» أوّلاً وآخراً: يُكشف تعذّرُ العمليّة الباردة
 
 
 async def events():

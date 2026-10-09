@@ -71,14 +71,20 @@ async def list_for(symbol: str, size: int = 40) -> list[dict]:
     form = {"annoucmentType": "1_-1", "symbol": sym, "sectorDpId": "", "searchType": "", "fromDate": "",
             "toDate": "", "datePeriod": "", "productType": "", "advisorsList": "", "textSearch": "",
             "pageNumberDb": "1", "pageSize": str(size)}
-    try:
-        import json
-        st, raw = await smart_fetch(ep, method="POST", data=form, referer=PAGE, warm=PAGE,
-                                    headers={"X-Requested-With": "XMLHttpRequest"})
-        rows = (json.loads(raw) or {}).get("announcementList") or [] if st == 200 else []
-    except Exception as e:                                         # noqa: BLE001
-        logger.debug("إفصاحاتُ تداول لـ{}: {}", sym, e)
-        rows = []
+    import json
+    rows: list = []
+    # ‏D659: أوّلُ طلبٍ في عمليّةٍ باردة قد يعود فارغاً (الجلسةُ لم تُدفَّأ بعد) — قِيس: «الغاز» أوّلُ رمزٍ في الفحص صفرٌ دائماً
+    # والبقيّةُ تصل. وشركةٌ مدرجةٌ لا تخلو صفحتُها من إفصاح، فالفراغُ تعذّرٌ يُعاد مرّةً لا جوابٌ يُحفظ.
+    for _try in range(2):
+        try:
+            st, raw = await smart_fetch(ep, method="POST", data=form, referer=PAGE, warm=PAGE,
+                                        headers={"X-Requested-With": "XMLHttpRequest"})
+            rows = (json.loads(raw) or {}).get("announcementList") or [] if st == 200 else []
+        except Exception as e:                                     # noqa: BLE001
+            logger.debug("إفصاحاتُ تداول لـ{}: {}", sym, e)
+            rows = []
+        if rows:
+            break
     out = []
     for r in rows:
         if str(r.get("SYMBOL")) != sym or not r.get("announcementUrl"):
