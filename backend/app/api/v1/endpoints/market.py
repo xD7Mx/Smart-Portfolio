@@ -94,6 +94,14 @@ async def get_company_analysis(symbol: str, db: AsyncSession = Depends(get_db)):
             "unavailable_reason": reason,
         })
     data["symbol"] = symbol
+    # ‏D649: الرقمُ ثابتٌ ليومه (رقمُ المسحة) والسعرُ حيّ — فالبعدُ عنه يُحسب بسعر اللحظة كما يحسبه الفرز، لا بسعر أوّل فتح
+    try:
+        from app.services.tadawul_market import row_for as _rf649
+        _lp = (_rf649(ysym.replace(".SR", "")) or {}).get("price")
+        if isinstance(data.get("fair_value"), (int, float)) and isinstance(_lp, (int, float)) and _lp > 0:
+            data = {**data, "fair_value_upside_pct": round((data["fair_value"] - _lp) / _lp * 100, 1)}
+    except Exception:                                              # noqa: BLE001
+        pass
     # Flatten common fundamentals to the top level so existing UI keeps working.
     f = data.get("fundamentals") or {}
     for k in ("market_cap", "revenue", "net_income", "eps", "pe_ratio", "roe", "roa",
@@ -761,7 +769,30 @@ async def get_event_detail(detail_id: str):
 async def get_fair_value_models(symbol: str):
     """المحرّكُ متعدّدُ النماذج (D468): نماذجُ ثلاث عائلاتٍ بنطاقاتها وأقرانٍ سعوديين."""
     from app.services.fair_value_models import for_symbol
-    return success_response(data=await for_symbol(_normalize_symbol(symbol).replace(".SR", "")))
+    sym4 = _normalize_symbol(symbol).replace(".SR", "")
+    res = await for_symbol(sym4)
+    # ‏D649 · رقمُ اليوم واحد: «القيمة العادلة اليوم» في تفاصيل النماذج هي رقمُ رأس الصفحة والفرز — ما قاسته المسحة.
+    # والنماذجُ وعائلاتُها تبقى كما حُسبت الآن، وتقديرُ اللحظة في `live_value`.
+    try:
+        from app.services.analysis import official_row
+        off = official_row(sym4)
+        if res and off is not None:
+            ov = off.get("fair_value") if isinstance(off.get("fair_value"), (int, float)) and off["fair_value"] > 0 else None
+            px = res.get("price")
+            res = {**res, "live_value": res.get("value"), "official_asof": off.get("score_asof"), "value": ov}
+            if ov:
+                res.update({"low": off.get("fair_value_low") or res.get("low"), "high": off.get("fair_value_high") or res.get("high"),
+                            "upside": round((ov / px - 1) * 100, 2) if isinstance(px, (int, float)) and px > 0 else None})
+                lv, t12 = res.get("live_value"), res.get("target_12m")
+                if isinstance(lv, (int, float)) and lv > 0 and isinstance(t12, (int, float)):
+                    res["target_12m"] = round(ov * t12 / lv, 2)      # الهدفُ يُبنى على الرقم المعروض نفسِه
+                    if isinstance(px, (int, float)) and px > 0:
+                        res["target_12m_upside"] = round((res["target_12m"] / px - 1) * 100, 2)
+            else:
+                res.update({"reason": off.get("fair_value_unavailable") or res.get("reason"), "upside": None})
+    except Exception:                                              # noqa: BLE001
+        pass
+    return success_response(data=res)
 
 
 @router.get("/material-events/{symbol}")

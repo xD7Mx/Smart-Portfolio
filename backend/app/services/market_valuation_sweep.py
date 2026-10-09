@@ -55,7 +55,8 @@ async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
     async with sem:
         try:
             from app.services.analysis import analyze_company
-            a = await analyze_company(f"{sym}.SR", allow_supplement=False)
+            # ‏D649: تقيس الآن بسعر الإقفال (‏official=False) — لا تقرأ رقمَها السابق ولا تحليلَ الصفحة المخزَّن بسعر لحظة فتحها
+            a = await analyze_company(f"{sym}.SR", allow_supplement=False, official=False)
         except Exception as e:                                    # noqa: BLE001
             _k = f"{type(e).__name__}: {str(e)[:120]}"
             _FAIL_KINDS[_k] = _FAIL_KINDS.get(_k, 0) + 1

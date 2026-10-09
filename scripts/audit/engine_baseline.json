@@ -54,7 +54,9 @@
       "٢ الجودة": true,
       "٣ القرار": true,
       "٤ الشرعي": true,
-      "٥ الفنّي": true
+      "٥ الفنّي": true,
+      "٦ رقمُ اليوم": true,
+      "٧ ثباتُ رقم اليوم": false
     },
     "q_coverage": 0.8456,
     "q_verdict_coverage": 0.9926,
@@ -67,13 +69,19 @@
     "s_nosrc": 0,
     "t_unrecorded_jumps": 0,
     "t_no_tech": 0,
-    "t_bad_rsi": 0
+    "t_bad_rsi": 0,
+    "p_fv_mismatch": 0,
+    "p_conf_mismatch": 0,
+    "p_dec_mismatch": 0,
+    "p_fv_drift": 246,
+    "p_conf_drift": 0
   },
   "version": "2.0",
   "sources": {
     "engine_gate": "run 37831212806 · 2026-10-08 19:20 UTC · الإنتاج بعد إعادة التشغيل",
     "engines_gate_v1": "run 37831271781 · 2026-10-08 19:21 UTC · الإنتاج بعد إعادة التشغيل",
     "approval": "المالك 2026-10-09: «موافق على التجميد»",
-    "previous": "الإصدار 1.0 · 47f14f50eddf — محفوظٌ في engine_reports/47f14f50eddf.json"
+    "previous": "الإصدار 1.0 · 47f14f50eddf — محفوظٌ في engine_reports/47f14f50eddf.json",
+    "parity": "D649: مقاييسُ رقم اليوم للإصدار 2.0 من قياسها على البصمة نفسِها — parity_gate run 37937155423 · parity_shift_gate run 37937208879 (2026-10-09 13:29–13:35 UTC، شيفرةُ a5e4eab = 8b766b22b3e7) — تُشدّد الأساسَ ولا تُرخيه"
   }
 }

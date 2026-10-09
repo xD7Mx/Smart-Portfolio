@@ -284,10 +284,38 @@ def confidence_of(fvm: dict) -> str:
     return "منخفضة"
 
 
-async def analyze_company(symbol: str, name: str | None = None, db=None, allow_supplement: bool = True) -> Optional[dict]:
+def official_row(symbol: str) -> dict | None:
+    """‏D649 · رقمُ اليوم: صفُّ المسحة الأخيرة لهذه الشركة إن كان حديثاً — هو ما يعرضه الفرزُ والمختبر وتقيسه
+    البوابةُ ويسجّله سجلُّ التحقّق. ‎None إن لم تُمسح الشركة أو شاخت المسحة (فيُحسب الرقمُ حيّاً ويُعلَن)."""
+    try:
+        from datetime import date as _d
+        from app.services.content_engine import fund_store_load
+        st = (fund_store_load() or {}).get(str(symbol).replace(".SR", "")) or {}
+        at = str(st.get("score_asof") or "")[:10]
+        if "fair_value" not in st or not at or (_d.today() - _d.fromisoformat(at)).days > OFFICIAL_MAX_AGE:
+            return None
+        return st
+    except Exception:                                              # noqa: BLE001
+        return None
+
+
+# مسحةُ الخميس تبقى رقمَ الأحد، وإجازةُ العيد لا تُسقطه؛ وما شاخ أكثرَ فالمسحةُ معطوبةٌ والحيُّ أصدقُ منه
+OFFICIAL_MAX_AGE = 10
+
+
+async def analyze_company(symbol: str, name: str | None = None, db=None, allow_supplement: bool = True,
+                          official: bool = True) -> Optional[dict]:
     from app.services.governance_rules import rules_version
     # يتبدّل بتعديل القواعد أو شيفرة المحرّك (D448)
     ck = f"analysis:{symbol}:{rules_version()}:{_ENGINE_V}"
+    # ‏D649: ‏`official=False` للمسحة وحدها (ولقياس المرشَّح) — تقيس الآن بسعر الإقفال ولا تقرأ رقمَها السابق.
+    # المسحةُ كانت تقرأ تحليلَ الصفحة المخزَّن 24 ساعة (المفتاحُ واحد) فتكتب رقماً حُسب بسعر لحظة فتحها لا بالإقفال؛
+    # فلها مفتاحُها بتاريخ يومها. والصفحةُ مفتاحُها تاريخُ المسحة التي تعرض رقمَها — فتتجدّد معها لا بعد يوم.
+    if not official:
+        from datetime import date as _dt0
+        ck += f":fresh:{_dt0.today().isoformat()}"
+    else:
+        ck += f":official:{(official_row(symbol) or {}).get('score_asof') or 'live'}"
     cached = cache.get(ck)
     if cached is not None:
         return cached
@@ -572,6 +600,29 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
     except Exception:                                             # noqa: BLE001
         pass
 
+    # ‏D649 · رقمُ اليوم واحد: الصفحةُ (ورأيُ الذكاء والمستشار والطيّار) تعرض ما قاسته المسحةُ عند الإقفال — وهو ما يعرضه
+    # الفرز وتقيسه البوابة ويُسجَّل للتحقّق — لا مزجاً بالسعر اللحظيّ يتحرّك مع كلّ صفقة (0.4 من حركة السعر).
+    # ويُطبَّق قبل بوّابة القرار، فالقرارُ يُحكم بالرقم المعروض نفسِه (D454). وتقديرُ الآن يبقى في `live_value`.
+    if official:
+        _off = official_row(symbol)
+        if _off is not None:
+            _fv = dict(_fv or {})
+            _live, _live_conf = _fv.get("value"), _fv.get("confidence")
+            _ov = _off.get("fair_value") if isinstance(_off.get("fair_value"), (int, float)) and _off["fair_value"] > 0 else None
+            _fv.update({"live_value": _live, "value": _ov, "official_asof": _off.get("score_asof"),
+                        "low": _off.get("fair_value_low") if _ov else None,
+                        "high": _off.get("fair_value_high") if _ov else None,
+                        "confidence": _off.get("fair_value_conf") if _ov else _fv.get("confidence")})
+            if _ov is None:
+                _fv["unavailable_reason"] = _off.get("fair_value_unavailable") or _fv.get("unavailable_reason")
+            else:
+                _fv["unavailable_reason"] = None
+                if "fair_value_calibrated" in _off:
+                    _fv["calibrated"] = _off.get("fair_value_calibrated") is not False
+                    _fv["calibration_note"] = _off.get("fair_value_calibration_note")
+            if _fv.get("confidence") != _live_conf:           # تعليلُ الثقة الحيّة لا يُلصق بثقة المسحة
+                _fv.update({"confidence_why": None, "confidence_score": None})
+
     _analyst_fv = (info or {}).get("target_mean_price")
     if not isinstance(_analyst_fv, (int, float)) or _analyst_fv <= 0:
         _analyst_fv = None
@@ -841,6 +892,9 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         "fair_value_unavailable_reason": _fv.get("unavailable_reason"),
         "fair_value_calibrated": _fv.get("calibrated", True) if _fv.get("value") is not None else None,
         "fair_value_calibration_note": _fv.get("calibration_note"),
+        # ‏D649: تاريخُ المسحة التي يُعرض رقمُها، وتقديرُ الآن بسعر اللحظة (لا يُعرض سعراً عادلاً)
+        "fair_value_official_asof": _fv.get("official_asof"),
+        "fair_value_live": _fv.get("live_value"),
         # وهدفُ بيوت الخبرة باسمه ومصدرِه — مسانِدٌ لا منافس
         "analyst_target": _shown_fv,
         "analyst_target_source": _fv_source,
