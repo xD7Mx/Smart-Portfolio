@@ -74,6 +74,7 @@
     "p_conf_mismatch": 0,
     "p_dec_mismatch": 0,
     "p_fv_drift": 0,
-    "p_conf_drift": 0
+    "p_conf_drift": 0,
+    "d_single_contra": 3
   }
 }

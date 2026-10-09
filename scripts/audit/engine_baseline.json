@@ -74,7 +74,8 @@
     "p_conf_mismatch": 0,
     "p_dec_mismatch": 0,
     "p_fv_drift": 0,
-    "p_conf_drift": 0
+    "p_conf_drift": 0,
+    "d_single_contra": 3
   },
   "version": "2.1",
   "sources": {
@@ -83,6 +84,7 @@
     "parity_gate": "run 37953101858 · 2026-10-09 15:37 UTC · الإنتاج بعد مزامنة القرار (D654)",
     "parity_shift_gate": "run 37949319007 · 2026-10-09 15:09 UTC · الإنتاج",
     "approval": "المالك 2026-10-09: «موافق اكمل اريد الانتهاء من المهمة اليوم» — جواباً على «موافق على تجميد 2.1»",
-    "previous": "الإصدار 2.0 · 8b766b22b3e7 — محفوظٌ في engine_reports/8b766b22b3e7.json"
+    "previous": "الإصدار 2.0 · 8b766b22b3e7 — محفوظٌ في engine_reports/8b766b22b3e7.json",
+    "d_single_contra": "D658: قِيس على 2.1 نفسِه — parity_gate run 37965744725 (2026-10-09 17:22 UTC): الصفحة 1 (6004) · الفرز 2 (6004 · 7202) — يُشدّد الأساسَ ولا يُرخيه"
   }
 }
