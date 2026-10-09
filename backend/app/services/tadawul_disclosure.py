@@ -84,10 +84,14 @@ async def list_for(symbol: str, size: int = 40) -> list[dict]:
         except Exception as e:                                     # noqa: BLE001
             logger.debug("إفصاحاتُ تداول لـ{}: {}", sym, e)
             rows = []
-        if rows:
+        # ‏D659: الجلسةُ الباردة تُرجع العناوينَ بالعربية (‏45 ألف حرف) والدافئةُ بالإنجليزية (‏48 ألفاً) — والمصنِّفُ يقرأ
+        # الإنجليزية، فكان أوّلُ طلبٍ بعد كلّ إعادة تشغيلٍ «لا أحداث» يُحفظ يوماً (قِيس: «الغاز» صفرٌ أوّلاً وثلاثةٌ ثانياً).
+        english = sum(1 for r in rows if re.search(r"[A-Za-z]{3}", str(r.get("SHORT_DESC") or r.get("TITLE") or "")))
+        if rows and english * 2 >= len(rows):
             break
-        cache.set("tadawul:annlist:ep", None, 1)                    # نقطةٌ مكتشفةٌ لا تُجيب تُكتشف من جديد قبل الإعادة
-        ep = await _endpoint() or ep
+        if not rows:
+            cache.set("tadawul:annlist:ep", None, 1)                # نقطةٌ مكتشفةٌ لا تُجيب تُكتشف من جديد قبل الإعادة
+            ep = await _endpoint() or ep
     out = []
     for r in rows:
         if str(r.get("SYMBOL")) != sym or not r.get("announcementUrl"):
@@ -95,7 +99,8 @@ async def list_for(symbol: str, size: int = 40) -> list[dict]:
         out.append({"date": _date(r.get("PR_DATE")), "id": str(r.get("announcementNumber") or r.get("PRESS_REL_ID")),
                     "title": str(r.get("SHORT_DESC") or r.get("TITLE") or ""),   # D555: TITLE اسمُ الصندوق، والعنوانُ في SHORT_DESC
                     "url": O + r["announcementUrl"].replace("locale=en", "locale=ar")})
-    cache.set(ck, out, 60 * 60 if out else 10 * 60)
+    _en = sum(1 for o in out if re.search(r"[A-Za-z]{3}", o.get("title") or ""))
+    cache.set(ck, out, 60 * 60 if out and _en * 2 >= len(out) else 10 * 60)   # عناوينُ لم تصل بالإنجليزية لا تُحفظ ساعة
     return out
 
 

@@ -47,5 +47,17 @@ cache._store.pop("tadawul:annlist:v3:2080", None)
 r3 = asyncio.run(TD.list_for("2080", 60))
 check(len(r3) == 1 and eps["n"] >= 2, "٣ واكتشافُ النقطة المتعذّرُ أوّلَ مرّةٍ يُعاد — فأوّلُ شركةٍ بعد إعادة التشغيل لا تُحرم أحداثَها",
       f"اكتشاف {eps['n']} · صفوف {len(r3)}")
+# الجلسةُ الباردة تُرجع العناوينَ بالعربية — والمصنِّفُ يقرأ الإنجليزية
+lang = {"n": 0}
+async def _ar_then_en(*a, **k):
+    lang["n"] += 1
+    t = "تعلن شركة الغاز عن توقيع اتفاقية استحواذ" if lang["n"] == 1 else "Gas announces signing an acquisition agreement"
+    return 200, json.dumps({"announcementList": [{"SYMBOL": "2080", "announcementUrl": "/x?locale=en", "PR_DATE": "2026-06-24",
+                                                  "SHORT_DESC": t}]})
+TD._endpoint, TH.smart_fetch = _ep, _ar_then_en
+cache._store.pop("tadawul:annlist:v3:2080", None)
+r4 = asyncio.run(TD.list_for("2080", 60))
+check(lang["n"] == 2 and r4 and "Gas" in r4[0]["title"], "٤ وعناوينُ عربيةٌ من الجلسة الباردة تُعاد فتصل بالإنجليزية التي يقرؤها المصنِّف",
+      f"طلبات {lang['n']} · {r4[0]['title'][:30] if r4 else '—'}")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)
