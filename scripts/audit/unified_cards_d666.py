@@ -47,6 +47,11 @@ lg = (src / "components/common/Logo.tsx").read_text(encoding="utf-8")
 check("<Logo size={32} flat />" in ec and "<Logo size={size} flat />" in cl and "base.slice(0, 4)" not in cl and "co-logo" in cl,
       "٩ D667 لا شعار ⇒ علامةُ التطبيق: في البطاقة بلا شركة، وفي شعار الشركة الغائب — لا فراغ ولا مربّعُ رمز")
 check("flat ?" in lg, "١٠ D667 والعلامةُ داخل البطاقة بلا هالة — الهالةُ للترويسة وحدها")
+sl = (src / "components/common/SourceLogo.tsx").read_text(encoding="utf-8")
+check("if (!entry) return <Logo size={size} flat />;" in sl and "Newspaper" not in sl,
+      "١١ D667 وشعارُ مصدر الخبر: المسجَّلُ أوّلاً، وغيرُه أو المتعذّرُ علامةُ التطبيق — لا فراغ ولا أيقونةُ صحيفة")
+check("<CalendarDays size={26}" not in el and "<Logo size={40} flat />" in el,
+      "١٢ D667 ونافذةُ الحدث بلا شركة: علامةُ التطبيق مكانَ الشعار")
 rs = (ROOT / "scripts/audit/run.sh").read_text(encoding="utf-8")
 check("node scripts/audit/cards_d666.mjs" in rs, "٨ والقياسُ في المتصفّح بعرضَي الجوال والحاسوب ضمن اللجنة")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")

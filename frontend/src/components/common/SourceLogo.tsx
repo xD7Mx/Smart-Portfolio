@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Newspaper } from "lucide-react";
+import Logo from "./Logo";
 import { matchSource } from "../../data/newsSources";
 
 /**
@@ -10,12 +10,15 @@ import { matchSource } from "../../data/newsSources";
  * Fallback chain (same convention as CompanyLogo, real domains only):
  *  1. Clearbit logo for the outlet's registered domain.
  *  2. Google favicon service for the same domain.
- *  3. A neutral newspaper-icon tile — never a broken image.
+ *  3. The app's own mark — never a broken image, never an empty slot.
+ *
+ * ‏D667 (بأمر المالك: «شعارُ الشركة أوّلاً، وإن لم يوجد — بدلاً من أن يكون فراغاً — ضع شعارَ التطبيق»): كان المصدرُ
+ * غيرُ المسجَّل يُرجع لا شيء فيبقى مكانُ الشعار فارغاً، والمتعذّرُ أيقونةَ صحيفةٍ رمادية.
  */
 export default function SourceLogo({ source, size = 30 }: { source?: string | null; size?: number }) {
   const entry = matchSource(source);
   const [stage, setStage] = useState<number>(0);
-  if (!entry) return null;
+  if (!entry) return <Logo size={size} flat />;
   // Candidate chain: an explicit `logo` URL first (when set), then the
   // domain-derived Clearbit logo, then the domain favicon, then a neutral tile.
   const candidates = [
@@ -42,14 +45,7 @@ export default function SourceLogo({ source, size = 30 }: { source?: string | nu
       />
     );
   }
-  return (
-    <div
-      className="rounded-lg flex items-center justify-center shrink-0"
-      style={{ width: size, height: size, background: "transparent" }}
-    >
-      <Newspaper size={size * 0.55} className="text-[var(--ink-muted)]" />
-    </div>
-  );
+  return <Logo size={size} flat />;
 }
 
 /** True when this source label belongs to the approved outlets registry. */

@@ -6,6 +6,7 @@ import { lookupCompany } from "../../data/saudiCompanies";
 import { marketApi } from "../../services/api";
 import { ShareButton } from "../common/ShareOpen";
 import EventCard from "../common/EventCard";
+import Logo from "../common/Logo";
 
 /**
  * اللغة التصميمية الموحدة للمفكرة — every corporate-action announcement is
@@ -164,7 +165,7 @@ function EventDetailModal({ e, onClose }: { e: any; onClose: () => void }) {
         <div className="flex items-center justify-between mb-4">
           {/* D621: اسمُ الشركة بجانب شعارها في الأعلى — بأمر المالك */}
           <div className="flex items-center gap-2.5 min-w-0">
-            {e.symbol ? <CompanyLogo symbol={e.symbol} size={40} /> : <CalendarDays size={26} className="text-[var(--brand-ink)]" />}
+            {e.symbol ? <CompanyLogo symbol={e.symbol} size={40} /> : <Logo size={40} flat />}
             {name && (
               <div className="min-w-0 text-right">
                 <p className="text-[14px] font-bold text-[var(--ink)] truncate">{name}</p>
