@@ -1034,6 +1034,12 @@ async def build_market_calendar_tadawul() -> int:
         return 0
     if not items:
         return 0
+    # ‏D670: عناوينُ «تداول» بالعربية من صفحات إفصاحاتها — وإلا أسقطها مرشِّحُ المفكرة العربيّ ولم يظهر حدثٌ رسميّ قطّ
+    from app.services.tadawul_announcements import arabic_titles
+    try:
+        logger.info(f"📅 عناوينُ «تداول» العربية: {await arabic_titles(items)} من {len(items)}")
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"عناوينُ «تداول» العربية: {e}")
     by_symbol = {s: n for s, n in _universe_pairs()}
     store = _cal_load_store()
     added = 0
