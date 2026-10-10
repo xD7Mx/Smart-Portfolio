@@ -227,6 +227,13 @@ def _analysts(sym: str, price) -> dict | None:
                           "التاريخ": last.get("date")}}
 
 
+def _lines(items) -> list[str]:
+    """‏D680: الخطُّ الأحمر والتحذيرُ {id, message} كما يُخرجهما red_lines — وكانا يُقرآن بـ«label/title» فيصل المستشارَ
+    نصُّ القاموس خاماً («{'id': 'loss_streak', …}») لا رسالتُه."""
+    return [str(x.get("message") or x.get("label") or x.get("title") or x.get("id") or "") if isinstance(x, dict) else str(x)
+            for x in (items or [])][:3]
+
+
 async def _stability(sym: str, sector: str | None) -> str | None:
     """‏D680: ثباتُ الأرباح من محرّك الحوكمة — المنتِجُ الذي تعرضه نافذتُها (‏D675) وبمفتاح ذاكرتها نفسِه (القطاعُ من الشركة)؛
     وكان يُطلب من «financial» في تحليل الشركة ولا يحمله، فغاب عن كلّ المراكز (قِيس: 0/14)."""
@@ -303,10 +310,8 @@ async def pack(db, mode: str = "investor") -> dict:
         except Exception:                                         # noqa: BLE001
             pass
         pos["stability"] = stb if isinstance(stb, str) else None
-        pos["red_lines"] = [str(x.get("label") or x.get("title") or x) if isinstance(x, dict) else str(x)
-                            for x in (a.get("red_lines") or [])][:3]
-        pos["warnings"] = [str(x.get("label") or x.get("title") or x) if isinstance(x, dict) else str(x)
-                           for x in (a.get("warnings") or [])][:3]
+        pos["red_lines"] = _lines(a.get("red_lines"))
+        pos["warnings"] = _lines(a.get("warnings"))
         pos["material_events"] = me if isinstance(me, list) else []
         try:
             pos["analysts"] = _analysts(sym, pos.get("price"))
@@ -418,7 +423,7 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
     from app.services import cache
     pid = active_pid()
     mode = "investor"                                            # ‏D591: لا مفتاح — رأيٌ واحد
-    ck = f"autopilot:v4:{pid}:{date.today().isoformat()}"   # v4: D680 (القادمُ والثباتُ والأحداثُ بعناوينها العربية)
+    ck = f"autopilot:v5:{pid}:{date.today().isoformat()}"   # v5: D680 (القادمُ والثباتُ والأحداثُ بعناوينها العربية، والخطوطُ برسائلها)
     if not force:
         hit = cache.get(ck)
         if hit:
@@ -460,7 +465,7 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
 والنقاطُ أربعٌ إلى ستّ، والإجراءاتُ ستٌّ على الأكثر مرتّبةً بالأهمية."""
     obj = None
     try:
-        obj = await _generate_obj(prompt, f"ai:autopilot:v4:{pid}:{date.today().isoformat()}:{len(pk['positions'])}", 6 * 3600)
+        obj = await _generate_obj(prompt, f"ai:autopilot:v5:{pid}:{date.today().isoformat()}:{len(pk['positions'])}", 6 * 3600)
     except Exception as e:                                        # noqa: BLE001
         logger.warning(f"الطيار الآليّ — النموذج: {type(e).__name__}")
     out = dict(base)
@@ -590,7 +595,7 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
     from app.services import cache
     mode = "investor"
     pid = active_pid()
-    ck = f"autopilot:pack:v4:{pid}:{date.today().isoformat()}"
+    ck = f"autopilot:pack:v5:{pid}:{date.today().isoformat()}"
     pk = cache.get(ck)
     if not pk:
         pk = await pack(db, mode)

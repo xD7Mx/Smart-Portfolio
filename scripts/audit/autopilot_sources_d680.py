@@ -70,10 +70,14 @@ async def main():
     st = await AP._stability("2080", "المرافق العامة") if hasattr(AP, "_stability") else None
     check(st == "مستقرّة" and seen.get("symbol") == "2080.SR" and seen.get("sector") == "المرافق العامة",
           "٣ والثباتُ من محرّك الحوكمة — بالرمز والقطاع اللذين تطلبه بهما نافذتُها، فتُشارك ذاكرتَها", f"{st} · {seen}")
+    rl = [{"id": "loss_streak", "message": "خسارةٌ 5 سنواتٍ متتالية"}]   # شكلُ red_lines كما قِيس (‏autopilot_redlines_door)
+    got = AP._lines(rl) if hasattr(AP, "_lines") else []
+    check(got == ["خسارةٌ 5 سنواتٍ متتالية"],
+          "٥ والخطُّ الأحمر والتحذيرُ يصلان برسالتهما — لا نصَّ قاموسٍ خاماً", str(got))
     src = (ROOT / "backend/app/services/autopilot.py").read_text(encoding="utf-8")
-    check('pos["stability"] = stb' in src and "_stability(sym, sector_of.get(sym))" in src and "autopilot:pack:v4" in src
-          and "autopilot:pack:v4" in (ROOT / "backend/app/api/v1/endpoints/ai.py").read_text(encoding="utf-8"),
-          "٤ والحزمةُ تضع الثلاثةَ في كلّ مركز، وذاكرتُها v4 فلا تُخدم حزمةُ اليوم الناقصة")
+    check('pos["stability"] = stb' in src and 'pos["red_lines"] = _lines(' in src and "_stability(sym, sector_of.get(sym))" in src and "autopilot:pack:v5" in src
+          and "autopilot:pack:v5" in (ROOT / "backend/app/api/v1/endpoints/ai.py").read_text(encoding="utf-8"),
+          "٤ والحزمةُ تضع الثلاثةَ في كلّ مركز، وذاكرتُها v5 فلا تُخدم حزمةُ اليوم الناقصة")
 
 
 asyncio.run(main())
