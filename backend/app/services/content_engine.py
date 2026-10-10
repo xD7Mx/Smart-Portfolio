@@ -541,6 +541,15 @@ def _cal_prune_and_save(store: dict[str, dict]) -> None:
     cache.set(_CAL_STORE_KEY, kept, 6 * 60 * 60)
 
 
+def _cal_save_merged(store: dict[str, dict], base: dict[str, dict]) -> None:
+    """‏D673: بنّاءٌ يقرأ المخزن ثمّ ينتظر الشبكةَ دقائقَ ثمّ يحفظ — يمحو ما كتبه غيرُه في أثناء انتظاره (كتابةٌ
+    ضائعة). فيُعاد تحميلُ المخزن عند الحفظ، ويُكتب فوقه ما غيّره هذا البنّاءُ وحده."""
+    changed = {k: v for k, v in store.items() if base.get(k) is not v}
+    fresh = _cal_load_store()
+    fresh.update(changed)
+    _cal_prune_and_save(fresh)
+
+
 # كلماتٌ عامة ترد في أسماء عشرات الشركات، فمطابقتها وحدها لا تُثبت نسبة.
 _NAME_STOP = {"شركة", "الشركة", "مصرف", "بنك", "مجموعة", "السعودية", "القابضة",
               "العربية", "الوطنية", "التعاونية", "للتسويق", "للاستثمار",
@@ -899,6 +908,7 @@ async def build_market_calendar_dividends() -> int:
     cache.set(_CAL_DIV_CURSOR, (cursor + _CAL_DIV_BATCH) % len(pairs), 24 * 60 * 60)
 
     store = _cal_load_store()
+    _base = dict(store)                  # ‏D673: ما قُرئ قبل الانتظار — يُكتب فوق الأحدث ما تغيّر هنا وحده
     today = datetime.now(timezone.utc).date().isoformat()
     added = 0
     for sym, name in batch:
@@ -948,7 +958,7 @@ async def build_market_calendar_dividends() -> int:
                 "date_kind": "event",
                 "url": None, "source": "بيانات السوق",
             }
-    _cal_prune_and_save(store)
+    _cal_save_merged(store, _base)
     logger.info(f"📅 Market calendar dividends: {len(batch)} cos @cursor {cursor}, +{added} new, store={len(store)}.")
     return added
 
@@ -972,6 +982,7 @@ async def build_market_calendar_earnings() -> int:
     cache.set(_CAL_EARN_CURSOR, (cursor + _CAL_EARN_BATCH) % len(pairs), 24 * 60 * 60)
 
     store = _cal_load_store()
+    _base = dict(store)                  # ‏D673: ما قُرئ قبل الانتظار — يُكتب فوق الأحدث ما تغيّر هنا وحده
     today = datetime.now(timezone.utc).date().isoformat()
     added = 0
     for sym, name in batch:
@@ -1016,7 +1027,7 @@ async def build_market_calendar_earnings() -> int:
                 "date_kind": "event",
                 "url": None, "source": "بيانات السوق", "confirmed": True,
             }
-    _cal_prune_and_save(store)
+    _cal_save_merged(store, _base)
     logger.info(f"📅 Market calendar earnings: {len(batch)} cos @cursor {cursor}, +{added} new, store={len(store)}.")
     return added
 
@@ -1030,12 +1041,15 @@ async def build_market_calendar_tadawul() -> int:
     كلَّها (قِيس: 19 في المخزن · 0 في المفكرة)، فلم يظهر في المفكرة حدثٌ رسميٌّ واحد من «تداول». وصار يقرأ إفصاحاتِ
     الشركات للسوق كلّه بعناوينها العربية الرسمية (‏`tadawul_disclosure.market_list` — قِيس: 60 من 60 عربيةً برمز،
     و38 منها لا حدثَ لها في المفكرة). ولا ترجمة: ما لم يصل عربياً لا يُخزَّن."""
-    from app.services.tadawul_disclosure import market_list
+    from app.services import lastgood
+    from app.services.tadawul_disclosure import market_list, LAST_RUN
     try:
         items = await market_list()
     except Exception as e:
         logger.warning(f"Tadawul calendar source unavailable: {e}")
-        return 0
+        items = []
+    # ‏D670: ختمُ الدورة — كم وصل وبأيّ لغة — فيُقرأ من خارج الخادم أنّ المجدوِلَ يعمل أو لماذا لم يُضف شيئاً
+    lastgood.save("market:calendar:tadawul_run", {**LAST_RUN, "items": len(items)})
     if not items:
         return 0
     by_symbol = {s: n for s, n in _universe_pairs()}

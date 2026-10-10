@@ -107,6 +107,9 @@ async def list_for(symbol: str, size: int = 40) -> list[dict]:
 _AR = re.compile(r"[؀-ۿ]")
 
 
+LAST_RUN: dict = {}
+
+
 async def market_list(size: int = 150) -> list[dict]:
     """‏D670: إفصاحاتُ الشركات في السوق كلّه بعناوينها العربية الرسمية — [{symbol, company_name, title, date, url, id}].
 
@@ -127,6 +130,7 @@ async def market_list(size: int = 150) -> list[dict]:
             "toDate": "", "datePeriod": "", "productType": "", "advisorsList": "", "textSearch": "",
             "pageNumberDb": "1", "pageSize": str(size)}
     rows: list = []
+    tries = []
     for _try in range(3):
         try:
             st, raw = await smart_fetch(ep, method="POST", data=form, referer=PAGE, warm=PAGE,
@@ -134,10 +138,14 @@ async def market_list(size: int = 150) -> list[dict]:
             rows = (json.loads(raw) or {}).get("announcementList") or [] if st == 200 else []
         except Exception as e:                                     # noqa: BLE001
             logger.debug("إفصاحاتُ السوق في تداول: {}", e)
-            rows = []
+            st, rows = type(e).__name__, []
         ar = sum(1 for r in rows if _AR.search(str(r.get("SHORT_DESC") or "")))
+        tries.append({"status": st, "rows": len(rows), "arabic": ar})
         if rows and ar * 2 >= len(rows):
             break
+    # ‏D670: كلُّ دورةٍ تُسجَّل محاولاتُها — قِيس أنّ دورةَ المجدوِل الأولى بعد النشر لم تُغيّر المخزن ولا سجلَّ يقول لماذا
+    LAST_RUN.clear()
+    LAST_RUN.update({"at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "tries": tries})
     out = []
     for r in rows:
         sym = str(r.get("SYMBOL") or "").strip()
