@@ -299,36 +299,98 @@ function RecsPanel({ data, loading }: { data: any; loading: boolean }) {
   );
 }
 
+/* ══ «التوقعات» (D664) ══ «جميعُ التوقعات الممكنة من الجهات المعتبرة»: مئاتُ البنود، فيُفرز بالنوع وبالجهة
+   ويُعرض أربعون فأربعون — لا قائمةٌ تُمرَّر بلا نهاية. */
+const FC_GROUPS: [string, string, (k: string) => boolean][] = [
+  ["all", "الكل", () => true],
+  ["recs", "توصيات وأسعار مستهدفة", k => /توصية|مستهدف/.test(k)],
+  ["co", "تقارير الشركات", k => /تقرير شركة|توقعات النتائج/.test(k)],
+  ["sec", "القطاعات", k => /قطاع/.test(k)],
+  ["eco", "الاقتصاد", k => /اقتصاد/.test(k)],
+  ["tech", "التحليل الفني", k => /فني/.test(k)],
+  ["per", "دورية ويومية", k => /دوري|يومي/.test(k)],
+];
+const FC_PAGE = 40;
+
 function ForecastsPanel({ data, loading }: { data?: any[]; loading: boolean }) {
+  const [grp, setGrp] = useState("all");
+  const [who, setWho] = useState("");
+  const [n, setN] = useState(FC_PAGE);
+  const items = data || [];
+  const groups = React.useMemo(() => FC_GROUPS.filter(([id, , f]) => id === "all" || items.some((x: any) => f(x.kind || ""))), [items]);
+  const inGroup = React.useMemo(() => {
+    const f = (FC_GROUPS.find(g => g[0] === grp) || FC_GROUPS[0])[2];
+    return items.filter((x: any) => f(x.kind || ""));
+  }, [items, grp]);
+  const sources = React.useMemo(() => {
+    const c = new Map<string, number>();
+    inGroup.forEach((x: any) => x.source && c.set(x.source, (c.get(x.source) || 0) + 1));
+    return [...c.entries()].sort((a, b) => b[1] - a[1]).map(([s]) => s);
+  }, [inGroup]);
+  const shown = who ? inGroup.filter((x: any) => x.source === who) : inGroup;
   if (loading) return <div className="h-40 skeleton rounded-xl" />;
-  if (!data || !data.length)
+  if (!items.length)
     return <div className="py-16 text-center text-[var(--ink-muted)] text-sm">التوقعات غير متوفّرة حالياً</div>;
   return (
-    <div className="space-y-1.5">
-      {data.map((f: any, i: number) => (
-        <a key={f.url || i} href={f.url || undefined} target="_blank" rel="noopener noreferrer"
-           className="card block p-3 min-h-[32px] text-right hover:bg-[var(--surface)]">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="ev-tag inline-block text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--surface)] text-[var(--ink)]">{f.kind}</span>
-            {typeof f.fair_value === "number" && (
-              <span className="text-[11px] text-[var(--ink-muted)] shrink-0">
-                السعر العادل <b className="text-[var(--ink)] tabular-nums" dir="ltr">{f.fair_value.toFixed(2)}</b>
-              </span>
-            )}
-            {f.company && (
-              <span className="flex items-center gap-1.5 min-w-0">
-                <CompanyLogo symbol={f.company} size={18} />
-                <span className="text-[11px] text-[var(--ink-muted)] truncate">{lookupCompany(f.company)?.name_ar || f.company}</span>
-              </span>
-            )}
-          </div>
-          <div className="flex items-end gap-3">
-            <p className="flex-1 text-[13px] leading-relaxed text-[var(--ink)]">{f.title}</p>
-            <span className="text-[10.5px] text-[var(--ink-muted)] tabular-nums shrink-0" dir="ltr">{f.date || "—"}</span>
-          </div>
-          <p className="text-[10.5px] text-[var(--ink-muted)] mt-1">{f.source}</p>
-        </a>
-      ))}
+    <div className="space-y-2">
+      <div className="flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="نوع التوقعات">
+        {groups.map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={grp === id}
+            onClick={() => { setGrp(id); setWho(""); setN(FC_PAGE); }}
+            className={"shrink-0 min-h-[32px] px-3 rounded-lg text-[11.5px] font-bold border transition-colors " +
+              (grp === id ? "border-[var(--brand-ink)] text-[var(--brand-ink)]" : "border-[var(--hairline)] text-[var(--ink-muted)]")}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {sources.length > 1 && (
+        <select value={who} onChange={ev => { setWho(ev.target.value); setN(FC_PAGE); }} aria-label="الجهة"
+          className="panel w-full min-h-[34px] rounded-lg px-2 text-[12px] text-[var(--ink)] text-right">
+          <option value="">كل الجهات</option>
+          {sources.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      )}
+      <div className="space-y-1.5">
+        {shown.slice(0, n).map((f: any, i: number) => (
+          <a key={f.id || f.url || i} href={f.url || undefined} target="_blank" rel="noopener noreferrer"
+             className="card block p-3 min-h-[32px] text-right hover:bg-[var(--surface)]">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              {f.rating ? (
+                <span className="ev-tag shrink-0" style={{ background: VERDICT_TONE(f.rating), color: "var(--tag-ink)" }}>{f.rating}</span>
+              ) : (
+                <span className="ev-tag inline-block text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--surface)] text-[var(--ink)]">{f.kind}</span>
+              )}
+              {typeof f.target === "number" && (
+                <span className="text-[11px] text-[var(--ink-muted)] shrink-0">
+                  السعر المستهدف <b className="text-[var(--ink)] tabular-nums" dir="ltr">{f.target.toFixed(2)}</b>
+                </span>
+              )}
+              {typeof f.fair_value === "number" && (
+                <span className="text-[11px] text-[var(--ink-muted)] shrink-0">
+                  السعر العادل <b className="text-[var(--ink)] tabular-nums" dir="ltr">{f.fair_value.toFixed(2)}</b>
+                </span>
+              )}
+              {f.company && (
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <CompanyLogo symbol={f.company} size={18} />
+                  <span className="text-[11px] text-[var(--ink-muted)] truncate">{lookupCompany(f.company)?.name_ar || f.company}</span>
+                </span>
+              )}
+            </div>
+            <div className="flex items-end gap-3">
+              <p className="flex-1 text-[13px] leading-relaxed text-[var(--ink)]">{f.title}</p>
+              <span className="text-[10.5px] text-[var(--ink-muted)] tabular-nums shrink-0" dir="ltr">{f.date || "—"}</span>
+            </div>
+            <p className="text-[10.5px] text-[var(--ink-muted)] mt-1">{f.via ? `${f.source} · عبر ${f.via}` : f.source}</p>
+          </a>
+        ))}
+      </div>
+      {shown.length > n && (
+        <button onClick={() => setN(n + FC_PAGE)}
+          className="w-full min-h-[36px] rounded-lg border border-[var(--hairline)] text-[12px] font-bold text-[var(--brand-ink)]">
+          عرض المزيد
+        </button>
+      )}
     </div>
   );
 }
