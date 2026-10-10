@@ -391,36 +391,6 @@ async def _from_page_service(page_url: str) -> list[dict]:
     return []
 
 
-_AR = re.compile(r"[\u0600-\u06FF]")
-
-
-async def arabic_titles(items: list[dict], cap: int = 60) -> int:
-    """‏D670: عنوانُ الإعلان بالعربية من صفحة إفصاحه نفسِها — قائمةُ «تداول» تصل بالإنجليزية فيُسقطها مرشِّحُ المفكرة
-    العربيّ (D506)، فكانت أحداثُ «تداول» الرسمية لا تظهر أبداً (قِيس: 19 في المخزن · 0 في المفكرة). صفحةُ الإفصاح بـ
-    `locale=ar` تحمل العنوانَ العربيّ (‏`tadawul_disclosure.detail` · مخزّنٌ يوماً)، وما لم يُقرأ عربياً يبقى كما هو."""
-    import asyncio
-    from app.services.tadawul_disclosure import detail
-    sem = asyncio.Semaphore(3)
-    done = 0
-
-    async def one(it: dict) -> None:
-        nonlocal done
-        t, u = it.get("title") or "", it.get("url") or ""
-        if _AR.search(t) or "issuer-announcements" not in u:
-            return
-        u_ar = re.sub(r"locale=en", "locale=ar", u) if "locale=" in u else u + ("&" if "?" in u else "?") + "locale=ar"
-        async with sem:
-            try:
-                d = await detail(u_ar)
-            except Exception:                                      # noqa: BLE001
-                d = None
-        if d and _AR.search(d.get("title") or ""):
-            it["title"], it["url"] = d["title"], u_ar
-            done += 1
-    await asyncio.gather(*(one(it) for it in items[:cap]))
-    return done
-
-
 async def fetch_tadawul_announcements(force: bool = False) -> list[dict]:
     """المصدر الأساسي: إعلانات تداول الرسمية. يُعيد قائمة عناصر مفكرة مُهيكلة
     [{symbol, company_name, title, type, date, url, source}]. مُخزَّن ساعة.

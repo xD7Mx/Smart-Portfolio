@@ -104,6 +104,56 @@ async def list_for(symbol: str, size: int = 40) -> list[dict]:
     return out
 
 
+_AR = re.compile(r"[؀-ۿ]")
+
+
+async def market_list(size: int = 150) -> list[dict]:
+    """‏D670: إفصاحاتُ الشركات في السوق كلّه بعناوينها العربية الرسمية — [{symbol, company_name, title, date, url, id}].
+
+    كانت مفكرةُ «تداول» تقرأ خدمةَ أخبار السوق (`getNewsListData`): أخبارٌ للهيئة و«إيداع» بلا رمز وبالإنجليزية،
+    فأسقطها المرشِّحُ العربيّ كلَّها (قِيس: 19 في المخزن · 0 في المفكرة). والخدمةُ نفسُها التي تقرأ إفصاحاتِ الشركة
+    (‏`getAnnouncementListData`) تُعطي السوقَ كلَّه برمزٍ فارغ — قِيس: 60 من 60 بعنوانٍ عربيّ ورمزٍ ورابطِ متنٍ
+    في الجلسة المسخَّنة بصفحة `locale=ar`، و0 من 60 عربيةً في الجلسة الباردة. فلا ترجمةَ: النصُّ العربيُّ رسميٌّ موجود."""
+    ck = "tadawul:annlist:market:v1"
+    hit = cache.get(ck)
+    if hit:
+        return hit
+    ep = await _endpoint() or await _endpoint()
+    if not ep:
+        return []
+    from app.services.tadawul_http import smart_fetch
+    import json
+    form = {"annoucmentType": "1_-1", "symbol": "", "sectorDpId": "", "searchType": "", "fromDate": "",
+            "toDate": "", "datePeriod": "", "productType": "", "advisorsList": "", "textSearch": "",
+            "pageNumberDb": "1", "pageSize": str(size)}
+    rows: list = []
+    for _try in range(3):
+        try:
+            st, raw = await smart_fetch(ep, method="POST", data=form, referer=PAGE, warm=PAGE,
+                                        headers={"X-Requested-With": "XMLHttpRequest"})
+            rows = (json.loads(raw) or {}).get("announcementList") or [] if st == 200 else []
+        except Exception as e:                                     # noqa: BLE001
+            logger.debug("إفصاحاتُ السوق في تداول: {}", e)
+            rows = []
+        ar = sum(1 for r in rows if _AR.search(str(r.get("SHORT_DESC") or "")))
+        if rows and ar * 2 >= len(rows):
+            break
+    out = []
+    for r in rows:
+        sym = str(r.get("SYMBOL") or "").strip()
+        title = " ".join(str(r.get("SHORT_DESC") or "").split())
+        d = _date(r.get("PR_DATE"))
+        if not (sym.isdigit() and _AR.search(title) and d and r.get("announcementUrl")):
+            continue                                               # ما لم يصل عربياً لا يُعرض — ولا يُترجَم
+        out.append({"symbol": sym, "company_name": " ".join(str(r.get("TITLE") or "").split()) or None,
+                    "title": title, "date": d, "date_kind": "announced",
+                    "id": str(r.get("announcementNumber") or r.get("PRESS_REL_ID") or ""),
+                    "url": O + r["announcementUrl"].replace("locale=en", "locale=ar")})
+    if out:
+        cache.set(ck, out, 30 * 60)
+    return out
+
+
 def parse_detail(h: str) -> dict | None:
     """صفحةُ التفاصيل ← {title, text}. المتنُ ما في `announcementBox` وحده."""
     i = (h or "").find('class="announcementBox')

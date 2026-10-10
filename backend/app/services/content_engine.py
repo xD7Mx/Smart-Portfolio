@@ -1022,50 +1022,53 @@ async def build_market_calendar_earnings() -> int:
 
 
 async def build_market_calendar_tadawul() -> int:
-    """المصدر الأساسي (مؤسسي): إعلانات «تداول» الرسمية → المخزّن الثابت نفسه.
-    مجاني ولا يمسّ حصّة ياهو. يُدمج مع دفعات RSS/التوزيعات؛ لكن إعلانات تداول
-    هي الأدقّ والأرسم، فتُوسَم مصدرًا «تداول». عند تعذّر الوصول للموقع الرسمي
-    يُعيد 0 بهدوء ويبقى RSS احتياطيًا (لا تنكسر المفكرة)."""
-    from app.services.tadawul_announcements import fetch_tadawul_announcements
+    """المصدر الأساسي (مؤسسي): إفصاحاتُ الشركات الرسمية في «تداول» → المخزّن الثابت نفسه.
+    مجاني ولا يمسّ حصّة ياهو، ويُوسَم مصدرًا «تداول» فيتقدّم نسخةَ «أرقام» من الحدث نفسه (D508).
+    عند تعذّر الوصول يُعيد 0 بهدوء وتبقى «أرقام» (لا تنكسر المفكرة).
+
+    ‏D670: كان يقرأ خدمةَ أخبار السوق — أخبارٌ للهيئة و«إيداع» بلا رمز وبالإنجليزية فأسقطها المرشِّحُ العربيّ (D506)
+    كلَّها (قِيس: 19 في المخزن · 0 في المفكرة)، فلم يظهر في المفكرة حدثٌ رسميٌّ واحد من «تداول». وصار يقرأ إفصاحاتِ
+    الشركات للسوق كلّه بعناوينها العربية الرسمية (‏`tadawul_disclosure.market_list` — قِيس: 60 من 60 عربيةً برمز،
+    و38 منها لا حدثَ لها في المفكرة). ولا ترجمة: ما لم يصل عربياً لا يُخزَّن."""
+    from app.services.tadawul_disclosure import market_list
     try:
-        items = await fetch_tadawul_announcements()
+        items = await market_list()
     except Exception as e:
         logger.warning(f"Tadawul calendar source unavailable: {e}")
         return 0
     if not items:
         return 0
-    # ‏D670: عناوينُ «تداول» بالعربية من صفحات إفصاحاتها — وإلا أسقطها مرشِّحُ المفكرة العربيّ ولم يظهر حدثٌ رسميّ قطّ
-    from app.services.tadawul_announcements import arabic_titles
-    try:
-        logger.info(f"📅 عناوينُ «تداول» العربية: {await arabic_titles(items)} من {len(items)}")
-    except Exception as e:                                        # noqa: BLE001
-        logger.warning(f"عناوينُ «تداول» العربية: {e}")
     by_symbol = {s: n for s, n in _universe_pairs()}
     store = _cal_load_store()
+    # بقايا خدمة أخبار السوق: إنجليزيةٌ لا تُعرض أصلاً (D506) — فلا تبقى في المخزن تُزاحم المعروض على حدّه
+    for k in [k for k, e in store.items()
+              if e.get("source") == "تداول" and not re.search(r"[\u0600-\u06FF]", e.get("title") or "")]:
+        del store[k]
     added = 0
     for it in items:
         sym = it.get("symbol")
         title = it.get("title")
         date_str = (it.get("date") or "")[:10]
-        if not title or not date_str:
+        if not sym or not title or not date_str:
             continue
-        k = _cal_key(sym or "?", date_str, title)
+        k = _cal_key(sym, date_str, title)
         if k not in store:
             added += 1
         store[k] = {
             "id": k,
-            "type": _cal_type(it.get("type") or title),
+            "type": _cal_type(title),
             "title": title,
             "symbol": sym,
-            "company_name": it.get("company_name") or by_symbol.get(sym),
+            "company_name": by_symbol.get(sym) or it.get("company_name"),
             "date": date_str,
-            # مصدرها إعلانات تداول — وقعت لا تُنتظر.
-            "date_kind": it.get("date_kind") or "announced",
+            # إفصاحٌ صدر — تاريخُه تاريخُ إعلانه لا موعدُ حدث (كإفصاحات «أرقام»)
+            "date_kind": "announced",
             "url": it.get("url"),
-            "source": it.get("source") or "تداول",
+            "tadawul_id": it.get("id"),
+            "source": "تداول",
         }
     _cal_prune_and_save(store)
-    logger.info(f"📅 Market calendar (تداول رسمي): +{added} new, store={len(store)}.")
+    logger.info(f"📅 Market calendar (تداول — إفصاحات الشركات): +{added} new, store={len(store)}.")
     return added
 
 
