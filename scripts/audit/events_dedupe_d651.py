@@ -39,7 +39,7 @@ ev_src = (ROOT / "backend/app/services/events_view.py").read_text(encoding="utf-
 check("dedupe(ev.get(\"events\") or [])" in ev_src and "out = dedupe(out)" in ev_src and "events:view:v2" in ev_src,
       "٥ العرضُ يجمع قبل جلب العناوين وبعده، وكاشُه جديد")
 me = (ROOT / "frontend/src/components/analysis/MaterialEvents.tsx").read_text(encoding="utf-8")
-check(">الإفصاح</a>" not in me and "href={e.url}" in me, "٦ وسمٌ واحد: نوعُ الحدث — والعنوانُ نفسُه رابطُ الإفصاح")
+check(">الإفصاح</a>" not in me and "href={e.url" in me, "٦ وسمٌ واحد: نوعُ الحدث — والعنوانُ نفسُه رابطُ الإفصاح")
 check("أُعلن أوّلاً" in me, "٧ وتاريخُ أوّل إعلانٍ ظاهرٌ حين تتعدّد الإفصاحات")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

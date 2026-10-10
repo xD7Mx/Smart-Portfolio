@@ -56,7 +56,9 @@ check("tadawulgroup.sa/Resources/SEMOBILELOGOS/" in L and L.find("TV_LOGOS[base]
 M = open(os.path.join(ROOT, "backend/app/api/v1/endpoints/market.py"), encoding="utf-8").read()
 E = open(os.path.join(ROOT, "frontend/src/components/market/EventsList.tsx"), encoding="utf-8").read()
 check("asyncio.create_task(compute_sector_analysis())" in M, "٧ D490 شاشةُ القطاعات الفارغةُ تُطلق بناءها بنفسها")
-check("ev-strip" not in E and 'className="ev-tag inline-block"' in E, "٨ D491 وسمُ الحدث سطرٌ أعلى الاسم لا شريطٌ طوليّ، والعنوانُ ينتهي بتاريخه")
+EC = open(os.path.join(ROOT, "frontend/src/components/common/EventCard.tsx"), encoding="utf-8").read()   # ‏D666: البطاقةُ الموحّدة
+check("ev-strip" not in E and "<EventCard" in E and 'className="ev-tag inline-block"' in EC,
+      "٨ D491 وسمُ الحدث سطرٌ أعلى الاسم لا شريطٌ طوليّ، والعنوانُ ينتهي بتاريخه (في البطاقة الموحّدة · D666)")
 SA = open(os.path.join(ROOT, "backend/app/services/sector_analysis.py"), encoding="utf-8").read()
 DY = open(os.path.join(ROOT, "backend/app/services/dividend_yield.py"), encoding="utf-8").read()
 check("_dps_tadawul(sym) or" in SA and DY.find("_dps_tadawul(base)") < DY.find('src.get("dividend_yield")'), "١٠ D493 تداولُ أوّلاً والمخزنُ احتياط — في القطاعات والأسهم")

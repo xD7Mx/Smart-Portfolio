@@ -170,6 +170,6 @@ def as_forecasts(store: dict | None = None) -> list[dict]:
             out.append({"id": f"{sym}|{r['house']}|{r['date']}|{r['rating']}|{r.get('target')}",
                         "title": title, "kind": "توصية وسعرٌ مستهدف", "date": r["date"], "company": sym,
                         "url": r.get("pdf") or r.get("page"), "source": r["house"], "via": "أرقام",
-                        "rating": r["rating"], "target": r.get("target"), "price": r.get("price"),
+                        "rating": r["rating"], "prev": r.get("prev"), "target": r.get("target"), "price": r.get("price"),
                         "has_pdf": bool(r.get("pdf"))})
     return out

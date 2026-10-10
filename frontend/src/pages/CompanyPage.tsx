@@ -14,6 +14,7 @@ import { useAuthStore } from "../store/authStore";
 import CompanyLogo from "../components/common/CompanyLogo";
 import { ShariaBadge, ShariaStatusIndicator, NumInput } from "../components/common/UI";
 import AnalysisPanel from "../components/analysis/AnalysisPanel";
+import MaterialEvents from "../components/analysis/MaterialEvents";
 import FinancialsTable from "../components/analysis/FinancialsTable";
 import OwnershipBar from "../components/analysis/OwnershipBar";
 import KeyFigures from "../components/common/KeyFigures";
@@ -966,6 +967,8 @@ export default function CompanyPage() {
             «تقييم الأداء» — وهو تبويبٌ مشتركٌ بين الشاشتين. */}
         <PriceOrChart symbol={company.symbol} />
         <MarketDepth symbol={company.symbol} />
+        {/* ‏D666 (بأمر المالك: «أفتقد الأحداثَ الجوهرية — لا أراها»): في «نظرة عامة» تظهر عند فتح السهم */}
+        <MaterialEvents symbol={company.symbol} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="card">
             <p className="card-title mb-3">إنتاج السهم</p>

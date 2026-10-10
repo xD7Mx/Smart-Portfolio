@@ -5,6 +5,7 @@ import CompanyLogo from "../common/CompanyLogo";
 import { lookupCompany } from "../../data/saudiCompanies";
 import { marketApi } from "../../services/api";
 import { ShareButton } from "../common/ShareOpen";
+import EventCard from "../common/EventCard";
 
 /**
  * اللغة التصميمية الموحدة للمفكرة — every corporate-action announcement is
@@ -224,29 +225,12 @@ function EventDetailModal({ e, onClose }: { e: any; onClose: () => void }) {
 }
 
 function EventRow({ e, onOpen }: { e: any; onOpen: () => void }) {
+  /* ‏D666: البطاقةُ الموحّدة نفسُها التي تعرض الأحداثَ الجوهرية والتوقعات — ترتيبُ D491 فيها: الوسمُ سطراً أعلى، ثمّ
+     الاسمُ والرمز، ثمّ العنوانُ سطراً رئيسياً ينتهي بتاريخه. */
   const meta = typeMeta(e);
   const name = lookupCompany(e.symbol)?.name_ar || e.company_name || e.name;
-  return (
-    <button onClick={onOpen} className="w-full text-start block active:scale-[.995] transition-transform">
-      <div className="event-item flex items-center gap-3 p-2.5 rounded-xl transition-colors">
-        {/* ══ ترتيبُ البطاقة (بأمر المالك · D491) ══ الشريطُ الطوليّ لم يكن
-            احترافياً: فصار الوسمُ سطراً أعلى، ثمّ الاسمُ والرمز مكانَ العنوان،
-            ثمّ العنوانُ سطراً رئيسياً ينتهي بتاريخه في السطر نفسه. */}
-        {e.symbol ? <span className="shrink-0"><CompanyLogo symbol={e.symbol} size={32} /></span> : null}
-        <div className="min-w-0 flex-1 space-y-1">
-          <span className="ev-tag inline-block" style={{ background: meta.bg, color: meta.fg }}>{meta.label}</span>
-          <div className="flex items-center gap-2 flex-wrap">
-            {name && <span className="text-[var(--ink-muted)] text-[12px] font-semibold truncate">{name}</span>}
-            {e.symbol && <span className="tag-b shrink-0" style={{ fontSize: 10 }}>{e.symbol}</span>}
-          </div>
-          <div className="flex items-baseline gap-2">
-            <p className="flex-1 min-w-0 text-[var(--ink)] text-[13px] font-semibold leading-snug">{e.title || e.headline || meta.label}</p>
-            <span className="shrink-0 text-[var(--ink-muted)] text-[11px] tabular-nums">{fmtDate(e.date)}</span>
-          </div>
-        </div>
-      </div>
-    </button>
-  );
+  return <EventCard symbol={e.symbol} name={name} tag={{ label: meta.label, bg: meta.bg, fg: meta.fg }}
+    title={e.title || e.headline || meta.label} date={e.date} onClick={onOpen} />;
 }
 
 /**
@@ -267,6 +251,14 @@ function EventRow({ e, onOpen }: { e: any; onOpen: () => void }) {
 /* أرضيةُ وسم التوصية — فاتحةٌ من عائلة وسوم الأحداث. كانت أحبارَ الحالة
    الداكنة أرضياتٍ (‏--pos-ink وأخواتها) فبدا التبويبُ معتماً ثقيلاً، وهي
    الشكوى الوحيدة التي رفعها المالك عن الوسوم. */
+/* وسمُ صنف التقرير في «التوقعات» (D666) — من عائلة وسوم المفكرة نفسِها: لكلّ صنفٍ رقعتُه. */
+const KIND_TONE = (k: string) =>
+  /شركة|النتائج/.test(k) ? "var(--tag-results)"
+  : /قطاع/.test(k) ? "var(--tag-agm)"
+  : /اقتصاد/.test(k) ? "var(--tag-rights)"
+  : /فني/.test(k) ? "var(--tag-bonus)"
+  : /توصية|مستهدف|توقعات/.test(k) ? "var(--tag-hold)"
+  : "var(--tag-news)";
 const VERDICT_TONE = (v: string) =>
   /شراء|زيادة|تفوق/.test(v) ? "var(--tag-buy)"
   : /بيع|تخفيض|أقل/.test(v) ? "var(--tag-sell)"
@@ -351,39 +343,26 @@ function ForecastsPanel({ data, loading }: { data?: any[]; loading: boolean }) {
         </select>
       )}
       <div className="space-y-1.5">
-        {shown.slice(0, n).map((f: any, i: number) => (
-          <a key={f.id || f.url || i} href={f.url || undefined} target="_blank" rel="noopener noreferrer"
-             className="card block p-3 min-h-[32px] text-right hover:bg-[var(--surface)]">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              {f.rating ? (
-                <span className="ev-tag shrink-0" style={{ background: VERDICT_TONE(f.rating), color: "var(--tag-ink)" }}>{f.rating}</span>
-              ) : (
-                <span className="ev-tag inline-block text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--surface)] text-[var(--ink)]">{f.kind}</span>
-              )}
-              {typeof f.target === "number" && (
-                <span className="text-[11px] text-[var(--ink-muted)] shrink-0">
-                  السعر المستهدف <b className="text-[var(--ink)] tabular-nums" dir="ltr">{f.target.toFixed(2)}</b>
-                </span>
-              )}
-              {typeof f.fair_value === "number" && (
-                <span className="text-[11px] text-[var(--ink-muted)] shrink-0">
-                  السعر العادل <b className="text-[var(--ink)] tabular-nums" dir="ltr">{f.fair_value.toFixed(2)}</b>
-                </span>
-              )}
-              {f.company && (
-                <span className="flex items-center gap-1.5 min-w-0">
-                  <CompanyLogo symbol={f.company} size={18} />
-                  <span className="text-[11px] text-[var(--ink-muted)] truncate">{lookupCompany(f.company)?.name_ar || f.company}</span>
-                </span>
-              )}
-            </div>
-            <div className="flex items-end gap-3">
-              <p className="flex-1 text-[13px] leading-relaxed text-[var(--ink)]">{f.title}</p>
-              <span className="text-[10.5px] text-[var(--ink-muted)] tabular-nums shrink-0" dir="ltr">{f.date || "—"}</span>
-            </div>
-            <p className="text-[10.5px] text-[var(--ink-muted)] mt-1">{f.via ? `${f.source} · عبر ${f.via}` : f.source}</p>
-          </a>
-        ))}
+        {shown.slice(0, n).map((f: any, i: number) => {
+          const num = (v: number) => <b className="text-[var(--ink)] tabular-nums" dir="ltr">{v.toFixed(2)}</b>;
+          return f.rating ? (
+            <EventCard key={f.id || f.url || i} symbol={f.company} tag={{ label: f.rating, bg: VERDICT_TONE(f.rating) }}
+              title={f.source} date={f.date} href={f.url}
+              meta={<>
+                {typeof f.target === "number" && <span>السعر المستهدف {num(f.target)}</span>}
+                {f.prev && f.prev !== f.rating && !/بداية|إعادة/.test(f.prev) && <span>· كانت {f.prev}</span>}
+                {f.has_pdf && <span>· ملفّ التقرير</span>}
+                {f.via && <span>· عبر {f.via}</span>}
+              </>} />
+          ) : (
+            <EventCard key={f.id || f.url || i} symbol={f.company} name={f.company ? undefined : f.source}
+              tag={{ label: f.kind, bg: KIND_TONE(f.kind || "") }} title={f.title} date={f.date} href={f.url}
+              meta={(typeof f.fair_value === "number" || f.company) ? <>
+                {typeof f.fair_value === "number" && <span>السعر العادل {num(f.fair_value)}</span>}
+                {f.company && <span>{typeof f.fair_value === "number" ? "· " : ""}{f.source}</span>}
+              </> : null} />
+          );
+        })}
       </div>
       {shown.length > n && (
         <button onClick={() => setN(n + FC_PAGE)}

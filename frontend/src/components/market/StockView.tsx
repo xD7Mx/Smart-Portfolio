@@ -12,6 +12,7 @@ import CompanyLogo from "../common/CompanyLogo";
 import KeyFigures from "../common/KeyFigures";
 import { ShariaBadge } from "../common/UI";
 import AnalysisPanel from "../analysis/AnalysisPanel";
+import MaterialEvents from "../analysis/MaterialEvents";
 import FinancialsTable from "../analysis/FinancialsTable";
 import DividendProfile from "../analysis/DividendProfile";
 import StockOpinion from "../analysis/StockOpinion";
@@ -271,6 +272,8 @@ export default function StockView({ symbol, onClose }: { symbol: string; onClose
             <KeyFigures fundamentals={data?.fundamentals} />
             <PriceOrChart symbol={symbol} />
             <MarketDepth symbol={symbol} />
+            {/* ‏D666: الأحداثُ الجوهرية في «نظرة عامة» — المكوّنُ نفسُه الذي في صفحة الشركة */}
+            <MaterialEvents symbol={symbol} />
             <OwnershipBar symbol={symbol} />
             {/* ══ بطاقةُ التوافق الشرعيّ حُذفت ══ (بأمر المالك)
                 الهلالُ في ترويسة الصفحة يقول الحكمَ بلونه وتلميحه، فبطاقةٌ
