@@ -32,6 +32,7 @@ ARC_API = ARC + "/sitecore/api/ListingAPI/GetResearchListing"
 
 # الصنفُ من اسم الملفّ والعنوان — والأخصُّ أوّلاً
 _KINDS = (
+    ("توقعات النتائج", re.compile(r"earnings-forecast|توقعات النتائج", re.I)),
     ("تحليل فنيّ", re.compile(r"technical|فني", re.I)),
     ("تقرير قطاعيّ", re.compile(r"sector|banking-report|قطاع|المصارف|البنوك", re.I)),
     ("تقرير اقتصاديّ", re.compile(r"econom|macro|gdp|budget|inflation|chartbook|اقتصاد|الميزانية|التضخم|الناتج", re.I)),
@@ -40,7 +41,7 @@ _KINDS = (
     ("تقرير دوريّ", re.compile(r"monthly|weekly|quarter|review|msci|شهري|أسبوعي|ربع", re.I)),
 )
 # سقفُ كلّ صنفٍ في التبويب: الأحدثُ أوّلاً، واليوميُّ لا يُغرق ما سواه
-CAP = {"تقرير شركة": 30, "تقرير قطاعيّ": 10, "تقرير اقتصاديّ": 10, "تحليل فنيّ": 3,
+CAP = {"تقرير شركة": 30, "توقعات النتائج": 3, "تقرير قطاعيّ": 10, "تقرير اقتصاديّ": 10, "تحليل فنيّ": 3,
        "تقرير دوريّ": 4, "تقرير يوميّ": 2, "تقرير": 6}
 
 
@@ -112,8 +113,8 @@ def ajc_items(page: str) -> list[dict]:
             url = href if href.startswith("http") else AJC + href
             if not title or not day:
                 continue
-            k = by_head or kind_of(href.rsplit("/", 1)[-1], title)
             sym = next((v for kk, v in row.items() if "رمز" in kk and re.fullmatch(r"\d{4}", v or "")), None)
+            k = by_head if (by_head and (sym or by_head != "تقرير شركة")) else kind_of(href.rsplit("/", 1)[-1], title)
             fair = next((_num(v) for kk, v in row.items() if "العادل" in kk or "مستهدف" in kk), None)
             it = {"title": title, "kind": k, "url": url, "date": day,
                   "company": sym or (_company(title) if k == "تقرير شركة" else None),
@@ -154,44 +155,50 @@ def arc_params(page: str) -> list[dict]:
         return []
     lang = re.search(r"data-lang=[\"']([a-zA-Z-]{2,8})[\"']", page or "")
     size = re.search(r'data-pagesize=["\']?(\d{1,3})', page or "", re.I)
-    base = {"pageNo": 1, "pageSize": int(size.group(1)) if size else 12, "date": "0", "keyword": "",
+    base = {"pageNo": 1, "pageSize": max(int(size.group(1)) if size else 12, 30), "date": "0", "keyword": "",
             "culture": lang.group(1) if lang else "ar", "parentId": pid.group(1)}
     return [{**base, "category": "", "sector": "", "company": ""},
             {**base, "category": "0", "sector": "0", "company": "0"}]
 
 
+def _leaves(x, path=()):
+    """كلُّ نصٍّ في الكائن بمساره — فالرابطُ والتاريخُ يُقرآن أينما تداخلا (‏Sitecore يلفّ كلَّ حقلٍ في `__interceptors`)."""
+    if isinstance(x, dict):
+        for k, v in x.items():
+            yield from _leaves(v, path + (str(k),))
+    elif isinstance(x, list):
+        for v in x:
+            yield from _leaves(v, path)
+    elif isinstance(x, str):
+        yield path, x
+
+
 def arc_items(raw: str) -> list[dict]:
-    """ردُّ قائمة البحوث: كلُّ كائنٍ فيه عنوانٌ وتاريخٌ ورابطُ ملفّ — والمفاتيحُ تُقرأ بمعناها لا بأسمائها المفترَضة."""
+    """ردُّ قائمة البحوث: لكلّ بندٍ له «Title» يُقرأ من شجرته رابطُ ملفّه وتاريخُه وصنفُه — بالمعنى لا بالمسار المفترَض.
+
+    قِيس: `{"Items":[{"__interceptors":[{"Values":{"Title":…,"Companies":[…],"Categories":[{…"Values":{"Name":"Daily Arabic"…`."""
     try:
         data = json.loads(raw or "null")
     except Exception:                                             # noqa: BLE001
         return []
+    items = data.get("Items") if isinstance(data, dict) else data
     out: list[dict] = []
-
-    def walk(x):
-        if isinstance(x, list):
-            for y in x:
-                walk(y)
-        elif isinstance(x, dict):
-            low = {str(k).lower(): v for k, v in x.items()}
-            title = next((v for k, v in low.items() if k in ("title", "name", "displayname", "researchtitle") and isinstance(v, str)), None)
-            link = next((v for k, v in low.items() if isinstance(v, str) and re.search(r"\.pdf|/ResearchListing/|/-/media/", v, re.I)), None)
-            when = next((v for k, v in low.items() if "date" in k and isinstance(v, str) and re.search(r"20\d\d", v)), None)
-            if title and link and when:
-                d = re.search(r"(20\d\d)-(\d\d)-(\d\d)", when)
-                day = f"{d.group(1)}-{d.group(2)}-{d.group(3)}" if d else _mdy(when)
-                if day:
-                    cat = next((v for k, v in low.items() if k in ("category", "categoryname", "type") and isinstance(v, str)), "")
-                    out.append({"title": _txt(title), "kind": kind_of(cat, link, title),
-                                "url": link if link.startswith("http") else ARC + link, "date": day,
-                                "company": None, "source": "الراجحي المالية"})
-                    return
-            for v in x.values():
-                walk(v)
-    walk(data)
-    for it in out:
-        if it["kind"] == "تقرير شركة":
-            it["company"] = _company(it["title"])
+    for it in items if isinstance(items, list) else []:
+        lv = list(_leaves(it))
+        title = next((v for p, v in lv if p and p[-1] == "Title" and "Categories" not in p and "Companies" not in p), None)
+        link = next((v for p, v in lv if "Categories" not in p and re.search(r"\.pdf($|\?)|/-/media/", v, re.I)), None)
+        when = next((v for p, v in lv if p and "date" in p[-1].lower() and re.search(r"20\d\d", v)), None)
+        if not (title and link and when):
+            continue
+        d = re.search(r"(20\d\d)-?(\d\d)-?(\d\d)", when)
+        day = f"{d.group(1)}-{d.group(2)}-{d.group(3)}" if d else _mdy(when)
+        if not day:
+            continue
+        cat = next((v for p, v in lv if "Categories" in p and p[-1] == "Name"), "")
+        k = kind_of(cat, link, title)
+        out.append({"title": _txt(title), "kind": k, "url": link if link.startswith("http") else ARC + link,
+                    "date": day, "company": _company(title) if k == "تقرير شركة" else None,
+                    "source": "الراجحي المالية"})
     return out
 
 

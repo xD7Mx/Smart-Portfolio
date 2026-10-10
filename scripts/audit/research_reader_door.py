@@ -44,6 +44,12 @@ async def main():
             st2, raw = yield {"url": RR.ARC_API, "params": p, "referer": RR.ARC_PAGE,
                               "headers": {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json, text/javascript, */*"}}
             print(f"   النداء {p.get('category')!r}/{p.get('culture')}: {st2} · {len(raw or '')} · {(raw or '')[:700]}")
+            try:
+                first = (json.loads(raw or "null") or {}).get("Items", [None])[0]
+                for pth, v in list(RR._leaves(first))[:40]:
+                    print(f"      {'/'.join(x for x in pth if x not in ('__interceptors', 'Values'))[-60:]} = {v[:90]}")
+            except Exception as e:                                 # noqa: BLE001
+                print(f"      ✘ {e}")
             got = RR.arc_items(raw) if st2 == 200 else []
             if got:
                 return got
