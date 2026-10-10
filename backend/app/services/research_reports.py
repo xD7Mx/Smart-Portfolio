@@ -80,14 +80,26 @@ def _company(title: str) -> str | None:
         return None
 
 
+def _num(v) -> float | None:
+    m = re.fullmatch(r"\s*(\d{1,6}(?:[.,]\d{1,3})?)\s*", str(v or ""))
+    return float(m.group(1).replace(",", ".")) if m else None
+
+
 def ajc_items(page: str) -> list[dict]:
-    """جداولُ «أبحاث وتقارير» الجزيرة كابيتال: لكلّ صفٍّ عنوانُه وتاريخُه وملفُّه."""
+    """جداولُ «أبحاث وتقارير» الجزيرة كابيتال: لكلّ صفٍّ عنوانُه وتاريخُه وملفُّه.
+
+    قِيس (research_reader_door): تسعةُ جداولَ رؤوسُها تدلّ على صنفها — «رمز الشركة» (ومعه «السعر العادل» في
+    جدول التغطية) للشركات، و«قطاع» للقطاعات، و«دولة» للاقتصاد، و«سوق» للدوريّ واليوميّ. فالرمزُ من الجدول نفسِه
+    لا من مطابقة الاسم، والسعرُ العادلُ ما كتبته الجهةُ في صفّها — لا يُحسب ولا يُقدَّر."""
     out: list[dict] = []
     for t in re.finditer(r"<table\b.*?</table>", page or "", re.S | re.I):
         tb = t.group(0)
         heads = [_txt(h) for h in re.findall(r"<th\b[^>]*>(.*?)</th>", tb, re.S | re.I)]
         if not any("البحث" in h for h in heads):
             continue
+        by_head = ("تقرير شركة" if any("رمز" in h for h in heads) else
+                   "تقرير قطاعيّ" if any(h == "قطاع" for h in heads) else
+                   "تقرير اقتصاديّ" if any(h == "دولة" for h in heads) else None)
         for tr in re.findall(r"<tr\b[^>]*>(.*?)</tr>", tb, re.S | re.I):
             tds = re.findall(r"<td\b[^>]*>(.*?)</td>", tr, re.S | re.I)
             f = re.search(r'href=["\']([^"\']+\.pdf)["\']', tr, re.I)
@@ -100,11 +112,15 @@ def ajc_items(page: str) -> list[dict]:
             url = href if href.startswith("http") else AJC + href
             if not title or not day:
                 continue
-            k = kind_of(href.rsplit("/", 1)[-1], title)
-            extra = {kk: v for kk, v in row.items() if re.search(r"توصي|مستهدف", kk) and v}
-            out.append({"title": title, "kind": k, "url": url, "date": day,
-                        "company": _company(title) if k == "تقرير شركة" else None,
-                        "source": "الجزيرة كابيتال", **({"meta": extra} if extra else {})})
+            k = by_head or kind_of(href.rsplit("/", 1)[-1], title)
+            sym = next((v for kk, v in row.items() if "رمز" in kk and re.fullmatch(r"\d{4}", v or "")), None)
+            fair = next((_num(v) for kk, v in row.items() if "العادل" in kk or "مستهدف" in kk), None)
+            it = {"title": title, "kind": k, "url": url, "date": day,
+                  "company": sym or (_company(title) if k == "تقرير شركة" else None),
+                  "source": "الجزيرة كابيتال"}
+            if fair:
+                it["fair_value"] = fair
+            out.append(it)
     return out
 
 
@@ -127,14 +143,21 @@ def jadwa_items(page: str) -> list[dict]:
     return out
 
 
-def arc_params(page: str) -> dict | None:
-    """معاملاتُ نداء قائمة البحوث من صفحة «البحوث» نفسِها — لا تُحفظ في الشيفرة (FETCH_METHOD §٢)."""
-    pid = re.search(r"parentId\s*[=:]\s*['\"]([^'\"]{6,80})['\"]", page or "")
+def arc_params(page: str) -> list[dict]:
+    """معاملاتُ نداء قائمة البحوث من صفحة «البحوث» نفسِها — لا تُحفظ في الشيفرة (FETCH_METHOD §٢).
+
+    قِيس: المعرِّفُ في `data-parentId` واللغةُ في `data-lang` على نموذج البحث. والمرشِّحاتُ الفارغةُ تُجرَّب
+    بصورتيها (فارغةً ثمّ «0» كما يكتب سكربتُ الصفحة للتاريخ) — والردُّ يحكم أيُّهما يُقبل."""
+    pid = re.search(r"data-parentId=[\"']([^\"']{6,80})[\"']", page or "", re.I) or \
+        re.search(r"parentId\s*[=:]\s*['\"]([^'\"]{6,80})['\"]", page or "")
     if not pid:
-        return None
-    cul = re.search(r"culture\s*[=:]\s*['\"]([a-zA-Z-]{2,8})['\"]", page or "")
-    return {"pageNo": 1, "pageSize": 40, "category": "", "sector": "", "company": "", "date": "0",
-            "keyword": "", "culture": cul.group(1) if cul else "ar-SA", "parentId": pid.group(1)}
+        return []
+    lang = re.search(r"data-lang=[\"']([a-zA-Z-]{2,8})[\"']", page or "")
+    size = re.search(r'data-pagesize=["\']?(\d{1,3})', page or "", re.I)
+    base = {"pageNo": 1, "pageSize": int(size.group(1)) if size else 12, "date": "0", "keyword": "",
+            "culture": lang.group(1) if lang else "ar", "parentId": pid.group(1)}
+    return [{**base, "category": "", "sector": "", "company": ""},
+            {**base, "category": "0", "sector": "0", "company": "0"}]
 
 
 def arc_items(raw: str) -> list[dict]:
@@ -193,12 +216,13 @@ async def _arc() -> list[dict]:
 
     def plan():
         st, page = yield {"url": ARC_PAGE, "timeout": 40}
-        p = arc_params(page) if st == 200 else None
-        if not p:
-            return []
-        st2, raw = yield {"url": ARC_API, "params": p, "referer": ARC_PAGE,
-                          "headers": {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"}}
-        return arc_items(raw) if st2 == 200 else []
+        for p in (arc_params(page) if st == 200 else []):
+            st2, raw = yield {"url": ARC_API, "params": p, "referer": ARC_PAGE,
+                              "headers": {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json, text/javascript, */*"}}
+            got = arc_items(raw) if st2 == 200 else []
+            if got:
+                return got
+        return []
     return await smart_flow(plan, warm=ARC + "/ar", timeout=40) or []
 
 

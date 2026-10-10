@@ -310,6 +310,11 @@ function ForecastsPanel({ data, loading }: { data?: any[]; loading: boolean }) {
            className="card block p-3 min-h-[32px] text-right hover:bg-[var(--surface)]">
           <div className="flex items-center gap-2 mb-1">
             <span className="ev-tag inline-block text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--surface)] text-[var(--ink)]">{f.kind}</span>
+            {typeof f.fair_value === "number" && (
+              <span className="text-[11px] text-[var(--ink-muted)] shrink-0">
+                السعر العادل <b className="text-[var(--ink)] tabular-nums" dir="ltr">{f.fair_value.toFixed(2)}</b>
+              </span>
+            )}
             {f.company && (
               <span className="flex items-center gap-1.5 min-w-0">
                 <CompanyLogo symbol={f.company} size={18} />

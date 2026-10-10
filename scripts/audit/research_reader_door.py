@@ -24,11 +24,11 @@ async def main():
     a = RR.ajc_items(body)
     print(f"   بنود {len(a)} · أصناف {collections.Counter(x['kind'] for x in a).most_common()}")
     for x in sorted(a, key=lambda x: x["date"], reverse=True)[:12]:
-        print(f"   {x['date']} · {x['kind']} · {x['title'][:70]} · {x.get('company')} · {x.get('meta', '')} · {x['url'][-50:]}")
+        print(f"   {x['date']} · {x['kind']} · {x['title'][:70]} · {x.get('company')} · عادل {x.get('fair_value')} · {x['url'][-50:]}")
     comp = sorted([x for x in a if x["kind"] == "تقرير شركة"], key=lambda x: x["date"], reverse=True)[:10]
     print("   أحدثُ تقارير الشركات:")
     for x in comp:
-        print(f"     {x['date']} · {x['title'][:80]} · رمز {x.get('company')}")
+        print(f"     {x['date']} · {x['title'][:80]} · رمز {x.get('company')} · عادل {x.get('fair_value')}")
 
     j = await RR._jadwa()
     print(f"\n═ جدوى: {len(j)} بنداً")
@@ -38,16 +38,16 @@ async def main():
     from app.services.tadawul_http import smart_flow
     def plan():
         st, page = yield {"url": RR.ARC_PAGE, "timeout": 40}
-        p = RR.arc_params(page)
-        print(f"\n═ الراجحي المالية: صفحة {st} · معاملات {p}")
-        for m in list(re.finditer(r"parentId|culture|GetResearchListing", page or ""))[:4]:
-            print("   ↳", re.sub(r"\s+", " ", (page or "")[max(0, m.start() - 160):m.end() + 160]))
-        if not p:
-            return None
-        st2, raw = yield {"url": RR.ARC_API, "params": p, "referer": RR.ARC_PAGE,
-                          "headers": {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"}}
-        print(f"   النداء: {st2} · {len(raw or '')} · {(raw or '')[:900]}")
-        return RR.arc_items(raw)
+        ps = RR.arc_params(page)
+        print(f"\n═ الراجحي المالية: صفحة {st} · صِيَغ {ps}")
+        for p in ps:
+            st2, raw = yield {"url": RR.ARC_API, "params": p, "referer": RR.ARC_PAGE,
+                              "headers": {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json, text/javascript, */*"}}
+            print(f"   النداء {p.get('category')!r}/{p.get('culture')}: {st2} · {len(raw or '')} · {(raw or '')[:700]}")
+            got = RR.arc_items(raw) if st2 == 200 else []
+            if got:
+                return got
+        return []
     r = await smart_flow(plan, warm=RR.ARC + "/ar", timeout=40) or []
     print(f"   بنود {len(r)}")
     for x in r[:8]:
