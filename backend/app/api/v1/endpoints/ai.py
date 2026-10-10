@@ -347,7 +347,7 @@ async def get_autopilot_plan(years: int = 4, db: AsyncSession = Depends(get_db))
     wealth, target = float(g.get("current") or 0), float(g.get("target") or 0)
     cagr = await unified_cagr_pct(db)
     plan = goal_plan(wealth, target, years, cagr) if wealth and target else {}
-    pk = cache.get(f"autopilot:pack:v3:{active_pid()}:{date.today().isoformat()}") or {}
+    pk = cache.get(f"autopilot:pack:v4:{active_pid()}:{date.today().isoformat()}") or {}
     pos = pk.get("positions") or []
     buy = [{"symbol": p["symbol"], "name": p.get("name")} for p in pos if (p.get("autopilot") or {}).get("action") == "اشترِ الآن"]
     trim = [{"symbol": p["symbol"], "name": p.get("name"), "action": p["autopilot"]["action"]} for p in pos

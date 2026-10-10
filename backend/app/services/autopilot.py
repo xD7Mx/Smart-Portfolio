@@ -193,9 +193,11 @@ async def _events(sym: str) -> list[dict]:
     from app.api.v1.endpoints import market as M
     r = await M.get_company_events(sym, "")
     rows = (json.loads(r.body) if hasattr(r, "body") else r).get("data") or []
+    # ‏D680: صفُّ المفكرة {headline, published, kind, date_kind} — وكان يُقرأ بـ«date/title» فلا قادمَ أبداً (قِيس: 0/14)
     today = date.today().isoformat()
-    up = sorted([e for e in rows if str(e.get("date") or "")[:10] >= today], key=lambda e: str(e.get("date")))
-    return [{"date": str(e.get("date"))[:10], "title": str(e.get("title") or e.get("type") or "")[:90]} for e in up[:2]]
+    when = lambda e: str(e.get("published") or e.get("date") or "")[:10]   # noqa: E731
+    up = sorted([e for e in rows if when(e) >= today], key=when)
+    return [{"date": when(e), "title": str(e.get("headline") or e.get("title") or e.get("kind") or "")[:90]} for e in up[:2]]
 
 
 async def _disclosures(sym: str) -> list[dict]:
@@ -225,14 +227,24 @@ def _analysts(sym: str, price) -> dict | None:
                           "التاريخ": last.get("date")}}
 
 
+async def _stability(sym: str, sector: str | None) -> str | None:
+    """‏D680: ثباتُ الأرباح من محرّك الحوكمة — المنتِجُ الذي تعرضه نافذتُها (‏D675) وبمفتاح ذاكرتها نفسِه (القطاعُ من الشركة)؛
+    وكان يُطلب من «financial» في تحليل الشركة ولا يحمله، فغاب عن كلّ المراكز (قِيس: 0/14)."""
+    from app.services.governance_engine import evaluate_company
+    from app.api.v1.endpoints.holdings import yahoo_symbol
+    g = await evaluate_company(yahoo_symbol(sym), sector=sector) or {}
+    return (g.get("confidence") or {}).get("stability_label")
+
+
 async def _material(sym: str) -> list[dict]:
     """‏D679: الأحداثُ الجوهرية لسنة (‏D644) — العقودُ والاستحواذاتُ والخسائرُ الجسيمة بقيمها كما في صفحة السهم."""
-    from app.services.material_events import events_for
-    from app.services.events_view import KIND_AR
-    d = await events_for(sym) or {}
+    # ‏D680: من عرض الصفحة نفسِه (‏events_view) — العنوانُ العربيُّ الرسميّ من صفحة الإفصاح، والحدثُ الواحد بندٌ واحد؛
+    # وكان يُقرأ الخامُ فوصل المستشارَ عنوانٌ إنجليزيٌّ مُحرَّف («Alghaz Waltsnae Company …»)
+    from app.services.events_view import for_display
+    d = await for_display(sym, limit=3) or {}
     out = []
     for e in (d.get("events") or [])[:3]:
-        x = {"التاريخ": e.get("date"), "النوع": KIND_AR.get(e.get("kind"), e.get("kind")), "العنوان": str(e.get("title") or "")[:90]}
+        x = {"التاريخ": e.get("date"), "النوع": e.get("kind_ar"), "العنوان": str(e.get("title") or "")[:90]}
         if e.get("value"):
             x["القيمة"] = e.get("value")
         out.append(x)
@@ -252,18 +264,22 @@ async def pack(db, mode: str = "investor") -> dict:
 
     res = await get_allocation(db)
     d = (json.loads(res.body) if hasattr(res, "body") else res)["data"]
-    hold = {str(s): (float(q or 0), float(ac or 0)) for s, q, ac in (await db.execute(
-        select(Company.symbol, Holding.quantity, Holding.average_cost).join(Holding, Holding.company_id == Company.id))).all()}
+    _rows = (await db.execute(select(Company.symbol, Holding.quantity, Holding.average_cost, Company.sector)
+                              .join(Holding, Holding.company_id == Company.id))).all()
+    hold = {str(s): (float(q or 0), float(ac or 0)) for s, q, ac, _ in _rows}
+    sector_of = {str(s).replace(".SR", ""): sec for s, _, _, sec in _rows}
     items = [it for it in d.get("items") or [] if float(it.get("market_value") or 0) > 0 or float(it.get("target_weight") or 0) > 0]
     investable = float(d.get("investable") or 0)
 
     async def one(it):
         sym = str(it["symbol"]).replace(".SR", "")
-        a, t, ev, dis, me = await asyncio.gather(asyncio.wait_for(analyze_company(f"{sym}.SR", None, db=None), timeout=20),
+        a, t, ev, dis, me, stb = await asyncio.gather(asyncio.wait_for(analyze_company(f"{sym}.SR", None, db=None), timeout=20),
                                                  asyncio.wait_for(d7m.read(sym), timeout=30),
                                                  asyncio.wait_for(_events(sym), timeout=15),
                                                  asyncio.wait_for(_disclosures(sym), timeout=15),
-                                                 asyncio.wait_for(_material(sym), timeout=20), return_exceptions=True)
+                                                 asyncio.wait_for(_material(sym), timeout=20),
+                                                 asyncio.wait_for(_stability(sym, sector_of.get(sym)), timeout=20),
+                                                 return_exceptions=True)
         a = a if isinstance(a, dict) else {}
         t = t if isinstance(t, dict) else {}
         q, ac = hold.get(sym) or hold.get(sym + ".SR") or (0.0, 0.0)
@@ -286,8 +302,7 @@ async def pack(db, mode: str = "investor") -> dict:
             pos["sector"] = (MARKET_UNIVERSE.get(sym) or {}).get("sector")
         except Exception:                                         # noqa: BLE001
             pass
-        _fin = a.get("financial") or {}
-        pos["stability"] = ((_fin.get("confidence") or {}) if isinstance(_fin, dict) else {}).get("stability_label")
+        pos["stability"] = stb if isinstance(stb, str) else None
         pos["red_lines"] = [str(x.get("label") or x.get("title") or x) if isinstance(x, dict) else str(x)
                             for x in (a.get("red_lines") or [])][:3]
         pos["warnings"] = [str(x.get("label") or x.get("title") or x) if isinstance(x, dict) else str(x)
@@ -403,7 +418,7 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
     from app.services import cache
     pid = active_pid()
     mode = "investor"                                            # ‏D591: لا مفتاح — رأيٌ واحد
-    ck = f"autopilot:v3:{pid}:{date.today().isoformat()}"   # v3: D679
+    ck = f"autopilot:v4:{pid}:{date.today().isoformat()}"   # v4: D680 (القادمُ والثباتُ والأحداثُ بعناوينها العربية)
     if not force:
         hit = cache.get(ck)
         if hit:
@@ -445,7 +460,7 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
 والنقاطُ أربعٌ إلى ستّ، والإجراءاتُ ستٌّ على الأكثر مرتّبةً بالأهمية."""
     obj = None
     try:
-        obj = await _generate_obj(prompt, f"ai:autopilot:v3:{pid}:{date.today().isoformat()}:{len(pk['positions'])}", 6 * 3600)
+        obj = await _generate_obj(prompt, f"ai:autopilot:v4:{pid}:{date.today().isoformat()}:{len(pk['positions'])}", 6 * 3600)
     except Exception as e:                                        # noqa: BLE001
         logger.warning(f"الطيار الآليّ — النموذج: {type(e).__name__}")
     out = dict(base)
@@ -575,7 +590,7 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
     from app.services import cache
     mode = "investor"
     pid = active_pid()
-    ck = f"autopilot:pack:v3:{pid}:{date.today().isoformat()}"
+    ck = f"autopilot:pack:v4:{pid}:{date.today().isoformat()}"
     pk = cache.get(ck)
     if not pk:
         pk = await pack(db, mode)
