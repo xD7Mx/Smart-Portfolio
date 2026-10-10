@@ -275,6 +275,17 @@ async def job_close_digest():
         logger.error(f"ملخّصُ الإغلاق: {e}")
 
 
+async def job_analyst_opinions():
+    """‏D664: آراءُ بيوت الخبرة لكلّ شركات السوق الرئيسيّ من «أرقام» — ليلاً، ثمّ يُعاد بناءُ «التوقعات»."""
+    try:
+        from app.services.analyst_opinions import refresh
+        from app.services.forecasts import build
+        got = await refresh()
+        logger.info(f"آراءُ بيوت الخبرة: {len(got)} شركةً · التوقعات {len(await build())} بنداً")
+    except Exception as e:
+        logger.error(f"آراءُ بيوت الخبرة: {e}")
+
+
 async def job_forecasts():
     """‏D662: تقاريرُ الجهات المرخّصة تُجمع مسبقاً — فلا ينتظر من يفتح «التوقعات» قراءةَ ثلاث جهات."""
     try:
@@ -781,6 +792,16 @@ def start_scheduler():
     _scheduler.add_job(job_split_watch, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=15, minute=40), id="split_watch_pm", replace_existing=True)
     _scheduler.add_job(job_tasi_session, CronTrigger(day_of_week=TRADING_DAYS, hour=15, minute=25), id="tasi_session_close", replace_existing=True)
     _scheduler.add_job(job_forecasts, CronTrigger(minute=50), id="forecasts_hourly", replace_existing=True)
+    _scheduler.add_job(job_analyst_opinions, CronTrigger(hour=20, minute=40), id="analyst_opinions_night", replace_existing=True)
+    try:                                                      # وبعد الإقلاع إن لم يُجمع بعد — لا ينتظر التبويبُ ليلةً كاملة
+        from datetime import datetime as _dt
+        from apscheduler.triggers.date import DateTrigger
+        from app.services.analyst_opinions import stored as _ops_stored
+        if not _ops_stored():
+            _scheduler.add_job(job_analyst_opinions, DateTrigger(run_date=_dt.now(_RIYADH_TZ) + timedelta(minutes=6), timezone=_RIYADH_TZ),
+                               id="analyst_opinions_boot", replace_existing=True)
+    except Exception as e:
+        logger.error(f"آراءُ بيوت الخبرة/الإقلاع: {e}")
     # وبعد كلِّ إقلاعٍ بأربع دقائق: الإعادةُ تمحو ذاكرةَ الخادم، والمخزَّنُ في القرص لا يقرؤه خادمٌ يعمل —
     # قِيس أنّ تجهيزاً من عمليةٍ أخرى لا يصل الخادمَ الحيّ؛ فالخادمُ يُجهّز نفسَه
     from datetime import datetime as _dt

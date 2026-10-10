@@ -109,7 +109,14 @@ async def build() -> list[dict]:
     except Exception as e:                                        # noqa: BLE001
         logger.warning(f"التوقعات/أرقام: {type(e).__name__}: {e}")
         news = []
-    items = reports + news
+    try:                                                          # ‏D664: آراءُ بيوت الخبرة — توصيةٌ وسعرٌ مستهدف لكلّ جهة
+        from app.services.analyst_opinions import as_forecasts
+        from app.services.research_reports import select
+        opinions = select(as_forecasts())
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"التوقعات/آراءُ بيوت الخبرة: {type(e).__name__}: {e}")
+        opinions = []
+    items = reports + opinions + news
     items.sort(key=lambda x: x.get("date") or "", reverse=True)
     if items:
         cache.set(CACHE_KEY, items, TTL)
@@ -118,7 +125,7 @@ async def build() -> list[dict]:
         items = list((lastgood.load(LAST_KEY) or {}).get("items") or [])
         if items:
             cache.set(CACHE_KEY, items, 10 * 60)
-    logger.info(f"🔭 التوقعات: {len(items)} بنداً (الجهاتُ المرخّصة {len(reports)}).")
+    logger.info(f"🔭 التوقعات: {len(items)} بنداً (تقاريرُ الجهات {len(reports)} · آراءُ بيوت الخبرة {len(opinions)}).")
     return items
 
 

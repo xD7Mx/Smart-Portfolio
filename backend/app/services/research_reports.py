@@ -40,9 +40,6 @@ _KINDS = (
     ("تقرير يوميّ", re.compile(r"daily|يومي", re.I)),
     ("تقرير دوريّ", re.compile(r"monthly|weekly|quarter|review|msci|شهري|أسبوعي|ربع", re.I)),
 )
-# سقفُ كلّ صنفٍ في التبويب: الأحدثُ أوّلاً، واليوميُّ لا يُغرق ما سواه
-CAP = {"تقرير شركة": 30, "توقعات النتائج": 3, "تقرير قطاعيّ": 10, "تقرير اقتصاديّ": 10, "تحليل فنيّ": 3,
-       "تقرير دوريّ": 4, "تقرير يوميّ": 2, "تقرير": 6}
 
 
 def _txt(h) -> str:
@@ -218,33 +215,60 @@ async def _jadwa() -> list[dict]:
     return out
 
 
+ARC_CATS = ("بحوث الأسهم", "بحوث الاقتصاد", "بحوث الاستثمار")    # ‏D664: قِيس أنّ القائمةَ بلا فئةٍ يوميٌّ وحدَه (240 من 240)
+
+
 async def _arc() -> list[dict]:
+    """قائمةُ بحوث الراجحي المالية بكلّ فئاتها — فئاتُها من خيارات نموذج الصفحة نفسِه (D664)."""
     from app.services.tadawul_http import smart_flow
 
     def plan():
         st, page = yield {"url": ARC_PAGE, "timeout": 40}
-        for p in (arc_params(page) if st == 200 else []):
-            st2, raw = yield {"url": ARC_API, "params": p, "referer": ARC_PAGE,
-                              "headers": {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json, text/javascript, */*"}}
-            got = arc_items(raw) if st2 == 200 else []
-            if got:
-                return got
-        return []
+        ps = arc_params(page) if st == 200 else []
+        if not ps:
+            return []
+        offered = set(re.findall(r'<option[^>]*value="([^"]+)"', page or ""))
+        out: list[dict] = []
+        for cat in [""] + [c for c in ARC_CATS if c in offered]:
+            for pg in range(1, 4 if cat else 2):
+                p = {**ps[0], "category": cat, "pageNo": pg}
+                st2, raw = yield {"url": ARC_API, "params": p, "referer": ARC_PAGE,
+                                  "headers": {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json, text/javascript, */*"}}
+                got = arc_items(raw) if st2 == 200 else []
+                for it in got:
+                    if cat == "بحوث الأسهم" and it["kind"] in ("تقرير", "تقرير يوميّ"):
+                        it["kind"] = "تقرير قطاعيّ" if re.search(r"قطاع", it["title"]) else "تقرير شركة"
+                        it["company"] = it.get("company") or _company(it["title"])
+                    elif cat == "بحوث الاقتصاد":
+                        it["kind"] = "تقرير اقتصاديّ"
+                    elif cat == "بحوث الاستثمار" and it["kind"] in ("تقرير", "تقرير يوميّ"):
+                        it["kind"] = "تقرير دوريّ"
+                out += got
+                if len(got) < p["pageSize"]:
+                    break
+        return out
     return await smart_flow(plan, warm=ARC + "/ar", timeout=40) or []
 
 
-def select(items: list[dict]) -> list[dict]:
-    """الأحدثُ أوّلاً بلا تكرارٍ للملفّ نفسِه، ولكلّ صنفٍ سقفُه."""
-    seen, per, out = set(), {}, []
+WINDOW_DAYS = 365      # ‏D664: «جميعُ التوقعات الممكنة» — كلُّ ما نشرته الجهاتُ في سنة، لا سقفٌ لكلّ صنف
+DAILY_KEEP = 5         # واليوميُّ آخرُ خمسةٍ لكلّ جهة: تقريرُ كلِّ يومٍ يُغرق ما سواه ولا يزيد معنًى
+
+
+def select(items: list[dict], today: str | None = None) -> list[dict]:
+    """الأحدثُ أوّلاً بلا تكرارٍ للملفّ نفسِه — كلُّ ما في السنة، واليوميُّ آخرُ خمسةٍ لكلّ جهة."""
+    from datetime import date as _d, timedelta as _td
+    floor = ((_d.fromisoformat(today) if today else _d.today()) - _td(days=WINDOW_DAYS)).isoformat()
+    seen, daily, out = set(), {}, []
     for it in sorted(items, key=lambda x: x.get("date") or "", reverse=True):
-        key = it.get("url") or it.get("title")
-        if key in seen:
+        key = it.get("id") or it.get("url") or it.get("title")
+        if key in seen or (it.get("date") or "") < floor:
             continue
         seen.add(key)
-        k = it.get("kind") or "تقرير"
-        if per.get(k, 0) >= CAP.get(k, 6):
-            continue
-        per[k] = per.get(k, 0) + 1
+        if it.get("kind") == "تقرير يوميّ":
+            src = it.get("source")
+            if daily.get(src, 0) >= DAILY_KEEP:
+                continue
+            daily[src] = daily.get(src, 0) + 1
         out.append(it)
     return out
 

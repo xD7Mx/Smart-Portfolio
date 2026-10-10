@@ -1663,6 +1663,14 @@ async def get_company_recommendations(symbol: str):
     توصيةٍ لبيت خبرةٍ سعوديّ — فالفرق بين الاثنين هو نفسه الفرق الذي أراد
     المالك حسمه حين اختار «أرقام» مرجعاً.
     """
+    # ‏D664: جدولُ آراء بيوت الخبرة المقيسُ في «أرقام» (يُجمع للسوق كلِّه مجدولاً) أوّلاً — كلُّ الجهات بسعرها المستهدف
+    from app.services.analyst_opinions import for_symbol as _ops
+    ops = _ops(_normalize_symbol(symbol).replace(".SR", ""))
+    if ops:
+        return success_response(data={
+            "rows": [{"house": r["house"], "verdict": r["rating"], "target": r.get("target"), "date": r["date"],
+                      "source": "أرقام", "pdf": r.get("pdf")} for r in ops],
+            "url": ops[0].get("page"), "fetched_at": None})
     from app.services import cache
     ck = f"argaam:recs:{symbol}"
     got = cache.get(ck)
