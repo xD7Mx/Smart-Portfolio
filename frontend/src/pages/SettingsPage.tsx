@@ -10,6 +10,7 @@ import { IDLE_OPTIONS, getIdleMinutes, setIdleMinutes } from "../hooks/useIdleLo
 import { useT } from "../i18n";
 import { PAGES } from "../components/common/MainLayout";
 import DateInput from "../components/common/DateInput";
+import Toggle from "../components/common/Toggle";  // ‏D678: مفتاحُ التطبيق الواحد
 
 const SECTIONS = [
   { id: "general",   labelKey: "set.general",  icon: Settings },
@@ -347,13 +348,13 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3 p-2.5 rounded-xl panel">
                 <Clock size={15} className={showClock ? "text-[var(--warn-ink)]" : "text-[var(--ink-muted)]"} />
                 <span className={"text-sm font-semibold flex-1 " + (showClock ? "text-[var(--ink)]" : "text-[var(--ink-muted)]")}>إظهار الساعة</span>
-                <button className={"switch" + (showClock ? " on" : "")} onClick={() => setShowClock(!showClock)} title={showClock ? "إخفاء" : "إظهار"} />
+                <Toggle checked={showClock} onChange={setShowClock} />
               </div>
               {/* إظهار الثواني — زر مستقل */}
               <div className="flex items-center gap-3 p-2.5 rounded-xl panel">
                 <Timer size={15} className={clockSeconds ? "text-[var(--warn-ink)]" : "text-[var(--ink-muted)]"} />
                 <span className={"text-sm font-semibold flex-1 " + (clockSeconds ? "text-[var(--ink)]" : "text-[var(--ink-muted)]")}>إظهار الثواني</span>
-                <button className={"switch" + (clockSeconds ? " on" : "")} onClick={() => setClockSeconds(!clockSeconds)} title={clockSeconds ? "إخفاء" : "إظهار"} />
+                <Toggle checked={clockSeconds} onChange={setClockSeconds} />
               </div>
               {/* نظام الوقت: ١٢ / ٢٤ ساعة */}
               <div className="flex items-center gap-3 p-2.5 rounded-xl panel">
@@ -384,7 +385,7 @@ export default function SettingsPage() {
                       <Home size={14} />
                     </button>
                     {id !== "settings" && (
-                      <button className={"switch" + (!hidden ? " on" : "")} onClick={() => togglePage(id)} title={hidden ? "إظهار" : "إخفاء"} />
+                      <Toggle checked={!hidden} onChange={() => togglePage(id)} />
                     )}
                     <div className="flex flex-col">
                       <button className="text-[var(--ink-muted)] hover:text-[var(--ink)] disabled:opacity-20" disabled={i === 0} onClick={() => movePage(id, -1)}><ArrowUp size={13} /></button>

@@ -15,7 +15,6 @@ import StockSheet from "../components/market/StockSheet";
 import { SafetyBar, safeColor } from "../components/common/ValueBars";
 import { ShariaBadge } from "../components/common/UI";
 import GovernanceV2Modal from "../components/governance/GovernanceV2Modal";
-import AutopilotCard from "../components/governance/AutopilotCard";
 import clsx from "clsx";
 
 /* اللوحة الأساسية الأولى (ما قبل 3d96cf1) بترتيبها الأصلي، لكنْ بالرموز
@@ -386,8 +385,7 @@ export default function GovernancePage() {
             <SectorConcentration sectors={data.sectors} />
           </div>
 
-          {/* بأمر المالك: المستشارُ الآليّ قبل «يحتاج انتباهك» */}
-          <AutopilotCard />
+          {/* ‏D679 (بأمر المالك): المستشارُ الآليّ انتقل إلى «تحليل الذكاء» مكانَ التقرير الشامل */}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <HoldingsHeatmap rows={data.holdings} onOpenV2={(symbol, name) => setV2Target({ symbol, name })} />

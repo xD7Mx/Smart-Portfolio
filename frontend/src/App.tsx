@@ -31,7 +31,7 @@ import AIPage          from "./pages/AIPage";
 import GovernancePage  from "./pages/GovernancePage";
 import CalculatorsPage from "./pages/CalculatorsPage";
 import ChartPage       from "./pages/ChartPage";
-import StarsPage       from "./pages/StarsPage";
+import WatchlistPage   from "./pages/WatchlistPage";
 import LoginPage       from "./pages/LoginPage";
 
 // Styles
@@ -214,7 +214,9 @@ function App() {
             <Route path="/portfolio/:id"  element={<CompanyPage />} />
             <Route path="/market"         element={<MarketPage />} />
             <Route path="/chart"          element={<ChartPage />} />
-            <Route path="/stars"          element={<StarsPage />} />
+            {/* ‏D677: المختبرُ تبويبٌ في المحفظة، والمراقبةُ قسمٌ مكانه — والرابطُ القديم يصل المختبرَ في موضعه الجديد */}
+            <Route path="/watchlist"      element={<WatchlistPage />} />
+            <Route path="/stars"          element={<Navigate to="/portfolio?tab=lab" replace />} />
             <Route path="/governance"      element={<GovernancePage />} />
             <Route path="/ai"             element={<AIPage />} />
             <Route path="/calculators"    element={<CalculatorsPage />} />

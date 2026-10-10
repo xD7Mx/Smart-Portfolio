@@ -4,6 +4,7 @@ import { BookOpen, X, ExternalLink } from "lucide-react";
 import { marketApi } from "../../services/api";
 import CompanyLogo from "../common/CompanyLogo";
 import Select from "../common/Select";
+import Toggle from "../common/Toggle";
 
 /* ══ دليلُ الشركات ══ (بأمر المالك · D256)
 
@@ -112,11 +113,7 @@ export default function CompanyDirectory({ onPick }: { onPick: (symbol: string) 
                   {sectors.map(x => <option key={x} value={x}>{x}</option>)}
                 </Select>
               </div>
-              <label className="flex items-center gap-2 text-[12px] text-[var(--ink)] cursor-pointer select-none" style={{ minHeight: 32 }}>
-                <input type="checkbox" checked={showNomu} onChange={e => setShowNomu(e.target.checked)}
-                       className="w-4 h-4 accent-[var(--brand)]" />
-                إظهار السوق الموازية «نمو»
-              </label>
+              <Toggle checked={showNomu} onChange={setShowNomu} label="إظهار السوق الموازية «نمو»" />
             </div>
 
             <div className="overflow-y-auto" style={{ maxHeight: "62vh" }}>

@@ -1,5 +1,7 @@
 import { D7M_COLORS, D7M_DEFAULTS, FIB_LEVELS, type D7MSettings } from "./d7m";
 import Select from "../common/Select";
+import Toggle from "../common/Toggle";
+import CheckBox from "../common/CheckBox";
 
 /** لونُ الرمز الحاليّ بصيغة #rrggbb ليظهر في منتقي اللون. */
 function tokenHex(name: string): string {
@@ -17,11 +19,9 @@ type Props = { cfg: D7MSettings; onChange: (c: D7MSettings) => void; onClose: ()
 /** إعداداتُ مؤشّر D7M — كلُّ مدخلٍ في السكربت له مفتاحٌ هنا. */
 export default function D7MPanel({ cfg, onChange, onClose }: Props) {
   const set = (k: K, v: unknown) => onChange({ ...cfg, [k]: v } as D7MSettings);
+  /* ‏D678: مفتاحُ التطبيق الواحد بدل صندوق اختيار النظام */
   const Check = ({ k, label }: { k: K; label: string }) => (
-    <label className="d7m-row">
-      <input type="checkbox" checked={!!cfg[k]} onChange={e => set(k, e.target.checked)} />
-      <span>{label}</span>
-    </label>
+    <div className="d7m-row"><Toggle checked={!!cfg[k]} onChange={v => set(k, v)} label={label} /></div>
   );
   const Num = ({ k, label, step = 1 }: { k: K; label: string; step?: number }) => (
     <label className="d7m-row">
@@ -65,11 +65,11 @@ export default function D7MPanel({ cfg, onChange, onClose }: Props) {
           <Check k="fibZones" label="مناطق الدعم والمقاومة" />
           <div className="d7m-levels">
             {FIB_LEVELS.map(([lv]) => (
-              <label key={lv} className="d7m-row">
-                <input type="checkbox" checked={cfg.fibLevels[String(lv)] !== false}
-                  onChange={e => set("fibLevels", { ...cfg.fibLevels, [String(lv)]: e.target.checked })} />
-                <span dir="ltr">{lv}</span>
-              </label>
+              <div key={lv} className="d7m-row">
+                <CheckBox checked={cfg.fibLevels[String(lv)] !== false}
+                  onChange={v => set("fibLevels", { ...cfg.fibLevels, [String(lv)]: v })}
+                  label={<span className="tabular-nums">{lv}</span>} />
+              </div>
             ))}
           </div>
         </fieldset>

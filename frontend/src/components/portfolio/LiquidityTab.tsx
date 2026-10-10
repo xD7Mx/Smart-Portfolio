@@ -11,6 +11,7 @@ import { Droplets, Save, RotateCcw, ClipboardList } from "lucide-react";
 import { liquidityApi } from "../../services/api";
 import { NumInput } from "../common/UI";
 import CompanyLogo from "../common/CompanyLogo";
+import CheckBox from "../common/CheckBox";
 
 const fmt = (n: number | null | undefined, d = 0) =>
   n == null ? "—" : Number(n).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
@@ -206,10 +207,10 @@ export default function LiquidityTab() {
                   </td>
                   {r.tranches.map((on, i) => (
                     <td key={i} className="td text-center">
-                      <input type="checkbox" checked={on} className="w-4 h-4 cursor-pointer"
-                        onChange={e => {
+                      <CheckBox checked={on} aria-label={`الشريحة ${i + 1}`} className="mx-auto justify-center"
+                        onChange={v => {
                           const next = [...r.tranches];
-                          next[i] = e.target.checked;
+                          next[i] = v;
                           patch(r.company_id, { tranches: next });
                         }} />
                     </td>
@@ -273,10 +274,10 @@ export default function LiquidityTab() {
                       style={{ width: 34, height: 34,
                         background: on ? "color-mix(in srgb, var(--pos-ink) 15%, transparent)" : "var(--bg)",
                         border: `1px solid ${on ? "color-mix(in srgb, var(--pos-ink) 45%, transparent)" : "var(--line)"}` }}>
-                      <input type="checkbox" checked={on} className="w-4 h-4 cursor-pointer"
-                        onChange={e => {
+                      <CheckBox checked={on} aria-label={`الشريحة ${i + 1}`} className="justify-center"
+                        onChange={v => {
                           const next = [...r.tranches];
-                          next[i] = e.target.checked;
+                          next[i] = v;
                           patch(r.company_id, { tranches: next });
                         }} />
                     </label>

@@ -128,7 +128,7 @@ export const useAppStore = create<AppState>()(
       activeLayout: "default",
       layouts: DEFAULT_LAYOUTS,
 
-      pageOrder: ["portfolio", "market", "chart", "stars", "governance", "library", "ai", "calculators", "reports", "notifications", "settings"],
+      pageOrder: ["portfolio", "market", "chart", "watchlist", "governance", "library", "ai", "calculators", "reports", "notifications", "settings"],
       hiddenPages: ["notifications"],   // الإشعارات مطفأة افتراضياً
       startPage: "portfolio",
       // ‏D551: غرفةُ التداول — رموزُ المالك، تعبر الأجهزة مع التخطيط
@@ -167,9 +167,11 @@ export const useAppStore = create<AppState>()(
           const gi = order.indexOf("governance");
           order = gi >= 0 ? [...order.slice(0, gi + 1), "library", ...order.slice(gi + 1)] : [...order, "library"];
           order = order.filter((p) => p !== "room");   // ‏D558: أُلغيت «غرفة التداول»
-          if (!order.includes("stars")) {           // D536
+          // ‏D677: المختبرُ تبويبٌ في المحفظة، والمراقبةُ قسمٌ في موضعه — يُبدَّل الاسمُ في مكانه فلا يتغيّر ترتيبُ المالك
+          order = order.map((p) => (p === "stars" ? "watchlist" : p));
+          if (!order.includes("watchlist")) {
             const ci = order.indexOf("chart");
-            order = ci >= 0 ? [...order.slice(0, ci + 1), "stars", ...order.slice(ci + 1)] : [...order, "stars"];
+            order = ci >= 0 ? [...order.slice(0, ci + 1), "watchlist", ...order.slice(ci + 1)] : [...order, "watchlist"];
           }
           patch.pageOrder = order;
         }
@@ -179,9 +181,9 @@ export const useAppStore = create<AppState>()(
            يحمل نسخةً محلّية — يفتح التطبيق فيجد «المحفظة» مهما اختار.
            وهما إعدادان لا رابط بينهما: أحدهما ترتيبُ أقسام، والآخر أينَ
            يبدأ. فيُقرأ كلٌّ منهما بمفرده. */
-        if (Array.isArray(layout.hiddenPages)) patch.hiddenPages = layout.hiddenPages;
+        if (Array.isArray(layout.hiddenPages)) patch.hiddenPages = layout.hiddenPages.map((p: string) => (p === "stars" ? "watchlist" : p));
         if (typeof layout.startPage === "string" && layout.startPage) {
-          patch.startPage = layout.startPage;
+          patch.startPage = layout.startPage === "stars" ? "watchlist" : layout.startPage;   // ‏D677
         }
         // أعمدة الجدول: تُدمج فوق الافتراضي فلا يسقط عمودٌ أُضيف بعد الحفظ.
         if (layout.portfolioCols && typeof layout.portfolioCols === "object") {
@@ -272,7 +274,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "sp-app-store",
-      version: 24,
+      version: 25,   // ‏D677: المراقبةُ قسمٌ مكانَ مختبر الأبحاث
       migrate: (persisted: any) => {
         let order: string[] = persisted?.pageOrder ?? [];
 
@@ -313,11 +315,16 @@ export const useAppStore = create<AppState>()(
           else order = [...order, "chart"];
         }
         order = order.filter((p) => p !== "room");     // ‏D558: أُلغيت «غرفة التداول» — شركاتُها في المراقبة
-        // ‏D536: «نجوم تاسي» صفحةٌ مستقلّةٌ بعد الرسم البياني.
-        if (!order.includes("stars")) {
+        // ‏D536 ← D677: كان «مختبرُ الأبحاث» قسماً بعد الرسم البياني؛ صار تبويباً في المحفظة والمراقبةُ قسماً في موضعه
+        order = order.map((p: string) => (p === "stars" ? "watchlist" : p));
+        if (!order.includes("watchlist")) {
           const i = order.indexOf("chart");
-          order = i >= 0 ? [...order.slice(0, i + 1), "stars", ...order.slice(i + 1)] : [...order, "stars"];
+          order = i >= 0 ? [...order.slice(0, i + 1), "watchlist", ...order.slice(i + 1)] : [...order, "watchlist"];
         }
+        if (Array.isArray(persisted?.hiddenPages)) {
+          persisted = { ...persisted, hiddenPages: persisted.hiddenPages.map((p: string) => (p === "stars" ? "watchlist" : p)) };
+        }
+        if (persisted?.startPage === "stars") persisted = { ...persisted, startPage: "watchlist" };
         // المكتبة تقع بين الحوكمة والتحليل. تُدرَج لمن لا يملكها، وتُنقَل لموضعها
         // الصحيح لمن كانت لديه بعد التقارير (من إصدار سابق).
         order = order.filter((p: string) => p !== "library");

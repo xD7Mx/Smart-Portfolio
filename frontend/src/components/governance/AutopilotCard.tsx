@@ -94,9 +94,8 @@ function GoalPlan() {
         <p className="text-xs font-bold text-[var(--ink-muted)] flex items-center gap-1.5"><Target size={14} /> الهدفُ في موعدك</p>
         <div className="flex gap-1">
           {[2, 3, 4, 5, 7, 10].map(y => (
-            <button key={y} onClick={() => pick(y)}
-              className="min-w-[32px] min-h-[32px] rounded-lg text-[11px] font-bold border tabular-nums"
-              style={years === y ? { color: "var(--brand-ink)", borderColor: "var(--brand)" } : { color: "var(--ink-muted)", borderColor: "var(--hairline)" }}>
+            <button key={y} onClick={() => pick(y)} aria-pressed={years === y}
+              className={"seg-btn chip min-w-[32px] tabular-nums" + (years === y ? " on" : "")}>
               {y}
             </button>
           ))}
@@ -136,6 +135,10 @@ function GoalPlan() {
   );
 }
 
+/* ══ المستشارُ الآليّ — في «تحليل الذكاء» ══ (بأمر المالك · D679)
+   انتقل من الحوكمة مكانَ «التقرير الشامل» (التقريرُ في قسم التقارير فلا يتكرّر)، ويقرأ التطبيقَ كلَّه: التحليلَ والسعرَ العادل
+   وثقتَه، ومستوياتِ D7M، وآراءَ بيوت الخبرة، والأحداثَ الجوهرية، والمفكرةَ والإفصاحات، والخطوطَ الحمراء، والأهدافَ والسيولة،
+   ونبضَ السوق وانتباهَ الحوكمة، ومبادئَ المكتبة. والتصميمُ بلغة التطبيق: لوحةُ حكمٍ مصبوغة، ونقاطٌ في بلاطاتٍ، وبطاقةٌ لكلّ شركة. */
 export default function AutopilotCard() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["autopilot"],
@@ -143,71 +146,85 @@ export default function AutopilotCard() {
     staleTime: 30 * 60 * 1000,
     retry: 0,
   });
+  const section = (icon: React.ReactNode, title: string) => (
+    <p className="text-[12px] font-bold text-[var(--ink-muted)] mb-2 flex items-center gap-1.5">{icon}{title}</p>
+  );
 
   return (
-    <div className="card">
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-        <p className="card-title flex items-center gap-1.5">
-          <Briefcase size={15} className="text-[var(--brand-ink)]" /> المستشار الآلي للمحفظة
-        </p>
+    <div className="card space-y-4">
+      <div className="flex items-center gap-3">
+        <span className="w-10 h-10 rounded-xl grid place-items-center shrink-0"
+          style={{ background: mixA("var(--brand)", 14), color: "var(--brand-ink)" }}>
+          <Briefcase size={19} />
+        </span>
+        <div className="min-w-0">
+          <h2 className="card-title">المستشار الآلي</h2>
+          <p className="text-[11px] text-[var(--ink-muted)] truncate">يقرأ المحفظةَ والتطبيقَ كلَّه — رأيٌ واحد بعقل مستثمرٍ بعيد المدى</p>
+        </div>
+        {data?.asof && <span className="ms-auto text-[10.5px] text-[var(--ink-muted)] tabular-nums shrink-0">{data.asof}</span>}
       </div>
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-xs text-[var(--ink-muted)] py-6">
-          <Loader2 size={14} className="animate-spin" /> يقرأ المحفظةَ كلَّها: الأهداف والتوزيع والقوائم ومستويات D7M…
+          <Loader2 size={14} className="animate-spin" /> يقرأ المحفظةَ كلَّها: الأهدافَ والقوائمَ وآراءَ البيوت والأحداثَ ومستوياتِ D7M…
         </div>
       ) : isError || !data ? (
         <p className="text-xs text-[var(--ink-muted)] py-4">تعذّر رأي المستشار الآلي الآن.</p>
       ) : (
-        <div className="space-y-3">
-          <div className="p-3.5 rounded-xl" style={{ background: mixA("var(--brand)", 7), border: `1px solid ${mixA("var(--brand)", 22)}` }}>
-            <p className="text-sm font-bold leading-relaxed text-[var(--ink)]">{data.verdict}</p>
+        <>
+          <div className="p-4 rounded-2xl" style={{ background: `linear-gradient(135deg, ${mixA("var(--brand)", 11)}, ${mixA("var(--brand)", 4)})`,
+                                                     border: `1px solid ${mixA("var(--brand)", 22)}` }}>
+            <p className="text-[15px] font-bold leading-relaxed text-[var(--ink)]">{data.verdict}</p>
             {data.goal && (
-              <p className="text-xs mt-2 flex items-start gap-1.5 text-[var(--ink)]">
-                <Target size={13} className="mt-0.5 shrink-0 text-[var(--brand-ink)]" /><span>{data.goal}</span>
+              <p className="text-[12.5px] mt-2 flex items-start gap-1.5 text-[var(--ink)]">
+                <Target size={14} className="mt-0.5 shrink-0 text-[var(--brand-ink)]" /><span>{data.goal}</span>
               </p>
             )}
           </div>
 
           {Array.isArray(data.points) && data.points.length > 0 && (
-            <ul className="space-y-2 px-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {data.points.map((p: any, i: number) => {
                 const c = p.tone === "+" ? "var(--pos-ink)" : p.tone === "-" ? "var(--neg-ink)" : "var(--ink-muted)";
                 return (
-                  <li key={i} className="text-[13px] leading-relaxed flex gap-2.5 text-[var(--ink)]">
-                    <span className="text-[10px] mt-1 shrink-0" style={{ color: c }}>{p.tone === "+" ? "▲" : p.tone === "-" ? "▼" : "•"}</span>
+                  <div key={i} className="flex gap-2.5 items-start rounded-xl px-3 py-2.5 text-[13px] leading-relaxed text-[var(--ink)]"
+                    style={{ background: "var(--field)" }}>
+                    <span className="text-[10px] mt-1 shrink-0" style={{ color: c }}>{p.tone === "+" ? "▲" : p.tone === "-" ? "▼" : "●"}</span>
                     <span>{p.t}</span>
-                  </li>
+                  </div>
                 );
               })}
-            </ul>
+            </div>
           )}
 
           {(data.flags || []).length > 0 && (
-            <div className="space-y-1">
+            <div className="flex flex-wrap gap-1.5">
               {data.flags.map((f: string, i: number) => (
-                <p key={i} className="text-xs text-[var(--warn-ink)]">{f}</p>
+                <span key={i} className="text-[11.5px] font-semibold px-2.5 py-1 rounded-lg"
+                  style={{ color: "var(--warn-ink)", background: mixA("var(--warn-ink)", 10) }}>{f}</span>
               ))}
             </div>
           )}
 
           {(data.actions || []).length > 0 && (
-            <div className="pt-2 border-t border-[var(--hairline)]">
-              <p className="text-xs font-bold text-[var(--ink-muted)] mb-2">ماذا أفعل في كلّ شركة</p>
-              <div className="space-y-2">
+            <div>
+              {section(null, "ماذا أفعل في كلّ شركة")}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {data.actions.map((a: any) => {
                   const c = ACTION_TONE[a.action] || "var(--ink-muted)";
                   return (
-                    <div key={a.symbol} className="flex items-start gap-2.5">
-                      <CompanyLogo symbol={a.symbol} size={24} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[13px] font-semibold text-[var(--ink)]">{a.name}</span>
-                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md" style={{ color: c, background: mixA(c, 12) }}>{a.action}</span>
-                          {a.level && <span className="text-[11px] text-[var(--ink-muted)] tabular-nums" dir="ltr">{a.level}</span>}
-                        </div>
-                        {a.why && <p className="text-xs text-[var(--ink-muted)] mt-0.5 leading-relaxed">{a.why}</p>}
+                    <div key={a.symbol} className="rounded-xl border border-[var(--hairline)] p-3 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <CompanyLogo symbol={a.symbol} size={28} />
+                        <span className="text-[13px] font-semibold text-[var(--ink)] truncate">{a.name}</span>
+                        <span className="ms-auto shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-md" style={{ color: c, background: mixA(c, 12) }}>{a.action}</span>
                       </div>
+                      {(a.level || a.why) && (
+                        <p className="text-[12px] text-[var(--ink-muted)] mt-2 leading-relaxed">
+                          {a.level && <span className="tabular-nums font-semibold text-[var(--ink)]" dir="ltr">{a.level}</span>}
+                          {a.level && a.why && " · "}{a.why}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
@@ -215,36 +232,35 @@ export default function AutopilotCard() {
             </div>
           )}
 
-          {(data.protections || []).length > 0 && (
-            <div className="pt-2 border-t border-[var(--hairline)]">
-              <p className="text-xs font-bold text-[var(--ink-muted)] mb-2 flex items-center gap-1.5">
-                <ShieldCheck size={13} className="text-[var(--pos-ink)]" /> حمايةٌ مفعّلة
-              </p>
-              <ul className="space-y-1">
-                {data.protections.map((b: string, i: number) => <li key={i} className="text-xs text-[var(--ink)]">• {b}</li>)}
-              </ul>
+          {((data.protections || []).length > 0 || (data.principles || []).length > 0) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {(data.protections || []).length > 0 && (
+                <div className="rounded-xl p-3" style={{ background: "var(--field)" }}>
+                  {section(<ShieldCheck size={13} className="text-[var(--pos-ink)]" />, "حمايةٌ مفعّلة")}
+                  <ul className="space-y-1">
+                    {data.protections.map((b: string, i: number) => <li key={i} className="text-[12px] text-[var(--ink)] leading-relaxed">• {b}</li>)}
+                  </ul>
+                </div>
+              )}
+              {(data.principles || []).length > 0 && (
+                <div className="rounded-xl p-3" style={{ background: "var(--field)" }}>
+                  {section(<BookOpen size={13} className="text-[var(--chart-3)]" />, "من المكتبة")}
+                  <ul className="space-y-1.5">
+                    {data.principles.map((p: any, i: number) => (
+                      <li key={i} className="text-[12px] text-[var(--ink)] leading-relaxed">
+                        «{p.p}» <span className="text-[var(--ink-muted)]">— {p.book}، ص{p.page}</span>
+                        {p.applies && <span className="block text-[var(--ink-muted)]">{p.applies}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
-
-          {(data.principles || []).length > 0 && (
-            <div className="pt-2 border-t border-[var(--hairline)]">
-              <p className="text-xs font-bold text-[var(--ink-muted)] mb-2 flex items-center gap-1.5">
-                <BookOpen size={13} className="text-[var(--chart-3)]" /> من المكتبة
-              </p>
-              <ul className="space-y-1.5">
-                {data.principles.map((p: any, i: number) => (
-                  <li key={i} className="text-xs text-[var(--ink)] leading-relaxed">
-                    «{p.p}» <span className="text-[var(--ink-muted)]">— {p.book}، ص{p.page}</span>
-                    {p.applies && <span className="block text-[var(--ink-muted)]">{p.applies}</span>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+        </>
       )}
-      <div className="mt-3"><GoalPlan />
-          <AutopilotChat /></div>
+      <GoalPlan />
+      <AutopilotChat />
     </div>
   );
 }

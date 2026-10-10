@@ -7,6 +7,7 @@ import StockSheet from "../components/market/StockSheet";
 import { Curve } from "../components/market/TasiStarsPanel";
 import { yearsToGoal, yearsLabel } from "../utils/goal";
 import Select from "../components/common/Select";
+import Toggle from "../components/common/Toggle";
 
 /* ══ مختبرُ الأبحاث ══ (بأمر المالك · D612 · D613)
    شاشاتٌ: الأولى لشركات محفظته تلقائياً، والثانيةُ لمحفظةٍ أخرى — ولكلّ شاشةٍ مفتاحُ «شركاتُ المحفظة تلقائياً»
@@ -34,7 +35,8 @@ function loadScreens(): Screen[] {
   ];
 }
 
-export default function StarsPage() {
+/* ‏D677 (بأمر المالك): المختبرُ تبويبٌ في المحفظة مكانَ «المراقبة» — `embedded` يُصغّر العنوانَ ليجلس تحت تبويباتها */
+export default function StarsPage({ embedded = false }: { embedded?: boolean }) {
   const [sheet, setSheet] = useState<string | null>(null);
   const [screens, setScreens] = useState<Screen[]>(loadScreens);
   const [cur, setCur] = useState(0);
@@ -103,25 +105,30 @@ export default function StarsPage() {
       <div className="kpi-val tabular-nums" dir="ltr" style={{ textAlign: "right", color: tone(v) }}>{pct(v)}</div>
     </div>
   );
-  const chip = (on: boolean) => (on ? { color: "var(--brand-ink)", borderColor: "var(--brand)" } : { color: "var(--ink-muted)", borderColor: "var(--hairline)" });
 
   return (
     <div className="space-y-4 fade-in">
       <div className="card space-y-3">
-        <h1 className="text-2xl font-medium text-[var(--ink)] flex items-center gap-2">
-          <FlaskConical size={22} className="text-[var(--brand-ink)]" /> مختبر الأبحاث
-        </h1>
+        {embedded ? (
+          <p className="card-title flex items-center gap-2">
+            <FlaskConical size={16} className="text-[var(--brand-ink)]" /> مختبر الأبحاث
+          </p>
+        ) : (
+          <h1 className="text-2xl font-medium text-[var(--ink)] flex items-center gap-2">
+            <FlaskConical size={22} className="text-[var(--brand-ink)]" /> مختبر الأبحاث
+          </h1>
+        )}
 
         <div className="flex items-center gap-1.5 overflow-x-auto">
           {screens.map((s, i) => (
-            <button key={s.id} type="button" onClick={() => { setCur(i); setQ(""); }}
-              className="px-3 min-h-[36px] rounded-lg text-[13px] font-bold border whitespace-nowrap" style={chip(i === cur)}>
+            <button key={s.id} type="button" onClick={() => { setCur(i); setQ(""); }} aria-pressed={i === cur}
+              className={"seg-btn chip min-h-[36px] text-[13px]" + (i === cur ? " on" : "")}>
               {s.name}
             </button>
           ))}
           {screens.length < 4 && (
             <button type="button" onClick={addScreen} aria-label="شاشةٌ جديدة"
-              className="min-w-[36px] min-h-[36px] rounded-lg border flex items-center justify-center" style={chip(false)}>
+              className="seg-btn chip min-w-[36px] min-h-[36px] flex items-center justify-center">
               <Plus size={15} />
             </button>
           )}
@@ -134,12 +141,8 @@ export default function StarsPage() {
             <option value="">بلا محفظة</option>
             {portfolios.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </Select>
-          <button type="button" role="switch" aria-checked={sc.auto} onClick={() => patch({ auto: !sc.auto })}
-            disabled={pid == null}
-            className="flex items-center gap-2 min-h-[40px] text-[12px] text-[var(--ink)] disabled:opacity-50">
-            <span aria-hidden className={"switch inline-block" + (sc.auto && pid != null ? " on" : "")} />
-            شركاتُ المحفظة تلقائياً
-          </button>
+          <Toggle checked={sc.auto && pid != null} onChange={v => patch({ auto: v })} disabled={pid == null}
+            label="شركاتُ المحفظة تلقائياً" className="min-h-[40px]" />
         </div>
 
         <div className="relative">
@@ -163,8 +166,8 @@ export default function StarsPage() {
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           {STARTS.map(v => (
-            <button key={v} type="button" onClick={() => setStart(v)}
-              className="px-3 min-h-[32px] rounded-lg text-[12px] font-bold border tabular-nums" style={chip(start === v)}>
+            <button key={v} type="button" onClick={() => setStart(v)} aria-pressed={start === v}
+              className={"seg-btn chip tabular-nums" + (start === v ? " on" : "")}>
               منذ {v.slice(0, 4)}
             </button>
           ))}

@@ -7,6 +7,7 @@ import { marketApi } from "../../services/api";
 import { ShareButton } from "../common/ShareOpen";
 import EventCard from "../common/EventCard";
 import Logo from "../common/Logo";
+import Select from "../common/Select";
 
 /**
  * اللغة التصميمية الموحدة للمفكرة — every corporate-action announcement is
@@ -330,18 +331,18 @@ function ForecastsPanel({ data, loading }: { data?: any[]; loading: boolean }) {
         {groups.map(([id, label]) => (
           <button key={id} role="tab" aria-selected={grp === id}
             onClick={() => { setGrp(id); setWho(""); setN(FC_PAGE); }}
-            className={"shrink-0 min-h-[32px] px-3 rounded-lg text-[11.5px] font-bold border transition-colors " +
-              (grp === id ? "border-[var(--brand-ink)] text-[var(--brand-ink)]" : "border-[var(--hairline)] text-[var(--ink-muted)]")}>
+            aria-pressed={grp === id} className={"seg-btn chip shrink-0" + (grp === id ? " on" : "")}>
             {label}
           </button>
         ))}
       </div>
       {sources.length > 1 && (
-        <select value={who} onChange={ev => { setWho(ev.target.value); setN(FC_PAGE); }} aria-label="الجهة"
-          className="panel w-full min-h-[34px] rounded-lg px-2 text-[12px] text-[var(--ink)] text-right">
+        /* ‏D678 (بأمر المالك): «قائمةٌ منسدلة ليست بتصميم التطبيق» — قائمةُ التطبيق المرسومة لا نافذةُ النظام */
+        <Select value={who} onChange={ev => { setWho(ev.target.value); setN(FC_PAGE); }} aria-label="الجهة"
+          className="w-full min-h-[36px] rounded-lg px-2 text-[12px] bg-[var(--field)] border border-[var(--hairline)] text-[var(--ink)]">
           <option value="">كل الجهات</option>
           {sources.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+        </Select>
       )}
       <div className="space-y-1.5">
         {shown.slice(0, n).map((f: any, i: number) => {

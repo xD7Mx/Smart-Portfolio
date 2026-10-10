@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SplitBanner } from "../components/portfolio/SplitBanner";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Pencil, Trash2, TrendingUp, TrendingDown, ShoppingCart, X, SlidersHorizontal, Wallet, Scale, Columns3, RefreshCw, Coins, LayoutGrid, Briefcase, Newspaper, CalendarDays, GripVertical, Star, ChevronDown, AlertTriangle, Droplets, Save } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, TrendingUp, TrendingDown, ShoppingCart, X, SlidersHorizontal, Wallet, Scale, Columns3, RefreshCw, Coins, LayoutGrid, Briefcase, Newspaper, CalendarDays, GripVertical, Star, FlaskConical, ChevronDown, AlertTriangle, Droplets, Save } from "lucide-react";
 import { GridLayout, useContainerWidth, verticalCompactor } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import { companiesApi, holdingsApi, transactionsApi, cashApi, allocationApi, portfolioApi, profileApi, goalsApi } from "../services/api";
@@ -25,10 +25,11 @@ import PortfolioCalendarPage from "./PortfolioCalendarPage";
 import NotificationsPage from "./NotificationsPage";
 import PortfolioSwitcher from "../components/portfolio/PortfolioSwitcher";
 import { AvatarImg } from "../components/common/Avatar";
-import WatchlistTab from "../components/market/WatchlistTab";
+import StarsPage from "./StarsPage";
 import CollapsibleList from "../components/common/CollapsibleList";
 import DateInput from "../components/common/DateInput";
 import Select from "../components/common/Select";
+import CheckBox from "../components/common/CheckBox";
 
 const MOBILE_BREAKPOINT = 680;
 const TABLET_BREAKPOINT = 1024;
@@ -750,17 +751,17 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
             {/* التجزئة تضرب كل أسهمك المملوكة وقتها. ومن يقرأ كمياته من تطبيق
                 الوسيط يقرأها مُجزَّأةً أصلاً، فتُضرب مرّتين وتفسد الحيازة صامتة.
                 إقرارٌ صريح بدل تخمينٍ يُفسد البيانات. */}
-            <label className="flex items-start gap-2 text-[11px] leading-relaxed cursor-pointer rounded-xl p-3"
+            <div className="text-[11px] leading-relaxed rounded-xl p-3"
               style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
-              <input type="checkbox" className="mt-0.5" checked={preSplitOk}
-                onChange={e => setPreSplitOk(e.target.checked)} />
+              <CheckBox checked={preSplitOk} onChange={setPreSplitOk} align="start" label={<>
               <span className="text-[var(--ink)]">
                 أُقرّ بأن كميات العمليات المسجَّلة قبل هذا التاريخ هي كميات <b>ما قبل التجزئة</b>.
                 <span className="block text-[var(--ink-muted)] mt-0.5">
                   إن كنت أدخلت كمياتك كما تظهر في تطبيق الوسيط اليوم فهي مُجزَّأة أصلاً، ولا تُسجَّل التجزئة مرّةً أخرى.
                 </span>
               </span>
-            </label>
+            </>} />
+            </div>
           </>
         )}
 
@@ -1974,7 +1975,9 @@ export default function PortfolioPage() {
   const [cashOpen, setCashOpen] = useState(false);
   const [reconOpen, setReconOpen] = useState(false);
   const [colsOpen, setColsOpen] = useState(false);
-  const [tab, setTab] = useState<"holdings" | "dashboard" | "watchlist" | "portfolioNews" | "portfolioCalendar" | "notifications">("holdings");
+  /* ‏D677: «المختبر» مكانَ «المراقبة» (صارت قسماً) — ويُفتح من رابطه القديم (/stars ← ?tab=lab) */
+  const [tab, setTab] = useState<"holdings" | "dashboard" | "lab" | "portfolioNews" | "portfolioCalendar" | "notifications">(
+    () => (new URLSearchParams(window.location.search).get("tab") === "lab" ? "lab" : "holdings"));
   const [dashSubTab, setDashSubTab] = useState<"grid" | "rebalance" | "liquidity">("grid");
   const { portfolioCols: cols, togglePortfolioCol } = useAppStore();
   const { isOwner } = useAuthStore();
@@ -2241,7 +2244,7 @@ export default function PortfolioPage() {
         {([
           ["holdings", "الحيازات", Briefcase],
           ["dashboard", "لوحة التحكم", LayoutGrid],
-          ["watchlist", "المراقبة", Star],
+          ["lab", "المختبر", FlaskConical],
           ["portfolioNews", "الأخبار", Newspaper],
           ["portfolioCalendar", "المفكرة", CalendarDays],
         ] as const).map(([id, label, Icon]) => (
@@ -2313,7 +2316,7 @@ export default function PortfolioPage() {
       </div>
       {tab === "dashboard" && dashSubTab === "rebalance" && <RebalanceCard />}
       {tab === "dashboard" && dashSubTab === "liquidity" && <LiquidityTab />}
-      {tab === "watchlist" && <WatchlistTab onOpen={(symbol) => setSheetSymbol(symbol)} />}
+      {tab === "lab" && <StarsPage embedded />}
       {tab === "portfolioNews" && <PortfolioNewsPage />}
       {tab === "portfolioCalendar" && <PortfolioCalendarPage />}
       {tab === "notifications" && <NotificationsPage />}

@@ -6,6 +6,7 @@ import { Brain, AlertTriangle, TrendingUp, Sparkles, Zap } from "lucide-react";
 import { PortfolioHealthW } from "../widgets/Widgets";
 import CompanyLogo from "../components/common/CompanyLogo";
 import { FairValueBar, fairValueTier, safeColor } from "../components/common/ValueBars";
+import AutopilotCard from "../components/governance/AutopilotCard";
 
 
 // ── Portfolio insight — fair value + safety per holding ──
@@ -144,10 +145,6 @@ export default function AIPage() {
     queryKey: ["ai-status"],
     queryFn: () => aiApi.status().then(r => r.data.data),
     refetchInterval: 30000,
-  });
-  const { data: report } = useQuery({
-    queryKey: ["ai-full-report"],
-    queryFn: () => aiApi.fullReport().then(r => r.data.data),
   });
   const { data: evaluation } = useQuery({
     queryKey: ["ai-evaluation"],
@@ -406,28 +403,10 @@ export default function AIPage() {
         )}
       </div>
 
-      {/* AI Report */}
-      <div className="card">
-        <div className="flex items-center gap-2 mb-4">
-          <Brain size={16} className="text-[var(--brand-ink)]" />
-          <h2 className="card-title">التقرير الشامل</h2>
-          {report?.source === "AI" && <span className="tag-v ms-auto" style={{fontSize:10}}>AI</span>}
-        </div>
-        {/* الرسالة كانت تتّهم مفتاح الذكاء دائماً، حتى حين يكون العطل في
-            مصدرٍ آخر — فيبدو التقرير معطّلاً بلا سبب. الآن تقول ما جرى. */}
-        {!report?.content ? (
-          <p className="text-sm py-4 text-center" style={{ color: "var(--ink-muted)" }}>
-            تعذّر تحميل التقرير من الخادم — أعد المحاولة، وإن تكرّر فالسبب مسجَّل في سجلّ الخادم.
-          </p>
-        ) : (
-          <div className="rounded-xl p-4 text-sm whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto"
-            /* سطحُ التطبيق نفسُه لا خلطةٌ رماديّة: كان `--ink 4%` فوق السطح
-               يعطي لوناً باهتاً لا يشبه بطاقةً أخرى في التطبيق. */
-            style={{ background: "var(--panel)", border: "1px solid var(--line)", color: "var(--ink)" }}>
-            {report.content}
-          </div>
-        )}
-      </div>
+      {/* ‏D679 (بأمر المالك): المستشارُ الآليّ مكانَ «التقرير الشامل» — التقريرُ في قسم التقارير فلا يتكرّر، والمستشارُ
+          يقرأ التطبيقَ كلَّه: التحليلَ والسعرَ العادل وثقتَه، ومستوياتِ D7M، وآراءَ بيوت الخبرة، والأحداثَ الجوهرية،
+          والمفكرةَ والإفصاحات، والخطوطَ الحمراء، والأهدافَ والسيولة، ونبضَ السوق وانتباهَ الحوكمة، ومبادئَ المكتبة */}
+      <AutopilotCard />
       {sheet && <StockSheet symbol={sheet} onClose={() => setSheet(null)} />}
     </div>
   );

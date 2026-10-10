@@ -3074,3 +3074,7 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 .d7m-row .sp-select { background: var(--field); color: var(--ink); border: 1px solid var(--hairline);
   border-radius: 6px; padding: 3px 6px; min-width: 96px; }
 .sp-select:not([class*="px-"]):not(.input):not(.seg-btn) { padding-inline: 8px; }
+
+/* ‏D678 (بأمر المالك: «وحّد هويّة الأزرار»): رقائقُ الفلترة خارج `.seg` بلغة المبدّل نفسِها — أرضيةٌ مصبوغة للمفعَّل بلا إطار.
+   كانت في التوقعات والمختبر والمستشار وصفحة السهم تُرسم بإطارٍ ملوّن. `.chip` يمنعها من التمدّد خارج المبدّل ومن التفاف نصّها. */
+.seg-btn.chip { flex: none; white-space: nowrap; padding-inline: 12px; }

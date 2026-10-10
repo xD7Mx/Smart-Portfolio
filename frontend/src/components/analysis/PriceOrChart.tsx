@@ -16,10 +16,8 @@ export default function PriceOrChart({ symbol }: { symbol: string }) {
     <div className="space-y-2">
       <div className="flex justify-start gap-1.5">
         {([["price", "حركة السعر"], ["chart", "الرسم البياني"]] as const).map(([id, lbl]) => (
-          <button key={id} onClick={() => pick(id)}
-            className="px-3 min-h-[32px] rounded-lg text-[11px] font-bold border transition-all"
-            style={view === id ? { color: "var(--brand-ink)", borderColor: "var(--brand)" }
-                               : { color: "var(--ink-muted)", borderColor: "var(--hairline)" }}>
+          <button key={id} onClick={() => pick(id)} aria-pressed={view === id}
+            className={"seg-btn chip" + (view === id ? " on" : "")}>
             {lbl}
           </button>
         ))}

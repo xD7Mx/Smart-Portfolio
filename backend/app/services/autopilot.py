@@ -20,6 +20,14 @@ from datetime import date
 from loguru import logger
 
 
+# ‏D679: ما يقرؤه المستشارُ عن كلّ مركز — المصدرُ الواحد للرأي والحوار
+POS_KEYS = ("name", "symbol", "sector", "price", "avg_cost", "fair_value", "fair_value_conf", "quality", "stability",
+            "decision", "current_weight", "target_weight", "need", "weekly", "monthly", "daily_liquidity", "last_result",
+            "upcoming", "disclosures", "material_events", "analysts", "red_lines", "warnings")
+# ونبضُ السوق من لقطة refresh_market_brief بمفاتيحها هي
+MARKET_KEYS = ("summary", "phase", "tasi", "brent", "flow", "headlines", "generated_at")
+
+
 def _f(x):
     try:
         return float(x) if x is not None else None
@@ -197,6 +205,40 @@ async def _disclosures(sym: str) -> list[dict]:
     return [{"date": i.get("date"), "title": str(i.get("title") or "")[:110]} for i in (items or [])[:3]]
 
 
+def _analysts(sym: str, price) -> dict | None:
+    """‏D679: آراءُ بيوت الخبرة المرخّصة خلال سنة (أرقام · D664) — إجماعُ أهدافها وآخرُ توصية، كما في «التوقعات»."""
+    import statistics
+    from datetime import timedelta
+    from app.services.analyst_opinions import for_symbol as _ops
+    cut = (date.today() - timedelta(days=365)).isoformat()
+    rows = [r for r in _ops(sym) if str(r.get("date") or "") >= cut]
+    if not rows:
+        return None
+    tg = [r["target"] for r in rows if isinstance(r.get("target"), (int, float)) and r["target"] > 0]
+    med = statistics.median(tg) if tg else None
+    px = _f(price)
+    last = rows[0]
+    return {"آراء": len(rows), "بيوت": len({r.get("house") for r in rows}),
+            "وسيط_الهدف": round(med, 2) if med else None,
+            "المسافة_إلى_الوسيط٪": round((med / px - 1) * 100, 1) if (med and px) else None,
+            "آخر_توصية": {"الجهة": last.get("house"), "التوصية": last.get("rating"), "الهدف": last.get("target"),
+                          "التاريخ": last.get("date")}}
+
+
+async def _material(sym: str) -> list[dict]:
+    """‏D679: الأحداثُ الجوهرية لسنة (‏D644) — العقودُ والاستحواذاتُ والخسائرُ الجسيمة بقيمها كما في صفحة السهم."""
+    from app.services.material_events import events_for
+    from app.services.events_view import KIND_AR
+    d = await events_for(sym) or {}
+    out = []
+    for e in (d.get("events") or [])[:3]:
+        x = {"التاريخ": e.get("date"), "النوع": KIND_AR.get(e.get("kind"), e.get("kind")), "العنوان": str(e.get("title") or "")[:90]}
+        if e.get("value"):
+            x["القيمة"] = e.get("value")
+        out.append(x)
+    return out
+
+
 async def pack(db, mode: str = "investor") -> dict:
     from sqlalchemy import select
     from app.api.v1.endpoints.allocation import get_allocation
@@ -217,10 +259,11 @@ async def pack(db, mode: str = "investor") -> dict:
 
     async def one(it):
         sym = str(it["symbol"]).replace(".SR", "")
-        a, t, ev, dis = await asyncio.gather(asyncio.wait_for(analyze_company(f"{sym}.SR", None, db=None), timeout=20),
-                                             asyncio.wait_for(d7m.read(sym), timeout=30),
-                                             asyncio.wait_for(_events(sym), timeout=15),
-                                             asyncio.wait_for(_disclosures(sym), timeout=15), return_exceptions=True)
+        a, t, ev, dis, me = await asyncio.gather(asyncio.wait_for(analyze_company(f"{sym}.SR", None, db=None), timeout=20),
+                                                 asyncio.wait_for(d7m.read(sym), timeout=30),
+                                                 asyncio.wait_for(_events(sym), timeout=15),
+                                                 asyncio.wait_for(_disclosures(sym), timeout=15),
+                                                 asyncio.wait_for(_material(sym), timeout=20), return_exceptions=True)
         a = a if isinstance(a, dict) else {}
         t = t if isinstance(t, dict) else {}
         q, ac = hold.get(sym) or hold.get(sym + ".SR") or (0.0, 0.0)
@@ -237,6 +280,23 @@ async def pack(db, mode: str = "investor") -> dict:
                "last_result": ({"as_of": r.get("as_of"), "net_income_q": (r.get("quarter") or {}).get("net_income"),
                                 "revenue_q": (r.get("quarter") or {}).get("revenue")} if r else None),
                "upcoming": ev if isinstance(ev, list) else [], "disclosures": dis if isinstance(dis, list) else []}
+        # ‏D679 (بأمر المالك: «قادرٌ على شرب جميع المعلومات والبيانات داخل التطبيق»): ما تعرضه الشاشاتُ الأخرى عن الشركة
+        try:
+            from app.data.market_universe import MARKET_UNIVERSE
+            pos["sector"] = (MARKET_UNIVERSE.get(sym) or {}).get("sector")
+        except Exception:                                         # noqa: BLE001
+            pass
+        _fin = a.get("financial") or {}
+        pos["stability"] = ((_fin.get("confidence") or {}) if isinstance(_fin, dict) else {}).get("stability_label")
+        pos["red_lines"] = [str(x.get("label") or x.get("title") or x) if isinstance(x, dict) else str(x)
+                            for x in (a.get("red_lines") or [])][:3]
+        pos["warnings"] = [str(x.get("label") or x.get("title") or x) if isinstance(x, dict) else str(x)
+                           for x in (a.get("warnings") or [])][:3]
+        pos["material_events"] = me if isinstance(me, list) else []
+        try:
+            pos["analysts"] = _analysts(sym, pos.get("price"))
+        except Exception:                                         # noqa: BLE001
+            pos["analysts"] = None
         pos["autopilot"] = rules(pos, mode)
         return pos
 
@@ -277,6 +337,23 @@ async def pack(db, mode: str = "investor") -> dict:
         if (g.target_type or "AMOUNT") == "AMOUNT" and str(getattr(g.status, "value", g.status)) == "ACTIVE":
             goals.append({"name": g.goal_name, "target": float(g.target_value), **goal_eta(wealth, float(g.target_value), cagr)})
     cash = float(d.get("available_cash") or 0)
+    market = None
+    try:
+        from app.services.ai_content import get_market_brief_snapshot
+        _b = get_market_brief_snapshot() or {}
+        # مفاتيحُ اللقطة كما يكتبها refresh_market_brief (‏D679: كانت تُقرأ «headline/mood/asof» ولا وجودَ لها)
+        market = {k: (_b.get(k)[:5] if k == "headlines" and isinstance(_b.get(k), list) else _b.get(k))
+                  for k in MARKET_KEYS if _b.get(k) is not None} or None
+    except Exception:                                             # noqa: BLE001
+        pass
+    attention = []
+    try:
+        from app.services.governance import get_portfolio_governance
+        _g = await asyncio.wait_for(get_portfolio_governance(db), timeout=25) or {}
+        attention = [(f"{x.get('name') or x.get('symbol') or ''}: {x.get('message') or ''}".strip(": ")
+                      if isinstance(x, dict) else str(x)) for x in (_g.get("attention") or [])][:5]
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"الطيار الآليّ — الحوكمة: {type(e).__name__}")
     flags = []
     top = max(positions, key=lambda x: float(x.get("current_weight") or 0), default=None)
     if top and float(top.get("current_weight") or 0) > 25:
@@ -285,7 +362,8 @@ async def pack(db, mode: str = "investor") -> dict:
     if investable and cash / investable > 0.15 and buys:
         flags.append(f"سيولة معطّلة {cash:,.0f} ريال ({cash / investable * 100:.0f}%) وأمامها {len(buys)} {'فرص' if 2 <= len(buys) <= 10 else 'فرصة'} شراء")
     return {"date": date.today().isoformat(), "wealth": round(wealth, 2), "cash": round(cash, 2), "cagr_pct": cagr,
-            "goals": goals, "flags": flags, "positions": positions, "principles": principles(24), "mode": mode}
+            "goals": goals, "flags": flags, "positions": positions, "principles": principles(24), "mode": mode,
+            "market": market, "attention": attention}
 
 
 def render(pk: dict) -> dict:
@@ -325,7 +403,7 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
     from app.services import cache
     pid = active_pid()
     mode = "investor"                                            # ‏D591: لا مفتاح — رأيٌ واحد
-    ck = f"autopilot:v2:{pid}:{date.today().isoformat()}"
+    ck = f"autopilot:v3:{pid}:{date.today().isoformat()}"   # v3: D679
     if not force:
         hit = cache.get(ck)
         if hit:
@@ -334,10 +412,8 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
     base = render(pk)
     from app.services.ai_content import _generate_obj
     slim = {"الثروة": pk["wealth"], "السيولة": pk["cash"], "العائد المركّب٪": pk["cagr_pct"], "الأهداف": pk["goals"],
-            "تنبيهات": pk["flags"],
-            "المراكز": [{k: p.get(k) for k in ("name", "symbol", "price", "avg_cost", "fair_value", "quality", "decision",
-                                               "current_weight", "target_weight", "need", "weekly", "monthly",
-                                               "daily_liquidity", "last_result", "upcoming", "disclosures")} | {"قرار_الطيار": p["autopilot"]}
+            "تنبيهات": pk["flags"], "نبض_السوق": pk.get("market"), "انتباه_الحوكمة": pk.get("attention"),
+            "المراكز": [{k: p.get(k) for k in POS_KEYS} | {"قرار_الطيار": p["autopilot"]}
                         for p in pk["positions"]],
             "مبادئ_المكتبة": [f"{x['p']} — «{x['book']}» ص{x['page']}" for x in pk["principles"]]}
     lens = ("بعقل مستثمرٍ بعيد المدى يدخل بحذر مضارب: «اشترِ» لا تُقال إلا بقناعةٍ مكتملة الشروط (conviction)، "
@@ -353,6 +429,9 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
 - الإطاران الشهريُّ والأسبوعيُّ لأداة D7M هما الحكمُ الفنيّ، واليوميُّ لقراءة السيولة وحدها.
 - استشهد بمبدأين أو ثلاثةٍ من مبادئ المكتبة حيث تنطبق فعلاً، باسم الكتاب ورقم الصفحة كما وردت.
 - اقرأ مفكرةَ كلّ شركةٍ (upcoming) وإفصاحاتِها (disclosures) وآخرَ نتائجها: حدثٌ قريبٌ أو إفصاحٌ جوهريٌّ يغيّر التوقيت يُذكر.
+- واقرأ لكلّ شركة: آراءَ بيوت الخبرة (analysts: وسيطُ أهدافها وآخرُ توصية)، وأحداثَها الجوهرية (material_events)، وخطوطَها
+  الحمراء وتحذيراتِها (red_lines · warnings)، وثباتَ أرباحها (stability) — واذكر منها ما يغيّر الحكم. وثقةُ السعر العادل (fair_value_conf) تُقرأ:
+  «منخفضة» لا يُبنى عليها وحدها. ونبضُ السوق وانتباهُ الحوكمة سياقٌ للمحفظة كلّها.
 - لا تذكر توجّهاتٍ أو رؤيةً أو قطاعاتٍ للمملكة إلا إن وردت في المعطيات.
 - جملٌ قصيرة (أربع عشرة كلمة على الأكثر)، بصيغة المتكلّم، بلا تحوّطٍ ولا إخلاءِ مسؤولية.
 
@@ -366,7 +445,7 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
 والنقاطُ أربعٌ إلى ستّ، والإجراءاتُ ستٌّ على الأكثر مرتّبةً بالأهمية."""
     obj = None
     try:
-        obj = await _generate_obj(prompt, f"ai:autopilot:v2:{pid}:{date.today().isoformat()}:{len(pk['positions'])}", 6 * 3600)
+        obj = await _generate_obj(prompt, f"ai:autopilot:v3:{pid}:{date.today().isoformat()}:{len(pk['positions'])}", 6 * 3600)
     except Exception as e:                                        # noqa: BLE001
         logger.warning(f"الطيار الآليّ — النموذج: {type(e).__name__}")
     out = dict(base)
@@ -496,7 +575,7 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
     from app.services import cache
     mode = "investor"
     pid = active_pid()
-    ck = f"autopilot:pack:v2:{pid}:{date.today().isoformat()}"
+    ck = f"autopilot:pack:v3:{pid}:{date.today().isoformat()}"
     pk = cache.get(ck)
     if not pk:
         pk = await pack(db, mode)
@@ -508,9 +587,7 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
         item = {"symbol": s, "held": bool(pos)}
         if pos:
             q, c, pr = _f(pos.get("quantity")) or 0, _f(pos.get("avg_cost")), _f(pos.get("price"))
-            item.update({k: pos.get(k) for k in ("name", "price", "avg_cost", "quantity", "decision", "fair_value", "quality",
-                                                 "weekly", "monthly", "daily_liquidity", "last_result", "upcoming",
-                                                 "disclosures", "current_weight", "target_weight")})
+            item.update({k: pos.get(k) for k in POS_KEYS + ("quantity",)})
             item["قرار_الطيار"] = pos["autopilot"]
             if q and c and pr:
                 item["كلفة_الخروج"] = {"قيمة_البيع": round(q * pr, 2), "المدفوع": round(q * c, 2),
@@ -522,9 +599,15 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
                 a = await asyncio.wait_for(analyze_company(f"{s}.SR", None), timeout=20) or {}
                 t = await asyncio.wait_for(d7m.read(s), timeout=25) or {}
                 item.update({"name": a.get("name"), "price": a.get("price"), "decision": (a.get("decision") or {}).get("label"),
-                             "fair_value": a.get("fair_value"), "quality": (a.get("financial") or {}).get("score"),
+                             "fair_value": a.get("fair_value"), "fair_value_conf": a.get("fair_value_conf"),
+                             "quality": (a.get("financial") or {}).get("score"),
                              "weekly": t.get("weekly"), "monthly": t.get("monthly"),
                              "daily_liquidity": (t.get("daily_liquidity") or {}).get("state")})
+                try:                                              # ‏D679: وما تعرضه الشاشاتُ عنها
+                    item["analysts"] = _analysts(s, a.get("price"))
+                    item["material_events"] = await asyncio.wait_for(_material(s), timeout=20)
+                except Exception:                                 # noqa: BLE001
+                    pass
             except Exception:                                     # noqa: BLE001
                 pass
         try:
@@ -539,6 +622,7 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
         if g:
             plan = {"الهدف": g["name"], "المبلغ": g["target"], **goal_plan(pk["wealth"], g["target"], yrs, pk["cagr_pct"])}
     ctx = {"الثروة": pk["wealth"], "السيولة": pk["cash"], "العائد_المركّب٪": pk["cagr_pct"], "خطة_الهدف_في_موعد": plan,
+           "نبض_السوق": pk.get("market"), "انتباه_الحوكمة": pk.get("attention"),
            "الأهداف": pk["goals"], "تنبيهات": pk["flags"], "الشركات_المذكورة": focus,
            "بقية_المحفظة": [{"name": p["name"], "symbol": p["symbol"], "action": p["autopilot"]["action"],
                               "weight": p.get("current_weight")} for p in pk["positions"] if p["symbol"] not in syms],
@@ -565,6 +649,7 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
 - «قرار_الطيار» حتميّ: لا تنصح بشراءٍ حجبته الحماية.
 - لا تقل «اشترِ» أو «ادخل» إلا لما «قرار_الطيار» فيه «اشترِ الآن» (قناعةٌ مكتملة). وكلُّ ما سواه «انتظر» مع ذكر الناقص من القناعة كما ورد.
 - إن ذكر شركةً لا معطياتَ لها فقُل «غير متوفّر» ولا تخمّن.
+- آراءُ بيوت الخبرة (analysts) والأحداثُ الجوهرية والخطوطُ الحمراء شواهدُ تُذكر بأرقامها حين تؤيّد كلامَه أو تخالفه.
 - إن كانت «خطة_الهدف_في_موعد» حاضرة فهو يسأل: كيف أبلغ الهدف في هذا الموعد؟ فأجب بأرقامها: العائدُ المطلوب بلا ضخّ مقابل عائده الحاليّ،
   والضخُّ الشهريّ المطلوب، وحكمُ الواقعية. ثمّ ما يغيّره عملياً في المحفظة: أيُّ مراكزَ تُعاد إلى أوزانها، وأين يذهب الضخّ (ما «قرار_الطيار» فيه «اشترِ الآن» وحده)،
   وما يُخفَّف. لا تعِد بعائدٍ لم يحقّقه، ولا ترفع المخاطرة لتعويض الوقت.

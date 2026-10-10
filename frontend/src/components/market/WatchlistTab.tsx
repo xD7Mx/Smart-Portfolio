@@ -20,7 +20,7 @@ const KEY = "sp_active_watchlist";
 
 interface Group { id: number; name: string; color: string; is_default: boolean; }
 
-/** قائمة المراقبة: قوائم متعدّدة (مثل المحافظ) — مبدّل قوائم + شركات كل قائمة. */
+/** قسمُ المراقبة (‏D677: صار قسماً في القائمة مكانَ مختبر الأبحاث): قوائمُ متعدّدة — مبدّلٌ وبطاقةٌ لكلّ شركة. */
 export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => void }) {
   const qc = useQueryClient();
   const owner = useAuthStore((s: any) => s.isOwner);
@@ -66,61 +66,87 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
   const [editing, setEditing] = useState(false);
   const setActive = (id: number) => { setActiveId(id); localStorage.setItem(KEY, String(id)); };
 
+  /* ‏D677: تفاصيلُ كلّ شركةٍ من الفرز المخزَّن نفسِه (مفتاحُه مشتركٌ مع المختبر فلا يُطلب مرّتين): السعرُ العادل وثقتُه
+     والقرار — رقمُ اليوم الذي تعرضه صفحةُ السهم، لا حسابٌ ثانٍ */
+  const { data: scr = [] } = useQuery({
+    queryKey: ["screener-lite"], staleTime: 30 * 60_000,
+    queryFn: () => marketApi.screener().then(r => {
+      const d = r.data?.data;
+      return (Array.isArray(d) ? d : Array.isArray(d?.rows) ? d.rows : []) as any[];
+    }),
+  });
+  const info: Record<string, any> = Object.fromEntries(scr.map((x: any) => [String(x.symbol).replace(".SR", ""), x]));
+
   return (
-    <div className="card">
-      <div className="flex items-center gap-2 mb-4">
-        <Star size={16} className="text-[var(--warn-ink)]" />
-        <h2 className="card-title">قائمة المراقبة</h2>
-        <div className="ms-auto flex items-center gap-2">
-          <span className="text-[11px] text-[var(--ink-muted)]">{rows.length} شركة</span>
-          {owner && rows.length > 0 && (
-            <button onClick={() => setEditing(e => !e)} aria-label={editing ? "إنهاء التعديل" : "تعديل القائمة"}
-              className="w-8 h-8 grid place-items-center rounded-lg transition-colors"
-              style={{ color: editing ? "var(--brand-ink)" : "var(--ink-muted)", background: editing ? "var(--field)" : undefined }}>
-              {editing ? <Check size={15} /> : <Pencil size={14} />}
-            </button>
-          )}
-          <GroupSwitcher groups={groups} active={active} owner={owner} onSwitch={setActive} />
+    <div className="space-y-3">
+      <div className="card">
+        <div className="flex items-center gap-2">
+          <Star size={18} className="text-[var(--warn-ink)]" />
+          <h1 className="text-xl font-medium text-[var(--ink)]">المراقبة</h1>
+          <div className="ms-auto flex items-center gap-2">
+            <span className="text-[11px] text-[var(--ink-muted)] tabular-nums">{rows.length} شركة</span>
+            {owner && rows.length > 0 && (
+              <button onClick={() => setEditing(e => !e)} aria-label={editing ? "إنهاء التعديل" : "تعديل القائمة"}
+                className="w-8 h-8 grid place-items-center rounded-lg transition-colors"
+                style={{ color: editing ? "var(--brand-ink)" : "var(--ink-muted)", background: editing ? "var(--field)" : undefined }}>
+                {editing ? <Check size={15} /> : <Pencil size={14} />}
+              </button>
+            )}
+            <GroupSwitcher groups={groups} active={active} owner={owner} onSwitch={setActive} />
+          </div>
         </div>
+        {owner && gid != null && <div className="mt-3"><WatchlistAdd onPick={(c: any) => add.mutate(c)} existing={rows.map((r: any) => r.symbol)} /></div>}
       </div>
-      {owner && gid != null && <WatchlistAdd onPick={(c: any) => add.mutate(c)} existing={rows.map((r: any) => r.symbol)} />}
       {isLoading ? (
-        <div className="space-y-2 mt-3">{[...Array(3)].map((_, i) => <div key={i} className="h-12 skeleton" />)}</div>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">{[...Array(6)].map((_, i) => <div key={i} className="h-36 skeleton rounded-2xl" />)}</div>
       ) : rows.length === 0 ? (
-        <div className="py-12 text-center text-[var(--ink-muted)] text-sm">لا شركات في هذه القائمة</div>
+        <div className="card py-12 text-center text-[var(--ink-muted)] text-sm">لا شركات في هذه القائمة</div>
       ) : (
-        /* الشركات ظاهرة مباشرةً — لا قائمة منسدلة تُخفي ما جئتَ لرؤيته. */
-        /* ‏D558 · D560: بطاقةٌ واحدةٌ بصفّين — خلايا تفصلها خطوطٌ رفيعة لا مربّعاتٌ متراصّة،
-           وزرُّ الإزالة في وضع التعديل وحده */
-        <div className="grid grid-cols-2 mt-3 -mx-1">
-          {rows.map((r: any, i: number) => {
+        /* ‏D677 (بأمر المالك): بطاقةٌ لكلّ شركة — ثلاثٌ في الصفّ على الحاسوب واثنتان على الجوال، وتفاصيلُها ملمومة:
+           الهويّة، ثمّ السعرُ وتغيّرُه، ثمّ سطرٌ واحد للعادل والقرار */
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          {rows.map((r: any) => {
             const up = (r.change_pct ?? 0) >= 0;
-            const lastRow = i >= rows.length - (rows.length % 2 === 0 ? 2 : 1);
+            const x = info[String(r.symbol)] || {};
+            const fv = typeof x.fair_value === "number" && x.fair_value > 0 ? x.fair_value : null;
+            const ups = typeof x.upside_pct === "number" ? x.upside_pct : null;
+            const dec = typeof x.decision === "string" ? x.decision : null;
             return (
-              /* خليّةٌ بسطرين: الشعارُ والاسم، ثمّ السعرُ يميناً والنسبةُ يساراً */
-              <div key={r.symbol} className={`relative px-3 py-2.5 hover:bg-[var(--field)] transition-colors min-w-0 border-[var(--hairline)]${i % 2 === 0 ? " border-e" : ""}${lastRow ? "" : " border-b"}`}>
-                <button onClick={() => onOpen(r.symbol)} className="w-full text-start min-w-0 block">
-                  <span className="flex items-center gap-2 min-w-0 pe-5">
-                    <CompanyLogo symbol={r.symbol} size={26} />
+              <div key={r.symbol} className="relative rounded-2xl border border-[var(--hairline)] bg-[var(--surface)] hover:border-[var(--line)] transition-colors min-w-0">
+                <button onClick={() => onOpen(r.symbol)} className="w-full text-start min-w-0 block p-3 md:p-4">
+                  <span className="flex items-center gap-2.5 min-w-0 pe-6">
+                    <CompanyLogo symbol={r.symbol} size={34} />
                     <span className="min-w-0">
-                      <span className="text-[var(--ink)] text-[12.5px] font-semibold truncate block">{r.name}</span>
-                      <span className="text-[10px] text-[var(--ink-muted)] tabular-nums">{r.symbol}</span>
+                      <span className="text-[var(--ink)] text-[13px] md:text-[14px] font-semibold leading-snug line-clamp-2 md:truncate md:block">{r.name}</span>
+                      <span className="tag-b inline-block mt-0.5" style={{ fontSize: 10 }}>{r.symbol}</span>
                     </span>
                   </span>
-                  <span className="flex items-baseline justify-between gap-2 mt-1.5">
-                    <span className="text-[var(--ink)] tabular-nums text-sm font-semibold">
+                  <span className="flex items-baseline justify-between gap-2 mt-3">
+                    <span className="text-[var(--ink)] tabular-nums text-[17px] md:text-[19px] font-semibold">
                       <LivePrice symbol={r.symbol} fallback={r.price} />
                     </span>
                     {r.change_pct != null && (
-                      <span className="text-[11px] font-bold tabular-nums" style={{ color: up ? "var(--pos-ink)" : "var(--neg-ink)" }}>
-                        <span className="chg-arrow">{up ? "▲" : "▼"}</span> {up ? "+" : ""}{r.change_pct.toFixed(2)}%
+                      <span className="text-[11px] md:text-[12px] font-bold tabular-nums px-1.5 py-0.5 rounded-md"
+                        style={{ color: up ? "var(--pos-ink)" : "var(--neg-ink)",
+                                 background: `color-mix(in srgb, ${up ? "var(--pos-ink)" : "var(--neg-ink)"} 10%, transparent)` }}>
+                        <span className="chg-arrow">{up ? "▲" : "▼"}</span> <span dir="ltr">{up ? "+" : ""}{r.change_pct.toFixed(2)}%</span>
                       </span>
                     )}
                   </span>
+                  {(fv || dec) && (
+                    <span className="flex items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-[var(--hairline)] text-[11px] min-w-0">
+                      <span className="text-[var(--ink-muted)] truncate">
+                        {fv ? <>العادل <span className="text-[var(--ink)] font-semibold tabular-nums">{fv.toFixed(2)}</span>
+                          {ups != null && <> <span className="tabular-nums" dir="ltr" style={{ color: ups >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>{ups >= 0 ? "+" : ""}{ups.toFixed(1)}%</span></>}</>
+                          : "العادل —"}
+                      </span>
+                      {dec && <span className="shrink-0 font-bold" style={{ color: DECISION_INK[dec] || "var(--ink-muted)" }}>{dec}</span>}
+                    </span>
+                  )}
                 </button>
                 {owner && editing && (
                   <button onClick={() => remove.mutate(r.symbol)} aria-label="إزالة"
-                    className="icon-live absolute top-1.5 end-1.5 w-8 h-8 grid place-items-center rounded-lg text-[var(--ink-muted)] hover:text-[var(--neg-ink)] transition-all" title="إزالة"><X size={13} /></button>
+                    className="icon-live absolute top-2 end-2 w-8 h-8 grid place-items-center rounded-lg text-[var(--ink-muted)] hover:text-[var(--neg-ink)] transition-all" title="إزالة"><X size={14} /></button>
                 )}
               </div>
             );
@@ -130,6 +156,12 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
     </div>
   );
 }
+
+/* لونُ القرار من رموز التطبيق — كما في صفحة السهم */
+const DECISION_INK: Record<string, string> = {
+  "شراء قوي": "var(--pos-ink)", "شراء": "var(--pos-ink)", "احتفاظ": "var(--ink)",
+  "انتظار": "var(--warn-ink)", "تجنب": "var(--neg-ink)",
+};
 
 /** مبدّل قوائم المراقبة — نفس نمط بوّابة المحافظ: تبديل + إنشاء + تعديل (اسم+لون) + حذف. */
 function GroupSwitcher({ groups, active, owner, onSwitch }: {

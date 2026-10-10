@@ -26,6 +26,7 @@ import CompanyProfileCards from "../components/analysis/CompanyProfileCards";
 import StockOpinion from "../components/analysis/StockOpinion";
 import clsx from "clsx";
 import DateInput from "../components/common/DateInput";
+import CheckBox from "../components/common/CheckBox";
 
 const fmt  = (n: number, dec = 2) => (n ?? 0).toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 const fmt0 = (n: number) => (n ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -246,17 +247,17 @@ function TxModal({ companyId, onClose }: { companyId: number; onClose: () => voi
               <div><label className="label">معامل التجزئة</label><NumInput value={f.factor} onChange={setV("factor")} /></div>
               {/* نفس حارس صفحة المحفظة: كميات الوسيط مُجزَّأة أصلاً، وتسجيل
                   التجزئة فوقها يضربها مرّتين ويفسد الحيازة صامتاً. */}
-              <label className="flex items-start gap-2 text-[11px] leading-relaxed cursor-pointer rounded-xl p-3"
+              <div className="text-[11px] leading-relaxed rounded-xl p-3"
                 style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
-                <input type="checkbox" className="mt-0.5" checked={preSplitOk}
-                  onChange={e => setPreSplitOk(e.target.checked)} />
+                <CheckBox checked={preSplitOk} onChange={setPreSplitOk} align="start" label={<>
                 <span className="text-[var(--ink)]">
                   أُقرّ بأن كميات العمليات السابقة هي كميات <b>ما قبل التجزئة</b>.
                   <span className="block text-[var(--ink-muted)] mt-0.5">
                     إن كنت أدخلتها كما تظهر في تطبيق الوسيط اليوم فهي مُجزَّأة أصلاً.
                   </span>
                 </span>
-              </label>
+              </>} />
+              </div>
             </>
           )}
           {type === "BUY" && addQty > 0 && Number(f.price) > 0 && (

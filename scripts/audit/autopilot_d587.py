@@ -105,7 +105,9 @@ check("digest_visual" in lw and "MIN_FREE_MB" in lw and "_upload(path" in lw and
       "١٢ المكتبة: مبادئُ بصفحاتٍ موجودة، والمصوَّرُ يُقرأ بصرياً قطعاً بحارس الذاكرة ويُحذف بعده")
 fe = (ROOT / "frontend/src/components/governance/AutopilotCard.tsx").read_text()
 gp = (ROOT / "frontend/src/pages/GovernancePage.tsx").read_text()
-check("<AutopilotCard />" in gp and "seg-btn" not in fe and "\"trader\"" not in fe and "setMode" not in fe, "١٣ بطاقةُ الحوكمة برأيٍ واحدٍ بلا مفتاح (D591)")
+_ai = (ROOT / "frontend/src/pages/AIPage.tsx").read_text()
+check("<AutopilotCard />" in _ai and "<AutopilotCard />" not in gp and "\"trader\"" not in fe and "setMode" not in fe,
+      "١٣ المستشارُ برأيٍ واحدٍ بلا مفتاح (D591)، في «تحليل الذكاء» لا الحوكمة (‏D679)")
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text()
 check('id="autopilot_close"' in sch and 'id="library_wisdom_dawn"' in sch, "١٤ يُحسب بعد الإغلاق، والمكتبةُ تُدرَس فجراً")
 # ── D589: الحوار ──
