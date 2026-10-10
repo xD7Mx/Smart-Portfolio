@@ -32,6 +32,25 @@ async def main():
     from app.services import tasi_history as TH
     st = {k: v for k, v in (lastgood.load(TH._HOURS_KEY) or {}).items() if isinstance(v, list)}
     print(f"  جلساتٌ رسمية محفوظة: {sorted(st)[-5:]}")
+    d1 = data(await get_price_history("^TASI", tf="1d")) or []
+    flat = sum(1 for b in d1 if min(b["open"], b["close"]) == b["low"] and max(b["open"], b["close"]) == b["high"])
+    print(f"  يوميُّ تاسي: {len(d1)} شمعة · بلا ذيلٍ (أعلاها وأدناها طرفاها) {flat} — آخرُ ثلاث {d1[-3:]}")
+    # كم يمتدّ فاصلُ الساعة في ياهو لتاسي؟ وهل لليوميّ أعلى وأدنى حقيقيّان؟
+    import httpx
+    async with httpx.AsyncClient(timeout=15, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}) as c:
+        for rng, iv in (("6mo", "60m"), ("1y", "60m"), ("2y", "60m"), ("1y", "1d"), ("5y", "1wk"), ("10y", "1mo")):
+            try:
+                r = await c.get(f"https://query1.finance.yahoo.com/v8/finance/chart/%5ETASI.SR?range={rng}&interval={iv}")
+                res = (r.json().get("chart", {}).get("result") or [None])[0] if r.status_code == 200 else None
+                ts = (res or {}).get("timestamp") or []
+                q = (((res or {}).get("indicators") or {}).get("quote") or [{}])[0]
+                hi, lo, cl = q.get("high") or [], q.get("low") or [], q.get("close") or []
+                wick = sum(1 for h, l, x in zip(hi, lo, cl) if None not in (h, l, x) and (h > x or l < x))
+                from datetime import datetime, timezone, timedelta
+                ds = [datetime.fromtimestamp(t, tz=timezone(timedelta(hours=3))).strftime("%Y-%m-%d %H:%M") for t in ts]
+                print(f"  ياهو ^TASI.SR {rng}/{iv}: HTTP {r.status_code} · {len(ts)} · {ds[:1]} → {ds[-1:]} · بذيلٍ حقيقيّ {wick}")
+            except Exception as e:                                 # noqa: BLE001
+                print(f"  ياهو {rng}/{iv}: ✘ {type(e).__name__}")
 
     print("\n═ ٢ تبويبُ التوقعات")
     items = data(await get_forecasts()) or []
