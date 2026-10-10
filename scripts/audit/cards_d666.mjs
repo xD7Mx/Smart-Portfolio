@@ -70,9 +70,11 @@ const measure = (page, sel) => page.evaluate((sel) => {
   const sw = Math.max(document.documentElement.scrollWidth, main ? main.scrollWidth : 0);
   const cards = [...document.querySelectorAll(sel)];
   const tags = cards.filter(c => c.querySelector(".ev-tag")).length;
+  // ‏D667: لكلّ بطاقةٍ شعارٌ — شعارُ الشركة أو علامةُ التطبيق مكانَ الغائب، لا فراغ
+  const logos = cards.filter(c => { const s = c.firstElementChild; return s && s.querySelector("img, svg"); }).length;
   const minH = cards.length ? Math.min(...cards.map(c => Math.round(c.closest("a,button,div").getBoundingClientRect().height))) : 0;
   const over = cards.filter(c => { const r = c.getBoundingClientRect(); return r.right > W + 1 || r.left < -1; }).length;
-  return { W, sw, n: cards.length, tags, minH, over };
+  return { W, sw, n: cards.length, tags, minH, over, logos };
 }, sel);
 
 for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile: true, hasTouch: true }], ["الحاسوب", { width: 1280, height: 900 }]]) {
@@ -116,6 +118,7 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
   const m2 = await measure(page, ".event-item");
   say(m2.n >= 3 && m2.tags === m2.n, `${label}: بطاقاتُ «التوقعات» البطاقةُ الموحّدة بوسمٍ صلب`, `${m2.tags}/${m2.n}`);
   say(m2.sw <= m2.W + 1 && m2.over === 0, `${label}: «التوقعات» بلا فيضٍ أفقيّ`, `محتوى ${m2.sw} · شاشة ${m2.W}`);
+  say(m2.logos === m2.n, `${label}: لكلّ بطاقةٍ شعار — وعلامةُ التطبيق مكانَ الغائب (D667)`, `${m2.logos}/${m2.n}`);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `forecasts_${vp.width}.png`) });
   await ctx.close();
 }

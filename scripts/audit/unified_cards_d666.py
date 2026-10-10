@@ -41,6 +41,12 @@ check("<MaterialEvents symbol={company.symbol} />" in cp and "<MaterialEvents sy
 css = (src / "styles/globals.css").read_text(encoding="utf-8")
 check("--tag-contract:" in css, "٦ ولونُ وسم العقد رمزٌ في الدليل لا قيمةٌ ثابتة")
 check(" dir=\"ltr\">{fmtCardDate" not in ec, "٧ والتاريخُ بلا قلبِ اتجاه — قُلب فظهر «202026/09/» في الجوال")
+# ‏D667 (بأمر المالك: «إذا لم يوجد شعار ضع أيقونة التطبيق ليملأ فراغ الشعار حتى يكون أجمل»)
+cl = (src / "components/common/CompanyLogo.tsx").read_text(encoding="utf-8")
+lg = (src / "components/common/Logo.tsx").read_text(encoding="utf-8")
+check("<Logo size={32} flat />" in ec and "<Logo size={size} flat />" in cl and "base.slice(0, 4)" not in cl and "co-logo" in cl,
+      "٩ D667 لا شعار ⇒ علامةُ التطبيق: في البطاقة بلا شركة، وفي شعار الشركة الغائب — لا فراغ ولا مربّعُ رمز")
+check("flat ?" in lg, "١٠ D667 والعلامةُ داخل البطاقة بلا هالة — الهالةُ للترويسة وحدها")
 rs = (ROOT / "scripts/audit/run.sh").read_text(encoding="utf-8")
 check("node scripts/audit/cards_d666.mjs" in rs, "٨ والقياسُ في المتصفّح بعرضَي الجوال والحاسوب ضمن اللجنة")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")

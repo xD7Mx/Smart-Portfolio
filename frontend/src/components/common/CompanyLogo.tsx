@@ -1,3 +1,4 @@
+import Logo from "./Logo";
 import React, { useEffect, useRef, useState } from "react";
 import { TV_LOGOS } from "../../data/tradingviewLogos";
 
@@ -108,23 +109,15 @@ export default function CompanyLogo({ symbol, color, size = 40, logoUrl }: { sym
       />
     );
   }
+  /* ══ لا شعار ⇒ علامةُ التطبيق ══ (بأمر المالك · D667: «إذا لم يوجد شعار ضع أيقونة التطبيق ليملأ فراغ الشعار حتى
+     يكون أجمل») — كان البديلُ رمزَ الشركة على تدرّج لونها، فبدا مربّعاً غريباً بين الشعارات. والرمزُ مكتوبٌ بجانب
+     الاسم في كلّ صفّ، فلا يضيع. و`co-logo` على البديل كما على الصورة: صفٌّ واحدٌ يسمّي الحالتين، فيُقاس **وجودُ
+     الشعار** لا وجودُ الشبكة (‏D232). */
+  void color;
   return (
-    <div
-      /* `co-logo` على البديل كما على الصورة: صفٌّ واحدٌ يسمّي الحالتين،
-         فيُقاس **وجودُ الشعار** لا وجودُ الشبكة (‏D232). */
-      className="co-logo rounded-xl flex items-center justify-center font-bold shrink-0"
-      style={{
-        width: size, height: size, color: "#fff",
-        // أرضية ٩٫٥ بكسل: شعارٌ بحجم ٢٤ كان يكتب رمزه بـ٧٫٢ — تحت عتبة
-        // القراءة التي أقرّتها اللجنة، خصوصاً في الإضاءة الخافتة.
-        fontSize: Math.max(9.5, size * 0.3),
-        /* التدرّج يُعتَّم بخلطه بالأسود: لونُ الشركة قد يأتي فاتحاً فيصير
-        الرمز الأبيض عليه دون الأرضية (قِيس ٣٫٦٥:١). الخلط يضمن أرضيةً
-        داكنةً دائماً مهما كان لون الشركة، والهويّة تبقى لأن الصبغة نفسها. */
-        background: `linear-gradient(135deg, color-mix(in srgb, ${color || "#2563eb"} 78%, #000), #4c1d95)`,
-      }}
-    >
-      {base.slice(0, 4)}
-    </div>
+    <span className="co-logo inline-flex shrink-0 rounded-xl" style={{ width: size, height: size }}
+          role="img" aria-label={base || "المحفظة الذكية"}>
+      <Logo size={size} flat />
+    </span>
   );
 }

@@ -1,5 +1,6 @@
 import React from "react";
 import CompanyLogo from "./CompanyLogo";
+import Logo from "./Logo";
 import { lookupCompany } from "../../data/saudiCompanies";
 
 /* ══ بطاقةُ الحدث الموحّدة (D666) ══ (بأمر المالك: «الشكلُ الجماليّ والتصميمُ الموحّد للتطبيق ميزةٌ لنا»)
@@ -19,7 +20,8 @@ export default function EventCard({ symbol, name, tag, title, date, meta, href, 
   const nm = name || (symbol ? lookupCompany(symbol)?.name_ar : null);
   const body = (
     <div className="event-item flex items-center gap-3 p-2.5 rounded-xl transition-colors">
-      {symbol ? <span className="shrink-0"><CompanyLogo symbol={symbol} size={32} /></span> : null}
+      {/* ‏D667: بندٌ لا شركةَ له (تقريرٌ اقتصاديّ · إعلانٌ عامّ) تملأ علامةُ التطبيق مكانَ شعاره — لا فراغَ يكسر المحاذاة */}
+      <span className="shrink-0">{symbol ? <CompanyLogo symbol={symbol} size={32} /> : <Logo size={32} flat />}</span>
       <div className="min-w-0 flex-1 space-y-1">
         <span className="ev-tag inline-block" style={{ background: tag.bg, color: tag.fg || "var(--tag-ink)" }}>{tag.label}</span>
         {(nm || symbol) && (
