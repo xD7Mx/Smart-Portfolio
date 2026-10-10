@@ -25,7 +25,9 @@ URL_DAILY = ("https://www.saudiexchange.sa/tadawul.eportal.charts.v2/ChartGenera
              "?methodType=parsingMethod&chart-type=SQL_T_IC_ALL_COM&chart-parameter=tasi"
              "&format=json")
 SYMBOLS = {"^TASI.SR", "^TASI", "TASI"}
-_KEEP = {"1mo": 22, "3mo": 66, "6mo": 132, "1y": 260, "2y": 520, "5y": 1300}
+_KEEP = {"1mo": 22, "3mo": 66, "6mo": 132, "1y": 260, "2y": 520, "5y": 1300,
+         # ‏D663: يوميٌّ بلا تجميعٍ أسبوعيّ لإطارات الرسم — سنتان · خمسٌ · كلُّه منذ 2007
+         "d2y": 520, "d5y": 1300, "dall": 10 ** 6}
 _DAILY_KEY = "market:tasi_daily"
 _TTL = 5 * 60
 
@@ -131,6 +133,32 @@ def overlay(provider: list, official: dict) -> list:
     for d in days:
         rows += official[d]
     return sorted(rows, key=lambda r: str(r["date"]))
+
+
+def real_daily(closes: list, hours: list) -> list:
+    """اليوميُّ الرسميّ وأيامُ الساعات الحقيقية (D663): كلُّ يومٍ له ساعاتٌ تُبنى شمعتُه منها — فتحُ أوّل ساعة · أعلى ·
+    أدنى — وإغلاقُه الرسميُّ من «تداول» يحكم. وما قبل مدى الساعات يبقى سلسلةَ الإغلاق الرسمية كما هي."""
+    real: dict = {}
+    for h in hours or []:
+        d = str(h["date"])[:10]
+        b = real.get(d)
+        if b is None:
+            real[d] = {"date": d, "time": 0, "open": h["open"], "high": h["high"], "low": h["low"],
+                       "close": h["close"], "volume": 0}
+        else:
+            b["high"], b["low"], b["close"] = max(b["high"], h["high"]), min(b["low"], h["low"]), h["close"]
+    out, have = [], set()
+    for c in closes or []:
+        d = str(c["date"])[:10]
+        have.add(d)
+        r = real.get(d)
+        if r:
+            cl = c["close"]
+            out.append({**r, "close": cl, "high": max(r["high"], cl), "low": min(r["low"], cl)})
+        else:
+            out.append(c)
+    out += [v for d, v in real.items() if d not in have]
+    return sorted(out, key=lambda x: str(x["date"]))
 
 
 async def capture() -> dict:

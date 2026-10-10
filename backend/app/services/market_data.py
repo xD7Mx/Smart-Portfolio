@@ -320,6 +320,7 @@ def _persist_valuation(symbol: str, data: dict) -> None:
 
 # ══ إطاراتُ الرسم (ملاحظةُ المالك 2026-10-09) ══ طولُ الشمعة لا طولُ المدّة — كتريدنق فيو
 BAR_FRAMES = ("1h", "4h", "1d", "1wk", "1mo")
+TASI_HOURS_RANGE = "2y"     # ‏D663: أطولُ مدًى قِيس لساعات ^TASI.SR في ياهو (d661_d662_door)
 
 
 def four_hour(rows: list, saudi: bool = True) -> list:
@@ -1721,9 +1722,34 @@ class MarketDataService:
         if symbol.upper() in _th.SYMBOLS:
             if tf in ("1h", "4h"):
                 return await self._tasi_intraday(tf)
-            pts = await _th.history({"1d": "1y", "1wk": "5y", "1mo": "5y"}.get(tf, "1y")) or []
-            return monthly(pts) if tf == "1mo" else pts
+            return await self._tasi_daily(tf)
         return await self._yahoo().get_bars(symbol, tf)
+
+    async def _tasi_daily(self, tf: str) -> list:
+        """يومُ تاسي وأسبوعُه وشهرُه بشموعٍ حقيقية (D663).
+
+        المالك: «الساعةُ **والبقيّة** ليست حقيقية». وقِيس (`d661_d662_door.py`): يوميُّ «تداول» إغلاقٌ وحدَه، فكانت شمعتُه
+        من إغلاق الأمس إلى إغلاق اليوم بلا ذيل — أعلاها وأدناها طرفاها لا أعلى اليوم وأدناه. وياهو يسلّم ساعاتِ `^TASI.SR`
+        حقيقيةً لمدًى أطول من اليوميّ؛ فكلُّ يومٍ له ساعاتٌ تُبنى شمعتُه منها وإغلاقُه الرسميُّ يحكم، وما قبل ذلك
+        سلسلةُ الإغلاق الرسمية كما هي. والأسبوعُ (الأحد–الخميس) والشهرُ منها."""
+        from app.services import cache
+        from app.services import tasi_history as _th
+        ck = f"bars:tasi:{tf}:v2"
+        hit = cache.get(ck)
+        if hit is not None:
+            return hit
+        hk = "bars:tasi:hours-long:v1"
+        hours = cache.get(hk)
+        if hours is None:
+            hours = _th.overlay(await self._yahoo()._fetch_hourly("^TASI.SR", TASI_HOURS_RANGE), await _th.capture())
+            if hours:
+                cache.set(hk, hours, 30 * 60)
+        closes = await _th.history({"1d": "d2y", "1wk": "d5y", "1mo": "dall"}.get(tf, "d2y")) or []
+        days = _th.real_daily(closes, hours or [])
+        rows = days if tf == "1d" else _th.weekly(days)[-260:] if tf == "1wk" else monthly(days)
+        if len(rows) >= 2:
+            cache.set(ck, rows, 5 * 60)
+        return rows
 
     async def _tasi_intraday(self, tf: str) -> list:
         """ساعةُ تاسي وأربعُ ساعاته شموعاً حقيقيةً دون اليوم (D661).

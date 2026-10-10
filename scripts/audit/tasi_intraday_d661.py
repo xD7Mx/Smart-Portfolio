@@ -57,6 +57,18 @@ check(len(ov) == 10 and [r["date"] for r in ov if r["date"].startswith("2026-10-
       "٩ اليومُ المحفوظ من «تداول» يُؤخذ منها كاملاً وما قبله من ياهو — بلا تكرار", str(len(ov)))
 check(all(len(r["date"]) == 16 for r in ov), "١٠ وكلُّ شمعةٍ بساعتها — لا يومَ مجرّداً تحت اسم الساعة")
 
+# ‏D663: «والبقيّة» — اليومُ والأسبوعُ والشهر: شمعةُ إغلاقٍ إلى إغلاقٍ بلا ذيلٍ ليست شمعةَ يوم
+check("return await self._tasi_daily(tf)" in seg and "_th.real_daily(" in md and '"1y")) or []' not in seg,
+      "١٢ يومُ تاسي وأسبوعُه وشهرُه يمرّون بالشموع الحقيقية لا بسلسلة الإغلاق وحدَها")
+closes = [{"date": "2026-10-07", "open": 100, "high": 101, "low": 100, "close": 101, "volume": 0},
+          {"date": "2026-10-08", "open": 101, "high": 102, "low": 101, "close": 102, "volume": 0}]
+hrs = [{"date": "2026-10-08 10:00", "open": 101.2, "high": 103, "low": 100.5, "close": 102.5},
+       {"date": "2026-10-08 15:00", "open": 102.5, "high": 102.6, "low": 101.8, "close": 101.9}]
+rd = TH.real_daily(closes, hrs)
+check(rd[-1]["open"] == 101.2 and rd[-1]["high"] == 103 and rd[-1]["low"] == 100.5 and rd[-1]["close"] == 102,
+      "١٣ اليومُ الذي له ساعاتٌ: فتحُ أوّلها · أعلاها · أدناها — وإغلاقُه الرسميُّ يحكم", str(rd[-1]))
+check(rd[0] == closes[0], "١٤ وما قبل مدى الساعات يبقى سلسلةَ الإغلاق الرسمية كما هي — لا يُخترع له ذيل")
+
 sc = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 check("job_tasi_session" in sc and 'id="tasi_session_close"' in sc and "capture()" in sc,
       "١١ وتُحفظ الجلسةُ بعد الإغلاق مجدولةً — وإن لم يفتح أحدٌ الرسم")
