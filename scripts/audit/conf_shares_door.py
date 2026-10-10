@@ -15,10 +15,16 @@ async def main():
     from app.services.fair_value_models import gather
     from app.services.market_screener import get_cached_screener
     rows = {str(r.get("symbol")).replace(".SR", ""): r for r in (get_cached_screener() or [])}
+    from app.services.market_data import market_service
+    print("مفاتيحُ صفّ الفرز:", sorted(k for k in (rows.get("2280") or {}) if "cap" in k.lower() or "share" in k.lower()))
     for s in ("4262", "4261", "4163", "4083", "1835", "4071", "6010", "4327", "1120", "2280"):
         i = await gather(s)
         r = rows.get(s) or {}
-        mc, px = r.get("market_cap"), r.get("price")
+        info = await market_service.get_company_info(f"{s}.SR") or {}
+        px = r.get("price")
+        mc = r.get("market_cap") or info.get("market_cap") or info.get("marketCap")
+        so = info.get("shares_outstanding") or info.get("sharesOutstanding")
+        print(f"   مزوّد: القيمةُ السوقية {mc} · الأسهمُ القائمة {so}")
         implied = (mc / px) if (mc and px) else None
         ni = (i.ttm or {}).get("net_income") if i else None
         hist = {k: (v[-3:] if isinstance(v, list) else v) for k, v in ((i.hist if i else {}) or {}).items()}
