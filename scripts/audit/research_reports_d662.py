@@ -23,8 +23,8 @@ def check(ok, label, det=""):
 
 
 fc = (ROOT / "backend/app/services/forecasts.py").read_text(encoding="utf-8")
-check("from app.services.research_reports import collect" in fc and "reports + news" in fc,
-      "١ التبويبُ يُبنى من تقارير الجهات المرخّصة أوّلاً ثمّ أخبار «أرقام»")
+check("from app.services.research_reports import collect" in fc and "reports + opinions + news" in fc,
+      "١ التبويبُ يُبنى من تقارير الجهات المرخّصة أوّلاً ثمّ أخبار «أرقام» (وآراءُ بيوت الخبرة بينهما · D664)")
 check('lastgood.save(LAST_KEY' in fc and 'lastgood.load(LAST_KEY)' in fc,
       "٢ وتعذُّرٌ لحظيٌّ لا يُخليه: آخرُ ما وصل يُعرض بتاريخه")
 try:
@@ -73,11 +73,12 @@ arc = R.arc_items('{"Items":[{"Title":"تقرير السوق اليومي","Date
                   '"Url":"/-/media/Feature/AlRajhiCapital/ResearchListing/Daily-Reports/2026/OCT/DMR.pdf"},{"Title":"بلا رابط","Date":"2026-10-08"}]}')
 check(len(arc) == 1 and arc[0]["url"].startswith("https://www.alrajhi-capital.sa/-/media/"), "٩ وردُّ القائمة: ما بلا رابطٍ يُترك", str(arc))
 
-items = [{"kind": "تقرير يوميّ", "date": f"2026-10-0{i}", "url": f"u{i}", "title": "t"} for i in range(1, 8)]
+items = [{"kind": "تقرير يوميّ", "date": f"2026-10-0{i}", "url": f"u{i}", "title": "t", "source": "س"} for i in range(1, 8)]
 items += [{"kind": "تقرير شركة", "date": "2026-10-05", "url": "c1", "title": "t"}, {"kind": "تقرير شركة", "date": "2026-10-05", "url": "c1", "title": "t"}]
-sel = R.select(items)
-check(sum(1 for x in sel if x["kind"] == "تقرير يوميّ") == 2 and [x["date"] for x in sel][:1] == ["2026-10-07"]
-      and sum(1 for x in sel if x["url"] == "c1") == 1, "١٠ الأحدثُ أوّلاً، واليوميُّ لا يُغرق التبويب، والملفُّ لا يتكرّر")
+sel = R.select(items, today="2026-10-10")
+check(sum(1 for x in sel if x["kind"] == "تقرير يوميّ") == R.DAILY_KEEP and [x["date"] for x in sel][:1] == ["2026-10-07"]
+      and sum(1 for x in sel if x["url"] == "c1") == 1,
+      "١٠ الأحدثُ أوّلاً، واليوميُّ لا يُغرق التبويب (آخرُ خمسةٍ لكلّ جهة · D664)، والملفُّ لا يتكرّر")
 check(R._company("التقرير الاستراتيجي للسوق") is None, "١١ والشركةُ لا تُنسب إلا بمطابقةٍ واحدة — العنوانُ العامُّ بلا رمز")
 
 sc = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")

@@ -82,7 +82,7 @@ def rows_of(page: str) -> list[dict]:
                         "target": _num(at(cells, "السعر المستهدف")),
                         "pdf": pdf.group(1) if pdf else None,
                         "cid": cid.group(1) if cid else None,
-                        "company_name": at(cells, "الشركة")})
+                        "company_label": at(cells, "الشركة")})
     return out
 
 
