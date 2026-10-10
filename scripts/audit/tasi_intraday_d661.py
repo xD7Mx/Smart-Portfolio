@@ -68,6 +68,8 @@ rd = TH.real_daily(closes, hrs)
 check(rd[-1]["open"] == 101.2 and rd[-1]["high"] == 103 and rd[-1]["low"] == 100.5 and rd[-1]["close"] == 102,
       "١٣ اليومُ الذي له ساعاتٌ: فتحُ أوّلها · أعلاها · أدناها — وإغلاقُه الرسميُّ يحكم", str(rd[-1]))
 check(rd[0] == closes[0], "١٤ وما قبل مدى الساعات يبقى سلسلةَ الإغلاق الرسمية كما هي — لا يُخترع له ذيل")
+check('if tf == "1d" and hours:' in md and '>= first]' in md,
+      "١٥ وإطارُ اليوم يبدأ من أوّل يومٍ له ساعات — لا شمعةَ يومٍ بلا ذيلٍ فيه (قِيس: 24 من 520 قبل القصّ)")
 
 sc = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 check("job_tasi_session" in sc and 'id="tasi_session_close"' in sc and "capture()" in sc,

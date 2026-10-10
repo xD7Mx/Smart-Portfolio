@@ -1746,6 +1746,9 @@ class MarketDataService:
                 cache.set(hk, hours, 30 * 60)
         closes = await _th.history({"1d": "d2y", "1wk": "d5y", "1mo": "dall"}.get(tf, "d2y")) or []
         days = _th.real_daily(closes, hours or [])
+        if tf == "1d" and hours:                                  # اليوميُّ كلُّه حقيقيّ: من أوّل يومٍ له ساعات
+            first = str(hours[0]["date"])[:10]
+            days = [d for d in days if str(d["date"])[:10] >= first] or days
         rows = days if tf == "1d" else _th.weekly(days)[-260:] if tf == "1wk" else monthly(days)
         if len(rows) >= 2:
             cache.set(ck, rows, 5 * 60)
