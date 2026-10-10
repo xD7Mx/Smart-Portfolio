@@ -776,7 +776,8 @@ def value(i: Inputs) -> dict:
     _pruned: list[dict] = []
     if _ad:
         _kept = [m for m in models if m.get("key") not in _ad]
-        if len(_kept) >= MIN_MODELS:
+        # تعديلٌ بعد البوابة: يبقى أربعةٌ فأكثر — قِيس أنّ لومي وذيب بقيت لهما ثلاثةُ مضاعفاتٍ تاريخيةٍ وحدها بعد الحذف
+        if len(_kept) >= MIN_MODELS + 1:
             _pruned = [m for m in models if m.get("key") in _ad]
             models = _kept
     agg = aggregate(models, i.price, i.archetype)
@@ -803,6 +804,7 @@ def value(i: Inputs) -> dict:
         {**m, "excluded": "منحازٌ في هذا النمط بالقياس (تحقّقٌ متقاطع على أهداف المحلّلين) — لا يدخل الرقم"} for m in _pruned]
     return {**agg, "price": i.price, "models": models, "count": len(models),
             "notes": bs.notes + i.notes + extra_notes, "peers": i.peer_symbols, "sector": i.sector, "model_set": set_name,
+            "set_size": len(allowed),                                # ‏D672: حجمُ مجموعة القطاع — «ثلاثةٌ من ثلاثة» غيرُ «ثلاثةٍ من أربعة عشر»
             "ttm_source": i.ttm_source,
             "rates": {"ke": round(bs.ke, 4), "wacc": round(bs.wacc, 4), "tax": round(bs.tax, 3)}}
 
@@ -901,6 +903,9 @@ def sanity_ttm(ttm: dict, src: str, annual: list[dict], shares: float, price: fl
     return ttm, src
 
 
+SHARES_TOL = 1.15                    # ‏D674: كان 1.5
+
+
 def market_shares_check(shares: float, market_cap: float | None, price: float | None, notes: list) -> float:
     """‏D594: عددُ الأسهم من القوائم (الربحُ ÷ ربحيةِ السهم) يتخلّف عن المنح والتجزئة حتى تُنشر قوائمُ بعدها —
     قِيس: «المتحدة الدولية» 25 مليوناً والسوقُ يقول 250، فتضخّمت ربحيةُ السهم عشراً وصار سعرُها العادل 156 على 27.
@@ -908,7 +913,9 @@ def market_shares_check(shares: float, market_cap: float | None, price: float | 
     if not (market_cap and price and price > 0):
         return shares
     mkt = market_cap / price
-    if shares and (shares > mkt * 1.5 or shares < mkt / 1.5):
+    # ‏D674 (المرشَّح 2.3): مرّةٌ ونصفٌ لا تلتقط منحَ هذا السوق — منحةُ سهمٍ لكلّ خمسة (1.2×) أو ثلاثةٍ لكلّ سبعة (1.43×).
+    # قِيس: «الرمز» 30 مليوناً في القوائم و42.9 في السوق (0.70) فتضخّم سعرُها العادل 43٪ وبقي. فالحدُّ 15٪.
+    if shares and (shares > mkt * SHARES_TOL or shares < mkt / SHARES_TOL):
         notes.append(f"عددُ الأسهم من القوائم {shares / 1e6:,.1f} مليون يخالف السوق {mkt / 1e6:,.1f} مليون "
                      "(منحةٌ أو تجزئةٌ بعد آخر قوائم) — أُخذ عددُ السوق")
         return mkt
@@ -1343,7 +1350,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v39:{sym}"   # v39: D672 الحذفُ المعتمد بالنمط
+    ck = f"fvm:v40:{sym}"   # v40: D672 الحذفُ المعتمد بالنمط وحجمُ المجموعة
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

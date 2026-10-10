@@ -31,8 +31,12 @@ from app.services.analysis import confidence_of   # noqa: E402
 from app.services import fair_value_models as F   # noqa: E402
 
 M = lambda *vs: [{"key": f"m{i}", "value": v} for i, v in enumerate(vs)]   # noqa: E731
-check(confidence_of({"models": M(10, 10.5, 9.8), "notes": []}) == "مرتفعة",
-      "١ ثلاثةُ نماذج متّفقة (تشتّت ≤ 14٪) تكفي لـ«مرتفعة» — كانت تُنزل المصارفَ وهي أدقُّ الأوراق")
+check(confidence_of({"models": M(10, 10.5, 9.8), "notes": [], "set_size": 3}) == "مرتفعة",
+      "١ ثلاثةُ نماذج متّفقة هي مجموعةُ القطاع كاملةً (المصارف) تكفي لـ«مرتفعة» — كانت تُنزل أدقَّ الأوراق")
+check(confidence_of({"models": M(10, 10.5, 9.8), "notes": [], "set_size": 14}) != "مرتفعة",
+      "١ب وثلاثةٌ بقيت من أربعة عشر تعذّر أكثرُها لا تبلغها — تتّفق بالبناء لا بالشهادة (لومي وذيب في بوابة المرشَّح)")
+check(confidence_of({"models": M(80, 82, 79, 81), "notes": [], "value": 49.1, "price": 23.5}) == "منخفضة",
+      "١ج ورقمٌ يبعد عن السعر أكثرَ من 60٪ لا يكون «مرتفعة» ولا «متوسطة» — فيحجبه D628 (لومي +109٪)")
 check(confidence_of({"models": M(10, 12.5, 8), "notes": []}) == "متوسطة",
       "٢ والمتباعدةُ (تشتّت 20٪) تبقى «متوسطة»")
 check(confidence_of({"models": M(10, 10.2, 9.9, 10.1), "notes": ["خاسرةٌ في وسيط ثلاث سنوات"]}) == "منخفضة",
@@ -69,9 +73,12 @@ k1 = run("capital_infra", ["epv", "peer_ev_ebit", "peer_pe", "peer_pb", "peer_ps
 check(k1 == ["peer_pe", "peer_pb", "peer_ps", "dcf_gordon_5"], "٧ السلعُ الرأسماليةُ تُقيَّم بلا EPV ولا نماذجِ قيمة المنشأة", str(k1))
 k2 = run("capital_infra", ["epv", "peer_ev_ebit", "peer_pe", "peer_pb"])
 check(len(k2) == 4, "٨ ولا يُحذف ما يُنزل النماذجَ تحت ثلاثة — يبقى الأصل", str(k2))
+k2b = run("capital_infra", ["epv", "peer_ev_ebit", "peer_pe", "peer_pb", "peer_ps"])
+check(len(k2b) == 5, "٨ب ولا ما يُبقي ثلاثةً وحدها — يبقى أربعةٌ فأكثر أو الأصل (تعديلٌ بعد البوابة)", str(k2b))
 k3 = run("commodity", ["epv", "peer_ev_ebit", "peer_pe", "peer_pb"])
 check(len(k3) == 4, "٩ والنمطُ الذي لم يجتز التحقّقَ (السلع) لا يُحذف منه شيء", str(k3))
 src = (ROOT / "backend/app/services/fair_value_models.py").read_text(encoding="utf-8")
-check('f"fvm:v39:{sym}"' in src, "١٠ ومفتاحُ كاش النماذج تغيّر — لا يبقى رقمٌ قبل الحذف ستَّ ساعات")
+check('f"fvm:v40:{sym}"' in src and '"set_size": len(allowed)' in src,
+      "١٠ ومفتاحُ كاش النماذج تغيّر، وحجمُ مجموعة القطاع يُحمَل مع النماذج")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

@@ -55,7 +55,10 @@ async def main():
             cfm.append((s, a.get("fair_value_conf"), st.get("fair_value_conf")))
         # ‏D658: قرارٌ يقول «من مسارٍ واحد بلا شاهدٍ ثانٍ» وسعرُه العادل المعروض من محرّك النماذج المتعدّدة — تناقضٌ يراه المالك
         _rule = str(((a.get("decision") or {}) if isinstance(a.get("decision"), dict) else {}).get("rule_id") or "")
-        if "مسار_واحد" in _rule and (a.get("fair_value_detail") or {}).get("engine") == "fair_value_models":
+        # والتناقضُ أن تعرض التفاصيلُ نموذجين فأكثر — لا أن يكون المسارُ الواحدُ صادقاً: قِيس في المرشَّح 2.3 أنّ «التعاونية»
+        # تُقيَّم بنموذجٍ واحد (التأمينُ يُسقط المضاعفات · D646) فقال القرارُ «مسارٌ واحد» صادقاً وعدّه الحارسُ تناقضاً
+        _fd = a.get("fair_value_detail") or {}
+        if "مسار_واحد" in _rule and _fd.get("engine") == "fair_value_models" and not _fd.get("single_path"):
             single.append(s)
         d = deep.get(s) if isinstance(deep.get(s), dict) else {}
         pl, dl = _label(a.get("decision")), _label(d.get("decision"))
@@ -64,7 +67,7 @@ async def main():
     # والفرزُ: أحكامُ المسحة (بلا مصدرٍ مكمِّل) في المخزن العميق — كم منها مقيَّدٌ بـ«مسارٍ واحد» وقيمتُه من النماذج المتعدّدة
     single_screen = [s for s, d in deep.items() if isinstance(d, dict) and isinstance(d.get("decision"), dict)
                      and "مسار_واحد" in str(d["decision"].get("rule_id") or "") and _pos((store.get(s) or {}).get("fair_value"))
-                     and s in uni]
+                     and s in uni and not ((res.get(s) or {}).get("fair_value_detail") or {}).get("single_path")]
     n = len(res) - len(err)
     ok = not fvm and not dcm
     print(f"{'✔' if ok else '✘'} ٦ رقمُ اليوم — صفحاتٌ قِيست {n} (تعذّرت {len(err)}) · السعرُ العادل ≠ الفرز {len(fvm)} · "
