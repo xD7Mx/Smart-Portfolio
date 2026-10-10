@@ -175,7 +175,7 @@ _KINDS = (
     # وعناوينُ القائمة تصل **بالإنجليزية** (D659 يطلبها كذلك لمصنِّف الأحداث) — فقِيس أنّ شرطاً عربياً وحدَه لا يطابق شيئاً
     # (11 من 11 بلا نصٍّ بعد النشر الأوّل). فلكلّ عائلةٍ لفظُها باللغتين، ويكفي أحدُهما.
     (("حقوق أولوية", "حقوق الأولوية", "نشرة الإصدار"), ("أولوية", "rights issue", "right issue", "rights offering", "priority rights")),
-    (("أسهم منحة", "منحة", "زيادة رأس", "رأس المال", "رأس مال"), ("رأس المال", "capital increase", "increase in capital", "increase its capital", "increase the capital",
+    (("أسهم منحة", "منحة", "زيادة رأس", "رأس المال", "رأس مال"), ("رأس المال", "capital increase", "increase capital", "increase in capital", "increase its capital", "increase the capital",
                                                                           "increasing the capital", "increasing its capital", "bonus share")),
     (("صرف", "توزيع", "أرباح نقدية", "أحقية", "احقية"), ("أرباح", "dividend")),
     (("جمعية", "عمومية"), ("جمعية", "general assembly")),
