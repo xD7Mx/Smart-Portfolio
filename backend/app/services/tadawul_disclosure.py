@@ -172,10 +172,13 @@ _KINDS = (
     # ‏D665: أخبارُ المفكرة الصحفية («عموميةُ سينومي توافق…»، «هيئةُ السوق توافق على زيادة رأس مال…»، «نهايةُ أحقية أسهم
     # منحة») لا تشبه عناوينَ إفصاحاتها لفظاً، فكانت تُفتح بلا نصّ (قِيس: 11 من 11). فالأخصُّ أوّلاً، ولا يقف البحثُ
     # عند أوّل عائلةٍ لم تُطابق.
-    (("حقوق أولوية", "حقوق الأولوية", "نشرة الإصدار"), ("أولوية",)),
-    (("أسهم منحة", "منحة", "زيادة رأس", "رأس المال", "رأس مال"), ("رأس المال",)),
-    (("صرف", "توزيع", "أرباح نقدية", "أحقية", "احقية"), ("أرباح",)),
-    (("جمعية", "عمومية"), ("جمعية",)),
+    # وعناوينُ القائمة تصل **بالإنجليزية** (D659 يطلبها كذلك لمصنِّف الأحداث) — فقِيس أنّ شرطاً عربياً وحدَه لا يطابق شيئاً
+    # (11 من 11 بلا نصٍّ بعد النشر الأوّل). فلكلّ عائلةٍ لفظُها باللغتين، ويكفي أحدُهما.
+    (("حقوق أولوية", "حقوق الأولوية", "نشرة الإصدار"), ("أولوية", "rights issue", "right issue", "rights offering", "priority rights")),
+    (("أسهم منحة", "منحة", "زيادة رأس", "رأس المال", "رأس مال"), ("رأس المال", "capital increase", "increase in capital", "increase its capital", "increase the capital",
+                                                                          "increasing the capital", "increasing its capital", "bonus share")),
+    (("صرف", "توزيع", "أرباح نقدية", "أحقية", "احقية"), ("أرباح", "dividend")),
+    (("جمعية", "عمومية"), ("جمعية", "general assembly")),
 )
 
 
@@ -193,8 +196,8 @@ def kind_fallback(rows: list[dict], title: str, d0) -> dict | None:
                 rd = None
             if rd is None or not (d0 - dt.timedelta(days=150) <= rd <= d0 + dt.timedelta(days=3)):
                 continue
-            t = r.get("title") or ""
-            if all(n in t for n in need) and (best is None or rd > best[0]):
+            t = (r.get("title") or "").lower()
+            if any(n.lower() in t for n in need) and (best is None or rd > best[0]):
                 best = (rd, r)
         if best:
             return best[1]

@@ -38,6 +38,15 @@ cases = [
 for title, need in cases:
     r = kind_fallback(rows, title, d)
     check(bool(r) and need in r["title"], f"١ «{title[:44]}…» ← إفصاحُ «تداول» عن «{need}»", (r or {}).get("title", "—")[:60])
+# وعناوينُ القائمة كما تصل فعلاً — بالإنجليزية (قِيس بعد النشر الأوّل: 11 من 11 بلا نصّ لأنّ الشرطَ عربيٌّ وحدَه)
+en = [{"date": "2026-10-08", "title": "Arabian Centres Co. announces the results of the Extraordinary General Assembly Meeting including capital increase"},
+      {"date": "2026-10-07", "title": "Saudi Fisheries Co. announces the publication of the Rights Issue Prospectus"},
+      {"date": "2026-09-01", "title": "The company announces its Board of Directors recommendation to distribute cash dividends"}]
+for title, need in [("عمومية سينومي سنترز توافق على زيادة رأس مال الشركة بنسبة 8.98%", "capital"),
+                    ("الأسماك تُعلن نشرة الإصدار الخاصة بطرح أسهم حقوق أولوية", "Rights Issue"),
+                    ("عمومية سبكيم العالمية تفوض مجلس الإدارة بتوزيع أرباح مرحلية", "dividends")]:
+    r = kind_fallback(en, title, d)
+    check(bool(r) and need in r["title"], f"١ب «{title[:40]}…» ← الإفصاحُ بعنوانه الإنجليزيّ كما تصل القائمة", (r or {}).get("title", "—")[:60])
 check(kind_fallback(rows, "خبرٌ عن موضوعٍ آخر تماماً", d) is None, "٢ وما لا عائلةَ له لا يُنسب إليه إفصاحٌ — لا نصَّ أصدقُ من نصٍّ خاطئ")
 check(kind_fallback(rows, "عمومية الشركة توافق", None) is None, "٣ وبلا تاريخٍ لا مطابقةَ بالنوع")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
