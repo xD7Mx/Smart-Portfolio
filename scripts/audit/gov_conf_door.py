@@ -44,7 +44,7 @@ async def main():
         async with sem:
             CUR.set(s)
             try:
-                await asyncio.wait_for(evaluate_company(f"{s}.SR", sector=uni[s].get("sector_ar")), timeout=60)
+                await asyncio.wait_for(evaluate_company(f"{s}.SR", sector=uni[s].get("sector")), timeout=60)
             except Exception as e:                                 # noqa: BLE001
                 return s, type(e).__name__
             return s, None

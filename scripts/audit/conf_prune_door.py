@@ -67,7 +67,7 @@ async def main():
         at = (rows.get(s) or {}).get("analyst_target")
         xs.append({"s": s, "px": f["price"], "mods": mods, "k": _tuning(s).get("k", MARKET_BLEND_K),
                    "at": at if isinstance(at, (int, float)) and at > 0 else None,
-                   "arch": archetype_of(s) or "—", "sec": uni[s].get("sector_ar") or "—",
+                   "arch": archetype_of(s) or "—", "sec": uni[s].get("sector") or "—",
                    "loser": ("خاسر" in notes or "خسارة" in notes), "stale": "أقدمُ من تسعة أشهر" in notes,
                    "reit": f.get("weights_kind") == "reit_nav"})
     print(f"═ أوراقٌ بنماذج {len(xs)} · لها هدفُ محلّلين {sum(1 for x in xs if x['at'])}")
