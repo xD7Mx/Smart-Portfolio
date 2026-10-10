@@ -37,12 +37,13 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
   const h = r?.header;
   const t = r?.table || {};
   const period = t.annual ? `النتائج السنوية ${String(t.as_of || "").slice(0, 4)}` : `نتائج ${qName(t.as_of)}`;
-  /* ‏D655: السعرُ العادل في التقرير هو رقمُ صفحة السهم والفرز نفسُه (رقمُ اليوم)، بثقته وسبب حجبه أو وسمه، والهدفُ مبنيٌّ عليه */
-  const tiles: { l: string; v: string; c?: string; text?: boolean; sub?: string | null }[] = h ? [
+  /* ‏D655: السعرُ العادل في التقرير هو رقمُ صفحة السهم والفرز نفسُه (رقمُ اليوم) بثقته، والهدفُ مبنيٌّ عليه.
+     ‏D660 (بأمر المالك): رقمٌ وثقتُه فقط — لا سطرَ تبريرٍ تحته («لا حواشي تفسيرية»). */
+  const tiles: { l: string; v: string; c?: string; text?: boolean }[] = h ? [
     { l: "قرار التطبيق", v: h.recommendation || "—", c: recColor(h.recommendation), text: true },
     { l: "آخر سعر إغلاق", v: num(h.price, 2), c: NAVY },
     { l: "السعر العادل اليوم", v: typeof h.fair_value === "number" ? num(h.fair_value, 2) : "غير متوفّر",
-      c: NAVY, text: typeof h.fair_value !== "number", sub: h.fair_value_note },
+      c: NAVY, text: typeof h.fair_value !== "number" },
     { l: "ثقة التقدير", v: h.fair_value_conf || "—", c: h.fair_value_conf === "منخفضة" ? WARN : NAVY, text: true },
     { l: "السعر المستهدف خلال 12 شهراً", v: num(h.target_12m, 2), c: NAVY },
     { l: "التغيّر المتوقّع", v: pct(h.change), c: col(h.change) },
@@ -101,7 +102,6 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
                 <div style={{ fontSize: 16, fontWeight: k.text ? 500 : 300, color: k.c, marginTop: 2 }}>
                   {k.text ? k.v : <N v={k.v} />}
                 </div>
-                {k.sub && <div style={{ fontSize: 10, color: MUTED, fontWeight: 300, marginTop: 4, lineHeight: 1.5 }}>{k.sub}</div>}
               </div>
             ))}
           </div>

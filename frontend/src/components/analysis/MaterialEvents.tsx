@@ -45,7 +45,7 @@ export default function MaterialEvents({ symbol }: { symbol: string }) {
                 {e.first_date && e.first_date !== e.date && (
                   <span>· أُعلن أوّلاً <span className="tabular-nums" dir="ltr">{e.first_date}</span></span>
                 )}
-                {(e.filings || 1) > 1 && <span>· {filings(e.filings)} جُمعت في بندٍ واحد</span>}
+                {(e.filings || 1) > 1 && <span>· {filings(e.filings)}</span>}
                 {e.kind === "contract" && e.value != null && <span>· {money(e.value)}{e.months ? ` · ${e.months} شهراً` : ""}</span>}
                 {e.kind === "contract" && (e.counted
                   ? <span style={{ color: "var(--pos-ink)" }}>· يُعدّ في سجلّ الأعمال</span>

@@ -34,7 +34,10 @@ check('"fair_value": fair, "fair_value_conf"' in b and '"fair_value_note": fv_no
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
 check("t = target_from(ov, res)" in mk, "٧ وصفحةُ السهم تبني هدفَها بالصيغة نفسِها")
 doc = (ROOT / "frontend/src/components/reports/CompanyReportDocument.tsx").read_text(encoding="utf-8")
-check('"السعر العادل اليوم"' in doc and '"ثقة التقدير"' in doc and "k.sub &&" in doc,
-      "٨ وورقةُ التقرير تعرض السعرَ العادل اليوم وثقتَه وسببَه")
+check('"السعر العادل اليوم"' in doc and '"ثقة التقدير"' in doc,
+      "٨ وورقةُ التقرير تعرض السعرَ العادل اليوم وثقتَه")
+# ‏D660 (بأمر المالك): لا سطرَ تبريرٍ تحت الرقم — «لا حواشي تفسيرية»
+check("fair_value_note" not in doc and "k.sub" not in doc and "calibration_note" not in doc,
+      "٩ ولا سطرَ تبريرٍ تحت السعر العادل في ورقة التقرير (D660)")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

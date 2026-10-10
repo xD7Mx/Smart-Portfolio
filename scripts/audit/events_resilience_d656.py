@@ -37,6 +37,6 @@ check(_tomb[1] is None and _tomb[0] - __import__("time").time() > 24 * 3600,
 exp = cache._store.get("events:view:v2:2080", (0, None))[0] - __import__("time").time()
 check(0 < exp <= 10 * 60 + 5, "٤ والعرضُ في هذه الحال لا يُحفظ إلا دقائق", f"{exp:.0f} ثانية")
 me = (ROOT / "frontend/src/components/analysis/MaterialEvents.tsx").read_text(encoding="utf-8")
-check("جُمعت في بندٍ واحد" in me, "٥ والبندُ المجموع يقول كم إفصاحاً جمع — فلا يبدو المكرَّرُ محذوفاً")
+check("{filings(e.filings)}" in me and "جُمعت" not in me, "٥ والبندُ المجموع يقول كم إفصاحاً جمع — رقماً لا تبريراً (D660)")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)
