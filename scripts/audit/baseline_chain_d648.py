@@ -28,7 +28,8 @@ else:
     check(bool(rep and rep.exists()), "٢ وتقريرُ السابق محفوظٌ ببصمته", str(rep) if rep else "")
     if rep and rep.exists():
         old = json.loads(rep.read_text(encoding="utf-8")).get("metrics") or {}
-        worse, better = F.compare(old, base.get("metrics") or {})
+        # ‏D676: وما قَبِله المالكُ بنصّه في الأساس يُقبل في السلسلة بالشرط نفسِه (أرضيّةٌ ونصّ)
+        worse, better = F.compare(old, base.get("metrics") or {}, base.get("owner_accepted"))
         check(not worse, f"٣ الأساسُ {ver} لا يتراجع عن سابقه في شيء", "؛ ".join(worse))
         check(bool(better), f"٤ ويتفوّق عليه في مقياسٍ واحدٍ على الأقلّ", {1: "مقياسٌ واحد", 2: "مقياسان"}.get(len(better), f"{len(better)} مقاييس" if len(better) <= 10 else f"{len(better)} مقياساً"))
 own = F.REPORTS / f"{base.get('fingerprint')}.json"

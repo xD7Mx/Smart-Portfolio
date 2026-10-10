@@ -112,6 +112,7 @@ async def evaluate_company(symbol: str, db=None, company_status: Optional[str] =
         "score": confidence.score, "warning": confidence.warning,
         "years_available": confidence.years_available,
         "completeness_pct": confidence.completeness_pct,
+        "stability": confidence.stability, "stability_label": confidence.stability_label,   # ‏D675
     }
 
     # ══ مُنتِجٌ واحدٌ للقرار — والبطاقةُ تعرضه ولا تصنعه ══ (D166)

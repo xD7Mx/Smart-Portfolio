@@ -38,5 +38,19 @@ report({**m0, "median_dev": 0.14, "sector_dev": {"البنوك": 0.05, "التأ
 check(run() == 0, "٧ القطاعُ الموسوم (لم يُعايَر) لا يُحسب تراجعاً")
 report({**m0, "median_dev": 0.14, "verdict": {"١ التغطية": False, "٤ المرجع": True}})
 check(run() == 1, "٨ بندٌ اجتاز ثمّ سقط يسقط")
+# ‏D676: تراجعٌ قَبِلَه المالكُ بنصّه — في مقياسه وحده وفوق أرضيّته
+def report_acc(m, acc):
+    (F.REPORTS / f"{fp}.json").write_text(json.dumps({"metrics": m, "owner_accepted": acc}))
+_acc = {"coverage": {"floor": 0.88, "decision": "تُحجب بسببٍ مسمّى"}}
+report_acc({**m0, "median_dev": 0.14, "coverage": 0.893}, _acc)
+check(run() == 0, "٩ تراجعُ التغطية فوق أرضيّةٍ قَبِلها المالكُ بنصّه يمرّ")
+report_acc({**m0, "coverage": 0.893}, _acc)
+check(run() == 1, "٩ب والتراجعُ المقبول لا يُعدّ تحسّناً — يلزم تفوّقٌ في مقياسٍ آخر")
+report_acc({**m0, "median_dev": 0.14, "coverage": 0.87}, _acc)
+check(run() == 1, "١٠ وتحت الأرضيّة يسقط")
+report_acc({**m0, "median_dev": 0.14, "coverage": 0.893}, {"coverage": {"floor": 0.88}})
+check(run() == 1, "١١ وبلا نصّ القرار يسقط — لا قبولَ بلا قرارٍ مكتوب")
+report_acc({**m0, "median_dev": 0.14, "coverage": 0.91, "far_share": 0.08}, _acc)
+check(run() == 1, "١٢ والقبولُ في مقياسه وحده — تراجعُ غيره يبقى تراجعاً")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

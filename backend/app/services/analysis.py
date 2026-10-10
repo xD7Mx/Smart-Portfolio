@@ -199,7 +199,8 @@ async def _financial_from_statements(
         "decision": decision,
         "scores": four.to_dict(),
         "expert_panel": panel,
-        "confidence": {"score": conf.score, "warning": conf.warning},
+        "confidence": {"score": conf.score, "warning": conf.warning,
+                       "stability": conf.stability, "stability_label": conf.stability_label},   # ‏D675
         "enriched_fields": (features.get("_enriched_fields") or {}).get("value"),
         # المحرّكُ الذي أنتج ركنَ الجودة — يُقال ولا يُخمَّن.
         "score_engine": engine,

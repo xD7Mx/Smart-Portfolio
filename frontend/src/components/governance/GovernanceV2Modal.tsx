@@ -54,9 +54,16 @@ export default function GovernanceV2Modal({ symbol, name, onClose }: { symbol: s
               return (
               <div className="flex items-center justify-between p-2.5 rounded-xl mb-3"
                    style={{ background: `${col}14`, border: `1px solid ${col}33` }}>
-                <div className="flex items-baseline gap-2">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                   <span className="text-[11px] text-[var(--ink-muted)]">خلاصة المجلس</span>
                   <span className="text-[10px] text-[var(--ink-muted)] tabular-nums">ثقة {data.confidence?.score}%</span>
+                  {/* ‏D675 (بقرار المالك): الثقةُ كفايةُ البيانات، وثباتُ الأرباح وسمٌ مستقلٌّ بجانبها لا جزءٌ منها */}
+                  {data.confidence?.stability_label && (
+                    <span className="text-[10px] tabular-nums" style={{ color: data.confidence.stability_label === "متذبذبة"
+                      ? "var(--warn-ink)" : data.confidence.stability_label === "مستقرّة" ? "var(--pos-ink)" : "var(--ink-muted)" }}>
+                      · ثباتُ الأرباح: {data.confidence.stability_label}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-baseline gap-3">
                   {typeof data.finance_score === "number" && (

@@ -47,14 +47,25 @@ def fingerprint() -> str:
     return h.hexdigest()[:12]
 
 
-def compare(base: dict, new: dict) -> tuple[list[str], list[str]]:
-    """← (التراجعات، التحسّنات)."""
+ACCEPTED: list[str] = []
+
+
+def compare(base: dict, new: dict, accepted: dict | None = None) -> tuple[list[str], list[str]]:
+    """← (التراجعات، التحسّنات).
+
+    ‏D676: `accepted` تراجعٌ قَبِلَه المالكُ بنصّه مقابلَ ما هو أصدق — يُقبل في مقياسه وحده، فوق أرضيّةٍ مسمّاة، وبنصّ
+    القرار؛ وما سواه يبقى تراجعاً. (قِيس: حجبُ ما يبعد عن السعر > 60٪ بسببٍ مسمّى أنزل التغطيةَ 93٪ ← 89٪.)"""
     worse, better = [], []
+    accepted = accepted or {}
     for k, (d, tol) in DIRECTION.items():
         b, n = base.get(k), new.get(k)
         if b is None or n is None:
             continue
         diff = (n - b) * d
+        acc = accepted.get(k) or {}
+        if diff < -tol and acc.get("decision") and acc.get("floor") is not None and (n - acc["floor"]) * d >= 0:
+            ACCEPTED.append(f"{k}: {b} ← {n} — فوق أرضيّة {acc['floor']} بقرار المالك: «{acc['decision']}»")
+            continue                                               # لا يُعدّ تحسّناً: يُقبل ولا يُحتسب
         if diff < -tol:
             worse.append(f"{k}: {b} ← {n}")
         elif diff > tol:
@@ -88,15 +99,17 @@ def main() -> int:
         print(f"FAIL تعديلٌ على ملفّات المحرّكات ({base.get('fingerprint')} ← {fp}) بلا تقرير بوابة — "
               f"شغّل engine_gate على الخادم ثمّ engine_report_save.py")
         return 1
-    new = json.loads(rep.read_text(encoding="utf-8")).get("metrics") or {}
-    worse, better = compare(base.get("metrics") or {}, new)
+    _rep = json.loads(rep.read_text(encoding="utf-8"))
+    new = _rep.get("metrics") or {}
+    worse, better = compare(base.get("metrics") or {}, new, _rep.get("owner_accepted"))
     if worse:
         print("FAIL الإصدارُ الجديد يتراجع عن المجمَّد:\n     " + "\n     ".join(worse))
         return 1
     if not better:
         print("FAIL الإصدارُ الجديد لا يتفوّق على المجمَّد في أيّ مقياس — تعديلٌ بلا فائدةٍ مقيسة")
         return 1
-    print("PASS الإصدارُ الجديد يتفوّق بلا تراجع:\n     " + "\n     ".join(better))
+    print("PASS الإصدارُ الجديد يتفوّق بلا تراجع:\n     " + "\n     ".join(better)
+          + ("\n   ومقبولٌ بقرار المالك:\n     " + "\n     ".join(ACCEPTED) if ACCEPTED else ""))
     return 0
 
 

@@ -17,7 +17,17 @@ def main() -> int:
         print(__doc__)
         return 2
     # ‏D639: مخرَجا البوابتين (السعر العادل · المحرّكات ٢–٥) يُدمجان في تقريرٍ واحد، والأحكامُ تُجمع
-    files = [a for a in args if not a.startswith("--") and (args.index(a) == 0 or args[args.index(a) - 1] != "--baseline")]
+    # ‏D676: «--accept مقياس=أرضيّة --decision "نصُّ قرار المالك"» — تراجعٌ قَبِله المالكُ بنصّه، يُحفظ مع التقرير
+    _flagv = {"--baseline", "--accept", "--decision"}
+    files = [a for i, a in enumerate(args) if not a.startswith("--") and (i == 0 or args[i - 1] not in _flagv)]
+    accepted = {}
+    if "--accept" in args:
+        k, fl = args[args.index("--accept") + 1].split("=", 1)
+        dec = args[args.index("--decision") + 1] if "--decision" in args else ""
+        if not dec:
+            print("--accept بلا --decision: لا قبولَ بلا نصّ القرار")
+            return 2
+        accepted[k] = {"floor": float(fl), "decision": dec}
     metrics: dict = {}
     for fpath in files:
         text = pathlib.Path(fpath).read_text(encoding="utf-8", errors="replace")
@@ -30,6 +40,8 @@ def main() -> int:
         metrics.update(m)
         metrics["verdict"] = verdict
     doc = {"fingerprint": fingerprint(), "measured_at": dt.date.today().isoformat(), "metrics": metrics}
+    if accepted:
+        doc["owner_accepted"] = accepted
     if "--baseline" in args:
         doc["version"] = args[args.index("--baseline") + 1]
         BASE.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")

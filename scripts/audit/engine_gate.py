@@ -4,7 +4,7 @@
 
     docker exec sp_backend python /app/scripts/audit/engine_gate.py
 
-  ١ التغطية      ≥ 90٪ لها قيمةٌ عادلة، وكلُّ غائبةٍ بسببٍ مسمّى
+  ١ التغطية      ≥ 88٪ لها قيمةٌ عادلة، وكلُّ غائبةٍ بسببٍ مسمّى (كان 90٪ — D676 بقرار المالك)
   ٢ الحداثة      صفرُ قيمةٍ على قوائمَ أقدم من 15 شهراً، وصفرُ قيمةٍ محسوبةٍ قبل تجزئةٍ/منحة
   ٣ المعقولية    ≤ 5٪ تبتعد عن السعر أكثر من 60٪
   ٤ المرجع       وسيطُ |تقديرنا÷هدف المحلّلين − 1| ≤ 20٪ للسوق، ولكلّ قطاعٍ فيه ≥ 5 شركات أقربُ إلى الهدف من السعر نفسِه (‏D632)
@@ -47,7 +47,10 @@ have = [x for x in res if x["fv"]]
 miss = [x for x in res if not x["fv"]]
 cov = len(have) / N if N else 0
 named = [x for x in miss if x["why"]]
-line("١ التغطية", cov >= 0.90 and len(named) == len(miss),
+# ‏D676 (بقرار المالك 2026-10-10 — «تُحجب بسببٍ مسمّى»): رقمٌ يبعد عن السعر > 60٪ يُحجب ولا يُنشر بثقةٍ لا يستحقّها،
+# فالحدُّ 88٪ لا 90٪ — والحجبُ كلُّه بسببٍ مسمّى (البندُ نفسُه يشترطه)
+COVERAGE_FLOOR = 0.88
+line("١ التغطية", cov >= COVERAGE_FLOOR and len(named) == len(miss),
      f"{len(have)}/{N} = {cov:.0%} · غائبةٌ بسببٍ مسمّى {len(named)}/{len(miss)}")
 why = collections.Counter(x["why"] or "بلا سبب" for x in miss)
 for w, n in why.most_common(6):

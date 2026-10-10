@@ -14,6 +14,11 @@ saw". Built from three honest signals, never fabricated:
 A confidence below 60 should surface a visible warning in the UI — the
 four scores may still be shown, but the user needs to know they're
 resting on thin data.
+
+‏D675 (بقرار المالك 2026-10-10: «فصلُ الثبات عن الثقة»): الثقةُ كفايةُ البيانات وحدها — سنواتُ القوائم واكتمالُ
+المؤشّرات بالتساوي. والثباتُ صفةٌ في الشركة لا في بياناتنا: كان خُمسَ الدرجة فلم تبلغ 90 شركةٌ أرباحُها دوريّة ولو
+اكتملت بياناتُها (قِيس: 166 من 271). فصار وسماً مستقلّاً يُعرض بجانبها (مستقرّة · متوسطةُ الثبات · متذبذبة) بقيمته،
+فلا تضيع المعلومة ولا تُخفض ثقةً في رقمٍ بياناتُه كاملة.
 """
 
 from __future__ import annotations
@@ -41,6 +46,8 @@ class Confidence:
     warning: Optional[str]
     years_available: int
     completeness_pct: float
+    stability: Optional[float] = None          # ‏D675: مؤشّرُ الثبات — وسمٌ مستقلّ لا جزءٌ من الثقة
+    stability_label: Optional[str] = None
 
 
 def compute_confidence(features: dict) -> Confidence:
@@ -63,10 +70,11 @@ def compute_confidence(features: dict) -> Confidence:
     completeness_pct = round(present / len(applicable) * 100, 1)
 
     consistency = value_of("consistency_index")
-    consistency_component = consistency if consistency is not None else 50.0  # neutral, not a penalty, when unknown
-
-    score = round(years_component * 0.4 + completeness_pct * 0.4 + consistency_component * 0.2, 1)
+    # ‏D675: الثقةُ كفايةُ البيانات بالتساوي بين السنوات والاكتمال، والثباتُ وسمٌ بجانبها
+    score = round(years_component * 0.5 + completeness_pct * 0.5, 1)
     score = max(0.0, min(100.0, score))
+    stability_label = (None if consistency is None else
+                       "مستقرّة" if consistency >= 60 else "متوسطةُ الثبات" if consistency >= 30 else "متذبذبة")
 
     warning = None
     if score < CONFIDENCE_WARNING_THRESHOLD:
@@ -75,8 +83,8 @@ def compute_confidence(features: dict) -> Confidence:
             reasons.append(f"{years} سنة مالية فقط متاحة")
         if completeness_pct < 70:
             reasons.append(f"{completeness_pct}% فقط من المؤشرات الأساسية متوفرة")
-        if consistency is not None and consistency < 40:
-            reasons.append("تذبذب كبير في النتائج المالية عبر السنوات")
         warning = "درجة ثقة منخفضة (" + "، ".join(reasons or ["بيانات غير كافية"]) + ") — النتيجة قد لا تعكس الوضع الحقيقي بدقة"
 
-    return Confidence(score=score, warning=warning, years_available=years, completeness_pct=completeness_pct)
+    return Confidence(score=score, warning=warning, years_available=years, completeness_pct=completeness_pct,
+                      stability=round(consistency, 1) if isinstance(consistency, (int, float)) else None,
+                      stability_label=stability_label)
