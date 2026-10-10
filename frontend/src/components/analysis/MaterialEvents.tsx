@@ -23,14 +23,24 @@ const TAG: Record<string, string> = {
 
 export default function MaterialEvents({ symbol }: { symbol: string }) {
   const sym = symbol.replace(".SR", "");
-  const { data } = useQuery({
+  const { data, isSuccess } = useQuery({
     queryKey: ["material-events", sym],
     queryFn: () => marketApi.materialEvents(sym).then(x => x.data?.data || null),
     staleTime: 6 * 60 * 60 * 1000,
     retry: 0,
   });
   const events: any[] = data?.events || [];
-  if (!events.length) return null;
+  /* ‏D668: كانت البطاقةُ تختفي حين لا حدث (قِيس: أرامكو والراجحي والحبيب بلا حدثٍ في سنة) فظنّ المالكُ الميزةَ غائبة.
+     فتبقى بعنوانها وسطرِ حالٍ واحد حين يصل الجوابُ فارغاً؛ وتغيب وحدها ما دام الجوابُ لم يصل أو تعذّر. */
+  if (!events.length) {
+    if (!isSuccess || !data) return null;
+    return (
+      <div className="card">
+        <p className="card-title mb-2">الأحداث الجوهرية</p>
+        <p className="text-[12px] text-[var(--ink-muted)]">لا أحداث جوهرية خلال آخر سنة</p>
+      </div>
+    );
+  }
   return (
     <div className="card">
       <p className="card-title mb-3">الأحداث الجوهرية</p>

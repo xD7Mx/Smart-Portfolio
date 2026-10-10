@@ -52,6 +52,8 @@ check("if (!entry) return <Logo size={size} flat />;" in sl and "Newspaper" not 
       "١١ D667 وشعارُ مصدر الخبر: المسجَّلُ أوّلاً، وغيرُه أو المتعذّرُ علامةُ التطبيق — لا فراغ ولا أيقونةُ صحيفة")
 check("<CalendarDays size={26}" not in el and "<Logo size={40} flat />" in el,
       "١٢ D667 ونافذةُ الحدث بلا شركة: علامةُ التطبيق مكانَ الشعار")
+check("لا أحداث جوهرية خلال آخر سنة" in me and "if (!isSuccess || !data) return null;" in me,
+      "١٣ D668 والبطاقةُ لا تختفي حين لا حدث — عنوانُها وسطرُ حال؛ وتغيب ما دام الجوابُ لم يصل")
 rs = (ROOT / "scripts/audit/run.sh").read_text(encoding="utf-8")
 check("node scripts/audit/cards_d666.mjs" in rs, "٨ والقياسُ في المتصفّح بعرضَي الجوال والحاسوب ضمن اللجنة")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
