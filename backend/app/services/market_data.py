@@ -1719,9 +1719,31 @@ class MarketDataService:
         """إطاراتُ الرسم (ساعة · 4 ساعات · يوم · أسبوع · شهر). «تاسي» من مولّد «تداول» (D438): ياهو لا يملك له تاريخاً."""
         from app.services import tasi_history as _th
         if symbol.upper() in _th.SYMBOLS:
-            pts = await _th.history({"1h": "1mo", "4h": "3mo", "1d": "1y", "1wk": "5y", "1mo": "5y"}.get(tf, "1y")) or []
+            if tf in ("1h", "4h"):
+                return await self._tasi_intraday(tf)
+            pts = await _th.history({"1d": "1y", "1wk": "5y", "1mo": "5y"}.get(tf, "1y")) or []
             return monthly(pts) if tf == "1mo" else pts
         return await self._yahoo().get_bars(symbol, tf)
+
+    async def _tasi_intraday(self, tf: str) -> list:
+        """ساعةُ تاسي وأربعُ ساعاته شموعاً حقيقيةً دون اليوم (D661).
+
+        قال المالك: «الساعةُ والبقيّة ليست حقيقية — فقط غيّرتَ الأسماء». وصدق: كانت يومياتٍ تحت اسم الساعة. وقِيس
+        (`tasi_intraday_door.py`): مولّدُ «تداول» جلسةٌ واحدةٌ دقيقةً دقيقة، وياهو يسلّم `^TASI.SR` بفاصل ساعةٍ حقيقيّ
+        (‏326 شمعةً في 65 يوماً · 10:00–15:00). فالأيامُ التي حُفظت جلساتُها من «تداول» تُؤخذ منها، وما قبلها من ياهو."""
+        from app.services import cache
+        from app.services import tasi_history as _th
+        ck = f"bars:tasi:{tf}:v2"
+        hit = cache.get(ck)
+        if hit is not None:
+            return hit
+        official = await _th.capture()
+        if tf == "4h":
+            official = {d: four_hour(v) for d, v in official.items()}
+        rows = _th.overlay(await self._yahoo().get_bars("^TASI.SR", tf) or [], official)
+        if len(rows) >= 2:
+            cache.set(ck, rows, 5 * 60)
+        return rows
 
     async def get_history(self, symbol: str, range_: str = "3mo") -> Optional[list]:
         # «تاسي»: ياهو لا يملك له إلا يوماً — فالمصدرُ مولّدُ رسم «تداول» (D438).

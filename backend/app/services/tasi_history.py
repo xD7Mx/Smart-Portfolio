@@ -88,6 +88,63 @@ def remember_close(session: list) -> list:
     return out
 
 
+_HOURS_KEY = "market:tasi_intraday"
+_KEEP_SESSIONS = 260
+
+
+def session_hours(session: list) -> list:
+    """جلسةُ «تداول» دقيقةً دقيقة ← شموعُ ساعةٍ حقيقية «YYYY-MM-DD HH:00» بتوقيت الرياض (D661).
+
+    جلسةُ الرياض ستُّ ساعاتٍ كما في تريدنق فيو وياهو (10:00 … 15:00)؛ فما قبل العاشرة يُضمّ إلى أولاها، ومزادُ
+    الإغلاق ونقطةُ ما بعده إلى شمعة 15:00 — فإغلاقُ آخر شمعةٍ إغلاقُ الجلسة نفسُه."""
+    out: list = []
+    for p in session:
+        d = p["date"]
+        hh = max(10, min(int(d[11:13]), 15))
+        key = f"{d[:10]} {hh:02d}:00"
+        c = p["close"]
+        if out and out[-1]["date"] == key:
+            b = out[-1]
+            b["high"], b["low"], b["close"] = max(b["high"], c), min(b["low"], c), c
+        else:
+            out.append({"date": key, "time": 0, "open": c, "high": c, "low": c, "close": c, "volume": 0})
+    return out
+
+
+def remember_hours(session: list) -> dict:
+    """تُحفظ ساعاتُ كلّ جلسةٍ رسمية تحت يومها — فيطول السجلُّ الرسميُّ دون اليوم مع الأيام (D661)."""
+    from app.services import lastgood
+    store = {k: v for k, v in (lastgood.load(_HOURS_KEY) or {}).items() if isinstance(v, list)}
+    hrs = session_hours(session)
+    if hrs:
+        store[hrs[0]["date"][:10]] = hrs
+        for k in sorted(store)[:-_KEEP_SESSIONS]:
+            store.pop(k, None)
+        lastgood.save(_HOURS_KEY, store)
+    return store
+
+
+def overlay(provider: list, official: dict) -> list:
+    """شموعُ المزوِّد دون اليوم والجلساتُ الرسمية: كلُّ يومٍ عندنا من «تداول» يُؤخذ منها كاملاً، وما سواه من المزوِّد."""
+    days = {d for d, v in (official or {}).items() if isinstance(v, list) and v}
+    rows = [r for r in provider or [] if str(r.get("date"))[:10] not in days]
+    for d in days:
+        rows += official[d]
+    return sorted(rows, key=lambda r: str(r["date"]))
+
+
+async def capture() -> dict:
+    """جلسةُ «تداول» الأخيرة تُقرأ وتُحفظ ساعاتُها — بعد الإغلاق مجدولةً، وعند كلّ طلبٍ لساعة تاسي."""
+    from app.services.tadawul_http import fetch
+    try:
+        st, body = await fetch(URL)
+        session = parse_session(body) if st == 200 else []
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"tasi session: {type(e).__name__}: {e}")
+        session = []
+    return remember_hours(session)
+
+
 MIN_DAILY = 20    # دون عشرين يوماً محفوظاً تُعرض الجلسةُ كاملةً شموعاً لا نقطتان
 
 
@@ -164,6 +221,7 @@ async def history(range_: str = "3mo") -> Optional[list]:
         logger.warning(f"tasi history: {type(e).__name__}: {e}")
         session = []
     remember_close(session)
+    remember_hours(session)
     pts = list(daily)
     if session:
         day = session[0]["date"][:10]
