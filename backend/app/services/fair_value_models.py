@@ -707,6 +707,16 @@ SECTOR_TUNING = {
 }
 
 
+# ‏D672: الحذفُ المعتمد بالنمط — قِيس انحيازُها تحت أهداف المحلّلين: EPV −22٪ ونماذجُ قيمة المنشأة −17 إلى −54٪،
+# وخصمُ التوزيعات المستقرّ في الاستهلاك الدفاعيّ +36٪ (conf_calib_door.py · run 38071627969).
+_EV = frozenset({"peer_ev_ebit", "peer_ev_ebitda", "peer_ev_sales"})
+ARCH_DROP = {
+    "capital_infra": _EV | {"epv"},
+    "consumer_defensive": _EV | {"epv", "ddm_stable"},
+    "re_developer": _EV,
+}
+
+
 def _tuning(symbol: str) -> dict:
     try:
         from app.data.market_universe import MARKET_UNIVERSE
@@ -758,6 +768,17 @@ def value(i: Inputs) -> dict:
     if _tune:
         _drop = lambda m: (m.get("family") == _tune.get("drop_family")) or (m.get("key") == _tune.get("drop_key"))   # noqa: E731
         models = [m for m in models if not _drop(m)] or models
+    # ‏D672 (المرشَّح 2.3 · القاعدةُ مسجَّلةٌ قبل القياس): نماذجُ منحازةٌ بالنمط تُحذف — اختيرت بتحقّقٍ متقاطعٍ بإسقاط ورقة
+    # من قائمةٍ مغلقة، واعتُمدت حيث صغُر خطأُ الأوراق التي لم يُختر بها بنقطةٍ كاملةٍ فأكثر (conf_prune_door.py):
+    # السلعُ الرأسمالية والبنية 16.0٪ ← 10.3٪ · الاستهلاكُ الدفاعيّ 14.9٪ ← 11.7٪ · التطويرُ العقاريّ 27.6٪ ← 20.1٪.
+    # ولا يُحذف ما يُنزل النماذجَ تحت ثلاثة.
+    _ad = ARCH_DROP.get(i.archetype or "")
+    _pruned: list[dict] = []
+    if _ad:
+        _kept = [m for m in models if m.get("key") not in _ad]
+        if len(_kept) >= MIN_MODELS:
+            _pruned = [m for m in models if m.get("key") in _ad]
+            models = _kept
     agg = aggregate(models, i.price, i.archetype)
     if any(n.startswith(("إدراجٌ حديث", "سجلٌّ قصير")) for n in i.notes) or extra_notes:
         agg["uncertainty"] = "مرتفع"
@@ -777,7 +798,9 @@ def value(i: Inputs) -> dict:
         agg["value"], agg["low"], agg["high"] = _b(agg["value"]), _b(agg.get("low")), _b(agg.get("high"))
         extra_notes.append(f"تقديرُ النماذج {agg['model_value']:.2f} مُزج بسعر السوق (وزنُ النماذج {_k:g}) — معايرةٌ بأهداف المحلّلين")
     agg["excluded"] = agg.get("excluded", []) + [
-        {**m, "excluded": "يبعد عن السعر عشرةَ أضعاف — خطأُ مدخلاتٍ أرجحُ من رأي"} for m in bad]
+        {**m, "excluded": "يبعد عن السعر عشرةَ أضعاف — خطأُ مدخلاتٍ أرجحُ من رأي"} for m in bad] + [
+        # ‏D672: المحذوفُ بالنمط يُعرض بسببه — لا يختفي رأيٌ بلا أن يُقال لماذا
+        {**m, "excluded": "منحازٌ في هذا النمط بالقياس (تحقّقٌ متقاطع على أهداف المحلّلين) — لا يدخل الرقم"} for m in _pruned]
     return {**agg, "price": i.price, "models": models, "count": len(models),
             "notes": bs.notes + i.notes + extra_notes, "peers": i.peer_symbols, "sector": i.sector, "model_set": set_name,
             "ttm_source": i.ttm_source,
@@ -1320,7 +1343,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v38:{sym}"   # v38: D646 وزنُ القطاعين المعايَرين
+    ck = f"fvm:v39:{sym}"   # v39: D672 الحذفُ المعتمد بالنمط
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

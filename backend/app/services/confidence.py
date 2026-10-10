@@ -51,8 +51,16 @@ def compute_confidence(features: dict) -> Confidence:
     years = value_of("years_available") or 0
     years_component = max(0.0, min(100.0, years / 5 * 100))  # 5 years = full marks
 
-    present = sum(1 for k in _CORE_FEATURES if value_of(k) is not None)
-    completeness_pct = round(present / len(_CORE_FEATURES) * 100, 1)
+    # ‏D671 (المرشَّح 2.3): الاكتمالُ على ما ينطبق — مؤشّرٌ لا معنى له في الشركة لا يُعدّ عليها ناقصاً. قِيس: المصارفُ
+    # كلُّها «ينقصها» السيولةُ الجارية والسريعة، ومن لا دَينَ عليه «تنقصه» التغطيةُ؛ وهي ليست بياناتٍ غائبةً تُجلب.
+    na = set()
+    if value_of("no_interest_cost") == 1:
+        na.add("interest_coverage")
+    if value_of("unclassified_balance_sheet") == 1:
+        na |= {"current_ratio", "quick_ratio"}
+    applicable = [k for k in _CORE_FEATURES if k not in na]
+    present = sum(1 for k in applicable if value_of(k) is not None)
+    completeness_pct = round(present / len(applicable) * 100, 1)
 
     consistency = value_of("consistency_index")
     consistency_component = consistency if consistency is not None else 50.0  # neutral, not a penalty, when unknown

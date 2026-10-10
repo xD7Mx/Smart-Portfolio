@@ -19,7 +19,7 @@ FILES = tuple(sorted([
         "expert_panel.py", "sector_multiples.py", "governance_rules.py", "valuation_fields.py",
         "four_scores.py", "fair_value_models.py", "tadawul_financials.py", "tadawul_xbrl.py",
         "decision_engine.py", "technical.py", "market_valuation_sweep.py", "material_events.py",
-        "red_lines.py", "confidence.py")),
+        "red_lines.py", "confidence.py", "financial_features.py")),
     "backend/app/data/archetype_spec.py", "backend/app/data/governance_rules.yaml",
 ]))
 

@@ -87,7 +87,11 @@ def compute_features(periods: list[dict]) -> dict[str, dict]:
     current_liabilities = series("current_liabilities")
     inventory = series("inventory")
     total_debt = series("total_debt")
-    interest_coverage = series("interest_coverage")
+    # ‏D671 (المرشَّح 2.3): التغطيةُ من بنديها حين يغيب المشتقّ — كما يقرؤها الخطُّ الأحمر (`red_lines._coverage_of`).
+    # قِيس (gov_conf_door.py · run 38071763287): غائبةٌ في كلّ الأنماط تقريباً (السلع 71/72 · الدفاعيّ 46/46 · الدوريّ 40/40)،
+    # لأنّ طبقةَ «تداول» تحمل الربحَ التشغيليّ ومصروفَ التمويل لا المشتقّ؛ فكانت قواعدُ الدرجة ولجنةُ الخبراء تمرّ بلا تغطية.
+    from app.services.red_lines import _coverage_of
+    interest_coverage = [_coverage_of(p) for p in periods]
     dividends_paid = series("dividends_paid")
     shares = series("shares_outstanding")
     capex = series("capex")
@@ -276,6 +280,17 @@ def compute_features(periods: list[dict]) -> dict[str, dict]:
     if isinstance(_ic, (int, float)) and _ic > 50:
         _ic = 50.0
     feats["interest_coverage"] = Feature(_ic, "تغطية الفوائد (EBIT ÷ مصروف الفوائد) — مسقوفة عند 50×")
+    # ‏D671: ما لا ينطبق لا يُعدّ ناقصاً في الثقة — ويُستدلّ عليه من البيانات لا من اسم القطاع (كـD151):
+    # لا دَينَ مقيساً (أو تكلفةُ تمويلٍ صفر) ⇒ لا تغطيةَ فوائد (واتّجاهُ الدَّين هنا نسبةُ الالتزامات فينطبق)؛ وميزانيةٌ بلا تصنيفٍ جارٍ (المصارف) ⇒ لا سيولةَ جارية.
+    _last = periods[-1]
+    _ie, _td = _last.get("interest_expense"), _last.get("total_debt")
+    feats["no_interest_cost"] = Feature(
+        1.0 if ((isinstance(_td, (int, float)) and abs(_td) < 1e-9)
+                or (isinstance(_ie, (int, float)) and _ie == 0 and not (isinstance(_td, (int, float)) and _td > 0)))
+        else 0.0, "لا دَينَ مقيساً ولا تكلفةَ تمويل — تغطيةُ الفوائد لا تنطبق")
+    feats["unclassified_balance_sheet"] = Feature(
+        0.0 if any(p.get("current_assets") is not None or p.get("current_liabilities") is not None for p in periods)
+        else 1.0, "ميزانيةٌ بلا أصولٍ وخصومٍ جارية (كالمصارف) — السيولةُ الجارية لا تنطبق")
 
     current_ratio = [_ratio(ca, cl) for ca, cl in zip(current_assets, current_liabilities)]
     feats["current_ratio"] = Feature(round(current_ratio[-1], 2) if current_ratio[-1] is not None else None, "نسبة التداول (الأصول المتداولة ÷ الالتزامات المتداولة)")

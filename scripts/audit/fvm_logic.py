@@ -51,7 +51,11 @@ r = F.value(i)
 check(any("طُبِّع" in n for n in r["notes"]), "٣ الربعُ الاستثنائيّ يُطبَّع على هامش السنوات ويُذكر", (r["notes"] or [""])[0][:60])
 fams = {f["family"] for f in r["families"]}
 # ‏D487: مجموعةُ InvestingPro للتجزئة الاستهلاكية (العثيم 4001: 15 نموذجاً، المتوفّرُ عندنا 12)
-check({"cashflow", "multiples"} <= fams and r["count"] >= 9, "٤ عائلتا التدفّق والمضاعفات وتسعةُ نماذج فأكثر من مجموعة InvestingPro", f"{sorted(fams)} · {r['count']}")
+# ‏D672: والمحذوفُ بالنمط بالقياس يُعدّ هنا معروضاً بسببه — المجموعةُ تُحسب كلُّها ثمّ يُسقط المنحازُ ويُسمّى
+_pr = [e for e in r.get("excluded") or [] if "منحازٌ في هذا النمط" in str(e.get("excluded"))]
+check({"cashflow", "multiples"} <= fams and r["count"] + len(_pr) >= 9 and r["count"] >= 3,
+      "٤ عائلتا التدفّق والمضاعفات وتسعةُ نماذج فأكثر من مجموعة InvestingPro (والمحذوفُ بالنمط معروضٌ بسببه)",
+      f"{sorted(fams)} · {r['count']} + محذوفٌ مسمّى {len(_pr)}")
 check(r["low"] <= r["value"] <= r["high"] and all(m["low"] <= m["value"] <= m["high"] for m in r["models"]),
       "٥ لكلّ نموذجٍ نطاقٌ ولها نطاقٌ يحيط بالقيمة")
 agg = F.aggregate([{"key": "a", "family": "cashflow", "value": 5, "low": 4, "high": 6},

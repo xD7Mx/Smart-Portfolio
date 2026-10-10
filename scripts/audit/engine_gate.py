@@ -124,5 +124,7 @@ print("@@METRICS@@" + _json.dumps({
     "sector_dev": {k: round(statistics.median(v), 4) for k, v in by.items() if len(v) >= 5},
     "sector_price": {k: round(statistics.median(px_by[k]), 4) for k in by if len(by[k]) >= 5 and px_by.get(k)},
     "flagged": sorted(V1_UNCALIBRATED), "conf_share": round(good / max(1, len(have)), 4),
+    # ‏D672: حصّةُ «مرتفعة» وحدها — هدفُ المالك (2026-10-10)، ويحرسها خطؤها لا كلمتُها
+    "conf_high_share": round(cc.get("مرتفعة", 0) / max(1, len(have)), 4),
     "verdict": {k: bool(v) for k, v in verdict.items()},
 }, ensure_ascii=False))

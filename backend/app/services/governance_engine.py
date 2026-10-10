@@ -25,7 +25,9 @@ async def evaluate_company(symbol: str, db=None, company_status: Optional[str] =
     """`with_decision=False` يُسقط نداءَ مُنتِج القرار الواحد ويكتفي بدرجة
     السلامة — لجدولةِ الدرجات التي لا تقرأ القرارَ أصلاً، فلا تثقُل."""
     from app.services.governance_rules import rules_version
-    ck = f"governance_v2:{symbol}:{sector or ''}:{rules_version()}:{int(with_decision)}"  # auto-busts on any rules edit
+    # ‏D671: وبصمةُ المحرّك أيضاً — كان المفتاحُ يتبع ملفَّ القواعد وحده، فتعديلُ المؤشّرات أو الثقة يبقى خلف كاشٍ يومٍ كامل
+    from app.services.analysis import _ENGINE_V
+    ck = f"governance_v2:{symbol}:{sector or ''}:{rules_version()}:{_ENGINE_V}:{int(with_decision)}"  # auto-busts on any rules edit
     cached = cache.get(ck)
     if cached is not None:
         return cached

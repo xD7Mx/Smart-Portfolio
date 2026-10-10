@@ -238,7 +238,8 @@ _ENGINE_FILES = ("analysis.py", "fair_value.py", "data_quality.py",
                  "valuation_fields.py", "four_scores.py",
                  "fair_value_models.py",    # D577: نموذجُ القيمة العادلة يُبطل المخزَّن متى تغيّر
                  "tadawul_financials.py",   # D596: طبقةُ القوائم المعتمدة
-                 "tadawul_xbrl.py")         # D611: دمجُ الطبقتين يُبطل المخزَّن متى تغيّر
+                 "tadawul_xbrl.py",         # D611: دمجُ الطبقتين يُبطل المخزَّن متى تغيّر
+                 "financial_features.py", "confidence.py", "red_lines.py")   # D671: مؤشّراتُ الدرجة وثقتُها
 
 
 def engine_version() -> str:
@@ -277,7 +278,9 @@ def confidence_of(fvm: dict) -> str:
     # والخاسرةُ (24٪) والتشتّتُ فوق 30٪ (22٪ فأكثر) ونموذجان فأقلّ (31٪) هي ما يتجاوز عتبةَ العشرين
     if loser:
         return "منخفضة"
-    if disp <= 0.14 and len(ms) >= 4 and not stale:
+    # ‏D672 (المرشَّح 2.3): ثلاثةُ نماذج تكفي — قِيس أنّ تشتّتاً ≤ 10٪ بثلاثة نماذج خطؤه 4.0٪ (14 ورقة، المصارفُ كلُّها)
+    # وأنّ شرطَ الأربعة كان يُنزل أدقَّ الأوراق: خطأُ «المرتفعة» 12.0٪ ← 9.2٪ بالثلاثة (conf_calib_door · conf_prune_door).
+    if disp <= 0.14 and len(ms) >= 3 and not stale:
         return "مرتفعة"
     if disp <= 0.30:
         return "متوسطة"

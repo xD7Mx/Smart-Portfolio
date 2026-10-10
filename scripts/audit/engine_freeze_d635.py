@@ -17,7 +17,7 @@ FILES = sorted([
                         "expert_panel.py", "sector_multiples.py", "governance_rules.py", "valuation_fields.py",
                         "four_scores.py", "fair_value_models.py", "tadawul_financials.py", "tadawul_xbrl.py",
                         "decision_engine.py", "technical.py", "market_valuation_sweep.py", "material_events.py",
-                        "red_lines.py", "confidence.py")),
+                        "red_lines.py", "confidence.py", "financial_features.py")),
     ROOT / "backend/app/data/archetype_spec.py", ROOT / "backend/app/data/governance_rules.yaml",
 ])
 BASE = ROOT / "scripts/audit/engine_baseline.json"
@@ -26,6 +26,7 @@ REPORTS = ROOT / "scripts/audit/engine_reports"
 # اتجاهُ كلّ مقياس: أعلى أفضل (+1) أو أدنى أفضل (−1)، وسماحُ الضجيج
 DIRECTION = {"coverage": (+1, 0.005), "unnamed_missing": (-1, 0), "stale": (-1, 0), "precapital": (-1, 0),
              "far_share": (-1, 0.005), "median_dev": (-1, 0.005), "conf_share": (+1, 0.01),
+             "conf_high_share": (+1, 0.01),                          # ‏D672: حصّةُ «مرتفعة»
              # ‏D639: محرّكاتُ ٢–٥ — فإصلاحُ الجودة أو الفنّيّ يُقاس بها، لا يُردّ «بلا فائدة» لأنّ السعرَ العادل لم يتغيّر
              # ‏D643 (بقرار المالك): التغطيةُ «حكمٌ صادر» — الاستبعادُ المسمّى لتهديد البقاء حكمٌ لا فجوة
              "q_verdict_coverage": (+1, 0.005), "q_unnamed": (-1, 0), "q_stale_unlabeled": (-1, 0), "q_redline_high": (-1, 0),
