@@ -903,7 +903,9 @@ def sanity_ttm(ttm: dict, src: str, annual: list[dict], shares: float, price: fl
     return ttm, src
 
 
-SHARES_TOL = 1.15                    # ‏D674: كان 1.5
+# ‏D674 (مؤجَّلٌ إلى 2.4): حدُّ 15٪ يلتقط المنحَ (الرمز 0.70) لكنّه لا يميّز زيادةَ رأس المال بالاكتتاب (أسهمٌ ونقدٌ معاً) عن
+# المنحة (أسهمٌ بلا نقد) — قِيس في بوابة المرشَّح: ميدغلف (اكتتاب) 104.8 ← 138.2 مليوناً فتراجع انحرافُ قطاع التأمين 7.1 ← 11.6٪.
+SHARES_TOL = 1.5
 
 
 def market_shares_check(shares: float, market_cap: float | None, price: float | None, notes: list) -> float:
@@ -913,8 +915,6 @@ def market_shares_check(shares: float, market_cap: float | None, price: float | 
     if not (market_cap and price and price > 0):
         return shares
     mkt = market_cap / price
-    # ‏D674 (المرشَّح 2.3): مرّةٌ ونصفٌ لا تلتقط منحَ هذا السوق — منحةُ سهمٍ لكلّ خمسة (1.2×) أو ثلاثةٍ لكلّ سبعة (1.43×).
-    # قِيس: «الرمز» 30 مليوناً في القوائم و42.9 في السوق (0.70) فتضخّم سعرُها العادل 43٪ وبقي. فالحدُّ 15٪.
     if shares and (shares > mkt * SHARES_TOL or shares < mkt / SHARES_TOL):
         notes.append(f"عددُ الأسهم من القوائم {shares / 1e6:,.1f} مليون يخالف السوق {mkt / 1e6:,.1f} مليون "
                      "(منحةٌ أو تجزئةٌ بعد آخر قوائم) — أُخذ عددُ السوق")
@@ -1350,7 +1350,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v40:{sym}"   # v40: D672 الحذفُ المعتمد بالنمط وحجمُ المجموعة
+    ck = f"fvm:v41:{sym}"   # v41: D672 الحذفُ المعتمد بالنمط وحجمُ المجموعة · D674 مؤجَّل
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

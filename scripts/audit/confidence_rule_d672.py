@@ -78,7 +78,7 @@ check(len(k2b) == 5, "٨ب ولا ما يُبقي ثلاثةً وحدها — ي
 k3 = run("commodity", ["epv", "peer_ev_ebit", "peer_pe", "peer_pb"])
 check(len(k3) == 4, "٩ والنمطُ الذي لم يجتز التحقّقَ (السلع) لا يُحذف منه شيء", str(k3))
 src = (ROOT / "backend/app/services/fair_value_models.py").read_text(encoding="utf-8")
-check('f"fvm:v40:{sym}"' in src and '"set_size": len(allowed)' in src,
+check('f"fvm:v41:{sym}"' in src and '"set_size": len(allowed)' in src,
       "١٠ ومفتاحُ كاش النماذج تغيّر، وحجمُ مجموعة القطاع يُحمَل مع النماذج")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)
