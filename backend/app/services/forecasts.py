@@ -12,6 +12,11 @@
 
 فالتبويبُ من هذين العامَّين، كلُّ بندٍ بمصدره ورابطه وتاريخه. ولا يُختلق شيء:
 إن عادا فارغين قالت الواجهةُ «غير متوفّرة».
+
+‏D662: قال المالك «أريد تقاريرَ للجهات المعتمدة من بنوكٍ وغيرها لسوق تاسي — حالياً خالية». فقِيس أنّ
+المصدرَين أعلاه يعودان صفراً، وأنّ الجهاتِ المرخّصةَ نفسَها تنشر تقاريرها عامّةً: الجزيرة كابيتال وجدوى
+والراجحي المالية (`research_reports.py`). فصارت هي الطبقةَ الأولى، ويُحفظ آخرُ ما وصل فلا يخلو التبويب
+لتعذّرٍ لحظيّ.
 """
 from __future__ import annotations
 
@@ -23,7 +28,8 @@ from loguru import logger
 from app.services import cache
 from app.services.argaam_calendar import BASE, UA, _N_DATE, _N_ITEM, _news_dt, _txt, fetch_argaam_news
 
-CACHE_KEY = "forecasts:v1"
+CACHE_KEY = "forecasts:v2"
+LAST_KEY = "forecasts:last"
 TTL = 60 * 60
 SECTOR_URL = BASE + "/ar/sector/sector-report"
 
@@ -91,12 +97,28 @@ async def _sector_reports() -> list[dict]:
 
 
 async def build() -> list[dict]:
-    news = await fetch_argaam_news()
-    items = pick_forecasts(news) + await _sector_reports()
+    from app.services import lastgood
+    from app.services.research_reports import collect
+    try:
+        reports = await collect()
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"التوقعات/تقاريرُ الجهات: {type(e).__name__}: {e}")
+        reports = []
+    try:
+        news = pick_forecasts(await fetch_argaam_news()) + await _sector_reports()
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"التوقعات/أرقام: {type(e).__name__}: {e}")
+        news = []
+    items = reports + news
     items.sort(key=lambda x: x.get("date") or "", reverse=True)
     if items:
         cache.set(CACHE_KEY, items, TTL)
-    logger.info(f"🔭 التوقعات: {len(items)} بنداً.")
+        lastgood.save(LAST_KEY, {"items": items})
+    else:                                                         # تعذّرٌ لحظيّ لا يُخلي التبويب: آخرُ ما وصل بتاريخه
+        items = list((lastgood.load(LAST_KEY) or {}).get("items") or [])
+        if items:
+            cache.set(CACHE_KEY, items, 10 * 60)
+    logger.info(f"🔭 التوقعات: {len(items)} بنداً (الجهاتُ المرخّصة {len(reports)}).")
     return items
 
 

@@ -275,6 +275,15 @@ async def job_close_digest():
         logger.error(f"ملخّصُ الإغلاق: {e}")
 
 
+async def job_forecasts():
+    """‏D662: تقاريرُ الجهات المرخّصة تُجمع مسبقاً — فلا ينتظر من يفتح «التوقعات» قراءةَ ثلاث جهات."""
+    try:
+        from app.services.forecasts import build
+        logger.info(f"التوقعات: {len(await build())} بنداً")
+    except Exception as e:
+        logger.error(f"التوقعات: {e}")
+
+
 async def job_tasi_session():
     """‏D661: جلسةُ «تداول» لتاسي تُحفظ ساعاتُها بعد الإغلاق — فيطول سجلُّ الساعة الرسميُّ وإن لم يفتح أحدٌ الرسم."""
     try:
@@ -771,6 +780,7 @@ def start_scheduler():
     _scheduler.add_job(job_split_watch, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=10, minute=20), id="split_watch_am", replace_existing=True)
     _scheduler.add_job(job_split_watch, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=15, minute=40), id="split_watch_pm", replace_existing=True)
     _scheduler.add_job(job_tasi_session, CronTrigger(day_of_week=TRADING_DAYS, hour=15, minute=25), id="tasi_session_close", replace_existing=True)
+    _scheduler.add_job(job_forecasts, CronTrigger(minute=50), id="forecasts_hourly", replace_existing=True)
     # وبعد كلِّ إقلاعٍ بأربع دقائق: الإعادةُ تمحو ذاكرةَ الخادم، والمخزَّنُ في القرص لا يقرؤه خادمٌ يعمل —
     # قِيس أنّ تجهيزاً من عمليةٍ أخرى لا يصل الخادمَ الحيّ؛ فالخادمُ يُجهّز نفسَه
     from datetime import datetime as _dt
