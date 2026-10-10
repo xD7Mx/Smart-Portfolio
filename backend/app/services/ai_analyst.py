@@ -362,11 +362,14 @@ async def company_analysis(db, ent: dict, ctx: dict) -> str:
                              + (f" · القرار المحسوب: {gov.get('decision')}" if gov.get("decision") else ""))
         if gov.get("narrative"):
             gov_lines.append(f"• {str(gov['narrative']).strip()}")
+    parts.append(_sec("المتانة والالتزام:", gov_lines))
+    # ‏D669 (بأمر المالك: «لا تجعل شرعيةَ الشركة معياراً لقياس أدائها»): الشرعيةُ معلومةٌ مستقلّة بقسمها — لا سطرٌ بين
+    # الدرجة والقرار تُقرأ منه حكماً على المتانة أو الأداء.
     sharia = detail.get("sharia_status") or row.get("شرعي")
     if sharia:
-        gov_lines.append(f"• التوافق الشرعي: {sharia_ar(sharia)}"
-                         + (f" (المصدر {detail.get('sharia_source')})" if detail.get("sharia_source") else ""))
-    parts.append(_sec("المتانة والالتزام:", gov_lines))
+        parts.append(_sec("التوافق الشرعي (معلومةٌ مستقلّة لا تدخل في الحكم على أداء الشركة):",
+                          [f"• {sharia_ar(sharia)}"
+                           + (f" (المصدر {detail.get('sharia_source')})" if detail.get("sharia_source") else "")]))
 
     # ٤) الفنّي
     rsi = g("rsi", "RSI")

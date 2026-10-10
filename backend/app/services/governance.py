@@ -52,8 +52,7 @@ def _rule_governance_narrative(overall_score, label, rows, sectors, sharia_count
     line = f"محفظتك {label} بدرجة {overall_score}/100"
     if leaders:
         line += "، بقيادة " + " و".join(r["name"] for r in leaders)
-    if scored and not sharia_counts.get("NON_COMPLIANT"):
-        line += "، وجميع مراكزها متوافقة شرعياً"
+    # ‏D669: وصفُ حالة المحفظة أداءٌ وسلامة — الشرعيةُ لا تدخله
     return line + "."
 
 
@@ -89,11 +88,9 @@ async def get_portfolio_governance(db) -> dict:
         r = maqasid.rating(c.symbol)
         sharia = (r.get("status") if r else c.sharia_status) or "UNKNOWN"
         sharia_counts[sharia] = sharia_counts.get(sharia, 0) + 1
-        if sharia == "NON_COMPLIANT":
-            attention.append({
-                "severity": "high", "symbol": c.symbol, "name": c.company_name,
-                "message": "غير متوافقة شرعياً",
-            })
+        # ‏D669 (بأمر المالك: «لا تجعل شرعيةَ الشركة معياراً لقياس أدائها — لا علاقة لذلك»): الشرعيةُ تُعرض بشارتها في
+        # الصفّ (‏sharia_status) ولا تدخل تنبيهاتِ الأداء والسلامة المالية ولا وصفَ حالة المحفظة. كانت «غير متوافقة شرعياً»
+        # تنبيهاً عالي الخطورة بجانب «درجة سلامة مالية منخفضة» — فبدت حكماً على الأداء.
 
         # ONE source of truth: the exact same governance engine the per-company
         # panel (✨) uses — evaluate_company. The portfolio row's score/decision

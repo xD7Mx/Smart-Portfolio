@@ -432,7 +432,6 @@ async def governance_narrative(overall_score: int, label: str, holdings: list[di
 الدرجة الكلية: {overall_score}/100 ({label}).
 أقوى المراكز: {holds_txt}.
 التوزيع القطاعي: {sect_txt}.
-التوافق الشرعي: {"جميع المراكز المُقيَّمة متوافقة شرعياً" if all_compliant else "توجد مراكز غير متوافقة شرعياً"}.
 سطر واحد موجز فقط — لا قائمة، لا عناوين، لا تعداد أرقام، ولا أكثر من جملتين قصيرتين."""
     from app.services.usage_tracker import can_call, record
     if not can_call("gemini"):
