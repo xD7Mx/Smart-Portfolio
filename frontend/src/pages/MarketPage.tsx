@@ -16,7 +16,7 @@ import { statusView } from "../lib/marketStatus";
 import StatusMark from "../components/common/StatusMark";
 import { useLiveIndex } from "../hooks/useLivePrices";
 import CompanyLogo from "../components/common/CompanyLogo";
-import { FairValueBar, SafetyBar, fairValueTier, safeColor } from "../components/common/ValueBars";
+import { fairValueTier, safeColor } from "../components/common/ValueBars";
 import { ShariaBadge } from "../components/common/UI";
 import SourceLogo, { hasSourceLogo } from "../components/common/SourceLogo";
 import EventsList from "../components/market/EventsList";
@@ -397,26 +397,27 @@ function FrameSeg({ frame, setFrame }: { frame: string; setFrame: (v: any) => vo
   );
 }
 
-/** خانة مقياس داخل بطاقة الجوال — عنوان صغير فوق قيمة بارزة. */
-function Metric({ label, value, color }: { label: string; value: string | null; color?: string }) {
+/** خانة مقياس داخل بطاقة الجوال — تسميةٌ صغيرة فوق رقمها، يميناً كلُّها (‏D684: كانت موسَّطةً في صفٍّ ويميناً
+ *  ووسطاً ويساراً في الذي تحته). والرقمُ في عزلٍ ‏ltr داخل سطرٍ عربيّ: بدونه تُدفع إشارةُ السالب إلى آخره فيُقرأ «50%-». */
+function Metric({ label, value, color, after }: { label: string; value: string | null; color?: string; after?: React.ReactNode }) {
   return (
-    <div className="text-center">
-      <div className="text-[9.5px] text-[var(--ink-muted)] mb-0.5">{label}</div>
-      {/* dir="ltr" على الرقم: بدونه تُدفع إشارة السالب إلى آخر النصّ في سياقٍ
-          عربي فيُقرأ «50%-» بدل «-50%» — ويلتبس بالموجب عند المرور السريع. */}
-      <div className="text-[12px] font-bold tabular-nums" dir="ltr"
+    <div data-role="cell" className="min-w-0">
+      <div data-role="label" className="text-[9.5px] text-[var(--ink-muted)] truncate">{label}</div>
+      <div data-role="value" className="text-[12.5px] font-bold tabular-nums mt-0.5 whitespace-nowrap"
         style={{ color: value == null ? "var(--ink-muted)" : (color || "var(--ink)") }}>
-        {value ?? "—"}
+        <span dir="ltr">{value ?? "—"}</span>{after}
       </div>
     </div>
   );
 }
 
-/** وسم صغير ملوّن — لا يظهر إلا حين تتوفّر البيانة فعلاً. */
-function Chip({ text, color }: { text: string; color: string }) {
+/** وسم صغير ملوّن — لا يظهر إلا حين تتوفّر البيانة فعلاً. ‏D684: الأرضيةُ والإطارُ بـ`color-mix` — كانا «`${color}1a`»
+ *  فيُلصق لاحقةُ شفافيةٍ باسم رمز (`var(--info-ink)1a`) فتسقط القاعدةُ كلُّها ولا تُرى أرضية. */
+function Chip({ text, color }: { text: React.ReactNode; color: string }) {
   return (
-    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md whitespace-nowrap"
-      style={{ color, background: `${color}1a`, border: `1px solid ${color}33` }}>
+    <span data-role="chip" className="text-[10px] font-bold px-2 py-0.5 rounded-md whitespace-nowrap"
+      style={{ color, background: `color-mix(in srgb, ${color} 10%, transparent)`,
+               border: `1px solid color-mix(in srgb, ${color} 22%, transparent)` }}>
       {text}
     </span>
   );
@@ -970,100 +971,68 @@ export function ScreenerTab({ onOpen }: { onOpen: (symbol: string) => void }) {
             تسلسل بصري: الهوية والسعر (الأهمّ) ← ثلاثية تقنية ← وسوم البيانات
             المتاحة فقط. لا جدول أفقي يُجبر المستخدم على السحب. */}
         <div className="md:hidden space-y-2">
+          {/* ══ بطاقةُ الفرز بهويّة التطبيق ══ (بأمر المالك · D684)
+              «لا تجعل هناك شذوذاً نصّياً بل في أماكن مرتّبة — اللي فوق مشابهٌ للي تحت — والأهمّ ألّا يكون تشتّت».
+              قِيس قبلها: إشارةُ السالب والنسبة في غير موضعها («0.30%-» · «%6.8») والرمزُ مقلوب («SR.4190»)، وتاريخُ القوائم
+              ينكسر سطرين («2026-» / «06»)، والصفُّ التقنيّ موسَّطٌ وصفُّ التقييم يمينٌ ووسطٌ ويسار، ووسمان بنمطين.
+              فصار: رأسٌ (الهويّة يميناً والسعرُ وتغيّرُه يساراً كبطاقات «الشاشة») ثمّ صفّان بشبكةٍ واحدة من ثلاث خاناتٍ
+              — كلُّ خانةٍ تسميةٌ فوق رقمها، والكلُّ يمين — ثمّ وسومٌ بنمطٍ واحد. */}
           {shownMobile.map((r: any) => {
             const m = M(r);
             const up = (r.change_pct ?? 0) >= 0;
+            const chg = r.change_pct == null ? "var(--ink-muted)" : up ? "var(--pos-ink)" : "var(--neg-ink)";
+            const signed = (v: any, d = 1) => v == null ? null : `${v >= 0 ? "+" : ""}${Number(v).toFixed(d)}%`;
+            const tone = (v: any) => v == null ? undefined : v >= 0 ? "var(--pos-ink)" : "var(--neg-ink)";
+            const old = (r.stmt_age_days ?? 0) > 200;
+            const verdict = VERDICTS[r.verdict || ""];
             return (
               <button key={r.symbol} onClick={() => onOpen(r.symbol)}
-                className="w-full text-start rounded-2xl p-3 active:scale-[.99] transition-transform"
-                style={{ background: "var(--pop)", border: "1px solid var(--line)" }}>
-                {/* الهوية + السعر */}
-                <div className="flex items-center gap-2.5">
+                data-role="scr-card" className="w-full text-start rounded-2xl p-3 border border-[var(--hairline)] bg-[var(--surface)] active:scale-[.99] transition-transform">
+                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5">
                   <CompanyLogo symbol={r.symbol} size={34} />
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <ShariaBadge status={r.sharia} size={12} />
-                      <div className="text-[var(--ink)] text-[13px] font-bold truncate">{r.name}</div>
+                      <div className="text-[var(--ink)] text-[13px] font-semibold truncate">{r.name}</div>
                     </div>
-                    <div className="text-[10px] text-[var(--ink-muted)] truncate">{r.symbol}{r.sector ? ` · ${r.sector}` : ""}</div>
+                    <div className="text-[10px] text-[var(--ink-muted)] truncate mt-0.5">
+                      <span className="text-[var(--brand-ink)] tabular-nums">{String(r.symbol).replace(".SR", "")}</span>
+                      {r.sector ? <> · {r.sector}</> : null}
+                    </div>
                   </div>
-                  <div className="text-end shrink-0">
-                    <div className="text-[var(--ink)] font-bold tabular-nums text-[15px]">
-                      <LivePrice symbol={r.symbol} fallback={r.price} />
-                    </div>
-                    <div className="text-[11px] font-bold tabular-nums"
-                      style={{ color: r.change_pct == null ? "var(--ink-muted)" : up ? "var(--pos-ink)" : "var(--neg-ink)" }}>
-                      {r.change_pct == null ? "—" : (<><span className="chg-arrow">{up ? "▲" : "▼"}</span> {up ? "+" : ""}{r.change_pct.toFixed(2)}%</>)}
-                    </div>
+                  <div className="flex flex-col items-center gap-1 shrink-0">
+                    <span className="text-[var(--ink)] font-semibold tabular-nums text-[15px]">
+                      <LivePrice symbol={r.symbol} fallback={r.price} style={{ margin: 0 }} />
+                    </span>
+                    <span data-role="chg" className="text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded-md whitespace-nowrap"
+                      style={{ color: chg, background: `color-mix(in srgb, ${chg} 10%, transparent)` }}>
+                      {r.change_pct == null ? "—" : <span dir="ltr">{signed(r.change_pct, 2)}</span>}
+                    </span>
                   </div>
                 </div>
 
-                {/* الثلاثية التقنية للفاصل المختار */}
-                <div className="grid grid-cols-3 gap-2 mt-2.5 pt-2.5" style={{ borderTop: "1px solid var(--line)" }}>
-                  <Metric label="عن م50" value={m.dist_sma50 == null ? null : `${m.dist_sma50 >= 0 ? "+" : ""}${m.dist_sma50}%`}
-                    color={m.dist_sma50 == null ? undefined : m.dist_sma50 >= 0 ? "var(--pos-ink)" : "var(--neg-ink)"} />
-                  <Metric label="عن م200" value={m.dist_sma200 == null ? null : `${m.dist_sma200 >= 0 ? "+" : ""}${m.dist_sma200}%`}
-                    color={m.dist_sma200 == null ? undefined : m.dist_sma200 >= 0 ? "var(--pos-ink)" : "var(--neg-ink)"} />
+                <div className="grid grid-cols-3 gap-x-2 gap-y-2.5 mt-3 pt-3 border-t border-[var(--hairline)]">
+                  <Metric label="عن متوسط 50" value={signed(m.dist_sma50)} color={tone(m.dist_sma50)} />
+                  <Metric label="عن متوسط 200" value={signed(m.dist_sma200)} color={tone(m.dist_sma200)} />
                   <Metric label="RSI" value={m.rsi == null ? null : String(m.rsi)}
-                    color={m.rsi == null ? undefined : m.rsi < 30 ? "var(--pos-ink)" : m.rsi > 70 ? "var(--neg-ink)" : "var(--ink-muted)"} />
+                    color={m.rsi == null ? undefined : m.rsi < 30 ? "var(--pos-ink)" : m.rsi > 70 ? "var(--neg-ink)" : "var(--ink)"} />
+                  {/* ══ سعرٌ عادلٌ واحد: تقديرُ المحرّك ══ (بأمر المالك · D431) */}
+                  <Metric label="السعر العادل" value={r.fair_value != null ? Number(r.fair_value).toFixed(2) : null} />
+                  <Metric label="عن السعر العادل" value={r.fair_value_upside_pct == null ? null : `${r.fair_value_upside_pct >= 0 ? "+" : ""}${Math.round(r.fair_value_upside_pct)}%`}
+                    color={r.fair_value_upside_pct == null ? undefined : fairValueTier(r.fair_value_upside_pct).color} />
+                  {/* عمرُ الرقم جزءٌ منه (‏D384) — بجانبه في سطره، لا سطرين */}
+                  <Metric label="الجودة المالية" value={r.finance_score == null ? null : String(Math.round(r.finance_score))}
+                    color={r.finance_score == null ? undefined : safeColor(r.finance_score)}
+                    after={r.stmt_asof ? <span className="text-[9.5px] font-normal">
+                      <span className="mx-1 text-[var(--ink-muted)]">·</span>
+                      <span className="tabular-nums" dir="ltr" style={{ color: old ? "var(--warn-ink)" : "var(--ink-muted)" }}>{String(r.stmt_asof).slice(0, 7)}</span>
+                    </span> : null} />
                 </div>
 
-                {/* صفّ التقييم — بنفس بنية الصفّ التقني أعلاه لا وسوماً
-                    مبعثرة: ثلاثة أرقام في ثلاثة أعمدة، فتُقارَن الشركات
-                    رأسياً بالنظر بين بطاقةٍ وأخرى.
-                    والحكم شريطٌ تحتها لأنه خلاصةُ الثلاثة لا رابعُها. */}
-                {/* صفّ الذكاء — ثلاث قوائم بلغة بطاقة «رؤية الذكاء» على الجوال:
-                    التقييم يميناً · السعر العادل رقماً في المنتصف · درجة
-                    السلامة يساراً. والعناوين في سطرٍ واحد فوق، والقيم في سطرٍ
-                    واحد تحت، فتُقارَن الشركات رأسياً بين بطاقةٍ وأخرى. */}
-                {(r.fair_value_upside_pct != null || r.fair_value != null || r.finance_score != null) && (
-                  <div className="grid grid-cols-3 gap-2 mt-2.5 pt-2.5" style={{ borderTop: "1px solid var(--line)" }}>
-                    <div className="space-y-1.5 min-w-0">
-                      <div className="text-[9.5px] text-[var(--ink-muted)]">التقييم</div>
-                      {/* الشريط وحده هنا: كانت المعلومة نفسها تُقال ثلاث مرّات
-                          (شريط + نصٌّ مقطوع «تقييم مبخ…» + وسمٌ أسفل البطاقة).
-                          والنسبة رقمٌ يُقرأ، والوسم يبقى في صفّ الوسوم. */}
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <FairValueBar upside={r.fair_value_upside_pct ?? null} hideLabel width={44} />
-                        <span className="text-[10.5px] font-semibold tabular-nums shrink-0" dir="ltr"
-                          style={{ color: fairValueTier(r.fair_value_upside_pct ?? null).color }}>
-                          {r.fair_value_upside_pct == null ? "—" : `${r.fair_value_upside_pct >= 0 ? "+" : ""}${Math.round(r.fair_value_upside_pct)}%`}
-                        </span>
-                      </div>
-                    </div>
-                    {/* ══ سعرٌ عادلٌ واحد: تقديرُ المحرّك ══ (بأمر المالك · D431) */}
-                    <div className="space-y-1.5 text-center">
-                      <div className="text-[9.5px] text-[var(--ink-muted)]">السعر العادل</div>
-                      <div className="text-[12px] font-bold tabular-nums text-[var(--ink)]" dir="ltr">
-                        {r.fair_value != null ? Number(r.fair_value).toFixed(2) : "—"}
-                      </div>
-                    </div>
-                    <div className="space-y-1.5 min-w-0">
-                      <div className="text-[9.5px] text-[var(--ink-muted)] text-end">درجة الجودة المالية</div>
-                      <div className="flex items-center gap-1.5 justify-end">
-                        <SafetyBar score={r.finance_score == null ? null : Math.round(r.finance_score)} width={44} />
-                        <span className="text-[10.5px] font-semibold tabular-nums"
-                          style={{ color: r.finance_score == null ? "var(--ink-muted)" : safeColor(r.finance_score) }}>
-                          {r.finance_score == null ? "—" : Math.round(r.finance_score)}
-                        </span>
-                        {/* عمرُ الرقم جزءٌ منه (‏D384) */}
-                        {r.stmt_asof && (
-                          <span className="text-[9px] tabular-nums" dir="ltr"
-                            style={{ color: (r.stmt_age_days ?? 0) > 200
-                                            ? "var(--warn-ink)" : "var(--ink-muted)" }}>
-                            {String(r.stmt_asof).slice(0, 7)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* الوسوم المتبقية — صفٌّ خاصّ بها */}
-                {(r.verdict || r.dividend_yield != null || m.macd_cross) && (
-                  <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
-                    <VerdictTag v={r.verdict} small gap={r.value_gap_pct} basis={r.value_basis} />
-                    {r.dividend_yield != null && <Chip text={`توزيع ${r.dividend_yield}%`} color="var(--info-ink)" />}
+                {(verdict || r.dividend_yield != null || m.macd_cross) && (
+                  <div className="flex items-center gap-1.5 flex-wrap mt-3 pt-3 border-t border-[var(--hairline)]">
+                    {verdict && <Chip text={verdict.label} color={verdict.color} />}
+                    {r.dividend_yield != null && <Chip text={<>توزيع <span dir="ltr">{r.dividend_yield}%</span></>} color="var(--info-ink)" />}
                     {m.macd_cross === "up" && <Chip text="ماكد صاعد" color="var(--pos-ink)" />}
                     {m.macd_cross === "down" && <Chip text="ماكد هابط" color="var(--neg-ink)" />}
                   </div>

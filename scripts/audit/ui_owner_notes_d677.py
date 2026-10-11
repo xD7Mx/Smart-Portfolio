@@ -26,8 +26,8 @@ def check(ok, label, det=""):
 rd = lambda *p: SRC.joinpath(*p).read_text(encoding="utf-8")   # noqa: E731
 # ── D677 ──
 wl, wp, pp = rd("components/market/WatchlistTab.tsx"), rd("pages/WatchlistPage.tsx"), rd("pages/PortfolioPage.tsx")
-check("grid grid-cols-2 lg:grid-cols-3 gap-3" in wl and "العادل" in wl and "DECISION_INK" in wl and 'queryKey: ["screener-lite"]' in wl,
-      "١ المراقبةُ بطاقاتٌ: اثنتان في الصفّ على الجوال وثلاثٌ على الحاسوب، وتفاصيلُ كلّ شركة (العادلُ والقرار) من الفرز نفسِه")
+check('GRID = "grid grid-cols-3 gap-2 md:gap-3"' in wl and "العادل" in wl and "DECISION_INK" in wl and 'queryKey: ["screener-lite"]' in wl,
+      "١ المراقبةُ («الشاشة» منذ D683) بطاقاتٌ: ثلاثٌ في الصفّ على الجوال (‏D683 — كانت اثنتين) وعلى الحاسوب، وتفاصيلُ كلّ شركة (العادلُ والقرار) من الفرز نفسِه")
 check('dir="ltr"' in wl, "٢ والنسبُ بإشارتها في موضعها (لا «%15.0-»)")
 check("<WatchlistTab onOpen={setSheet} />" in wp and "StockSheet" in wp and "WatchlistTab" not in pp and "<StarsPage embedded />" in pp,
       "٣ المراقبةُ قسمٌ يفتح ورقةَ السهم، ولم تعد تبويباً في المحفظة؛ والمختبرُ تبويبُها")

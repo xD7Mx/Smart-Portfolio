@@ -8,6 +8,7 @@ import { useAuthStore } from "../../store/authStore";
 import { searchCompanies } from "../../data/saudiCompanies";
 import CompanyLogo from "../common/CompanyLogo";
 import { useAppStore } from "../../store/appStore";
+import { useLongPressSort } from "../../hooks/useLongPressSort";
 
 /* لوحةُ الاختيار من عائلة الرسوم وحدها: الرموز الدلالية (ربح/خسارة/تحذير)
    ليست هويّاتٍ تُختار، واستعمالها هنا كان يُدخل الأحمر والأصفر الصارخين في
@@ -20,7 +21,8 @@ const KEY = "sp_active_watchlist";
 
 interface Group { id: number; name: string; color: string; is_default: boolean; }
 
-/** قسمُ المراقبة (‏D677: صار قسماً في القائمة مكانَ مختبر الأبحاث): قوائمُ متعدّدة — مبدّلٌ وبطاقةٌ لكلّ شركة. */
+/** قسمُ «الشاشة» (‏D683 بأمر المالك: كان «المراقبة» · D677: قسمٌ في القائمة مكانَ مختبر الأبحاث): قوائمُ متعدّدة —
+ *  مبدّلٌ وبطاقةٌ لكلّ شركة، تُرتَّب بالضغط المطوّل والسحب. */
 export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => void }) {
   const qc = useQueryClient();
   const owner = useAuthStore((s: any) => s.isOwner);
@@ -76,13 +78,24 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
     }),
   });
   const info: Record<string, any> = Object.fromEntries(scr.map((x: any) => [String(x.symbol).replace(".SR", ""), x]));
+  const desk = useDesk();
+
+  /* ‏D683: الترتيبُ بالضغط المطوّل ثمّ السحب — يُحفظ على الخادم، ويُعرض فوراً قبل ردّه */
+  const order = useMutation({
+    mutationFn: (symbols: string[]) => marketApi.watchOrder(symbols, gid),
+    onError: () => invalidateWatchlist(qc),
+  });
+  const sort = useLongPressSort(rows as any[], (r: any) => String(r.symbol), (next) => {
+    qc.setQueryData(["watchlist", gid], next);
+    order.mutate(next.map((r: any) => String(r.symbol)));
+  }, { enabled: !!owner });
 
   return (
     <div className="space-y-3">
       <div className="card">
         <div className="flex items-center gap-2">
           <Star size={18} className="text-[var(--warn-ink)]" />
-          <h1 className="text-xl font-medium text-[var(--ink)]">المراقبة</h1>
+          <h1 className="text-xl font-medium text-[var(--ink)]">الشاشة</h1>
           <div className="ms-auto flex items-center gap-2">
             <span className="text-[11px] text-[var(--ink-muted)] tabular-nums">{rows.length} شركة</span>
             {owner && rows.length > 0 && (
@@ -98,60 +111,92 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
         {owner && gid != null && <div className="mt-3"><WatchlistAdd onPick={(c: any) => add.mutate(c)} existing={rows.map((r: any) => r.symbol)} /></div>}
       </div>
       {isLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">{[...Array(6)].map((_, i) => <div key={i} className="h-36 skeleton rounded-2xl" />)}</div>
+        <div className={GRID}>{[...Array(6)].map((_, i) => <div key={i} className="h-36 skeleton rounded-2xl" />)}</div>
       ) : rows.length === 0 ? (
         <div className="card py-12 text-center text-[var(--ink-muted)] text-sm">لا شركات في هذه القائمة</div>
       ) : (
-        /* ‏D677 (بأمر المالك): بطاقةٌ لكلّ شركة — ثلاثٌ في الصفّ على الحاسوب واثنتان على الجوال، وتفاصيلُها ملمومة:
-           الهويّة، ثمّ السعرُ وتغيّرُه، ثمّ سطرٌ واحد للعادل والقرار */
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-          {rows.map((r: any) => {
-            const up = (r.change_pct ?? 0) >= 0;
-            const x = info[String(r.symbol)] || {};
-            const fv = typeof x.fair_value === "number" && x.fair_value > 0 ? x.fair_value : null;
-            const ups = typeof x.upside_pct === "number" ? x.upside_pct : null;
-            const dec = typeof x.decision === "string" ? x.decision : null;
-            return (
-              <div key={r.symbol} className="relative rounded-2xl border border-[var(--hairline)] bg-[var(--surface)] hover:border-[var(--line)] transition-colors min-w-0">
-                <button onClick={() => onOpen(r.symbol)} className="w-full text-start min-w-0 block p-3 md:p-4">
-                  <span className="flex items-center gap-2.5 min-w-0 pe-6">
-                    <CompanyLogo symbol={r.symbol} size={34} />
-                    <span className="min-w-0">
-                      <span className="text-[var(--ink)] text-[13px] md:text-[14px] font-semibold leading-snug line-clamp-2 md:truncate md:block">{r.name}</span>
-                      <span className="tag-b inline-block mt-0.5" style={{ fontSize: 10 }}>{r.symbol}</span>
-                    </span>
-                  </span>
-                  <span className="flex items-baseline justify-between gap-2 mt-3">
-                    <span className="text-[var(--ink)] tabular-nums text-[17px] md:text-[19px] font-semibold">
-                      <LivePrice symbol={r.symbol} fallback={r.price} />
-                    </span>
-                    {r.change_pct != null && (
-                      <span className="text-[11px] md:text-[12px] font-bold tabular-nums px-1.5 py-0.5 rounded-md"
-                        style={{ color: up ? "var(--pos-ink)" : "var(--neg-ink)",
-                                 background: `color-mix(in srgb, ${up ? "var(--pos-ink)" : "var(--neg-ink)"} 10%, transparent)` }}>
-                        <span className="chg-arrow">{up ? "▲" : "▼"}</span> <span dir="ltr">{up ? "+" : ""}{r.change_pct.toFixed(2)}%</span>
-                      </span>
-                    )}
-                  </span>
-                  {(fv || dec) && (
-                    <span className="flex items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-[var(--hairline)] text-[11px] min-w-0">
-                      <span className="text-[var(--ink-muted)] truncate">
-                        {fv ? <>العادل <span className="text-[var(--ink)] font-semibold tabular-nums">{fv.toFixed(2)}</span>
-                          {ups != null && <> <span className="tabular-nums" dir="ltr" style={{ color: ups >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>{ups >= 0 ? "+" : ""}{ups.toFixed(1)}%</span></>}</>
-                          : "العادل —"}
-                      </span>
-                      {dec && <span className="shrink-0 font-bold" style={{ color: DECISION_INK[dec] || "var(--ink-muted)" }}>{dec}</span>}
-                    </span>
-                  )}
-                </button>
-                {owner && editing && (
-                  <button onClick={() => remove.mutate(r.symbol)} aria-label="إزالة"
-                    className="icon-live absolute top-2 end-2 w-8 h-8 grid place-items-center rounded-lg text-[var(--ink-muted)] hover:text-[var(--neg-ink)] transition-all" title="إزالة"><X size={14} /></button>
-                )}
-              </div>
-            );
-          })}
+        /* ‏D677 · D683 (بأمر المالك): بطاقةٌ لكلّ شركة — ثلاثٌ في الصفّ على الجوال وعلى الحاسوب. والبطاقةُ خاناتٌ ثابتة
+           تصطفّ بين البطاقات: الهويّة (سطران محجوزان)، ثمّ شبكةٌ من عمودين — السعرُ وتغيّرُه، ثمّ العادلُ والقرار —
+           والقرارُ في عمود التغيّر وفي منتصفه تحته */
+        <div ref={sort.boxRef} className={GRID}>
+          {sort.list.map((r: any) => (
+            <div key={r.symbol} {...sort.itemProps(String(r.symbol))} className="min-w-0">
+              <ScreenCard r={r} x={info[String(r.symbol)] || {}} desk={desk} onOpen={onOpen}
+                lifted={sort.dragKey === String(r.symbol)}
+                onRemove={owner && editing ? () => remove.mutate(r.symbol) : undefined} />
+            </div>
+          ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+/* الشبكة: ثلاثُ بطاقاتٍ في الصفّ على الجوال (‏D683 — كانت اثنتين) وعلى الحاسوب */
+const GRID = "grid grid-cols-3 gap-2 md:gap-3";
+
+function useDesk() {
+  const q = "(min-width: 768px)";
+  const [desk, setDesk] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia?.(q);
+    if (!m) return;
+    const on = () => setDesk(m.matches);
+    m.addEventListener("change", on); on();
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return desk;
+}
+
+function ScreenCard({ r, x, desk, onOpen, lifted, onRemove }: {
+  r: any; x: any; desk: boolean; onOpen: (s: string) => void; lifted: boolean; onRemove?: () => void;
+}) {
+  const up = (r.change_pct ?? 0) >= 0;
+  const ink = r.change_pct == null ? "var(--ink-muted)" : up ? "var(--pos-ink)" : "var(--neg-ink)";
+  const fv = typeof x.fair_value === "number" && x.fair_value > 0 ? x.fair_value : null;
+  const ups = typeof x.upside_pct === "number" ? x.upside_pct : null;
+  const dec = typeof x.decision === "string" ? x.decision : null;
+  return (
+    <div className="relative h-full rounded-2xl border bg-[var(--surface)] transition-colors"
+      style={{ borderColor: lifted ? "transparent" : "var(--hairline)" }}>
+      {/* عمودٌ مرنٌ يبدأ من أعلى: الزرُّ يوسِّط محتواه رأسياً افتراضاً، فالبطاقةُ الأقصرُ في صفٍّ أطول (سابك بلا عادل)
+          كان رأسُها ينزل 8px عن جاراتها — قِيس */}
+      <button onClick={() => onOpen(r.symbol)} className="w-full h-full text-start min-w-0 flex flex-col justify-start p-2 md:p-4">
+        <span className={"flex items-start gap-1.5 md:gap-2.5 min-w-0" + (onRemove ? " pe-7" : "")}>
+          <CompanyLogo symbol={r.symbol} size={desk ? 34 : 24} />
+          <span className="min-w-0 flex-1">
+            <span data-role="name" className="text-[var(--ink)] text-[11px] md:text-[14px] font-semibold leading-[1.35] line-clamp-2 min-h-[2.7em] md:min-h-0 md:line-clamp-1">{r.name}</span>
+            <span className="block text-[9.5px] md:text-[10.5px] text-[var(--brand-ink)] tabular-nums mt-0.5">{r.symbol}</span>
+          </span>
+        </span>
+        <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 md:gap-x-3 gap-y-1.5 md:gap-y-2.5 mt-2 md:mt-3">
+          {/* هامشُ الوميض صفرٌ هنا: السالبُ (‎-4px) يُخرج الرقمَ عن خانته فتقصّه الخانة («24.1(») */}
+          <span data-role="price" className={"text-[var(--ink)] tabular-nums font-semibold truncate md:text-[19px] "
+            + (Math.abs(r.price ?? 0) >= 1000 ? "text-[12px]" : "text-[13.5px]")}>
+            <LivePrice symbol={r.symbol} fallback={r.price} style={{ margin: 0 }} />
+          </span>
+          <span data-role="chg" className="justify-self-center text-[9.5px] md:text-[12px] font-bold tabular-nums px-1.5 py-0.5 rounded-md whitespace-nowrap"
+            style={{ color: ink, background: `color-mix(in srgb, ${ink} 10%, transparent)` }}>
+            {r.change_pct == null ? "—" : <>
+              {desk && <span className="chg-arrow">{up ? "▲" : "▼"} </span>}
+              <span dir="ltr">{up ? "+" : ""}{r.change_pct.toFixed(2)}%</span></>}
+          </span>
+          <span className="col-span-2 border-t border-[var(--hairline)]" aria-hidden />
+          <span className="min-w-0 text-[9.5px] md:text-[11px] text-[var(--ink-muted)] leading-[1.4]">
+            <span className="block md:inline">العادل</span>{" "}
+            <span className="block md:inline text-[var(--ink)] font-semibold tabular-nums text-[10.5px] md:text-[11px]">{fv ? fv.toFixed(2) : "—"}</span>{" "}
+            {ups != null && fv != null && (
+              <span className="block md:inline"><span className="tabular-nums" dir="ltr" style={{ color: ups >= 0 ? "var(--pos-ink)" : "var(--neg-ink)" }}>
+                {ups >= 0 ? "+" : ""}{ups.toFixed(1)}%</span></span>
+            )}
+          </span>
+          <span data-role="dec" className="justify-self-center text-[10px] md:text-[11.5px] font-bold whitespace-nowrap"
+            style={{ color: dec ? (DECISION_INK[dec] || "var(--ink-muted)") : "var(--ink-muted)" }}>{dec || "—"}</span>
+        </span>
+      </button>
+      {onRemove && (
+        <button onClick={onRemove} aria-label="إزالة" title="إزالة"
+          className="icon-live absolute top-1 end-1 md:top-2 md:end-2 w-8 h-8 grid place-items-center rounded-lg text-[var(--ink-muted)] hover:text-[var(--neg-ink)] transition-all"><X size={14} /></button>
       )}
     </div>
   );
@@ -301,7 +346,7 @@ function WatchlistAdd({ onPick, existing }: { onPick: (c: any) => void; existing
     <div className="relative">
       <div className="flex items-center gap-2 panel border border-[var(--hairline)] rounded-xl px-3">
         <Search size={15} className="text-[var(--ink-muted)] shrink-0" />
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="أضف شركة للمراقبة — بالاسم أو الرمز"
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="أضف شركة إلى الشاشة — بالاسم أو الرمز"
           className="flex-1 bg-transparent py-2.5 text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none" />
       </div>
       {results.length > 0 && (

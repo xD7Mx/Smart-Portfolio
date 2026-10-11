@@ -1627,9 +1627,35 @@ async def add_watchlist(payload: dict, db: AsyncSession = Depends(get_db)):
     if existing:
         return success_response(message="الشركة موجودة في هذه القائمة.")
     name = (payload.get("name") or saudi_directory.name_of(symbol) or symbol)
-    db.add(Watchlist(symbol=symbol, name=name, group_id=group_id))
+    # ‏D683: الجديدةُ آخرَ القائمة — كانت تأخذ الترتيبَ 0 فتقفز إلى وسط ترتيبٍ رتّبه المالكُ بيده
+    from sqlalchemy import func as _f
+    last = (await db.execute(select(_f.max(Watchlist.sort_order)).where(Watchlist.group_id == group_id))).scalar()
+    db.add(Watchlist(symbol=symbol, name=name, group_id=group_id, sort_order=(last or 0) + 1))
     await db.commit()
     return success_response(message="أُضيفت إلى القائمة.")
+
+
+@router.put("/watchlist/order", dependencies=[Depends(require_owner)])
+async def order_watchlist(payload: dict, db: AsyncSession = Depends(get_db)):
+    """‏D683: ترتيبُ بطاقات «الشاشة» كما رتّبها المالكُ بالضغط المطوّل والسحب — {group_id, symbols: [...]}.
+
+    يُكتب ترتيبُ المجموعة كلِّها: ما سُمّي بموضعه، وما لم يُسمَّ (أُضيف من جهازٍ آخر أثناء السحب) بعده بترتيبه السابق —
+    فلا تضيع شركةٌ ولا تتكرّر رتبة."""
+    symbols = [str(s).strip().upper() for s in ((payload or {}).get("symbols") or []) if str(s).strip()]
+    group_id = (payload or {}).get("group_id") or await _ensure_default_group(db)
+    rows = (await db.execute(
+        select(Watchlist).where(Watchlist.group_id == group_id).order_by(Watchlist.sort_order, Watchlist.created_at)
+    )).scalars().all()
+    pos = {s: i for i, s in enumerate(dict.fromkeys(symbols))}
+    tail = len(pos)
+    for r in rows:
+        if r.symbol in pos:
+            r.sort_order = pos[r.symbol]
+        else:
+            r.sort_order = tail
+            tail += 1
+    await db.commit()
+    return success_response(data=[r.symbol for r in sorted(rows, key=lambda r: r.sort_order)])
 
 
 @router.delete("/watchlist/{symbol}", dependencies=[Depends(require_owner)])

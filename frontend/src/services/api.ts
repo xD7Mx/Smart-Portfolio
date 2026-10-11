@@ -292,6 +292,7 @@ export const marketApi = {
   watchAdd:   (symbol: string, name?: string, groupId?: number | string) => api.post<APIResponse>("/market/watchlist", { symbol, name, group_id: groupId }),
   watchRemove: (symbol: string, groupId?: number | string) => api.delete<APIResponse>(`/market/watchlist/${symbol}`, { params: groupId ? { group_id: groupId } : undefined }),
   watchMembership: (symbol: string) => api.get<APIResponse>("/market/watchlist/membership", { params: { symbol } }),
+  watchOrder: (symbols: string[], groupId?: number | string) => api.put<APIResponse>("/market/watchlist/order", { symbols, group_id: groupId }),
   watchGroups: () => api.get<APIResponse>("/market/watchlist/groups"),
   watchGroupCreate: (body: { name: string; color?: string }) => api.post<APIResponse>("/market/watchlist/groups", body),
   watchGroupUpdate: (id: number | string, body: { name?: string; color?: string }) => api.patch<APIResponse>(`/market/watchlist/groups/${id}`, body),
