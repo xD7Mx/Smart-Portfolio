@@ -247,6 +247,12 @@ async def save_builtin_config(payload: dict, _: None = Depends(require_owner)):
         if logger_warn:
             logger_warn(f"save_builtin_config failed: {e}")
         return success_response(data=_load_builtin_cfg(), message="تعذّر حفظ الأهداف.")
+    # ‏D686: رأيُ المستشار وحزمتُه وخطتُه تُحسب على الهدف — فتُنسى بتغييره، وإلا بقي الهدفُ القديم حتى الغد
+    try:
+        from app.services import cache as _cache
+        _cache.expire_containing("autopilot:")
+    except Exception:                                             # noqa: BLE001
+        pass
     return success_response(data=_load_builtin_cfg(), message="تم حفظ الأهداف.")
 
 

@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Briefcase, ShieldCheck, Target, BookOpen, Loader2, Send } from "lucide-react";
-import { aiApi } from "../../services/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Briefcase, ShieldCheck, Target, BookOpen, Loader2, Send, Pencil, Check, X, Lightbulb } from "lucide-react";
+import { aiApi, goalsApi } from "../../services/api";
+import { useAuthStore } from "../../store/authStore";
 import CompanyLogo from "../common/CompanyLogo";
 
 /* D587 · D591 — الطيارُ الآليّ للمحفظة (بأمر المالك): مستشارٌ يرى المحفظةَ كلَّها ويحميها من قراراتها.
@@ -79,6 +80,42 @@ function AutopilotChat() {
 
 /* ‏D609 (بأمر المالك): المستشارُ مساعدُ تداولٍ استثماريّ نحو الهدف في الموعد الذي يريده المستثمر —
    لا «متى يأتي الهدف» بل «كيف آتيه في كذا سنة»: العائدُ المطلوب، والضخُّ الشهريّ، وأين يذهب المالُ وما يُخفَّف. */
+/* ‏D686 (بأمر المالك: «اجعل الأهداف قابلةً للتحرير وعدم حصرها للمليون»): المبلغُ يحرّره المالك هنا، ويُحفظ في إعداد
+   الأهداف نفسِه (`million_target` — الحقلُ الذي يقرؤه الطيار والخطة)، فيُعاد حسابُ الرأي والخطة على الهدف الجديد */
+function GoalAmount({ target }: { target?: number }) {
+  const owner = useAuthStore((s: any) => s.isOwner);
+  const qc = useQueryClient();
+  const [edit, setEdit] = useState(false);
+  const [v, setV] = useState("");
+  const save = useMutation({
+    mutationFn: (n: number) => goalsApi.saveBuiltinConfig({ million_target: n }),
+    onSuccess: () => {
+      setEdit(false);
+      ["autopilot-plan", "autopilot", "goals-builtin", "builtin-goals"].forEach(k => qc.invalidateQueries({ queryKey: [k] }));
+    },
+  });
+  const num = Number(String(v).replace(/[^0-9.]/g, ""));
+  if (edit) return (
+    <span className="inline-flex items-center gap-1">
+      <input autoFocus inputMode="numeric" dir="ltr" value={v} onChange={e => setV(e.target.value)} aria-label="مبلغ الهدف"
+        onKeyDown={e => { if (e.key === "Enter" && num > 0) save.mutate(num); if (e.key === "Escape") setEdit(false); }}
+        className="input !py-1 !px-2 w-28 text-[13px] tabular-nums" />
+      <button onClick={() => num > 0 && save.mutate(num)} disabled={!(num > 0) || save.isPending} aria-label="حفظ الهدف"
+        className="w-8 h-8 grid place-items-center rounded-lg text-[var(--pos-ink)] disabled:opacity-40"><Check size={15} /></button>
+      <button onClick={() => setEdit(false)} aria-label="إلغاء" className="w-8 h-8 grid place-items-center rounded-lg text-[var(--ink-muted)]"><X size={14} /></button>
+    </span>
+  );
+  return (
+    <span className="inline-flex items-center gap-1">
+      <b className="tabular-nums text-[var(--ink)]">{typeof target === "number" ? Math.round(target).toLocaleString("en-US") : "—"}</b>
+      {owner && (
+        <button onClick={() => { setV(target ? String(Math.round(target)) : ""); setEdit(true); }} aria-label="تعديل الهدف" title="تعديل الهدف"
+          className="w-8 h-8 grid place-items-center rounded-lg text-[var(--ink-muted)] hover:text-[var(--brand-ink)]"><Pencil size={13} /></button>
+      )}
+    </span>
+  );
+}
+
 function GoalPlan() {
   const [years, setYears] = useState<number>(() => { try { return Number(localStorage.getItem("sp_goal_years")) || 4; } catch { return 4; } });
   const pick = (y: number) => { setYears(y); try { localStorage.setItem("sp_goal_years", String(y)); } catch {} };
@@ -91,7 +128,7 @@ function GoalPlan() {
   return (
     <div className="pt-3 border-t border-[var(--hairline)] space-y-2.5">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-xs font-bold text-[var(--ink-muted)] flex items-center gap-1.5"><Target size={14} /> الهدفُ في موعدك</p>
+        <p className="text-xs font-bold text-[var(--ink-muted)] flex items-center gap-1.5"><Target size={14} /> هدفُك <GoalAmount target={data?.target} /></p>
         <div className="flex gap-1">
           {[2, 3, 4, 5, 7, 10].map(y => (
             <button key={y} onClick={() => pick(y)} aria-pressed={years === y}
@@ -157,10 +194,8 @@ export default function AutopilotCard() {
           style={{ background: mixA("var(--brand)", 14), color: "var(--brand-ink)" }}>
           <Briefcase size={19} />
         </span>
-        <div className="min-w-0">
-          <h2 className="card-title">المستشار الآلي</h2>
-          <p className="text-[11px] text-[var(--ink-muted)] truncate">يقرأ المحفظةَ والتطبيقَ كلَّه — رأيٌ واحد بعقل مستثمرٍ بعيد المدى</p>
-        </div>
+        {/* ‏D686 (بأمر المالك): بلا سطر تبريرٍ تحت العنوان — «لا حواشي تفسيرية» */}
+        <h2 className="card-title min-w-0">المستشار الآلي</h2>
         {data?.asof && <span className="ms-auto text-[10.5px] text-[var(--ink-muted)] tabular-nums shrink-0">{data.asof}</span>}
       </div>
 
@@ -194,6 +229,22 @@ export default function AutopilotCard() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* ‏D686: حلولٌ عملية نحو الهدف — بدائلُ مسمّاةٌ من الفرز، وضخٌّ محسوب، وما تقوله تقاريرُ التوقعات */}
+          {(data.solutions || []).length > 0 && (
+            <div className="rounded-2xl p-3.5" style={{ background: mixA("var(--pos-ink)", 6), border: `1px solid ${mixA("var(--pos-ink)", 18)}` }}>
+              {section(<Lightbulb size={13} className="text-[var(--pos-ink)]" />, "حلولٌ نحو هدفك")}
+              <ol className="space-y-1.5">
+                {data.solutions.map((x: string, i: number) => (
+                  <li key={i} className="flex gap-2 text-[13px] leading-relaxed text-[var(--ink)]">
+                    <span className="w-5 h-5 rounded-full grid place-items-center shrink-0 text-[10.5px] font-bold tabular-nums mt-0.5"
+                      style={{ color: "var(--pos-ink)", background: mixA("var(--pos-ink)", 14) }}>{i + 1}</span>
+                    <span>{String(x).replace(/^\s*[0-9٠-٩]+[.)\-–]\s*/, "")}</span>
+                  </li>
+                ))}
+              </ol>
             </div>
           )}
 

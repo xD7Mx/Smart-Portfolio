@@ -50,7 +50,7 @@ for (let i = 0; i < 60 && !up; i++) {
 if (!up) { console.log("… لم يقلع خادمُ التطوير — لا حكم."); process.exit(0); }
 const browser = await chromium.launch({ executablePath: CHROME });
 
-for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isMobile: true, hasTouch: true }, 3], ["الحاسوب", { width: 1280, height: 900 }, 3]]) {
+for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isMobile: true, hasTouch: true }, 3], ["الحاسوب", { width: 1280, height: 900 }, 4]]) {
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: !!vp.isMobile, hasTouch: !!vp.hasTouch, deviceScaleFactor: 2 });
   const page = await ctx.newPage();
   await page.route("**/api/v1/**", r => {
@@ -71,7 +71,7 @@ for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isM
     const W = document.documentElement.clientWidth;
     const main = document.querySelector(".app-main");
     const sw = Math.max(document.documentElement.scrollWidth, main ? main.scrollWidth : 0);
-    const grid = [...document.querySelectorAll("div.grid")].find(g => g.className.includes("grid-cols-3") && g.children.length >= 6);
+    const grid = [...document.querySelectorAll("div.grid")].find(g => g.querySelector(":scope > [data-sort-key]") && g.children.length >= 6);
     const cards = grid ? [...grid.children] : [];
     const tops = cards.map(c => Math.round(c.getBoundingClientRect().top));
     const perRow = tops.filter(t => t === tops[0]).length;
@@ -81,7 +81,7 @@ for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isM
     return { W, sw, n: cards.length, perRow, minH, withFv, h1 };
   });
   say(wl.h1 && wl.n === 7, `${label}: «الشاشة» قسمٌ مستقلٌّ ببطاقةٍ لكلّ شركة`, `${wl.n} بطاقات`);
-  say(wl.perRow === cols, `${label}: ثلاثُ بطاقاتٍ في الصفّ (‏D683)`, `${wl.perRow}`);
+  say(wl.perRow === cols, `${label}: ${cols === 3 ? "ثلاثُ" : "أربعُ"} بطاقاتٍ في الصفّ (‏D685)`, `${wl.perRow}`);
   say(wl.withFv === wl.n, `${label}: تفاصيلُ ملمومة — العادلُ والقرارُ في كلّ بطاقة`, `${wl.withFv}/${wl.n}`);
   say(wl.sw <= wl.W + 1 && wl.minH >= 32, `${label}: لا فيضَ أفقيّ، والبطاقةُ هدفُ لمسٍ ≥ 32px`, `محتوى ${wl.sw} · شاشة ${wl.W} · ${wl.minH}px`);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `watchlist_${vp.width}.png`), fullPage: true });

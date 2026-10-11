@@ -132,8 +132,9 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
   );
 }
 
-/* الشبكة: ثلاثُ بطاقاتٍ في الصفّ على الجوال (‏D683 — كانت اثنتين) وعلى الحاسوب */
-const GRID = "grid grid-cols-3 gap-2 md:gap-3";
+/* الشبكة (‏D685 بأمر المالك: «أضف سطراً أفقياً حتى يظهر أكبرُ قدرٍ ممكن»): أربعٌ في الصفّ على الحاسوب، وثلاثٌ على
+   الجوال — جُرّبت الأربعُ فيه بخليّةٍ مدمجة فقال المالك: «أربعُ أعمدةٍ غيرُ جميل على الجوال، خلّه ثلاثة» */
+const GRID = "grid grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3";
 
 function useDesk() {
   const q = "(min-width: 768px)";
@@ -156,6 +157,15 @@ function ScreenCard({ r, x, desk, onOpen, lifted, onRemove }: {
   const fv = typeof x.fair_value === "number" && x.fair_value > 0 ? x.fair_value : null;
   const ups = typeof x.upside_pct === "number" ? x.upside_pct : null;
   const dec = typeof x.decision === "string" ? x.decision : null;
+  const decInk = dec ? (DECISION_INK[dec] || "var(--ink-muted)") : "var(--ink-muted)";
+  const chgBadge = (
+    <span data-role="chg" className="text-[9.5px] md:text-[12px] font-bold tabular-nums px-1 md:px-1.5 py-0.5 rounded-md whitespace-nowrap"
+      style={{ color: ink, background: `color-mix(in srgb, ${ink} 10%, transparent)` }}>
+      {r.change_pct == null ? "—" : <>
+        {desk && <span className="chg-arrow">{up ? "▲" : "▼"} </span>}
+        <span dir="ltr">{up ? "+" : ""}{r.change_pct.toFixed(2)}%</span></>}
+    </span>
+  );
   return (
     <div className="relative h-full rounded-2xl border bg-[var(--surface)] transition-colors"
       style={{ borderColor: lifted ? "transparent" : "var(--hairline)" }}>
@@ -175,12 +185,7 @@ function ScreenCard({ r, x, desk, onOpen, lifted, onRemove }: {
             + (Math.abs(r.price ?? 0) >= 1000 ? "text-[12px]" : "text-[13.5px]")}>
             <LivePrice symbol={r.symbol} fallback={r.price} style={{ margin: 0 }} />
           </span>
-          <span data-role="chg" className="justify-self-center text-[9.5px] md:text-[12px] font-bold tabular-nums px-1.5 py-0.5 rounded-md whitespace-nowrap"
-            style={{ color: ink, background: `color-mix(in srgb, ${ink} 10%, transparent)` }}>
-            {r.change_pct == null ? "—" : <>
-              {desk && <span className="chg-arrow">{up ? "▲" : "▼"} </span>}
-              <span dir="ltr">{up ? "+" : ""}{r.change_pct.toFixed(2)}%</span></>}
-          </span>
+          <span className="justify-self-center">{chgBadge}</span>
           <span className="col-span-2 border-t border-[var(--hairline)]" aria-hidden />
           <span className="min-w-0 text-[9.5px] md:text-[11px] text-[var(--ink-muted)] leading-[1.4]">
             <span className="block md:inline">العادل</span>{" "}
@@ -190,8 +195,7 @@ function ScreenCard({ r, x, desk, onOpen, lifted, onRemove }: {
                 {ups >= 0 ? "+" : ""}{ups.toFixed(1)}%</span></span>
             )}
           </span>
-          <span data-role="dec" className="justify-self-center text-[10px] md:text-[11.5px] font-bold whitespace-nowrap"
-            style={{ color: dec ? (DECISION_INK[dec] || "var(--ink-muted)") : "var(--ink-muted)" }}>{dec || "—"}</span>
+          <span data-role="dec" className="justify-self-center text-[11.5px] font-bold whitespace-nowrap" style={{ color: decInk }}>{dec || "—"}</span>
         </span>
       </button>
       {onRemove && (

@@ -234,6 +234,33 @@ def _lines(items) -> list[str]:
             for x in (items or [])][:3]
 
 
+def _market_alternatives(held: set, n: int = 8) -> list[dict]:
+    """‏D686 (بأمر المالك: «المستشار لا يملك الحلول بالرغم من قدرته على قراءة البيانات… واصطياد بدائلَ حكيمة»):
+    مرشّحو السوق من الفرز المخزَّن نفسِه — قرارُ المحرّك «شراء» أو «شراء قوي»، وثقةُ العادل غيرُ منخفضة، وجودةٌ ≥ 60،
+    وفرقٌ عن العادل ≥ 10٪، وليست في المحفظة. مرتّبون بالفرق ثمّ الجودة — أرقامُ الشاشة لا حسابٌ ثانٍ."""
+    from app.services.market_screener import get_cached_screener
+    out = []
+    for r in get_cached_screener() or []:
+        sym = str(r.get("symbol") or "").replace(".SR", "")
+        up, q = _f(r.get("fair_value_upside_pct") or r.get("upside_pct")), _f(r.get("finance_score"))
+        if (not sym or sym in held or r.get("decision") not in ("شراء", "شراء قوي") or r.get("fair_value_conf") == "منخفضة"
+                or up is None or up < 10 or q is None or q < 60):
+            continue
+        out.append({"الرمز": sym, "الشركة": r.get("name"), "القطاع": r.get("sector"), "السعر": r.get("price"),
+                    "العادل": r.get("fair_value"), "الفرق٪": up, "الجودة": round(q), "ثقة_العادل": r.get("fair_value_conf"),
+                    "التوزيع٪": r.get("dividend_yield"), "قرار_المحرّك": r.get("decision")})
+    out.sort(key=lambda x: (-(x["الفرق٪"] or 0), -(x["الجودة"] or 0)))
+    return out[:n]
+
+
+async def _forecast_digest(n: int = 10) -> list[dict]:
+    """‏D686: ما في تبويب «التوقعات» نفسِه — توقّعاتُ بيوت الخبرة وتقاريرُ السوق بعناوينها ومصادرها وتواريخها."""
+    from app.services.forecasts import get as _fc
+    items = await asyncio.wait_for(_fc(), timeout=15) or []
+    return [{"العنوان": str(i.get("title") or "")[:140], "النوع": i.get("kind"), "المصدر": i.get("source") or i.get("house"),
+             "التاريخ": i.get("date"), "الشركة": i.get("company")} for i in items[:n] if i.get("title")]
+
+
 async def _stability(sym: str, sector: str | None) -> str | None:
     """‏D680: ثباتُ الأرباح من محرّك الحوكمة — المنتِجُ الذي تعرضه نافذتُها (‏D675) وبمفتاح ذاكرتها نفسِه (القطاعُ من الشركة)؛
     وكان يُطلب من «financial» في تحليل الشركة ولا يحمله، فغاب عن كلّ المراكز (قِيس: 0/14)."""
@@ -346,7 +373,7 @@ async def pack(db, mode: str = "investor") -> dict:
         m = bg.get("million") or {}
         if m.get("target"):
             wealth = float(m.get("current") or wealth)
-            goals.append({"name": "المليون", "target": float(m["target"]), **goal_eta(wealth, float(m["target"]), cagr)})
+            goals.append({"name": "الهدف", "target": float(m["target"]), **goal_eta(wealth, float(m["target"]), cagr)})
         inc = bg.get("income") or {}
         if inc.get("target"):
             goals.append({"name": f"دخل {inc.get('year')}", "target": float(inc["target"]),
@@ -423,7 +450,7 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
     from app.services import cache
     pid = active_pid()
     mode = "investor"                                            # ‏D591: لا مفتاح — رأيٌ واحد
-    ck = f"autopilot:v5:{pid}:{date.today().isoformat()}"   # v5: D680 (القادمُ والثباتُ والأحداثُ بعناوينها العربية، والخطوطُ برسائلها)
+    ck = f"autopilot:v6:{pid}:{date.today().isoformat()}"   # v6: D686 (البدائلُ والتوقّعاتُ والحلول، والهدفُ يحرّره المالك)
     if not force:
         hit = cache.get(ck)
         if hit:
@@ -436,6 +463,15 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
             "المراكز": [{k: p.get(k) for k in POS_KEYS} | {"قرار_الطيار": p["autopilot"]}
                         for p in pk["positions"]],
             "مبادئ_المكتبة": [f"{x['p']} — «{x['book']}» ص{x['page']}" for x in pk["principles"]]}
+    held = {p["symbol"] for p in pk["positions"]}
+    try:
+        slim["البدائل_في_السوق"] = _market_alternatives(held)
+    except Exception:                                             # noqa: BLE001
+        slim["البدائل_في_السوق"] = []
+    try:
+        slim["تقارير_التوقعات"] = await _forecast_digest()
+    except Exception:                                             # noqa: BLE001
+        slim["تقارير_التوقعات"] = []
     lens = ("بعقل مستثمرٍ بعيد المدى يدخل بحذر مضارب: «اشترِ» لا تُقال إلا بقناعةٍ مكتملة الشروط (conviction)، "
             "وكلُّ «انتظر» يُسمّى ناقصُها.")
     prompt = f"""أنت الطيارُ الآليّ لمحفظة المالك: مستشارٌ ماليٌّ متخرّجٌ من مكتبته. تتكلّم الآن {lens}
@@ -453,6 +489,9 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
   الحمراء وتحذيراتِها (red_lines · warnings)، وثباتَ أرباحها (stability) — واذكر منها ما يغيّر الحكم. وثقةُ السعر العادل (fair_value_conf) تُقرأ:
   «منخفضة» لا يُبنى عليها وحدها. ونبضُ السوق وانتباهُ الحوكمة سياقٌ للمحفظة كلّها.
 - لا تذكر توجّهاتٍ أو رؤيةً أو قطاعاتٍ للمملكة إلا إن وردت في المعطيات.
+- الحلول (‏D686): لا تكتفِ بالتشخيص. اكتب ثلاثةَ حلولٍ إلى خمسة عملية مرقّمة نحو الهدف بأرقامها: استبدالُ مركزٍ ضعيفٍ مسمّى بمرشّحٍ مسمّى
+  من «البدائل_في_السوق» بفرقه وجودته؛ وضخٌّ شهريٌّ محسوبٌ إن لزم؛ وما تقوله «تقارير_التوقعات» حين يمسّ مركزاً أو قطاعاً. والمرشّحُ من البدائل
+  «يُدرس توقيتُه» لا «اشترِ الآن» — فقراره قرارُ المحرّك لا قرارُ الطيار. وإن خلت البدائلُ فقُل ذلك.
 - جملٌ قصيرة (أربع عشرة كلمة على الأكثر)، بصيغة المتكلّم، بلا تحوّطٍ ولا إخلاءِ مسؤولية.
 
 أعد JSON فقط:
@@ -461,11 +500,12 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
   "points": [{{"t": "جملةٌ قصيرة برقم", "tone": "+|-|="}}],
   "actions": [{{"symbol": "الرمز", "name": "الشركة", "action": "كما في قرار_الطيار", "level": "المنطقة إن وُجدت", "why": "جملةٌ قصيرة"}}],
   "protections": ["جملةٌ قصيرة لكلّ حمايةٍ مفعّلة تمنعك من خطأ"],
+  "solutions": ["حلٌّ عمليٌّ مرقّمٌ بأرقامه وأسمائه من المعطيات"],
   "principles": [{{"p": "المبدأ كما ورد", "book": "الكتاب", "page": 0, "applies": "على أيّ مركزٍ ولماذا"}}]}}
 والنقاطُ أربعٌ إلى ستّ، والإجراءاتُ ستٌّ على الأكثر مرتّبةً بالأهمية."""
     obj = None
     try:
-        obj = await _generate_obj(prompt, f"ai:autopilot:v5:{pid}:{date.today().isoformat()}:{len(pk['positions'])}", 6 * 3600)
+        obj = await _generate_obj(prompt, f"ai:autopilot:v6:{pid}:{date.today().isoformat()}:{len(pk['positions'])}", 6 * 3600)
     except Exception as e:                                        # noqa: BLE001
         logger.warning(f"الطيار الآليّ — النموذج: {type(e).__name__}")
     out = dict(base)
@@ -481,7 +521,8 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
         out.update({"verdict": obj["verdict"], "goal": obj.get("goal") or base["goal"],
                     "points": (obj.get("points") or [])[:6], "actions": acts or base["actions"],
                     # الحماياتُ من القواعد بأسماء شركاتها — لا عباراتٌ عامةٌ يكتبها النموذج (قِيس: «الالتزام بوقف الخسارة»)
-                    "protections": base["protections"], "principles": prin, "source": "ai"})
+                    "protections": base["protections"], "principles": prin, "source": "ai",
+                    "solutions": [str(x)[:220] for x in (obj.get("solutions") or []) if x][:5]})
     out["asof"] = pk["date"]
     out["conviction"] = {p["symbol"]: p["autopilot"].get("conviction") for p in pk["positions"]}
     out["positions"] = [{"symbol": p["symbol"], "name": p["name"], "action": p["autopilot"]["action"],
@@ -595,7 +636,7 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
     from app.services import cache
     mode = "investor"
     pid = active_pid()
-    ck = f"autopilot:pack:v5:{pid}:{date.today().isoformat()}"
+    ck = f"autopilot:pack:v6:{pid}:{date.today().isoformat()}"
     pk = cache.get(ck)
     if not pk:
         pk = await pack(db, mode)
@@ -647,6 +688,14 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
            "بقية_المحفظة": [{"name": p["name"], "symbol": p["symbol"], "action": p["autopilot"]["action"],
                               "weight": p.get("current_weight")} for p in pk["positions"] if p["symbol"] not in syms],
            "مبادئ_المكتبة": [f"{x['p']} — «{x['book']}» ص{x['page']}" for x in pk["principles"]]}
+    try:
+        ctx["البدائل_في_السوق"] = _market_alternatives({p["symbol"] for p in pk["positions"]})
+    except Exception:                                             # noqa: BLE001
+        ctx["البدائل_في_السوق"] = []
+    try:
+        ctx["تقارير_التوقعات"] = await _forecast_digest()
+    except Exception:                                             # noqa: BLE001
+        ctx["تقارير_التوقعات"] = []
     hist = "\n".join(f"{'المالك' if h.get('role') == 'user' else 'المستشار'}: {str(h.get('text'))[:400]}"
                      for h in (history or [])[-6:])
     hist_block = ("المحادثةُ السابقة:\n" + hist) if hist else ""
@@ -673,7 +722,11 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
 - إن كانت «خطة_الهدف_في_موعد» حاضرة فهو يسأل: كيف أبلغ الهدف في هذا الموعد؟ فأجب بأرقامها: العائدُ المطلوب بلا ضخّ مقابل عائده الحاليّ،
   والضخُّ الشهريّ المطلوب، وحكمُ الواقعية. ثمّ ما يغيّره عملياً في المحفظة: أيُّ مراكزَ تُعاد إلى أوزانها، وأين يذهب الضخّ (ما «قرار_الطيار» فيه «اشترِ الآن» وحده)،
   وما يُخفَّف. لا تعِد بعائدٍ لم يحقّقه، ولا ترفع المخاطرة لتعويض الوقت.
-- جملٌ قصيرة (أربع عشرة كلمة على الأكثر)، بصيغة المتكلّم، بلا تحوّطٍ ولا إخلاءِ مسؤولية، في ستّة أسطرٍ إلى عشرة.
+- الحلولُ قبل التحذير (‏D686): كلّما سأل «كيف» أو كان الهدفُ بعيداً، قدّم حلولاً عمليةً مرقّمة بأرقامها: استبدالُ مركزٍ ضعيفٍ مسمّى
+  بمرشّحٍ مسمّى من «البدائل_في_السوق» (فرقُه عن العادل وجودتُه وتوزيعُه)، والضخُّ الشهريّ المحسوب، وتمديدُ المدّة أو تعديلُ الهدف بالرقم.
+  والمرشّحُ «يُدرس توقيتُه» لا «اشترِ الآن».
+- إن سأل عن التوقعات فلخّص «تقارير_التوقعات» نفسَها: الجهةُ والتاريخُ والخلاصة وما يمسّ مراكزه. وإن خلت فقُل «غير متوفّر».
+- جملٌ قصيرة (أربع عشرة كلمة على الأكثر)، بصيغة المتكلّم، بلا تحوّطٍ ولا إخلاءِ مسؤولية، في ستّة أسطرٍ إلى اثني عشر.
 - اختم بسطرٍ واحد: «ما أفعله لو كنتُ مكانك: …».
 
 اكتب الردّ نصّاً عربياً مباشراً بلا عناوين ولا رموز تنسيق."""

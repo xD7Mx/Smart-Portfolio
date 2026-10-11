@@ -32,9 +32,9 @@ named = [f for f, t in (("i18n.ts", i18n), ("WatchlistTab.tsx", wl), ("StockLook
                         ("CompanyPage.tsx", rd("pages/CompanyPage.tsx"))) if "المراقبة" in code(t)]
 check('"nav.watchlist":   { ar: "الشاشة"' in i18n and ">الشاشة</h1>" in wl and not named,
       "١ «الشاشة» اسمُ القسم في القائمة والعنوان وكلِّ نصٍّ يسمّيه — لا «المراقبة»", ", ".join(named))
-check('const GRID = "grid grid-cols-3 gap-2 md:gap-3"' in wl and "grid-cols-4" not in code(wl),
-      "٢ ثلاثُ بطاقاتٍ في الصفّ على الجوال والحاسوب — والأربعُ جُرّبت فقُصّ فيها السعرُ والاسم")
-check('grid-cols-[minmax(0,1fr)_auto]' in wl and 'data-role="chg" className="justify-self-center' in wl
+check('const GRID = "grid grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3"' in wl and "grid-cols-4 md:" not in code(wl),
+      "٢ ثلاثٌ في الصفّ على الجوال وأربعٌ على الحاسوب (‏D685) — والأربعُ على الجوال جُرّبت فقال المالك «غيرُ جميل»")
+check('grid-cols-[minmax(0,1fr)_auto]' in wl and '<span className="justify-self-center">{chgBadge}</span>' in wl
       and 'data-role="dec" className="justify-self-center' in wl,
       "٣ القرارُ في عمود نسبة التغيّر وفي منتصفه تحته — شبكةٌ من عمودين لا سطران متجاوران")
 hook = rd("hooks/useLongPressSort.ts")

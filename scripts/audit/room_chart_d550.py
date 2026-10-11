@@ -30,9 +30,9 @@ check('aria-label="اعتماد الخطّ"' in nc and "createPriceLine({ price:
 check(not (F / "pages/RoomPage.tsx").exists() and '"/room"' not in ml and '@router.get("/room")' not in mk
       and 'order.filter((p) => p !== "room")' in st and '"roomSymbols"' in se,
       "٤ D558 أُلغيت «غرفة التداول» صفحةً ومسارًا ونقطةَ بيانات، وتُحذف من ترتيبٍ محفوظ")
-check("marketApi.watchAdd(x, undefined, gid)" in wl and "setRoomSymbols([])" in wl and 'GRID = "grid grid-cols-3 gap-2 md:gap-3"' in wl
+check("marketApi.watchAdd(x, undefined, gid)" in wl and "setRoomSymbols([])" in wl and 'GRID = "grid grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3"' in wl
       and "owner && editing ?" in wl and "panel p-2.5" not in wl,
-      "٥ D558 شركاتُ الغرفة تُنقل مرّةً إلى المراقبة، وبطاقاتُها ثلاثٌ في الصفّ على الجوال والحاسوب (D677 · D683)")
+      "٥ D558 شركاتُ الغرفة تُنقل مرّةً إلى المراقبة، وبطاقاتُها ثلاثٌ في الصفّ على الجوال وأربعٌ على الحاسوب (D677 · D683 · D685)")
 css = (F / "styles/globals.css").read_text(encoding="utf-8")
 check("--beige-strength: 10%;" in css and "color-mix(in srgb, var(--beige) var(--beige-strength), var(--bg))" in css
       ,

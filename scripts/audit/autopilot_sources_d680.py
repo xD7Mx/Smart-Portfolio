@@ -75,9 +75,9 @@ async def main():
     check(got == ["خسارةٌ 5 سنواتٍ متتالية"],
           "٥ والخطُّ الأحمر والتحذيرُ يصلان برسالتهما — لا نصَّ قاموسٍ خاماً", str(got))
     src = (ROOT / "backend/app/services/autopilot.py").read_text(encoding="utf-8")
-    check('pos["stability"] = stb' in src and 'pos["red_lines"] = _lines(' in src and "_stability(sym, sector_of.get(sym))" in src and "autopilot:pack:v5" in src
-          and "autopilot:pack:v5" in (ROOT / "backend/app/api/v1/endpoints/ai.py").read_text(encoding="utf-8"),
-          "٤ والحزمةُ تضع الثلاثةَ في كلّ مركز، وذاكرتُها v5 فلا تُخدم حزمةُ اليوم الناقصة")
+    check('pos["stability"] = stb' in src and 'pos["red_lines"] = _lines(' in src and "_stability(sym, sector_of.get(sym))" in src and "autopilot:pack:v6" in src
+          and "autopilot:pack:v6" in (ROOT / "backend/app/api/v1/endpoints/ai.py").read_text(encoding="utf-8"),
+          "٤ والحزمةُ تضع الثلاثةَ في كلّ مركز، وذاكرتُها v6 فلا تُخدم حزمةُ اليوم الناقصة")
 
 
 asyncio.run(main())

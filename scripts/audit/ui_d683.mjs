@@ -103,7 +103,7 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
              btns: cards.some(c => [...c.querySelectorAll("button")].some(b => /تحريك|نقل|أعلى|أسفل/.test(b.getAttribute("aria-label") || ""))) };
   });
   say(g.h1 && !g.old && g.nav === "ok", `${label}: «الشاشة» اسمُ القسم — لا «المراقبة» في عنوانٍ ولا قائمةٍ ولا نصّ`);
-  say(g.n === 8 && g.perRow === 3, `${label}: ثلاثُ بطاقاتٍ في الصفّ`, `${g.n} بطاقات · ${g.perRow} في الصفّ`);
+  say(g.n === 8 && g.perRow === (mob ? 3 : 4), `${label}: ${mob ? "ثلاثُ" : "أربعُ"} بطاقاتٍ في الصفّ (‏D685)`, `${g.n} بطاقات · ${g.perRow} في الصفّ`);
   say(g.off.length === 0, `${label}: القرارُ تحت منتصف نسبة التغيّر في كلّ بطاقة (فرقُ المركزين ≤ 1.5px)`, g.off.join(" ") || "8/8");
   say(g.clip.length === 0 && g.tall.length === 0, `${label}: السعرُ كاملٌ لا مقصوص، والاسمُ سطران على الأكثر`, [...g.clip, ...g.tall].join(" "));
   say(g.rowMis.length === 0, `${label}: الخاناتُ تصطفّ بين بطاقات الصفّ الواحد (السعرُ على خطٍّ واحد)`);
@@ -214,5 +214,5 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
   await ctx.close();
 }
 await browser.close();
-console.log((fail ? "FAIL" : "PASS") + " D683 · D684 — «الشاشة» بثلاثة أعمدة وترتيبٌ بالضغط المطوّل · بطاقاتُ الفرز بهويّة التطبيق");
+console.log((fail ? "FAIL" : "PASS") + " D683 · D684 — «الشاشة» بثلاثة أعمدة على الجوال وأربعة على الحاسوب وترتيبٌ بالضغط المطوّل · بطاقاتُ الفرز بهويّة التطبيق");
 process.exit(fail);
