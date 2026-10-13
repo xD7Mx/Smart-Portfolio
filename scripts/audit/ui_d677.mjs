@@ -90,7 +90,7 @@ for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isM
   const nav = await page.evaluate(() => ({ wl: !!document.querySelector('a[href="/watchlist"]'), stars: !!document.querySelector('a[href="/stars"]') }));
   say(nav.wl && !nav.stars, `${label}: بندُ «غرفة التداول» في القائمة مكانَ «مختبر الأبحاث»`);
 
-  // ٣ · المختبرُ تبويبٌ في المحفظة
+  // ٣ · المختبرُ تبويبٌ (‏D694: في تحليل الذكاء — كان في المحفظة)، والرابطُ القديم يفتحه
   await page.goto(`http://localhost:${PORT}/stars`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2500);
   const lab = await page.evaluate(() => ({
@@ -99,7 +99,7 @@ for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isM
     title: document.body.textContent.includes("مختبر الأبحاث"),
     noWatchTab: ![...document.querySelectorAll("nav button")].some(b => ["المراقبة", "الشاشة", "غرفة التداول"].includes(b.textContent.trim())),
   }));
-  say(lab.tab && lab.title && lab.noWatchTab, `${label}: «المختبر» تبويبٌ في المحفظة مكانَ «المراقبة»، والرابطُ القديم يفتحه`, lab.url);
+  say(lab.tab && lab.title && lab.noWatchTab && lab.url === "/ai?tab=lab", `${label}: «المختبر» تبويبٌ في تحليل الذكاء (‏D694)، والرابطُ القديم يفتحه`, lab.url);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `lab_${vp.width}.png`) });
 
   // ٤ · المستشارُ في تحليل الذكاء مكانَ التقرير الشامل
@@ -125,7 +125,7 @@ for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isM
 
   // ٥ · لا عنصرَ تحكّمٍ من نظام الجهاز في هذه الصفحات (D678)
   let natives = 0;
-  for (const path of ["/watchlist", "/portfolio?tab=lab", "/ai", "/settings"]) {
+  for (const path of ["/watchlist", "/ai?tab=lab", "/portfolio?tab=governance", "/ai", "/settings"]) {
     await page.goto(`http://localhost:${PORT}${path}`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
     await page.waitForTimeout(1200);
     natives += await page.evaluate(() => document.querySelectorAll('select, input[type="checkbox"], input[type="radio"]').length);

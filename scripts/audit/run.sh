@@ -310,6 +310,10 @@ node scripts/audit/ui_d689.mjs || _note "$LINENO"
 python3 scripts/audit/decision_serving_d690.py || _note "$LINENO"
 # D691: مفتاحُ «إظهار الساعة» يعمل — كان مُعلَناً في المخزن غيرَ منفَّذ فيرمي عند النقر
 node scripts/audit/ui_d691.mjs || _note "$LINENO"
+# D694: الحوكمةُ تبويبٌ في المحفظة مكانَ المختبر، والمختبرُ تبويبٌ في تحليل الذكاء — والروابطُ القديمة تصل
+node scripts/audit/ui_d694.mjs || _note "$LINENO"
+# D695: بطاقاتُ التوزيع النسبي بهويّة التطبيق — شريطُ وزنٍ ينزلق، والفائضُ بأسهمه
+node scripts/audit/ui_d695.mjs || _note "$LINENO"
 node scripts/audit/cards_d666.mjs || _note "$LINENO"
 python3 scripts/audit/events_resilience_d656.py || _note "$LINENO"
 python3 scripts/audit/disclosure_retry_d659.py || _note "$LINENO"

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import {
   Briefcase, TrendingUp, Brain,
-  FileText, Bell, Settings, Shield, Calculator,
+  FileText, Bell, Settings, Calculator,
   Menu, X, CandlestickChart, Book, Activity } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { notificationsApi } from "../../services/api";
@@ -19,7 +19,7 @@ export const PAGES: Record<string, { to: string; icon: any; key: string }> = {
   market:        { to: "/market",        icon: TrendingUp,       key: "nav.market" },
   // ‏D687: «غرفة التداول» بأيقونة الرسم البياني، والرسمُ تبويبٌ داخلها (كان قسماً هنا) — ‏D677: مكانَ مختبر الأبحاث
   watchlist:     { to: "/watchlist",     icon: CandlestickChart, key: "nav.watchlist" },
-  governance:    { to: "/governance",    icon: Shield,           key: "nav.governance" },
+  // ‏D694: «الحوكمة» تبويبٌ في المحفظة (مكانَ المختبر) — لا قسمَ لها هنا
   library:       { to: "/library",       icon: Book,             key: "nav.library" },
   ai:            { to: "/ai",            icon: Brain,            key: "nav.ai" },
   calculators:   { to: "/calculators",   icon: Calculator,       key: "nav.calculators" },

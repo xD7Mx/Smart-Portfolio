@@ -35,7 +35,7 @@ function loadScreens(): Screen[] {
   ];
 }
 
-/* ‏D677 (بأمر المالك): المختبرُ تبويبٌ في المحفظة مكانَ «المراقبة» — `embedded` يُصغّر العنوانَ ليجلس تحت تبويباتها */
+/* ‏D677 ← D694 (بأمر المالك): المختبرُ تبويبٌ في تحليل الذكاء (كان في المحفظة) — `embedded` يُصغّر العنوانَ ليجلس تحت تبويباته */
 export default function StarsPage({ embedded = false }: { embedded?: boolean }) {
   const [sheet, setSheet] = useState<string | null>(null);
   const [screens, setScreens] = useState<Screen[]>(loadScreens);

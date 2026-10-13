@@ -15,9 +15,11 @@ def check(ok, label):
 
 check(">مركز مغلق<" not in P and "!(h.total_shares > 0)" not in P,
       "١ «الشركاتُ بالمحفظة لا أريدها مركزاً مغلقاً» — كلُّ شركةٍ ببطاقتها الكاملة على الجوّال")
-i = P.find('<div className="lg:hidden divide-y"')
-mob = P[i:i + 4000] if i >= 0 else ""
-check("it.current_weight" in mob, "٢ «التوزيعُ النسبيّ لا يُظهر نسبةَ الامتلاك الحالية» — تظهر في بطاقة الجوّال")
+# ‏D695: بطاقاتُ الجوال صارت بنمط التطبيق (‏data-role="alloc-cards") — والنسبةُ الحاليةُ في شريط الوزن «الحالي X٪»
+i = P.find('data-role="alloc-cards"')
+mob = P[i:i + 6000] if i >= 0 else ""
+check("const cw = Number(it.current_weight)" in mob and "الحالي <b" in mob and "{cw}%" in mob,
+      "٢ «التوزيعُ النسبيّ لا يُظهر نسبةَ الامتلاك الحالية» — تظهر في بطاقة الجوّال")
 check("onClick={e =>" in L and "el.focus()" in L and "const el = pwRef.current" in L and "ref={pwRef}" in L,
       "٣ «لا يظهر كيبورد الجوال» — لمسةٌ على بطاقة الدخول تركّز الحقل (سفاري لا يفتح اللوحةَ للتركيز التلقائيّ)")
 check("el.blur()" in L and "(pointer: fine)" in L and "\n          autoFocus\n" not in L,

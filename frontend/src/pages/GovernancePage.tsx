@@ -328,7 +328,9 @@ function MarketOpportunities() {
   );
 }
 
-export default function GovernancePage() {
+/* ‏D694 (بأمر المالك): الحوكمةُ تبويبٌ في المحفظة مكانَ «المختبر» (صار تبويباً في تحليل الذكاء) — `embedded` يُسقط العنوانَ
+   الكبير فلا يتكرّر تحت تبويبات المحفظة، ويبقى مبدّلُ «محفظتي · السوق» في مكانه */
+export default function GovernancePage({ embedded = false }: { embedded?: boolean }) {
   const [mode, setMode] = useState<"portfolio" | "market">("portfolio");
   const [v2Target, setV2Target] = useState<{ symbol: string; name: string } | null>(null);
   const { data, isLoading } = useQuery({
@@ -340,9 +342,15 @@ export default function GovernancePage() {
   return (
     <div className="space-y-5 fade-in">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <h1 className="text-2xl font-medium text-[var(--ink)]">الحوكمة</h1>
-        </div>
+        {embedded ? (
+          <p className="card-title flex items-center gap-2">
+            <Shield size={16} className="text-[var(--brand-ink)]" /> الحوكمة
+          </p>
+        ) : (
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-2xl font-medium text-[var(--ink)]">الحوكمة</h1>
+          </div>
+        )}
         {/* ══ مبدّلٌ واحدٌ في التطبيق ══ (بأمر المالك · D202)
             كان هذا بتصميمٍ سابق: حشوةٌ في لوحةٍ رمادية، وحالةُ الاختيار
             بقيمةٍ مشوّهةٍ لا يقرؤها المتصفّح أصلاً

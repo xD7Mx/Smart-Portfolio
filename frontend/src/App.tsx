@@ -28,7 +28,6 @@ import LibraryPage     from "./pages/LibraryPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import SettingsPage    from "./pages/SettingsPage";
 import AIPage          from "./pages/AIPage";
-import GovernancePage  from "./pages/GovernancePage";
 import CalculatorsPage from "./pages/CalculatorsPage";
 import WatchlistPage   from "./pages/WatchlistPage";
 import LoginPage       from "./pages/LoginPage";
@@ -216,8 +215,9 @@ function App() {
             <Route path="/chart"          element={<Navigate to="/watchlist?tab=chart" replace />} />
             {/* ‏D677: المختبرُ تبويبٌ في المحفظة، والمراقبةُ قسمٌ مكانه — والرابطُ القديم يصل المختبرَ في موضعه الجديد */}
             <Route path="/watchlist"      element={<WatchlistPage />} />
-            <Route path="/stars"          element={<Navigate to="/portfolio?tab=lab" replace />} />
-            <Route path="/governance"      element={<GovernancePage />} />
+            {/* ‏D694: المختبرُ تبويبٌ في تحليل الذكاء، والحوكمةُ تبويبٌ في المحفظة — والرابطان القديمان يفتحانهما */}
+            <Route path="/stars"          element={<Navigate to="/ai?tab=lab" replace />} />
+            <Route path="/governance"      element={<Navigate to="/portfolio?tab=governance" replace />} />
             <Route path="/ai"             element={<AIPage />} />
             <Route path="/calculators"    element={<CalculatorsPage />} />
             {/* قياس الأداء حُذف: أرقامه توزّعت على مواضعها (الأهداف

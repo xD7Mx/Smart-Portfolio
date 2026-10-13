@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SplitBanner } from "../components/portfolio/SplitBanner";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Pencil, Trash2, TrendingUp, TrendingDown, ShoppingCart, X, SlidersHorizontal, Wallet, Scale, Columns3, RefreshCw, Coins, LayoutGrid, Briefcase, Newspaper, CalendarDays, GripVertical, Star, FlaskConical, ChevronDown, AlertTriangle, Droplets, Save } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, TrendingUp, TrendingDown, ShoppingCart, X, SlidersHorizontal, Wallet, Scale, Columns3, RefreshCw, Coins, LayoutGrid, Briefcase, Newspaper, CalendarDays, GripVertical, Star, Shield, ChevronDown, AlertTriangle, Droplets, Save } from "lucide-react";
 import { GridLayout, useContainerWidth, verticalCompactor } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import { companiesApi, holdingsApi, transactionsApi, cashApi, allocationApi, portfolioApi, profileApi, goalsApi } from "../services/api";
@@ -25,7 +25,7 @@ import PortfolioCalendarPage from "./PortfolioCalendarPage";
 import NotificationsPage from "./NotificationsPage";
 import PortfolioSwitcher from "../components/portfolio/PortfolioSwitcher";
 import { AvatarImg } from "../components/common/Avatar";
-import StarsPage from "./StarsPage";
+import GovernancePage from "./GovernancePage";
 import CollapsibleList from "../components/common/CollapsibleList";
 import DateInput from "../components/common/DateInput";
 import Select from "../components/common/Select";
@@ -1685,91 +1685,120 @@ export function RebalanceCard() {
           )}
         </table>
 
-        {/* Mobile: بطاقة مباشرة لكل شركة — لا جدولاً مضغوطاً. رأسٌ (الاسم +
-            حقل الوزن)، ثم المبلغ الكلي مقابل عدد الأسهم، ثم انقسامه إلى
-            سيولة (أخضر) وإعادة استثمار (أزرق). لا حشو غير هذا. */}
-        <div className="lg:hidden divide-y" style={{ borderColor: "var(--hairline)" }}>
-          {items.map((it: any) => {
-            const { tw, liquidityShare, reinvestShare, totalAmount, totalShares, side } = shareOf(it);
-            return (
-              <div key={it.company_id} className="py-3.5 space-y-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  {/* والبطاقةُ على الجوّال كالصفّ — لا شاشتان بحظّين. */}
-                  <button type="button" onClick={() => setSheet(it.symbol)}
-                    className="min-w-0 text-start flex items-center gap-2" title={`اعرض ورقة ${it.name}`}>
-                    <CompanyLogo symbol={it.symbol} size={22} />
-                    <span className="min-w-0">
-                      <span className="text-[var(--ink)] font-semibold text-[13px]">{it.name}</span>{" "}
-                      <span className="tag-b" style={{fontSize:10,padding:"2px 6px"}}>{it.symbol}</span>
-                    </span>
-                    <ShariaBadge status={it.sharia_status} size={13} />
-                  </button>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {/* نسبةُ الامتلاك الحالية كعمود «الوزن الحالي» في جدول الحاسوب (D478) */}
-                    <span className="tag-n tabular-nums" dir="ltr" title="نسبة الامتلاك الحالية">{it.current_weight}%</span>
-                    <label className="text-[11px] text-[var(--ink-muted)]">الهدف %</label>
-                    <input className="input" style={{width: 76, padding: "6px 10px"}} type="text" inputMode="decimal" lang="en"
-                      value={val(it.company_id, it.target_weight)}
-                      onChange={e => setTargets(s => ({ ...s, [it.company_id]:
-                        e.target.value
-                          .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
-                          .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
-                          .replace(/[^\d.]/g, "") }))} />
+        {/* ══ بطاقاتُ التوزيع النسبي بهويّة التطبيق ══ (بأمر المالك · D695)
+            كانت سطوراً تفصلها خطوطٌ — اسمٌ وحقلٌ ثمّ أسطرُ «سيولة · إعادة استثمار» — بلغةٍ غير لغة بطاقات الفرز
+            وغرفة التداول. فصارت بطاقةً بنمطها: رأسٌ بالشعار والاسم والرمز وحقلُ الهدف، ثمّ شريطُ الوزن (الحاليّ مملوءاً
+            والمستهدفُ علامةً عليه — بمقياسٍ واحدٍ للبطاقات كلّها فتُقارَن بالنظر، ويتحرّك مع الكتابة قبل الحفظ)، ثمّ ثلاثُ
+            خاناتٍ بمكوّنٍ واحد: المبلغ ‎· أسهمٌ من السيولة ‎· أسهمٌ من إعادة الاستثمار. وتطلع متتابعةً بحركة. */}
+        <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-2.5" data-role="alloc-cards">
+          {(() => {
+            const scale = Math.max(1, ...items.map((x: any) =>
+              Math.max(Number(x.current_weight) || 0, Number(val(x.company_id, x.target_weight)) || 0)));
+            return items.map((it: any, i: number) => {
+              const { tw, liquidityShare, reinvestShare, totalAmount, totalShares, side, excessPct } = shareOf(it);
+              const cw = Number(it.current_weight) || 0;
+              const sell = side === "sell";
+              const amountTone = side === "sell" ? "var(--neg-ink)" : "var(--ink)";
+              return (
+                <div key={it.company_id} data-role="alloc-card" className="card-rise rounded-2xl p-3 border border-[var(--hairline)] bg-[var(--surface)]"
+                  style={{ animationDelay: `${Math.min(i, 12) * 28}ms` }}>
+                  <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5">
+                    <CompanyLogo symbol={it.symbol} size={34} />
+                    <button type="button" onClick={() => setSheet(it.symbol)} className="min-w-0 text-start min-h-[32px]"
+                      title={`اعرض ورقة ${it.name}`}>
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <ShariaBadge status={it.sharia_status} size={12} />
+                        <span className="text-[var(--ink)] text-[13px] font-semibold truncate">{it.name}</span>
+                      </span>
+                      <span className="block text-[10px] text-[var(--ink-muted)] truncate mt-0.5">
+                        <span className="text-[var(--brand-ink)] tabular-nums">{it.symbol}</span>
+                        {it.market_value ? <> · <span className="tabular-nums" dir="ltr">{fmt(it.market_value)}</span></> : null}
+                      </span>
+                    </button>
+                    <label className="flex flex-col items-center gap-0.5 shrink-0">
+                      <span className="text-[9.5px] text-[var(--ink-muted)]">الهدف %</span>
+                      <input data-role="alloc-target" className="input tabular-nums text-center" style={{ width: 64, padding: "5px 6px" }}
+                        type="text" inputMode="decimal" lang="en" dir="ltr" aria-label={`الوزن المستهدف لـ${it.name}`}
+                        value={val(it.company_id, it.target_weight)}
+                        onChange={e => setTargets(s => ({ ...s, [it.company_id]:
+                          e.target.value
+                            .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+                            .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
+                            .replace(/[^\d.]/g, "") }))} />
+                    </label>
+                  </div>
+
+                  {/* شريطُ الوزن: الحاليُّ مملوءٌ والمستهدفُ علامة — فالفجوةُ تُرى قبل أن تُقرأ */}
+                  <div className="mt-3" data-role="alloc-bar"
+                    title={tw > 0 ? `الحالي ${cw}% · الهدف ${tw}%${excessPct > 0 ? ` · فائض ${excessPct.toFixed(1)} نقطة` : ""}` : `الحالي ${cw}% · لم يُحدَّد هدف`}>
+                    <div className="flex items-center justify-between text-[10px] text-[var(--ink-muted)] mb-1">
+                      <span>الحالي <b className="text-[var(--ink)] tabular-nums" dir="ltr">{cw}%</b></span>
+                      <span>الهدف <b className="tabular-nums" dir="ltr" style={{ color: tw > 0 ? "var(--brand-ink)" : "var(--ink-muted)" }}>{tw > 0 ? `${tw}%` : "—"}</b></span>
+                    </div>
+                    <div className="wbar relative h-2 rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 8%, transparent)" }}>
+                      <div className="wbar-fill absolute inset-y-0 rounded-full"
+                        style={{ insetInlineStart: 0, width: `${Math.min(100, cw / scale * 100)}%`,
+                                 background: side === "sell" ? "color-mix(in srgb, var(--neg-ink) 45%, transparent)"
+                                                             : "color-mix(in srgb, var(--brand) 45%, transparent)" }} />
+                      {tw > 0 && (
+                        <div className="wbar-mark absolute rounded-full"
+                          style={{ insetInlineStart: `calc(${Math.min(100, tw / scale * 100)}% - 1.5px)`, top: -3, bottom: -3, width: 3,
+                                   background: "var(--brand-ink)" }} />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-x-2 mt-3 pt-3 border-t border-[var(--hairline)]">
+                    <div data-role="cell" className="min-w-0">
+                      <div className="text-[9.5px] text-[var(--ink-muted)] truncate">{side === "sell" ? "فائضٌ · بيع" : "المبلغ"}</div>
+                      <div className="text-[12.5px] font-bold tabular-nums mt-0.5 whitespace-nowrap" style={{ color: tw > 0 && totalAmount != null ? amountTone : "var(--ink-muted)" }}>
+                        {tw <= 0 ? "لم تحدد" : totalAmount == null ? "متوازنة" : <span dir="ltr">{fmt(totalAmount)}</span>}
+                      </div>
+                    </div>
+                    {/* الفائضُ يُقال بأسهمه: «أسهمٌ للبيع» مكانَ صفرين من السيولة وإعادة الاستثمار — فالأسهمُ وحدةُ القرار */}
+                    <div data-role="cell" className="min-w-0">
+                      <div className="text-[9.5px] text-[var(--ink-muted)] truncate">{sell ? "أسهمٌ للبيع" : "من السيولة"}</div>
+                      <div className="text-[12.5px] font-bold tabular-nums mt-0.5 whitespace-nowrap"
+                        style={{ color: tw <= 0 ? "var(--ink-muted)" : sell ? "var(--neg-ink)" : "var(--pos-ink)" }}>
+                        {tw <= 0 ? "—"
+                          : sell ? <><span dir="ltr">{Math.abs(Number(totalShares) || 0).toLocaleString("en-US")}</span> <span className="text-[10px] font-normal">سهم</span></>
+                          : <><span dir="ltr">{shrOf(liquidityShare, it).toLocaleString("en-US")}</span> <span className="text-[10px] font-normal">سهم</span></>}
+                      </div>
+                    </div>
+                    <div data-role="cell" className="min-w-0">
+                      <div className="text-[9.5px] text-[var(--ink-muted)] truncate">إعادة استثمار</div>
+                      <div className="text-[12.5px] font-bold tabular-nums mt-0.5 whitespace-nowrap" style={{ color: tw > 0 && !sell ? "var(--brand-ink)" : "var(--ink-muted)" }}>
+                        {tw > 0 && !sell ? <><span dir="ltr">{shrOf(reinvestShare, it).toLocaleString("en-US")}</span> <span className="text-[10px] font-normal">سهم</span></> : "—"}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] text-[var(--ink-muted)]">
-                      {side === "sell" ? "فائضٌ عن الوزن · بيع" : "المبلغ الكلي"}
-                    </p>
-                    <p className="text-sm font-bold tabular-nums" dir="ltr"
-                      style={{ color: side === "sell" ? "var(--neg-ink)" : "var(--ink)" }}>
-                      {tw <= 0 ? "لم تحدد"
-                       : totalAmount == null ? "متوازنة"
-                       : fmt(totalAmount)}
-                    </p>
-                  </div>
-                  <div className="text-end">
-                    <p className="text-[10px] text-[var(--ink-muted)]">عدد الأسهم</p>
-                    <p className="text-sm font-bold text-[var(--ink)] tabular-nums" dir="ltr">
-                      {tw > 0 && totalShares != null ? totalShares.toLocaleString("en-US", { maximumFractionDigits: 1 }) : "لم تحدد"}
-                    </p>
-                  </div>
-                </div>
-                {/* التقسيم بالأسهم لا بالريال: المبلغ الكلي أعلاه يكفي لمعرفة
-                    الحجم، والقرار هنا «كم سهماً أشتري من كل مصدر» — والمبلغ
-                    يحتاج قسمةً ذهنية على السعر قبل أن يصير أمراً منفَّذاً. */}
-                <div className="pt-2 border-t border-[var(--hairline)] space-y-1.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs text-[var(--ink-muted)]">سيولة</span>
-                    <span className="text-xs font-bold text-[var(--pos-ink)] tabular-nums" dir="ltr">
-                      {tw > 0 ? shrOf(liquidityShare, it).toLocaleString("en-US") + " سهم" : "لم تحدد"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs text-[var(--ink-muted)]">إعادة استثمار</span>
-                    <span className="text-xs font-bold text-[var(--brand-ink)] tabular-nums" dir="ltr">
-                      {tw > 0 ? shrOf(reinvestShare, it).toLocaleString("en-US") + " سهم" : "لم تحدد"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {/* صفُّ المجموع في الجوّال: ما يقوله tfoot في الحاسوب بعينه. */}
+              );
+            });
+          })()}
+          {/* بطاقةُ المجموع بالنمط نفسِه: ما يقوله tfoot في الحاسوب بعينه */}
           {totals.amount > 0 && (
-            <div className="py-3 flex items-center justify-between gap-3">
-              <span className="text-[var(--ink-muted)] text-xs font-semibold">المجموع</span>
-              <div className="flex items-center gap-4">
-                <span className="text-[11px] text-[var(--ink-muted)]">عائد التوزيعات</span>
-                {dyWeighted != null ? (
-                  <span className="text-[var(--pos-ink)] text-xs font-bold tabular-nums" dir="ltr">
-                    {dyWeighted.toFixed(2)}%
-                  </span>
-                ) : (
-                  <span className="text-[var(--ink-muted)] text-xs">غير متوفّر</span>
-                )}
-                <span className="text-[var(--ink)] text-xs font-bold tabular-nums" dir="ltr">{fmt(totals.amount)}</span>
+            <div data-role="alloc-total" className="card-rise md:col-span-2 rounded-2xl p-3"
+              style={{ background: "color-mix(in srgb, var(--brand) 7%, transparent)", border: "1px solid color-mix(in srgb, var(--brand) 22%, transparent)",
+                       animationDelay: `${Math.min(items.length, 12) * 28}ms` }}>
+              <div className="text-[11px] font-bold text-[var(--brand-ink)] mb-2">المجموع</div>
+              <div className="grid grid-cols-3 gap-x-2">
+                <div className="min-w-0">
+                  <div className="text-[9.5px] text-[var(--ink-muted)] truncate">المبلغ الكلي</div>
+                  <div className="text-[13px] font-bold tabular-nums mt-0.5 text-[var(--ink)]" dir="ltr" style={{ textAlign: "right" }}>{fmt(totals.amount)}</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[9.5px] text-[var(--ink-muted)] truncate">عائد التوزيعات عند الهدف</div>
+                  <div className="text-[13px] font-bold tabular-nums mt-0.5" style={{ color: dyWeighted != null ? "var(--pos-ink)" : "var(--ink-muted)" }}>
+                    {dyWeighted != null ? <span dir="ltr">{dyWeighted.toFixed(2)}%</span> : "غير متوفّر"}
+                  </div>
+                </div>
+                <div className="min-w-0" title={income.unknown ? `${income.unknown} شركة بلا عائد معلوم، خارج الحساب` : undefined}>
+                  <div className="text-[9.5px] text-[var(--ink-muted)] truncate">دخلٌ سنويٌّ بعد التوظيف</div>
+                  <div className="text-[13px] font-bold tabular-nums mt-0.5" style={{ color: income.after > 0 ? "var(--pos-ink)" : "var(--ink-muted)" }}>
+                    {income.after > 0 ? <span dir="ltr">{fmt(Math.round(income.after))}</span> : "غير متوفّر"}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1976,9 +2005,12 @@ export default function PortfolioPage() {
   const [cashOpen, setCashOpen] = useState(false);
   const [reconOpen, setReconOpen] = useState(false);
   const [colsOpen, setColsOpen] = useState(false);
-  /* ‏D677: «المختبر» مكانَ «المراقبة» (صارت قسماً) — ويُفتح من رابطه القديم (/stars ← ?tab=lab) */
-  const [tab, setTab] = useState<"holdings" | "dashboard" | "lab" | "portfolioNews" | "portfolioCalendar" | "notifications">(
-    () => (new URLSearchParams(window.location.search).get("tab") === "lab" ? "lab" : "holdings"));
+  /* ‏D694 (بأمر المالك): «الحوكمة» مكانَ «المختبر» (صار تبويباً في تحليل الذكاء) — ورابطُها القديم /governance يفتحها هنا،
+     ورابطُ المختبر القديم (?tab=lab) يُحوَّل إلى مكانه الجديد */
+  const _q0 = new URLSearchParams(window.location.search).get("tab");
+  const [tab, setTab] = useState<"holdings" | "dashboard" | "governance" | "portfolioNews" | "portfolioCalendar" | "notifications">(
+    () => (_q0 === "governance" ? "governance" : "holdings"));
+  useEffect(() => { if (_q0 === "lab") navigate("/ai?tab=lab", { replace: true }); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const [dashSubTab, setDashSubTab] = useState<"grid" | "rebalance" | "liquidity">("grid");
   const tabsRef = useRef<HTMLElement | null>(null);
   usePaneMotion(tabsRef, `${tab}:${dashSubTab}`);           // ‏D689: المحتوى يطلع بحركةٍ عند تبديل التبويب
@@ -2247,7 +2279,7 @@ export default function PortfolioPage() {
         {([
           ["holdings", "الحيازات", Briefcase],
           ["dashboard", "لوحة التحكم", LayoutGrid],
-          ["lab", "المختبر", FlaskConical],
+          ["governance", "الحوكمة", Shield],
           ["portfolioNews", "الأخبار", Newspaper],
           ["portfolioCalendar", "المفكرة", CalendarDays],
         ] as const).map(([id, label, Icon]) => (
@@ -2319,7 +2351,7 @@ export default function PortfolioPage() {
       </div>
       {tab === "dashboard" && dashSubTab === "rebalance" && <RebalanceCard />}
       {tab === "dashboard" && dashSubTab === "liquidity" && <LiquidityTab />}
-      {tab === "lab" && <StarsPage embedded />}
+      {tab === "governance" && <GovernancePage embedded />}
       {tab === "portfolioNews" && <PortfolioNewsPage />}
       {tab === "portfolioCalendar" && <PortfolioCalendarPage />}
       {tab === "notifications" && <NotificationsPage />}

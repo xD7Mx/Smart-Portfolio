@@ -9,10 +9,10 @@ SRC = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "src"
 rd = lambda *p: (SRC.joinpath(*p)).read_text(encoding="utf-8")
 page, app, nav, store = rd("pages", "StarsPage.tsx"), rd("App.tsx"), rd("components", "common", "MainLayout.tsx"), rd("store", "appStore.ts")
 checks = [
-    # ‏D677 (بأمر المالك): المختبرُ تبويبٌ في المحفظة مكانَ «المراقبة»، والمراقبةُ قسمٌ في القائمة مكانه — ورابطُه القديم يصله
-    ('["lab", "المختبر", FlaskConical]' in rd("pages", "PortfolioPage.tsx") and "<StarsPage embedded />" in rd("pages", "PortfolioPage.tsx")
-     and 'path="/stars"' in app and 'Navigate to="/portfolio?tab=lab"' in app,
-     "١ المختبرُ تبويبٌ في المحفظة (‏D677)، ورابطُه القديم /stars يصل تبويبَه"),
+    # ‏D677 ← D694 (بأمر المالك): المختبرُ تبويبٌ في تحليل الذكاء (كان في المحفظة، والحوكمةُ مكانه هناك) — ورابطُه القديم يصله
+    ('["lab", "المختبر", FlaskConical]' in rd("pages", "AIPage.tsx") and "<StarsPage embedded />" in rd("pages", "AIPage.tsx")
+     and 'path="/stars"' in app and 'Navigate to="/ai?tab=lab"' in app,
+     "١ المختبرُ تبويبٌ في تحليل الذكاء (‏D694)، ورابطُه القديم /stars يصل تبويبَه"),
     ('watchlist:     { to: "/watchlist"' in nav and 'path="/watchlist"' in app
      and store.count('(p === "stars" ? "watchlist" : p)') >= 3,
      "٢ والمراقبةُ قسمٌ مكانه في الترتيب المحلّيّ والمحفوظ على الخادم معاً — وصفحةُ البداية والمخفيّةُ تتبعانه"),

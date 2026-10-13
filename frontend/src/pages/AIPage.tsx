@@ -1,12 +1,14 @@
 import React, { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import StockSheet from "../components/market/StockSheet";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { aiApi } from "../services/api";
-import { Brain, AlertTriangle, TrendingUp, Sparkles, Zap } from "lucide-react";
+import { Brain, AlertTriangle, TrendingUp, Sparkles, Zap, FlaskConical } from "lucide-react";
 import { PortfolioHealthW } from "../widgets/Widgets";
 import CompanyLogo from "../components/common/CompanyLogo";
 import { FairValueBar, fairValueTier, safeColor } from "../components/common/ValueBars";
 import AutopilotCard from "../components/governance/AutopilotCard";
+import StarsPage from "./StarsPage";
 
 
 // ── Portfolio insight — fair value + safety per holding ──
@@ -136,7 +138,14 @@ function PortfolioInsight() {
 }
 
 // ── AI Portfolio Analysis ─────────────────────────────────────
+/* ‏D694 (بأمر المالك): «مختبر الأبحاث» تبويبٌ داخل تحليل الذكاء — كان في المحفظة، و«الحوكمة» مكانه هناك. تبويبان بلغة تبويبات
+   المحفظة وغرفة التداول، والتنقّلُ بينهما بحركة؛ ورابطاه القديمان (/stars · /portfolio?tab=lab) يفتحانه هنا. */
+const AI_TABS = [["analysis", "التحليل", Brain], ["lab", "المختبر", FlaskConical]] as const;
+
 export default function AIPage() {
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") === "lab" ? "lab" : "analysis";
+  const setTab = (t: string) => setParams(t === "lab" ? { tab: "lab" } : {}, { replace: true });
   const qc = useQueryClient();
   // بطاقة الشركة تُفتح فوق صفحة الذكاء نفسها — يبقى المستخدم في سياقه.
   const [sheet, setSheet] = useState<string | null>(null);
@@ -201,6 +210,21 @@ export default function AIPage() {
         )}
       </div>
 
+      <nav className="flex gap-2 pb-1" aria-label="أقسام تحليل الذكاء">
+        {AI_TABS.map(([id, label, Icon]) => (
+          <button key={id} onClick={() => setTab(id)} aria-pressed={tab === id}
+            className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 flex-1 min-w-0 px-1.5 md:px-3 py-2 md:py-2.5 rounded-xl text-[10px] md:text-sm transition-colors duration-200"
+            style={tab === id
+              ? { background: "color-mix(in srgb, var(--brand) 12%, transparent)", color: "var(--brand-ink)", fontWeight: 700 }
+              : { background: "transparent", color: "var(--ink-muted)" }}>
+            <Icon size={18} className="md:w-4 md:h-4 shrink-0" />
+            <span className="whitespace-nowrap">{label}</span>
+          </button>
+        ))}
+      </nav>
+
+      {tab === "lab" ? <div key="lab" className="fade-in"><StarsPage embedded /></div> : (
+      <div key="analysis" className="space-y-5 fade-in">
       {/* Portfolio insight — fair value + safety per holding */}
       <PortfolioInsight />
 
@@ -407,6 +431,8 @@ export default function AIPage() {
           يقرأ التطبيقَ كلَّه: التحليلَ والسعرَ العادل وثقتَه، ومستوياتِ D7M، وآراءَ بيوت الخبرة، والأحداثَ الجوهرية،
           والمفكرةَ والإفصاحات، والخطوطَ الحمراء، والأهدافَ والسيولة، ونبضَ السوق وانتباهَ الحوكمة، ومبادئَ المكتبة */}
       <AutopilotCard />
+      </div>
+      )}
       {sheet && <StockSheet symbol={sheet} onClose={() => setSheet(null)} />}
     </div>
   );

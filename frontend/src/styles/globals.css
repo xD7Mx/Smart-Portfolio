@@ -768,8 +768,12 @@ html.light .ticker-txt { color: var(--ink); }
 /* ‏D687: البطاقاتُ تطلع متتابعةً عند الظهور (وتأخيرُها من موضعها) */
 @keyframes cardRise { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: none; } }
 .card-rise { animation: cardRise .34s cubic-bezier(.2,.8,.2,1) both; }
+/* ‏D695: شريطُ الوزن في بطاقات التوزيع النسبي — الحاليُّ والمستهدفُ ينزلقان مع الكتابة لا يقفزان */
+.wbar-fill { transition: width .32s cubic-bezier(.2,.8,.2,1), background-color .2s; }
+.wbar-mark { transition: inset-inline-start .32s cubic-bezier(.2,.8,.2,1); }
 @media (prefers-reduced-motion: reduce) {
   .drawer-in, .drawer-out, .drawer-pop .drawer-scrim, .drawer-closing .drawer-scrim, .card-rise { animation: none; }
+  .wbar-fill, .wbar-mark { transition: none; }
 }
 
 /* ── Fluid polish: smoother cards / motion (kwealth-style) ────── */
