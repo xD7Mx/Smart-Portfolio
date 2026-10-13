@@ -170,7 +170,6 @@ def record_verdicts(done: dict, today: date | None = None, fresh_days: int = 7, 
     return n
 
 
-@_background_task   # D436: مهمّةٌ خلفية تقف عند 90٪ من حصّة ياهو
 async def rel_pass(done: dict, sem: asyncio.Semaphore) -> int:
     """‏D701: يبني جداولَ الأقران من نتائج الجولة الأولى، ثمّ يُعيد حسابَ من يُقارن بأقرانه بها (يُبطل كاشَه أوّلاً)."""
     from app.services import cache, fair_value_models as F
@@ -188,6 +187,7 @@ async def rel_pass(done: dict, sem: asyncio.Semaphore) -> int:
     return n
 
 
+@_background_task   # D436: مهمّةٌ خلفية تقف عند 90٪ من حصّة ياهو
 async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
     """يحسب الدرجةَ والسعرَ العادل لكلّ رمزٍ ويخزّنهما. يُعاد تقريرٌ مقيس."""
     from app.services.content_engine import _fund_store_put_many
