@@ -641,8 +641,7 @@ async def compute_screener() -> list | None:
                 r["archetype"] = d.get("archetype")
                 r["red_lines"] = d.get("red_lines") or 0
                 r["governance"] = d.get("governance")
-                r["decision"] = (d.get("decision") or {}).get("label") \
-                    if isinstance(d.get("decision"), dict) else d.get("decision")
+                r["decision"] = served_decision(d, r.get("price"))          # ‏D690: بسعر الصفّ
                 r["value_to_price"] = d.get("value_to_price")
     except Exception:                                             # noqa: BLE001
         pass
@@ -765,6 +764,12 @@ async def refresh_derived(rows: list) -> list:
         store = fund_store_load() or {}
     except Exception:                                             # noqa: BLE001
         return rows
+    try:                                                          # ‏D690: القرارُ يُعاد بالسعر الحيّ بعد إنعاشه
+        from app.services import lastgood as _lgd
+        _deep = _lgd.load("governance:deep") or {}
+        _deep = _deep if isinstance(_deep, dict) else {}
+    except Exception:                                             # noqa: BLE001
+        _deep = {}
 
     # ══ والقيمةُ النسبيةُ من جنس المشتقّات ══ (D230)
     # هي حسابٌ من المخزن الدائم بلا نداءٍ واحد، فتجميدُها في اللقطة يورث
@@ -935,11 +940,39 @@ async def refresh_derived(rows: list) -> list:
                                      table=_tbl))
             except Exception:                                     # noqa: BLE001
                 pass
+        # ‏D690: والقرارُ بالسعر الذي أُنعش للتوّ — لا بسعر لقطة البناء
+        _dd = _deep.get(sym.replace(".SR", ""))
+        if isinstance(_dd, dict) and _dd.get("decision") is not None:
+            r["decision"] = served_decision(_dd, r.get("price"))
     return rows
 
 
 def _label(d):
     return d.get("label") if isinstance(d, dict) else d
+
+
+def served_decision(d: dict | None, price) -> str | None:
+    """‏D690: قرارُ الصفّ بسعر اللحظة — الحكمُ المحفوظ مُعاداً عليه سقفُ القيمة العادلة بالسعر الحيّ.
+
+    كان الفرزُ يعرض حكماً حُسب بسعر فتح الصفحة أو المسحة، والسعرُ يعبر القيمةَ العادلة في الجلسة — فقِيس خمسُ شركاتٍ
+    يخالف فرزُها صفحتَها في جلسةٍ واحدة (‏run 38372206516). والسقفُ وحدَه يتبع السعر، فيُعاد هو وحدَه؛ وما لا سقفَ له
+    محفوظاً (حكمٌ لا يحرّكه السعر، أو مخزنٌ قبل D690) يُعرض كما حُفظ."""
+    if not isinstance(d, dict):
+        return None
+    dec = d.get("decision")
+    ceil = d.get("ceiling")
+    if isinstance(dec, dict) and isinstance(ceil, dict):
+        base = str((ceil.get("base") or {}).get("rule_id") or "")
+        # السقفُ لهذا الحكم نفسِه لا لحكمٍ سبقه — قاعدةُ المحفوظ تبدأ بقاعدة ما قبل السقف
+        if base and str(dec.get("rule_id") or "").startswith(base):
+            try:
+                from app.services.decision_engine import reapply_ceiling, public_label
+                g = reapply_ceiling(ceil, price)
+                if g is not None:
+                    return public_label(g.decision)
+            except Exception:                                     # noqa: BLE001
+                pass
+    return _label(dec)
 
 
 def with_live_decisions(rows: list | None) -> list | None:
@@ -974,8 +1007,8 @@ def with_live_decisions(rows: list | None) -> list | None:
         upd = {}
         d = deep.get(sym)
         if isinstance(d, dict):
-            if d.get("decision") is not None and _label(d["decision"]) != r.get("decision"):
-                upd["decision"] = _label(d["decision"])
+            if d.get("decision") is not None and served_decision(d, r.get("price")) != r.get("decision"):
+                upd["decision"] = served_decision(d, r.get("price"))
             if "red_lines" in d and (d.get("red_lines") or 0) != (r.get("red_lines") or 0):
                 upd["red_lines"] = d.get("red_lines") or 0
         st = store.get(sym) or {}

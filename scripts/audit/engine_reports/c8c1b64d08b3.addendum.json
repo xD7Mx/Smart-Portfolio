@@ -1,0 +1,9 @@
+{
+  "fingerprint": "c8c1b64d08b3",
+  "measured_at": "2026-10-13",
+  "metrics": {
+    "d_abstain_overwrite": 3,
+    "p_dec_drift": 0
+  },
+  "note": "مقاييسُ أُضيفت للبوابة بعد التجميد وقِيست على شيفرته نفسِها"
+}

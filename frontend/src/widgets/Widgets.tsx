@@ -232,7 +232,7 @@ function ScoreTrend({ score, color }: { score: number; color: string }) {
       </div>
 
       {series.length >= 2 ? (
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 56 }} dir="ltr"
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 56, direction: "ltr" }}
           role="img" aria-label={`اتجاه التقييم: ${score.toFixed(0)} من 100`}>
           {/* المستويان: يُرسمان أوّلاً فيبقيان تحت الخطّ. */}
           {[45, 70].map(lvl => (

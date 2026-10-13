@@ -84,7 +84,8 @@ interface AppState {
   movePage: (id: string, dir: -1 | 1) => void;
   togglePage: (id: string) => void;
   setStartPage: (id: string) => void;
-  applyServerLayout: (layout: { pageOrder?: string[]; hiddenPages?: string[]; startPage?: string; portfolioCols?: Record<string, boolean>; roomSymbols?: string[] } | null) => void;
+  applyServerLayout: (layout: { pageOrder?: string[]; hiddenPages?: string[]; startPage?: string; portfolioCols?: Record<string, boolean>; roomSymbols?: string[];
+                               layouts?: Record<string, DashLayout>; activeLayout?: string } | null) => void;
   togglePortfolioCol: (id: string) => void;
 
   setTheme: (t: "light" | "dark") => void;
@@ -206,6 +207,9 @@ export const useAppStore = create<AppState>()(
         return { portfolioCols };
       }),
 
+      // ‏D691: مُعلَنان في الواجهة وغيرُ منفَّذَين — فمفتاحُ «إظهار الساعة» في الإعدادات يرمي عند النقر ولا يفعل شيئاً
+      setShowClock: (v) => set({ showClock: v }),
+      setTicker: (k, v) => set((s) => ({ tickers: { ...s.tickers, [k]: v } })),
       setShowMarketStatus: (v) => set({ showMarketStatus: v }),
       setClockSeconds: (v) => set({ clockSeconds: v }),
       setClockHour12: (v) => set({ clockHour12: v }),

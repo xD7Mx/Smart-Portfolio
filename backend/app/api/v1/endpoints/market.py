@@ -74,9 +74,11 @@ def sync_page_verdict(ysym: str, data: dict) -> bool:
     k = str(ysym).replace(".SR", "")
     cur = store.get(k) if isinstance(store.get(k), dict) else {}
     old = cur.get("decision")
-    if (old.get("raw") if isinstance(old, dict) else old) == dec.get("raw"):
+    ceil = data.get("decision_ceiling")
+    # ‏D690: والسقفُ مع الحكم — الحكمُ نفسُه بسقفٍ تغيّر (قيمةٌ عادلةٌ جديدة) يُكتب أيضاً، ليُقدَّم بسعر اللحظة صحيحاً
+    if (old.get("raw") if isinstance(old, dict) else old) == dec.get("raw") and cur.get("ceiling") == ceil:
         return False
-    store[k] = {**cur, "decision": dec, "v": _ENGINE_V, "at": datetime.now(timezone.utc).date().isoformat(), "source": "page"}
+    store[k] = {**cur, "decision": dec, "ceiling": ceil, "v": _ENGINE_V, "at": datetime.now(timezone.utc).date().isoformat(), "source": "page"}
     lastgood.save("governance:deep", store)
     return True
 
@@ -127,6 +129,14 @@ async def get_company_analysis(symbol: str, db: AsyncSession = Depends(get_db)):
         _lp = (_rf649(ysym.replace(".SR", "")) or {}).get("price")
         if isinstance(data.get("fair_value"), (int, float)) and isinstance(_lp, (int, float)) and _lp > 0:
             data = {**data, "fair_value_upside_pct": round((data["fair_value"] - _lp) / _lp * 100, 1)}
+        # ‏D690: والقرارُ كذلك — سقفُ القيمة العادلة يُعاد بسعر اللحظة الذي يُعاد به الفرز، لا بسعر أوّل فتحٍ مخزَّن
+        from app.services.decision_engine import reapply_ceiling, public_label, decision_color, is_public_mode
+        _g = reapply_ceiling(data.get("decision_ceiling"), _lp)
+        _d0 = data.get("decision") if isinstance(data.get("decision"), dict) else {}
+        if _g is not None and _g.decision != _d0.get("raw"):
+            data = {**data, "decision": {**_d0, "label": public_label(_g.decision), "raw": _g.decision,
+                                         "rule_id": _g.matched_rule_id, "color": decision_color(_g.decision),
+                                         "reason": _g.reason, "public_mode": is_public_mode()}}
     except Exception:                                              # noqa: BLE001
         pass
     # Flatten common fundamentals to the top level so existing UI keeps working.

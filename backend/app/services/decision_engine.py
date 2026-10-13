@@ -352,6 +352,41 @@ def apply_fair_value_ceiling(decision: "Decision", price, fair_value,
     return decision
 
 
+
+# ══ القرارُ يُقدَّم بسعر اللحظة ══ (‏D690)
+# السقفُ وحدَه يتبع السعر: «شراء» فوق القيمة العادلة تنزل «انتظار»، و«شراء قوي» فوق سعر الدخول تنزل «شراء». فحكمٌ
+# حُسب صباحاً ثمّ حُفظ لا يصلح عرضُه بعد أن عبر السعرُ قيمتَه — قِيس: خمسُ شركاتٍ في جلسةٍ واحدة يخالف فرزُها صفحتَها
+# (‏1321 · 2370 · 4002 · 6015 · 7203 — run 38372206516). فيُحفظ ما قبل السقف ومُدخَلاتُه، ويُعاد السقفُ بالسعر الحيّ
+# عند كلّ تقديم — في الفرز وفي الصفحة سواء، فلا يشيخ أحدُهما عن الآخر ولا عن السوق.
+_PRICED = ("شراء", "شراء قوي")
+
+
+def ceiling_inputs(decision: "Decision", fair_value, entry_price=None, single_path: bool = False,
+                   coverage=None, nomu: bool = False, red_lines: list | None = None,
+                   implausible: bool = False) -> dict | None:
+    """مُدخَلاتُ السقف بلا السعر — لما يتبع حكمُه السعرَ وحدَه (شراءٌ قبل السقف). وما سواه لا يحرّكه السعر."""
+    if decision is None or decision.decision not in _PRICED:
+        return None
+    return {"base": {"decision": decision.decision, "rule_id": decision.matched_rule_id, "reason": decision.reason},
+            "fair_value": fair_value, "entry_price": entry_price, "single_path": bool(single_path),
+            "coverage": coverage, "nomu": bool(nomu), "implausible": bool(implausible),
+            "red_lines": [{"message": (r or {}).get("message", "")} for r in (red_lines or [])[:2]]}
+
+
+def reapply_ceiling(ceiling, price) -> "Decision | None":
+    """الحكمُ بسعر اللحظة من مُدخَلات السقف المحفوظة — ولا شيء إن لم تُحفظ أو غاب السعر (فيبقى المحفوظ)."""
+    if not isinstance(ceiling, dict) or not isinstance(price, (int, float)) or price <= 0:
+        return None
+    b = ceiling.get("base") or {}
+    if b.get("decision") not in _PRICED:
+        return None
+    return apply_fair_value_ceiling(
+        Decision(decision=b["decision"], matched_rule_id=b.get("rule_id") or "", reason=b.get("reason") or ""),
+        price, ceiling.get("fair_value"), ceiling.get("entry_price"),
+        single_path=bool(ceiling.get("single_path")), coverage=ceiling.get("coverage"),
+        nomu=bool(ceiling.get("nomu")), red_lines=ceiling.get("red_lines") or [],
+        implausible=bool(ceiling.get("implausible")))
+
 def tone_for_decision(decision: str) -> str:
     """Traffic-light signal for a decision label — same purpose as the old
     scores.verdict_tone() but matched to this engine's four labels instead

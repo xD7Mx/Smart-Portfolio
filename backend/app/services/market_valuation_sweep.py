@@ -106,8 +106,18 @@ async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
         # ‏D578: الحكمُ يُحسب هنا لكلّ السوق — فيُحمَل ليصل الفرز (يُنزع قبل مخزن الأساسيات)
         out["_verdict"] = {"decision": a.get("decision"), "evaluable": bool(a.get("evaluable")),
                            "red_lines": len(a.get("red_lines") or []),       # ‏D637: يُحدَّث كلَّ مسحة لا يشيخ
-                           "quality": (a.get("spec") or {}).get("score"), "fair_value": a.get("fair_value")}
+                           "quality": (a.get("spec") or {}).get("score"), "fair_value": a.get("fair_value"),
+                           "ceiling": a.get("decision_ceiling")}             # ‏D690: يُعاد به السقفُ بسعر اللحظة
         return sym, out
+
+
+def _decided(cur) -> bool:
+    """حكمٌ محسوم: قرارٌ لا امتناع («بيانات غير كافية») — بنصّه أو بقاعدته."""
+    d = cur.get("decision") if isinstance(cur, dict) else None
+    if isinstance(d, dict):
+        lbl = d.get("raw") or d.get("label")
+        return bool(lbl) and lbl != "بيانات غير كافية" and not str(d.get("rule_id") or "").startswith("insufficient_data")
+    return bool(d) and d != "بيانات غير كافية"
 
 
 def record_verdicts(done: dict, today: date | None = None, fresh_days: int = 7, engine_v: str | None = None) -> int:
@@ -141,10 +151,15 @@ def record_verdicts(done: dict, today: date | None = None, fresh_days: int = 7, 
         page = isinstance(cur, dict) and cur.get("source") != "sweep" and cur.get("v") == engine_v
         if page and age < fresh_days:
             continue
-        if page and not vd.get("evaluable") and cur.get("decision") and age < 30:
-            continue                      # امتناعُ المسحة (بياناتٌ أقلّ) لا يمحو حكماً عميقاً حديثاً
+        # ‏D681: امتناعُ المسحة لا يمحو حكماً محسوماً حديثاً — أيّاً كان كاتبُه (صفحةٌ أو مسحة) وأيّاً كان محرّكُه.
+        # كان الحفظُ لحكم صفحةٍ بالمحرّك الحاليّ وحدَه، فبيانٌ تعذّر وصولُه لحظةَ المسحة يُنزل «شراء» الأمس إلى
+        # «بيانات غير كافية» والصفحةُ تحكم (قِيس: خمسُ ريتاتٍ ثمّ 1030 و4339 — run 38130632842 · run 38372206516).
+        # والقديمُ (30 يوماً فأكثر) يُستبدل: الامتناعُ حينها أصدقُ من حكمٍ شاخ.
+        if not vd.get("evaluable") and _decided(cur) and age < 30:
+            continue
         base = cur if isinstance(cur, dict) else {}
         store[sym] = {**base, "decision": vd["decision"], "at": today.isoformat(), "source": "sweep",
+                      "ceiling": vd.get("ceiling"),       # ‏D690: ويُمحى سقفُ حكمٍ سابق — لا يُعاد «شراءُ» الأمس على «تجنّب» اليوم
                       **({"red_lines": vd["red_lines"]} if "red_lines" in vd else {}),
                       **({"quality": vd["quality"]} if vd.get("quality") is not None else {}),
                       **({"fair_value": vd["fair_value"]} if vd.get("fair_value") is not None else {})}

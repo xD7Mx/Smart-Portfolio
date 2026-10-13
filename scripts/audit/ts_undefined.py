@@ -17,6 +17,12 @@
 # يُشغَّل `tsc --noEmit` ويُرفَض **صنفٌ واحدٌ** من أخطائه: «لا أجد هذا
 # الاسم» (‏TS2304 · TS2552). لا تُشترط سلامةُ الأنواع كلِّها — في الشيفرة
 # ملاحظاتٌ قديمةٌ لا تُسقط شاشة — بل يُمنع ما يُسقطها.
+#
+# ## D691 — و«الملاحظاتُ القديمة» كانت تُخفي عطباً حيّاً
+# من تسعة أخطاء أنواعٍ تُركت: مخزنُ الإعدادات يُعلن `setShowClock` ولا ينفّذه
+# (‏TS2739)، وصفحةُ الإعدادات تمرّره إلى مفتاح «إظهار الساعة» — فالنقرُ يرمي
+# `onChange is not a function` ولا تختفي الساعة. فلا تُصنَّف الأخطاءُ إلى
+# مُسقطٍ ومحتمَل: الفحصُ الثاني يشترط أن تخلو الواجهةُ من خطأ أنواعٍ أصلاً.
 # ─────────────────────────────────────────────────────────────────────────
 from __future__ import annotations
 
@@ -39,9 +45,16 @@ def main() -> int:
     bad = [l for l in (r.stdout + r.stderr).splitlines() if FATAL.search(l)]
     for l in bad[:20]:
         print("     " + l.strip())
-    ok = not bad
-    print(f"{'PASS' if ok else 'FAIL'} ١ لا اسمَ مستعملاً بلا تعريف في الواجهة"
+    ok1 = not bad
+    print(f"{'PASS' if ok1 else 'FAIL'} ١ لا اسمَ مستعملاً بلا تعريف في الواجهة"
           f" — {len(bad)} موضعاً")
+    errs = [l for l in (r.stdout + r.stderr).splitlines() if re.search(r"error TS\d+:", l)]
+    for l in errs[:20]:
+        print("     " + l.strip()[:200])
+    ok2 = not errs and r.returncode == 0
+    print(f"{'PASS' if ok2 else 'FAIL'} ٢ ولا خطأَ أنواعٍ أصلاً — المُعلَنُ غيرُ المنفَّذ عطبٌ حيّ لا ملاحظة (‏D691)"
+          f" — {len(errs)} خطأً")
+    ok = ok1 and ok2
     print()
     print("النتيجة:", "نظيف ✔" if ok else "فيه ملاحظات ✘")
     return 0 if ok else 1

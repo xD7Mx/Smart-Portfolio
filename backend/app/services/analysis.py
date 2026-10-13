@@ -780,15 +780,19 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
     # كافية» لأنه «لا يصلنا هدفُ محلّلين». فالبوّابةُ تأخذ رقمَ الشاشة نفسَه.
     _gate_fv = _fv.get("value")
     # البوّابةُ تحكم بالرقم المعروض نفسِه — لا برقمٍ ثانٍ لا تراه الشاشة.
+    _ceil_args = dict(single_path=bool(_fv.get("single_path")),
+                      coverage=_cov,
+                      nomu=bool(_fv.get("nomu")),
+                      red_lines=(fin.get("red_lines") or []),
+                      implausible=bool(_fv.get("implausible")))
+    # ‏D690: ما قبل السقف ومُدخَلاتُه يُحفظان مع الحكم — فيُعاد السقفُ بسعر اللحظة عند كلّ تقديم (decision_engine)
+    from app.services.decision_engine import ceiling_inputs
+    _ceil = ceiling_inputs(fin["decision"], _gate_fv, _fv.get("entry_price"), **_ceil_args)
     gov = apply_fair_value_ceiling(fin["decision"],
                                    (price or {}).get("price"),
                                    _gate_fv,
                                    _fv.get("entry_price"),
-                                   single_path=bool(_fv.get("single_path")),
-                                   coverage=_cov,
-                                   nomu=bool(_fv.get("nomu")),
-                                   red_lines=(fin.get("red_lines") or []),
-                                   implausible=bool(_fv.get("implausible")))
+                                   **_ceil_args)
     fin["decision"] = gov
     # ══ المفردةُ تُترجَم في مخرَجٍ واحد ══ (قرارُ مجلس نِصاب)
     # الحكمُ الداخليّ يبقى كما هو ليعمل القياسُ والفرزُ عليه، والمعروضُ
@@ -924,6 +928,7 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         "ai_score": overall,
         "score": overall,
         "decision": decision,
+        "decision_ceiling": _ceil,                                 # ‏D690: يُعاد به السقفُ بسعر اللحظة
         # Unified governance outputs — تقييم الأداء renders the SAME expert
         # consensus / four scores / confidence the الحوكمة panel shows.
         "evaluable": fin.get("evaluable"),
@@ -971,6 +976,7 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
                 "basis": _sp.get("basis"),
                 "archetype": _sp.get("archetype"),
                 "red_lines": len(result.get("red_lines") or []),
+                "ceiling": result.get("decision_ceiling"),                 # ‏D690
                 "governance": (result.get("governance") or {}).get("score"),
                 "fair_value": _fvv,
                 "value_to_price": (round(_fvv / _px, 3)
@@ -989,7 +995,7 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
             store = lastgood.load("governance:deep") or {}
             k = str(symbol).replace(".SR", "")
             if isinstance(store, dict) and isinstance(store.get(k), dict):
-                store[k] = {**store[k], "decision": result.get("decision"), "v": _ENGINE_V,
+                store[k] = {**store[k], "decision": result.get("decision"), "ceiling": result.get("decision_ceiling"), "v": _ENGINE_V,
                             "at": datetime.now(timezone.utc).date().isoformat()}
                 lastgood.save("governance:deep", store)
         except Exception:                                         # noqa: BLE001
