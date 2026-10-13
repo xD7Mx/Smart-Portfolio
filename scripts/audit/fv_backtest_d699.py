@@ -221,7 +221,7 @@ async def main():
             fs = fin_score(s, X_pit(s, "annual"))
             if fs is None:
                 continue
-            fo = {"s": s, "t": t, "fs": fs, "sec": uni[s]["sector"]}
+            fo = {"s": s, "t": t, "fs": fs, "sec": uni[s]["sector"], "sig": fin_signals(X_pit(s, "annual"))}
             for h in H:
                 t2 = ym_add(t, h)
                 p2 = PX[s].get(t2)
@@ -308,6 +308,42 @@ def fin_score(sym, annual):
     return float(sc) if isinstance(sc, (int, float)) else None
 
 
+def fin_signals(annual):
+    """مكوّناتُ الدرجة المالية كلٌّ وحدَه — ليُعرف أيُّها يتنبّأ: نموُّ الإيراد · جودةُ الربح (التشغيليّ ÷ الصافي) · هامشُ التدفّق
+    الحرّ · العائدُ على الحقوق · المديونية (أدنى أفضل) · تغطيةُ الفوائد · هامشُ الربح · نموُّ الربح."""
+    def n(x):
+        return float(x) if isinstance(x, (int, float)) else None
+    if not annual:
+        return {}
+    a, b, f = annual[-1], (annual[-2] if len(annual) >= 2 else {}), annual[0]
+    out = {}
+    r0, r1 = n(f.get("revenue")), n(a.get("revenue"))
+    if r0 and r1 and r0 > 0 and r1 > 0 and len(annual) >= 2:
+        out["growth"] = (r1 / r0) ** (1 / (len(annual) - 1)) - 1
+    q = [n(p.get("operating_cash_flow")) / n(p.get("net_income")) for p in annual
+         if n(p.get("operating_cash_flow")) is not None and n(p.get("net_income")) and n(p.get("net_income")) > 0]
+    if q:
+        out["eq"] = max(-3.0, min(3.0, st.fmean(q)))
+    fm = [n(p.get("free_cash_flow")) / n(p.get("revenue")) for p in annual
+          if n(p.get("free_cash_flow")) is not None and n(p.get("revenue")) and n(p.get("revenue")) > 0]
+    if fm:
+        out["fcf_m"] = st.fmean(fm)
+    ni, eq_ = n(a.get("net_income")), n(a.get("equity"))
+    if ni is not None and eq_ and eq_ > 0:
+        out["roe"] = ni / eq_
+    if n(a.get("debt_ratio")) is not None:
+        out["low_debt"] = -n(a.get("debt_ratio"))
+    e, ie = n(a.get("ebit")), n(a.get("interest_expense"))
+    if e is not None and ie:
+        out["cover"] = max(-20.0, min(50.0, e / abs(ie)))
+    if ni is not None and r1 and r1 > 0:
+        out["margin"] = ni / r1
+    n0 = n(b.get("net_income"))
+    if ni is not None and n0:
+        out["ni_g"] = max(-2.0, min(2.0, (ni - n0) / abs(n0)))
+    return {k: round(v, 5) for k, v in out.items()}
+
+
 def fs_report(fobs, anchors):
     """هل الدرجةُ المالية الأعلى سبقت السوق؟ — ارتباطُ الرتبة والشرائح بعد 6 و12 شهراً."""
     out = {}
@@ -325,6 +361,21 @@ def fs_report(fobs, anchors):
             print(f"@@FSIC{h}@@ ارتباطُ الرتبة {m:+.3f} · t={(m / sd * math.sqrt(len(ics)) if sd else 0):.2f} · موجبٌ في "
                   f"{sum(x > 0 for x in ics)} من {len(ics)}")
             out[f"o_fs_ic{h}"] = round(m, 4)
+    for key in ("growth", "eq", "fcf_m", "roe", "low_debt", "cover", "margin", "ni_g"):
+        row = []
+        for h in H:
+            k, ics = f"x{h}", []
+            for t in anchors:
+                g = [o for o in fobs if o["t"] == t and k in o and key in (o.get("sig") or {})]
+                ic = spearman([o["sig"][key] for o in g], [o[k] for o in g])
+                if ic is not None:
+                    ics.append(ic)
+            if ics:
+                m, sd = st.fmean(ics), (st.stdev(ics) if len(ics) > 1 else 0)
+                half = [st.fmean(ics[:len(ics) // 2]), st.fmean(ics[len(ics) // 2:])] if len(ics) >= 4 else []
+                row.append(f"{h}ش {m:+.3f} (t {m / sd * math.sqrt(len(ics)) if sd else 0:+.1f} · النصفان "
+                           + " / ".join(f"{x:+.2f}" for x in half) + ")")
+        print(f"@@FSSIG@@ {key}: " + " · ".join(row))
     _rel(fobs, 12)
     for nm, lo, hi in (("خطٌّ أحمر (صفر)", -1, 0.5), ("دون 50", 0.5, 50), ("50–70", 50, 70), ("70 فأعلى", 70, 101)):
         g = [o for o in fobs if "q12" in o and lo <= o["fs"] < hi]
