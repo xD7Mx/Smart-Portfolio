@@ -30,8 +30,9 @@ wl, i18n = rd("components/market/WatchlistTab.tsx"), rd("i18n.ts")
 # ── D683 ──
 named = [f for f, t in (("i18n.ts", i18n), ("WatchlistTab.tsx", wl), ("StockLookup.tsx", rd("components/market/StockLookup.tsx")),
                         ("CompanyPage.tsx", rd("pages/CompanyPage.tsx"))) if "المراقبة" in code(t)]
-check('"nav.watchlist":   { ar: "الشاشة"' in i18n and ">الشاشة</h1>" in wl and not named,
-      "١ «الشاشة» اسمُ القسم في القائمة والعنوان وكلِّ نصٍّ يسمّيه — لا «المراقبة»", ", ".join(named))
+wp = rd("pages/WatchlistPage.tsx")
+check('"nav.watchlist":   { ar: "غرفة التداول"' in i18n and "/> غرفة التداول" in wp and not named,
+      "١ اسمُ القسم في القائمة والعنوان وكلِّ نصٍّ يسمّيه — «غرفة التداول» منذ D687 (كان «الشاشة»)، لا «المراقبة»", ", ".join(named))
 check('const GRID = "grid grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3"' in wl and "grid-cols-4 md:" not in code(wl),
       "٢ ثلاثٌ في الصفّ على الجوال وأربعٌ على الحاسوب (‏D685) — والأربعُ على الجوال جُرّبت فقال المالك «غيرُ جميل»")
 check('grid-cols-[minmax(0,1fr)_auto]' in wl and '<span className="justify-self-center">{chgBadge}</span>' in wl

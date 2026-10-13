@@ -96,13 +96,13 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
       (byRow[t] ||= []).push(Math.round(price.getBoundingClientRect().top));
     }
     for (const [t, ps] of Object.entries(byRow)) if (Math.max(...ps) - Math.min(...ps) > 1) rowMis.push(t);
-    const h1 = [...document.querySelectorAll("h1")].some(h => h.textContent.trim() === "الشاشة");
+    const h1 = [...document.querySelectorAll("h1")].some(h => h.textContent.trim() === "غرفة التداول");   // ‏D687
     const navTxt = [...document.querySelectorAll('a[href="/watchlist"]')].map(a => a.textContent + " " + (a.getAttribute("title") || "") + " " + (a.getAttribute("aria-label") || "")).join(" ");
     const visible = document.body.innerText;
     return { W, sw, n: cards.length, perRow, off, clip, tall, rowMis, h1, nav: navTxt.includes("المراقبة") ? "قديم" : "ok", old: visible.includes("المراقبة"),
              btns: cards.some(c => [...c.querySelectorAll("button")].some(b => /تحريك|نقل|أعلى|أسفل/.test(b.getAttribute("aria-label") || ""))) };
   });
-  say(g.h1 && !g.old && g.nav === "ok", `${label}: «الشاشة» اسمُ القسم — لا «المراقبة» في عنوانٍ ولا قائمةٍ ولا نصّ`);
+  say(g.h1 && !g.old && g.nav === "ok", `${label}: «غرفة التداول» اسمُ القسم (‏D687) — لا «المراقبة» في عنوانٍ ولا قائمةٍ ولا نصّ`);
   say(g.n === 8 && g.perRow === (mob ? 3 : 4), `${label}: ${mob ? "ثلاثُ" : "أربعُ"} بطاقاتٍ في الصفّ (‏D685)`, `${g.n} بطاقات · ${g.perRow} في الصفّ`);
   say(g.off.length === 0, `${label}: القرارُ تحت منتصف نسبة التغيّر في كلّ بطاقة (فرقُ المركزين ≤ 1.5px)`, g.off.join(" ") || "8/8");
   say(g.clip.length === 0 && g.tall.length === 0, `${label}: السعرُ كاملٌ لا مقصوص، والاسمُ سطران على الأكثر`, [...g.clip, ...g.tall].join(" "));
@@ -120,7 +120,18 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
     const a = await center(0), b = await center(2);
     await page.mouse.move(a.x, a.y); await page.mouse.down(); await sleep(650);
     for (let s = 1; s <= 10; s++) await page.mouse.move(a.x + (b.x - a.x) * s / 10, a.y + (b.y - a.y) * s / 10);
-    await sleep(250); await page.mouse.up(); await sleep(500);
+    await sleep(250);
+    // ‏D687: البطاقةُ المرفوعة تحت الإصبع نفسِه (لا تقفز بين الخانات) — مركزُها عند المؤشّر، ثمّ تهبط بانزلاق
+    const mid = await page.evaluate(({ x, y }) => {
+      const el = [...document.querySelectorAll("[data-sort-key]")].find(e => (e.style.transform || "").includes("translate"));
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { d: Math.hypot(r.left + r.width / 2 - x, r.top + r.height / 2 - y), tr: el.style.transform };
+    }, b);
+    say(!!mid && mid.d < 14, `${label}: البطاقةُ المرفوعة تتبع الإصبع — مركزُها عند المؤشّر (‏D687)`, mid ? `${mid.d.toFixed(1)}px` : "لا إزاحة");
+    await page.mouse.up(); await sleep(500);
+    const landed = await page.evaluate(() => [...document.querySelectorAll("[data-sort-key]")].every(e => !(e.style.transform || "").includes("translate")));
+    say(landed, `${label}: وتهبط في موضعها بعد الإفلات — لا إزاحةَ عالقة`);
   } else {
     const cdp = await ctx.newCDPSession(page);
     const a = await center(0), b = await center(2);
@@ -210,9 +221,44 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
     say(s.bareChip.length === 0, `${label}: الفرز — الوسومُ بنمطٍ واحدٍ وأرضيةٍ ظاهرة`, s.bareChip.join(" "));
     say(s.sr.length === 0 && s.sw <= s.W + 1, `${label}: الفرز — الرمزُ بلا «.SR» مقلوب، ولا فيضَ أفقيّ`, `محتوى ${s.sw} · شاشة ${s.W}`);
     if (SHOTS) await page.screenshot({ path: join(SHOTS, `screener_${vp.width}.png`), fullPage: true });
+
+    // ═══ ٤ · غرفة التداول (‏D687): الرسمُ تبويبٌ داخلها، وإيماءةُ السحب تُخرج القائمة ═══
+    await page.goto(`http://localhost:${PORT}/chart`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+    await page.waitForTimeout(2500);
+    const room = await page.evaluate(() => ({
+      url: location.pathname + location.search,
+      h1: [...document.querySelectorAll("h1")].map(h => h.textContent.trim()),
+      tab: [...document.querySelectorAll("nav button")].some(b => b.textContent.trim() === "الرسم البياني" && b.getAttribute("aria-pressed") === "true"),
+      chart: [...document.querySelectorAll("button")].some(b => b.textContent.includes("المؤشرات")),
+      chartNav: !!document.querySelector('a[href="/chart"]'),
+      roomNav: [...document.querySelectorAll('a[href="/watchlist"]')].length > 0,
+    }));
+    say(room.url === "/watchlist?tab=chart" && room.tab && room.chart && room.h1.includes("غرفة التداول") && !room.h1.includes("الرسم البياني"),
+        `${label}: الرسمُ البيانيّ تبويبٌ داخل «غرفة التداول» — ورابطُه القديم يفتحه هناك بعنوانٍ واحد`, `${room.url} · ${room.h1.join("|")}`);
+    say(!room.chartNav && room.roomNav, `${label}: ولا بندَ مستقلّاً للرسم في القائمة — «غرفة التداول» وحدها`);
+    const cdp2 = await ctx.newCDPSession(page);
+    const swipe = async (x0, y0, x1, y1) => {
+      await cdp2.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: x0, y: y0 }] });
+      for (let s = 1; s <= 6; s++) await cdp2.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x0 + (x1 - x0) * s / 6, y: y0 + (y1 - y0) * s / 6 }] });
+      await cdp2.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await sleep(450);
+    };
+    const drawerOn = () => page.evaluate(() => !!document.querySelector(".mobile-drawer"));
+    await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+    await page.waitForTimeout(2200);
+    const rise = await page.evaluate(() => document.querySelectorAll("[data-sort-key] > .card-rise").length);
+    say(rise === 8, `${label}: البطاقاتُ تطلع متتابعةً عند الظهور (حركةٌ لا قفزة)`, `${rise}/8`);
+    await swipe(200, 640, 190, 300);
+    const v = await drawerOn();
+    await swipe(330, 640, 120, 650);
+    const opened = await drawerOn();
+    await swipe(80, 640, 330, 640);
+    const closed = !(await drawerOn());
+    say(!v && opened && closed, `${label}: سحبُ الإصبع من اليمين إلى اليسار يُخرج القائمة، والعكسُ يُعيدها، والتمريرُ الرأسيّ لا يفتحها`,
+        `رأسيّ ${v ? "فتح" : "لا"} · يمين→يسار ${opened ? "فتح" : "لا"} · عكسُه ${closed ? "أغلق" : "لا"}`);
   }
   await ctx.close();
 }
 await browser.close();
-console.log((fail ? "FAIL" : "PASS") + " D683 · D684 — «الشاشة» بثلاثة أعمدة على الجوال وأربعة على الحاسوب وترتيبٌ بالضغط المطوّل · بطاقاتُ الفرز بهويّة التطبيق");
+console.log((fail ? "FAIL" : "PASS") + " D683 · D684 · D687 — «غرفة التداول» بثلاثة أعمدة على الجوال وأربعة على الحاسوب وترتيبٌ بالضغط المطوّل · بطاقاتُ الفرز بهويّة التطبيق");
 process.exit(fail);

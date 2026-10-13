@@ -21,7 +21,7 @@ const chipCls = (on: boolean) =>
   "shrink-0 min-h-[32px] px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 " +
   (on ? "text-[var(--brand-ink)] border-[var(--brand)]" : "border-[var(--hairline)] text-[var(--ink-muted)] hover:text-[var(--ink)]");
 
-export default function ChartPage() {
+export default function ChartPage({ embedded = false }: { embedded?: boolean }) {
   const { theme } = useAppStore();
   const [chosen, setChosen] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<Drawer>(null);
@@ -56,9 +56,12 @@ export default function ChartPage() {
 
   return (
     <div className="space-y-4 fade-in">
-      <h1 className="text-2xl font-medium text-[var(--ink)] flex items-center gap-2">
-        <CandlestickChart size={22} className="text-[var(--brand-ink)]" /> الرسم البياني
-      </h1>
+      {/* ‏D687: تبويبٌ داخل «غرفة التداول» — عنوانُها فوقه، فلا عنوانَ ثانٍ */}
+      {!embedded && (
+        <h1 className="text-2xl font-medium text-[var(--ink)] flex items-center gap-2">
+          <CandlestickChart size={22} className="text-[var(--brand-ink)]" /> الرسم البياني
+        </h1>
+      )}
 
       {/* الدرجُ ملتصقٌ بالتبويبات: ينزل منها بحركةٍ ويعود إليها — بلا فراغٍ حين يُطوى. */}
       <div>

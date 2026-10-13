@@ -23,12 +23,40 @@ export function useLongPressSort<T>(items: T[], keyOf: (x: T) => string, onCommi
   const edgeY = useRef(0);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const pos = useRef(new Map<string, [number, number]>());
+  /* ‏D687 (بأمر المالك: «ضع حركةً عند تمرير البطاقات لأنها قاسية»): البطاقةُ المرفوعة تتبع الإصبعَ نفسَه — كانت تقفز
+     من خانةٍ إلى خانة — وتهبط إلى موضعها بانزلاقٍ عند الإفلات. والإزاحةُ تُكتب مباشرةً في العنصر (لا في حالة React)
+     فلا يُعاد رسمُ الشبكة مع كلّ حركة، ويُحسب مركزُ البطاقة في الشبكة بطرح إزاحتها الحاليّة */
+  const liftEl = useRef<HTMLElement | null>(null);
+  const shift = useRef<[number, number]>([0, 0]);
+  const grab = useRef<[number, number]>([0, 0]);
+  const lastPt = useRef<[number, number] | null>(null);
+  const centerOf = (el: HTMLElement): [number, number] => {
+    const r = el.getBoundingClientRect();
+    return [r.left + r.width / 2 - shift.current[0], r.top + r.height / 2 - shift.current[1]];
+  };
+  const place = () => {
+    const el = liftEl.current, p = lastPt.current;
+    if (!el || !p) return;
+    const c = centerOf(el);
+    shift.current = [p[0] - grab.current[0] - c[0], p[1] - grab.current[1] - c[1]];
+    el.style.transform = `translate(${shift.current[0]}px, ${shift.current[1]}px) scale(1.04)`;
+  };
+  const land = () => {
+    const el = liftEl.current;
+    liftEl.current = null;
+    if (!el) return;
+    el.style.transition = "transform .24s cubic-bezier(.2,.8,.2,1)";
+    el.style.transform = "";
+    shift.current = [0, 0];
+    setTimeout(() => { el.style.transition = ""; }, 260);
+  };
 
   const disarm = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
   const finish = (commit: boolean) => {
     disarm();
     if (dragRef.current == null) return;
     const next = listRef.current;
+    land();
     dragRef.current = null;
     setDragKey(null);
     if (commit && next.map(keyOf).join("|") !== items.map(keyOf).join("|")) onCommit(next);
@@ -48,6 +76,7 @@ export function useLongPressSort<T>(items: T[], keyOf: (x: T) => string, onCommi
       const y = edgeY.current, m = 70;
       if (y > 0 && y - top < m) box?.scrollBy(0, -Math.ceil((m - (y - top)) / 5));
       else if (y > 0 && bottom - y < m) box?.scrollBy(0, Math.ceil((m - (bottom - y)) / 5));
+      place();                                   // والتمريرُ الآليّ لا يفصل البطاقةَ عن الإصبع
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
@@ -58,6 +87,8 @@ export function useLongPressSort<T>(items: T[], keyOf: (x: T) => string, onCommi
   useLayoutEffect(() => {
     const box = boxRef.current;
     if (!box) return;
+    // الشبكةُ مرجعُ إزاحات بطاقاتها (offsetParent) — فتُقاس الخاناتُ منها لا من أبٍ بعيد
+    if (getComputedStyle(box).position === "static") box.style.position = "relative";
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     box.querySelectorAll<HTMLElement>("[data-sort-key]").forEach(el => {
       const k = el.dataset.sortKey as string;
@@ -65,10 +96,11 @@ export function useLongPressSort<T>(items: T[], keyOf: (x: T) => string, onCommi
       const was = pos.current.get(k);
       if (was && !reduce && dragRef.current != null && k !== dragRef.current && (was[0] !== now[0] || was[1] !== now[1])) {
         el.animate?.([{ transform: `translate(${was[0] - now[0]}px, ${was[1] - now[1]}px)` }, { transform: "none" }],
-                     { duration: 180, easing: "cubic-bezier(.2,.8,.2,1)" });
+                     { duration: 240, easing: "cubic-bezier(.2,.8,.2,1)" });
       }
       pos.current.set(k, now);
     });
+    place();                                     // موضعُها في الشبكة تغيّر — وتبقى تحت الإصبع
   }, [list]);
 
   const move = (k: string, to: number) => {
@@ -93,6 +125,14 @@ export function useLongPressSort<T>(items: T[], keyOf: (x: T) => string, onCommi
         timer.current = setTimeout(() => {
           dragRef.current = k;
           suppress.current = true;
+          liftEl.current = el;
+          shift.current = [0, 0];
+          const c = centerOf(el), p0 = start.current || { x: c[0], y: c[1] };
+          grab.current = [p0.x - c[0], p0.y - c[1]];
+          lastPt.current = [p0.x, p0.y];
+          el.style.transition = "transform .15s";
+          place();
+          setTimeout(() => { if (liftEl.current === el) el.style.transition = ""; }, 160);
           setOrder(listRef.current);
           setDragKey(k);
           // أسرُ المؤشّر: تبقى الحركةُ تصل هذه البطاقة ولو خرج الإصبعُ عنها
@@ -109,8 +149,22 @@ export function useLongPressSort<T>(items: T[], keyOf: (x: T) => string, onCommi
         }
         e.preventDefault();
         edgeY.current = e.clientY;
-        const over = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest("[data-sort-key]") as HTMLElement | null;
-        const target = over && boxRef.current?.contains(over) ? over.dataset.sortKey : null;
+        lastPt.current = [e.clientX, e.clientY];
+        place();
+        // يُقرأ ما تحت الإصبع من **خانات الشبكة** لا من مواضع الرسم: البطاقةُ المرفوعة نفسُها تحته، والأخرى تنزلق
+        // بحركتها (FLIP) — فاختبارُ المرسوم يقرأ بطاقةً في منتصف انزلاقها ويضعها خانةً قبل موضعها (قِيس)
+        const box = boxRef.current;
+        let target: string | null = null;
+        if (box) {
+          const br = box.getBoundingClientRect();
+          for (const el of box.querySelectorAll<HTMLElement>("[data-sort-key]")) {
+            if (el.dataset.sortKey === dragRef.current || el.offsetParent !== box) continue;
+            const l = br.left + el.offsetLeft - box.scrollLeft, t = br.top + el.offsetTop - box.scrollTop;
+            if (e.clientX >= l && e.clientX <= l + el.offsetWidth && e.clientY >= t && e.clientY <= t + el.offsetHeight) {
+              target = el.dataset.sortKey as string; break;
+            }
+          }
+        }
         if (!target || target === dragRef.current) return;
         const j = listRef.current.findIndex(x => keyOf(x) === target);
         setOrder(move(dragRef.current, j));
@@ -132,10 +186,10 @@ export function useLongPressSort<T>(items: T[], keyOf: (x: T) => string, onCommi
       style: {
         WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none",
         ...(lifted
-          ? { position: "relative", zIndex: 20, transform: "scale(1.04)", cursor: "grabbing",
-              boxShadow: "0 14px 32px -12px color-mix(in srgb, var(--ink) 35%, transparent), 0 0 0 1.5px var(--brand)",
-              borderRadius: 16, transition: "transform .15s, box-shadow .15s" }
-          : { transition: "transform .15s" }),
+          ? { position: "relative", zIndex: 20, cursor: "grabbing", willChange: "transform",
+              boxShadow: "0 18px 36px -14px color-mix(in srgb, var(--ink) 40%, transparent), 0 0 0 1.5px var(--brand)",
+              borderRadius: 16 }
+          : {}),
       } as React.CSSProperties,
     };
   };

@@ -758,7 +758,19 @@ html.light .ticker-txt { color: var(--ink); }
 
 /* ── Mobile drawer animation ─────────────────────────────────── */
 @keyframes drawerIn { from { transform: translateX(var(--drawer-from, -12px)); opacity: .4; } to { transform: translateX(0); opacity: 1; } }
-.drawer-in { animation: drawerIn .18s ease-out; }
+.drawer-in { animation: drawerIn .26s cubic-bezier(.2,.8,.2,1); }
+/* ‏D687: والخروجُ انزلاقٌ كالدخول، والغطاءُ يبهت معه — لا اختفاءَ مفاجئ */
+@keyframes drawerOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(var(--drawer-from, -100%)); opacity: .4; } }
+.drawer-out { animation: drawerOut .18s ease-in forwards; }
+@keyframes scrimIn { from { opacity: 0; } to { opacity: 1; } }
+.drawer-pop .drawer-scrim { animation: scrimIn .22s ease-out; }
+.drawer-closing .drawer-scrim { animation: scrimIn .18s ease-in reverse forwards; }
+/* ‏D687: البطاقاتُ تطلع متتابعةً عند الظهور (وتأخيرُها من موضعها) */
+@keyframes cardRise { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: none; } }
+.card-rise { animation: cardRise .34s cubic-bezier(.2,.8,.2,1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .drawer-in, .drawer-out, .drawer-pop .drawer-scrim, .drawer-closing .drawer-scrim, .card-rise { animation: none; }
+}
 
 /* ── Fluid polish: smoother cards / motion (kwealth-style) ────── */
 .card, .mc { transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease; }

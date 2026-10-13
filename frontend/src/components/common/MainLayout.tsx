@@ -3,7 +3,7 @@ import { Outlet, NavLink, useLocation } from "react-router-dom";
 import {
   Briefcase, TrendingUp, Brain,
   FileText, Bell, Settings, Shield, Calculator,
-  Menu, X, CandlestickChart, Book, Activity, Star } from "lucide-react";
+  Menu, X, CandlestickChart, Book, Activity } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { notificationsApi } from "../../services/api";
 import { useT } from "../../i18n";
@@ -17,8 +17,8 @@ import UpdateToast from "./UpdateToast";
 export const PAGES: Record<string, { to: string; icon: any; key: string }> = {
   portfolio:     { to: "/portfolio",     icon: Briefcase,        key: "nav.portfolio" },
   market:        { to: "/market",        icon: TrendingUp,       key: "nav.market" },
-  chart:         { to: "/chart",         icon: CandlestickChart, key: "nav.chart" },
-  watchlist:     { to: "/watchlist",     icon: Star,             key: "nav.watchlist" },   // ‏D677: مكانَ مختبر الأبحاث
+  // ‏D687: «غرفة التداول» بأيقونة الرسم البياني، والرسمُ تبويبٌ داخلها (كان قسماً هنا) — ‏D677: مكانَ مختبر الأبحاث
+  watchlist:     { to: "/watchlist",     icon: CandlestickChart, key: "nav.watchlist" },
   governance:    { to: "/governance",    icon: Shield,           key: "nav.governance" },
   library:       { to: "/library",       icon: Book,             key: "nav.library" },
   ai:            { to: "/ai",            icon: Brain,            key: "nav.ai" },
@@ -31,7 +31,17 @@ export const PAGES: Record<string, { to: string; icon: any; key: string }> = {
 export default function MainLayout() {
   const [collapsed] = useState(true);  // pinned rail — expands on hover (toggle arrow removed)
   const [hovered, setHovered] = useState(false);
-  const [drawer, setDrawer] = useState(false); // mobile off-canvas
+  const [drawer, setDrawerRaw] = useState(false); // mobile off-canvas
+  /* ‏D687: الحركةُ هويّة — القائمةُ تنزلق خارجةً كما دخلت، لا تختفي فجأة */
+  const [closing, setClosing] = useState(false);
+  const drawerRef = useRef(false);
+  const setDrawer = (v: boolean) => {
+    if (v) { setClosing(false); drawerRef.current = true; setDrawerRaw(true); return; }
+    if (!drawerRef.current) return;
+    drawerRef.current = false;
+    setClosing(true);
+    setTimeout(() => { setDrawerRaw(false); setClosing(false); }, 180);
+  };
   const expanded = !collapsed || hovered;
   const t = useT();
   const location = useLocation();
@@ -92,6 +102,39 @@ export default function MainLayout() {
 
   // close the mobile drawer on navigation
   useEffect(() => { setDrawer(false); }, [location.pathname]);
+
+  /* ══ إيماءةُ السحب ══ (بأمر المالك · D687): على الجوال، سحبُ الإصبع من اليمين إلى اليسار يُخرج القائمةَ الجانبية
+     (وفي الواجهة الإنجليزية عكسُه)، والسحبُ المعاكس يُعيدها. سحبةٌ سريعةٌ أفقيّة (≥ 70px في أقلّ من 450 مل.ث، والرأسيُّ
+     أقلُّ من نصفها) — فالتمريرُ الرأسيّ والضغطةُ المطوّلة لترتيب البطاقات لا يفتحانها، ولا تبدأ من حقلٍ أو رسمٍ أو شريطٍ
+     يتمرّر أفقياً. */
+  useEffect(() => {
+    let x0 = 0, y0 = 0, t0 = 0, armed = false;
+    const blocked = (el: Element | null) => {
+      for (let i = 0; el && i < 10; i++, el = el.parentElement) {
+        if (el.matches("input,textarea,select,canvas,svg,[contenteditable],[data-noswipe]")) return true;
+        const ox = getComputedStyle(el).overflowX;
+        if ((ox === "auto" || ox === "scroll") && el.scrollWidth > el.clientWidth + 1) return true;
+      }
+      return false;
+    };
+    const onStart = (e: TouchEvent) => {
+      armed = window.innerWidth < 768 && e.touches.length === 1 && !blocked(e.target as Element);
+      if (!armed) return;
+      x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now();
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (!armed) return;
+      armed = false;
+      const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+      if (Date.now() - t0 > 450 || Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.5) return;
+      const open = isRtl ? dx < 0 : dx > 0;
+      if (open && !drawerRef.current) setDrawer(true);
+      else if (!open && drawerRef.current) setDrawer(false);
+    };
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchend", onEnd, { passive: true });
+    return () => { document.removeEventListener("touchstart", onStart); document.removeEventListener("touchend", onEnd); };
+  }, [isRtl]);
 
   const Brand = ({ compact = false }: { compact?: boolean }) => (
     // Client-side navigation to the dashboard — plain <a>/window.location would
@@ -185,10 +228,10 @@ export default function MainLayout() {
 
         {/* Mobile drawer */}
         {drawer && (
-          <div className="drawer-pop md:hidden fixed inset-0 z-50" onClick={() => setDrawer(false)}>
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-            <aside dir={isRtl ? "rtl" : "ltr"}
-              className={`mobile-drawer drawer-safe absolute top-0 ${isRtl ? "right-0" : "left-0"} h-full w-64 bg-[var(--field)] ${isRtl ? "border-l" : "border-r"} border-[var(--hairline)] flex flex-col drawer-in`}
+          <div className={"drawer-pop md:hidden fixed inset-0 z-50" + (closing ? " drawer-closing" : "")} onClick={() => setDrawer(false)}>
+            <div className="drawer-scrim absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <aside dir={isRtl ? "rtl" : "ltr"} style={{ ["--drawer-from" as any]: isRtl ? "100%" : "-100%" }}
+              className={`mobile-drawer drawer-safe absolute top-0 ${isRtl ? "right-0" : "left-0"} h-full w-64 bg-[var(--field)] ${isRtl ? "border-l" : "border-r"} border-[var(--hairline)] flex flex-col ${closing ? "drawer-out" : "drawer-in"}`}
               onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-4 py-4 border-b border-[var(--hairline)]">
                 <Brand />

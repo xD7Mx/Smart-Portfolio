@@ -95,7 +95,7 @@ export default function StockLookup({ initialSymbol, onActiveChange, open = true
                   {isOwner && (
                     <button type="button" disabled={toggleWatch.isPending}
                       onClick={() => toggleWatch.mutate({ c, on })}
-                      title={on ? "إزالة من الشاشة" : "إضافة إلى الشاشة"}
+                      title={on ? "إزالة من غرفة التداول" : "إضافة إلى غرفة التداول"}
                       className={"watch-star p-1.5 rounded-lg shrink-0 " + (on ? "is-on" : "")}>
                       <Star size={15} fill={on ? "currentColor" : "none"} />
                     </button>

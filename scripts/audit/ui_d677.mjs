@@ -77,10 +77,10 @@ for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isM
     const perRow = tops.filter(t => t === tops[0]).length;
     const minH = cards.length ? Math.min(...cards.map(c => Math.round(c.getBoundingClientRect().height))) : 0;
     const withFv = cards.filter(c => c.textContent.includes("العادل")).length;
-    const h1 = [...document.querySelectorAll("h1")].some(h => h.textContent.trim() === "الشاشة");   // ‏D683: «المراقبة» صارت «الشاشة»
+    const h1 = [...document.querySelectorAll("h1")].some(h => h.textContent.trim() === "غرفة التداول");   // ‏D683 ← D687: «المراقبة» ثمّ «الشاشة» ثمّ «غرفة التداول»
     return { W, sw, n: cards.length, perRow, minH, withFv, h1 };
   });
-  say(wl.h1 && wl.n === 7, `${label}: «الشاشة» قسمٌ مستقلٌّ ببطاقةٍ لكلّ شركة`, `${wl.n} بطاقات`);
+  say(wl.h1 && wl.n === 7, `${label}: «غرفة التداول» قسمٌ مستقلٌّ ببطاقةٍ لكلّ شركة`, `${wl.n} بطاقات`);
   say(wl.perRow === cols, `${label}: ${cols === 3 ? "ثلاثُ" : "أربعُ"} بطاقاتٍ في الصفّ (‏D685)`, `${wl.perRow}`);
   say(wl.withFv === wl.n, `${label}: تفاصيلُ ملمومة — العادلُ والقرارُ في كلّ بطاقة`, `${wl.withFv}/${wl.n}`);
   say(wl.sw <= wl.W + 1 && wl.minH >= 32, `${label}: لا فيضَ أفقيّ، والبطاقةُ هدفُ لمسٍ ≥ 32px`, `محتوى ${wl.sw} · شاشة ${wl.W} · ${wl.minH}px`);
@@ -88,7 +88,7 @@ for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isM
 
   // ٢ · القائمةُ الجانبية: المراقبةُ مكانَ المختبر
   const nav = await page.evaluate(() => ({ wl: !!document.querySelector('a[href="/watchlist"]'), stars: !!document.querySelector('a[href="/stars"]') }));
-  say(nav.wl && !nav.stars, `${label}: بندُ «الشاشة» في القائمة مكانَ «مختبر الأبحاث»`);
+  say(nav.wl && !nav.stars, `${label}: بندُ «غرفة التداول» في القائمة مكانَ «مختبر الأبحاث»`);
 
   // ٣ · المختبرُ تبويبٌ في المحفظة
   await page.goto(`http://localhost:${PORT}/stars`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
@@ -97,7 +97,7 @@ for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isM
     url: location.pathname + location.search,
     tab: [...document.querySelectorAll("nav button")].some(b => b.textContent.trim() === "المختبر" && b.getAttribute("aria-pressed") === "true"),
     title: document.body.textContent.includes("مختبر الأبحاث"),
-    noWatchTab: ![...document.querySelectorAll("nav button")].some(b => ["المراقبة", "الشاشة"].includes(b.textContent.trim())),
+    noWatchTab: ![...document.querySelectorAll("nav button")].some(b => ["المراقبة", "الشاشة", "غرفة التداول"].includes(b.textContent.trim())),
   }));
   say(lab.tab && lab.title && lab.noWatchTab, `${label}: «المختبر» تبويبٌ في المحفظة مكانَ «المراقبة»، والرابطُ القديم يفتحه`, lab.url);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `lab_${vp.width}.png`) });

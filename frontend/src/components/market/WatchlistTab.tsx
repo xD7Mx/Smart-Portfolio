@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { invalidateWatchlist } from "../../services/watchlistCache";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Star, Search, Plus, X, ChevronDown, Check, Pencil, Trash2 } from "lucide-react";
+import { Search, Plus, X, ChevronDown, Check, Pencil, Trash2 } from "lucide-react";
 import LivePrice from "../common/LivePrice";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
@@ -94,8 +94,8 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
     <div className="space-y-3">
       <div className="card">
         <div className="flex items-center gap-2">
-          <Star size={18} className="text-[var(--warn-ink)]" />
-          <h1 className="text-xl font-medium text-[var(--ink)]">الشاشة</h1>
+          {/* ‏D687: العنوانُ «غرفة التداول» في الصفحة فوق التبويبين — وهنا اسمُ القائمة المفتوحة */}
+          <span className="text-[14px] font-semibold text-[var(--ink)] truncate">{active?.name || "—"}</span>
           <div className="ms-auto flex items-center gap-2">
             <span className="text-[11px] text-[var(--ink-muted)] tabular-nums">{rows.length} شركة</span>
             {owner && rows.length > 0 && (
@@ -119,11 +119,14 @@ export default function WatchlistTab({ onOpen }: { onOpen: (symbol: string) => v
            تصطفّ بين البطاقات: الهويّة (سطران محجوزان)، ثمّ شبكةٌ من عمودين — السعرُ وتغيّرُه، ثمّ العادلُ والقرار —
            والقرارُ في عمود التغيّر وفي منتصفه تحته */
         <div ref={sort.boxRef} className={GRID}>
-          {sort.list.map((r: any) => (
+          {sort.list.map((r: any, i: number) => (
             <div key={r.symbol} {...sort.itemProps(String(r.symbol))} className="min-w-0">
+              {/* ‏D687: البطاقاتُ تطلع متتابعةً عند الظهور — والحركةُ هويّةُ التطبيق */}
+              <div className="card-rise h-full" style={{ animationDelay: `${Math.min(i, 12) * 28}ms` }}>
               <ScreenCard r={r} x={info[String(r.symbol)] || {}} desk={desk} onOpen={onOpen}
                 lifted={sort.dragKey === String(r.symbol)}
                 onRemove={owner && editing ? () => remove.mutate(r.symbol) : undefined} />
+              </div>
             </div>
           ))}
         </div>
@@ -350,7 +353,7 @@ function WatchlistAdd({ onPick, existing }: { onPick: (c: any) => void; existing
     <div className="relative">
       <div className="flex items-center gap-2 panel border border-[var(--hairline)] rounded-xl px-3">
         <Search size={15} className="text-[var(--ink-muted)] shrink-0" />
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="أضف شركة إلى الشاشة — بالاسم أو الرمز"
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="أضف شركة إلى غرفة التداول — بالاسم أو الرمز"
           className="flex-1 bg-transparent py-2.5 text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none" />
       </div>
       {results.length > 0 && (

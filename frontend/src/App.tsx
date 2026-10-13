@@ -30,7 +30,6 @@ import SettingsPage    from "./pages/SettingsPage";
 import AIPage          from "./pages/AIPage";
 import GovernancePage  from "./pages/GovernancePage";
 import CalculatorsPage from "./pages/CalculatorsPage";
-import ChartPage       from "./pages/ChartPage";
 import WatchlistPage   from "./pages/WatchlistPage";
 import LoginPage       from "./pages/LoginPage";
 
@@ -213,7 +212,8 @@ function App() {
             <Route path="/portfolio"      element={<PortfolioPage />} />
             <Route path="/portfolio/:id"  element={<CompanyPage />} />
             <Route path="/market"         element={<MarketPage />} />
-            <Route path="/chart"          element={<ChartPage />} />
+            {/* ‏D687: الرسمُ البيانيّ تبويبٌ داخل «غرفة التداول» — ورابطُه القديم يصله هناك */}
+            <Route path="/chart"          element={<Navigate to="/watchlist?tab=chart" replace />} />
             {/* ‏D677: المختبرُ تبويبٌ في المحفظة، والمراقبةُ قسمٌ مكانه — والرابطُ القديم يصل المختبرَ في موضعه الجديد */}
             <Route path="/watchlist"      element={<WatchlistPage />} />
             <Route path="/stars"          element={<Navigate to="/portfolio?tab=lab" replace />} />
