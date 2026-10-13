@@ -18,7 +18,7 @@ def main() -> int:
         return 2
     # ‏D639: مخرَجا البوابتين (السعر العادل · المحرّكات ٢–٥) يُدمجان في تقريرٍ واحد، والأحكامُ تُجمع
     # ‏D676: «--accept مقياس=أرضيّة --decision "نصُّ قرار المالك"» — تراجعٌ قَبِله المالكُ بنصّه، يُحفظ مع التقرير
-    _flagv = {"--baseline", "--accept", "--decision"}
+    _flagv = {"--baseline", "--accept", "--decision", "--measured", "--run"}
     files = [a for i, a in enumerate(args) if not a.startswith("--") and (i == 0 or args[i - 1] not in _flagv)]
     accepted = {}
     if "--accept" in args:
@@ -39,7 +39,11 @@ def main() -> int:
         verdict = {**(metrics.get("verdict") or {}), **(m.pop("verdict", None) or {})}
         metrics.update(m)
         metrics["verdict"] = verdict
-    doc = {"fingerprint": fingerprint(), "measured_at": dt.date.today().isoformat(), "metrics": metrics}
+    # ‏D692: يومُ القياس يومُ تشغيل البوابة على الخادم (‏--measured) لا يومُ الحفظ — فشاهدُ اليوم نفسِه لا يُختلق تاريخُه
+    _measured = args[args.index("--measured") + 1] if "--measured" in args else dt.date.today().isoformat()
+    doc = {"fingerprint": fingerprint(), "measured_at": _measured, "metrics": metrics}
+    if "--run" in args:
+        doc["run"] = args[args.index("--run") + 1]
     if accepted:
         doc["owner_accepted"] = accepted
     if "--addendum" in args:
@@ -56,6 +60,18 @@ def main() -> int:
                                    "note": "مقاييسُ أُضيفت للبوابة بعد التجميد وقِيست على شيفرته نفسِها"},
                                   ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"ملحقُ البصمة {doc['fingerprint']} ← {out} · {sorted(extra)}")
+        return 0
+    if "--control" in args:
+        # ‏D692: شيفرةُ الأساس المجمَّد نفسُها مقيسةً في يوم المرشَّح — مرجعُ المقارنة على البيانات نفسِها، لا تجميدٌ جديد
+        base = json.loads(BASE.read_text(encoding="utf-8")) if BASE.exists() else {}
+        if doc["fingerprint"] != base.get("fingerprint"):
+            print(f"البصمةُ {doc['fingerprint']} ليست بصمةَ الأساس المجمَّد {base.get('fingerprint')} — الشاهدُ يُقاس على شيفرته وحدها")
+            return 1
+        REPORTS.mkdir(exist_ok=True)
+        out = REPORTS / f"{doc['fingerprint']}.control.json"
+        out.write_text(json.dumps({**doc, "note": "شيفرةُ الأساس المجمَّد مقيسةً في يومٍ لاحق — مرجعُ مقارنة المرشَّح في يومه"},
+                                  ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"شاهدُ الأساس {doc['fingerprint']} ({doc['measured_at']}) ← {out}")
         return 0
     if "--baseline" in args:
         doc["version"] = args[args.index("--baseline") + 1]

@@ -53,6 +53,29 @@ def base_metrics(base: dict) -> dict:
     return m
 
 
+def reference(base: dict, rep: dict) -> tuple[dict, str]:
+    """مرجعُ المقارنة ← (المقاييس، وصفُه).
+
+    ‏D692: السوقُ يتحرّك والأساسُ قِيس في يومٍ مضى — فأسعارُ اليوم وأهدافُ المحلّلين تُزيح مقاييسَه وإن لم يتغيّر سطرٌ من
+    شيفرته. قِيس: 2.3 نفسُه يوم 2026-10-13 انحرافُه 13.9٪ (13.3٪ يوم تجميده) والتأمين 8.8٪ (7.1٪)، والمرشَّحُ 2.4 يطابقه
+    رقماً برقم — فحارسٌ يقارن بأرقام يومٍ مضى يُسقط تعديلاً بريئاً بحركة السوق. فإن قِيست **شيفرةُ الأساس نفسُها** (بصمتُه)
+    في **يوم التقرير نفسِه** (`<البصمة>.control.json`) كانت هي المرجع: الإصداران على البيانات نفسِها. والأساسُ المجمَّد لا
+    يتغيّر بها، والشرطُ نفسُه: لا تراجعَ وتفوّقٌ في واحدٍ على الأقلّ. ولا شاهدَ من يومٍ آخر ولا من بصمةٍ أخرى."""
+    ref = base_metrics(base)
+    ctl = REPORTS / f"{base.get('fingerprint')}.control.json"
+    if ctl.exists():
+        c = json.loads(ctl.read_text(encoding="utf-8"))
+        if (c.get("fingerprint") == base.get("fingerprint") and c.get("measured_at")
+                and c.get("measured_at") == rep.get("measured_at")):
+            cm = c.get("metrics") or {}
+            # والأحكامُ كذلك: بندٌ يسقط اليومَ في الأساس نفسِه لا يُحسب «اجتاز ثمّ سقط» على المرشَّح؛ وما اجتازه فيه يُلزمه
+            return ({**ref, **{k: v for k, v in cm.items() if k != "verdict"},
+                     "verdict": {**(ref.get("verdict") or {}), **(cm.get("verdict") or {})}},
+                    f"الأساسُ {base.get('fingerprint')} مَقيساً يومَ التقرير نفسَه ({c['measured_at']}"
+                    + (f" · {c['run']}" if c.get("run") else "") + ")")
+    return ref, f"الأساسُ المجمَّد كما قِيس ({base.get('measured_at')})"
+
+
 def fingerprint() -> str:
     h = hashlib.sha1()
     for f in FILES:
@@ -115,7 +138,9 @@ def main() -> int:
         return 1
     _rep = json.loads(rep.read_text(encoding="utf-8"))
     new = _rep.get("metrics") or {}
-    worse, better = compare(base_metrics(base), new, _rep.get("owner_accepted"))
+    ref, how = reference(base, _rep)
+    print(f"     المرجع: {how}")
+    worse, better = compare(ref, new, _rep.get("owner_accepted"))
     if worse:
         print("FAIL الإصدارُ الجديد يتراجع عن المجمَّد:\n     " + "\n     ".join(worse))
         return 1
