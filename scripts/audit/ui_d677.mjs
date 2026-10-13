@@ -102,8 +102,8 @@ for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isM
   say(lab.tab && lab.title && lab.noWatchTab && lab.url === "/ai?tab=lab", `${label}: «المختبر» تبويبٌ في تحليل الذكاء (‏D694)، والرابطُ القديم يفتحه`, lab.url);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `lab_${vp.width}.png`) });
 
-  // ٤ · المستشارُ في تحليل الذكاء مكانَ التقرير الشامل
-  await page.goto(`http://localhost:${PORT}/ai`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+  // ٤ · المستشارُ في تحليل الذكاء مكانَ التقرير الشامل (‏D697: في تبويبه الثالث)
+  await page.goto(`http://localhost:${PORT}/ai?tab=advisor`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2500);
   const ai = await page.evaluate(() => {
     const W = document.documentElement.clientWidth;

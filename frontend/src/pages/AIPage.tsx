@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import StockSheet from "../components/market/StockSheet";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { aiApi } from "../services/api";
-import { Brain, AlertTriangle, TrendingUp, Sparkles, Zap, FlaskConical } from "lucide-react";
+import { Brain, AlertTriangle, TrendingUp, Sparkles, Zap, FlaskConical, Briefcase } from "lucide-react";
 import { PortfolioHealthW } from "../widgets/Widgets";
 import CompanyLogo from "../components/common/CompanyLogo";
 import { FairValueBar, fairValueTier, safeColor } from "../components/common/ValueBars";
@@ -140,12 +140,14 @@ function PortfolioInsight() {
 // ── AI Portfolio Analysis ─────────────────────────────────────
 /* ‏D694 (بأمر المالك): «مختبر الأبحاث» تبويبٌ داخل تحليل الذكاء — كان في المحفظة، و«الحوكمة» مكانه هناك. تبويبان بلغة تبويبات
    المحفظة وغرفة التداول، والتنقّلُ بينهما بحركة؛ ورابطاه القديمان (/stars · /portfolio?tab=lab) يفتحانه هنا. */
-const AI_TABS = [["analysis", "التحليل", Brain], ["lab", "المختبر", FlaskConical]] as const;
+// ‏D697 (بأمر المالك): «المستشار» تبويبٌ ثالثٌ بجانب المختبر — كان بطاقةً في آخر «التحليل»؛ وأيقونتُه حقيبتُه نفسُها
+const AI_TABS = [["analysis", "التحليل", Brain], ["lab", "المختبر", FlaskConical], ["advisor", "المستشار", Briefcase]] as const;
 
 export default function AIPage() {
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "lab" ? "lab" : "analysis";
-  const setTab = (t: string) => setParams(t === "lab" ? { tab: "lab" } : {}, { replace: true });
+  const _t = params.get("tab");
+  const tab = _t === "lab" || _t === "advisor" ? _t : "analysis";
+  const setTab = (t: string) => setParams(t === "analysis" ? {} : { tab: t }, { replace: true });
   const qc = useQueryClient();
   // بطاقة الشركة تُفتح فوق صفحة الذكاء نفسها — يبقى المستخدم في سياقه.
   const [sheet, setSheet] = useState<string | null>(null);
@@ -223,7 +225,13 @@ export default function AIPage() {
         ))}
       </nav>
 
-      {tab === "lab" ? <div key="lab" className="fade-in"><StarsPage embedded /></div> : (
+      {tab === "lab" ? <div key="lab" className="fade-in"><StarsPage embedded /></div>
+        : tab === "advisor" ? (
+          /* ‏D679 (بأمر المالك): المستشارُ الآليّ مكانَ «التقرير الشامل» — يقرأ التطبيقَ كلَّه: التحليلَ والسعرَ العادل وثقتَه، ومستوياتِ
+             D7M، وآراءَ بيوت الخبرة، والأحداثَ الجوهرية، والمفكرةَ والإفصاحات، والخطوطَ الحمراء، والأهدافَ والسيولة، ونبضَ السوق
+             وانتباهَ الحوكمة، ومبادئَ المكتبة — ‏D697: في تبويبه */
+          <div key="advisor" className="fade-in"><AutopilotCard /></div>
+        ) : (
       <div key="analysis" className="space-y-5 fade-in">
       {/* Portfolio insight — fair value + safety per holding */}
       <PortfolioInsight />
@@ -427,10 +435,6 @@ export default function AIPage() {
         )}
       </div>
 
-      {/* ‏D679 (بأمر المالك): المستشارُ الآليّ مكانَ «التقرير الشامل» — التقريرُ في قسم التقارير فلا يتكرّر، والمستشارُ
-          يقرأ التطبيقَ كلَّه: التحليلَ والسعرَ العادل وثقتَه، ومستوياتِ D7M، وآراءَ بيوت الخبرة، والأحداثَ الجوهرية،
-          والمفكرةَ والإفصاحات، والخطوطَ الحمراء، والأهدافَ والسيولة، ونبضَ السوق وانتباهَ الحوكمة، ومبادئَ المكتبة */}
-      <AutopilotCard />
       </div>
       )}
       {sheet && <StockSheet symbol={sheet} onClose={() => setSheet(null)} />}
