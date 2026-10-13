@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """حارسُ D634: قاعدةُ الإصدار الأوّل للقطاعات التي لم تجتز المعايرة مطبَّقةٌ كما سُجّلت قبل القياس (`docs/ENGINES_V1.md`)."""
-import pathlib, re, sys
+import os, pathlib, re, sys, tempfile
+_SB = tempfile.mkdtemp(prefix="sp-audit-")
+os.environ["LASTGOOD_PATH"] = os.path.join(_SB, "lastgood.json")
+os.environ["SP_STATE_DIR"] = _SB
+os.environ["SP_STATUS_LOG"] = os.path.join(_SB, "status_codes.jsonl")
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 fail = 0
 def check(ok, label, det=""):
@@ -19,10 +23,7 @@ ap = (ROOT / "frontend/src/components/analysis/AnalysisPanel.tsx").read_text()
 check("القائمةُ المغلقة" in doc or "قائمةٌ مغلقة" in doc and "يُستبعد من ترتيب المختبر بالقيمة" in doc,
       "١ القاعدةُ مسجَّلةٌ في الميثاق التنفيذيّ قبل القياس")
 # ‏D702: الوسمُ بالنتيجة لا بالمحلّلين — القطاعاتُ التي ترتيبُ المحرّك المركّب فيها ضعيفٌ بالنتيجة (دون 0.10 أو سالبٌ في نصف)
-import sys as _sys
-_sys.path.insert(0, str(ROOT / "backend"))
-import os as _os, tempfile as _tf
-_d = _tf.mkdtemp(); _os.environ.setdefault("LASTGOOD_PATH", _os.path.join(_d, "l.json")); _os.environ.setdefault("SP_STATE_DIR", _d)
+sys.path.insert(0, str(ROOT / "backend"))
 from app.services.analysis import V1_UNCALIBRATED as _V, OUTCOME_SECTOR_IC as _IC
 secs = set(_V)
 want = {k for k, (a, h1, h2) in _IC.items() if a < 0.10 or h1 < 0 or h2 < 0}
