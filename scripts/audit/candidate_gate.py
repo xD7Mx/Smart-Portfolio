@@ -58,7 +58,15 @@ async def compute():
     syms = sorted(s for s in main_market(MARKET_UNIVERSE) if not is_nomu(s))
     sem = asyncio.Semaphore(8)
     res = await asyncio.gather(*(_one(s, sem) for s in syms), return_exceptions=True)
-    return {r[0]: r[1] for r in res if isinstance(r, tuple)}
+    done = {r[0]: r[1] for r in res if isinstance(r, tuple)}
+    # ‏D701: والجولةُ الثانية كالمسحة — المقارنةُ بالأقران بعد أن يُعرف الأقران (إن حملتها الشيفرةُ المقيسة)
+    try:
+        from app.services.market_valuation_sweep import rel_pass
+    except ImportError:
+        rel_pass = None
+    if rel_pass:
+        await rel_pass(done, sem)
+    return done
 
 
 done = asyncio.run(compute())

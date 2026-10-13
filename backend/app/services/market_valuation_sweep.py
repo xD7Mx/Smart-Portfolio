@@ -171,6 +171,23 @@ def record_verdicts(done: dict, today: date | None = None, fresh_days: int = 7, 
 
 
 @_background_task   # D436: مهمّةٌ خلفية تقف عند 90٪ من حصّة ياهو
+async def rel_pass(done: dict, sem: asyncio.Semaphore) -> int:
+    """‏D701: يبني جداولَ الأقران من نتائج الجولة الأولى، ثمّ يُعيد حسابَ من يُقارن بأقرانه بها (يُبطل كاشَه أوّلاً)."""
+    from app.services import cache, fair_value_models as F
+    tables = await F.build_rel_tables(list(done))
+    syms = sorted({s for t in tables.values() for s in t})
+    for s in syms:
+        cache.expire_keys([f"{F.FVM_KEY}{s}"])
+        cache.expire_prefix(f"analysis:{s}.SR:")
+    res = await asyncio.gather(*(_one(s, sem) for s in syms), return_exceptions=True)
+    n = 0
+    for r in res:
+        if isinstance(r, tuple) and not r[1].get("_failed"):
+            done[r[0]] = r[1]
+            n += 1
+    return n
+
+
 async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
     """يحسب الدرجةَ والسعرَ العادل لكلّ رمزٍ ويخزّنهما. يُعاد تقريرٌ مقيس."""
     from app.services.content_engine import _fund_store_put_many
@@ -216,6 +233,13 @@ async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
         _fund_store_put_many({k: {kk: vv for kk, vv in v.items() if kk != "_verdict"} for k, v in done.items()})
         logger.info(f"مسحةُ التقييم: {len(done)} من {len(syms)}")
 
+    # ‏D701: الجولةُ الثانية — من لا تكفيه النماذجُ المثبتة يُقارن بأقرانه في حاله، والأقرانُ لا يُعرفون إلا بعد الجولة الأولى
+    try:
+        n_rel = await rel_pass(done, sem)
+        _fund_store_put_many({k: {kk: vv for kk, vv in v.items() if kk != "_verdict"} for k, v in done.items()})
+    except Exception as e:                                        # noqa: BLE001
+        n_rel = 0
+        logger.warning(f"جولةُ المقارنة بالأقران: {type(e).__name__}: {e}")
     rep_verdicts = record_verdicts(done)
     have_fv = sum(1 for v in done.values() if v.get("fair_value") is not None)
     have_sc = sum(1 for v in done.values() if v.get("finance_score") is not None)
@@ -229,6 +253,7 @@ async def sweep(symbols: list[str] | None = None, *, conc: int = CONC) -> dict:
         "شائخةُ الأرقام": stale,
         "تعذّرت": failed,
         "أحكامٌ للفرز": rep_verdicts,
+        "قُيّمت بالمقارنة بالأقران": n_rel,
         "ثوانٍ": round(asyncio.get_event_loop().time() - t0, 1),
     }
     if _FAIL_KINDS:

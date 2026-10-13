@@ -188,7 +188,7 @@ def model_set(sector: str | None, archetype: str | None) -> tuple[str, set]:
     return ARCH_SETS.get(archetype or "") or ("النموذجُ الكامل (قطاعٌ لم يُصنَّف بعد)", _ALL)
 
 
-FAMILY_NAMES = {"cashflow": "التدفّقات المخصومة", "equity": "الأرباح والحقوق",
+FAMILY_NAMES = {"relative": "المقارنةُ بالأقران", "cashflow": "التدفّقات المخصومة", "equity": "الأرباح والحقوق",
                 "income": "التوزيعات", "multiples": "مضاعفاتُ الأقران السعوديين"}
 
 
@@ -799,6 +799,14 @@ def track_bucket(res: dict | None) -> str | None:
         if side == "cheap" and c > 1.5:
             side = "deep"
         return ("full_" if (r.get("count") or 0) >= 5 else "thin_") + side
+    if r.get("weights_kind") == "peer_relative":                    # ‏D701: «أفضلُ من أقرانها» · «أضعف» · «بينهم»
+        zc = _n(r.get("rel_z"))
+        seg = (r.get("rel") or {}).get("seg")
+        beta = (REL_SEGMENTS.get(seg or "") or {}).get("beta")
+        if zc is None or not beta:
+            return None
+        e = beta * zc
+        return f"rel_{seg}_" + ("better" if e >= 0.05 else "weaker" if e <= -0.05 else "mid")
     if r.get("archetype") == "bank":
         return "bank_" + side
     return None
@@ -809,6 +817,111 @@ def track_of(res: dict | None) -> dict | None:
     b = track_bucket(res)
     t = FV_TRACK.get(b) if b else None
     return {"bucket": b, **t} if t else None
+
+
+# ══ ‏D701 · محرّكٌ شاملٌ للسوق الرئيسي: المقارنةُ بالأقران بما ثبت في كلّ قطاع ═════════════════════════════════════════
+# بأمر المالك: «أشكّ أنك قادرٌ على إيجاد محرّك سعرٍ عادلٍ شاملٍ للسوق الرئيسي». فقِيس (‏fv_universe_d701 · run 38469694403 ·
+# 2,976 مشاهدةً لكلّ شركةٍ في كلّ ربعٍ منذ 2023 ولو امتنع المحرّك) ما يتنبّأ في كلّ نمطٍ لم تكفه النماذجُ المثبتة:
+#   · التأمين: الرخصُ بالمضاعفات يتنبّأ **بالعكس** (الدفترية −0.19 · المبيعات −0.26 · الدفتريةُ المبرَّرةُ بالعائد −0.14) —
+#     والذي يتنبّأ الجودةُ: الدخلُ المتبقّي والهامشُ والتدفّقُ الحرّ والحجم (‏+0.20 في النصف الأوّل و+0.42 في الثاني).
+#   · غيرُ الماليّة بلا ثلاثة نماذجَ مثبتة (خاسرةٌ أو ناقصةُ البيانات): الدخلُ المتبقّي ونموُّ الإيراد والعائدُ على الحقوق ونموُّ الربح.
+#   وكلاهما **نسبيٌّ إلى أقرانٍ في الحال نفسِه**: مستواه لا يثبت (النصفُ الأوّل قال «يتفوّق القطاعُ كلُّه» والثاني عكسه)، وترتيبُه
+#   خارج العيّنة أقوى ما قِيس: «أفضلُ من أقرانها» تفوّقت 74–76٪ و«أضعفُ» تخلّفت 72–74٪ (‏β معايَرٌ بالنصف الأوّل وحده).
+#   والخدماتُ الماليةُ لم يثبت لها شيءٌ مستقرّ — تبقى محجوبةً بسببها.
+REL_SEGMENTS = {
+    "insurance": {"keys": ("ri", "margin", "fcf_m", "size"), "beta": 0.466, "peers": "شركات التأمين"},
+    "thin": {"keys": ("ri", "growth", "roe", "ni_g"), "beta": 0.375, "peers": "الشركات التي لا تكفيها النماذجُ المثبتة"},
+}
+REL_NAMES = {"ri": "الدخلُ المتبقّي إلى السعر", "margin": "هامشُ صافي الربح", "fcf_m": "هامشُ التدفّق الحرّ",
+             "size": "الحجم (القيمةُ السوقية)", "growth": "نموُّ الإيراد السنويّ", "roe": "العائدُ على الحقوق",
+             "ni_g": "نموُّ صافي الربح"}
+REL_MIN_PEERS = 6
+_REL_TABLES: dict[str, dict[str, dict]] = {}
+
+
+def rel_signals(i: "Inputs", bs: "Base | None", every: list[dict]) -> dict:
+    """مؤشّراتُ المقارنة كما قيست في الاختبار (‏fin_signals و_urow في fv_backtest_d699): من السنوات المنشورة ومن نموذج الدخل المتبقّي."""
+    import math
+    a = i.annual or []
+    out: dict[str, float] = {}
+    ri = next((m["value"] for m in every if m.get("key") == "residual_income"
+               and isinstance(m.get("value"), (int, float)) and m["value"] > 0), None)
+    if ri and i.price:
+        out["ri"] = math.log(ri / i.price)
+    if a:
+        last, first = a[-1], a[0]
+        prev = a[-2] if len(a) >= 2 else {}
+        r0, r1 = _n(first.get("revenue")), _n(last.get("revenue"))
+        if r0 and r1 and r0 > 0 and r1 > 0 and len(a) >= 2:
+            out["growth"] = (r1 / r0) ** (1 / (len(a) - 1)) - 1
+        fm = [_n(p.get("free_cash_flow")) / _n(p.get("revenue")) for p in a
+              if _n(p.get("free_cash_flow")) is not None and _n(p.get("revenue")) and _n(p.get("revenue")) > 0]
+        if fm:
+            out["fcf_m"] = statistics.fmean(fm)
+        ni, eq = _n(last.get("net_income")), _n(last.get("equity"))
+        if ni is not None and eq and eq > 0:
+            out["roe"] = ni / eq
+        if ni is not None and r1 and r1 > 0:
+            out["margin"] = ni / r1
+        n0 = _n(prev.get("net_income"))
+        if ni is not None and n0:
+            out["ni_g"] = max(-2.0, min(2.0, (ni - n0) / abs(n0)))
+    if i.price and i.shares and i.price * i.shares > 0:
+        out["size"] = math.log(i.price * i.shares)
+    return {k: round(v, 5) for k, v in out.items()}
+
+
+def relative_value(sym: str, rel: dict, price: float, table: dict[str, dict] | None) -> dict | None:
+    """‏D701: موقعُ الشركة بين أقرانها في الحال نفسِه (رتبةٌ مئويةٌ لكلّ مؤشّرٍ ثبت في قطاعها، ومتوسّطُها، ومركزُها وسيطُ الأقران)،
+    مضروباً في ما تحقّق فعلاً لكلّ وحدةٍ من هذا الموقع (‏β من النصف الأوّل). فالرقمُ = السعر × ‎exp(β × الموقع) — نسبيٌّ إلى الأقران
+    لا وعدٌ بمستوى. ‎None إن قلّ الأقران عن ستة أو لم يتوفّر نصفُ المؤشّرات."""
+    import math
+    seg = REL_SEGMENTS.get((rel or {}).get("seg") or "")
+    sig = (rel or {}).get("sig") or {}
+    if not seg or not price or price <= 0 or not table:
+        return None
+    peers = {k: v for k, v in table.items() if k != sym}
+    if len(peers) < REL_MIN_PEERS:
+        return None
+    group = {**peers, sym: sig}
+
+    def zof(s_):
+        vals = []
+        for k in seg["keys"]:
+            have = [(x, (group[x] or {}).get(k)) for x in group if isinstance((group[x] or {}).get(k), (int, float))]
+            if len(have) < 4 or not isinstance((group[s_] or {}).get(k), (int, float)):
+                continue
+            srt = sorted(have, key=lambda t: t[1])
+            pos = [j for j, (x, _) in enumerate(srt) if x == s_][0]
+            vals.append(pos / (len(srt) - 1) - 0.5)
+        return statistics.fmean(vals) if len(vals) >= max(1, len(seg["keys"]) // 2) else None
+
+    z = zof(sym)
+    if z is None:
+        return None
+    zs = [v for v in (zof(x) for x in group) if v is not None]
+    zc = z - statistics.median(zs)
+    fv = round(price * math.exp(seg["beta"] * zc), 2)
+    lo = round(price * math.exp(seg["beta"] * (zc - 0.1)), 2)
+    hi = round(price * math.exp(seg["beta"] * (zc + 0.1)), 2)
+    pct = {}
+    for k in seg["keys"]:
+        have = sorted(v.get(k) for v in group.values() if isinstance((v or {}).get(k), (int, float)))
+        if isinstance(sig.get(k), (int, float)) and len(have) >= 4:
+            pct[k] = round(sum(1 for x in have if x <= sig[k]) / len(have) * 100)
+    assumptions = [[REL_NAMES.get(k, k), f"{sig[k]:.3f}" if k not in ("size", "ri") else f"{sig[k]:.2f}",
+                    f"أعلى من {pct[k]}٪ من {seg['peers']}"] for k in seg["keys"] if k in pct]
+    assumptions.append(["الموقعُ بين الأقران", f"{zc:+.2f}", f"‎× {seg['beta']:.3f} لكلّ وحدة — ما تحقّق فعلاً منذ 2023"])
+    model = {"key": "peer_relative", "family": "relative", "name": f"المقارنةُ بـ{seg['peers']} بما ثبت في قطاعها",
+             "value": fv, "low": min(lo, hi), "high": max(lo, hi), "assumptions": assumptions}
+    return {"value": fv, "model_value": fv, "low": model["low"], "high": model["high"],
+            "upside": round((fv / price - 1) * 100, 2), "uncertainty": "معتدل", "count": 1, "models": [model],
+            "families": [{"family": "relative", "name": "المقارنةُ بالأقران", "value": fv, "low": model["low"],
+                          "high": model["high"], "weight": 1.0, "models": 1}],
+            "excluded": [], "weights_kind": "peer_relative", "rel": rel, "rel_z": round(zc, 4), "rel_peers": len(peers),
+            "model_set": f"المقارنةُ بالأقران — {seg['peers']} ({len(peers)})", "set_size": len(seg["keys"]),
+            "price": price, "notes": [f"لا يكفيها التقييمُ الذاتيّ المثبت — قُيّمت بموقعها بين {len(peers)} من {seg['peers']} "
+                                      "بما ثبت أنه يتنبّأ في قطاعها؛ رقمٌ نسبيٌّ إلى أقرانها لا وعدٌ بمستوى"]}
 
 
 def track_note(res: dict | None) -> str | None:
@@ -841,7 +954,12 @@ def value(i: Inputs) -> dict:
         return {"value": None, "reason": f"أحدثُ قوائم منشورة لدينا ({i.ttm_source}) أقدمُ من خمسة عشر شهراً — "
                                          "لا تُقيَّم ورقةٌ اليوم بقوائمَ قديمة", "price": i.price}
     if i.archetype in UNPROVEN_ARCH:                                   # ‏D700
-        return {"value": None, "reason": UNPROVEN_ARCH[i.archetype], "price": i.price, "unproven": True}
+        out = {"value": None, "reason": UNPROVEN_ARCH[i.archetype], "price": i.price, "unproven": True}
+        if i.archetype in REL_SEGMENTS:                                # ‏D701: والتأمينُ يُقارن بأقرانه بما ثبت فيه
+            _bs = base_of(i)
+            _ev = (cashflow_models(i, _bs) + equity_models(i, _bs) + multiple_models(i, _bs)) if _bs else []
+            out["rel"] = {"seg": i.archetype, "sig": rel_signals(i, _bs, _ev)}
+        return out
     bs = base_of(i)
     if not bs:
         eo = _equity_only(i)
@@ -875,7 +993,8 @@ def value(i: Inputs) -> dict:
         if len(models) < MIN_MODELS:
             return {"value": None, "price": i.price,
                     "reason": f"لا تكفي النماذجُ التي أثبتت نفسها بالنتائج: {len(models)} من {len(PROVEN)} — "
-                              "لا رقمَ من نموذجٍ أو اثنين"}
+                              "لا رقمَ من نموذجٍ أو اثنين",
+                    "rel": {"seg": "thin", "sig": rel_signals(i, bs, every)}}     # ‏D701: فتُقارن بأقرانها في حالها
         set_name, allowed = f"النماذجُ التي أثبتت نفسها بالنتائج منذ 2023: {len(PROVEN)}", PROVEN
         agg = proven_aggregate(models, i.price)
     else:
@@ -1391,14 +1510,16 @@ def blend(res: dict, calibrated: dict | None, archetype: str | None, dy: float |
     if res.get("value") and res.get("price"):
         res["upside"] = round((res["value"] / res["price"] - 1) * 100, 2)
         mv = _n(res.get("model_value"))
-        if mv and mv > 0:
+        if res.get("weights_kind") == "peer_relative":
+            res["target_12m"] = res["value"]                    # ‏D701: الرقمُ نفسُه توقّعُ اثني عشر شهراً نسبةً إلى الأقران
+        elif mv and mv > 0:
             # ‏D700: الهدفُ معايَرٌ بما تحقّق — السعرُ × (تقديرِ النماذج ÷ السعر)^0.15 (انظر TARGET_K)
             res["target_12m"] = round(res["price"] * (mv / res["price"]) ** TARGET_K, 2)
         else:
             ke = (res.get("rates") or {}).get("ke") or RISK_FREE + EQUITY_PREMIUM
             res["target_12m"] = round(res["value"] * (1 + ke - (dy or 0)), 2)
         res["target_12m_upside"] = round((res["target_12m"] / res["price"] - 1) * 100, 2)
-        if mv and mv > 0 and TARGET_ERR:
+        if mv and mv > 0 and TARGET_ERR and res.get("weights_kind") != "peer_relative":
             res["target_err"] = TARGET_ERR                   # ‏D700: الهدفُ بخطئه المقيس
     res["track"] = track_of(res)                             # ‏D700: الثقةُ بسجلّها المقيس
     res["track_note"] = track_note(res)
@@ -1486,10 +1607,53 @@ async def _reit_nav_value(sym: str) -> dict | None:
             "reit": adv}
 
 
+# v43: ‏D701 المقارنةُ بالأقران لمن لا تكفيه النماذجُ المثبتة · v42: ‏D700 النماذجُ المثبتةُ بالنتائج والهدفُ المعايَرُ بما تحقّق
+FVM_KEY = "fvm:v43:"
+REL_KEY = "fvrel:tables"
+
+
+def rel_table(seg: str) -> dict[str, dict] | None:
+    """جدولُ أقران النمط: من الذاكرة، أو من آخر مسحةٍ محفوظة (عمرُها ثلاثةُ أيامٍ فأقلّ)."""
+    if seg in _REL_TABLES:
+        return _REL_TABLES[seg]
+    try:
+        from datetime import date
+        from app.services import lastgood
+        rec = lastgood.load(REL_KEY) or {}
+        if rec.get("at") and (date.today() - date.fromisoformat(rec["at"])).days <= 3:
+            for k, v in (rec.get("tables") or {}).items():
+                _REL_TABLES.setdefault(k, v)
+    except Exception:                                              # noqa: BLE001
+        pass
+    return _REL_TABLES.get(seg)
+
+
+async def build_rel_tables(symbols: list[str]) -> dict[str, dict[str, dict]]:
+    """‏D701: يجمع مؤشّراتِ كلّ شركةٍ في نمطٍ نسبيّ من نتيجة محرّكها (المخزَّنة في المسحة) — ثمّ يُحفظ للصفحات."""
+    tables: dict[str, dict[str, dict]] = {}
+    for s in symbols:
+        try:
+            r = await for_symbol(s)
+        except Exception:                                          # noqa: BLE001
+            continue
+        rel = (r or {}).get("rel") or {}
+        if rel.get("seg") in REL_SEGMENTS and rel.get("sig"):
+            tables.setdefault(rel["seg"], {})[str(s).replace(".SR", "")] = rel["sig"]
+    _REL_TABLES.clear()
+    _REL_TABLES.update(tables)
+    try:
+        from datetime import date
+        from app.services import lastgood
+        lastgood.save(REL_KEY, {"at": date.today().isoformat(), "tables": tables})
+    except Exception:                                              # noqa: BLE001
+        pass
+    return tables
+
+
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v42:{sym}"   # v42: ‏D700 النماذجُ المثبتةُ بالنتائج والهدفُ المعايَرُ بما تحقّق
+    ck = f"{FVM_KEY}{sym}"
     hit = cache.get(ck)
     if hit is not None:
         return hit or None
@@ -1505,6 +1669,11 @@ async def for_symbol(symbol: str) -> dict | None:
     try:
         i = await gather(sym)
         res = value(i) if i else None
+        if res is not None and res.get("value") is None and res.get("rel") and i:
+            # ‏D701: من لا تكفيه النماذجُ المثبتة يُقارن بأقرانه في حاله بما ثبت في قطاعه
+            rv = relative_value(sym, res["rel"], i.price, rel_table(res["rel"]["seg"]))
+            if rv:
+                res = rv
         if res is not None:
             cal = _calibrated(sym)
             dy = (i.dps_ttm / i.price) if (i and i.dps_ttm and i.price) else None

@@ -256,6 +256,38 @@ async def main():
         _fwd(o, s, t, p0)
         return o
 
+    pending: list = []
+
+    def _record(s, t, i, res) -> int:
+        p0 = rows_now[s]["price"]
+        res.setdefault("archetype", i.archetype)
+        conf = confidence_of(res)
+        if uni[s]["sector"] in V1_UNCALIBRATED:
+            conf = "منخفضة"
+        up = res["value"] / p0 - 1
+        shown = not (conf == "منخفضة" and abs(up) > 0.60)          # ‏D628: البعيدُ المتباينُ لا يُنشر
+        o = {"s": s, "t": t, "p0": round(p0, 4), "fv": res["value"], "mv": res.get("model_value"),
+             "lo": res.get("low"), "hi": res.get("high"), "tg": res.get("target_12m"), "c": conf, "sh": shown,
+             "n": res.get("count"), "sec": uni[s]["sector"], "a": uni[s]["arch"],
+             # كلُّ نموذجٍ بنسبته إلى السعر — الداخلُ والمستبعَد — ليُعرف أيُّها يتنبّأ فعلاً
+             "m": {m["key"]: round(m["value"] / p0, 4) for m in (res.get("models") or []) + (res.get("excluded") or [])
+                   if isinstance(m.get("value"), (int, float)) and m["value"] > 0},
+             "u": [m["key"] for m in res.get("models") or []], "wk": res.get("weights_kind"),
+             "rz": res.get("rel_z"), "rseg": (res.get("rel") or {}).get("seg")}
+        o["arch_key"] = i.archetype
+        o["b"] = _bucket(o)
+        for h in H:
+            t2 = ym_add(t, h)
+            p2 = PX[s].get(t2)
+            if t2 <= last_full and p2 and t in tasi and t2 in tasi:
+                o[f"r{h}"] = round(p2 / p0 - 1, 5)
+                o[f"x{h}"] = round(p2 / p0 - tasi[t2] / tasi[t], 5)
+                if h == 12:
+                    o["p12"] = round(p2, 4)
+        obs.append(o)
+        return 1
+
+    rows_now: dict = {}
     for t in anchors:
         ctx.update(cut=month_end(t), ym=t, peer={})
         rows_t = {}
@@ -264,6 +296,8 @@ async def main():
             if p:
                 rows_t[s] = {"price": p, "market_cap": p * u["shares"], "sector_en": u["sector_en"]}
         TM.usable_rows = lambda _r=rows_t: (_r, False, None)
+        rows_now.clear()
+        rows_now.update(rows_t)
         n_val = 0
         # ‏D700: الدرجةُ المالية بالدالّة نفسِها التي تعرضها البطاقة (`governed_finance_score`) على القوائم المنشورة يومها
         for s in sorted(rows_t):
@@ -293,40 +327,29 @@ async def main():
                 if UNIVERSE and res:
                     _uo["fv"] = round(res["value"] / rows_t[s]["price"], 4) if res.get("value") else None
                     _uo["why"] = None if res.get("value") else str(res.get("reason") or "")[:40]
+                dy = (i.dps_ttm / i.price) if (i.dps_ttm and i.price) else None
+                if res and not res.get("value") and res.get("rel") and hasattr(F, "relative_value"):
+                    pending.append((s, i, res, dy))                 # ‏D701: الجولةُ الثانية بعد أن يُعرف الأقران
+                    continue
                 if not res or not res.get("value"):
                     continue
-                dy = (i.dps_ttm / i.price) if (i.dps_ttm and i.price) else None
                 res = F.blend(res, None, i.archetype, dy)
             except Exception as e:                                 # noqa: BLE001
                 print(f"   {t} {s} تعذّر: {type(e).__name__}: {str(e)[:80]}")
                 continue
-            p0 = rows_t[s]["price"]
-            res.setdefault("archetype", i.archetype)
-            conf = confidence_of(res)
-            if uni[s]["sector"] in V1_UNCALIBRATED:
-                conf = "منخفضة"
-            up = res["value"] / p0 - 1
-            shown = not (conf == "منخفضة" and abs(up) > 0.60)      # ‏D628: البعيدُ المتباينُ لا يُنشر
-            o = {"s": s, "t": t, "p0": round(p0, 4), "fv": res["value"], "mv": res.get("model_value"),
-                 "lo": res.get("low"), "hi": res.get("high"), "tg": res.get("target_12m"), "c": conf, "sh": shown,
-                 "n": res.get("count"), "sec": uni[s]["sector"], "a": uni[s]["arch"],
-                 # كلُّ نموذجٍ بنسبته إلى السعر — الداخلُ والمستبعَد — ليُعرف أيُّها يتنبّأ فعلاً
-                 "m": {m["key"]: round(m["value"] / p0, 4) for m in (res.get("models") or []) + (res.get("excluded") or [])
-                       if isinstance(m.get("value"), (int, float)) and m["value"] > 0},
-                 "u": [m["key"] for m in res.get("models") or []], "wk": res.get("weights_kind")}
-            o["arch_key"] = i.archetype
-            o["b"] = _bucket(o)
-            for h in H:
-                t2 = ym_add(t, h)
-                p2 = PX[s].get(t2)
-                if t2 <= last_full and p2 and t in tasi and t2 in tasi:
-                    o[f"r{h}"] = round(p2 / p0 - 1, 5)
-                    o[f"x{h}"] = round(p2 / p0 - tasi[t2] / tasi[t], 5)
-                    if h == 12:
-                        o["p12"] = round(p2, 4)
-            obs.append(o)
-            n_val += 1
-        print(f"   {t}: مسعَّرة {len(rows_t)} · قُيّمت {n_val} · كاشُ الأقران {len(ctx['peer'])} قطاعاً")
+            n_val += _record(s, t, i, res)
+        # ‏D701: جداولُ الأقران لهذا التاريخ من الجولة الأولى، ثمّ المقارنةُ بها — كما تفعل المسحة
+        tables = {}
+        for s, i, res, dy in pending:
+            tables.setdefault(res["rel"]["seg"], {})[s] = res["rel"]["sig"]
+        for s, i, res, dy in pending:
+            rv = F.relative_value(s, res["rel"], rows_t[s]["price"], tables.get(res["rel"]["seg"]))
+            if rv:
+                rv.setdefault("archetype", i.archetype)
+                n_val += _record(s, t, i, F.blend(rv, None, i.archetype, dy))
+        n_rel = sum(1 for o in obs if o["t"] == t and o.get("wk") == "peer_relative")
+        pending.clear()
+        print(f"   {t}: مسعَّرة {len(rows_t)} · قُيّمت {n_val} (بالمقارنة بالأقران {n_rel}) · كاشُ الأقران {len(ctx['peer'])} قطاعاً")
 
     XB.for_symbol, F._shares_of, C.get, C.set = real_X, real_shares, real_get, real_set
     report(obs, anchors)
@@ -340,6 +363,7 @@ async def main():
         parts = [blob[i:i + 60000] for i in range(0, len(blob), 60000)]
         for j, b in enumerate(parts):
             print(f"@@{tag}@@ {j + 1}/{len(parts)} {b}")
+
 
 
 def fin_score(sym, annual):
@@ -464,19 +488,28 @@ def _bucket(o):
     except Exception:                                              # noqa: BLE001
         return None
     return track_bucket({"model_value": o.get("mv"), "price": o["p0"], "count": o.get("n"), "weights_kind": o.get("wk"),
-                         "archetype": o.get("arch_key")})
+                         "archetype": o.get("arch_key"), "rel_z": o.get("rz"), "rel": {"seg": o.get("rseg")}})
 
 
 def track_table(obs):
     """‏D700: لكلّ فئة قراءةٍ نسبةُ إصابتها بعد اثني عشر شهراً — الرخيصُ تفوّق والغالي تخلّف والعادلُ لم يبتعد 15٪."""
     _rel(obs, 12)
+    # ‏D701: المصارفُ والمقارنةُ بالأقران تُقاس بأقرانها لا بالسوق كلِّه — قِيس أنّ «المصرفَ الرخيص 93٪» كان أكثرُه تفوّقَ المصارف
+    # جميعاً في الفترة (والغالي منها تفوّق 69٪)، فليس مهارةَ التقييم
+    seg_of = lambda o: "bank" if o.get("arch_key") == "bank" else (f"rel_{o.get('rseg')}" if o.get("wk") == "peer_relative" else None)   # noqa: E731
+    segq: dict = {}
+    for o in obs:
+        if "q12" in o and seg_of(o):
+            segq.setdefault((seg_of(o), o["t"]), []).append(o["q12"])
+    segmed = {k: st.median(v) for k, v in segq.items()}
     out = {}
     for o in obs:
         b = o.get("b")
         if not b or "q12" not in o or not o["sh"]:
             continue
+        q = o["q12"] - segmed[(seg_of(o), o["t"])] if seg_of(o) else o["q12"]
         side = b.rsplit("_", 1)[-1]
-        hit = (o["q12"] > 0) if side in ("cheap", "deep") else (o["q12"] < 0) if side == "dear" else (abs(o["q12"]) <= 0.15)
+        hit = (q > 0) if side in ("cheap", "deep", "better") else (q < 0) if side in ("dear", "weaker") else (abs(q) <= 0.15)
         r = out.setdefault(b, {"n": 0, "hit": 0, "n1": 0, "hit1": 0})
         r["n"] += 1
         r["hit"] += hit

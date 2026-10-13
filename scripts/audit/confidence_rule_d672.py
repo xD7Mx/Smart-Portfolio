@@ -81,7 +81,8 @@ check(not k2 and r2.get("value") is None and "أثبتت نفسها" in str(r2.g
 k3, _, _ = run("bank", ["peer_pe", "peer_pb", "peer_ps"])
 check(len(k3) == 3, "٩ (D700) والمصارفُ بمجموعتها (ثبتت: +0.18) لا تُمسّ", str(k3))
 src = (ROOT / "backend/app/services/fair_value_models.py").read_text(encoding="utf-8")
-_kv = re.search(r'f"fvm:v(\d+):\{sym\}"', src)                      # ‏D674: v42 — والمفتاحُ يتقدّم ولا يرجع
+_kv = (re.search(r'f"fvm:v(\d+):\{sym\}"', src)                     # ‏D674: v42 — والمفتاحُ يتقدّم ولا يرجع
+       or re.search(r'FVM_KEY = "fvm:v(\d+):"', src))              # ‏D701: المفتاحُ ثابتٌ مسمّى تقرؤه المسحةُ أيضاً
 check(bool(_kv) and int(_kv.group(1)) >= 41 and '"set_size": len(allowed)' in src,
       "١٠ ومفتاحُ كاش النماذج تغيّر، وحجمُ مجموعة القطاع يُحمَل مع النماذج")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
