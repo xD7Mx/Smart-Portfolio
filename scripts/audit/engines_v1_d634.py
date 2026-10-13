@@ -18,11 +18,16 @@ ap = (ROOT / "frontend/src/components/analysis/AnalysisPanel.tsx").read_text()
 
 check("القائمةُ المغلقة" in doc or "قائمةٌ مغلقة" in doc and "يُستبعد من ترتيب المختبر بالقيمة" in doc,
       "١ القاعدةُ مسجَّلةٌ في الميثاق التنفيذيّ قبل القياس")
-m = re.search(r"V1_UNCALIBRATED = frozenset\(\{(.*?)\}\)", an, re.S)
-secs = set(re.findall(r'"([^"]+)"', m.group(1))) if m else set()
-# الإصدارُ الأوّل وسم ستّة؛ والثاني رفع الوسمَ عن اثنين اجتازا قاعدةَ الوزن المسجّلة (D646: التأمين · الخدمات الاستهلاكية)
-want = {"إدارة وتطوير العقارات", "السلع الرأسمالية", "التطبيقات وخدمات التقنية", "الطاقة"}
-check(secs == want, "٢ القطاعاتُ الموسومة هي ما بقي بعد القياس لا غيرُها (ستّةٌ في 1.0 · أربعةٌ بعد D646)", str(sorted(secs)))
+# ‏D702: الوسمُ بالنتيجة لا بالمحلّلين — القطاعاتُ التي ترتيبُ المحرّك المركّب فيها ضعيفٌ بالنتيجة (دون 0.10 أو سالبٌ في نصف)
+import sys as _sys
+_sys.path.insert(0, str(ROOT / "backend"))
+import os as _os, tempfile as _tf
+_d = _tf.mkdtemp(); _os.environ.setdefault("LASTGOOD_PATH", _os.path.join(_d, "l.json")); _os.environ.setdefault("SP_STATE_DIR", _d)
+from app.services.analysis import V1_UNCALIBRATED as _V, OUTCOME_SECTOR_IC as _IC
+secs = set(_V)
+want = {k for k, (a, h1, h2) in _IC.items() if a < 0.10 or h1 < 0 or h2 < 0}
+check(secs == want and len(secs) == 8 and "السلع الرأسمالية" not in secs and "التطبيقات وخدمات التقنية" not in secs,
+      "٢ (D702) القطاعاتُ الموسومة هي ما ضعف فيه المحرّكُ بالنتيجة — لا ما ابتعد عن المحلّلين", str(sorted(secs)))
 i628, i634 = an.find("‏D628: رقمٌ نماذجُه"), an.find("‏D634 · الإصدارُ الأوّل")
 check(0 < i628 < i634, "٣ الوسمُ بعد D628 — فلا يُحجب رقمٌ لأجل الوسم وحده")
 check('"confidence": "منخفضة", "calibrated": False' in an and '"fair_value_calibration_note"' in an,
