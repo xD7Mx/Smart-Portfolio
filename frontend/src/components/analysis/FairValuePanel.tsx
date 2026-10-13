@@ -100,7 +100,8 @@ export default function FairValuePanel({ symbol, analystTarget, week52, withheld
   const up = r.upside as number;
   const byFam: Record<string, any[]> = {};
   (r.models || []).forEach((m: any) => { (byFam[m.family] = byFam[m.family] || []).push(m); });
-  const famName: Record<string, string> = { cashflow: "التدفّقات المخصومة", equity: "الأرباح والحقوق", income: "التوزيعات", multiples: "مضاعفاتُ الأقران السعوديين" };
+  const famName: Record<string, string> = { cashflow: "التدفّقات المخصومة", equity: "الأرباح والحقوق", income: "التوزيعات", multiples: "مضاعفاتُ الأقران السعوديين",
+    relative: "المقارنةُ بالأقران بما ثبت في قطاعها" };   /* ‏D701 */
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
