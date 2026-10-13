@@ -285,6 +285,8 @@ def confidence_of(fvm: dict) -> str:
             return "منخفضة"
         if isinstance(_v, (int, float)) and isinstance(_p, (int, float)) and _p > 0 and abs(_v / _p - 1) > 0.60:
             return "منخفضة"
+        if _t["n"] < 40:                                           # ‏D701: عيّنةٌ صغيرة لا يُبنى عليها — والكلمةُ توافق النصّ
+            return "منخفضة"
         halves = [h for h in (_t.get("hit1"), _t.get("hit2")) if h is not None]
         if _t["hit"] >= 60 and _t["n"] >= 40 and halves and min(halves) >= 55 and "أقدمُ من تسعة أشهر" not in _notes:
             return "مرتفعة"
