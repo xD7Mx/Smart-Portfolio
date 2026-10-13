@@ -11,7 +11,8 @@ def check(ok, label):
     fail |= not ok
     print(f"{'PASS' if ok else 'FAIL'} {label}")
 src = (ROOT / "backend/app/services/analysis.py").read_text(encoding="utf-8")
-i_new = src.find('_fv.update({"confidence": confidence_of(_new), "model_value": _new.get("model_value")})')
+# ‏D700: السطرُ يحمل معه سجلَّ الإصابة المقيس — فيُطابَق بمطلعه الثابت
+i_new = src.find('_fv.update({"confidence": confidence_of(_new), "model_value": _new.get("model_value")')
 i_sp = src.find('_fv["single_path"] = len(_new.get("models") or []) < 2')
 i_gate = src.find("single_path=bool(_fv.get(\"single_path\"))")
 check(0 < i_new < i_sp, "١ حين يُنتج محرّكُ النماذج الرقمَ تُعدّ مساراتُه هو")

@@ -599,9 +599,13 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
             if _new.get("weights_kind") == "reit_nav":        # D554/D593: صافي الأصول ممزوجاً بقيمة التوزيع
                 # «متوسطة» لا «مرتفعة»: السوقُ يخصم صافي الأصول خصماً دائماً، فلا يُعدّ وعدُه هامشَ أمان
                 _fv.update({"confidence": "متوسطة", "implausible": False, "single_path": False})
-        elif _new and _new.get("value") is None and "خمسة عشر شهراً" in str(_new.get("reason") or ""):
+        elif _new and _new.get("value") is None and ("خمسة عشر شهراً" in str(_new.get("reason") or "")
+                                                     or _new.get("unproven") or "أثبتت نفسها" in str(_new.get("reason") or "")):
             # ‏D594: المحرّكُ امتنع لقِدَم القوائم — فلا يعرض الاحتياطيُّ رقماً من القوائم نفسِها
             # (قِيس: «سلامة» و«جي آي جي» بقوائم 2022، و«المغذيات» بقوائم 2021 بسعرٍ عادلٍ 250 على 118)
+            # ‏D700: وكذا حين امتنع لأنّ تقييمَ النمط لم يثبت بالنتائج (التأمين · الخدمات المالية) أو لم تكفِ النماذجُ المثبتة —
+            # الاحتياطيُّ لم يُختبر بالنتائج أصلاً، فرقمُه لا يحلّ محلَّ امتناعٍ مقيس (قِيس في A/B ‏run 38457048397: عاد التأمينُ
+            # برقم الاحتياطيّ فارتفعت التغطيةُ بدل أن تُحجب)
             _fv = dict(_fv or {})
             _fv.update({"value": None, "low": None, "high": None, "unavailable_reason": _new["reason"]})
     except Exception as _e:                                       # noqa: BLE001

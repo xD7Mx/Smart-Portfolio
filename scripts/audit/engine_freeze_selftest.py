@@ -100,5 +100,15 @@ dn = {k: v for k, v in dv.items() if not k.startswith("o_")}
 (F.REPORTS / "older.control.json").write_text(json.dumps({"fingerprint": "older", "measured_at": "2026-10-13", "metrics": dn}))
 report_on({**dn, "d_abstain_overwrite": 0, "median_dev": 0.25}, "2026-10-13")
 check(run() == 1, "٢٦ (D700) وبلا قياسٍ للنتيجة في الجانبين يبقى ابتعادُ المحلّلين تراجعاً كما كان")
+# ‏D700: بندٌ قَبِل المالكُ سقوطَه بنصّه يُسمّى ولا يُحتسب — وبلا نصٍّ يبقى تراجعاً
+dv = {**drift, "o_ic12": 0.04, "verdict": {"١ التغطية": True}}
+(F.REPORTS / "older.control.json").write_text(json.dumps({"fingerprint": "older", "measured_at": "2026-10-13", "metrics": dv}))
+(F.REPORTS / f"{fp}.json").write_text(json.dumps({"metrics": {**dv, "o_ic12": 0.12, "verdict": {"١ التغطية": False}},
+                                                  "measured_at": "2026-10-13"}))
+check(run() == 1, "٢٧ (D700) بندٌ يسقط بلا قرارٍ من المالك تراجعٌ ولو تحسّنت النتيجة")
+(F.REPORTS / f"{fp}.json").write_text(json.dumps({"metrics": {**dv, "o_ic12": 0.12, "verdict": {"١ التغطية": False}},
+                                                  "measured_at": "2026-10-13",
+                                                  "owner_accepted": {"١ التغطية": {"floor": None, "decision": "نصّ"}}}))
+check(run() == 0, "٢٨ (D700) وبقرار المالك بنصّه يُقبل ويُسمّى")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

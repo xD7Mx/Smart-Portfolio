@@ -49,6 +49,7 @@ DIRECTION = {"coverage": (+1, 0.005), "unnamed_missing": (-1, 0), "stale": (-1, 
 # «منحازةٌ تحت أهدافهم» (D672) وهي ما تنبّأ فعلاً، وبقيت الدفتريةُ وهي عكسُ النتيجة. فإن حمل المرجعُ والمرشَّحُ مقاييسَ النتيجة
 # معاً، فالتراجعُ في موافقة المحلّلين يُعرض للاطّلاع ولا يُسقط — والنتيجةُ هي الحَكَم.
 ANALYST_AGREEMENT = {"median_dev", "far_share", "conf_share", "conf_high_share"}
+ANALYST_VERDICTS = {"٤ المرجع", "٥ الثقة"}                       # بندا البوابة على أهداف المحلّلين والثقةِ المعايَرة بها
 INFO: list[str] = []
 
 
@@ -134,6 +135,14 @@ def compare(base: dict, new: dict, accepted: dict | None = None) -> tuple[list[s
             better.append(f"قطاع {sec}: {b} ← {n}")
     for k, ok in (base.get("verdict") or {}).items():
         if ok and not (new.get("verdict") or {}).get(k, False):
+            acc = accepted.get(k) or {}
+            if acc.get("decision"):                                # ‏D700: بندٌ قَبِل المالكُ سقوطَه بنصّه — يُسمّى ولا يُحتسب
+                ACCEPTED.append(f"{k}: سقط — بقرار المالك: «{acc['decision']}»"
+                                + (f" (أرضيّةُ مقياسه {acc['floor']})" if acc.get("floor") is not None else ""))
+                continue
+            if outcome and k in ANALYST_VERDICTS:
+                INFO.append(f"{k}: سقط — بندُ موافقة المحلّلين، والحَكَمُ النتيجة (D700)")
+                continue
             worse.append(f"بندٌ اجتاز ثمّ سقط: {k}")
     return worse, better
 

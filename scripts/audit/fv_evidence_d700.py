@@ -115,5 +115,14 @@ check('"o_ic12": (+1' in fz and '"o_target_err": (-1' in fz and "ANALYST_AGREEME
 ui = open(os.path.join(ROOT, "frontend/src/components/analysis/FairValuePanel.tsx"), encoding="utf-8").read()
 check('data-role="fv-track"' in ui and 'data-role="target-err"' in ui,
       "١٦ والتفاصيلُ تعرض إصابةَ الرقم المقيسة وخطأَ الهدف بجانبهما")
+# والامتناعُ المقيس لا يملؤه احتياطٌ لم يُختبر — قِيس في A/B (‏run 38457048397) أنّ التأمينَ عاد برقم الاحتياطيّ فارتفعت التغطية
+_bi = F.blend({"value": None, "reason": F.UNPROVEN_ARCH["insurance"], "unproven": True, "price": 10.0}, {"value": 12.0}, "insurance", None)
+_bt = F.blend({"value": None, "reason": "لا تكفي النماذجُ التي أثبتت نفسها بالنتائج: 2 من 7", "price": 10.0}, {"value": 12.0}, "commodity", None)
+check(_bi.get("value") is None and _bt.get("value") is None,
+      "١٧ الامتناعُ المقيس لا يملؤه رقمُ الفرز السابق في المزج", f"{_bi.get('value')} · {_bt.get('value')}")
+an = open(os.path.join(ROOT, "backend/app/services/analysis.py"), encoding="utf-8").read()
+_el = an[an.find('elif _new and _new.get("value") is None'):][:400]
+check('_new.get("unproven")' in _el and "أثبتت نفسها" in _el,
+      "١٨ ولا رقمُ المحرّك الاحتياطيّ في التحليل — يُعرض السببُ المقيس")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

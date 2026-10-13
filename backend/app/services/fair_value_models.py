@@ -1385,7 +1385,8 @@ def blend(res: dict, calibrated: dict | None, archetype: str | None, dy: float |
             res.setdefault("notes", []).append("القيمةُ في هذا النمط من المحرّك المُعايَر وحده — "
                                                "أدقُّ قياساً هنا؛ والنماذجُ أدناه للاطّلاع لا تدخل الرقم")
         res["blend"] = {"alpha": a, "calibrated": round(old_v, 2)}
-    elif old_v and not new_v and "خمسة عشر شهراً" not in str(res.get("reason") or ""):   # D594: لا احتياطَ لقوائمَ قديمة
+    elif old_v and not new_v and "خمسة عشر شهراً" not in str(res.get("reason") or "") \
+            and not res.get("unproven") and "أثبتت نفسها" not in str(res.get("reason") or ""):   # D594 · ‏D700: لا احتياطَ لامتناعٍ مقيس
         res["value"], res["low"], res["high"] = round(old_v, 2), _n(calibrated.get("low")), _n(calibrated.get("high"))
     if res.get("value") and res.get("price"):
         res["upside"] = round((res["value"] / res["price"] - 1) * 100, 2)

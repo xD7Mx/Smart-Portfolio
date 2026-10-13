@@ -22,13 +22,16 @@ def main() -> int:
     _flagv = {"--baseline", "--accept", "--decision", "--measured", "--run"}
     files = [a for i, a in enumerate(args) if not a.startswith("--") and (i == 0 or args[i - 1] not in _flagv)]
     accepted = {}
-    if "--accept" in args:
-        k, fl = args[args.index("--accept") + 1].split("=", 1)
-        dec = args[args.index("--decision") + 1] if "--decision" in args else ""
+    # ‏D700: أكثرُ من قبولٍ في التقرير الواحد — كلُّ «--accept» يليه «--decision» الخاصُّ به؛ والبندُ بلا أرضيّة «اسمُه=-»
+    for j, a in enumerate(args):
+        if a != "--accept":
+            continue
+        k, fl = args[j + 1].split("=", 1)
+        dec = args[j + 3] if j + 3 < len(args) and args[j + 2] == "--decision" else ""
         if not dec:
-            print("--accept بلا --decision: لا قبولَ بلا نصّ القرار")
+            print("--accept بلا --decision يليه: لا قبولَ بلا نصّ القرار")
             return 2
-        accepted[k] = {"floor": float(fl), "decision": dec}
+        accepted[k] = {"floor": None if fl == "-" else float(fl), "decision": dec}
     metrics: dict = {}
     measured_fps: set = set()
     for fpath in files:
