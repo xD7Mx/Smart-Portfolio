@@ -13,7 +13,7 @@ def check(ok, label):
 src = (ROOT / "backend/app/services/analysis.py").read_text(encoding="utf-8")
 # ‏D700: السطرُ يحمل معه سجلَّ الإصابة المقيس — فيُطابَق بمطلعه الثابت
 i_new = src.find('_fv.update({"confidence": confidence_of(_new), "model_value": _new.get("model_value")')
-i_sp = src.find('_fv["single_path"] = len(_new.get("models") or []) < 2')
+i_sp = src.find('_fv["single_path"] = len(_new.get("models") or []) < 2')     # ‏D702: ومعه استثناءُ المزيج المقيس
 i_gate = src.find("single_path=bool(_fv.get(\"single_path\"))")
 check(0 < i_new < i_sp, "١ حين يُنتج محرّكُ النماذج الرقمَ تُعدّ مساراتُه هو")
 check(0 < i_sp < i_gate, "٢ وقبل بوّابة القرار — فالقرارُ يُحكم بشهود الرقم المعروض")

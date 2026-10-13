@@ -33,9 +33,11 @@ from app.services import fair_value_models as F
 
 SEG = getattr(F, "REL_SEGMENTS", {})
 check(SEG.get("insurance", {}).get("keys") == ("ri", "margin", "fcf_m", "size")
-      and SEG.get("thin", {}).get("keys") == ("ri", "growth", "roe", "ni_g")
-      and abs(SEG["insurance"]["beta"] - 0.466) < 1e-9 and abs(SEG["thin"]["beta"] - 0.375) < 1e-9,
-      "١ مؤشّراتُ كلّ نمطٍ كما ثبتت، و‎β معايَرٌ بالنصف الأوّل وحده")
+      and SEG.get("thin", {}).get("keys") == ("ri", "growth", "roe", "ni_g", "mom")
+      and SEG.get("core", {}).get("keys") == ("P", "mom", "ni_g", "ebit_ev") and SEG.get("financial", {}).get("keys") == ("cp", "mom")
+      and abs(SEG["insurance"]["beta"] - 0.466) < 1e-9 and abs(SEG["thin"]["beta"] - 0.548) < 1e-9
+      and abs(SEG["core"]["beta"] - 0.538) < 1e-9,
+      "١ مؤشّراتُ كلّ نمطٍ كما ثبتت (‏D702: والمركّبُ القيمةُ والزخمُ والنموّ)، و‎β معايَرٌ بالنصف الأوّل وحده")
 
 # جدولُ أقرانٍ مصطنع: عشرُ شركاتِ تأمينٍ متدرّجةُ الجودة
 table = {f"I{k}": {"ri": -1.0 + k * 0.1, "margin": 0.01 * k, "fcf_m": 0.02 * k, "size": 20 + k} for k in range(10)}
@@ -55,8 +57,8 @@ check(best and best["weights_kind"] == "peer_relative" and best["models"][0]["as
       and any("من شركات التأمين" in str(a[2]) for a in best["models"][0]["assumptions"]),
       "٦ ويُعرض بمؤشّراته وموقعه بين أقرانه — لا رقمٌ بلا شاهد")
 b = F.blend(dict(best), None, "insurance", 0.03)
-check(b.get("target_12m") == best["value"] and "target_err" not in b,
-      "٧ وهدفُه الرقمُ نفسُه (توقّعٌ نسبيٌّ لاثني عشر شهراً) بلا خطأٍ مدّعى لم يُقس")
+check(b.get("target_12m") == best["value"] and b.get("target_err") == F.TARGET_ERR,
+      "٧ وهدفُه الرقمُ نفسُه (توقّعٌ مقيسٌ لاثني عشر شهراً) — وخطؤه خطأُ المحرّك المقيس كلِّه (‏D702)")
 check(F.track_bucket({**best, "price": 10.0}) == "rel_insurance_better" and F.track_bucket({**worst, "price": 10.0}) == "rel_insurance_weaker",
       "٨ وفئتُه «أفضلُ من أقرانها» أو «أضعف» أو «بينهم» — وسجلُّها مقيسٌ بأقرانها")
 
@@ -84,21 +86,22 @@ check(ri.get("value") is None and (ri.get("rel") or {}).get("seg") == "insurance
       "٩ التأمينُ يحمل مؤشّراتِه إلى المقارنة — لا امتناعٌ نهائيّ", str((ri.get("rel") or {}).get("sig")))
 rt = run("commodity", {"epv": 12.0, "residual_income": 9.0, "peer_pb": 11.0})
 check(rt.get("value") is None and (rt.get("rel") or {}).get("seg") == "thin"
-      and {"ri", "growth", "roe", "ni_g"} <= set((rt.get("rel") or {}).get("sig") or {}),
+      and {"ri", "growth", "roe", "ni_g"} <= set((rt.get("rel") or {}).get("sig") or {}),   # والزخمُ من الأسعار المحفوظة إن وُجدت
       "١٠ ومن لا تكفيه النماذجُ المثبتة كذلك", str((rt.get("rel") or {}).get("sig")))
 rf = run("financial", {"peer_pe": 12.0, "peer_pb": 13.0, "peer_ps": 14.0})
-check(rf.get("value") is None and not rf.get("rel"), "١١ والخدماتُ الماليةُ لا مقارنةَ لها — لم يثبت لها شيء")
+check(rf.get("value") is None and (rf.get("rel") or {}).get("seg") == "financial",
+      "١١ (D702) والخدماتُ الماليةُ تُقارن بأقرانها بالتدفّق التشغيليّ والزخم — ثبتا في النصفين")
 
 src = open(os.path.join(ROOT, "backend/app/services/fair_value_models.py"), encoding="utf-8").read()
 fs = src[src.find("async def for_symbol"):]
-check("relative_value(sym, res[\"rel\"], i.price, rel_table(" in fs, "١٢ والصفحةُ تقارن بجدول الأقران المحفوظ")
+check("apply_relative(sym, res, i.price, rel_table(" in fs, "١٢ والصفحةُ تقارن بجدول الأقران المحفوظ (‏apply_relative نفسُها)")
 sw = open(os.path.join(ROOT, "backend/app/services/market_valuation_sweep.py"), encoding="utf-8").read()
 check("async def rel_pass" in sw and sw.find("await rel_pass(done, sem)") < sw.find("rep_verdicts = record_verdicts(done)"),
       "١٣ والمسحةُ جولتان: الأقرانُ قبل المقارنة، والأحكامُ بعدها")
 cg = open(os.path.join(ROOT, "scripts/audit/candidate_gate.py"), encoding="utf-8").read()
 check("await rel_pass(done, sem)" in cg, "١٤ وبوابةُ المرشَّح تفعل الجولتين كالمسحة")
 bt = open(os.path.join(ROOT, "scripts/audit/fv_backtest_d699.py"), encoding="utf-8").read()
-check("F.relative_value(s, res[\"rel\"]" in bt and "segmed[(seg_of(o), o[\"t\"])]" in bt,
+check("F.apply_relative(s, res, rows_t[s][\"price\"]" in bt and "segmed[(seg_of(o), o[\"t\"])]" in bt,
       "١٥ والاختبارُ التاريخيّ يقارن بأقران كلّ تاريخ، ويقيس إصابةَ المصارف والمقارنة بأقرانها")
 # العيّنةُ الصغيرة تُقال بحجمها لا بنسبةٍ تُوهم، وكلمتُها «منخفضة» توافق نصَّها
 from app.services.analysis import confidence_of

@@ -597,7 +597,8 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
                         "track": _new.get("track_note")})                 # ‏D700: الثقةُ بسجلّها المقيس
             # ‏D658: «المسارُ الواحد» يُعدّ من المحرّك الذي أنتج الرقمَ المعروض — كان يُقرأ من الاحتياطيّ، ومساراتُه تتبع توافرَ
             # بيانات المزوّد لحظةَ الحساب: فقال القرارُ «من مسارٍ واحد» وتفاصيلُ النماذج بجانبه تعرض عشرةً، وتأرجح قرارُ سلوشنز.
-            _fv["single_path"] = len(_new.get("models") or []) < 2
+            # ‏D701 · D702: المقارنةُ بالأقران مزيجُ مؤشّراتٍ مقيسة لا مسارٌ واحد
+            _fv["single_path"] = len(_new.get("models") or []) < 2 and _new.get("weights_kind") != "peer_relative"
             if _new.get("weights_kind") == "reit_nav":        # D554/D593: صافي الأصول ممزوجاً بقيمة التوزيع
                 # «متوسطة» لا «مرتفعة»: السوقُ يخصم صافي الأصول خصماً دائماً، فلا يُعدّ وعدُه هامشَ أمان
                 _fv.update({"confidence": "متوسطة", "implausible": False, "single_path": False})

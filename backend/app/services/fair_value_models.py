@@ -835,12 +835,51 @@ def track_of(res: dict | None) -> dict | None:
 #   خارج العيّنة أقوى ما قِيس: «أفضلُ من أقرانها» تفوّقت 74–76٪ و«أضعفُ» تخلّفت 72–74٪ (‏β معايَرٌ بالنصف الأوّل وحده).
 #   والخدماتُ الماليةُ لم يثبت لها شيءٌ مستقرّ — تبقى محجوبةً بسببها.
 REL_SEGMENTS = {
-    "insurance": {"keys": ("ri", "margin", "fcf_m", "size"), "beta": 0.466, "peers": "شركات التأمين"},
-    "thin": {"keys": ("ri", "growth", "roe", "ni_g"), "beta": 0.375, "peers": "الشركات التي لا تكفيها النماذجُ المثبتة"},
+    # ‏D702 · المحرّكُ المركّب (بأمر المالك: «استغلّ قاعدةَ بيانات التطبيق القويّة في محرّكٍ هو الأقوى من نوعه لكلّ القطاعات»):
+    # القيمةُ وحدَها (النماذجُ المثبتة) +0.08 في النصف الأوّل و+0.18 في الثاني — تعمل في نظامٍ من السوق دون آخر؛ ومعها الزخمُ ونموُّ
+    # الأرباح والربحُ التشغيليّ إلى قيمة المنشأة +0.25 و+0.19: تثبت في النظامين (‏mf.py على fv_universe_d701). واختيارُها بنصفٍ
+    # واحدٍ يسقط في الآخر (‏−0.007) — فالمزيجُ المتوازن من القيمة والزخم والنموّ هو الحماية. ‏β من النصف الأوّل وحده.
+    "core": {"keys": ("P", "mom", "ni_g", "ebit_ev"), "beta": 0.538, "peers": "الشركات المقيَّمة بالنماذج المثبتة",
+             "name": "المحرّكُ المركّب: القيمةُ والزخمُ ونموُّ الأرباح والعائدُ التشغيليّ"},
+    "insurance": {"keys": ("ri", "margin", "fcf_m", "size"), "beta": 0.466, "peers": "شركات التأمين",
+                  "name": "المقارنةُ بشركات التأمين بما ثبت في قطاعها"},
+    "thin": {"keys": ("ri", "growth", "roe", "ni_g", "mom"), "beta": 0.548, "peers": "الشركات التي لا تكفيها النماذجُ المثبتة",
+             "name": "المقارنةُ بالأقران في الحال نفسِه بما ثبت"},
+    # الخدماتُ المالية: التدفّقُ التشغيليّ إلى القيمة السوقية والزخم — موجبان في النصفين (+0.14 · +0.21)، و‎β صغيرٌ فالميلُ معتدل
+    "financial": {"keys": ("cp", "mom"), "beta": 0.042, "peers": "شركات الخدمات المالية",
+                  "name": "المقارنةُ بشركات الخدمات المالية بما ثبت"},
 }
 REL_NAMES = {"ri": "الدخلُ المتبقّي إلى السعر", "margin": "هامشُ صافي الربح", "fcf_m": "هامشُ التدفّق الحرّ",
              "size": "الحجم (القيمةُ السوقية)", "growth": "نموُّ الإيراد السنويّ", "roe": "العائدُ على الحقوق",
-             "ni_g": "نموُّ صافي الربح"}
+             "ni_g": "نموُّ صافي الربح", "P": "القيمةُ من النماذج المثبتة إلى السعر",
+             "mom": "زخمُ السعر (سنةٌ بلا الشهر الأخير)", "ebit_ev": "الربحُ التشغيليّ إلى قيمة المنشأة",
+             "cp": "التدفّقُ التشغيليّ إلى القيمة السوقية"}
+_PX: dict | None = None
+
+
+def _monthly_closes(sym: str) -> dict:
+    """إغلاقاتُ الشهور المحفوظة (بياناتُ اختبار النجوم الأسبوعية · معدَّلةٌ للمنح) — للزخم."""
+    global _PX
+    if _PX is None:
+        try:
+            from app.services import lastgood
+            data = lastgood.load("stars:bt:data") or {}
+            _PX = {s: dict(d.get("m") or []) for s, d in (data.get("px") or {}).items()}
+        except Exception:                                          # noqa: BLE001
+            _PX = {}
+    return _PX.get(str(sym).replace(".SR", "")) or {}
+
+
+def _month_now() -> str:
+    from datetime import date
+    return date.today().isoformat()[:7]
+
+
+def _ym_add(ym: str, k: int) -> str:
+    y, m = int(ym[:4]), int(ym[5:7]) - 1 + k
+    return f"{y + m // 12:04d}-{m % 12 + 1:02d}"
+
+
 REL_MIN_PEERS = 6
 _REL_TABLES: dict[str, dict[str, dict]] = {}
 
@@ -872,8 +911,25 @@ def rel_signals(i: "Inputs", bs: "Base | None", every: list[dict]) -> dict:
         n0 = _n(prev.get("net_income"))
         if ni is not None and n0:
             out["ni_g"] = max(-2.0, min(2.0, (ni - n0) / abs(n0)))
-    if i.price and i.shares and i.price * i.shares > 0:
-        out["size"] = math.log(i.price * i.shares)
+    mc = (i.price * i.shares) if (i.price and i.shares) else 0.0
+    if mc > 0:
+        out["size"] = math.log(mc)
+        ttm, bal = i.ttm or {}, i.balance or {}
+        ebit, ocf = _n(ttm.get("ebit")), _n(ttm.get("operating_cash_flow"))
+        ev = mc + (_n(bal.get("total_debt")) or 0.0) - (_n(bal.get("ending_cash")) or 0.0)
+        if ebit is not None and ev > 0:
+            out["ebit_ev"] = ebit / ev
+        if ocf is not None:
+            out["cp"] = ocf / mc
+    # ‏D702: القيمةُ من النماذج المثبتة (متوسّطُ لوغاريتمات نسبها إلى السعر، ثلاثةٌ فأكثر) — كما قِيست
+    pv = [m["value"] / i.price for m in every if m.get("key") in PROVEN and isinstance(m.get("value"), (int, float))
+          and m["value"] > 0] if i.price else []
+    if len(pv) >= 3:
+        out["P"] = statistics.fmean([math.log(x) for x in pv])
+    closes, now = _monthly_closes(i.symbol), _month_now()
+    c1, c12 = closes.get(_ym_add(now, -1)), closes.get(_ym_add(now, -12))
+    if c1 and c12:
+        out["mom"] = c1 / c12 - 1                                  # ‏12−1: زخمُ سنةٍ بلا الشهر الأخير
     return {k: round(v, 5) for k, v in out.items()}
 
 
@@ -900,7 +956,7 @@ def relative_value(sym: str, rel: dict, price: float, table: dict[str, dict] | N
             srt = sorted(have, key=lambda t: t[1])
             pos = [j for j, (x, _) in enumerate(srt) if x == s_][0]
             vals.append(pos / (len(srt) - 1) - 0.5)
-        return statistics.fmean(vals) if len(vals) >= max(1, len(seg["keys"]) // 2) else None
+        return statistics.fmean(vals) if len(vals) >= max(1, (len(seg["keys"]) + 1) // 2) else None
 
     z = zof(sym)
     if z is None:
@@ -918,7 +974,7 @@ def relative_value(sym: str, rel: dict, price: float, table: dict[str, dict] | N
     assumptions = [[REL_NAMES.get(k, k), f"{sig[k]:.3f}" if k not in ("size", "ri") else f"{sig[k]:.2f}",
                     f"أعلى من {pct[k]}٪ من {seg['peers']}"] for k in seg["keys"] if k in pct]
     assumptions.append(["الموقعُ بين الأقران", f"{zc:+.2f}", f"‎× {seg['beta']:.3f} لكلّ وحدة — ما تحقّق فعلاً منذ 2023"])
-    model = {"key": "peer_relative", "family": "relative", "name": f"المقارنةُ بـ{seg['peers']} بما ثبت في قطاعها",
+    model = {"key": "peer_relative", "family": "relative", "name": seg.get("name") or f"المقارنةُ بـ{seg['peers']}",
              "value": fv, "low": min(lo, hi), "high": max(lo, hi), "assumptions": assumptions}
     return {"value": fv, "model_value": fv, "low": model["low"], "high": model["high"],
             "upside": round((fv / price - 1) * 100, 2), "uncertainty": "معتدل", "count": 1, "models": [model],
@@ -926,8 +982,31 @@ def relative_value(sym: str, rel: dict, price: float, table: dict[str, dict] | N
                           "high": model["high"], "weight": 1.0, "models": 1}],
             "excluded": [], "weights_kind": "peer_relative", "rel": rel, "rel_z": round(zc, 4), "rel_peers": len(peers),
             "model_set": f"المقارنةُ بالأقران — {seg['peers']} ({len(peers)})", "set_size": len(seg["keys"]),
-            "price": price, "notes": [f"لا يكفيها التقييمُ الذاتيّ المثبت — قُيّمت بموقعها بين {len(peers)} من {seg['peers']} "
-                                      "بما ثبت أنه يتنبّأ في قطاعها؛ رقمٌ نسبيٌّ إلى أقرانها لا وعدٌ بمستوى"]}
+            "price": price, "notes": [f"{seg.get('name')}: موقعُها بين {len(peers)} من {seg['peers']} بما ثبت أنه يتنبّأ، "
+                                      "مضروباً في ما تحقّق فعلاً لكلّ وحدةٍ منه منذ 2023 — توقّعٌ مقيسٌ لاثني عشر شهراً لا وعدٌ بمستوى"]}
+
+
+def apply_relative(sym: str, res: dict | None, price: float | None, table: dict[str, dict] | None) -> dict | None:
+    """‏D701 · D702: الرقمُ الذي يُعرض — المحرّكُ المركّب لمن قُيّم بالنماذج المثبتة (وتبقى قيمتُها الذاتيةُ معروضة)، والمقارنةُ
+    بالأقران لمن امتنعت عنه. واحدةٌ للصفحة والمسحة والاختبار التاريخيّ — فما يُقاس هو ما يُعرض."""
+    rel = (res or {}).get("rel") or {}
+    if not rel or not table or not price:
+        return res
+    if res.get("value") is not None and rel.get("seg") != "core":
+        return res
+    rv = relative_value(sym, rel, price, table)
+    if not rv:
+        return res
+    if res.get("value") is not None:
+        rv["intrinsic"] = {k: res.get(k) for k in ("value", "model_value", "low", "high", "count", "model_set")}
+        rv["models"] = rv["models"] + list(res.get("models") or [])
+        rv["excluded"] = list(res.get("excluded") or [])
+        rv["notes"] = list(res.get("notes") or []) + rv["notes"]
+        rv["model_set"] = f"{rv['model_set']} · ومعها النماذجُ المثبتة"
+    for k in ("rates", "ttm_source", "peers", "sector", "archetype"):
+        if res.get(k) is not None:
+            rv.setdefault(k, res.get(k))
+    return rv
 
 
 def track_note(res: dict | None) -> str | None:
@@ -1061,6 +1140,8 @@ def value(i: Inputs) -> dict:
         {**m, "excluded": "يبعد عن السعر عشرةَ أضعاف — خطأُ مدخلاتٍ أرجحُ من رأي"} for m in bad] + [
         # ‏D672: المحذوفُ بالنمط يُعرض بسببه — لا يختفي رأيٌ بلا أن يُقال لماذا
         {**m, "excluded": _pruned_why} for m in _pruned]
+    if agg.get("weights_kind") == "proven_gmean":                     # ‏D702: والمحرّكُ المركّب يقارنها بأقرانها المقيَّمين
+        agg["rel"] = {"seg": "core", "sig": rel_signals(i, bs, every)}
     return {**agg, "price": i.price, "models": models, "count": len(models),
             "notes": bs.notes + i.notes + extra_notes, "peers": i.peer_symbols, "sector": i.sector, "model_set": set_name,
             "set_size": len(allowed),                                # ‏D672: حجمُ مجموعة القطاع — «ثلاثةٌ من ثلاثة» غيرُ «ثلاثةٍ من أربعة عشر»
@@ -1530,7 +1611,7 @@ def blend(res: dict, calibrated: dict | None, archetype: str | None, dy: float |
             ke = (res.get("rates") or {}).get("ke") or RISK_FREE + EQUITY_PREMIUM
             res["target_12m"] = round(res["value"] * (1 + ke - (dy or 0)), 2)
         res["target_12m_upside"] = round((res["target_12m"] / res["price"] - 1) * 100, 2)
-        if mv and mv > 0 and TARGET_ERR and res.get("weights_kind") != "peer_relative":
+        if mv and mv > 0 and TARGET_ERR:
             res["target_err"] = TARGET_ERR                   # ‏D700: الهدفُ بخطئه المقيس
     res["track"] = track_of(res)                             # ‏D700: الثقةُ بسجلّها المقيس
     res["track_note"] = track_note(res)
@@ -1619,7 +1700,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 
 
 # v43: ‏D701 المقارنةُ بالأقران لمن لا تكفيه النماذجُ المثبتة · v42: ‏D700 النماذجُ المثبتةُ بالنتائج والهدفُ المعايَرُ بما تحقّق
-FVM_KEY = "fvm:v43:"
+FVM_KEY = "fvm:v44:"     # v44: ‏D702 المحرّكُ المركّب
 REL_KEY = "fvrel:tables"
 
 
@@ -1680,11 +1761,9 @@ async def for_symbol(symbol: str) -> dict | None:
     try:
         i = await gather(sym)
         res = value(i) if i else None
-        if res is not None and res.get("value") is None and res.get("rel") and i:
-            # ‏D701: من لا تكفيه النماذجُ المثبتة يُقارن بأقرانه في حاله بما ثبت في قطاعه
-            rv = relative_value(sym, res["rel"], i.price, rel_table(res["rel"]["seg"]))
-            if rv:
-                res = rv
+        if res is not None and res.get("rel") and i:
+            # ‏D701 · D702: المحرّكُ المركّب أو المقارنةُ بالأقران — بجدول أقران المسحة
+            res = apply_relative(sym, res, i.price, rel_table(res["rel"]["seg"]))
         if res is not None:
             cal = _calibrated(sym)
             dy = (i.dps_ttm / i.price) if (i and i.dps_ttm and i.price) else None

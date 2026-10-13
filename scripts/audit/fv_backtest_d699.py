@@ -198,6 +198,9 @@ async def main():
 
     XB.for_symbol = X_pit
     F._shares_of = shares_pit
+    if hasattr(F, "_monthly_closes"):                              # ‏D702: الزخمُ بأسعار ما قبل التاريخ
+        F._monthly_closes = lambda sym: {ym: c for ym, c in (PX.get(str(sym).replace(".SR", "")) or {}).items() if ym < ctx["ym"]}
+        F._month_now = lambda: ctx["ym"]
     F._hist_multiples = hist_pit
     TD.read = div_pit
     SW.factor_after = lambda *a, **k: 1.0
@@ -328,8 +331,8 @@ async def main():
                     _uo["fv"] = round(res["value"] / rows_t[s]["price"], 4) if res.get("value") else None
                     _uo["why"] = None if res.get("value") else str(res.get("reason") or "")[:40]
                 dy = (i.dps_ttm / i.price) if (i.dps_ttm and i.price) else None
-                if res and not res.get("value") and res.get("rel") and hasattr(F, "relative_value"):
-                    pending.append((s, i, res, dy))                 # ‏D701: الجولةُ الثانية بعد أن يُعرف الأقران
+                if res and res.get("rel") and hasattr(F, "apply_relative"):
+                    pending.append((s, i, res, dy))                 # ‏D701 · D702: الجولةُ الثانية بعد أن يُعرف الأقران
                     continue
                 if not res or not res.get("value"):
                     continue
@@ -343,8 +346,8 @@ async def main():
         for s, i, res, dy in pending:
             tables.setdefault(res["rel"]["seg"], {})[s] = res["rel"]["sig"]
         for s, i, res, dy in pending:
-            rv = F.relative_value(s, res["rel"], rows_t[s]["price"], tables.get(res["rel"]["seg"]))
-            if rv:
+            rv = F.apply_relative(s, res, rows_t[s]["price"], tables.get(res["rel"]["seg"]))
+            if rv and rv.get("value"):
                 rv.setdefault("archetype", i.archetype)
                 n_val += _record(s, t, i, F.blend(rv, None, i.archetype, dy))
         n_rel = sum(1 for o in obs if o["t"] == t and o.get("wk") == "peer_relative")
