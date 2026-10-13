@@ -19,8 +19,8 @@ notes = []
 s = market_shares_check(25e6, 6.805e9, 27.22, notes)
 check(abs(s - 250e6) < 1e6 and notes, "١ عددُ القوائم المخالفُ للسوق عشراً يُستبدل بعدد السوق ويُعلَن", f"{s/1e6:.0f}M")
 notes = []
-s = market_shares_check(100e6, 1.0e9 * 1.367, 10.0, notes, equity_growth=-0.003)
-check(s == 100e6 and not notes, "٢ وفرقٌ دون مرّةٍ ونصف بلا نسبة منحةٍ معياريّة لا يُمَسّ — لا تسويةَ على غير عطب (‏D674: سابك ×1.367)")
+s = market_shares_check(100e6, 1.0e9 * 1.2, 10.0, notes)
+check(s == 100e6 and not notes, "٢ وفرقٌ دون مرّةٍ ونصف لا يُمَسّ — لا تسويةَ على غير عطب (D674 مؤجَّلٌ إلى 2.4: يُميَّز الاكتتابُ عن المنحة أوّلاً)")
 check(market_shares_check(100e6, None, 10.0, []) == 100e6, "٣ وبلا قيمةٍ سوقيةٍ يبقى عددُ القوائم")
 stale = {"value": None, "reason": "أحدثُ قوائم منشورة لدينا (سنةُ 2022) أقدمُ من خمسة عشر شهراً — لا تُقيَّم", "price": 7.44}
 r = blend(dict(stale), {"value": 3.27, "low": 3.0, "high": 3.5}, "insurance", None)

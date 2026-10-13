@@ -903,19 +903,12 @@ def sanity_ttm(ttm: dict, src: str, annual: list[dict], shares: float, price: fl
     return ttm, src
 
 
-# ‏D674: حدُّ 15٪ وحدَه يلتقط المنحَ (الرمز 0.70) ويلتقط معها ما ليس منحة — قِيس (‏d674_shares_door · run 38419547711):
-# 15 شركةً بين 15٪ ومرّةٍ ونصف، منها اكتتابٌ أدخل نقداً (ميدغلف: الحقوقُ +51.8٪ · بترو رابغ +18.4٪) وفرقُ تعريف ربحٍ لا
-# تغيّرُ أسهم (سابك ×1.367 والحقوقُ ثابتة — لو سُوّي لنقص سعرُها العادل 27٪ بلا سبب). ولا إعلانَ يحمل ربحيةَ السهم لأيٍّ منها،
-# ولا حدثَ رأسِ مالٍ في القاعدة لسنتين. فالشاهدُ ما في القوائم نفسِها: المنحةُ نسبةٌ معياريّة (سهمٌ لكلّ عشرة · خمسة · أربعة …)
-# ولا نقدَ يدخل بها فلا تقفز الحقوق. فيُسوّى العددُ بالسوق في هذا النطاق إذا اجتمعا: نسبةٌ معياريّةٌ (±1٪) وحقوقٌ لم تقفز 10٪.
+# ‏D674 (مؤجَّلٌ إلى 2.4): حدُّ 15٪ يلتقط المنحَ (الرمز 0.70) لكنّه لا يميّز زيادةَ رأس المال بالاكتتاب (أسهمٌ ونقدٌ معاً) عن
+# المنحة (أسهمٌ بلا نقد) — قِيس في بوابة المرشَّح: ميدغلف (اكتتاب) 104.8 ← 138.2 مليوناً فتراجع انحرافُ قطاع التأمين 7.1 ← 11.6٪.
 SHARES_TOL = 1.5
-BONUS_RATIOS = (1.1, 1.2, 1.25, 1.3, 4 / 3, 1.4, 10 / 7, 1.5)
-BONUS_BAND = 1.15
-CASH_JUMP = 0.10
 
 
-def market_shares_check(shares: float, market_cap: float | None, price: float | None, notes: list,
-                        equity_growth: float | None = None) -> float:
+def market_shares_check(shares: float, market_cap: float | None, price: float | None, notes: list) -> float:
     """‏D594: عددُ الأسهم من القوائم (الربحُ ÷ ربحيةِ السهم) يتخلّف عن المنح والتجزئة حتى تُنشر قوائمُ بعدها —
     قِيس: «المتحدة الدولية» 25 مليوناً والسوقُ يقول 250، فتضخّمت ربحيةُ السهم عشراً وصار سعرُها العادل 156 على 27.
     فالقيمةُ السوقية ÷ السعر حَكَمٌ: إن ابتعد عنها عددُ القوائم أكثرَ من مرّةٍ ونصف أُخذ عددُ السوق ويُعلَن."""
@@ -926,25 +919,7 @@ def market_shares_check(shares: float, market_cap: float | None, price: float | 
         notes.append(f"عددُ الأسهم من القوائم {shares / 1e6:,.1f} مليون يخالف السوق {mkt / 1e6:,.1f} مليون "
                      "(منحةٌ أو تجزئةٌ بعد آخر قوائم) — أُخذ عددُ السوق")
         return mkt
-    r = mkt / shares if shares else None
-    if r and r > BONUS_BAND:
-        f = next((x for x in BONUS_RATIOS if abs(r / x - 1) <= 0.01), None)
-        cash_in = equity_growth is not None and equity_growth >= CASH_JUMP
-        if f and not cash_in:
-            notes.append(f"عددُ الأسهم من القوائم {shares / 1e6:,.1f} مليون والسوقُ {mkt / 1e6:,.1f} مليون — نسبةُ منحةٍ معياريّة "
-                         f"×{f:.4g} والحقوقُ لم تقفز (لا نقدَ دخل) — أُخذ عددُ السوق")
-            return mkt
     return shares
-
-
-def equity_growth_of(quarterly: list[dict], annual: list[dict]) -> float | None:
-    """‏D674: نموُّ الحقوق بين آخر فترتين منشورتين — الاكتتابُ يرفعها بحصيلته، والمنحةُ لا."""
-    per = sorted([p for p in quarterly + annual if _n(p.get("equity"))],
-                 key=lambda p: str(p.get("as_of") or f"{p.get('year')}-12-31"))
-    if len(per) < 2:
-        return None
-    a, b = _n(per[-2].get("equity")), _n(per[-1].get("equity"))
-    return (b / a - 1) if a and a > 0 else None
 
 
 _CARRY = ("total_debt", "ending_cash", "borrowings_current", "borrowings_noncurrent",
@@ -1142,15 +1117,13 @@ async def gather(symbol: str) -> Inputs | None:
         except Exception:                                          # noqa: BLE001
             pass
     _sh0 = shares
-    shares = market_shares_check(shares, _mc, price, notes, equity_growth=equity_growth_of(quarterly, annual))
+    shares = market_shares_check(shares, _mc, price, notes)
     # ‏D621: تجزئةٌ بعد آخر قوائم (من سجلّ أحداث رأس المال) — إن لم يكن حَكَمُ السوق قد صحّح العددَ أصلاً
     try:
         from app.services.split_watch import factor_after
         _last = max((str(x.get("as_of") or f"{x.get('year')}-12-31")[:10] for x in (quarterly[-1:] + annual[-1:])), default=None)
         _f = factor_after(sym, _last)
-        # ‏D674: «لم يصحّحه حَكَمُ السوق» يعني أنّ العددَ لم يتغيّر — صار السوقُ يصحّح المنحَ المعياريّة دون المرّة ونصف أيضاً،
-        # فلو بقي الشرطُ نسبةً لضُرب العددُ مرّتين (المنحةُ نفسُها من السوق ثمّ من سجلّ التجزئة)
-        if _f > 1 and shares and _sh0 and shares == _sh0:
+        if _f > 1 and shares and _sh0 and 1 / 1.5 <= shares / _sh0 <= 1.5:
             notes.append(f"تجزئةٌ بمعامل {_f:g} بعد آخر قوائم ({_last}) — عددُ الأسهم {shares / 1e6:,.1f} ← {shares * _f / 1e6:,.1f} مليون")
             shares = shares * _f
     except Exception:                                              # noqa: BLE001
@@ -1377,7 +1350,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v42:{sym}"   # v42: ‏D674 المنحُ المعياريّة دون المرّة ونصف بشاهد الحقوق · v41: D672 الحذفُ المعتمد بالنمط
+    ck = f"fvm:v41:{sym}"   # v41: D672 الحذفُ المعتمد بالنمط وحجمُ المجموعة · D674 مؤجَّل
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

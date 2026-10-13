@@ -310,8 +310,6 @@ node scripts/audit/ui_d689.mjs || _note "$LINENO"
 python3 scripts/audit/decision_serving_d690.py || _note "$LINENO"
 # D693: تحليلُ الصفحة المخزَّن يتجدّد مع كلّ مسحةٍ تغيّر رقمَ اليوم — لا مع تاريخها وحدَه
 python3 scripts/audit/official_key_d693.py || _note "$LINENO"
-# D674: المنحُ المعياريّة دون المرّة ونصف تُسوّى بشاهد الحقوق — لا الاكتتابُ ولا فرقُ تعريف الربح
-python3 scripts/audit/d674_bonus.py || _note "$LINENO"
 # D691: مفتاحُ «إظهار الساعة» يعمل — كان مُعلَناً في المخزن غيرَ منفَّذ فيرمي عند النقر
 node scripts/audit/ui_d691.mjs || _note "$LINENO"
 # D694: الحوكمةُ تبويبٌ في المحفظة مكانَ المختبر، والمختبرُ تبويبٌ في تحليل الذكاء — والروابطُ القديمة تصل
