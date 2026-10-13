@@ -312,6 +312,23 @@ def official_row(symbol: str) -> dict | None:
 
 # مسحةُ الخميس تبقى رقمَ الأحد، وإجازةُ العيد لا تُسقطه؛ وما شاخ أكثرَ فالمسحةُ معطوبةٌ والحيُّ أصدقُ منه
 OFFICIAL_MAX_AGE = 10
+# ما تقرؤه الصفحةُ من صفّ المسحة الرسميّ (‏D649) — فتغيُّرُ أيٍّ منه يُجدّد تحليلَها المخزَّن
+_OFFICIAL_FIELDS = ("score_asof", "fair_value", "fair_value_low", "fair_value_high", "fair_value_conf",
+                    "fair_value_unavailable", "fair_value_calibrated", "fair_value_calibration_note")
+
+
+def official_stamp(row: dict | None) -> str:
+    """‏D693: ختمُ رقم اليوم في مفتاح تحليل الصفحة — تاريخُ المسحة **ومعه ما تقرؤه الصفحةُ منها**.
+
+    كان المفتاحُ تاريخَ المسحة وحدَه، ومسحتان في اليوم نفسِه (الليليّة ومسحةُ النشر في `complete.sh`) تختلفان في الرقم
+    (قوائمُ حُصدت قبلها، وسعرُ منتصف الجلسة) — فالصفحةُ التي فُتحت بين إعادة الخادم ونهاية مسحة النشر حُفظت برقم الأولى
+    تحت المفتاح نفسِه يوماً كاملاً: قِيس بعد نشر 2.4 أنابيبُ الشرق 170.0 والفرز 171.57، وسدافكو وجرير كذلك
+    (‏run 38394651666). فالختمُ يتبدّل بتبدّل أيّ حقلٍ تقرؤه الصفحة — ولا يتبدّل بغيره فلا يُهدر الكاش."""
+    if not row:
+        return "live"
+    import hashlib
+    raw = "|".join(str(row.get(k)) for k in _OFFICIAL_FIELDS)
+    return f"{str(row.get('score_asof') or '')[:10]}:{hashlib.sha1(raw.encode()).hexdigest()[:8]}"
 
 
 async def analyze_company(symbol: str, name: str | None = None, db=None, allow_supplement: bool = True,
@@ -326,7 +343,7 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         from datetime import date as _dt0
         ck += f":fresh:{_dt0.today().isoformat()}"
     else:
-        ck += f":official:{(official_row(symbol) or {}).get('score_asof') or 'live'}"
+        ck += f":official:{official_stamp(official_row(symbol))}"
     cached = cache.get(ck)
     if cached is not None:
         return cached

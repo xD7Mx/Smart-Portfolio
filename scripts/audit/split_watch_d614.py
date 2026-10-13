@@ -61,7 +61,7 @@ record_split("7202.SR", "2026-10-07", 2)
 check(factor_after("7202", "2026-06-30") == 2 and factor_after("7202", "2026-10-08") == 1 and factor_after("2222", "2026-06-30") == 1,
       "١٩ التجزئةُ بعد آخر قوائم تُضاعف عددَ الأسهم، وما بعدها أو لغيرها لا")
 fvm = (ROOT / "backend/app/services/fair_value_models.py").read_text()
-check("factor_after(sym, _last)" in fvm and "1 / 1.5 <= shares / _sh0 <= 1.5" in fvm and "_fa(sym, str(h.get(\"date\"))[:10])" in fvm,
+check("factor_after(sym, _last)" in fvm and "if _f > 1 and shares and _sh0 and shares == _sh0:" in fvm and "_fa(sym, str(h.get(\"date\"))[:10])" in fvm,
       "٢٠ المحرّكُ يطبّقها على عدد الأسهم (ما لم يصحّحه حَكَمُ السوق) وعلى التوزيعات قبلها")
 cache.set("fvm:v37:7202", {"value": 307}, 6 * 3600)
 cache.set("fvm:v37:72020", {"value": 9}, 6 * 3600)

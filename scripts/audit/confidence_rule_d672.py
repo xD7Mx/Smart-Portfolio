@@ -10,7 +10,7 @@
 
     python3 scripts/audit/confidence_rule_d672.py
 """
-import os, pathlib, sys, tempfile
+import re, os, pathlib, sys, tempfile
 from types import SimpleNamespace
 _SB = tempfile.mkdtemp(prefix="sp-audit-")
 os.environ["LASTGOOD_PATH"] = os.path.join(_SB, "lastgood.json")
@@ -78,7 +78,8 @@ check(len(k2b) == 5, "٨ب ولا ما يُبقي ثلاثةً وحدها — ي
 k3 = run("commodity", ["epv", "peer_ev_ebit", "peer_pe", "peer_pb"])
 check(len(k3) == 4, "٩ والنمطُ الذي لم يجتز التحقّقَ (السلع) لا يُحذف منه شيء", str(k3))
 src = (ROOT / "backend/app/services/fair_value_models.py").read_text(encoding="utf-8")
-check('f"fvm:v41:{sym}"' in src and '"set_size": len(allowed)' in src,
+_kv = re.search(r'f"fvm:v(\d+):\{sym\}"', src)                      # ‏D674: v42 — والمفتاحُ يتقدّم ولا يرجع
+check(bool(_kv) and int(_kv.group(1)) >= 41 and '"set_size": len(allowed)' in src,
       "١٠ ومفتاحُ كاش النماذج تغيّر، وحجمُ مجموعة القطاع يُحمَل مع النماذج")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)
