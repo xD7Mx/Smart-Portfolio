@@ -48,8 +48,11 @@ check(bank and not bank & F._DCF and "epv" not in bank, "٢ المصرفُ بع�
 soft, _ = run("Software & Services", "asset_light")
 check(soft and soft <= F._IP14 and soft & F._DCF, "٣ البرمجياتُ (علم 7203) بمجموعة InvestingPro ذات الأربعة عشر", str(sorted(soft)))
 cons, cn = run("Consumer Staples Distribution & Retail", "consumer_defensive")
-check(len(cons) > len(reit) and cons & F._DCF and "peer_pb" in cons, "٤ والتجزئةُ الاستهلاكيةُ بالنموذج الكامل", f"{len(cons)} · {cn}")
-check(len({frozenset(reit), frozenset(bank), frozenset(soft), frozenset(cons)}) == 4, "٥ أربعةُ قطاعاتٍ بأربع مجموعاتِ نماذج مختلفة")
+# ‏D700: غيرُ الماليّة بالنماذج التي أثبتت نفسها بالنتائج (اختبارُ ما كان معلوماً منذ 2023) — لا بمجموعةٍ منسوخة لكلّ قطاع
+check(cons and cons <= F.PROVEN and cons & F._DCF and "peer_pb" not in cons,
+      "٤ (D700) والتجزئةُ الاستهلاكيةُ بالنماذج المثبتة: التدفّقُ داخلٌ والدفتريةُ (لم تثبت) خارجة", f"{sorted(cons)} · {cn}")
+check(len({frozenset(reit), frozenset(bank), frozenset(cons)}) == 3 and soft <= F.PROVEN,
+      "٥ (D700) الريتُ والمصرفُ وغيرُ الماليّة بثلاث مجموعاتٍ مختلفة — وغيرُ الماليّة كلُّها بالمثبتة")
 n, st = F.model_set("Brand New Industry Group", None)
 check("لم يُصنَّف" in n and st == F._ALL, "٦ قطاعٌ جديدٌ لم يُعرَف يُقيَّم بالكامل ويُسمّى — لا تُظلَم ورقةٌ لغياب اسمها", n)
 check(F.model_set("Consumer Discretionary Distribution & Re", None)[1] == F._IP13,
@@ -86,9 +89,12 @@ def _run2(**kw):
 _old = _run2(stale=600)
 check(_old.get("value") is None and "خمسة عشر" in (_old.get("reason") or ""), "١٤ D474 قوائمُ أقدمُ من خمسة عشر شهراً لا تُنتج قيمة", _old.get("reason"))
 check(_run2(stale=300).get("uncertainty") == "مرتفع", "١٥ D474 وأقدمُ من تسعة أشهرٍ ترفع عدمَ اليقين")
-_few = _run2(arch="insurance", sector="Insurance", dps=None)
+_few = _run2(arch="bank", sector="Banks", dps=None)
 check(_few.get("count", 0) >= 3 and not ({m["key"] for m in _few["models"]} & F.FIN_BAN),
       "١٦ D474 لا قيمةَ من نموذجٍ أو اثنين — تُستكمل ثلاثةً ضمن حدود النظرية", f"{_few.get('count')} · {[m['key'] for m in _few.get('models', [])]}")
+_ins = _run2(arch="insurance", sector="Insurance", dps=None)
+check(_ins.get("value") is None and "لم يثبت" in str(_ins.get("reason")),
+      "١٦ب (D700) والتأمينُ لا يُنشر له رقمٌ للقرار — الأرخصُ عنده تخلّف في اختبار ما كان معلوماً منذ 2023", str(_ins.get("reason"))[:70])
 F.BLEND_ALPHA["_zero_share"] = 0.0
 _bz = F.blend({"value": 8.0, "low": 6.0, "high": 10.0, "price": 5.0, "families": [{"family": "multiples", "weight": 1.0, "value": 8}],
                "rates": {"ke": 0.10}}, {"value": 4.0, "low": 3.0, "high": 5.0}, "_zero_share", 0.0)

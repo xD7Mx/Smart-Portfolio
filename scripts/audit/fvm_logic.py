@@ -52,7 +52,8 @@ check(any("طُبِّع" in n for n in r["notes"]), "٣ الربعُ الاست�
 fams = {f["family"] for f in r["families"]}
 # ‏D487: مجموعةُ InvestingPro للتجزئة الاستهلاكية (العثيم 4001: 15 نموذجاً، المتوفّرُ عندنا 12)
 # ‏D672: والمحذوفُ بالنمط بالقياس يُعدّ هنا معروضاً بسببه — المجموعةُ تُحسب كلُّها ثمّ يُسقط المنحازُ ويُسمّى
-_pr = [e for e in r.get("excluded") or [] if "منحازٌ في هذا النمط" in str(e.get("excluded"))]
+_pr = [e for e in r.get("excluded") or [] if "منحازٌ في هذا النمط" in str(e.get("excluded"))
+       or "لم يُثبت قدرتَه" in str(e.get("excluded"))]            # ‏D700: وما لم يثبت بالنتائج معروضٌ بسببه كذلك
 check({"cashflow", "multiples"} <= fams and r["count"] + len(_pr) >= 9 and r["count"] >= 3,
       "٤ عائلتا التدفّق والمضاعفات وتسعةُ نماذج فأكثر من مجموعة InvestingPro (والمحذوفُ بالنمط معروضٌ بسببه)",
       f"{sorted(fams)} · {r['count']} + محذوفٌ مسمّى {len(_pr)}")

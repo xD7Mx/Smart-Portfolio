@@ -21,13 +21,33 @@
 import asyncio
 import base64
 import gzip
+import hashlib
 import json
 import math
+import os
 import statistics as st
 import sys
 from datetime import date, timedelta
 
-sys.path.insert(0, "/app")
+# ‏D700: يقيس أيَّ شيفرة — `SP_CODE_ROOT` جذرُ الأساس المجمَّد (مهمّةُ candidate_ab) أو الإنتاجُ (‏/app) — على البيانات نفسِها
+_ROOT = os.environ.get("SP_CODE_ROOT") or "/app"
+sys.path.insert(0, _ROOT)
+import app as _app   # noqa: E402,F401
+sys.path.insert(1, "/app/scripts/audit")
+
+
+def _fp(root: str) -> str | None:
+    try:
+        from engine_freeze_d635 import FILES, ROOT as FR
+    except Exception:                                              # noqa: BLE001
+        return None
+    h = hashlib.sha1()
+    for f in FILES:
+        rel = f.relative_to(FR).as_posix()
+        h.update(rel.encode())
+        q = os.path.join(root, rel[len("backend/"):]) if rel.startswith("backend/") else os.path.join(root, rel)
+        h.update(open(q, "rb").read() if os.path.exists(q) else b"<missing>")
+    return h.hexdigest()[:12]
 
 H = (6, 12)
 FIRST = "2023-03"
@@ -213,6 +233,7 @@ async def main():
                 print(f"   {t} {s} تعذّر: {type(e).__name__}: {str(e)[:80]}")
                 continue
             p0 = rows_t[s]["price"]
+            res.setdefault("archetype", i.archetype)
             conf = confidence_of(res)
             if uni[s]["sector"] in V1_UNCALIBRATED:
                 conf = "منخفضة"
@@ -224,7 +245,9 @@ async def main():
                  # كلُّ نموذجٍ بنسبته إلى السعر — الداخلُ والمستبعَد — ليُعرف أيُّها يتنبّأ فعلاً
                  "m": {m["key"]: round(m["value"] / p0, 4) for m in (res.get("models") or []) + (res.get("excluded") or [])
                        if isinstance(m.get("value"), (int, float)) and m["value"] > 0},
-                 "u": [m["key"] for m in res.get("models") or []]}
+                 "u": [m["key"] for m in res.get("models") or []], "wk": res.get("weights_kind")}
+            o["arch_key"] = i.archetype
+            o["b"] = _bucket(o)
             for h in H:
                 t2 = ym_add(t, h)
                 p2 = PX[s].get(t2)
@@ -239,10 +262,85 @@ async def main():
 
     XB.for_symbol, F._shares_of, C.get, C.set = real_X, real_shares, real_get, real_set
     report(obs, anchors)
+    print(f"@@ENGINE_FP@@ {_fp(_ROOT)}")
+    print("@@METRICS@@ " + json.dumps(outcome_metrics(obs, anchors), ensure_ascii=False))
+    print("@@TRACK@@ " + json.dumps(track_table(obs), ensure_ascii=False))
     blob = base64.b64encode(gzip.compress(json.dumps(obs, ensure_ascii=False, separators=(",", ":")).encode())).decode()
     parts = [blob[i:i + 60000] for i in range(0, len(blob), 60000)]
     for j, b in enumerate(parts):
         print(f"@@OBS@@ {j + 1}/{len(parts)} {b}")
+
+
+def _rel(obs, h):
+    """التفوّقُ على الشركة الوسيطة في التاريخ نفسِه — لا على تاسي وحده (السوقُ بأوزانه يختلف عن الشركة النموذجية)."""
+    k, by = f"x{h}", {}
+    for o in obs:
+        if k in o:
+            by.setdefault(o["t"], []).append(o[k])
+    med = {t: st.median(v) for t, v in by.items()}
+    for o in obs:
+        if k in o:
+            o[f"q{h}"] = o[k] - med[o["t"]]
+
+
+def _bucket(o):
+    """فئةُ القراءة كما تقرؤها الثقةُ في التطبيق (`fair_value_models.track_bucket`)."""
+    try:
+        from app.services.fair_value_models import track_bucket
+    except Exception:                                              # noqa: BLE001
+        return None
+    return track_bucket({"model_value": o.get("mv"), "price": o["p0"], "count": o.get("n"), "weights_kind": o.get("wk"),
+                         "archetype": o.get("arch_key")})
+
+
+def track_table(obs):
+    """‏D700: لكلّ فئة قراءةٍ نسبةُ إصابتها بعد اثني عشر شهراً — الرخيصُ تفوّق والغالي تخلّف والعادلُ لم يبتعد 15٪."""
+    _rel(obs, 12)
+    out = {}
+    for o in obs:
+        b = o.get("b")
+        if not b or "q12" not in o or not o["sh"]:
+            continue
+        side = b.rsplit("_", 1)[-1]
+        hit = (o["q12"] > 0) if side in ("cheap", "deep") else (o["q12"] < 0) if side == "dear" else (abs(o["q12"]) <= 0.15)
+        r = out.setdefault(b, {"n": 0, "hit": 0, "n1": 0, "hit1": 0})
+        r["n"] += 1
+        r["hit"] += hit
+        if o["t"] <= "2024-06":
+            r["n1"] += 1
+            r["hit1"] += hit
+    return {b: {"n": r["n"], "hit": round(r["hit"] / r["n"] * 100), "n1": r["n1"],
+                "hit1": round(r["hit1"] / r["n1"] * 100) if r["n1"] else None,
+                "hit2": round((r["hit"] - r["hit1"]) / (r["n"] - r["n1"]) * 100) if r["n"] > r["n1"] else None}
+            for b, r in sorted(out.items())}
+
+
+def outcome_metrics(obs, anchors):
+    """مقاييسُ النتيجة لحارس التجميد (‏D700): الأعلى أفضل إلا خطأَ الهدف."""
+    m = {}
+    for h in H:
+        k = f"x{h}"
+        ics = []
+        for t in anchors:
+            g = [o for o in obs if o["t"] == t and k in o and o["sh"]]
+            ic = spearman([o["fv"] / o["p0"] for o in g], [o[k] for o in g])
+            if ic is not None:
+                ics.append(ic)
+        m[f"o_ic{h}"] = round(st.fmean(ics), 4) if ics else None
+    _rel(obs, 12)
+    qs = {0: [], 4: []}
+    for t in anchors:
+        g = sorted([o for o in obs if o["t"] == t and "q12" in o and o["sh"]], key=lambda o: -(o["fv"] / o["p0"]))
+        for j, o in enumerate(g):
+            q = min(4, j * 5 // max(1, len(g)))
+            if q in qs:
+                qs[q].append(o["q12"])
+    m["o_spread12"] = round((st.fmean(qs[0]) - st.fmean(qs[4])) * 100, 2) if qs[0] and qs[4] else None
+    ch = [o for o in obs if o["sh"] and "q12" in o and o["fv"] / o["p0"] >= 1.05]
+    m["o_cheap_hit12"] = round(sum(o["q12"] > 0 for o in ch) / len(ch), 4) if ch else None
+    tg = [o for o in obs if o["sh"] and o.get("p12") and o.get("tg")]
+    m["o_target_err"] = round(st.median([abs(o["p12"] / o["tg"] - 1) for o in tg]), 4) if tg else None
+    return m
 
 
 def report(obs, anchors):

@@ -717,6 +717,86 @@ ARCH_DROP = {
 }
 
 
+# ══ ‏D700 · النماذجُ التي أثبتت نفسها بالنتائج لا بموافقة المحلّلين (بأمر المالك 2026-10-13) ══════════════════════
+# «أريد نماذجَ لها القدرةُ للحكم على شركةٍ ثمّ يتبيّن أنّ توقّعاتها كانت ناجحة». فقِيس المحرّكُ بما حدث فعلاً
+# (`scripts/audit/fv_backtest_d699.py` · run 38454399479): لكلّ نهاية ربعٍ منذ 2023 أُعيد حسابُه بما كان منشوراً يومها
+# وحده، وقِيس تفوّقُ السهم على تاسي بعد 6 و12 شهراً (2,854 مشاهدة · 252 شركة · 13 تاريخاً).
+#   · الرقمُ كما كان لا يميّز الرابحَ من الخاسر: ارتباطُ رتبته بالنتيجة +0.04 (غيرُ دالّ)، وخُمسُه الأرخصُ كالأغلى.
+#   · وفي داخله نماذجُ تتنبّأ فعلاً وأخرى عكسها. اختيرت بالنصف الأوّل (2023-03 … 2024-06) واختُبرت على الثاني:
+#       قيمةُ قوّة الأرباح +0.08 ← +0.17 · التدفّقُ بمضاعف الخروج (5 و10 سنوات) +0.10 ← +0.14 ·
+#       مضاعفاتُ قيمة المنشأة للأقران (المبيعات · EBIT · EBITDA) +0.04…+0.13 ← +0.10…+0.16 · ومكرّرُ الأقران.
+#     وما لم يتنبّأ: مضاعفُ الدفترية (−0.05) والمبيعاتُ بلا دَين والتوزيعاتُ وجوردن — وهي التي كانت تُبقيها
+#     معايرةُ المحلّلين، بينما حُذفت نماذجُ المنشأة لأنها «منحازةٌ تحت أهدافهم» (D672). فالمعيارُ كان هو الجرح.
+#   · ومجموعُها (وسطٌ هندسيّ) ارتباطُه +0.12…+0.15 (‏t≈5–6) وخُمسُه الأرخص تفوّق على الأغلى ~7 نقاطٍ في السنة.
+PROVEN = frozenset({"epv", "dcf_exit_5", "dcf_exit_10", "peer_ev_sales", "peer_ev_ebit", "peer_ev_ebitda", "peer_pe"})
+# التأمينُ والخدماتُ المالية: لم يثبت لهما نموذجٌ — بل الأرخصُ عند المحرّك في التأمين تخلّف (ارتباط −0.13 · t −2.0 ·
+# 259 مشاهدة). فرقمُهما يُضلّ صاحبَ القرار: يُحجب بسببه («لا اختلاق») حتى يثبت نموذجٌ لهما.
+UNPROVEN_ARCH = {
+    "insurance": "لم يثبت تقييمُ شركات التأمين بالنتائج: في اختبار ما كان معلوماً منذ 2023 تخلّف ما قال المحرّكُ إنه "
+                 "رخيص — فلا يُنشر رقمٌ عادلٌ للقرار",
+    "financial": "لم يثبت تقييمُ الخدمات المالية بالنتائج في اختبار ما كان معلوماً منذ 2023 — فلا يُنشر رقمٌ عادلٌ للقرار",
+}
+# الهدفُ لاثني عشر شهراً معايَرٌ بالنتائج: السعرُ × (تقديرِ النماذج ÷ السعر)^0.15. كان الهدفُ (القيمةُ × (1 + كلفةِ
+# الحقوق − التوزيع)) أبعدَ عن السعر الذي تحقّق من افتراض «لا تغيُّر»: خطؤه الوسيط 26.8٪ مقابل 20.7٪. والمعايَرُ 19.3٪.
+TARGET_K = 0.15
+
+
+def _gmean(xs: list[float]) -> float:
+    import math
+    return math.exp(statistics.fmean([math.log(x) for x in xs]))
+
+
+def proven_aggregate(models: list[dict], price: float) -> dict:
+    """‏D700: الوسطُ الهندسيّ للنماذج المثبتة — لا يجرّه نموذجٌ شاذٌّ إلى الأعلى كالمتوسّط (قِيس: +0.090 مقابل +0.072
+    للوسيط في ارتباط الرتبة)، والمدى من أدنى نموذجٍ إلى أعلاه."""
+    vals = [m["value"] for m in models]
+    value = _gmean(vals)
+    fams: dict[str, list[float]] = {}
+    for m in models:
+        fams.setdefault(m["family"], []).append(m["value"])
+    summary = [{"family": f, "name": FAMILY_NAMES.get(f, f), "value": round(_gmean(v), 2),
+                "low": round(min(v), 2), "high": round(max(v), 2),
+                "weight": round(len(v) / len(vals), 3), "models": len(v)} for f, v in fams.items()]
+    disp = statistics.median([abs(v / value - 1) for v in vals]) if value else None
+    uncertainty = ("منخفض" if disp is not None and disp < 0.15 else
+                   "معتدل" if disp is not None and disp < 0.30 else "مرتفع")
+    return {"value": round(value, 2), "low": round(min(vals), 2), "high": round(max(vals), 2),
+            "upside": round((value / price - 1) * 100, 2) if price else None,
+            "uncertainty": uncertainty, "dispersion": round(disp, 3) if disp is not None else None,
+            "families": summary, "excluded": [], "weights_kind": "proven_gmean"}
+
+
+# ‏D700 · الثقةُ نسبةُ إصابةٍ مقيسة لا قاعدةٌ داخلية: لكلّ فئة قراءةٍ ما أصابته في اختبار ما كان معلوماً منذ 2023 بعد اثني عشر
+# شهراً — الرخيصُ (تقديرُ النماذج ≥ 1.1 من السعر) تفوّق على الشركة الوسيطة، والغالي (< 0.9) تخلّف، والعادلُ لم يبتعد عنها
+# 15٪. ‏n المشاهدات و«hit1/hit2» نصفا الفترة (2023-03…2024-06 · 2024-09…). يُملأ من مخرَج `fv_backtest_d699.py` (‏@@TRACK@@).
+FV_TRACK: dict[str, dict] = {}
+
+
+def track_bucket(res: dict | None) -> str | None:
+    """فئةُ القراءة: النماذجُ المثبتةُ كاملةً (خمسةٌ فأكثر) أو قليلة، والمصارف — ثمّ الجهة: رخيصٌ · عميقُ الخصم (> 1.5) ·
+    عادل · غالٍ. ‎None لما لم يُقس (الريت · مسارُ الحقوق وحدها)."""
+    r = res or {}
+    mv, p = _n(r.get("model_value")), _n(r.get("price"))
+    if not (mv and p and mv > 0 and p > 0):
+        return None
+    c = mv / p
+    side = "cheap" if c >= 1.1 else "dear" if c < 0.9 else "fair"
+    if r.get("weights_kind") == "proven_gmean":
+        if side == "cheap" and c > 1.5:
+            side = "deep"
+        return ("full_" if (r.get("count") or 0) >= 5 else "thin_") + side
+    if r.get("archetype") == "bank":
+        return "bank_" + side
+    return None
+
+
+def track_of(res: dict | None) -> dict | None:
+    """سجلُّ فئة القراءة المقيس ← {‏bucket · hit · n · hit1 · hit2} أو ‎None إن لم تُقس."""
+    b = track_bucket(res)
+    t = FV_TRACK.get(b) if b else None
+    return {"bucket": b, **t} if t else None
+
+
 def _tuning(symbol: str) -> dict:
     try:
         from app.data.market_universe import MARKET_UNIVERSE
@@ -731,6 +811,8 @@ def value(i: Inputs) -> dict:
     if i.stale_days is not None and i.stale_days > STALE_STOP:
         return {"value": None, "reason": f"أحدثُ قوائم منشورة لدينا ({i.ttm_source}) أقدمُ من خمسة عشر شهراً — "
                                          "لا تُقيَّم ورقةٌ اليوم بقوائمَ قديمة", "price": i.price}
+    if i.archetype in UNPROVEN_ARCH:                                   # ‏D700
+        return {"value": None, "reason": UNPROVEN_ARCH[i.archetype], "price": i.price, "unproven": True}
     bs = base_of(i)
     if not bs:
         eo = _equity_only(i)
@@ -750,37 +832,53 @@ def value(i: Inputs) -> dict:
     # ══ نموذجٌ بعشرة أضعاف السعر أو عُشره خطأُ مدخلاتٍ لا رأيٌ ══
     # (قِيس: 1321 خرج بخمسة ملياراتٍ للسهم — عددُ أسهمٍ بوحدةٍ مغلوطة)
     sane = lambda m: i.price / 10 <= m["value"] <= i.price * 10    # noqa: E731
-    models = [m for m in every if m["key"] in allowed]
-    bad = [m for m in models if not sane(m)]
-    models = [m for m in models if m not in bad]
     extra_notes = []
-    # ══ لا قيمةَ من نموذجٍ أو اثنين (D474) ══ (قِيس: 2070 بنموذجٍ واحد، و8313 بلا نموذج)
-    # إن لم تُنتج مجموعةُ القطاع ثلاثةَ نماذجَ صالحة تُستكمل من النموذج الكامل
-    # ضمن حدود النظرية، ويُعلَن ذلك.
-    if len(models) < MIN_MODELS:
-        pool = _ALL - (FIN_BAN if i.archetype in FIN_TYPES else set())
-        more = [m for m in every if m["key"] in pool and m["key"] not in allowed and sane(m)]
-        if more:
-            models = models + more
-            extra_notes.append(f"مجموعةُ القطاع أنتجت {len(models) - len(more)} نموذجاً صالحاً فقط — "
-                               f"استُكملت بـ{len(more)} من النموذج الكامل")
-    _tune = _tuning(i.symbol)                                      # ‏D646
-    if _tune:
-        _drop = lambda m: (m.get("family") == _tune.get("drop_family")) or (m.get("key") == _tune.get("drop_key"))   # noqa: E731
-        models = [m for m in models if not _drop(m)] or models
-    # ‏D672 (المرشَّح 2.3 · القاعدةُ مسجَّلةٌ قبل القياس): نماذجُ منحازةٌ بالنمط تُحذف — اختيرت بتحقّقٍ متقاطعٍ بإسقاط ورقة
-    # من قائمةٍ مغلقة، واعتُمدت حيث صغُر خطأُ الأوراق التي لم يُختر بها بنقطةٍ كاملةٍ فأكثر (conf_prune_door.py):
-    # السلعُ الرأسمالية والبنية 16.0٪ ← 10.3٪ · الاستهلاكُ الدفاعيّ 14.9٪ ← 11.7٪ · التطويرُ العقاريّ 27.6٪ ← 20.1٪.
-    # ولا يُحذف ما يُنزل النماذجَ تحت ثلاثة.
-    _ad = ARCH_DROP.get(i.archetype or "")
+    _tune: dict = {}
     _pruned: list[dict] = []
-    if _ad:
-        _kept = [m for m in models if m.get("key") not in _ad]
-        # تعديلٌ بعد البوابة: يبقى أربعةٌ فأكثر — قِيس أنّ لومي وذيب بقيت لهما ثلاثةُ مضاعفاتٍ تاريخيةٍ وحدها بعد الحذف
-        if len(_kept) >= MIN_MODELS + 1:
-            _pruned = [m for m in models if m.get("key") in _ad]
-            models = _kept
-    agg = aggregate(models, i.price, i.archetype)
+    _pruned_why = "منحازٌ في هذا النمط بالقياس (تحقّقٌ متقاطع على أهداف المحلّلين) — لا يدخل الرقم"
+    if i.archetype not in FIN_TYPES and i.archetype != "reit":
+        # ‏D700: النماذجُ المثبتةُ بالنتائج وحدها — لكلّ قطاع، فالقياسُ عليها جميعاً لا على مجموعةٍ منسوخةٍ من أداةٍ أخرى
+        models = [m for m in every if m["key"] in PROVEN]
+        bad = [m for m in models if not sane(m)]
+        models = [m for m in models if m not in bad]
+        _pruned = [m for m in every if m["key"] not in PROVEN and sane(m)]
+        _pruned_why = "لم يُثبت قدرتَه على التنبّؤ في اختبار ما كان معلوماً منذ 2023 — للاطّلاع، لا يدخل الرقم"
+        if len(models) < MIN_MODELS:
+            return {"value": None, "price": i.price,
+                    "reason": f"لا تكفي النماذجُ التي أثبتت نفسها بالنتائج: {len(models)} من {len(PROVEN)} — "
+                              "لا رقمَ من نموذجٍ أو اثنين"}
+        set_name, allowed = f"النماذجُ التي أثبتت نفسها بالنتائج منذ 2023: {len(PROVEN)}", PROVEN
+        agg = proven_aggregate(models, i.price)
+    else:
+        models = [m for m in every if m["key"] in allowed]
+        bad = [m for m in models if not sane(m)]
+        models = [m for m in models if m not in bad]
+        # ══ لا قيمةَ من نموذجٍ أو اثنين (D474) ══ (قِيس: 2070 بنموذجٍ واحد، و8313 بلا نموذج)
+        # إن لم تُنتج مجموعةُ القطاع ثلاثةَ نماذجَ صالحة تُستكمل من النموذج الكامل
+        # ضمن حدود النظرية، ويُعلَن ذلك.
+        if len(models) < MIN_MODELS:
+            pool = _ALL - (FIN_BAN if i.archetype in FIN_TYPES else set())
+            more = [m for m in every if m["key"] in pool and m["key"] not in allowed and sane(m)]
+            if more:
+                models = models + more
+                extra_notes.append(f"مجموعةُ القطاع أنتجت {len(models) - len(more)} نموذجاً صالحاً فقط — "
+                                   f"استُكملت بـ{len(more)} من النموذج الكامل")
+        _tune = _tuning(i.symbol)                                      # ‏D646
+        if _tune:
+            _drop = lambda m: (m.get("family") == _tune.get("drop_family")) or (m.get("key") == _tune.get("drop_key"))   # noqa: E731
+            models = [m for m in models if not _drop(m)] or models
+        # ‏D672 (المرشَّح 2.3 · القاعدةُ مسجَّلةٌ قبل القياس): نماذجُ منحازةٌ بالنمط تُحذف — اختيرت بتحقّقٍ متقاطعٍ بإسقاط ورقة
+        # من قائمةٍ مغلقة، واعتُمدت حيث صغُر خطأُ الأوراق التي لم يُختر بها بنقطةٍ كاملةٍ فأكثر (conf_prune_door.py):
+        # السلعُ الرأسمالية والبنية 16.0٪ ← 10.3٪ · الاستهلاكُ الدفاعيّ 14.9٪ ← 11.7٪ · التطويرُ العقاريّ 27.6٪ ← 20.1٪.
+        # ولا يُحذف ما يُنزل النماذجَ تحت ثلاثة.
+        _ad = ARCH_DROP.get(i.archetype or "")
+        if _ad:
+            _kept = [m for m in models if m.get("key") not in _ad]
+            # تعديلٌ بعد البوابة: يبقى أربعةٌ فأكثر — قِيس أنّ لومي وذيب بقيت لهما ثلاثةُ مضاعفاتٍ تاريخيةٍ وحدها بعد الحذف
+            if len(_kept) >= MIN_MODELS + 1:
+                _pruned = [m for m in models if m.get("key") in _ad]
+                models = _kept
+        agg = aggregate(models, i.price, i.archetype)
     if any(n.startswith(("إدراجٌ حديث", "سجلٌّ قصير")) for n in i.notes) or extra_notes:
         agg["uncertainty"] = "مرتفع"
     if i.stale_days is not None and i.stale_days > STALE_WARN:
@@ -797,15 +895,17 @@ def value(i: Inputs) -> dict:
         _b = lambda x: round(i.price * (x / i.price) ** _k, 2) if x and x > 0 else x      # noqa: E731
         agg["model_value"] = agg["value"]
         agg["value"], agg["low"], agg["high"] = _b(agg["value"]), _b(agg.get("low")), _b(agg.get("high"))
-        extra_notes.append(f"تقديرُ النماذج {agg['model_value']:.2f} مُزج بسعر السوق (وزنُ النماذج {_k:g}) — معايرةٌ بأهداف المحلّلين")
+        extra_notes.append(f"تقديرُ النماذج {agg['model_value']:.2f} مُزج بسعر السوق (وزنُ النماذج {_k:g}) — "
+                           + ("يكبح التطرّفَ ولا يغيّر ترتيبَ الشركات" if agg.get("weights_kind") == "proven_gmean"
+                              else "معايرةٌ بأهداف المحلّلين"))
     agg["excluded"] = agg.get("excluded", []) + [
         {**m, "excluded": "يبعد عن السعر عشرةَ أضعاف — خطأُ مدخلاتٍ أرجحُ من رأي"} for m in bad] + [
         # ‏D672: المحذوفُ بالنمط يُعرض بسببه — لا يختفي رأيٌ بلا أن يُقال لماذا
-        {**m, "excluded": "منحازٌ في هذا النمط بالقياس (تحقّقٌ متقاطع على أهداف المحلّلين) — لا يدخل الرقم"} for m in _pruned]
+        {**m, "excluded": _pruned_why} for m in _pruned]
     return {**agg, "price": i.price, "models": models, "count": len(models),
             "notes": bs.notes + i.notes + extra_notes, "peers": i.peer_symbols, "sector": i.sector, "model_set": set_name,
             "set_size": len(allowed),                                # ‏D672: حجمُ مجموعة القطاع — «ثلاثةٌ من ثلاثة» غيرُ «ثلاثةٍ من أربعة عشر»
-            "ttm_source": i.ttm_source,
+            "ttm_source": i.ttm_source, "archetype": i.archetype,
             "rates": {"ke": round(bs.ke, 4), "wacc": round(bs.wacc, 4), "tax": round(bs.tax, 3)}}
 
 
@@ -1260,8 +1360,13 @@ def blend(res: dict, calibrated: dict | None, archetype: str | None, dy: float |
         res["value"], res["low"], res["high"] = round(old_v, 2), _n(calibrated.get("low")), _n(calibrated.get("high"))
     if res.get("value") and res.get("price"):
         res["upside"] = round((res["value"] / res["price"] - 1) * 100, 2)
-        ke = (res.get("rates") or {}).get("ke") or RISK_FREE + EQUITY_PREMIUM
-        res["target_12m"] = round(res["value"] * (1 + ke - (dy or 0)), 2)
+        mv = _n(res.get("model_value"))
+        if mv and mv > 0:
+            # ‏D700: الهدفُ معايَرٌ بما تحقّق — السعرُ × (تقديرِ النماذج ÷ السعر)^0.15 (انظر TARGET_K)
+            res["target_12m"] = round(res["price"] * (mv / res["price"]) ** TARGET_K, 2)
+        else:
+            ke = (res.get("rates") or {}).get("ke") or RISK_FREE + EQUITY_PREMIUM
+            res["target_12m"] = round(res["value"] * (1 + ke - (dy or 0)), 2)
         res["target_12m_upside"] = round((res["target_12m"] / res["price"] - 1) * 100, 2)
     return res
 
@@ -1350,7 +1455,7 @@ async def _reit_nav_value(sym: str) -> dict | None:
 async def for_symbol(symbol: str) -> dict | None:
     from app.services import cache
     sym = str(symbol).replace(".SR", "").strip()
-    ck = f"fvm:v41:{sym}"   # v41: D672 الحذفُ المعتمد بالنمط وحجمُ المجموعة · D674 مؤجَّل
+    ck = f"fvm:v42:{sym}"   # v42: ‏D700 النماذجُ المثبتةُ بالنتائج والهدفُ المعايَرُ بما تحقّق
     hit = cache.get(ck)
     if hit is not None:
         return hit or None

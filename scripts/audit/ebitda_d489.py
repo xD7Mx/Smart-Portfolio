@@ -43,7 +43,9 @@ peers = {"pe": [15, 18, 20, 22, 25], "pb": [1.5, 2, 2.5, 3, 3.5], "ps": [1, 1.5,
 i = F.Inputs(symbol="X", price=5.0, shares=1e9, annual=A, ttm=dict(A[-1]),
              balance={"equity": 4e9, "total_debt": 1e9, "ending_cash": 1e8}, ttm_source="t",
              archetype=None, sector="Energy", dps_ttm=0.2, peers=peers)
-keys = {m["key"] for m in F.value(i)["models"]}
+_r3 = F.value(i)
+# ‏D700: النماذجُ تُحسب كلُّها، وما لم يثبت بالنتائج يُعرض خارج الرقم بسببه — فالعملُ يُقاس على الداخل والمعروض معاً
+keys = {m["key"] for m in (_r3.get("models") or []) + (_r3.get("excluded") or [])}
 check({"dcf_ebitda_5", "dcf_ebitda_10", "peer_ev_ebitda"} <= keys,
       "٣ «DCF بخروج EBITDA» لخمسٍ وعشر و«مكرّرات EBITDA» تعمل من بيانات تداول", str(sorted(keys)))
 check(len(F.MODEL_SETS["Energy"][1]) == 14 and len(F.MODEL_SETS["Consumer Staples"][1]) == 15
@@ -81,7 +83,8 @@ check("or (beta_for(_ar) if _ar else None)" in FV, "١٤ D498 بيتا القط�
 _A2 = [{"year": y, "as_of": f"{y}-12-31", "revenue": 2e10, "net_income": 1e9, "equity": 8e9, "eps": 1.0} for y in (2023, 2024, 2025)]
 _i2 = F.Inputs(symbol="X", price=20, shares=1e9, annual=_A2, ttm=dict(_A2[-1]), balance={"equity": 8e9}, ttm_source="t",
                sector="Energy", hist={"pe": [25, 27, 30]}, peers={})
-_v2 = {m["key"]: m["value"] for m in F.value(_i2)["models"]}
+# ‏D700: نموذجٌ واحدٌ لا يُنشر رقماً (يُمتنع بسببه) — فقاعدةُ D500 تُقاس على النموذج نفسِه لا على التجميع
+_v2 = {m["key"]: m["value"] for m in F.multiple_models(_i2, F.base_of(_i2))}
 check(abs(_v2.get("peer_pe", 0) - 27.0) < 0.01 and "await _hist_multiples(sym" in FV,
       "١٥ D500 المكرّرُ من مضاعف الشركة التاريخيّ أوّلاً (وسيط 27× × ربحية 1 = 27) — طريقةُ InvestingPro", str(_v2))
 _rd = MS[MS.find("async def refresh_derived"):]
@@ -108,7 +111,9 @@ _A4 = [{"year": y, "as_of": f"{y}-12-31", "revenue": 2e10, "net_income": 2.46e9,
         "operating_income": 3.1e9, "ocf": 4e9, "capex": 2e9} for y in (2023, 2024, 2025)]
 _i4 = F.Inputs(symbol="X", price=43.22, shares=1e9, annual=_A4, ttm=dict(_A4[-1]), balance={"equity": 20.82e9},
                ttm_source="t", sector="Food & Beverages", dps_ttm=1.15, peers={})
-_d = {m["key"]: m for m in F.value(_i4)["models"]}
+# ‏D700: الخصمُ لم يثبت بالنتائج فيُعرض خارج الرقم — وقاعدةُ D504 تُقاس على النموذج نفسِه
+_bs4 = F.base_of(_i4)
+_d = {m["key"]: m for m in F.cashflow_models(_i4, _bs4) + F.equity_models(_i4, _bs4) + F.multiple_models(_i4, _bs4)}
 _g = next((float(x[1].rstrip("%")) for x in (_d.get("ddm_stable") or {}).get("assumptions", []) if x[0] == "النموُّ المستدام"), 0)
 check(_g > 3.6 and (_d.get("ddm_stable") or {}).get("value", 0) > 30,
       "١٩ D504 خصمُ التوزيعات بطريقة InvestingPro: النموُّ العائدُ × الاحتجاز بلا سقف 3.5٪ (المراعي ~62 لا 20.7)", str({k: _d[k]["value"] for k in _d if k.startswith("ddm")}) + f" g={_g}")

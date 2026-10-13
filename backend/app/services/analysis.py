@@ -265,8 +265,30 @@ V1_UNCALIBRATED = frozenset({"إدارة وتطوير العقارات", "الس
 
 
 def confidence_of(fvm: dict) -> str:
-    """‏D625: ثقةُ القيمة العادلة من اتّفاق نماذجها وعددها وحداثة قوائمها وربحيّتها."""
+    """‏D625: ثقةُ القيمة العادلة من اتّفاق نماذجها وعددها وحداثة قوائمها وربحيّتها.
+
+    ‏D700 (بأمر المالك 2026-10-13: «أريد الأرقامَ بثقةٍ مرتفعة… نماذجُ يتبيّن أنّ توقّعاتها كانت ناجحة»): حيث قِيست فئةُ
+    القراءة بالنتائج (`fair_value_models.FV_TRACK`) فالثقةُ نسبةُ إصابتها لا اتّفاقُ النماذج — قِيس أنّ القاعدةَ الداخلية لا
+    تميّز: «مرتفعة» أصابت كـ«منخفضة» (ارتباط +0.06 مقابل −0.03). «مرتفعة» = أصابت ≥ 60٪ في الفترة كلّها و≥ 55٪ في كلّ
+    نصفٍ منها بأربعين مشاهدةً فأكثر · «متوسطة» = ≥ 55٪ · وما دونها «منخفضة». ويبقى ما يُخفّض ولا يرفع: الخسارةُ والبُعدُ
+    عن السعر فوق 60٪ «منخفضة»، والقوائمُ القديمةُ لا تبلغ «مرتفعة»."""
     import statistics as _st
+    try:
+        from app.services.fair_value_models import track_of as _track
+        _t = _track(fvm)
+    except Exception:                                              # noqa: BLE001
+        _t = None
+    if _t:
+        _notes = " ".join(str(n) for n in (fvm.get("notes") or []))
+        _v, _p = fvm.get("value"), fvm.get("price")
+        if "خاسر" in _notes or "خسارة" in _notes:
+            return "منخفضة"
+        if isinstance(_v, (int, float)) and isinstance(_p, (int, float)) and _p > 0 and abs(_v / _p - 1) > 0.60:
+            return "منخفضة"
+        halves = [h for h in (_t.get("hit1"), _t.get("hit2")) if h is not None]
+        if _t["hit"] >= 60 and _t["n"] >= 40 and halves and min(halves) >= 55 and "أقدمُ من تسعة أشهر" not in _notes:
+            return "مرتفعة"
+        return "متوسطة" if _t["hit"] >= 55 else "منخفضة"
     ms = [m.get("value") for m in (fvm or {}).get("models") or [] if isinstance(m.get("value"), (int, float)) and m["value"] > 0]
     if len(ms) < 3:
         return "منخفضة"

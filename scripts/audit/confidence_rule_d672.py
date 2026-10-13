@@ -67,16 +67,19 @@ def run(arch, keys):
                              archetype=arch, sector="s"))
     finally:
         F.base_of, F.cashflow_models, F.equity_models, F.multiple_models, F.model_set, F._tuning = saved
-    return [m["key"] for m in r.get("models") or []]
+    return [m["key"] for m in r.get("models") or []], [m["key"] for m in r.get("excluded") or []], r
 
-k1 = run("capital_infra", ["epv", "peer_ev_ebit", "peer_pe", "peer_pb", "peer_ps", "dcf_gordon_5"])
-check(k1 == ["peer_pe", "peer_pb", "peer_ps", "dcf_gordon_5"], "٧ السلعُ الرأسماليةُ تُقيَّم بلا EPV ولا نماذجِ قيمة المنشأة", str(k1))
-k2 = run("capital_infra", ["epv", "peer_ev_ebit", "peer_pe", "peer_pb"])
-check(len(k2) == 4, "٨ ولا يُحذف ما يُنزل النماذجَ تحت ثلاثة — يبقى الأصل", str(k2))
-k2b = run("capital_infra", ["epv", "peer_ev_ebit", "peer_pe", "peer_pb", "peer_ps"])
-check(len(k2b) == 5, "٨ب ولا ما يُبقي ثلاثةً وحدها — يبقى أربعةٌ فأكثر أو الأصل (تعديلٌ بعد البوابة)", str(k2b))
-k3 = run("commodity", ["epv", "peer_ev_ebit", "peer_pe", "peer_pb"])
-check(len(k3) == 4, "٩ والنمطُ الذي لم يجتز التحقّقَ (السلع) لا يُحذف منه شيء", str(k3))
+# ‏D700 (بأمر المالك 2026-10-13 · اختبارُ ما كان معلوماً منذ 2023): الحذفُ بالنمط على أهداف المحلّلين نسخه القياسُ بالنتائج —
+# EPV ونماذجُ قيمة المنشأة هي ما تنبّأ فعلاً (+0.10…+0.17 خارج العيّنة)، فغيرُ الماليّة تُقيَّم بالنماذج المثبتة وحدها.
+k1, x1, _ = run("capital_infra", ["epv", "peer_ev_ebit", "peer_pe", "peer_pb", "peer_ps", "dcf_gordon_5"])
+check(k1 == ["epv", "peer_ev_ebit", "peer_pe"] and set(x1) == {"peer_pb", "peer_ps", "dcf_gordon_5"},
+      "٧ (D700) السلعُ الرأسماليةُ بالنماذج المثبتة: EPV والمنشأةُ والمكرّرُ داخلة — والدفتريةُ والمبيعاتُ وجوردن معروضةٌ خارجه",
+      f"{k1} · {x1}")
+k2, x2, r2 = run("commodity", ["epv", "peer_pe", "peer_pb", "peer_ps"])
+check(not k2 and r2.get("value") is None and "أثبتت نفسها" in str(r2.get("reason")),
+      "٨ (D700) ولا رقمَ من نموذجين مثبتَين — يُمتنع بسببه لا يُستكمل بما لم يثبت", str(r2.get("reason")))
+k3, _, _ = run("bank", ["peer_pe", "peer_pb", "peer_ps"])
+check(len(k3) == 3, "٩ (D700) والمصارفُ بمجموعتها (ثبتت: +0.18) لا تُمسّ", str(k3))
 src = (ROOT / "backend/app/services/fair_value_models.py").read_text(encoding="utf-8")
 _kv = re.search(r'f"fvm:v(\d+):\{sym\}"', src)                      # ‏D674: v42 — والمفتاحُ يتقدّم ولا يرجع
 check(bool(_kv) and int(_kv.group(1)) >= 41 and '"set_size": len(allowed)' in src,
