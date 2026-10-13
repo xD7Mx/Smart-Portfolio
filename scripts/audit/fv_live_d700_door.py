@@ -28,7 +28,7 @@ def main():
     why = collections.Counter(str((st.get(s) or {}).get("fair_value_unavailable"))[:70] for s in syms if s not in have)
     for w, n in why.most_common(6):
         print(f"   {n:>3} × {w}")
-    for s in ("1120", "1180", "2010", "2222", "7010", "4190", "8010", "2280"):
+    for s in ("1120", "1180", "2010", "2222", "7010", "4190", "8010", "8210", "2280"):
         r = st.get(s) or {}
         print(f"@@S@@ {s} {(MU.get(s) or {}).get('name_ar')}: عادل {r.get('fair_value')} · ثقة {r.get('fair_value_conf')} · "
               f"{r.get('fair_value_track') or r.get('fair_value_unavailable') or '—'}")
