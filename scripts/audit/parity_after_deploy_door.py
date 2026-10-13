@@ -13,6 +13,11 @@ sys.path.insert(0, "/app")
 
 from app.services import cache, lastgood   # noqa: E402
 from app.services.analysis import _ENGINE_V, official_row   # noqa: E402
+try:
+    from app.services.analysis import official_stamp   # ‏D693
+except ImportError:
+    def official_stamp(row):
+        return (row or {}).get('score_asof') or 'live'
 from app.services.governance_rules import rules_version   # noqa: E402
 from app.services.content_engine import fund_store_load   # noqa: E402
 from app.services.market_screener import served_decision   # noqa: E402
@@ -22,7 +27,7 @@ deep = lastgood.load("governance:deep") or {}
 cut = lambda d, ks: {k: d.get(k) for k in ks} if isinstance(d, dict) else d   # noqa: E731
 for s in ("1321", "2270", "4190", "4013"):
     off = official_row(s) or {}
-    ck = f"analysis:{s}.SR:{rules_version()}:{_ENGINE_V}:official:{off.get('score_asof') or 'live'}"
+    ck = f"analysis:{s}.SR:{rules_version()}:{_ENGINE_V}:official:{official_stamp(off or None)}"
     a = cache.get(ck)
     st = store.get(s) or {}
     d = deep.get(s) or {}
