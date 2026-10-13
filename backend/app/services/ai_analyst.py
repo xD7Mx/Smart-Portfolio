@@ -335,10 +335,12 @@ async def company_analysis(db, ent: dict, ctx: dict) -> str:
     _fv = g("السعر العادل", "fair_value")
     _fv_up = g("الفجوة عن السعر العادل٪", "fair_value_upside_pct")
     _fv_cf = g("ثقة السعر العادل", "fair_value_conf")
+    _fv_tr = g("سجلّ إصابة السعر العادل", "fair_value_track")      # ‏D702: الثقةُ بشاهدها المقيس
     parts.append(_sec("التقييم:", [
         (f"• السعر العادل {_f(_fv)} ريال"
          + (f"، أي {_pm(_fv_up)} عن السعر" if _fv_up is not None else "")
-         + (f" · ثقة {_fv_cf}" if _fv_cf else "")) if _fv else None,
+         + (f" · ثقة {_fv_cf}" if _fv_cf else "")
+         + (f" — سجلُّه المقيس: {_fv_tr}" if _fv_tr else "")) if _fv else None,
         f"• مكرّر الربحية {_f(pe)}" + (f" · العائد على حقوق الملكية {_f(g('roe'))}%" if g("roe") else ""),
         f"• القيمة السوقية {_big(g('market_cap'))}" if g("market_cap") else None,
         (f"• متوسط هدف المحللين {_f(target)} ريال، أي {_pm(upside)} عن السعر الحالي."

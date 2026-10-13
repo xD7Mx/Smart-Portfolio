@@ -182,7 +182,7 @@ async def dossier(db, symbol: str, name: str = "") -> dict:
         fu, t = a.get("fundamentals") or {}, a.get("technical") or {}
         dec = a.get("decision") or {}
         f.update({"price": _f(a.get("price")), "decision": dec.get("label"), "decision_reason": dec.get("reason"),
-                  "fv": _f(a.get("fair_value")), "fv_conf": a.get("fair_value_conf"), "upside": _f(a.get("fair_value_upside_pct")),
+                  "fv": _f(a.get("fair_value")), "fv_conf": a.get("fair_value_conf"), "fv_track": a.get("fair_value_track"), "upside": _f(a.get("fair_value_upside_pct")),
                   "fin": (a.get("financial") or {}).get("score"), "fin_verdict": (a.get("financial") or {}).get("verdict"),
                   "rsi": _f(t.get("rsi")), "support": _f(t.get("support")), "resistance": _f(t.get("resistance")),
                   "trend": t.get("trend"), "sma200": _f(t.get("mean_basis")), "vs_sma200": _f(t.get("pct_from_avg")),

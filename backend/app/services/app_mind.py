@@ -66,7 +66,8 @@ def engines(analysis: dict, sym: str) -> list[str]:
         rng = (f" (النطاق {a['fair_value_low']:.2f}–{a['fair_value_high']:.2f})"
                if isinstance(a.get("fair_value_low"), (int, float)) and isinstance(a.get("fair_value_high"), (int, float)) else "")
         out.append(f"السعرُ العادل {fv:.2f}{rng}" + (f" · الفجوة {_pm(up)}" if up is not None else "")
-                   + (f" · ثقةٌ {a['fair_value_conf']}" if a.get("fair_value_conf") else ""))
+                   + (f" · ثقةٌ {a['fair_value_conf']}" if a.get("fair_value_conf") else "")
+                   + (f" — سجلُّه المقيس: {a['fair_value_track']}" if a.get("fair_value_track") else ""))   # ‏D702
     # ‏D554: الريت — صافي أصوله المنشور وتوزيعاتُه كما أعلنها الصندوق، وتنبيهُ التأخّر
     try:
         from app.services.reit_advisor import cached, summarize

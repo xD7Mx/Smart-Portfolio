@@ -21,7 +21,7 @@ from loguru import logger
 
 
 # ‏D679: ما يقرؤه المستشارُ عن كلّ مركز — المصدرُ الواحد للرأي والحوار
-POS_KEYS = ("name", "symbol", "sector", "price", "avg_cost", "fair_value", "fair_value_conf", "quality", "stability",
+POS_KEYS = ("name", "symbol", "sector", "price", "avg_cost", "fair_value", "fair_value_conf", "fair_value_track", "quality", "stability",
             "decision", "current_weight", "target_weight", "need", "weekly", "monthly", "daily_liquidity", "last_result",
             "upcoming", "disclosures", "material_events", "analysts", "red_lines", "warnings")
 # ونبضُ السوق من لقطة refresh_market_brief بمفاتيحها هي
@@ -325,6 +325,7 @@ async def pack(db, mode: str = "investor") -> dict:
                "quantity": q, "avg_cost": ac or None, "market_value": mv, "current_weight": it.get("current_weight"),
                "target_weight": tw, "need": round(need, 2), "decision": (a.get("decision") or {}).get("label"),
                "fair_value": a.get("fair_value"), "fair_value_conf": a.get("fair_value_conf"),
+               "fair_value_track": a.get("fair_value_track"),                     # ‏D702
                "quality": (a.get("financial") or {}).get("score"),
                "weekly": t.get("weekly"), "monthly": t.get("monthly"), "daily_liquidity": (t.get("daily_liquidity") or {}).get("state"),
                "last_result": ({"as_of": r.get("as_of"), "net_income_q": (r.get("quarter") or {}).get("net_income"),
@@ -487,7 +488,7 @@ async def opinion(db, force: bool = False, mode: str = "investor") -> dict:
 - اقرأ مفكرةَ كلّ شركةٍ (upcoming) وإفصاحاتِها (disclosures) وآخرَ نتائجها: حدثٌ قريبٌ أو إفصاحٌ جوهريٌّ يغيّر التوقيت يُذكر.
 - واقرأ لكلّ شركة: آراءَ بيوت الخبرة (analysts: وسيطُ أهدافها وآخرُ توصية)، وأحداثَها الجوهرية (material_events)، وخطوطَها
   الحمراء وتحذيراتِها (red_lines · warnings)، وثباتَ أرباحها (stability) — واذكر منها ما يغيّر الحكم. وثقةُ السعر العادل (fair_value_conf) تُقرأ:
-  «منخفضة» لا يُبنى عليها وحدها. ونبضُ السوق وانتباهُ الحوكمة سياقٌ للمحفظة كلّها.
+  «منخفضة» لا يُبنى عليها وحدها؛ وسجلُّها (fair_value_track) ما فعلته قراءاتٌ مثلُها فعلاً منذ 2023 — اذكره بنسبته حين تبني عليه. ونبضُ السوق وانتباهُ الحوكمة سياقٌ للمحفظة كلّها.
 - لا تذكر توجّهاتٍ أو رؤيةً أو قطاعاتٍ للمملكة إلا إن وردت في المعطيات.
 - الحلول (‏D686): لا تكتفِ بالتشخيص. اكتب ثلاثةَ حلولٍ إلى خمسة عملية مرقّمة نحو الهدف بأرقامها: استبدالُ مركزٍ ضعيفٍ مسمّى بمرشّحٍ مسمّى
   من «البدائل_في_السوق» بفرقه وجودته؛ وضخٌّ شهريٌّ محسوبٌ إن لزم؛ وما تقوله «تقارير_التوقعات» حين يمسّ مركزاً أو قطاعاً. والمرشّحُ من البدائل
@@ -661,6 +662,7 @@ async def ask(db, question: str, mode: str = "investor", history: list | None = 
                 t = await asyncio.wait_for(d7m.read(s), timeout=25) or {}
                 item.update({"name": a.get("name"), "price": a.get("price"), "decision": (a.get("decision") or {}).get("label"),
                              "fair_value": a.get("fair_value"), "fair_value_conf": a.get("fair_value_conf"),
+                             "fair_value_track": a.get("fair_value_track"),       # ‏D702
                              "quality": (a.get("financial") or {}).get("score"),
                              "weekly": t.get("weekly"), "monthly": t.get("monthly"),
                              "daily_liquidity": (t.get("daily_liquidity") or {}).get("state")})

@@ -190,6 +190,7 @@ def _market_context(question: str) -> dict:
                 "السعر العادل": r.get("fair_value"),
                 "الفجوة عن السعر العادل٪": r.get("fair_value_upside_pct"),
                 "ثقة السعر العادل": r.get("fair_value_conf"),
+                "سجلّ إصابة السعر العادل": r.get("fair_value_track"),      # ‏D702: ما فعلته قراءاتٌ مثلُها منذ 2023
                 "هدف المحللين": r.get("analyst_target"),
                 "القرار": r.get("decision"),
                 # يُعرَّب قبل أن يراه النموذج: تمريره رمزاً داخلياً

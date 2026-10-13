@@ -389,6 +389,7 @@ async def _enrich_fundamentals(rows: list[dict]) -> None:
         r["analyst_target_asof"] = stored.get("val_asof")
         r["fair_value"] = stored.get("fair_value")
         r["fair_value_conf"] = stored.get("fair_value_conf")
+        r["fair_value_track"] = stored.get("fair_value_track")        # ‏D702: والثقةُ بسجلّها المقيس للمحادثة والمستشار
         r["fair_value_asof"] = stored.get("fair_value_asof")
 
         # ══ ودرجةُ الجودة تحمل تاريخَ قوائمها ══ (D384)

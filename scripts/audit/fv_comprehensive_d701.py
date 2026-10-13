@@ -111,5 +111,10 @@ _tb = F.track_of(_small)
 check(_tb and _tb["n"] < 40 and "عيّنتُها صغيرة" in (F.track_note(_small) or "") and "٪" not in (F.track_note(_small) or "")
       and confidence_of(_small) == "منخفضة",
       "١٦ والعيّنةُ دون أربعين حالة تُقال بحجمها («عيّنتُها صغيرة») لا بنسبة، وثقتُها «منخفضة»", F.track_note(_small) or "")
+# ‏D702: والذكاءُ يقرأ سجلَّ الإصابة المقيس مع كلمة الثقة — فيستشهد بنسبةٍ لا بوصف
+_ai = {f: open(os.path.join(ROOT, "backend/app/services", f), encoding="utf-8").read()
+       for f in ("ai_analyst.py", "ai_chat.py", "app_mind.py", "advisor.py", "autopilot.py", "market_screener.py")}
+check(all("fair_value_track" in v for v in _ai.values()) and '"fair_value_track", "quality"' in _ai["autopilot.py"],
+      "١٧ (D702) المحلّلُ والمحادثةُ والعقلُ الواحد والمستشارُ والطيّارُ والفرزُ تحمل سجلَّ الإصابة المقيس مع الثقة")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)
