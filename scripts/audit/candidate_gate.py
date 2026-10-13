@@ -9,8 +9,30 @@
     docker exec sp_backend python /app/scripts/audit/candidate_gate.py
 
 ثمّ: `engine_report_save.py <مخرَج السعر العادل> <مخرَج المحرّكات ٢–٥>` لبصمة المرشَّح، ويحكم حارسُ التجميد."""
-import asyncio, runpy, sys
-sys.path.insert(0, "/app")
+import asyncio, hashlib, os, runpy, sys
+# ‏D696: شاهدُ الأساس في الجولة نفسِها — `SP_CODE_ROOT` جذرُ شيفرةٍ أخرى (الأساسُ المجمَّد من `git archive` · مهمّةُ
+# `candidate_ab` في ops.yml) يُحمَّل منه `app` أوّلاً، فتُحلّ كلُّ وحداته من مسار تلك الحزمة لا من `/app` (حزمةٌ نظاميّة:
+# مسارُها ثابتٌ وإن أُضيف `/app` إلى sys.path بعدها). والبياناتُ واحدة: المخازنُ نفسُها والساعةُ نفسُها.
+_ROOT = os.environ.get("SP_CODE_ROOT") or "/app"
+sys.path.insert(0, _ROOT)
+import app as _app   # noqa: E402,F401  — يُثبّت الحزمةَ من الجذر المختار
+sys.path.insert(1, "/app/scripts/audit")
+from engine_freeze_d635 import FILES as _FILES, ROOT as _FROOT   # noqa: E402
+
+
+def _fp(root: str) -> str:
+    """بصمةُ المحرّكات بخوارزمية حارس التجميد نفسِها — على الملفّات التي تُشغَّل فعلاً تحت `root` (‏/app = backend)."""
+    h = hashlib.sha1()
+    for f in _FILES:
+        rel = f.relative_to(_FROOT).as_posix()
+        h.update(rel.encode())
+        q = os.path.join(root, rel[len("backend/"):]) if rel.startswith("backend/") else os.path.join(root, rel)
+        h.update(open(q, "rb").read() if os.path.exists(q) else b"<missing>")
+    return h.hexdigest()[:12]
+
+
+_FP = _fp(_ROOT)
+assert os.path.dirname(os.path.dirname(_app.__file__)) == os.path.normpath(_ROOT), f"app من {_app.__file__} لا من {_ROOT}"
 # ‏D650: لا يمسّ الإنتاجَ شيءٌ من قياس المرشَّح. الكاشُ الطويل يُكتب إلى قرصٍ يشاركه الخادم ويمتصّ منه ما انتهاؤه أبعد
 # (D582) — فقيمةُ مرشَّحٍ تحت مفتاحٍ لم يتغيّر كانت تصل الإنتاجَ ساعات. فالكاشُ هنا في الذاكرة وحدها (عمرٌ دون عتبة
 # الحفظ)، ولقطاتُ «آخر سليم» لا تُكتب.
@@ -48,12 +70,16 @@ for s, v in done.items():
 _orig_load = lastgood.load
 content_engine.fund_store_load = lambda: store
 lastgood.load = lambda key, *a, **k: deep if key == "governance:deep" else _orig_load(key, *a, **k)
-print(f"@@CANDIDATE@@ حُسبت {len(done)} شركةً بشيفرة المرشَّح — بلا كتابةٍ في المخزن\n")
+print(f"@@CANDIDATE@@ حُسبت {len(done)} شركةً بشيفرة {_ROOT} (بصمة {_FP}) — بلا كتابةٍ في المخزن\n")
 print("════ بوابةُ السعر العادل ════")
+print(f"@@ENGINE_FP@@ {_FP} · {_ROOT}")
 runpy.run_path("/app/scripts/audit/engine_gate.py", run_name="__main__")
 print("\n════ بوابةُ المحرّكات ٢–٥ ════")
+print(f"@@ENGINE_FP@@ {_FP} · {_ROOT}")
 runpy.run_path("/app/scripts/audit/engines_gate_v1.py", run_name="__main__")
 print("\n════ بوابةُ رقم اليوم ════")                         # ‏D649: صفحاتُ المرشَّح مقابل فرزه
+print(f"@@ENGINE_FP@@ {_FP} · {_ROOT}")
 runpy.run_path("/app/scripts/audit/parity_gate.py", run_name="__main__")
 print("\n════ بوابةُ ثبات رقم اليوم (السعرُ +2٪ بعد المسحة) ════")
+print(f"@@ENGINE_FP@@ {_FP} · {_ROOT}")
 runpy.run_path("/app/scripts/audit/parity_shift_gate.py", run_name="__main__")

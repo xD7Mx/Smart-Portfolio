@@ -320,6 +320,8 @@ python3 scripts/audit/disclosure_retry_d659.py || _note "$LINENO"
 python3 scripts/audit/build_update_d657.py || _note "$LINENO"
 python3 scripts/audit/universe_listed_d645.py || _note "$LINENO"
 python3 scripts/audit/sector_tuning_d646.py || _note "$LINENO"
+# D696: الأساسُ والمرشَّحُ في الجولة نفسِها (‏candidate_ab)، وكلُّ قياسٍ يُنسب إلى الشيفرة التي قاسها
+python3 scripts/audit/candidate_ab_d696.py || _note "$LINENO"
 python3 scripts/audit/engine_freeze_selftest.py || _note "$LINENO"
 python3 scripts/audit/engine_freeze_d635.py || _note "$LINENO"
 python3 scripts/audit/baseline_chain_d648.py || _note "$LINENO"

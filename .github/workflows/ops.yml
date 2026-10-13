@@ -29,6 +29,7 @@ on:
           - sweep        # مسحةُ التقييم: درجةٌ وسعرٌ عادلٌ للـ273
           - complete     # الدورةُ كاملةً بالترتيب
           - probe        # كاشفٌ واحدٌ باسمه من scripts/audit — قراءةٌ فقط
+          - candidate_ab # ‏D696: الأساسُ (مرجعُه في probe_name) ثمّ المرشَّح في الجولة نفسِها — قراءةٌ فقط
           - web          # بناءُ الواجهة ونشرُها — داخلَ دوكر لا على المضيف
       probe_name:
         description: >-
@@ -95,6 +96,26 @@ jobs:
               docker compose up -d frontend
               docker restart sp_nginx >/dev/null
               echo "الواجهةُ بُنيت ونُشرت" ;;
+            candidate_ab)
+              # ══ ‏D696: الأساسُ والمرشَّحُ في الجولة نفسِها ══
+              # حارسُ التجميد يقارن المرشَّحَ بالأساس، والبياناتُ تتحرّك بين يومٍ ويوم بل بين حصادٍ وحصاد (‏D692 · D693:
+              # حصادُ قوائمَ عند النشر غيّر انحرافَ التأمين بلا سطرِ شيفرة). فيُقاس الأساسُ المجمَّد — شيفرتُه من
+              # `git archive` لمرجعه في `probe_name` — ثمّ المرشَّح، متتاليَين على المخازن نفسِها. لا يُكتب في أيّ مخزن،
+              # والشاهدُ يُشغَّل من `/tmp/control` داخل الحاوية ثمّ يُحذف.
+              case "$P" in
+                ""|*[!0-9a-f]*) echo "مرجعُ الأساس غيرُ مقبول: [$P] — بصمةُ إيداعٍ سداسيّةٌ عشرية"; exit 2 ;;
+              esac
+              rm -rf /tmp/sp-control && mkdir -p /tmp/sp-control
+              git archive "$P" backend/app | tar -x -C /tmp/sp-control
+              docker exec "$C" rm -rf /tmp/control
+              docker cp /tmp/sp-control/backend "$C":/tmp/control
+              docker exec "$C" sh -c 'for e in /app/*; do n=$(basename "$e"); [ "$n" = app ] || ln -sfn "$e" "/tmp/control/$n"; done'
+              echo "════════ الشاهد: الأساسُ $P ════════"
+              docker exec -e SP_CODE_ROOT=/tmp/control "$C" python /app/scripts/audit/candidate_gate.py
+              echo "════════ المرشَّح: الشجرةُ الحاليّة ════════"
+              docker exec "$C" python /app/scripts/audit/candidate_gate.py
+              docker exec "$C" rm -rf /tmp/control
+              rm -rf /tmp/sp-control ;;
             probe)
               # اسمٌ مجرّدٌ من `scripts/audit` وحدَها: لا مسارَ ولا معاملاتٍ
               # ولا صَدَفة. فما يُشغَّل ملفٌّ مراجَعٌ في المستودع لا أمرٌ

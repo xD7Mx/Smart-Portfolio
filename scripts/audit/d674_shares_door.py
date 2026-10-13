@@ -55,7 +55,17 @@ async def main():
         per = sorted(quarterly + annual, key=lambda p: str(p.get("as_of") or f"{p.get('year')}-12-31"))
         eq = [(str(p.get("as_of") or p.get("year"))[:10], _n(p.get("equity"))) for p in per if _n(p.get("equity"))]
         g = (eq[-1][1] / eq[-2][1] - 1) if len(eq) >= 2 and eq[-2][1] else None
+        # ‏شاهدُ الشركة نفسِها: ربحُ آخر إعلان نتائج ÷ ربحيةِ سهمه — هل يقول عددَ السوق (تغيّرٌ حقيقيّ) أم عددَ القوائم (تعريفُ ربح)؟
+        try:
+            from app.services.results_announcements import latest as _ra
+            _q = ((_ra(s) or {}).get("quarter") or {})
+            _ni, _eps = _n(_q.get("net_income")), _n(_q.get("eps"))
+            ann = abs(_ni / _eps) if _ni and _eps and abs(_eps) > 0.01 else None
+            ann_at = (_ra(s) or {}).get("as_of")
+        except Exception:                                          # noqa: BLE001
+            ann, ann_at = None, None
         print(f"{s} {meta.get('name_ar')} ({meta.get('sector')}) · القوائم {st / 1e6:,.1f}م · السوق {mkt / 1e6:,.1f}م · ×{r:.3f}"
+              f" · الإعلان {('%.1fم' % (ann / 1e6)) if ann else '—'} ({ann_at or '—'})"
               f" · آخرُ قوائم {eq[-1][0] if eq else '—'} · نموُّ الحقوق {('%+.1f%%' % (g * 100)) if g is not None else '—'}"
               f" ({eq[-2][0] if len(eq) >= 2 else '—'})")
         if ledger.get(s):
