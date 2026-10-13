@@ -50,6 +50,10 @@ def _fp(root: str) -> str | None:
     return h.hexdigest()[:12]
 
 H = (6, 12)
+# ‏D701: «محرّكٌ شاملٌ للسوق الرئيسي» — مع هذا المفتاح يُسجَّل لكلّ شركةٍ في كلّ تاريخٍ كلُّ ما يُعرف يومها (كلُّ نموذجٍ بنسبته إلى السعر
+# ولو امتنع المحرّك · المضاعفاتُ الخام · النموُّ والعائدُ على الحقوق · الزخمُ · التوزيع · الحجم) ومعه ما حدث — ليُبنى لكلّ نمطٍ
+# ما يثبت بالنتيجة. يضبطه `fv_universe_d701.py`.
+UNIVERSE = os.environ.get("SP_BT_UNIVERSE") == "1"
 FIRST = "2023-03"
 STEP = 3
 
@@ -206,7 +210,52 @@ async def main():
     while ym_add(ym, H[0]) <= last_full:
         anchors.append(ym)
         ym = ym_add(ym, STEP)
-    obs, fobs = [], []
+    obs, fobs, uobs = [], [], []
+
+    def _fwd(o, s, t, p0):
+        for h in H:
+            t2 = ym_add(t, h)
+            p2 = PX[s].get(t2)
+            if t2 <= last_full and p2 and t in tasi and t2 in tasi:
+                o[f"r{h}"] = round(p2 / p0 - 1, 5)
+                o[f"x{h}"] = round(p2 / p0 - tasi[t2] / tasi[t], 5)
+
+    def _urow(s, t, i, p0):
+        """صفُّ الشركة يومها: كلُّ ما يُعرف — للبحث عمّا يتنبّأ في كلّ نمط (‏D701)."""
+        n = F._n
+        m = PX[s]
+        o = {"s": s, "t": t, "a": uni[s]["arch"], "sec": uni[s]["sector"], "p0": round(p0, 4)}
+        c1, c12, c3 = m.get(ym_add(t, -1)), m.get(ym_add(t, -12)), m.get(ym_add(t, -3))
+        if c1 and c12:
+            o["mom"] = round(c1 / c12 - 1, 4)                         # ‏12−1: زخمُ سنةٍ بلا الشهر الأخير
+        if c3:
+            o["mom3"] = round(p0 / c3 - 1, 4)
+        if c1:
+            o["rev1"] = round(p0 / c1 - 1, 4)
+        mc = p0 * uni[s]["shares"]
+        o["size"] = round(math.log(mc), 3) if mc > 0 else None
+        if i:
+            ttm, bal = i.ttm or {}, i.balance or {}
+            ni, rev, eq = n(ttm.get("net_income")), n(ttm.get("revenue")), n(bal.get("equity"))
+            ebit, ocf = n(ttm.get("ebit")), n(ttm.get("operating_cash_flow"))
+            debt, cash = n(bal.get("total_debt")) or 0.0, n(bal.get("ending_cash")) or 0.0
+            ev = mc + debt - cash
+            o.update({"ey": round(ni / mc, 5) if ni is not None else None, "bp": round(eq / mc, 5) if eq else None,
+                      "sp": round(rev / mc, 5) if rev else None, "cp": round(ocf / mc, 5) if ocf is not None else None,
+                      "ebit_ev": round(ebit / ev, 5) if ebit is not None and ev > 0 else None,
+                      "dy": round(i.dps_ttm / p0, 5) if i.dps_ttm else 0.0, "lev": round(debt / mc, 4),
+                      "stale": i.stale_days, "sig": fin_signals(X_pit(s, "annual"))})
+            try:
+                bs = F.base_of(i)
+                every = (F.cashflow_models(i, bs) + F.equity_models(i, bs) + F.multiple_models(i, bs)) if bs else \
+                    ((F._equity_only(i) or {}).get("models") or [])
+                o["m"] = {x["key"]: round(x["value"] / p0, 4) for x in every
+                          if isinstance(x.get("value"), (int, float)) and x["value"] > 0}
+            except Exception as e:                                 # noqa: BLE001
+                o["m_err"] = type(e).__name__
+        _fwd(o, s, t, p0)
+        return o
+
     for t in anchors:
         ctx.update(cut=month_end(t), ym=t, peer={})
         rows_t = {}
@@ -231,12 +280,19 @@ async def main():
         for s in sorted(rows_t):
             try:
                 i = await F.gather(s)
+                if i:
+                    an, qu = X_pit(s, "annual"), X_pit(s, "quarterly")
+                    last = max((_end(x) for x in (qu[-1:] + an[-1:])), default=None)
+                    i.stale_days = (ctx["cut"] - date.fromisoformat(last)).days if last else None
+                if UNIVERSE:
+                    _uo = _urow(s, t, i, rows_t[s]["price"])
+                    uobs.append(_uo)
                 if not i:
                     continue
-                an, qu = X_pit(s, "annual"), X_pit(s, "quarterly")
-                last = max((_end(x) for x in (qu[-1:] + an[-1:])), default=None)
-                i.stale_days = (ctx["cut"] - date.fromisoformat(last)).days if last else None
                 res = F.value(i)
+                if UNIVERSE and res:
+                    _uo["fv"] = round(res["value"] / rows_t[s]["price"], 4) if res.get("value") else None
+                    _uo["why"] = None if res.get("value") else str(res.get("reason") or "")[:40]
                 if not res or not res.get("value"):
                     continue
                 dy = (i.dps_ttm / i.price) if (i.dps_ttm and i.price) else None
@@ -279,10 +335,11 @@ async def main():
     om.update(fs_report(fobs, anchors))
     print("@@METRICS@@ " + json.dumps(om, ensure_ascii=False))
     print("@@TRACK@@ " + json.dumps(track_table(obs), ensure_ascii=False))
-    blob = base64.b64encode(gzip.compress(json.dumps(obs, ensure_ascii=False, separators=(",", ":")).encode())).decode()
-    parts = [blob[i:i + 60000] for i in range(0, len(blob), 60000)]
-    for j, b in enumerate(parts):
-        print(f"@@OBS@@ {j + 1}/{len(parts)} {b}")
+    for tag, rows in (("OBS", obs),) + ((("UNI", uobs),) if UNIVERSE else ()):
+        blob = base64.b64encode(gzip.compress(json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode())).decode()
+        parts = [blob[i:i + 60000] for i in range(0, len(blob), 60000)]
+        for j, b in enumerate(parts):
+            print(f"@@{tag}@@ {j + 1}/{len(parts)} {b}")
 
 
 def fin_score(sym, annual):
