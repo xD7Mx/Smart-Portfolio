@@ -206,7 +206,7 @@ async def main():
     while ym_add(ym, H[0]) <= last_full:
         anchors.append(ym)
         ym = ym_add(ym, STEP)
-    obs = []
+    obs, fobs = [], []
     for t in anchors:
         ctx.update(cut=month_end(t), ym=t, peer={})
         rows_t = {}
@@ -216,6 +216,18 @@ async def main():
                 rows_t[s] = {"price": p, "market_cap": p * u["shares"], "sector_en": u["sector_en"]}
         TM.usable_rows = lambda _r=rows_t: (_r, False, None)
         n_val = 0
+        # ‏D700: الدرجةُ المالية بالدالّة نفسِها التي تعرضها البطاقة (`governed_finance_score`) على القوائم المنشورة يومها
+        for s in sorted(rows_t):
+            fs = fin_score(s, X_pit(s, "annual"))
+            if fs is None:
+                continue
+            fo = {"s": s, "t": t, "fs": fs, "sec": uni[s]["sector"]}
+            for h in H:
+                t2 = ym_add(t, h)
+                p2 = PX[s].get(t2)
+                if t2 <= last_full and p2 and t in tasi and t2 in tasi:
+                    fo[f"x{h}"] = round(p2 / rows_t[s]["price"] - tasi[t2] / tasi[t], 5)
+            fobs.append(fo)
         for s in sorted(rows_t):
             try:
                 i = await F.gather(s)
@@ -263,12 +275,66 @@ async def main():
     XB.for_symbol, F._shares_of, C.get, C.set = real_X, real_shares, real_get, real_set
     report(obs, anchors)
     print(f"@@ENGINE_FP@@ {_fp(_ROOT)}")
-    print("@@METRICS@@ " + json.dumps(outcome_metrics(obs, anchors), ensure_ascii=False))
+    om = outcome_metrics(obs, anchors)
+    om.update(fs_report(fobs, anchors))
+    print("@@METRICS@@ " + json.dumps(om, ensure_ascii=False))
     print("@@TRACK@@ " + json.dumps(track_table(obs), ensure_ascii=False))
     blob = base64.b64encode(gzip.compress(json.dumps(obs, ensure_ascii=False, separators=(",", ":")).encode())).decode()
     parts = [blob[i:i + 60000] for i in range(0, len(blob), 60000)]
     for j, b in enumerate(parts):
         print(f"@@OBS@@ {j + 1}/{len(parts)} {b}")
+
+
+def fin_score(sym, annual):
+    """الدرجةُ المالية كما تحسبها البطاقة — من السنوات المنشورة حتى التاريخ (نسبةُ المديونية كسراً كما في الفترات)."""
+    if not annual:
+        return None
+    try:
+        from app.services.scores import governed_finance_score
+    except Exception:                                              # noqa: BLE001
+        return None
+    per = []
+    for p in annual:
+        q = dict(p)
+        if isinstance(q.get("debt_ratio"), (int, float)):
+            q["debt_ratio"] = q["debt_ratio"] / 100
+        e, ie = q.get("ebit"), q.get("interest_expense")
+        q["interest_coverage"] = (e / abs(ie)) if isinstance(e, (int, float)) and isinstance(ie, (int, float)) and ie else None
+        per.append(q)
+    try:
+        sc = governed_finance_score(per, sym)[0]
+    except Exception:                                              # noqa: BLE001
+        return None
+    return float(sc) if isinstance(sc, (int, float)) else None
+
+
+def fs_report(fobs, anchors):
+    """هل الدرجةُ المالية الأعلى سبقت السوق؟ — ارتباطُ الرتبة والشرائح بعد 6 و12 شهراً."""
+    out = {}
+    print(f"\n══ الدرجةُ المالية: {len(fobs)} مشاهدة ══")
+    for h in H:
+        k = f"x{h}"
+        ics = []
+        for t in anchors:
+            g = [o for o in fobs if o["t"] == t and k in o]
+            ic = spearman([o["fs"] for o in g], [o[k] for o in g])
+            if ic is not None:
+                ics.append(ic)
+        if ics:
+            m, sd = st.fmean(ics), (st.stdev(ics) if len(ics) > 1 else 0)
+            print(f"@@FSIC{h}@@ ارتباطُ الرتبة {m:+.3f} · t={(m / sd * math.sqrt(len(ics)) if sd else 0):.2f} · موجبٌ في "
+                  f"{sum(x > 0 for x in ics)} من {len(ics)}")
+            out[f"o_fs_ic{h}"] = round(m, 4)
+    _rel(fobs, 12)
+    for nm, lo, hi in (("خطٌّ أحمر (صفر)", -1, 0.5), ("دون 50", 0.5, 50), ("50–70", 50, 70), ("70 فأعلى", 70, 101)):
+        g = [o for o in fobs if "q12" in o and lo <= o["fs"] < hi]
+        if len(g) >= 10:
+            a = [o for o in g if o["t"] <= "2024-06"]
+            b = [o for o in g if o["t"] >= "2024-09"]
+            hr = lambda z: f"{sum(o['q12'] > 0 for o in z) / len(z) * 100:.0f}٪" if z else "—"   # noqa: E731
+            print(f"@@FSB@@ {nm}: {len(g)} · تفوّق على الوسيط {hr(g)} (النصفان {hr(a)} · {hr(b)}) · "
+                  f"متوسّط {st.fmean([o['q12'] for o in g]) * 100:+.1f}٪")
+    return out
 
 
 def _rel(obs, h):

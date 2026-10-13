@@ -38,7 +38,18 @@ DIRECTION = {"coverage": (+1, 0.005), "unnamed_missing": (-1, 0), "stale": (-1, 
              # ‏D658: قرارٌ يُقيَّد بـ«مسارٍ واحد» وقيمتُه من النماذج المتعدّدة
              "d_single_contra": (-1, 0),
              # ‏D681: أحكامٌ محسومةٌ حديثةٌ يمحوها امتناعُ مسحةٍ عابر · ‏D690: قرارُ الفرز يخالف الصفحةَ لأنّ السعرَ تحرّك
-             "d_abstain_overwrite": (-1, 0), "p_dec_drift": (-1, 0)}
+             "d_abstain_overwrite": (-1, 0), "p_dec_drift": (-1, 0),
+             # ‏D700 (بأمر المالك 2026-10-13: «نماذجُ… يتبيّن أنّ توقّعاتها كانت ناجحة»): مقاييسُ النتيجة من اختبار ما كان
+             # معلوماً منذ 2023 (`fv_backtest_d699.py`) — ارتباطُ رتبة الرقم بالتفوّق بعد 6 و12 شهراً، وفارقُ الخُمس الأرخص عن
+             # الأغلى، وإصابةُ ما قيل إنه رخيص، وخطأُ الهدف عن السعر المتحقّق
+             "o_ic6": (+1, 0.005), "o_ic12": (+1, 0.005), "o_spread12": (+1, 0.5), "o_cheap_hit12": (+1, 0.01),
+             "o_target_err": (-1, 0.005), "o_fs_ic6": (+1, 0.005), "o_fs_ic12": (+1, 0.005)}
+
+# ‏D700: موافقةُ المحلّلين معيارٌ ثانويّ حين تُقاس النتيجة. قِيس أنها كانت الجرح: نماذجُ المنشأة وقيمةُ قوّة الأرباح حُذفت لأنها
+# «منحازةٌ تحت أهدافهم» (D672) وهي ما تنبّأ فعلاً، وبقيت الدفتريةُ وهي عكسُ النتيجة. فإن حمل المرجعُ والمرشَّحُ مقاييسَ النتيجة
+# معاً، فالتراجعُ في موافقة المحلّلين يُعرض للاطّلاع ولا يُسقط — والنتيجةُ هي الحَكَم.
+ANALYST_AGREEMENT = {"median_dev", "far_share", "conf_share", "conf_high_share"}
+INFO: list[str] = []
 
 
 def base_metrics(base: dict) -> dict:
@@ -94,11 +105,16 @@ def compare(base: dict, new: dict, accepted: dict | None = None) -> tuple[list[s
     القرار؛ وما سواه يبقى تراجعاً. (قِيس: حجبُ ما يبعد عن السعر > 60٪ بسببٍ مسمّى أنزل التغطيةَ 93٪ ← 89٪.)"""
     worse, better = [], []
     accepted = accepted or {}
+    outcome = base.get("o_ic12") is not None and new.get("o_ic12") is not None      # ‏D700
     for k, (d, tol) in DIRECTION.items():
         b, n = base.get(k), new.get(k)
         if b is None or n is None:
             continue
         diff = (n - b) * d
+        if outcome and k in ANALYST_AGREEMENT:
+            if diff < -tol:
+                INFO.append(f"{k}: {b} ← {n} — موافقةُ المحلّلين، والحَكَمُ النتيجة (D700)")
+            continue
         acc = accepted.get(k) or {}
         if diff < -tol and acc.get("decision") and acc.get("floor") is not None and (n - acc["floor"]) * d >= 0:
             ACCEPTED.append(f"{k}: {b} ← {n} — فوق أرضيّة {acc['floor']} بقرار المالك: «{acc['decision']}»")
@@ -110,7 +126,7 @@ def compare(base: dict, new: dict, accepted: dict | None = None) -> tuple[list[s
     flagged = set(base.get("flagged") or [])
     for sec, b in (base.get("sector_dev") or {}).items():
         n = (new.get("sector_dev") or {}).get(sec)
-        if n is None or sec in flagged:
+        if n is None or sec in flagged or outcome:                 # ‏D700: انحرافُ القطاع عن المحلّلين ثانويٌّ أمام النتيجة
             continue
         if n - b > 0.01:
             worse.append(f"قطاع {sec}: {b} ← {n}")
@@ -148,7 +164,8 @@ def main() -> int:
         print("FAIL الإصدارُ الجديد لا يتفوّق على المجمَّد في أيّ مقياس — تعديلٌ بلا فائدةٍ مقيسة")
         return 1
     print("PASS الإصدارُ الجديد يتفوّق بلا تراجع:\n     " + "\n     ".join(better)
-          + ("\n   ومقبولٌ بقرار المالك:\n     " + "\n     ".join(ACCEPTED) if ACCEPTED else ""))
+          + ("\n   ومقبولٌ بقرار المالك:\n     " + "\n     ".join(ACCEPTED) if ACCEPTED else "")
+          + ("\n   وللاطّلاع (موافقةُ المحلّلين):\n     " + "\n     ".join(INFO) if INFO else ""))
     return 0
 
 

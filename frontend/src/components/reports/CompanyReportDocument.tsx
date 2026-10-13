@@ -104,7 +104,9 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
     { l: "آخر سعر إغلاق", v: num(h.price, 2), c: NAVY },
     { l: "السعر العادل اليوم", v: typeof h.fair_value === "number" ? num(h.fair_value, 2) : "غير متوفّر",
       c: NAVY, text: typeof h.fair_value !== "number" },
-    { l: "ثقة التقدير", v: h.fair_value_conf || "—", c: h.fair_value_conf === "منخفضة" ? WARN : NAVY, text: true },
+    /* ‏D700: الثقةُ بإصابتها المقيسة منذ 2023 — جزءٌ من الرقم لا حاشيةٌ تحته */
+    { l: "ثقة التقدير", v: h.fair_value_conf ? h.fair_value_conf + (typeof h.fair_value_hit === "number" ? ` · أصاب ${h.fair_value_hit}%` : "") : "—",
+      c: h.fair_value_conf === "منخفضة" ? WARN : NAVY, text: true },
     { l: "السعر المستهدف خلال 12 شهراً", v: num(h.target_12m, 2), c: NAVY },
     { l: "التغيّر المتوقّع", v: pct(h.change), c: col(h.change) },
     { l: "عائد الأرباح الموزّعة", v: typeof h.dividend_yield === "number" ? `${h.dividend_yield.toFixed(1)}%` : "—", c: NAVY },

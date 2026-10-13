@@ -797,6 +797,21 @@ def track_of(res: dict | None) -> dict | None:
     return {"bucket": b, **t} if t else None
 
 
+def track_note(res: dict | None) -> str | None:
+    """الثقةُ بنصّها المقيس — ما يُعرض بجانب كلمة الثقة فلا تكون وعداً بلا شاهد."""
+    t = track_of(res)
+    if not t:
+        return None
+    side = str(t.get("bucket") or "").rsplit("_", 1)[-1]
+    what = {"cheap": "تفوّق ما قِيس رخيصاً مثلَه", "deep": "تفوّق ما قِيس عميقَ الخصم مثلَه",
+            "dear": "تخلّف ما قِيس غالياً مثلَه", "fair": "بقي ما قِيس عادلاً مثلَه قريباً من السوق"}.get(side, "أصاب")
+    return f"{what} في {t['hit']}٪ من {t['n']:,} حالةً منذ 2023"
+
+
+# خطأُ الهدف الوسيطُ في اختبار ما كان معلوماً (‏o_target_err · بالمئة) — يُعرض بجانب الهدف. يُملأ من مخرَج الاختبار.
+TARGET_ERR: float | None = None
+
+
 def _tuning(symbol: str) -> dict:
     try:
         from app.data.market_universe import MARKET_UNIVERSE
@@ -1368,6 +1383,10 @@ def blend(res: dict, calibrated: dict | None, archetype: str | None, dy: float |
             ke = (res.get("rates") or {}).get("ke") or RISK_FREE + EQUITY_PREMIUM
             res["target_12m"] = round(res["value"] * (1 + ke - (dy or 0)), 2)
         res["target_12m_upside"] = round((res["target_12m"] / res["price"] - 1) * 100, 2)
+        if mv and mv > 0 and TARGET_ERR:
+            res["target_err"] = TARGET_ERR                   # ‏D700: الهدفُ بخطئه المقيس
+    res["track"] = track_of(res)                             # ‏D700: الثقةُ بسجلّها المقيس
+    res["track_note"] = track_note(res)
     return res
 
 

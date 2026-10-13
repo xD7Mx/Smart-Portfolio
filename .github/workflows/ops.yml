@@ -112,8 +112,13 @@ jobs:
               docker exec "$C" sh -c 'for e in /app/*; do n=$(basename "$e"); [ "$n" = app ] || ln -sfn "$e" "/tmp/control/$n"; done'
               echo "════════ الشاهد: الأساسُ $P ════════"
               docker exec -e SP_CODE_ROOT=/tmp/control "$C" python /app/scripts/audit/candidate_gate.py
+              # ‏D700: والنتيجةُ — اختبارُ ما كان معلوماً منذ 2023 بشيفرة كلٍّ من الجانبين على البيانات نفسِها
+              echo "════════ النتيجة: الأساسُ $P ════════"
+              docker exec -e SP_CODE_ROOT=/tmp/control "$C" python /app/scripts/audit/fv_backtest_d699.py
               echo "════════ المرشَّح: الشجرةُ الحاليّة ════════"
               docker exec "$C" python /app/scripts/audit/candidate_gate.py
+              echo "════════ النتيجة: المرشَّح ════════"
+              docker exec "$C" python /app/scripts/audit/fv_backtest_d699.py
               docker exec "$C" rm -rf /tmp/control
               rm -rf /tmp/sp-control ;;
             probe)

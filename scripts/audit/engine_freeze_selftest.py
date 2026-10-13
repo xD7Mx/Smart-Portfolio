@@ -89,5 +89,16 @@ report_on({**dv, "d_abstain_overwrite": 0}, "2026-10-13")
 check(run() == 0, "٢٢ وبندٌ يسقط اليومَ في الأساس نفسِه لا يُحسب على المرشَّح «اجتاز ثمّ سقط»")
 report_on({**dv, "d_abstain_overwrite": 0, "verdict": {"١ التغطية": False, "٤ المرجع": False}}, "2026-10-13")
 check(run() == 1, "٢٣ وما اجتازه الأساسُ اليومَ يُلزم المرشَّح")
+# ‏D700: النتيجةُ هي الحَكَم — إن حمل الشاهدُ والمرشَّحُ مقاييسَ النتيجة فموافقةُ المحلّلين للاطّلاع
+dv = {**drift, "o_ic12": 0.04, "o_ic6": 0.01, "o_target_err": 0.27, "sector_dev": {"أ": 0.10}}
+(F.REPORTS / "older.control.json").write_text(json.dumps({"fingerprint": "older", "measured_at": "2026-10-13", "metrics": dv}))
+report_on({**dv, "d_abstain_overwrite": 0, "median_dev": 0.25, "sector_dev": {"أ": 0.30}, "o_ic12": 0.12}, "2026-10-13")
+check(run() == 0, "٢٤ (D700) المرشَّحُ يتفوّق بالنتيجة ويبتعد عن المحلّلين — يُقبل، والابتعادُ يُعرض للاطّلاع")
+report_on({**dv, "d_abstain_overwrite": 0, "o_ic12": 0.02}, "2026-10-13")
+check(run() == 1, "٢٥ (D700) وتراجعُ النتيجة يُسقط — المقياسُ الحاكمُ نفسُه")
+dn = {k: v for k, v in dv.items() if not k.startswith("o_")}
+(F.REPORTS / "older.control.json").write_text(json.dumps({"fingerprint": "older", "measured_at": "2026-10-13", "metrics": dn}))
+report_on({**dn, "d_abstain_overwrite": 0, "median_dev": 0.25}, "2026-10-13")
+check(run() == 1, "٢٦ (D700) وبلا قياسٍ للنتيجة في الجانبين يبقى ابتعادُ المحلّلين تراجعاً كما كان")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

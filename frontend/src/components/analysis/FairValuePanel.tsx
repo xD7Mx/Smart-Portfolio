@@ -111,6 +111,10 @@ export default function FairValuePanel({ symbol, analystTarget, week52, withheld
         <div className="card p-3 space-y-1">
           <div className="text-[11px] text-[var(--ink-muted)]">الهدف لاثني عشر شهراً</div>
           <div className={"text-lg font-bold tabular-nums " + ((r.target_12m_upside ?? 0) >= 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]")}>{fmt(r.target_12m)}</div>
+          {/* ‏D700: الهدفُ بخطئه المقيس في اختبار ما كان معلوماً منذ 2023 */}
+          {r.target_err != null && (
+            <div data-role="target-err" className="text-[10px] text-[var(--ink-muted)] tabular-nums">خطؤه التاريخيّ ±{Math.round(r.target_err * 100)}%</div>
+          )}
         </div>
         <div className="card p-3 space-y-1">
           <div className="text-[11px] text-[var(--ink-muted)]">البعد عن السعر</div>
@@ -118,10 +122,19 @@ export default function FairValuePanel({ symbol, analystTarget, week52, withheld
             {up >= 0 ? "+" : ""}{up.toFixed(1)}%
           </div>
         </div>
-        <div className="card p-3 space-y-1">
-          <div className="text-[11px] text-[var(--ink-muted)]">عدم اليقين</div>
-          <div className="text-lg font-bold text-[var(--ink)]">{r.uncertainty}</div>
-        </div>
+        {/* ‏D700: الثقةُ نسبةُ إصابةٍ مقيسة — ما فعلته قراءاتٌ مثلُ هذه بعد اثني عشر شهراً منذ 2023 */}
+        {r.track ? (
+          <div className="card p-3 space-y-1" data-role="fv-track" title={r.track_note || ""}>
+            <div className="text-[11px] text-[var(--ink-muted)]">إصابتُه المقيسة</div>
+            <div className={"text-lg font-bold tabular-nums " + (r.track.hit >= 60 ? "text-[var(--pos-ink)]" : r.track.hit >= 55 ? "text-[var(--ink)]" : "text-[var(--warn-ink)]")}>{r.track.hit}%</div>
+            <div className="text-[10px] text-[var(--ink-muted)] tabular-nums">من {Number(r.track.n).toLocaleString("en-US")} حالة منذ 2023</div>
+          </div>
+        ) : (
+          <div className="card p-3 space-y-1">
+            <div className="text-[11px] text-[var(--ink-muted)]">عدم اليقين</div>
+            <div className="text-lg font-bold text-[var(--ink)]">{r.uncertainty}</div>
+          </div>
+        )}
       </div>
 
       <div className="card p-4 space-y-5">

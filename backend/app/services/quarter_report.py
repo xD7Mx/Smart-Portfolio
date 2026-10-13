@@ -164,6 +164,13 @@ def _ret(points, days: int):
     return round((pts[-1]["close"] / first["close"] - 1) * 100, 1)
 
 
+def _hit_of(track) -> int | None:
+    """‏D700: نسبةُ الإصابة المقيسة من نصّ السجلّ («… في 66٪ من 268 حالةً منذ 2023»)."""
+    import re
+    m = re.search(r"في (\d+)٪", str(track or ""))
+    return int(m.group(1)) if m else None
+
+
 def candles_for(points, as_of: str | None, kind: str, latest: bool) -> dict | None:
     """‏D698 (بأمر المالك): «أضف للتقرير رسمَ شموعٍ للفترة كما تفعل تقاريرُ البنوك» — شموعٌ أسبوعيةٌ لاثني عشر شهراً تنتهي بآخر
     الفترة (وباليوم في أحدث تقرير)، وحدّا الفترة نفسِها ليُظلَّل نطاقُها. من التاريخ الذي يجلبه التقريرُ لأدائه — لا نداءَ زائد.
@@ -258,7 +265,9 @@ async def build(symbol: str, as_of: str | None = None, kind: str = "quarter") ->
         "header": None if not latest else {"recommendation": decision or recommendation(total), "price": price, "target_12m": target,
                    "change": change, "dividend_yield": dy, "total_return": total,
                    # ‏D655: الرقمُ نفسُه الذي في صفحة السهم والفرز، بثقته وسبب حجبه أو وسمه
-                   "fair_value": fair, "fair_value_conf": an.get("fair_value_conf") if fair else None, "fair_value_note": fv_note},
+                   "fair_value": fair, "fair_value_conf": an.get("fair_value_conf") if fair else None,
+                   "fair_value_track": an.get("fair_value_track") if fair else None,
+                   "fair_value_hit": _hit_of(an.get("fair_value_track")) if fair else None, "fair_value_note": fv_note},
         "table": tbl,
         "market": {"high_52w": srow.get("high_52w"), "low_52w": srow.get("low_52w"),
                    "market_cap": mcap, "shares": round(mcap / price) if mcap and price else None},

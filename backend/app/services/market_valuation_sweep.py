@@ -78,6 +78,7 @@ async def _one(sym: str, sem: asyncio.Semaphore) -> tuple[str, dict] | None:
             "fair_value_low": a.get("fair_value_low"),
             "fair_value_high": a.get("fair_value_high"),
             "fair_value_conf": a.get("fair_value_conf"),
+            "fair_value_track": a.get("fair_value_track"),                      # ‏D700
             "fair_value_asof": a.get("fair_value_asof"),
             "fair_value_age_days": a.get("fair_value_age_days"),
             "fair_value_stale": a.get("fair_value_stale"),

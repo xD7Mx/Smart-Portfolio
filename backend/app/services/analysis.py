@@ -335,7 +335,7 @@ def official_row(symbol: str) -> dict | None:
 # مسحةُ الخميس تبقى رقمَ الأحد، وإجازةُ العيد لا تُسقطه؛ وما شاخ أكثرَ فالمسحةُ معطوبةٌ والحيُّ أصدقُ منه
 OFFICIAL_MAX_AGE = 10
 # ما تقرؤه الصفحةُ من صفّ المسحة الرسميّ (‏D649) — فتغيُّرُ أيٍّ منه يُجدّد تحليلَها المخزَّن
-_OFFICIAL_FIELDS = ("score_asof", "fair_value", "fair_value_low", "fair_value_high", "fair_value_conf",
+_OFFICIAL_FIELDS = ("score_asof", "fair_value", "fair_value_low", "fair_value_high", "fair_value_conf", "fair_value_track",
                     "fair_value_unavailable", "fair_value_calibrated", "fair_value_calibration_note")
 
 
@@ -591,7 +591,8 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
             # ‏D625: الثقةُ من المحرّك الذي أنتج الرقم — كانت تُؤخذ من الاحتياطيّ وهو لم يُنتجه.
             # ومعيارُها اتّفاقُ النماذج، معايَرٌ على 145 ورقةً لها هدفُ محلّلين: تشتّتٌ ≤ 14٪ ← خطأٌ وسيطُه 12٪
             # (71٪ ضمن 20٪)، وفوقه 18–19٪. فلا تُرفع ثقةٌ بلا قياسٍ يسندها.
-            _fv.update({"confidence": confidence_of(_new), "model_value": _new.get("model_value")})
+            _fv.update({"confidence": confidence_of(_new), "model_value": _new.get("model_value"),
+                        "track": _new.get("track_note")})                 # ‏D700: الثقةُ بسجلّها المقيس
             # ‏D658: «المسارُ الواحد» يُعدّ من المحرّك الذي أنتج الرقمَ المعروض — كان يُقرأ من الاحتياطيّ، ومساراتُه تتبع توافرَ
             # بيانات المزوّد لحظةَ الحساب: فقال القرارُ «من مسارٍ واحد» وتفاصيلُ النماذج بجانبه تعرض عشرةً، وتأرجح قرارُ سلوشنز.
             _fv["single_path"] = len(_new.get("models") or []) < 2
@@ -665,7 +666,8 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
             _fv.update({"live_value": _live, "value": _ov, "official_asof": _off.get("score_asof"),
                         "low": _off.get("fair_value_low") if _ov else None,
                         "high": _off.get("fair_value_high") if _ov else None,
-                        "confidence": _off.get("fair_value_conf") if _ov else _fv.get("confidence")})
+                        "confidence": _off.get("fair_value_conf") if _ov else _fv.get("confidence"),
+                        "track": _off.get("fair_value_track") if _ov else None})
             if _ov is None:
                 _fv["unavailable_reason"] = _off.get("fair_value_unavailable") or _fv.get("unavailable_reason")
             else:
@@ -935,6 +937,7 @@ async def analyze_company(symbol: str, name: str | None = None, db=None, allow_s
         "fair_value_low": _fv.get("low"),
         "fair_value_high": _fv.get("high"),
         "fair_value_conf": _fv.get("confidence"),
+        "fair_value_track": _fv.get("track"),                    # ‏D700: «تفوّق ما قِيس رخيصاً مثلَه في 66٪ من…»
         # والثقةُ تُبرَّر لا تُعلَن (‏D411): درجةٌ من مئة، وسلّمُها،
         # وسببُ كلّ خصمٍ باسمه — فيزن المالكُ ثقةً بأخرى ويرى ما نقصها.
         "fair_value_conf_score": _fv.get("confidence_score"),
