@@ -30,6 +30,7 @@ import CollapsibleList from "../components/common/CollapsibleList";
 import DateInput from "../components/common/DateInput";
 import Select from "../components/common/Select";
 import CheckBox from "../components/common/CheckBox";
+import { usePaneMotion } from "../hooks/usePaneMotion";
 
 const MOBILE_BREAKPOINT = 680;
 const TABLET_BREAKPOINT = 1024;
@@ -1979,6 +1980,8 @@ export default function PortfolioPage() {
   const [tab, setTab] = useState<"holdings" | "dashboard" | "lab" | "portfolioNews" | "portfolioCalendar" | "notifications">(
     () => (new URLSearchParams(window.location.search).get("tab") === "lab" ? "lab" : "holdings"));
   const [dashSubTab, setDashSubTab] = useState<"grid" | "rebalance" | "liquidity">("grid");
+  const tabsRef = useRef<HTMLElement | null>(null);
+  usePaneMotion(tabsRef, `${tab}:${dashSubTab}`);           // ‏D689: المحتوى يطلع بحركةٍ عند تبديل التبويب
   const { portfolioCols: cols, togglePortfolioCol } = useAppStore();
   const { isOwner } = useAuthStore();
 
@@ -2240,7 +2243,7 @@ export default function PortfolioPage() {
       {/* Tabs — under the search box. Mobile: centered icon-top strip.
           Desktop: icon + label side by side, each button stretching to fill
           the row evenly for a balanced, fuller look. */}
-      <nav className="flex gap-2 justify-stretch pb-1" style={{ scrollbarWidth: "none" }}>
+      <nav ref={tabsRef} className="flex gap-2 justify-stretch pb-1" style={{ scrollbarWidth: "none" }}>
         {([
           ["holdings", "الحيازات", Briefcase],
           ["dashboard", "لوحة التحكم", LayoutGrid],

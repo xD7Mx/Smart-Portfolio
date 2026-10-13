@@ -1049,6 +1049,19 @@ html.light .watch-menu-row:hover { background: var(--raised); color: var(--ink);
 }
 @media (min-width: 640px) { .stock-sheet { border-radius: 20px; max-height: 88vh; } }
 .stock-sheet-body { overflow-y: auto; overscroll-behavior: contain; padding: 16px; }
+/* ‏D689: الورقةُ تصعد من الأسفل على الجوال وتظهر مكبَّرةً قليلاً على الحاسوب، وتعود كما جاءت عند الإغلاق */
+@keyframes sheetScrim { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheetUp { from { transform: translateY(48px); opacity: .5; } to { transform: none; opacity: 1; } }
+@keyframes sheetPop { from { transform: scale(.97) translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.stock-sheet-overlay { animation: sheetScrim .22s ease-out; }
+.stock-sheet { animation: sheetUp .32s cubic-bezier(.2,.8,.2,1); }
+@media (min-width: 640px) { .stock-sheet { animation-name: sheetPop; animation-duration: .26s; } }
+.stock-sheet-overlay.leaving { animation: sheetScrim .2s ease-in reverse forwards; }
+.stock-sheet-overlay.leaving .stock-sheet { animation: sheetUp .2s ease-in reverse forwards; }
+@media (min-width: 640px) { .stock-sheet-overlay.leaving .stock-sheet { animation-name: sheetPop; } }
+@media (prefers-reduced-motion: reduce) {
+  .stock-sheet-overlay, .stock-sheet, .stock-sheet-overlay.leaving, .stock-sheet-overlay.leaving .stock-sheet { animation: none; }
+}
 html.light .stock-sheet { background: var(--raised); border-color: var(--hairline); }
 html.light .stock-sheet-overlay { background: transparent; }
 

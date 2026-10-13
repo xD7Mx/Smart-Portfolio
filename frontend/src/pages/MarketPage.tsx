@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { usePaneMotion } from "../hooks/usePaneMotion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Newspaper, CalendarDays, Sparkles, Brain, Clock, ShieldCheck, X, Share2, ExternalLink, ArrowUp, ArrowDown, LayoutGrid, Star, Search, Plus, SlidersHorizontal, ArrowUpDown, ChevronDown, Handshake} from "lucide-react";
@@ -1294,6 +1295,8 @@ export default function MarketPage() {
   useEffect(() => {
     try { sessionStorage.setItem("sp:market:tab", tab); } catch { /* ممتلئ */ }
   }, [tab]);
+  const tabsRef = useRef<HTMLDivElement | null>(null);
+  usePaneMotion(tabsRef, tab);                              // ‏D689: المحتوى يطلع بحركةٍ عند تبديل التبويب
   useEffect(() => {
     const KEY = "sp:market:scroll";
     /* التطبيق يُمرَّر داخل <main class="app-main"> لا في نافذة المتصفّح،
@@ -1376,7 +1379,7 @@ export default function MarketPage() {
       </div>
 
       {/* Tabs — أيقونة + اسم، تملأ العرض بالتساوي */}
-      <div className="flex gap-1 md:gap-2">
+      <div ref={tabsRef} className="flex gap-1 md:gap-2">
         {MARKET_TABS.map(mt => (
           <button key={mt.id} onClick={() => setTab(mt.id)} aria-pressed={tab === mt.id}
             /* بلا إطار — انظر تعليق تبويبات المحفظة في PortfolioPage. */

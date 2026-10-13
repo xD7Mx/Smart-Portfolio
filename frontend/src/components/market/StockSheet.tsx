@@ -11,20 +11,30 @@ import StockView from "./StockView";
  * نفسه في الحالتين — لا نسختين تتباعدان.
  */
 export default function StockSheet({ symbol, onClose }: { symbol: string; onClose: () => void }) {
+  /* ‏D689: الورقةُ تصعد عند الفتح وتنزل عند الإغلاق — كانت تختفي فجأة. فالإغلاقُ يبدأ الحركةَ ثمّ يُبلغ الأبَ بعدها */
+  const [leaving, setLeaving] = React.useState(false);
+  const leavingRef = React.useRef(false);
+  const close = React.useCallback(() => {
+    if (leavingRef.current) return;
+    leavingRef.current = true;
+    setLeaving(true);
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    setTimeout(onClose, reduce ? 0 : 200);
+  }, [onClose]);
   // قفل تمرير الصفحة خلف النافذة.
   React.useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     window.addEventListener("keydown", onKey);
     return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", onKey); };
-  }, [onClose]);
+  }, [close]);
 
   return (
-    <div className="stock-sheet-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="stock-sheet fade-in">
+    <div className={"stock-sheet-overlay" + (leaving ? " leaving" : "")} onClick={e => { if (e.target === e.currentTarget) close(); }}>
+      <div className="stock-sheet">
         <div className="stock-sheet-body">
-          <StockView symbol={symbol} onClose={onClose} />
+          <StockView symbol={symbol} onClose={close} />
         </div>
       </div>
     </div>
