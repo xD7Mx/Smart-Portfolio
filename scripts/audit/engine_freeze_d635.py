@@ -36,7 +36,21 @@ DIRECTION = {"coverage": (+1, 0.005), "unnamed_missing": (-1, 0), "stale": (-1, 
              "p_fv_mismatch": (-1, 0), "p_conf_mismatch": (-1, 0), "p_dec_mismatch": (-1, 0),
              "p_fv_drift": (-1, 0), "p_conf_drift": (-1, 0),
              # ‏D658: قرارٌ يُقيَّد بـ«مسارٍ واحد» وقيمتُه من النماذج المتعدّدة
-             "d_single_contra": (-1, 0)}
+             "d_single_contra": (-1, 0),
+             # ‏D681: أحكامٌ محسومةٌ حديثةٌ يمحوها امتناعُ مسحةٍ عابر · ‏D690: قرارُ الفرز يخالف الصفحةَ لأنّ السعرَ تحرّك
+             "d_abstain_overwrite": (-1, 0), "p_dec_drift": (-1, 0)}
+
+
+def base_metrics(base: dict) -> dict:
+    """مقاييسُ الأساس، ومعها ملحقُه (‏D681): مقاييسُ أُضيفت للبوابة بعد التجميد وقِيست على شيفرته نفسِها — ببصمته هو.
+    الملحقُ يضيف ولا يغيّر: مقياسٌ في الأساس لا يُستبدل، وملحقٌ لبصمةٍ أخرى لا يُقرأ."""
+    m = dict(base.get("metrics") or {})
+    add = REPORTS / f"{base.get('fingerprint')}.addendum.json"
+    if add.exists():
+        a = json.loads(add.read_text(encoding="utf-8"))
+        if a.get("fingerprint") == base.get("fingerprint"):
+            m.update({k: v for k, v in (a.get("metrics") or {}).items() if k not in m})
+    return m
 
 
 def fingerprint() -> str:
@@ -101,7 +115,7 @@ def main() -> int:
         return 1
     _rep = json.loads(rep.read_text(encoding="utf-8"))
     new = _rep.get("metrics") or {}
-    worse, better = compare(base.get("metrics") or {}, new, _rep.get("owner_accepted"))
+    worse, better = compare(base_metrics(base), new, _rep.get("owner_accepted"))
     if worse:
         print("FAIL الإصدارُ الجديد يتراجع عن المجمَّد:\n     " + "\n     ".join(worse))
         return 1

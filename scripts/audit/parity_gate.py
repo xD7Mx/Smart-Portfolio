@@ -28,6 +28,13 @@ def _label(d):
     return (d.get("label") or d.get("raw")) if isinstance(d, dict) else d
 
 
+try:
+    from app.services.market_screener import served_decision as _served
+except ImportError:                                               # قبل D690
+    def _served(d, price):
+        return _label(d.get("decision"))
+
+
 async def main():
     store = content_engine.fund_store_load()
     deep = lastgood.load("governance:deep") or {}
@@ -61,7 +68,8 @@ async def main():
         if "مسار_واحد" in _rule and _fd.get("engine") == "fair_value_models" and not _fd.get("single_path"):
             single.append(s)
         d = deep.get(s) if isinstance(deep.get(s), dict) else {}
-        pl, dl = _label(a.get("decision")), _label(d.get("decision"))
+        # ‏D690: ما يعرضه الفرزُ فعلاً — حكمُه بسقف القيمة العادلة مُعاداً بالسعر الحيّ (وقبله: الحكمُ المخزَّن كما هو)
+        pl, dl = _label(a.get("decision")), (_served(d, a.get("price")) if d.get("decision") else None)
         if pl and dl and pl != dl:
             dcm.append((s, pl, dl))
     # والفرزُ: أحكامُ المسحة (بلا مصدرٍ مكمِّل) في المخزن العميق — كم منها مقيَّدٌ بـ«مسارٍ واحد» وقيمتُه من النماذج المتعدّدة

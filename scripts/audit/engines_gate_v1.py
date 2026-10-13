@@ -149,6 +149,16 @@ line("٥ الفنّي", not no_tech and not bad_rsi and not jumps,
 show([f"بلا مؤشّرات: {s} {uni[s].get('name_ar')}" for s in no_tech])
 show(jumps)
 
+# ══ ‏D681: امتناعُ مسحةٍ عابرٌ لا يمحو حكماً محسوماً حديثاً — والقديمُ يُستبدل، والمحسومُ الجديدُ يحلّ محلّ القديم ══
+import os as _os
+sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from abstain_sim import abstain_overwrite                        # noqa: E402
+from app.services.market_valuation_sweep import record_verdicts  # noqa: E402
+_erased, _old_ok, _new_ok = abstain_overwrite(record_verdicts, lastgood)
+line("٣ب القرار — امتناعٌ عابر", not _erased and _old_ok and _new_ok,
+     f"أحكامٌ محسومةٌ حديثةٌ محاها امتناعُ مسحة {len(_erased)} من 3 · والقديمُ (45 يوماً) يُستبدل {'نعم' if _old_ok else 'لا'}"
+     f" · والمحسومُ الجديدُ يحلّ محلّ القديم {'نعم' if _new_ok else 'لا'}")
+
 # ══ مقاييسُ آلية لحارس التجميد (‏D639) — تُضمّ إلى مقاييس بوابة السعر العادل ══
 import json as _json
 print("@@METRICS@@" + _json.dumps({
@@ -156,6 +166,7 @@ print("@@METRICS@@" + _json.dumps({
     "q_unnamed": len(miss) - len(named), "q_stale_unlabeled": len(old),
     "q_redline_high": len(red), "d_bad": len(bad), "d_noreason": len(noreason), "s_nosrc": len(nosrc),
     "t_unrecorded_jumps": len(jumps), "t_no_tech": len(no_tech), "t_bad_rsi": len(bad_rsi),
+    "d_abstain_overwrite": len(_erased),                         # ‏D681
     "verdict": {k: bool(v) for k, v in verdict.items()},
 }, ensure_ascii=False))
 print("\nالحكم:", "✔ اجتازت المحرّكاتُ ٢–٥" if all(verdict.values()) else

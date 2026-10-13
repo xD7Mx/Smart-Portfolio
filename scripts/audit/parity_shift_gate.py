@@ -2,7 +2,8 @@
 """بوابةُ ثبات رقم اليوم (‏D649) — تجربةٌ مضبوطة: يتحرّك السعرُ 2٪ بعد المسحة (كجلسة تداول)، فهل تبقى الصفحةُ على رقم الفرز؟
 
 قارئٌ فقط، وفي عمليّته وحدها: الأسعارُ تُزاح في الذاكرة، وكاشُ التحليل والنماذج يُفرَّغ داخلها (كأنّ حفظَه انتهى أثناء
-الجلسة)، والكتابةُ معطَّلة. لا يُقاس القرارُ هنا — القرارُ يتبع السعرَ الحيّ بحقّ (سقفُ القيمة العادلة)؛ يُقاس الرقم.
+الجلسة)، والكتابةُ معطَّلة. والقرارُ يتبع السعرَ الحيّ بحقّ (سقفُ القيمة العادلة) — فيُقاس أنّ الفرزَ يتبعه كما تتبعه الصفحة:
+  p_dec_drift   شركاتٌ يخالف قرارُ صفحتها قرارَ فرزها لأنّ السعرَ تحرّك (‏D690 — الفرزُ يعرض حكماً حُسب بسعرٍ أقدم)
   p_fv_drift    صفحاتٌ يبتعد سعرُها العادل عن الفرز > 0.5٪ لأنّ السعرَ تحرّك
   p_conf_drift  صفحاتٌ تتبدّل ثقتُها لأنّ السعرَ تحرّك"""
 import asyncio, json, sys
@@ -58,6 +59,21 @@ async def main():
             except Exception as e:                                 # noqa: BLE001
                 return s, {"_err": type(e).__name__}
     res = dict(await asyncio.gather(*(one(s) for s in sorted(uni))))
+    try:                                                           # ‏D690: الفرزُ يعيد سقفَ القيمة العادلة بالسعر الحيّ
+        from app.services.market_screener import served_decision
+    except ImportError:                                            # قبله: يعرض الحكمَ المخزَّن كما هو
+        def served_decision(d, price):
+            dec = d.get("decision")
+            return (dec.get("label") or dec.get("raw")) if isinstance(dec, dict) else dec
+    deep = lastgood.load("governance:deep") or {}
+    ddr = []
+    for s, a in res.items():
+        d = deep.get(s) if isinstance(deep.get(s), dict) else None
+        dec = a.get("decision") if isinstance(a, dict) else None
+        pl = (dec.get("label") or dec.get("raw")) if isinstance(dec, dict) else None
+        sl = served_decision(d, a.get("price")) if d and d.get("decision") else None
+        if pl and sl and pl != sl:
+            ddr.append((s, pl, sl))
     fvd, cfd, err, n = [], [], [], 0
     for s, a in res.items():
         if not a or "_err" in a:
@@ -75,10 +91,13 @@ async def main():
             cfd.append(s)
     ok = not fvd
     print(f"{'✔' if ok else '✘'} ٧ ثباتُ رقم اليوم — السعرُ +{SHIFT - 1:.0%} بعد المسحة · لها رقمٌ في الفرز {n} (تعذّرت {len(err)}) · "
-          f"ابتعدت الصفحةُ عن الفرز {len(fvd)} · تبدّلت ثقتُها {len(cfd)}")
+          f"ابتعدت الصفحةُ عن الفرز {len(fvd)} · تبدّلت ثقتُها {len(cfd)} · خالف قرارُها قرارَ الفرز {len(ddr)}")
+    for s, pl, sl in ddr[:8]:
+        print(f"     قرار {s} {uni[s].get('name_ar')} · الصفحة {pl} · الفرز {sl}")
     for s, pv, sv in fvd[:8]:
         print(f"     {s} {uni[s].get('name_ar')} · الصفحة {pv} · الفرز {sv}")
-    print("@@METRICS@@" + json.dumps({"p_fv_drift": len(fvd), "p_conf_drift": len(cfd), "verdict": {"٧ ثباتُ رقم اليوم": ok}},
+    print("@@METRICS@@" + json.dumps({"p_fv_drift": len(fvd), "p_conf_drift": len(cfd), "p_dec_drift": len(ddr),
+                                      "verdict": {"٧ ثباتُ رقم اليوم": ok}},
                                      ensure_ascii=False))
 
 

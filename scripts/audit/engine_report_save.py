@@ -42,6 +42,21 @@ def main() -> int:
     doc = {"fingerprint": fingerprint(), "measured_at": dt.date.today().isoformat(), "metrics": metrics}
     if accepted:
         doc["owner_accepted"] = accepted
+    if "--addendum" in args:
+        # ‏D681: مقاييسُ جديدةٌ في البوابة تُقاس على شيفرة الأساس المجمَّد نفسِها — ملحقٌ بجانب تقريره لا تعديلٌ له
+        REPORTS.mkdir(exist_ok=True)
+        rep = REPORTS / f"{doc['fingerprint']}.json"
+        if not rep.exists():
+            print(f"لا تقريرَ للبصمة {doc['fingerprint']} — الملحقُ يُقاس على شيفرة إصدارٍ مقيسٍ مجمَّد")
+            return 1
+        have = json.loads(rep.read_text(encoding="utf-8")).get("metrics") or {}
+        extra = {k: v for k, v in metrics.items() if k not in have and k != "verdict"}
+        out = REPORTS / f"{doc['fingerprint']}.addendum.json"
+        out.write_text(json.dumps({"fingerprint": doc["fingerprint"], "measured_at": doc["measured_at"], "metrics": extra,
+                                   "note": "مقاييسُ أُضيفت للبوابة بعد التجميد وقِيست على شيفرته نفسِها"},
+                                  ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"ملحقُ البصمة {doc['fingerprint']} ← {out} · {sorted(extra)}")
+        return 0
     if "--baseline" in args:
         doc["version"] = args[args.index("--baseline") + 1]
         BASE.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")

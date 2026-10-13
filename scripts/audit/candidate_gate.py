@@ -42,6 +42,7 @@ for s, v in done.items():
     store[s] = {**(store.get(s) or {}), **v}
     if vd.get("decision") is not None or "red_lines" in vd:
         deep[s] = {**(deep.get(s) or {}), **({"decision": vd["decision"]} if vd.get("decision") is not None else {}),
+                   **({"ceiling": vd["ceiling"]} if vd.get("ceiling") else {}),      # ‏D690: مُدخَلاتُ سقف القيمة العادلة
                    **({"red_lines": vd["red_lines"]} if "red_lines" in vd else {})}
 
 _orig_load = lastgood.load
