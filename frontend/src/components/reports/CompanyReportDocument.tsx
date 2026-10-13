@@ -33,6 +33,66 @@ const N = ({ v, c }: { v: string; c?: string }) => (
 const th: React.CSSProperties = { padding: "7px 8px", textAlign: "start", fontWeight: 500 };
 const td: React.CSSProperties = { padding: "6px 8px", fontWeight: 300 };
 
+const AR_MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+
+/* ══ شموعُ الفترة ══ (بأمر المالك · D698) — «كما تفعل تقاريرُ البنوك»: اثنا عشر شهراً أسبوعيّة تنتهي بآخر الفترة، ونطاقُ الفترة
+   مظلَّلٌ بلون الهويّة، وآخرُ إغلاقٍ خطٌّ وقيمة. الزمنُ من اليسار إلى اليمين كما في رسم التطبيق، والأسعارُ على الحافّة اليمنى. */
+function PeriodCandles({ c, label }: { c: any; label: string }) {
+  const pts: { d: string; o: number; h: number; l: number; c: number }[] = c?.points || [];
+  if (pts.length < 10) return null;
+  const W = 706, H = 214, L = 6, R = 52, T = 14, B = 24;
+  const lo = Math.min(...pts.map(p => p.l)), hi = Math.max(...pts.map(p => p.h));
+  const pad = (hi - lo) * 0.06 || hi * 0.02;
+  const y0 = lo - pad, y1 = hi + pad;
+  const y = (v: number) => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+  const step = (W - L - R) / pts.length;
+  const x = (i: number) => L + step * (i + 0.5);
+  const t0 = new Date(pts[0].d).getTime(), t1 = new Date(pts[pts.length - 1].d).getTime();
+  const xt = (iso: string) => L + ((new Date(iso).getTime() - t0) / Math.max(1, t1 - t0)) * (W - L - R - step) + step / 2;
+  const bx0 = Math.max(L, Math.min(W - R, xt(c.from))), bx1 = Math.max(L, Math.min(W - R, xt(c.to)));
+  const grid = [0, 1, 2, 3].map(k => y0 + (y1 - y0) * (k + 0.5) / 4);
+  const last = pts[pts.length - 1].c;
+  const months: { i: number; m: string }[] = [];
+  pts.forEach((p, i) => { const m = p.d.slice(0, 7); if (i > 0 && m !== pts[i - 1].d.slice(0, 7) && i < pts.length - 2) months.push({ i, m }); });
+  const bw = Math.max(2, step * 0.62);
+  return (
+    <div>
+      <Title>حركةُ السعر — شموعٌ أسبوعيّة لاثني عشر شهراً</Title>
+      <svg data-role="report-candles" width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block", direction: "ltr", background: "#fff",
+           border: `1px solid ${CARD_LINE}`, borderRadius: 8 }}>
+        {bx1 > bx0 && <g>
+          <rect x={bx0} y={T} width={bx1 - bx0} height={H - T - B} fill={GOLD} opacity={0.12} />
+          <text x={(bx0 + bx1) / 2} y={T + 11} textAnchor="middle" fontSize={9.5} fill={NAVY} style={{ fontFamily: "inherit" }}>{label}</text>
+        </g>}
+        {grid.map((v, k) => (
+          <g key={k}>
+            <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke={ROW_LINE} strokeWidth={1} />
+            <text x={W - R + 6} y={y(v) + 3.5} fontSize={9.5} fill={MUTED}>{v.toFixed(2)}</text>
+          </g>
+        ))}
+        {pts.map((p, i) => {
+          const up = p.c >= p.o, colr = up ? GREEN : RED;
+          const top = y(Math.max(p.o, p.c)), bot = y(Math.min(p.o, p.c));
+          return (
+            <g key={p.d}>
+              <line x1={x(i)} x2={x(i)} y1={y(p.h)} y2={y(p.l)} stroke={colr} strokeWidth={1} />
+              <rect x={x(i) - bw / 2} y={top} width={bw} height={Math.max(1, bot - top)} fill={colr} />
+            </g>
+          );
+        })}
+        <line x1={L} x2={W - R} y1={y(last)} y2={y(last)} stroke={NAVY} strokeWidth={1} strokeDasharray="3 3" />
+        <rect x={W - R + 2} y={y(last) - 8} width={R - 4} height={16} rx={3} fill={NAVY} />
+        <text x={W - R / 2} y={y(last) + 3.5} textAnchor="middle" fontSize={9.5} fill="#fff">{last.toFixed(2)}</text>
+        {months.map(({ i, m }) => (
+          <text key={m} x={x(i)} y={H - 8} textAnchor="middle" fontSize={9.5} fill={MUTED} style={{ fontFamily: "inherit" }}>
+            {AR_MONTHS[Number(m.slice(5, 7)) - 1]}
+          </text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({ data: r }, ref) => {
   const h = r?.header;
   const t = r?.table || {};
@@ -106,6 +166,8 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
             ))}
           </div>
         )}
+
+        {r?.candles && <PeriodCandles c={r.candles} label={t.annual ? `السنة ${String(t.as_of || "").slice(0, 4)}` : qName(t.as_of)} />}
 
         {!!(t.rows || []).length && (
           <div>

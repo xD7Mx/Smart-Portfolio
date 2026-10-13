@@ -164,6 +164,30 @@ def _ret(points, days: int):
     return round((pts[-1]["close"] / first["close"] - 1) * 100, 1)
 
 
+def candles_for(points, as_of: str | None, kind: str, latest: bool) -> dict | None:
+    """‏D698 (بأمر المالك): «أضف للتقرير رسمَ شموعٍ للفترة كما تفعل تقاريرُ البنوك» — شموعٌ أسبوعيةٌ لاثني عشر شهراً تنتهي بآخر
+    الفترة (وباليوم في أحدث تقرير)، وحدّا الفترة نفسِها ليُظلَّل نطاقُها. من التاريخ الذي يجلبه التقريرُ لأدائه — لا نداءَ زائد.
+    ولا شموعَ مختلَقة: ما لم يغطّه التاريخُ لا يُرسم، وأقلُّ من عشر شموعٍ لا يُعدّ رسماً."""
+    pts = [p for p in points or [] if isinstance(p, dict) and p.get("date") and p.get("close")]
+    try:
+        end_period = date.fromisoformat(str(as_of)[:10])
+    except (TypeError, ValueError):
+        return None
+    if not pts:
+        return None
+    start_period = (end_period - timedelta(days=365) if kind == "annual" else end_period - timedelta(days=91))
+    last = date.fromisoformat(str(pts[-1]["date"])[:10])
+    end = last if latest else min(last, end_period + timedelta(days=6))
+    begin = end - timedelta(days=365)
+    win = [p for p in pts if begin <= date.fromisoformat(str(p["date"])[:10]) <= end]
+    if len(win) < 10:
+        return None
+    return {"interval": "أسبوعي",
+            "points": [{"d": str(p["date"])[:10], "o": p.get("open") or p["close"], "h": p.get("high") or p["close"],
+                        "l": p.get("low") or p["close"], "c": p["close"]} for p in win],
+            "from": start_period.isoformat(), "to": end_period.isoformat()}
+
+
 def catalog(symbol: str) -> dict:
     from app.services import tadawul_xbrl
     sym = str(symbol).replace(".SR", "").strip()
@@ -224,6 +248,8 @@ async def build(symbol: str, as_of: str | None = None, kind: str = "quarter") ->
             perf[k] = {"stock": _ret(s_h, days), "tasi": _ret(t_h, days)}
     except Exception:                                             # noqa: BLE001
         perf = {}
+        s_h = []
+    candles = candles_for(s_h, tbl.get("as_of"), kind, bool(latest))
     # ══ توصيةُ التقرير قرارُ التطبيق الواحد (D548) ══ — لا قاعدةٌ ثانية (±15٪) بجواره.
     decision = (an.get("decision") or {}).get("label") if isinstance(an.get("decision"), dict) else None
     return {
@@ -237,6 +263,7 @@ async def build(symbol: str, as_of: str | None = None, kind: str = "quarter") ->
         "market": {"high_52w": srow.get("high_52w"), "low_52w": srow.get("low_52w"),
                    "market_cap": mcap, "shares": round(mcap / price) if mcap and price else None},
         "performance": perf,
+        "candles": candles,                       # ‏D698: شموعُ السعر للفترة كتقارير البنوك
         "research": _research(sym, price) if latest else None,
         "insights": _insights(sym),
     }
