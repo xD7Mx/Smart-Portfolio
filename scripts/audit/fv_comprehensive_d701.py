@@ -105,8 +105,8 @@ check("F.apply_relative(s, res, rows_t[s][\"price\"]" in bt and "segmed[(seg_of(
       "١٥ والاختبارُ التاريخيّ يقارن بأقران كلّ تاريخ، ويقيس إصابةَ المصارف والمقارنة بأقرانها")
 # العيّنةُ الصغيرة تُقال بحجمها لا بنسبةٍ تُوهم، وكلمتُها «منخفضة» توافق نصَّها
 from app.services.analysis import confidence_of
-_small = {"model_value": 13.0, "price": 10.0, "value": 11.7, "count": 4, "weights_kind": "proven_gmean", "notes": [],
-          "models": [{"value": 10.0}] * 4}
+_small = {"model_value": 10.0, "price": 10.0, "value": 10.0, "archetype": "bank", "notes": [],    # المصرفُ «العادل»: 18 حالة
+          "models": [{"value": 10.0}] * 3}
 _tb = F.track_of(_small)
 check(_tb and _tb["n"] < 40 and "عيّنتُها صغيرة" in (F.track_note(_small) or "") and "٪" not in (F.track_note(_small) or "")
       and confidence_of(_small) == "منخفضة",

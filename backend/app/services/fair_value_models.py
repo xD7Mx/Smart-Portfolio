@@ -769,26 +769,22 @@ def proven_aggregate(models: list[dict], price: float) -> dict:
 # ‏D700 · الثقةُ نسبةُ إصابةٍ مقيسة لا قاعدةٌ داخلية: لكلّ فئة قراءةٍ ما أصابته في اختبار ما كان معلوماً منذ 2023 بعد اثني عشر
 # شهراً — الرخيصُ (تقديرُ النماذج ≥ 1.1 من السعر) تفوّق على الشركة الوسيطة، والغالي (< 0.9) تخلّف، والعادلُ لم يبتعد عنها
 # 15٪. ‏n المشاهدات و«hit1/hit2» نصفا الفترة (2023-03…2024-06 · 2024-09…). يُملأ من مخرَج `fv_backtest_d699.py` (‏@@TRACK@@).
-# قِيس على المحرّك الشامل نفسِه (‏D701 · run 38470869576 · 2,750 مشاهدة): المصارفُ والمقارنةُ بالأقران تُقاس بأقرانها لا بالسوق —
-# فالمصرفُ الرخيصُ 61٪ لا 93٪ (كان أكثرُها تفوّقَ المصارف جميعاً)، و«أفضلُ من أقرانها» من غير الماليّة 68٪، والرخيصُ بنماذجَ كاملة 61٪.
+# قِيس على المحرّك المركّب نفسِه (‏D702 · run 38476923453 · 2,850 مشاهدة): «أفضلُ من أقرانها» تفوّقت 62٪ و«أضعف» تخلّفت 60٪
+# (والنصفان كلاهما فوق 58٪)، ومن لا تكفيه النماذجُ 66٪ و66٪؛ والمصارفُ والمقارنةُ تُقاس بأقرانها، والعيّنةُ دون أربعين لا تُعرض نسبةً.
 FV_TRACK: dict[str, dict] = {
     "bank_cheap": {"n": 44, "hit": 61, "n1": 15, "hit1": 47, "hit2": 69},
     "bank_dear": {"n": 48, "hit": 50, "n1": 38, "hit1": 42, "hit2": 80},
     "bank_fair": {"n": 18, "hit": 83, "n1": 7, "hit1": 71, "hit2": 91},
-    "full_cheap": {"n": 213, "hit": 61, "n1": 94, "hit1": 63, "hit2": 60},
-    "full_dear": {"n": 746, "hit": 54, "n1": 396, "hit1": 54, "hit2": 53},
-    "full_deep": {"n": 57, "hit": 65, "n1": 32, "hit1": 50, "hit2": 84},
-    "full_fair": {"n": 190, "hit": 49, "n1": 87, "hit1": 43, "hit2": 54},
+    "rel_core_better": {"n": 402, "hit": 62, "n1": 204, "hit1": 64, "hit2": 61},
+    "rel_core_mid": {"n": 609, "hit": 52, "n1": 310, "hit1": 45, "hit2": 60},
+    "rel_core_weaker": {"n": 411, "hit": 60, "n1": 213, "hit1": 62, "hit2": 58},
+    "rel_financial_mid": {"n": 86, "hit": 65, "n1": 39, "hit1": 56, "hit2": 72},
     "rel_insurance_better": {"n": 76, "hit": 62, "n1": 46, "hit1": 52, "hit2": 77},
     "rel_insurance_mid": {"n": 108, "hit": 65, "n1": 49, "hit1": 55, "hit2": 73},
     "rel_insurance_weaker": {"n": 75, "hit": 63, "n1": 39, "hit1": 56, "hit2": 69},
-    "rel_thin_better": {"n": 160, "hit": 68, "n1": 82, "hit1": 61, "hit2": 76},
-    "rel_thin_mid": {"n": 137, "hit": 58, "n1": 73, "hit1": 58, "hit2": 59},
-    "rel_thin_weaker": {"n": 162, "hit": 62, "n1": 77, "hit1": 57, "hit2": 67},
-    "thin_cheap": {"n": 6, "hit": 0, "n1": 4, "hit1": 0, "hit2": 0},
-    "thin_dear": {"n": 114, "hit": 56, "n1": 59, "hit1": 44, "hit2": 69},
-    "thin_deep": {"n": 8, "hit": 0, "n1": 3, "hit1": 0, "hit2": 0},
-    "thin_fair": {"n": 4, "hit": 25, "n1": 3, "hit1": 33, "hit2": 0},
+    "rel_thin_better": {"n": 166, "hit": 66, "n1": 90, "hit1": 63, "hit2": 68},
+    "rel_thin_mid": {"n": 116, "hit": 57, "n1": 59, "hit1": 54, "hit2": 60},
+    "rel_thin_weaker": {"n": 171, "hit": 66, "n1": 82, "hit1": 62, "hit2": 70},
 }
 
 
@@ -964,8 +960,9 @@ def relative_value(sym: str, rel: dict, price: float, table: dict[str, dict] | N
     zs = [v for v in (zof(x) for x in group) if v is not None]
     zc = z - statistics.median(zs)
     fv = round(price * math.exp(seg["beta"] * zc), 2)
-    lo = round(price * math.exp(seg["beta"] * (zc - 0.1)), 2)
-    hi = round(price * math.exp(seg["beta"] * (zc + 0.1)), 2)
+    # ‏D702: النطاقُ بخطأ المحرّك المقيس (نصفُ الحالات المشابهة داخله) — كان ±‎β×0.1 فلم يقع السعرُ بعد سنةٍ داخله إلا في 13٪
+    _e = TARGET_ERR or 0.2
+    lo, hi = round(fv * (1 - _e), 2), round(fv * (1 + _e), 2)
     pct = {}
     for k in seg["keys"]:
         have = sorted(v.get(k) for v in group.values() if isinstance((v or {}).get(k), (int, float)))
@@ -1026,7 +1023,7 @@ def track_note(res: dict | None) -> str | None:
 
 
 # خطأُ الهدف الوسيطُ في اختبار ما كان معلوماً (‏o_target_err · بالمئة) — يُعرض بجانب الهدف. يُملأ من مخرَج الاختبار.
-TARGET_ERR: float | None = 0.1987          # ‏D701 · run 38470869576: 19.9٪ — و«لا تغيُّر» 20.9٪ والهدفُ قبل D700 ‏26.8٪
+TARGET_ERR: float | None = 0.2034          # ‏D702 · run 38476923453: 20.3٪ — و«لا تغيُّر» 20.8٪ والهدفُ قبل D700 ‏26.8٪
 
 
 def _tuning(symbol: str) -> dict:

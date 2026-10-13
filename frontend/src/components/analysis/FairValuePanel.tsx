@@ -108,6 +108,10 @@ export default function FairValuePanel({ symbol, analystTarget, week52, withheld
         <div className="card p-3 space-y-1">
           <div className="text-[11px] text-[var(--ink-muted)]">القيمة العادلة اليوم</div>
           <div className={"text-lg font-bold tabular-nums " + (up >= 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]")}>{fmt(r.value)}</div>
+          {/* ‏D702: المحرّكُ المركّب يعرض معه القيمةَ الذاتيةَ من النماذج المثبتة — فلا يختفي رأيُها */}
+          {r.intrinsic?.value != null && (
+            <div data-role="fv-intrinsic" className="text-[10px] text-[var(--ink-muted)] tabular-nums">الذاتيّةُ من النماذج {fmt(r.intrinsic.value)}</div>
+          )}
         </div>
         <div className="card p-3 space-y-1">
           <div className="text-[11px] text-[var(--ink-muted)]">الهدف لاثني عشر شهراً</div>
