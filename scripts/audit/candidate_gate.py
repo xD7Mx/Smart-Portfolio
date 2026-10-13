@@ -40,6 +40,13 @@ from app.services import cache as _cache, lastgood as _lg   # noqa: E402
 _set0 = _cache.set
 _cache.set = lambda key, value, ttl: _set0(key, value, min(ttl, _cache._PERSIST_MIN_TTL - 60))
 _lg.save = lambda *a, **k: None
+# ‏D696: والجانبان يحسبان نماذجَ السعر العادل من البيانات نفسِها الآن — مفتاحُ كاشها (‏fvm:vNN:{sym}) بلا إصدار محرّك، فكان
+# الشاهدُ يقرأ ما حسبه الإنتاجُ صباحاً بسعره والمرشَّحُ (بمفتاحٍ مُرقّى) يحسب الآن (قِيس: run 38422895101 · الرياض ريت عند
+# حدّ 60٪ في جانبٍ دون الآخر). فتُنزع من ذاكرة هذه العمليّة وحدها، ولا يُكتب القرصُ منها أبداً فلا يُمسّ كاشُ الإنتاج.
+_cache._flush = lambda *a, **k: None
+with _cache._lock:
+    for _k in [k for k in _cache._store if k.startswith("fvm:")]:
+        _cache._store.pop(_k, None)
 from app.data.market_universe import MARKET_UNIVERSE
 from app.data.universe import main_market
 from app.data.universe import is_nomu

@@ -57,5 +57,8 @@ check(gate_src.count('print(f"@@ENGINE_FP@@ {_FP} · {_ROOT}")') == 4 and 'os.en
 check("candidate_ab)" in ops and '""|*[!0-9a-f]*)' in ops and 'git archive "$P" backend/app' in ops
       and "SP_CODE_ROOT=/tmp/control" in ops and ops.index("الشاهد: الأساسُ") < ops.index("المرشَّح: الشجرةُ الحاليّة"),
       "٧ ومهمّةُ candidate_ab: مرجعٌ سداسيٌّ وحدَه، والأساسُ من git archive ثمّ المرشَّحُ في الجولة نفسِها")
+check("_cache._flush = lambda *a, **k: None" in gate_src and 'if k.startswith("fvm:")' in gate_src
+      and gate_src.index("_cache._flush = lambda") < gate_src.index('if k.startswith("fvm:")'),
+      "٨ والجانبان يحسبان النماذجَ الآن من البيانات نفسِها — كاشُها يُنزع من ذاكرة القياس وحده ولا يُكتب القرصُ منه")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)
