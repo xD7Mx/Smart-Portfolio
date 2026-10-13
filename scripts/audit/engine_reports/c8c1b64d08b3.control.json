@@ -2,7 +2,7 @@
   "fingerprint": "c8c1b64d08b3",
   "measured_at": "2026-10-13",
   "metrics": {
-    "coverage": 0.8971,
+    "coverage": 0.9007,
     "unnamed_missing": 0,
     "stale": 0,
     "precapital": 0,
@@ -44,14 +44,14 @@
       "السلع الرأسمالية",
       "الطاقة"
     ],
-    "conf_share": 0.5,
-    "conf_high_share": 0.1967,
+    "conf_share": 0.498,
+    "conf_high_share": 0.1959,
     "verdict": {
       "١ التغطية": true,
       "٢ الحداثة": true,
       "٣ المعقولية": true,
       "٤ المرجع": true,
-      "٥ الثقة": true,
+      "٥ الثقة": false,
       "٢ الجودة": true,
       "٣ القرار": true,
       "٤ الشرعي": true,
@@ -88,6 +88,6 @@
     "o_fs_ic6": 0.0019,
     "o_fs_ic12": 0.0151
   },
-  "run": "38472682493",
+  "run": "38477237865",
   "note": "شيفرةُ الأساس المجمَّد مقيسةً في يومٍ لاحق — مرجعُ مقارنة المرشَّح في يومه"
 }
