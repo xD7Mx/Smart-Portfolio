@@ -951,6 +951,26 @@ def _label(d):
     return d.get("label") if isinstance(d, dict) else d
 
 
+def served_raw(d: dict | None, price) -> str | None:
+    """‏D690: الحكمُ الخامُ بسعر اللحظة — الحكمُ المحفوظ مُعاداً عليه سقفُ القيمة العادلة بالسعر الحيّ؛ ولا شيء إن لم يُعَد
+    (لا سقفَ محفوظاً، أو سقفٌ لحكمٍ آخر، أو لا سعر) فيبقى المحفوظ. يقرؤه الفرزُ وبوابةُ المحرّكات بالشيفرة نفسِها."""
+    if not isinstance(d, dict):
+        return None
+    dec, ceil = d.get("decision"), d.get("ceiling")
+    if not (isinstance(dec, dict) and isinstance(ceil, dict)):
+        return None
+    base = str((ceil.get("base") or {}).get("rule_id") or "")
+    # السقفُ لهذا الحكم نفسِه لا لحكمٍ سبقه — قاعدةُ المحفوظ تبدأ بقاعدة ما قبل السقف
+    if not base or not str(dec.get("rule_id") or "").startswith(base):
+        return None
+    try:
+        from app.services.decision_engine import reapply_ceiling
+        g = reapply_ceiling(ceil, price)
+        return g.decision if g is not None else None
+    except Exception:                                             # noqa: BLE001
+        return None
+
+
 def served_decision(d: dict | None, price) -> str | None:
     """‏D690: قرارُ الصفّ بسعر اللحظة — الحكمُ المحفوظ مُعاداً عليه سقفُ القيمة العادلة بالسعر الحيّ.
 
@@ -959,20 +979,11 @@ def served_decision(d: dict | None, price) -> str | None:
     محفوظاً (حكمٌ لا يحرّكه السعر، أو مخزنٌ قبل D690) يُعرض كما حُفظ."""
     if not isinstance(d, dict):
         return None
-    dec = d.get("decision")
-    ceil = d.get("ceiling")
-    if isinstance(dec, dict) and isinstance(ceil, dict):
-        base = str((ceil.get("base") or {}).get("rule_id") or "")
-        # السقفُ لهذا الحكم نفسِه لا لحكمٍ سبقه — قاعدةُ المحفوظ تبدأ بقاعدة ما قبل السقف
-        if base and str(dec.get("rule_id") or "").startswith(base):
-            try:
-                from app.services.decision_engine import reapply_ceiling, public_label
-                g = reapply_ceiling(ceil, price)
-                if g is not None:
-                    return public_label(g.decision)
-            except Exception:                                     # noqa: BLE001
-                pass
-    return _label(dec)
+    g = served_raw(d, price)
+    if g is not None:
+        from app.services.decision_engine import public_label
+        return public_label(g)
+    return _label(d.get("decision"))
 
 
 def with_live_decisions(rows: list | None) -> list | None:

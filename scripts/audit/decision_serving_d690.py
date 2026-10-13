@@ -94,5 +94,10 @@ check('"decision_ceiling": _ceil' in an and an.count('"ceiling": result.get("dec
 check(ms.count("served_decision(") >= 4 and 'r["decision"] = served_decision(_dd, r.get("price"))' in ms
       and "reapply_ceiling(data.get(\"decision_ceiling\"), _lp)" in mk and '"ceiling": ceil' in mk,
       "١٠ ويُقدَّم بسعر اللحظة في كلّ موضع: بناءُ الفرز وقراءتُه وإنعاشُه بالسعر الحيّ، وصفحةُ الشركة")
+gate = rd("scripts/audit/engines_gate_v1.py")
+sr = getattr(MS, "served_raw", None)
+check(sr is not None and sr({"decision": {"raw": "شراء", "rule_id": "R"}, "ceiling": DE.ceiling_inputs(buy, 59.04, 50.0)}, 59.05) == "انتظار"
+      and "raw = _served_raw(deep.get(s), px) or" in gate,
+      "١١ وبوابةُ المحرّكات تحاكم الحكمَ المعروض بسعر الصفّ نفسِه — لا المحفوظَ بسعرٍ أقدم (كاتريون: 59.05 فوق 59.04 ⇒ «انتظار»)")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

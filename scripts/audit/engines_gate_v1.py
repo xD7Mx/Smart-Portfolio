@@ -55,16 +55,24 @@ show([f"بلا سبب: {s} {uni[s].get('name_ar')}" for s in miss if s not in na
 show([f"خطٌّ أحمر بدرجة {rows[s]['finance_score']}: {s} {uni[s].get('name_ar')}" for s in red])
 
 # ══ ٣ القرار ══
+# ‏D690: يُقاس الحكمُ الذي يعرضه التطبيقُ بسعر الصفّ — المحفوظُ مُعاداً عليه سقفُ القيمة العادلة بالسعر نفسِه. كان يُقاس
+# المحفوظُ كما هو، فحكمٌ حُسب بسعر المسحة يُحاكَم بسعرٍ حيٍّ عبر قيمتَه (قِيس: كاتريون «شراء» بـ59.05 والقيمةُ 59.04 —
+# run 38386653843). وقبل D690 يعرض الفرزُ المحفوظَ نفسَه، فيبقى قياسُ الإصدارات السابقة كما كان.
+try:
+    from app.services.market_screener import served_raw as _served_raw
+except ImportError:                                               # قبل D690
+    def _served_raw(d, price):
+        return None
 bad, noreason, total = [], [], 0
 for s in syms:
     d = (deep.get(s) or {}).get("decision")
     if not d:
         continue
     total += 1
-    raw = d.get("raw") if isinstance(d, dict) else d
-    reason = d.get("reason") if isinstance(d, dict) else None
     r = rows.get(s) or {}
     fv, px, q = r.get("fair_value"), r.get("price"), r.get("finance_score")
+    raw = _served_raw(deep.get(s), px) or (d.get("raw") if isinstance(d, dict) else d)
+    reason = d.get("reason") if isinstance(d, dict) else None
     if raw in BUY:
         why = ("بلا سعرٍ عادل" if not isinstance(fv, (int, float)) else
                "السعرُ فوق القيمة" if isinstance(px, (int, float)) and px > fv else
