@@ -52,7 +52,8 @@ async def main():
     print(f"@@STRAY@@ يعدّها التطبيقُ رئيسيّةً وليست في صفحة «تداول» الرئيسية {len(stray)}: "
           + " · ".join(f"{s} {(MU.get(s) or {}).get('name_ar')}{' [نمو]' if s in t_nomu else ''}" for s in stray[:40]))
     both = sorted(t_main & app_main)
-    sec = [s for s in both if td[s].get("sector_ar") and (MU.get(s) or {}).get("sector") != td[s]["sector_ar"]]
+    from app.services.tadawul_sync import canon_sector, official_name
+    sec = [s for s in both if td[s].get("sector_ar") and (MU.get(s) or {}).get("sector") != canon_sector(td[s]["sector_ar"])]   # بعد توحيد الإملاء
     print(f"@@SECTOR@@ قطاعُ التطبيق يخالف «تداول» {len(sec)} من {len(both)}: "
           + " · ".join(f"{s} {(MU.get(s) or {}).get('sector')} ← {td[s]['sector_ar']}" for s in sec[:25]))
     try:
@@ -61,7 +62,7 @@ async def main():
     except Exception:                                              # noqa: BLE001
         ov = {}
     nm = [s for s in both if td[s].get("name_ar") and (ov.get(s) or (MU.get(s) or {}).get("name_ar")) !=
-          re.sub(r"^شركة\s+", "", td[s]["name_ar"])]
+          official_name(td[s]["name_ar"])]
     print(f"@@NAME@@ الاسمُ المعروض يخالف «تداول» {len(nm)} من {len(both)}: "
           + " · ".join(f"{s} {ov.get(s) or (MU.get(s) or {}).get('name_ar')} ← {td[s]['name_ar']}" for s in nm[:15]))
     secs = sorted({td[s].get("sector_ar") for s in t_main if td[s].get("sector_ar")})
