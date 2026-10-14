@@ -318,6 +318,7 @@ node scripts/audit/ui_d694.mjs || _note "$LINENO"
 node scripts/audit/ui_d695.mjs || _note "$LINENO"
 # D697: المستشارُ الآليّ تبويبٌ ثالثٌ في تحليل الذكاء بجانب المختبر
 node scripts/audit/ui_d697.mjs || _note "$LINENO"
+node scripts/audit/ui_d710.mjs || _note "$LINENO"
 # D698: تقريرُ الشركة يحمل شموعَ الفترة كتقارير البنوك — ولا رسمَ مختلَقاً بلا شموع
 node scripts/audit/ui_d698.mjs || _note "$LINENO"
 python3 scripts/audit/fv_evidence_d700.py || _note "$LINENO"

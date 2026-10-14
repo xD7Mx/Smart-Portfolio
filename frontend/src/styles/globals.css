@@ -2755,6 +2755,12 @@ svg text.sp-val,  svg .sp-val  text { fill: var(--ink); }
 .seg, .kpi-box, .modal, .sheet {
   border-radius: 14px;
 }
+/* ‏D710: الدائرةُ شكلٌ لا نصفُ قطر. القاعدةُ أعلاه بعد الأدوات وبالخصوصية نفسِها فكانت تغلب
+   `rounded-full` — فصارت الصورةُ الشخصية مربّعاً بزوايا (الترحيب · الإعدادات · الدخول)، ودائرةً
+   في الترويسة وحدها. فالعنصرُ الذي يطلب الدائرةَ صراحةً يبقى دائرة. */
+:is(.card, .panel, .mc, .notif, .idle-opt, .seg, .kpi-box, .modal, .sheet).rounded-full {
+  border-radius: 9999px;
+}
 
 
 /* ══ وسمُ نوع الحدث ══ (المفكرة والأخبار)
