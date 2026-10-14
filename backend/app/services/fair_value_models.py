@@ -210,6 +210,7 @@ class Inputs:
     peer_symbols: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     stale_days: int | None = None            # عمرُ أحدث قوائم منشورة بالأيام
+    capital_pending: str | None = None       # ‏D674: زيادةُ رأس مالٍ بمقابل بعد آخر قوائم — سببُ الامتناع
 
 
 STALE_WARN, STALE_STOP = 274, 456            # تسعةُ أشهرٍ للتحذير وخمسةَ عشرَ للامتناع
@@ -1045,6 +1046,8 @@ def value(i: Inputs) -> dict:
     if i.stale_days is not None and i.stale_days > STALE_STOP:
         return {"value": None, "reason": f"أحدثُ قوائم منشورة لدينا ({i.ttm_source}) أقدمُ من خمسة عشر شهراً — "
                                          "لا تُقيَّم ورقةٌ اليوم بقوائمَ قديمة", "price": i.price}
+    if i.capital_pending:                                              # ‏D674: لا عددُ القوائم صوابٌ ولا عددُ السوق
+        return {"value": None, "reason": i.capital_pending, "price": i.price, "capital_pending": True}
     if i.archetype in UNPROVEN_ARCH:                                   # ‏D700
         out = {"value": None, "reason": UNPROVEN_ARCH[i.archetype], "price": i.price, "unproven": True}
         if i.archetype in REL_SEGMENTS:                                # ‏D701: والتأمينُ يُقارن بأقرانه بما ثبت فيه
@@ -1245,9 +1248,11 @@ def sanity_ttm(ttm: dict, src: str, annual: list[dict], shares: float, price: fl
     return ttm, src
 
 
-# ‏D674 (مؤجَّلٌ إلى 2.4): حدُّ 15٪ يلتقط المنحَ (الرمز 0.70) لكنّه لا يميّز زيادةَ رأس المال بالاكتتاب (أسهمٌ ونقدٌ معاً) عن
-# المنحة (أسهمٌ بلا نقد) — قِيس في بوابة المرشَّح: ميدغلف (اكتتاب) 104.8 ← 138.2 مليوناً فتراجع انحرافُ قطاع التأمين 7.1 ← 11.6٪.
+# ‏D674: حدُّ 15٪ وحده يلتقط المنحَ (الرمز 0.70) ولا يميّز زيادةَ رأس المال بالاكتتاب (أسهمٌ ونقدٌ معاً) عن المنحة (أسهمٌ بلا نقد) —
+# قِيس: ميدغلف (اكتتاب) 104.8 ← 138.2 مليوناً. فالتمييزُ بنوع الحدث وتاريخه من الإفصاحات (‏capital_events · في gather)، والحدُّ هنا
+# للفرق الذي لا حدثَ معروفاً وراءه.
 SHARES_TOL = 1.5
+CAPEV_DEV = 1.05            # ‏D674: فرقٌ يستدعي السؤالَ عن حدث رأس المال (عددُ القوائم من الربح ÷ ربحية السهم يتذبذب دونه)
 
 
 def market_shares_check(shares: float, market_cap: float | None, price: float | None, notes: list) -> float:
@@ -1459,13 +1464,32 @@ async def gather(symbol: str) -> Inputs | None:
         except Exception:                                          # noqa: BLE001
             pass
     _sh0 = shares
-    shares = market_shares_check(shares, _mc, price, notes)
+    _last = max((str(x.get("as_of") or f"{x.get('year')}-12-31")[:10] for x in (quarterly[-1:] + annual[-1:])), default=None)
+    # ══ ‏D674: سببُ الفرق قبل الحكم به — نوعُ حدث رأس المال وتاريخُه من إفصاحات «تداول» ══
+    # منحةٌ أو تخفيضٌ بعد آخر قوائم ⇒ عددُ السوق (أسهمٌ بلا نقد)؛ زيادةٌ بمقابل بعدها ⇒ لا رقم (نقدُها أو أصولُها ليست في القوائم)؛
+    # ولا حدثَ بعدها ⇒ الحَكَمُ القديم (مرّةٌ ونصف). قِيس: المنحةُ القديمة سبقت القوائمَ بسنوات فليست سببَ الفرق.
+    capital_pending, _ev = None, None
+    if _mc and shares and not (1 / CAPEV_DEV <= shares / (_mc / price) <= CAPEV_DEV):
+        try:
+            from app.services.capital_events import kind_after
+            _ev = kind_after(sym, _last)
+        except Exception:                                          # noqa: BLE001
+            _ev = None
+    if _ev and _ev["kind"] in ("bonus", "reduction"):
+        notes.append(f"عددُ الأسهم من القوائم {shares / 1e6:,.1f} مليون ← {_mc / price / 1e6:,.1f} مليون (السوق): "
+                     f"{'منحةٌ أو تجزئة' if _ev['kind'] == 'bonus' else 'تخفيضُ رأس مال'} بتاريخ {_ev['date']} بعد آخر قوائم "
+                     f"({_last}) — من إفصاحات «تداول»")
+        shares = _mc / price
+    elif _ev and _ev["kind"] == "paid":
+        capital_pending = (f"زيادةُ رأس مالٍ بمقابل (حقوقُ أولوية أو طرحٌ أو استحواذٌ بأسهم) بتاريخ {_ev['date']} بعد آخر قوائم "
+                           f"({_last}) — أسهمُها في السوق ونقدُها أو أصولُها ليست في القوائم بعد؛ لا رقمَ حتى تُنشر قوائمُ تشملها")
+    else:
+        shares = market_shares_check(shares, _mc, price, notes)
     # ‏D621: تجزئةٌ بعد آخر قوائم (من سجلّ أحداث رأس المال) — إن لم يكن حَكَمُ السوق قد صحّح العددَ أصلاً
     try:
         from app.services.split_watch import factor_after
-        _last = max((str(x.get("as_of") or f"{x.get('year')}-12-31")[:10] for x in (quarterly[-1:] + annual[-1:])), default=None)
         _f = factor_after(sym, _last)
-        if _f > 1 and shares and _sh0 and 1 / 1.5 <= shares / _sh0 <= 1.5:
+        if _f > 1 and shares and _sh0 and 1 / 1.5 <= shares / _sh0 <= 1.5 and not _ev:   # ‏D674: حدثٌ صحّح العددَ لا يُضاعَف
             notes.append(f"تجزئةٌ بمعامل {_f:g} بعد آخر قوائم ({_last}) — عددُ الأسهم {shares / 1e6:,.1f} ← {shares * _f / 1e6:,.1f} مليون")
             shares = shares * _f
     except Exception:                                              # noqa: BLE001
@@ -1572,7 +1596,7 @@ async def gather(symbol: str) -> Inputs | None:
     return Inputs(symbol=sym, price=price, shares=shares, annual=annual, ttm=ttm, hist=hist,
                   balance=balance_of(quarterly, annual), ttm_source=src, archetype=archetype_of(sym),
                   sector=sector, beta=beta, dps_ttm=dps, peers=pm, peer_symbols=peers, notes=notes,
-                  stale_days=stale)
+                  stale_days=stale, capital_pending=capital_pending)
 
 
 def blend(res: dict, calibrated: dict | None, archetype: str | None, dy: float | None) -> dict:
@@ -1599,7 +1623,8 @@ def blend(res: dict, calibrated: dict | None, archetype: str | None, dy: float |
                                                "أدقُّ قياساً هنا؛ والنماذجُ أدناه للاطّلاع لا تدخل الرقم")
         res["blend"] = {"alpha": a, "calibrated": round(old_v, 2)}
     elif old_v and not new_v and "خمسة عشر شهراً" not in str(res.get("reason") or "") \
-            and not res.get("unproven") and "أثبتت نفسها" not in str(res.get("reason") or ""):   # D594 · ‏D700: لا احتياطَ لامتناعٍ مقيس
+            and not res.get("unproven") and not res.get("capital_pending") \
+            and "أثبتت نفسها" not in str(res.get("reason") or ""):   # D594 · ‏D700 · ‏D674: لا احتياطَ لامتناعٍ مقيس
         res["value"], res["low"], res["high"] = round(old_v, 2), _n(calibrated.get("low")), _n(calibrated.get("high"))
     if res.get("value") and res.get("price"):
         res["upside"] = round((res["value"] / res["price"] - 1) * 100, 2)

@@ -264,6 +264,12 @@ async def job_tadawul_financials():
         logger.info(f"الأسهمُ المصدرة: {issued_watch()}")
     except Exception as e:
         logger.error(f"الأسهمُ المصدرة: {e}")
+    # ‏D674: ونوعُ الحدث من إفصاحات «تداول» — ستون شركةً في الليلة، الأقدمُ قراءةً أوّلاً (السوقُ كلُّه أسبوعياً)
+    try:
+        from app.services.capital_events import harvest
+        logger.info(f"أحداثُ رأس المال: {await harvest(limit=60)}")
+    except Exception as e:
+        logger.error(f"أحداثُ رأس المال: {e}")
 
 
 async def job_close_digest():

@@ -204,6 +204,11 @@ async def main():
     F._hist_multiples = hist_pit
     TD.read = div_pit
     SW.factor_after = lambda *a, **k: 1.0
+    try:                                                           # ‏D674: أحداثُ رأس المال اليوم ليست ما كان معلوماً يومها
+        from app.services import capital_events as _CE
+        _CE.kind_after = lambda *a, **k: None
+    except ImportError:                                            # الشاهدُ المجمَّد قبل D674
+        pass
     TF.page_pe = lambda *a, **k: None
     RA.latest = lambda *a, **k: None
     C.get, C.set = cget, cset
