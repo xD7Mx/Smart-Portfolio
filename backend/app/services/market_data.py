@@ -354,6 +354,62 @@ def monthly(rows: list) -> list:
     return out
 
 
+# ══ شموعٌ كتريدنق فيو ══ (D713 · بلاغُ المالك: «الشموعُ يومٌ وأسبوعٌ وشهر لكنّها ليست حقيقية مثل تريدنق فيو»)
+# قِيس (‏bars_real_door · run 38595783271): اليوميُّ حقيقيٌّ ويطابق جلسةَ «تداول» الرسمية، لكنّ **الشهريّ** من ياهو كان يُؤرَّخ
+# بتاريخ UTC لمنتصف ليل الرياض — فيقع الشهرُ في آخر يومٍ من الشهر الذي قبله، ويُلحق ياهو يومَ اليوم نقطةً مستقلّة فينقسم الشهرُ
+# الجاري شمعتين (الراجحي: «2026-09-30» لأكتوبر حتى الأمس ثمّ «2026-10-14» يومُ اليوم وحده). والأسبوعيُّ مؤرَّخٌ بآخر أيّامه،
+# وتريدنق فيو يؤرّخ الشمعةَ بأوّل أيّامها. والشمعةُ الجارية كانت تتجمّد بذاكرة يوم.
+from datetime import timezone as _tz_, timedelta as _td_
+_RIYADH_TZ = _tz_(_td_(hours=3))
+
+
+def riyadh_months(points: list) -> list:
+    """نقاطُ ياهو الشهرية ← شمعةٌ لكلّ شهرٍ بتقويم الرياض، مؤرَّخةٌ بأوّل يومه، والشهرُ الجاري واحدٌ لا اثنان."""
+    from datetime import datetime
+    dated = []
+    for p in points or []:
+        t = p.get("time")
+        d = datetime.fromtimestamp(int(t), tz=_RIYADH_TZ).date().isoformat() if isinstance(t, (int, float)) and t else str(p.get("date"))[:10]
+        dated.append({**p, "date": d})
+    return monthly(sorted(dated, key=lambda r: r["date"]))
+
+
+def week_start(rows: list) -> list:
+    """الشمعةُ الأسبوعية مؤرَّخةٌ بأوّل أسبوع التداول (الأحد) كتريدنق فيو — لا بآخر يومٍ فيه."""
+    import datetime as _dt
+    out = []
+    for r in rows or []:
+        d = _dt.date.fromisoformat(str(r["date"])[:10])
+        out.append({**r, "date": (d - _dt.timedelta(days=(d.weekday() + 1) % 7)).isoformat()})
+    return out
+
+
+def live_tail(rows: list, snap: dict | None, day: str | None, tf: str) -> list:
+    """الشمعةُ الجارية من جلسة «تداول» الرسمية (افتتاحٌ · أعلى · أدنى · سعر) — تتحرّك مع التداول كتريدنق فيو.
+    اليومُ يُكتب كما هو، والأسبوعُ والشهرُ يمتدّان بأعلاه وأدناه ويُغلقان بسعره؛ وفترةٌ جديدةٌ تُفتح شمعةً جديدة. لا يُمسّ ما قبلها."""
+    import datetime as _dt
+    if not rows or not snap or not day or tf not in ("1d", "1wk", "1mo"):
+        return rows
+    c, h, l = snap.get("price"), snap.get("day_high"), snap.get("day_low")
+    if not (isinstance(c, (int, float)) and c > 0 and isinstance(h, (int, float)) and isinstance(l, (int, float)) and h >= l > 0):
+        return rows
+    o = snap.get("day_open") if isinstance(snap.get("day_open"), (int, float)) and snap.get("day_open") > 0 else c
+    d = _dt.date.fromisoformat(day[:10])
+    key = (d.isoformat() if tf == "1d" else
+           (d - _dt.timedelta(days=(d.weekday() + 1) % 7)).isoformat() if tf == "1wk" else f"{day[:7]}-01")
+    rows = [dict(r) for r in rows]
+    last = rows[-1]
+    lk = str(last["date"])[:10]
+    if lk == key:
+        if tf == "1d":
+            last.update(open=o, high=h, low=l, close=c)
+        else:
+            last.update(high=max(last["high"], h), low=min(last["low"], l), close=c)
+    elif key > lk:
+        rows.append({"date": key, "open": o, "high": h, "low": l, "close": c, "volume": snap.get("volume") or 0})
+    return rows
+
+
 class YahooFinanceAdapter:
     """
     Wraps yfinance to provide a consistent interface.
@@ -559,12 +615,12 @@ class YahooFinanceAdapter:
         from app.services import cache
         if tf not in BAR_FRAMES:
             return []
-        ck, stale_k = f"bars:yahoo:{symbol}:{tf}:v1", f"bars:stale:{symbol}:{tf}"
+        ck, stale_k = f"bars:yahoo:{symbol}:{tf}:v2", f"bars:stale:{symbol}:{tf}:v2"   # ‏D713: v2 — شهرٌ بتقويم الرياض وأسبوعٌ بأوّله
         hit = cache.get(ck)
         if hit is not None:
             return hit
         if tf == "1wk":
-            pts = await self.get_history(symbol, "5y") or []
+            pts = week_start(await self.get_history(symbol, "5y") or [])
         else:
             if not can_call("yahoo"):
                 return cache.get(stale_k) or []
@@ -572,7 +628,7 @@ class YahooFinanceAdapter:
             if tf == "1d":
                 pts = await self._fetch_chart_points(symbol, "2y", "1d")
             elif tf == "1mo":
-                pts = await self._fetch_chart_points(symbol, "10y", "1mo")
+                pts = riyadh_months(await self._fetch_chart_points(symbol, "10y", "1mo"))
             else:
                 pts = await self._fetch_hourly(symbol, "3mo" if tf == "1h" else "1y")
                 if tf == "4h":
@@ -1722,8 +1778,21 @@ class MarketDataService:
         if symbol.upper() in _th.SYMBOLS:
             if tf in ("1h", "4h"):
                 return await self._tasi_intraday(tf)
-            return await self._tasi_daily(tf)
-        return await self._yahoo().get_bars(symbol, tf)
+            rows = await self._tasi_daily(tf)
+            return week_start(rows) if tf == "1wk" else rows
+        rows = await self._yahoo().get_bars(symbol, tf)
+        # ‏D713: والشمعةُ الجاريةُ للسهم السعوديّ من جلسة «تداول» الرسمية — تتحرّك مع التداول لا بذاكرة يوم
+        if rows and tf in ("1d", "1wk", "1mo") and symbol.upper().endswith(".SR"):
+            try:
+                from app.services import tadawul_market as _tm
+                from datetime import datetime as _dtm
+                _rows, _live, _at = _tm.usable_rows()
+                snap = _rows.get(symbol.upper().replace(".SR", "")) if _rows else None
+                day = _dtm.fromisoformat(str(_at).replace("Z", "+00:00")).astimezone(_RIYADH_TZ).date().isoformat() if _at else None
+                rows = live_tail(rows, snap, day, tf)
+            except Exception:                                     # noqa: BLE001
+                pass
+        return rows
 
     async def _tasi_daily(self, tf: str) -> list:
         """يومُ تاسي وأسبوعُه وشهرُه بشموعٍ حقيقية (D663).

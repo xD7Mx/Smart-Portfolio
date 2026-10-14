@@ -164,6 +164,9 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
   const [showCfg, setShowCfg] = useState(false);
   const [zones, setZones] = useState<{ y: number; x: number; title: string }[]>([]);
   const [psw, setPsw] = useState(64);   // عرضُ محور الأسعار — تجلس اللوحةُ بجانبه كما في تريدنق فيو
+  /* ‏D713 (المالك): «الأسعارُ على اليمين بلا ظلّ — بنمطٍ إطاريٍّ جميل». مستوياتُ الرسم تُحفظ هنا ثمّ تُرسم وسوماً مؤطَّرةً
+     فوق محور الأسعار (لا كتلاً ملوّنةً من المكتبة)، ويُعاد موضعُها مع كلّ سحبٍ وتكبير. */
+  const levelsRef = useRef<{ price: number; color: string; text?: string; rank: number; last?: boolean }[]>([]);
   // ══ الرسمُ اليدويّ: خطُّ ترند وقناة — محفوظان لكلّ رمز ══
   const dKey = `sp_draw_${symbol}`;
   const [draws, setDraws] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem(dKey) || "[]"); } catch { return []; } });
@@ -201,7 +204,11 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
     queryFn: () => marketApi.bars(symbol, range).then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
     enabled: !!symbol,
     retry: 0,
+    /* ‏D713: الشمعةُ الجاريةُ تتحرّك مع التداول كتريدنق فيو — الخادمُ يكتبها من جلسة «تداول» الرسمية */
+    refetchInterval: 60 * 1000,
   });
+  /* ‏D713: يُعاد بناءُ الرسم حين تتغيّر بنيتُه (شمعةٌ جديدة · إطار) لا مع كلّ تحديثٍ للشمعة الجارية — فلا يضيع تكبيرُك وموضعُك */
+  const barsKey = `${bars.length}|${bars[0]?.date ?? ""}|${range}`;
 
   // VIX للأسواق الأمريكية وحدَها — كما في السكربت
   const isUS = !!symbol && !/^\d{4}(\.SR)?$/.test(symbol) && !/TASI/i.test(symbol);
@@ -296,11 +303,16 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
       const candle = chart.addCandlestickSeries({
         upColor: up, downColor: down, borderVisible: false,
         wickUpColor: up, wickDownColor: down,
+        lastValueVisible: false,                 /* ‏D713: آخرُ سعرٍ وسمٌ مؤطَّر لا كتلة */
       });
+      levelsRef.current = [];
+      { const lb: any = bars[bars.length - 1];
+        if (lb) levelsRef.current.push({ price: lb.close, color: lb.close >= lb.open ? up : down, rank: 0, last: true }); }
       candle.setData(bars.map((b: any) => ({ time: tkey(b.date), open: b.open, high: b.high, low: b.low, close: b.close })));
 
       // volume
-      const vol = chart.addHistogramSeries({ priceScaleId: "", priceFormat: { type: "volume" } });
+      /* ‏D713: والحجمُ بلا كتلةٍ على المحور — أعمدتُه تكفي، كتريدنق فيو */
+      const vol = chart.addHistogramSeries({ priceScaleId: "", priceFormat: { type: "volume" }, priceLineVisible: false, lastValueVisible: false });
       vol.priceScale().applyOptions({ scaleMargins: { top: 0.86, bottom: 0 } });
       vol.setData(bars.map((b: any) => ({ time: tkey(b.date), value: b.volume, color: b.close >= b.open ? tokA("--pos-ink", "#16a34a", .4) : tokA("--neg-ink", "#dc2626", .4) })));
 
@@ -339,7 +351,11 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
       if (ind.d7m) {
         // لونُ المالك من الإعدادات إن اختاره، وإلا لونُ المظهر
         const C = (k: string) => cfg.colors?.[k] || tok((D7M_COLORS.find(x => x[0] === k) || ["", "", "--ink"])[2], "#000");
-        const ink = C("fib");
+        /* ‏D713 (المالك): «مؤشّرُ D7M بخطوطٍ سوداء قبيحة». «الأبيضُ» في السكربت لخلفيةٍ داكنة، وكان يُرسم بحبر النصّ (أسودَ في
+           الفاتح). فصار كتريدنق فيو: المستوياتُ رماديّةٌ شفيفةٌ متقطّعة، والذهبيّةُ ذهبٌ صلب، والقناةُ بلون الهويّة شفيفة —
+           وما اختاره المالكُ لوناً في الإعدادات يبقى له. */
+        const ink = cfg.colors?.fib || tokA("--ink-muted", "#6b7280", 0.55);
+        const inkTag = cfg.colors?.fib || tok("--ink-muted", "#6b7280");
         const yellow = C("fibGold");
         const T = (i: number) => tkey(bars[Math.max(0, Math.min(i, bars.length - 1))].date);
         const addLine = (pts: [number, number][], color: string, width = 1, style = 0) => {
@@ -355,8 +371,11 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
         if (fib) {
           for (const l of fib.lines) {
             if (cfg.fibLevels[String(l.level)] === false) continue;
-            candle.createPriceLine({ price: l.price, color: l.color === "yellow" ? yellow : ink, lineWidth: 1,
-              lineStyle: 0, axisLabelVisible: true, title: l.title });
+            const gold = l.color === "yellow";
+            candle.createPriceLine({ price: l.price, color: gold ? yellow : ink, lineWidth: 1,
+              lineStyle: gold ? 0 : 2, axisLabelVisible: false, title: "" });
+            levelsRef.current.push({ price: l.price, color: gold ? yellow : inkTag, text: [String(l.level), l.title].filter(Boolean).join(" · "),
+                                     rank: gold ? 2 : 3 });
           }
         }
         const zoneList = fib && cfg.fibZones ? fib.zones : [];
@@ -387,7 +406,7 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
         }
         // ٣) القناة السعرية التلقائية
         const ch = cfg.channel ? autoChannel(bars, cfg.chDev, cfg.chDepth) : null;
-        if (ch) for (const seg of [ch.base, ch.parallel]) addLine(seg as any, C("channel"), 1, 2);
+        if (ch) for (const seg of [ch.base, ch.parallel]) addLine(seg as any, cfg.colors?.channel || tokA("--brand-ink", "#5b52d3", 0.6), 1, 2);
         // ٤) VWAP ونطاقه
         if (cfg.vwap || cfg.vwapBand) {
           const vw = vwapAnchored(bars, cfg.vwapAnchor, cfg.vwapMult);
@@ -430,7 +449,8 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
       for (const d of draws) {
         if (typeof d.h !== "number") continue;
         candle.createPriceLine({ price: d.h, color: cfg.colors?.draw || tok("--brand-ink", "#5b52d3"), lineWidth: 2,
-          lineStyle: 0, axisLabelVisible: true, title: "" });
+          lineStyle: 0, axisLabelVisible: false, title: "" });
+        levelsRef.current.push({ price: d.h, color: cfg.colors?.draw || tok("--brand-ink", "#5b52d3"), rank: 1 });
       }
       chart.timeScale().fitContent();
       chartRef.current = chart; candleRef.current = candle;
@@ -441,7 +461,17 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
     }).catch(() => setErr(true));
     return () => { cancelled = true; chartRef.current = null; candleRef.current = null;
       try { ro && ro.disconnect(); chart && chart.remove(); } catch {} };
-  }, [bars, theme, ind, range, cfg, draws, tool]);
+  }, [barsKey, theme, ind, range, cfg, draws, tool]);
+  /* ‏D713: والشمعةُ الجاريةُ تُحدَّث في موضعها — افتتاحُها وأعلاها وأدناها وسعرُها — ووسمُ آخر سعرٍ معها */
+  useEffect(() => {
+    const cs = candleRef.current, b: any = bars[bars.length - 1];
+    if (!cs || !b) return;
+    try { cs.update({ time: tkey(b.date), open: b.open, high: b.high, low: b.low, close: b.close }); } catch { return; }
+    const last = levelsRef.current.find(l => l.last);
+    if (last) { last.price = b.close; last.color = b.close >= b.open ? getComputedStyle(document.documentElement).getPropertyValue("--pos-ink").trim() || last.color
+                                                                     : getComputedStyle(document.documentElement).getPropertyValue("--neg-ink").trim() || last.color; }
+    setTick(t => t + 1);
+  }, [bars]);
 
   const normT = (tm: any) => (tm && typeof tm === "object" && "year" in tm)
     ? `${tm.year}-${String(tm.month).padStart(2, "0")}-${String(tm.day).padStart(2, "0")}` : tm;
@@ -594,6 +624,27 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
           {ind.d7m && zones.filter(z => z.y > 0).map((z, k) => (
             <div key={k} className="d7m-zone" style={{ top: z.y - 8, left: z.x, color: cfg.colors?.zone || undefined }}>{z.title}</div>
           ))}
+          {/* ‏D713: أسعارُ المحور وسومٌ مؤطَّرة بلون خطّها على أرضية الرسم — لا كتلةٌ ملوّنة؛ والأقربُ أولويةً يبقى حين تتزاحم */}
+          {(() => {
+            const cs = candleRef.current, H = typeof height === "number" ? height : 420;
+            if (!cs || tick < 0) return null;
+            const placed: { y: number; l: any }[] = [];
+            [...levelsRef.current].sort((a, b) => a.rank - b.rank).forEach(l => {
+              const y = cs.priceToCoordinate(l.price);
+              if (y == null || y < 8 || y > H - 30) return;
+              if (placed.every(o => Math.abs(o.y - y) >= 17)) placed.push({ y, l });
+            });
+            const dp = (v: number) => (Math.abs(v) >= 1000 ? 2 : Math.abs(v) >= 1 ? 2 : 4);
+            return placed.map(({ y, l }, k) => (
+              <React.Fragment key={k}>
+                <div data-role="axis-tag" className={"axis-tag" + (l.last ? " axis-tag-last" : "")} dir="ltr"
+                  style={{ top: y - 9, width: Math.max(44, psw - 4), color: l.color, borderColor: l.color }}>
+                  {l.price.toLocaleString("en-US", { minimumFractionDigits: dp(l.price), maximumFractionDigits: dp(l.price) })}
+                </div>
+                {l.text && <div className="axis-level" dir="ltr" style={{ top: y - 14, color: l.color }}>{l.text}</div>}
+              </React.Fragment>
+            ));
+          })()}
         </div>
           {!chartOnly && ind.d7m && (dash || msmart || tt || alertsSt) && (
             <div className={`d7m-panels d7m-at-${cfg.dashPos}`} dir="rtl"

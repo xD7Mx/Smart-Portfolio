@@ -2970,6 +2970,14 @@ html.light {
 }
 
 /* مؤشّرُ D7M — المناطق واللوحات والإعدادات (D464 · D465: شكلُ لوحة تريدنق فيو) */
+/* ‏D713 (المالك): «الأسعارُ على اليمين بلا ظلّ… بنمطٍ إطاريٍّ جميل» — وسمٌ مؤطَّرٌ بلون خطّه على أرضية الرسم، وآخرُ سعرٍ أثقلُ حرفاً */
+.axis-tag { position: absolute; right: 2px; height: 18px; display: flex; align-items: center; justify-content: center;
+  border: 1px solid; border-radius: 5px; background: var(--surface); font-size: 10.5px; font-weight: 600;
+  font-variant-numeric: tabular-nums; pointer-events: none; z-index: 2; transition: top .12s ease-out; }
+.axis-tag-last { font-weight: 800; border-width: 1.5px; }
+.axis-level { position: absolute; left: 6px; font-size: 9.5px; font-weight: 600; opacity: .85; pointer-events: none;
+  font-variant-numeric: tabular-nums; white-space: nowrap; z-index: 2; }
+@media (prefers-reduced-motion: reduce) { .axis-tag { transition: none; } }
 .d7m-zone { position: absolute; transform: translate(-50%, -50%); pointer-events: none;
   font-size: 11px; font-weight: 700; color: var(--ink-muted); white-space: nowrap; z-index: 2; letter-spacing: .5px; }
 .d7m-panels { position: absolute; display: flex; flex-direction: column; gap: 6px; z-index: 3;
