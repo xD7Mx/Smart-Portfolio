@@ -287,7 +287,7 @@ async def main():
              "m": {m["key"]: round(m["value"] / p0, 4) for m in (res.get("models") or []) + (res.get("excluded") or [])
                    if isinstance(m.get("value"), (int, float)) and m["value"] > 0},
              "u": [m["key"] for m in res.get("models") or []], "wk": res.get("weights_kind"),
-             "rz": res.get("rel_z"), "rseg": (res.get("rel") or {}).get("seg")}
+             "rz": res.get("rel_z"), "rseg": (res.get("rel") or {}).get("seg"), "rpart": res.get("rel_part")}
         o["arch_key"] = i.archetype
         o["b"] = _bucket(o)
         for h in H:
@@ -502,7 +502,8 @@ def _bucket(o):
     except Exception:                                              # noqa: BLE001
         return None
     return track_bucket({"model_value": o.get("mv"), "price": o["p0"], "count": o.get("n"), "weights_kind": o.get("wk"),
-                         "archetype": o.get("arch_key"), "rel_z": o.get("rz"), "rel": {"seg": o.get("rseg")}})
+                         "archetype": o.get("arch_key"), "rel_z": o.get("rz"), "rel": {"seg": o.get("rseg")},
+                         "rel_part": o.get("rpart")})
 
 
 def track_table(obs):
@@ -561,6 +562,14 @@ def outcome_metrics(obs, anchors):
     m["o_cheap_hit12"] = round(sum(o["q12"] > 0 for o in ch) / len(ch), 4) if ch else None
     tg = [o for o in obs if o["sh"] and o.get("p12") and o.get("tg")]
     m["o_target_err"] = round(st.median([abs(o["p12"] / o["tg"] - 1) for o in tg]), 4) if tg else None
+    # ‏D705: السعرُ المستهدف يُقاس بنفسه — ارتباطُ رتبته بالتفوّق بعد سنة (والعادلُ في ‎o_ic12)
+    ics = []
+    for t in anchors:
+        g = [o for o in obs if o["t"] == t and "x12" in o and o["sh"] and o.get("tg")]
+        ic = spearman([o["tg"] / o["p0"] for o in g], [o["x12"] for o in g])
+        if ic is not None:
+            ics.append(ic)
+    m["o_tg_ic12"] = round(st.fmean(ics), 4) if ics else None
     return m
 
 
