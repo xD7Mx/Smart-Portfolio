@@ -111,6 +111,11 @@ jobs:
               done
               docker stats --no-stream --format '{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' | grep -E '^sp_' || true
               echo "— العمليّاتُ داخل الخادم:"; docker top "$C" -o pid,etime,pcpu,rss,args 2>/dev/null | cut -c1-150 | head -20
+              # مراحلُ الإقلاع وحدها، بأسطرٍ يكتبها التطبيقُ نفسُه — وكلُّ ما يشبه سرّاً يُقنَّع (رمزُ البوت · ‎user:pass@‎ · ‎key=‎)
+              echo "— مراحلُ الإقلاع (آخر ١٥ دقيقة):"
+              docker logs --since 15m "$C" 2>&1 | grep -E "🚀|🕒|🧹|إقلاع|startup|Uvicorn|Waiting|قاعدةُ البيانات|استرداد|صقر|الجدولة|❌|Traceback|Error" \
+                | sed -E 's#bot[0-9]+:[A-Za-z0-9_-]+#bot***#g; s#://[^/@ ]+@#://***@#g; s#((key|token|password|secret|pass)[A-Za-z_]*[=:] *)[^ &,]+#\1***#Ig' \
+                | cut -c1-170 | tail -25
               for u in http://localhost/ http://localhost/api/v1/health http://localhost:3000/; do
                 curl -sk -o /dev/null -m 20 -w "  $u → %{http_code} في %{time_total}s\n" "$u" || echo "  $u → لا ردّ"
               done ;;
