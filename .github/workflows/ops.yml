@@ -109,7 +109,9 @@ jobs:
                 [ "$(docker inspect -f '{{.State.Running}}' "sp_$s" 2>/dev/null)" = true ] || {
                   echo "↻ sp_$s متوقّفة — تُشغَّل"; docker compose up -d --no-deps "$s" 2>&1 | tail -2; }
               done
-              docker stats --no-stream --format '{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' | grep -E '^sp_' || true
+              docker stats --no-stream --format '{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' || true
+              echo "— كلُّ الحاويات:"; docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | cut -c1-120
+              echo "— أثقلُ العمليّات على المضيف (الاسمُ وحده):"; ps -eo pid,rss,pcpu,etime,comm --sort=-rss | head -14
               echo "— العمليّاتُ داخل الخادم:"; docker top "$C" -o pid,etime,pcpu,rss,args 2>/dev/null | cut -c1-150 | head -20
               # مراحلُ الإقلاع وحدها، بأسطرٍ يكتبها التطبيقُ نفسُه — وكلُّ ما يشبه سرّاً يُقنَّع (رمزُ البوت · ‎user:pass@‎ · ‎key=‎)
               echo "— مراحلُ الإقلاع (آخر ١٥ دقيقة):"
