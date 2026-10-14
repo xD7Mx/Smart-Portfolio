@@ -66,6 +66,18 @@ if [ -n "${_ENV_MISS}" ]; then
   echo
 fi
 
+# ══ وفحصُ متصفّحٍ بلا node «لم يُقَس» لا «سقط» ══ (D714)
+# قِيس على الخادم (‏audit · run 38604121248): لا `node` على المضيف ولا في صورة الخادم، فكان كلُّ فحص متصفّحٍ
+# يُحسب ساقطاً («command not found») — فاللجنةُ في النشر لا تكون نظيفةً أبداً، وضجيجُها يُخفي العطبَ الحقيقيّ إن وقع.
+# فيُقال صريحاً لكلٍّ منها «لم يُقَس»، ويُعدّ، ويُذكر العددُ في الحكم؛ وفي بيئة التطوير (وفيها node) تُقاس كلُّها.
+_SKIPPED=0
+_node() {
+  if command -v node >/dev/null 2>&1; then node "$@"; return $?; fi
+  _SKIPPED=$((_SKIPPED + 1))
+  echo "… لم يُقَس (لا node في هذه البيئة): $1"
+  return 0
+}
+
 # ══ اللجنةُ تُحصي نفسَها ══ (البند ٣١)
 # يُنسَخ مخرَجُ التشغيلة إلى ملفٍّ ليُحصى في آخرها: فحصٌ سكت وهو يظنّ نفسه
 # يعمل لا يُكتشف إلا بعدّ ما نُفِّذ فعلاً ومقارنته بالمُسجَّل.
@@ -268,7 +280,7 @@ python3 scripts/audit/decision_uses_shown_fv.py || _note "$LINENO"
 python3 scripts/audit/sector_weights_applied.py || _note "$LINENO"
 python3 scripts/audit/gauge_dot_plain.py || _note "$LINENO"
 python3 scripts/audit/screener_fv_from_store.py || _note "$LINENO"
-node scripts/audit/d7m_logic.mjs || _note "$LINENO"
+_node scripts/audit/d7m_logic.mjs || _note "$LINENO"
 python3 scripts/audit/saudi_weekly_sunday.py || _note "$LINENO"
 python3 scripts/audit/article_in_modal.py || _note "$LINENO"
 python3 scripts/audit/tadawul_first_disclosure.py || _note "$LINENO"
@@ -299,32 +311,33 @@ python3 scripts/audit/confidence_rule_d672.py || _note "$LINENO"
 python3 scripts/audit/calendar_race_d673.py || _note "$LINENO"
 python3 scripts/audit/stability_d675.py || _note "$LINENO"
 python3 scripts/audit/ui_owner_notes_d677.py || _note "$LINENO"
-node scripts/audit/ui_d677.mjs || _note "$LINENO"
+_node scripts/audit/ui_d677.mjs || _note "$LINENO"
 python3 scripts/audit/autopilot_sources_d680.py || _note "$LINENO"
 python3 scripts/audit/ui_owner_notes_d683.py || _note "$LINENO"
-node scripts/audit/ui_d683.mjs || _note "$LINENO"
+_node scripts/audit/ui_d683.mjs || _note "$LINENO"
 python3 scripts/audit/advisor_solutions_d686.py || _note "$LINENO"
 python3 scripts/audit/ui_owner_notes_d687.py || _note "$LINENO"
-node scripts/audit/ui_d689.mjs || _note "$LINENO"
+_node scripts/audit/ui_d689.mjs || _note "$LINENO"
 # D681 · D690: قرارُ الفرز هو قرارُ الصفحة — لا يمحوه امتناعُ مسحةٍ عابر، ويُقدَّم بسعر اللحظة لا بسعر حسابه
 python3 scripts/audit/decision_serving_d690.py || _note "$LINENO"
 # D693: تحليلُ الصفحة المخزَّن يتجدّد مع كلّ مسحةٍ تغيّر رقمَ اليوم — لا مع تاريخها وحدَه
 python3 scripts/audit/official_key_d693.py || _note "$LINENO"
 # D691: مفتاحُ «إظهار الساعة» يعمل — كان مُعلَناً في المخزن غيرَ منفَّذ فيرمي عند النقر
-node scripts/audit/ui_d691.mjs || _note "$LINENO"
+_node scripts/audit/ui_d691.mjs || _note "$LINENO"
 # D694: الحوكمةُ تبويبٌ في المحفظة مكانَ المختبر، والمختبرُ تبويبٌ في تحليل الذكاء — والروابطُ القديمة تصل
-node scripts/audit/ui_d694.mjs || _note "$LINENO"
+_node scripts/audit/ui_d694.mjs || _note "$LINENO"
 # D695: بطاقاتُ التوزيع النسبي بهويّة التطبيق — شريطُ وزنٍ ينزلق، والفائضُ بأسهمه
-node scripts/audit/ui_d695.mjs || _note "$LINENO"
+_node scripts/audit/ui_d695.mjs || _note "$LINENO"
 # D697: المستشارُ الآليّ تبويبٌ ثالثٌ في تحليل الذكاء بجانب المختبر
-node scripts/audit/ui_d697.mjs || _note "$LINENO"
-node scripts/audit/ui_d710.mjs || _note "$LINENO"
-node scripts/audit/ui_d712.mjs || _note "$LINENO"
-node scripts/audit/ui_d713.mjs || _note "$LINENO"
+_node scripts/audit/ui_d697.mjs || _note "$LINENO"
+_node scripts/audit/ui_d710.mjs || _note "$LINENO"
+_node scripts/audit/ui_d712.mjs || _note "$LINENO"
+_node scripts/audit/ui_d713.mjs || _note "$LINENO"
 python3 scripts/audit/candles_tv_d713.py || _note "$LINENO"
+python3 scripts/audit/committee_env_d714.py || _note "$LINENO"
 # D698: تقريرُ الشركة يحمل شموعَ الفترة كتقارير البنوك — ولا رسمَ مختلَقاً بلا شموع
-node scripts/audit/ui_d698.mjs || _note "$LINENO"
-node scripts/audit/ui_d711.mjs || _note "$LINENO"
+_node scripts/audit/ui_d698.mjs || _note "$LINENO"
+_node scripts/audit/ui_d711.mjs || _note "$LINENO"
 python3 scripts/audit/fv_evidence_d700.py || _note "$LINENO"
 python3 scripts/audit/fv_comprehensive_d701.py || _note "$LINENO"
 python3 scripts/audit/finance_score_d703.py || _note "$LINENO"
@@ -332,7 +345,7 @@ python3 scripts/audit/capital_events_d674.py || _note "$LINENO"
 python3 scripts/audit/tadawul_directory_d704.py || _note "$LINENO"
 python3 scripts/audit/fair_target_split_d705.py || _note "$LINENO"
 python3 scripts/audit/history_horizons_d706.py || _note "$LINENO"
-node scripts/audit/cards_d666.mjs || _note "$LINENO"
+_node scripts/audit/cards_d666.mjs || _note "$LINENO"
 python3 scripts/audit/events_resilience_d656.py || _note "$LINENO"
 python3 scripts/audit/disclosure_retry_d659.py || _note "$LINENO"
 python3 scripts/audit/build_update_d657.py || _note "$LINENO"
@@ -363,8 +376,8 @@ python3 scripts/audit/etf_nomu_d486.py || _note "$LINENO"
 python3 scripts/audit/ebitda_d489.py || _note "$LINENO"
 python3 scripts/audit/report_bidi_d479.py || _note "$LINENO"
 python3 scripts/audit/health_logic.py || _note "$LINENO"
-node scripts/audit/mobile_walk.mjs || _note "$LINENO"
-node scripts/audit/align_d513.mjs || _note "$LINENO"
+_node scripts/audit/mobile_walk.mjs || _note "$LINENO"
+_node scripts/audit/align_d513.mjs || _note "$LINENO"
 python3 scripts/audit/no_notes_d526.py || _note "$LINENO"
 python3 scripts/audit/quarter_report_d528.py || _note "$LINENO"
 python3 scripts/audit/history_stale_d530.py || _note "$LINENO"
@@ -415,7 +428,7 @@ python3 scripts/audit/main_market.py || _note "$LINENO"
 # نافذةُ قسم الحوكمة وتبويبُ التقييم — فأُعيد تصميمُ إحداهما وبقيت
 # الأخرى، فرأى المالكُ بطاقتين لِميزانٍ واحد.
 echo
-node scripts/audit/one_board.mjs || _note "$LINENO"
+_node scripts/audit/one_board.mjs || _note "$LINENO"
 
 # D172: نصُّ المالك عربيٌّ رسميّ. كان يُعرض «القاعدة 'hold_decent' تحققت:
 # quality=59، safety=63» — معرّفُ قاعدةٍ وأسماءُ متغيّراتٍ داخلية في شاشةٍ
@@ -447,7 +460,7 @@ python3 scripts/audit/fv_synthetic.py || _note "$LINENO"
 # عائد توزيعاتٍ مرجّحٌ بالأوزان. والشركةُ بلا عائدٍ معلوم تخرج من البسط
 # والمقام معاً: عدُّها صفراً يخفض المعدّل برقمٍ لا مصدرَ له.
 echo
-node scripts/audit/alloc_totals.mjs || _note "$LINENO"
+_node scripts/audit/alloc_totals.mjs || _note "$LINENO"
 
 # D198: درجةُ الحوكمة تُقرأ من المحرّك، والعمودُ المخزَّن يملأ الفراغَ ولا
 # يغلبه. كان المخزَّنُ أوّلاً فيُعرض رقمٌ قديمٌ في الفرز وخريطة القطاعات
@@ -666,7 +679,7 @@ python3 scripts/audit/decision_fv_gate.py || _note "$LINENO"
 # D238: لكلّ مظهرٍ لوحُه، ومقاييسُ الداكن بدرجات الفاتح (أمرٌ مخصّص).
 # ومحاذاةُ أعمدة الفرز تُقاس بالهندسة في user_walk.
 echo
-node scripts/audit/theme_colors.mjs || _note "$LINENO"
+_node scripts/audit/theme_colors.mjs || _note "$LINENO"
 
 # D214: عند تعارض مصدرَي الشرعية يُؤخذ الأشدّ ويُعلَن التعارض. رأى المالكُ
 # «المملكة» مختلطةً وهي غيرُ متوافقةٍ عند أرقام — والأولويةُ صُمّمت للتغطية
@@ -701,7 +714,7 @@ python3 scripts/audit/one_dividend_yield.py || _note "$LINENO"
 # و«درجة الجودة المالية» و«درجة الحوكمة» في ثماني شاشات — ومن رأى ثلاثة
 # أسماءٍ ظنّها ثلاثة مقاييس.
 echo
-node scripts/audit/one_score_name.mjs || _note "$LINENO"
+_node scripts/audit/one_score_name.mjs || _note "$LINENO"
 
 # D225: إجراءاتُ «أرقام» تدخل ركنَ التخفيف — والمنحةُ ليست تخفيفاً. عدُّ كلّ
 # ازديادٍ في عدد الأسهم تخفيفاً يُنتج حكماً خاطئاً بثقةٍ عالية: المنحةُ
@@ -736,27 +749,27 @@ python3 scripts/audit/market_hours.py || _note "$LINENO"
 echo
 python3 scripts/audit/ts_undefined.py || _note "$LINENO"
 echo
-node scripts/audit/render_smoke.mjs || _note "$LINENO"
-node scripts/audit/lab_render.mjs || _note "$LINENO"
-node scripts/audit/latin_digits_d615.mjs || _note "$LINENO"
-node scripts/audit/motion_d616.mjs || _note "$LINENO"
-node scripts/audit/selects_d617.mjs || _note "$LINENO"
-node scripts/audit/event_card_d620.mjs || _note "$LINENO"
+_node scripts/audit/render_smoke.mjs || _note "$LINENO"
+_node scripts/audit/lab_render.mjs || _note "$LINENO"
+_node scripts/audit/latin_digits_d615.mjs || _note "$LINENO"
+_node scripts/audit/motion_d616.mjs || _note "$LINENO"
+_node scripts/audit/selects_d617.mjs || _note "$LINENO"
+_node scripts/audit/event_card_d620.mjs || _note "$LINENO"
 
 # D301: الفوريةُ تُقاس على شاشةٍ حقيقية — لا بالشيفرة ولا بالوعد. يُخدَم
 # بناءُ الواجهة ومجرًى يدفع، ويُلتقَط نصُّ الرقم فيُحسَب تغيّرُه وفجواته.
 echo
-node scripts/audit/live_screen.mjs || _note "$LINENO"
+_node scripts/audit/live_screen.mjs || _note "$LINENO"
 
 # D324: وتبويبُ «صفقات خاصة» كذلك يُفتح في متصفّحٍ حقيقيّ — شعارُ كلّ
 # صفٍّ مرسومٌ، وأيقونةُ البحث تتمدّد وتفرز بالرمز وبالاسم الدارج.
 echo
-node scripts/audit/deals_screen.mjs || _note "$LINENO"
+_node scripts/audit/deals_screen.mjs || _note "$LINENO"
 
 # D333: وقسمُ التقارير يُفتح ببياناتٍ ناقصةٍ قصداً — الغائبُ شرطةٌ لا صفر،
 # والنوعُ بالعربية، وحبرُ الورقة من لوحها لا من مظهر التطبيق.
 echo
-node scripts/audit/reports_screen.mjs || _note "$LINENO"
+_node scripts/audit/reports_screen.mjs || _note "$LINENO"
 
 # D332: وهويّةُ التصميم — لا مبدِّلَ مكتوباً باليد ينافس `seg`.
 echo
@@ -766,14 +779,14 @@ python3 scripts/audit/design_identity.py || _note "$LINENO"
 # فراغٍ حين امتنع المحرّك، وكشف الحارسُ حالةً ثانيةً في «تحليل المخاطر»:
 # شرطُها كان `!risk` و`[]` قيمةٌ صادقةٌ في جافاسكربت.
 echo
-node scripts/audit/empty_sections.mjs || _note "$LINENO"
+_node scripts/audit/empty_sections.mjs || _note "$LINENO"
 
 # أمرُ المالك + البند ٣٢: حارسٌ يتقمّص المستخدم. لا يفحص وحدةً بل **رحلة**:
 # يفتح الشاشاتِ ببياناتٍ تُشبه الواقع ويسأل ما يسأله المالك — خطأٌ يُطفئ
 # الصفحة · قيمةٌ معطوبةٌ تُقرأ · عنوانٌ فوق فراغ · زرٌّ بلا اسم · حكمان
 # لورقةٍ واحدة. فلا يكون المالكُ هو جهازَ الاختبار.
 echo
-node scripts/audit/user_walk.mjs || _note "$LINENO"
+_node scripts/audit/user_walk.mjs || _note "$LINENO"
 
 # البند ٣١: عددُ الفحوص المنفَّذة يُقارَن بالمُسجَّل قبل الحكم بالنظافة.
 # يُشغَّل بعد الجميع، ومخرَجُه لا يدخل الإحصاءَ (يُقرأ الملفُّ قبل كتابته).
@@ -786,20 +799,22 @@ if [ "${1:-}" = "--live" ]; then
     echo "⚠ الطبقة الحيّة تحتاج SP_TOKEN (وSP_URL إن لم يكن على 8098)."
     fail=1
   else
-    node scripts/audit/browser.mjs || _note "$LINENO"
+    _node scripts/audit/browser.mjs || _note "$LINENO"
     echo
     # B-FADED (D014): نصٌّ يذوب في أرضيته. يُقاس بالتركيب لا بقراءة الرمز
     # — الشفافيةُ والتدرّجُ كلاهما أسقط صياغتين سابقتين لهذا المسح.
-    node scripts/audit/faded.mjs || _note "$LINENO"
+    _node scripts/audit/faded.mjs || _note "$LINENO"
     echo
     # B-FRAMES (D016): تشوّهُ إطار. وُلد من حلقة «رأي الذكاء» التي اختلّت
     # حين رُفع سلّم الاستدارة العامّ — تشوّهٌ أحدثه تعديلٌ في موضعٍ آخر.
-    node scripts/audit/frames.mjs || _note "$LINENO"
+    _node scripts/audit/frames.mjs || _note "$LINENO"
   fi
 fi
 
 echo
-if [ "$fail" = "0" ]; then
+if [ "$fail" = "0" ] && [ "${_SKIPPED}" -gt 0 ]; then
+  echo "✔ اجتاز فيما قِيس — و${_SKIPPED} فحصَ متصفّحٍ لم يُقَس هنا (لا node): تُقاس في بيئة التطوير قبل كلّ تسليم."
+elif [ "$fail" = "0" ]; then
   echo "✔ اجتاز فحص اللجنة."
 else
   echo "✖ لم يجتز — راجع الملاحظات أعلاه قبل التسليم."

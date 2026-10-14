@@ -71,7 +71,8 @@ jobs:
             chain)
               docker exec "$C" python /app/scripts/audit/chain_integrity.py ;;
             audit)
-              bash scripts/audit/run.sh ;;
+              # ‏D714: في صورة الخادم نفسِها (تبعيّاتُ بايثون حاضرة) والمستودعُ للقراءة فقط
+              bash scripts/ops/committee_image.sh ;;
             sample)
               docker exec "$C" python \
                 /app/scripts/audit/sector_quality_sample.py --n 2 ;;

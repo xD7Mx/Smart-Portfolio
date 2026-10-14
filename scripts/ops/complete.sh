@@ -110,8 +110,8 @@ tar cf - frontend/src 2>/dev/null \
 docker exec -e SP_FRONT_ROOT=/tmp/sp_front "$C" \
   python /app/scripts/audit/chain_integrity.py 2>&1 | grep -vE "INFO|DEBUG"
 
-say "٧ · لجنةُ كشف الأعطال (من جذر المستودع)"
-bash scripts/audit/run.sh 2>&1 | tail -14
+say "٧ · لجنةُ كشف الأعطال (في صورة الخادم نفسِها · D714)"
+bash scripts/ops/committee_image.sh 2>&1 | tail -14
 
 say "الخلاصة"
 echo "إن خرجت السلسلةُ متّصلةً واللجنةُ نظيفةً فالمنتَجُ جاهزٌ للمراجعة."
