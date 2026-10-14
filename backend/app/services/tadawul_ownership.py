@@ -91,6 +91,115 @@ def normalize(rows: list) -> list[dict]:
     return out
 
 
+# ══ والنداءاتُ تعيد HTML لا JSON ══ (D708)
+# قِيس على الخادم (‏ownership_url_door · run 38583314249 · ownership_html_door · run 38583682788): الصفحةُ تُقرأ
+# والنداءاتُ الثلاثةُ فيها، لكنّ شيفرتَها تطلبها `dataType: 'html'` فتعيد **أجزاءً تُلصق في الصفحة**: ‏foreginOwnerShip
+# قطعةٌ فيها الحدُّ والفعليُّ (ومصفوفةُ الرسم ‎`{name, y}`)، و‏historicalBoardMembersWithDates جدولٌ (تاريخُ التداول ·
+# المساهم · الصفة · النسبة …)، و‏historyOfMajorShareHolder يطلب ‎symbol · fromDate · toDate · history. وكان القارئُ
+# يفترض JSON فيسقط بندُه صامتاً: 0 من 272 والحارسُ أخضرُ على صفوفٍ مصطنعة. فيُقرأ ما يصل بشكله.
+_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_HAS_WORD = re.compile(r"[A-Za-z\u0600-\u06FF]")
+POSITIONS_AR = {
+    "chairman": "رئيس مجلس الإدارة", "vice chairman": "نائب رئيس مجلس الإدارة",
+    "deputy chairman": "نائب رئيس مجلس الإدارة", "board of directors": "عضو مجلس الإدارة",
+    "board member": "عضو مجلس الإدارة", "member": "عضو مجلس الإدارة",
+    "managing director": "العضو المنتدب", "ceo": "الرئيس التنفيذي",
+    "chief executive officer": "الرئيس التنفيذي", "cfo": "المدير المالي",
+    "chief financial officer": "المدير المالي", "senior executive": "كبار التنفيذيين",
+    "senior executives": "كبار التنفيذيين", "secretary": "أمين سرّ المجلس",
+}
+
+
+def _text(s: str) -> str:
+    import html as _html
+    return " ".join(_html.unescape(re.sub(r"<[^>]+>", " ", s or "")).split())
+
+
+def _position_ar(p: str) -> str:
+    """الصفةُ بالعربية إن عُرفت، وإلّا كما نشرتها «تداول» — لا تُخمَّن."""
+    return POSITIONS_AR.get(" ".join(str(p or "").lower().split()), str(p or "").strip())
+
+
+def parse_foreign(fragment: str) -> list[dict]:
+    """قطعةُ الملكية الأجنبية ← صفوفُ «اسمٌ · نسبة». مصدرُها مصفوفةُ الرسم في القطعة نفسِها، وبديلُها عناصرُ القائمة."""
+    pairs = re.findall(r"name:\s*'([^']*)'\s*,\s*y:\s*(-?[\d.]+)", fragment or "")
+    if not pairs:
+        for li in re.findall(r"<li\b.*?</li>", fragment or "", re.S | re.I):
+            h = re.search(r"<h2[^>]*>(.*?)</h2>", li, re.S | re.I)
+            for lab, val in re.findall(r"<span[^>]*>(.*?)</span>\s*<strong[^>]*>(.*?)</strong>", li, re.S | re.I):
+                pairs.append((f"{_text(h.group(1)) if h else ''} {_text(lab)}".strip(), _text(val)))
+    at = re.search(r"Last updated on\s*:?\s*(\d{4}-\d{2}-\d{2})", fragment or "", re.I)
+    out = []
+    for name, val in pairs:
+        pct = _num(val)
+        if pct is None or not (0.0 <= pct <= 100.0):
+            continue
+        low = name.lower()
+        label = ("الحدُّ الأعلى لملكية الأجانب" if "max" in low else
+                 "المستثمرون الاستراتيجيون الأجانب" if "strategic" in low else
+                 "ملكيةُ الأجانب الفعلية" if "actual" in low else name.strip())
+        row = {"name": label, "percent": round(pct, 4)}
+        if at:
+            row["at"] = at.group(1)
+        out.append(row)
+    return out
+
+
+def parse_rows_html(fragment: str) -> list[dict]:
+    """جدولُ «تداول» ← صفوفُ «اسمٌ · نسبة · صفة». الاسمُ أوّلُ خليّةٍ نصّية، والنسبةُ أوّلُ خليّةٍ بعلامة ‎%، والصفةُ النصّيةُ
+    التالية؛ وإن حمل الجدولُ تاريخَ تداولٍ لكلّ صفّ قُرئ أحدثُه وحده (الجدولُ أيّامٌ متتالية لا تُجمع)."""
+    rows = []
+    for tr in re.findall(r"<tr\b.*?</tr>", fragment or "", re.S | re.I):
+        tds = [_text(c) for c in re.findall(r"<td\b[^>]*>(.*?)</td>", tr, re.S | re.I)]
+        if len(tds) < 2:
+            continue
+        words = [c for c in tds if _HAS_WORD.search(c) and not _DATE.fullmatch(c) and "%" not in c]
+        pcts = [c for c in tds if "%" in c]
+        pct = _num(pcts[0]) if pcts else None
+        if not words or pct is None or not (0.0 <= pct <= 100.0):
+            continue
+        row = {"name": words[0], "percent": round(pct, 6)}
+        if len(words) > 1:
+            row["position"] = _position_ar(words[1])
+        d = next((c for c in tds if _DATE.fullmatch(c)), None)
+        if d:
+            row["at"] = d
+        rows.append(row)
+    latest = max((r["at"] for r in rows if r.get("at")), default=None)
+    if latest:
+        rows = [r for r in rows if r.get("at") == latest]
+    seen, out = set(), []
+    for r in sorted(rows, key=lambda r: -r["percent"]):
+        if r["name"] not in seen:
+            seen.add(r["name"])
+            out.append(r)
+    return out[:MAX_ROWS]
+
+
+def parse_response(kind: str, raw: str) -> list[dict]:
+    """ردُّ النداء بشكله: ‏JSON إن كان (كما افتُرض أوّلاً)، وإلّا HTML — وما لا يُفهم يغيب لا يُصفَّر."""
+    try:
+        data = json.loads(raw)
+    except Exception:                                             # noqa: BLE001
+        return parse_foreign(raw) if kind == "foreign" else parse_rows_html(raw)
+    rows = data.get("data") if isinstance(data, dict) else data
+    return normalize(rows if isinstance(rows, list) else [])
+
+
+def call_params(kind: str, sym: str, today: date | None = None) -> dict:
+    """ما تمرّره شيفرةُ الصفحة نفسُها لكلّ نداء (‏symbol، وللتاريخيّ مدى التاريخ بصيغة ‎yyyy/mm/dd)."""
+    from datetime import timedelta
+    p = {"requestLocale": "en", "symbol": sym}
+    if kind == "major_holders":
+        t = today or date.today()
+        p |= {"fromDate": (t - timedelta(days=365)).strftime("%Y/%m/%d"), "toDate": t.strftime("%Y/%m/%d"),
+              "history": MAJOR_HISTORY}
+    return p
+
+
+MAJOR_HISTORY = "false"
+
+
 async def company_page(sym: str) -> str | None:
     """صفحةُ الشركة في «تداول» — رابطُها من لقطة السوق لا مؤلَّفاً."""
     from app.services.tadawul_market import row_for
@@ -128,15 +237,11 @@ async def read_symbol(sym: str) -> dict:
             continue
         ep = next(m.group(0) for m in _EP_RE.finditer(body) if m.group(1) == hit)
         status, raw = await fetch(f"{base}/{ep}",
-                                  params={"requestLocale": "en"}, referer=base)
+                                  params=call_params(kind, sym), referer=base)
         if status != 200 or not raw:
+            out.setdefault("failed", {})[kind] = f"HTTP {status}"
             continue
-        try:
-            data = json.loads(raw)
-        except Exception:                                         # noqa: BLE001
-            continue
-        rows = data.get("data") if isinstance(data, dict) else data
-        got = normalize(rows if isinstance(rows, list) else [])
+        got = parse_response(kind, raw)
         if got:                       # بندٌ بلا صفٍّ مفهومٍ يغيب لا يُصفَّر
             out[kind] = got
             out[f"{kind}_call"] = hit
