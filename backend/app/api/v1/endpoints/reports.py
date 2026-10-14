@@ -154,6 +154,122 @@ async def _true_total_return_at_dates(db, date_now, date_past,
     return r_now, r_past, f_now, f_past
 
 
+async def _snapshot_rows(db: AsyncSession) -> list:
+    """اللقطاتُ اليومية من الأحدث — وفي وضع التوحيد لقطةٌ مركّبةٌ لكلّ تاريخ (جمعُ القيم العددية)، كي يمثّل «باندُ الثروة»
+    مجموعَ الكلّ. مشتركةٌ بين صناديق النموّ وشموع صافي الربح (‏D711) — قراءةٌ واحدةٌ لا اثنتان."""
+    from app.models.portfolio import PortfolioSnapshot
+    rows = list((await db.execute(
+        select(PortfolioSnapshot).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(2000)
+    )).scalars().all())
+    from app.core.portfolio_scope import is_aggregate
+    if is_aggregate():
+        from types import SimpleNamespace
+        by_date: dict = {}
+        for r in rows:
+            a = by_date.get(r.snapshot_date)
+            if a is None:
+                a = SimpleNamespace(snapshot_date=r.snapshot_date, market_value=0.0,
+                                    invested_amount=0.0, cash_balance=0.0, unrealized_profit=0.0)
+                by_date[r.snapshot_date] = a
+            a.market_value += float(r.market_value or 0)
+            a.invested_amount += float(r.invested_amount or 0)
+            a.cash_balance += float(r.cash_balance or 0)
+            a.unrealized_profit += float(r.unrealized_profit or 0)
+        rows = sorted(by_date.values(), key=lambda x: x.snapshot_date, reverse=True)
+    return rows
+
+
+async def _contributions_asof(db: AsyncSession):
+    """صافي الضخّ حتى تاريخٍ من سجلّ النقد (إيداعٌ موجب · سحبٌ سالب) — مقامُ «صافي الربح» الموحَّد مؤرَّخاً."""
+    from app.models.transaction import CashLedger, CashLedgerKind
+    ledger_rows = (await db.execute(select(CashLedger))).scalars().all()
+
+    def asof(as_of):
+        total = 0.0
+        for e in ledger_rows:
+            when = getattr(e, "created_at", None)
+            d = when.date() if hasattr(when, "date") else when
+            if d is None or d > as_of:
+                continue
+            amt = float(e.amount or 0)
+            total += amt if e.kind == CashLedgerKind.DEPOSIT else -amt
+        return total
+    return asof
+
+
+def profit_candles(daily, period_from, period_to) -> dict | None:
+    """‏D711 (بأمر المالك): «أضف لتقرير المحفظة الرسمَ البيانيَّ بالشموع — فكرةٌ جميلةٌ تعطي هويّةَ التطبيق».
+    شموعٌ أسبوعيّةٌ لاثني عشر شهراً من **صافي الربح** اليوميّ ((القيمة السوقية + النقد) − صافي الضخّ حتى يومه) — لا من الثروة،
+    فالإيداعُ لا يُرسم صعوداً. الأسبوعُ أسبوعُ التداول (من الأحد)، وافتتاحُه إغلاقُ ما قبله، وأعلاه وأدناه من أيّامه. ولا شموعَ
+    مختلَقة: يومٌ بلا لقطةٍ لا يُملأ، وأقلُّ من عشرة أسابيع لا يُعدّ رسماً.
+    ‏`daily`: [(تاريخ، صافي الربح)] بأيّ ترتيب."""
+    from datetime import timedelta
+    pts = sorted((d, float(v)) for d, v in daily if d is not None and v is not None)
+    if not pts:
+        return None
+    end = pts[-1][0]
+    pts = [(d, v) for d, v in pts if d > end - timedelta(days=365)]
+    weeks: dict = {}
+    for d, v in pts:
+        weeks.setdefault(d - timedelta(days=(d.weekday() + 1) % 7), []).append((d, v))
+    out, prev_close = [], None
+    for wk in sorted(weeks):
+        vals = [v for _, v in sorted(weeks[wk])]
+        o = prev_close if prev_close is not None else vals[0]
+        out.append({"d": wk.isoformat(), "o": round(o, 2), "h": round(max(vals + [o]), 2),
+                    "l": round(min(vals + [o]), 2), "c": round(vals[-1], 2)})
+        prev_close = vals[-1]
+    if len(out) < 10:
+        return None
+    return {"interval": "أسبوعي", "series": "صافي الربح", "points": out,
+            "from": period_from.isoformat() if period_from else None,
+            "to": period_to.isoformat() if period_to else None}
+
+
+def tasi_weekly(points, profit: dict | None) -> dict | None:
+    """‏D711 (اقتراحُ المالك): «الشموعُ جزآن: أحدُهما ما صنعتَه، والآخرُ يليه يُظهر مؤشّرَ تاسي» — أسابيعُ تاسي **نفسُها**
+    التي رُسم فيها صافي الربح (أسبوعُ التداول من الأحد)، من شموعه الأسبوعية الرسمية (‏D438) لا من إغلاقٍ مقدَّر، وفترةُ التقرير
+    مظلَّلةٌ في الاثنين. ولا تاسي بلا شموع المحفظة: الجزءُ الثاني يُقرأ مقابلَ الأوّل."""
+    from datetime import date as _d, timedelta
+    if not profit or not profit.get("points"):
+        return None
+    first, last = profit["points"][0]["d"], profit["points"][-1]["d"]
+    out = []
+    for p in points or []:
+        try:
+            d = _d.fromisoformat(str(p.get("date"))[:10])
+        except (TypeError, ValueError):
+            continue
+        wk = (d - timedelta(days=(d.weekday() + 1) % 7)).isoformat()
+        if not (first <= wk <= last) or not p.get("close"):
+            continue
+        c = float(p["close"])
+        row = {"d": wk, "o": round(float(p.get("open") or c), 2), "h": round(float(p.get("high") or c), 2),
+               "l": round(float(p.get("low") or c), 2), "c": round(c, 2)}
+        if out and out[-1]["d"] == wk:                            # أسبوعٌ مكرَّر (جلسةُ اليوم) يُدمج لا يُكرَّر
+            b = out[-1]
+            row = {"d": wk, "o": b["o"], "h": max(b["h"], row["h"]), "l": min(b["l"], row["l"]), "c": row["c"]}
+            out[-1] = row
+        else:
+            out.append(row)
+    if len(out) < 10:
+        return None
+    return {"interval": "أسبوعي", "series": "تاسي", "points": out, "from": profit.get("from"), "to": profit.get("to")}
+
+
+async def _profit_candles(db: AsyncSession, report_type: str) -> dict | None:
+    """شموعُ صافي الربح للتقرير — من اللقطات اليومية وسجلّ النقد نفسيهما اللذين يبنيان صناديقَ النموّ."""
+    from datetime import date as _date, timedelta
+    rows = await _snapshot_rows(db)
+    if len(rows) < 2:
+        return None
+    contributed = await _contributions_asof(db)
+    daily = [(r.snapshot_date, float(r.market_value or 0) + float(r.cash_balance or 0) - contributed(r.snapshot_date))
+             for r in rows]
+    end_a, prev_a = _period_anchors(_date.today(), report_type)
+    return profit_candles(daily, prev_a + timedelta(days=1), end_a)
+
+
 async def _return_growth_boxes(db: AsyncSession, report_type: str, weekly: dict | None) -> dict:
     """Three side-by-side «السابق › الحالي» boxes for the report, each derived
     from real data (daily PortfolioSnapshot series + TASI closes) — never faked:
@@ -173,26 +289,7 @@ async def _return_growth_boxes(db: AsyncSession, report_type: str, weekly: dict 
         {"key": "cash",    "label": "نسبة السيولة النقدية", "suffix": "%",    "prev": None, "now": None, "neutral": True},
     ]
 
-    rows = list((await db.execute(
-        select(PortfolioSnapshot).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(2000)
-    )).scalars().all())
-    # وضع التوحيد: تأتي لقطة لكل محفظة في اليوم الواحد — نجمعها في لقطة واحدة
-    # مركّبة لكل تاريخ (جمع القيم العددية) كي يمثّل «باند الثروة» مجموع الكل.
-    from app.core.portfolio_scope import is_aggregate
-    if is_aggregate():
-        from types import SimpleNamespace
-        by_date: dict = {}
-        for r in rows:
-            a = by_date.get(r.snapshot_date)
-            if a is None:
-                a = SimpleNamespace(snapshot_date=r.snapshot_date, market_value=0.0,
-                                    invested_amount=0.0, cash_balance=0.0, unrealized_profit=0.0)
-                by_date[r.snapshot_date] = a
-            a.market_value += float(r.market_value or 0)
-            a.invested_amount += float(r.invested_amount or 0)
-            a.cash_balance += float(r.cash_balance or 0)
-            a.unrealized_profit += float(r.unrealized_profit or 0)
-        rows = sorted(by_date.values(), key=lambda x: x.snapshot_date, reverse=True)
+    rows = await _snapshot_rows(db)
     if len(rows) < 2:
         return {"boxes": boxes}
 
@@ -224,20 +321,7 @@ async def _return_growth_boxes(db: AsyncSession, report_type: str, weekly: dict 
     # صافي الربح عند تاريخٍ = (القيمة السوقية + النقد) − صافي الضخّ حتى ذلك
     # التاريخ؛ ونسبته إلى تكلفة الحيازات وقتها. كل مدخلاته من اللقطة اليومية
     # وسجلّ النقد، فيطابق ما تراه اللوحة اليوم ويصحّ للأمس.
-    from app.models.transaction import CashLedger, CashLedgerKind
-
-    ledger_rows = (await db.execute(select(CashLedger))).scalars().all()
-
-    def _contributed_asof(as_of):
-        total = 0.0
-        for e in ledger_rows:
-            when = getattr(e, "created_at", None)
-            d = when.date() if hasattr(when, "date") else when
-            if d is None or d > as_of:
-                continue
-            amt = float(e.amount or 0)
-            total += amt if e.kind == CashLedgerKind.DEPOSIT else -amt
-        return total
+    _contributed_asof = await _contributions_asof(db)
 
     def _return_at(snap):
         cost = float(snap.invested_amount or 0)
@@ -373,6 +457,17 @@ async def generate_report(report_type: str = "WEEKLY", db: AsyncSession = Depend
     #   • نمو العائد خلال فترة التقرير (يوم/أسبوع/شهر...)
     # Both computed from the REAL daily PortfolioSnapshot history — never faked.
     growth = await _return_growth_boxes(db, report_type, weekly)
+    try:
+        candles = await _profit_candles(db, report_type)
+    except Exception:                                             # noqa: BLE001
+        candles = None                                            # لا شموع ⇒ لا قسم — لا رسمَ مختلَق
+    tasi_candles = None
+    if candles:
+        try:
+            from app.services.market_data import market_service
+            tasi_candles = tasi_weekly(await market_service.get_history("^TASI.SR", "2y"), candles)
+        except Exception:                                         # noqa: BLE001
+            tasi_candles = None
 
     # الرقم الموحَّد في التطبيق — من نفس دالة بطاقة المقاييس لا من حسابٍ ثانٍ.
     # كان التقرير المؤرشَف يحمل roi_pct (عائد الربح غير المحقّق: 2.73%) بلا
@@ -421,6 +516,8 @@ async def generate_report(report_type: str = "WEEKLY", db: AsyncSession = Depend
         },
         "growth": growth,
         "positions": positions,
+        "candles": candles,                       # ‏D711: شموعُ صافي الربح الأسبوعية لاثني عشر شهراً
+        "tasi_candles": tasi_candles,             # ‏D711: وتاسي في الأسابيع نفسِها — الجزءُ الثاني
     }
 
     # ══ وسطرُ الفترة يقول الفترةَ لا يومَ الضغط ══ (D333)

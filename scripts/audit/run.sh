@@ -321,6 +321,7 @@ node scripts/audit/ui_d697.mjs || _note "$LINENO"
 node scripts/audit/ui_d710.mjs || _note "$LINENO"
 # D698: تقريرُ الشركة يحمل شموعَ الفترة كتقارير البنوك — ولا رسمَ مختلَقاً بلا شموع
 node scripts/audit/ui_d698.mjs || _note "$LINENO"
+node scripts/audit/ui_d711.mjs || _note "$LINENO"
 python3 scripts/audit/fv_evidence_d700.py || _note "$LINENO"
 python3 scripts/audit/fv_comprehensive_d701.py || _note "$LINENO"
 python3 scripts/audit/finance_score_d703.py || _note "$LINENO"

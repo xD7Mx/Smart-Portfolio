@@ -1,4 +1,5 @@
 import React from "react";
+import ReportCandles, { CandleSet } from "./ReportCandles";
 
 const money = (n: number) => (n ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
@@ -37,6 +38,10 @@ export interface ReportDocData {
     boxes?: { key: string; label: string; suffix: string; prev: number | null; now: number | null; neutral?: boolean }[];
   };
   positions?: { name: string; symbol: string; shares: number; market_value: number; pnl: number; pnl_pct: number }[];
+  /* ‏D711: شموعُ صافي الربح الأسبوعية لاثني عشر شهراً — تُحفظ مع التقرير لحظةَ إنشائه */
+  candles?: CandleSet | null;
+  /* ‏D711 (اقتراحُ المالك): وتاسي في الأسابيع نفسِها — الجزءُ الثاني يلي الأوّل */
+  tasi_candles?: CandleSet | null;
 }
 
 const ReportDocument = React.forwardRef<HTMLDivElement, { data: ReportDocData }>(({ data }, ref) => {
@@ -127,6 +132,21 @@ const ReportDocument = React.forwardRef<HTMLDivElement, { data: ReportDocData }>
             كانت تعرض «عائد المحفظة» و«التفوّق على تاسي» و«نسبة السيولة»،
             وقد صار اثنان منها في الشبكة أعلاه بأمر المالك. وإبقاؤها يعني
             رقماً واحداً في موضعين من الورقة نفسها. */}
+
+        {/* ══ شموعُ صافي الربح ══ (بأمر المالك · D711) — هويّةُ التطبيق في ورقته: أسبوعيّةٌ لاثني عشر شهراً، وفترةُ التقرير
+            مظلَّلة، والصفرُ خطٌّ حين تعبره. من صافي الربح لا من الثروة: الإيداعُ لا يُرسم صعوداً. وبلا تاريخٍ كافٍ لا قسم. */}
+        {data.candles && (
+          <div style={{ marginBottom: 24 }}>
+            <ReportCandles c={data.candles} title="حركةُ صافي الربح — شموعٌ أسبوعيّة لاثني عشر شهراً"
+                           label="فترة التقرير" fmt={v => money(v)} zeroLine />
+            {data.tasi_candles && (
+              <div data-role="report-candles-tasi" style={{ marginTop: 14 }}>
+                <ReportCandles c={data.tasi_candles} title="مؤشّرُ تاسي — الأسابيعُ نفسُها"
+                               label="فترة التقرير" fmt={v => money(v)} />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Positions table */}
         {!!data.positions?.length && (
