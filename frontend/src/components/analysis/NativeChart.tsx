@@ -417,7 +417,7 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
         // ٥) المتوسّطات الأسية
         const cl = bars.map((b: any) => b.close);
         ([["ema20", 20, "--chart-1"], ["ema50", 50, "--pos-ink"], ["ema100", 100, "--gauge-warn"],
-          ["ema200", 200, "--neg-ink"], ["ema400", 400, "--ink"]] as const).forEach(([k, n, c]) => {
+          ["ema200", 200, "--neg-ink"], ["ema400", 400, "--chart-4"]] as const).forEach(([k, n, c]) => {
           if (!(cfg as any)[k] || bars.length < n) return;
           addLine(ema7(cl, n).map((v, i) => v == null ? null : [i, v]).filter(Boolean) as any, cfg.colors?.[k] || tok(c, "#000"), 2);
         });

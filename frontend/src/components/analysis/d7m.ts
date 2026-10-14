@@ -560,11 +560,12 @@ export function tradeTool(bars: Bar[], vix: number | null, newsDay: boolean) {
 /* ── إعداداتُ المؤشّر الافتراضية (قيمُ السكربت) ─────────────────────────── */
 /** ألوانُ المؤشّر القابلةُ للتغيير: [المفتاح، الاسم، رمزُ المظهر الافتراضيّ]. الفارغُ = لونُ المظهر. */
 export const D7M_COLORS: [string, string, string][] = [
-  ["fib", "مستويات فيبوناتشي", "--ink"], ["fibGold", "المستويات الذهبية", "--gauge-warn"], ["zone", "نصوص المناطق", "--ink-muted"],
-  ["trendUp", "اتجاه صاعد", "--pos-ink"], ["trendDown", "اتجاه هابط", "--neg-ink"], ["channel", "القناة", "--ink"],
+  /* ‏D713: لا حبرَ نصٍّ أسودَ لخطوط المؤشّر — الافتراضيُّ هو ما يُرسم فعلاً (رماديٌّ للمستويات · لونُ الهويّة للقناة) */
+  ["fib", "مستويات فيبوناتشي", "--ink-muted"], ["fibGold", "المستويات الذهبية", "--gauge-warn"], ["zone", "نصوص المناطق", "--ink-muted"],
+  ["trendUp", "اتجاه صاعد", "--pos-ink"], ["trendDown", "اتجاه هابط", "--neg-ink"], ["channel", "القناة", "--brand-ink"],
   ["vwap", "VWAP", "--chart-1"], ["band", "نطاقات VWAP", "--pos-ink"],
   ["ema20", "EMA 20", "--chart-1"], ["ema50", "EMA 50", "--pos-ink"], ["ema100", "EMA 100", "--gauge-warn"],
-  ["ema200", "EMA 200", "--neg-ink"], ["ema400", "EMA 400", "--ink"], ["draw", "الرسم اليدوي", "--brand-ink"],
+  ["ema200", "EMA 200", "--neg-ink"], ["ema400", "EMA 400", "--chart-4"], ["draw", "الرسم اليدوي", "--brand-ink"],
 ];
 
 export const D7M_DEFAULTS = {
