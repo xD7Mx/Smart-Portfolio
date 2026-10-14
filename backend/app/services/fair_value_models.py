@@ -772,20 +772,22 @@ def proven_aggregate(models: list[dict], price: float) -> dict:
 # 15٪. ‏n المشاهدات و«hit1/hit2» نصفا الفترة (2023-03…2024-06 · 2024-09…). يُملأ من مخرَج `fv_backtest_d699.py` (‏@@TRACK@@).
 # قِيس على المحرّك المركّب نفسِه (‏D702 · run 38476923453 · 2,850 مشاهدة): «أفضلُ من أقرانها» تفوّقت 62٪ و«أضعف» تخلّفت 60٪
 # (والنصفان كلاهما فوق 58٪)، ومن لا تكفيه النماذجُ 66٪ و66٪؛ والمصارفُ والمقارنةُ تُقاس بأقرانها، والعيّنةُ دون أربعين لا تُعرض نسبةً.
+# ‏D705: الفئاتُ للسعر العادل من القوائم وحدها (‏probe run 38556674080 · 2,856 مشاهدة): «أفضلُ من أقرانها» 60٪ (‏59 · 60) و«أضعف»
+# 60٪ (‏59 · 62)، وقليلةُ النماذج 68٪ و62٪، والتأمين 61–65٪؛ وارتباطُ العادل +0.224 (‏11 من 11) والمستهدف +0.249.
 FV_TRACK: dict[str, dict] = {
     "bank_cheap": {"n": 44, "hit": 61, "n1": 15, "hit1": 47, "hit2": 69},
     "bank_dear": {"n": 48, "hit": 50, "n1": 38, "hit1": 42, "hit2": 80},
     "bank_fair": {"n": 18, "hit": 83, "n1": 7, "hit1": 71, "hit2": 91},
-    "rel_core_better": {"n": 402, "hit": 62, "n1": 204, "hit1": 64, "hit2": 61},
-    "rel_core_mid": {"n": 609, "hit": 52, "n1": 310, "hit1": 45, "hit2": 60},
-    "rel_core_weaker": {"n": 411, "hit": 60, "n1": 213, "hit1": 62, "hit2": 58},
+    "rel_core_better": {"n": 285, "hit": 60, "n1": 160, "hit1": 59, "hit2": 60},
+    "rel_core_mid": {"n": 875, "hit": 51, "n1": 432, "hit1": 47, "hit2": 56},
+    "rel_core_weaker": {"n": 262, "hit": 60, "n1": 135, "hit1": 59, "hit2": 62},
     "rel_financial_mid": {"n": 86, "hit": 65, "n1": 39, "hit1": 56, "hit2": 72},
-    "rel_insurance_better": {"n": 76, "hit": 62, "n1": 46, "hit1": 52, "hit2": 77},
-    "rel_insurance_mid": {"n": 108, "hit": 65, "n1": 49, "hit1": 55, "hit2": 73},
-    "rel_insurance_weaker": {"n": 75, "hit": 63, "n1": 39, "hit1": 56, "hit2": 69},
-    "rel_thin_better": {"n": 166, "hit": 66, "n1": 90, "hit1": 63, "hit2": 68},
-    "rel_thin_mid": {"n": 116, "hit": 57, "n1": 59, "hit1": 54, "hit2": 60},
-    "rel_thin_weaker": {"n": 171, "hit": 66, "n1": 82, "hit1": 62, "hit2": 70},
+    "rel_insurance_better": {"n": 78, "hit": 63, "n1": 46, "hit1": 52, "hit2": 78},
+    "rel_insurance_mid": {"n": 106, "hit": 65, "n1": 49, "hit1": 55, "hit2": 74},
+    "rel_insurance_weaker": {"n": 75, "hit": 61, "n1": 39, "hit1": 56, "hit2": 67},
+    "rel_thin_better": {"n": 137, "hit": 68, "n1": 76, "hit1": 62, "hit2": 75},
+    "rel_thin_mid": {"n": 189, "hit": 58, "n1": 99, "hit1": 55, "hit2": 61},
+    "rel_thin_weaker": {"n": 133, "hit": 62, "n1": 57, "hit1": 53, "hit2": 68},
 }
 
 
