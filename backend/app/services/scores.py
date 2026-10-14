@@ -99,6 +99,18 @@ _CURVE_ROE = [(-5, 0), (0, 25), (5, 45), (10, 62), (15, 76), (20, 87), (25, 93),
 _CURVE_DEBT_RATIO = [(0, 95), (0.15, 92), (0.30, 85), (0.45, 72), (0.60, 55), (0.75, 35), (0.90, 12), (1.0, 0)]
 # تغطيةُ الفوائد أضعافاً — ‎٢ حدُّ الخطر و‎٥ عتبةُ الأمان و‎٨ قوّةٌ ظاهرة.
 _CURVE_INTEREST_COVERAGE = [(0, 0), (1, 20), (2, 40), (3, 55), (5, 72), (8, 85), (12, 93), (20, 100)]
+# ‏D703: نموُّ صافي الربح سنوياً ‎٪ (مقيَّدٌ ±200) — الثباتُ دون المنتصف، و‎١٠٪ نموٌّ قياديّ، والانهيارُ إلى النصف قاعٌ قريب.
+_CURVE_NI_GROWTH = [(-100, 0), (-50, 10), (-20, 25), (0, 45), (5, 70), (10, 90), (20, 96), (40, 100)]
+
+# ‏D703 · أوزانُ الدرجة بالنتيجة (بأمر المالك 2026-10-13: «كلُّ رقمٍ يظهر محلَّ ثقة… سواءٌ درجةٌ ماليةٌ أو سعرٌ عادل»):
+# قِيست مكوّناتُها داخل كلّ قطاعٍ بما كان منشوراً منذ 2023 (‏fv_universe_d701 · 2,976 مشاهدة) — ارتباطُ الرتبة بالتفوّق بعد سنة:
+#   نموُّ صافي الربح +0.07 و+0.07 (الأثبتُ — ولم يكن في الدرجة) · العائدُ على الحقوق +0.04 و+0.12 · تغطيةُ الفوائد +0.01 و+0.10 ·
+#   نموُّ الإيراد +0.02 و+0.03 · وانخفاضُ المديونية لا يرفع العائدَ ويُنقص الخسارةَ الكبيرة في النصفين؛
+#   وجودةُ الربح (−0.02 · +0.04) وهامشُ التدفّق الحرّ (−0.11 · +0.15) ينقلبان بين النظامين — فلا يُبنى عليهما وزن.
+# الدرجةُ القديمة −0.04 و+0.13 داخل القطاع (−0.13 و+0.17 في السوق كلّه)، وهذه +0.055 و+0.076 (‏+0.014 و+0.079) — الوحيدةُ
+# الموجبةُ في النصفين بالمقياسين بين ستّ أوزانٍ مجرَّبة. والخطوطُ الحمراءُ صفرٌ كما هي.
+FINANCE_WEIGHTS = {"revenue_growth": 0.15, "roe": 0.20, "ni_growth": 0.35, "debt": 0.15, "coverage": 0.15,
+                   "earnings_quality": 0.0, "fcf_margin": 0.0}
 
 
 # Heavy reinvestment threshold: capex at or above 8% of revenue is a
@@ -187,10 +199,10 @@ def _finance_score_from_periods(periods: list) -> int | None:
             and first["revenue"] > 0 and latest["revenue"] > 0):
         n = len(periods) - 1
         cagr_pct = ((latest["revenue"] / first["revenue"]) ** (1 / n) - 1) * 100
-        signals.append((_curve(cagr_pct, _CURVE_REVENUE_CAGR), 0.20))
+        signals.append((_curve(cagr_pct, _CURVE_REVENUE_CAGR), FINANCE_WEIGHTS["revenue_growth"]))
     elif prev and prev.get("revenue") and latest.get("revenue") is not None:
         growth_pct = (latest["revenue"] - prev["revenue"]) / abs(prev["revenue"]) * 100
-        signals.append((_curve(growth_pct, _CURVE_REVENUE_CAGR), 0.20))
+        signals.append((_curve(growth_pct, _CURVE_REVENUE_CAGR), FINANCE_WEIGHTS["revenue_growth"]))
 
     if not looks_like_financial_institution:
         quality_ratios = [
@@ -205,7 +217,7 @@ def _finance_score_from_periods(periods: list) -> int | None:
         ]
         if quality_ratios:
             avg_ratio = sum(quality_ratios) / len(quality_ratios)
-            signals.append((_curve(avg_ratio, _CURVE_EARNINGS_QUALITY), 0.20))
+            signals.append((_curve(avg_ratio, _CURVE_EARNINGS_QUALITY), FINANCE_WEIGHTS["earnings_quality"]))
 
         fcf_margins = [
             p["free_cash_flow"] / p["revenue"] * 100
@@ -214,11 +226,17 @@ def _finance_score_from_periods(periods: list) -> int | None:
         ]
         if fcf_margins:
             avg_margin = sum(fcf_margins) / len(fcf_margins)
-            signals.append((_curve(avg_margin, _CURVE_FCF_MARGIN), 0.15))
+            signals.append((_curve(avg_margin, _CURVE_FCF_MARGIN), FINANCE_WEIGHTS["fcf_margin"]))
 
     if latest.get("net_income") is not None and latest.get("equity"):
         roe_pct = latest["net_income"] / latest["equity"] * 100
-        signals.append((_curve(roe_pct, _CURVE_ROE), 0.20))
+        signals.append((_curve(roe_pct, _CURVE_ROE), FINANCE_WEIGHTS["roe"]))
+    # ‏D703: نموُّ صافي الربح على السنة السابقة — أثبتُ مكوّنٍ بالنتيجة. والخسارةُ لا «تنمو»: انكماشُها من ‎−٢٠٠ إلى ‎−١٤٠
+    # يُقرأ ‎+٣٠٪ وهو خسارة — فالسنةُ الخاسرةُ صفرٌ في هذا المكوّن (وقِيس: يرفع الارتباطَ داخل القطاع في النصفين).
+    if latest.get("net_income") is not None and prev and prev.get("net_income"):
+        ni_g = max(-2.0, min(2.0, (latest["net_income"] - prev["net_income"]) / abs(prev["net_income"])))
+        ni_sc = 0 if latest["net_income"] <= 0 else _curve(ni_g * 100, _CURVE_NI_GROWTH)
+        signals.append((ni_sc, FINANCE_WEIGHTS["ni_growth"]))
 
     if latest.get("debt_ratio") is not None and not looks_like_financial_institution:
         debt_score = _curve(latest["debt_ratio"], _CURVE_DEBT_RATIO)
@@ -230,11 +248,12 @@ def _finance_score_from_periods(periods: list) -> int | None:
             # harshly when it looks investment-driven, not eliminated.
             penalty_factor = 0.4 if (delta > 0 and is_investment_phase(periods)) else 1.0
             debt_score = _clamp(round(debt_score - delta * 100 * penalty_factor))
-        signals.append((debt_score, 0.15))
+        signals.append((debt_score, FINANCE_WEIGHTS["debt"]))
 
     if latest.get("interest_coverage") is not None:
-        signals.append((_curve(latest["interest_coverage"], _CURVE_INTEREST_COVERAGE), 0.10))
+        signals.append((_curve(latest["interest_coverage"], _CURVE_INTEREST_COVERAGE), FINANCE_WEIGHTS["coverage"]))
 
+    signals = [(sc, w) for sc, w in signals if w > 0]
     if not signals:
         return None
     total_w = sum(w for _, w in signals)
