@@ -14,8 +14,21 @@ async def main():
     from app.services import tadawul_market as TM
     from app.services import tadawul_ownership as TO
     from app.services.tadawul_http import fetch
+    import os
+    from datetime import datetime
+    from app.services import lastgood
+    from app.services.market_phase import market_phase
+    from zoneinfo import ZoneInfo
+    naive, mecca = datetime.now(), datetime.now(ZoneInfo("Asia/Riyadh")).replace(tzinfo=None)
+    ph = lambda t: market_phase((t.weekday() + 1) % 7, t.hour * 60 + t.minute)   # noqa: E731
+    print(f"@@CLOCK@@ TZ={os.environ.get('TZ')!r} · ساعةُ الحاوية {naive:%a %H:%M} ← {ph(naive)} · مكة {mecca:%a %H:%M} ← {ph(mecca)}")
     rows, live, at = TM.usable_rows()
     print(f"@@SNAP@@ صفوفُ اللقطة {len(rows)} · حيّة {live} · زمنُها {at}")
+    if not rows:
+        rec = lastgood.load(TM.STORE_KEY) or {}
+        rows = rec.get("rows") if isinstance(rec.get("rows"), dict) else {}
+        print(f"@@STORED@@ المحفوظُ بلا شرط عمر: {len(rows)} صفّاً · زمنُه {rec.get('at')} — يُكمل الكاشفُ به")
+        TM.row_for = lambda s, _r=rows: _r.get(str(s)) or {}
     with_url = sum(1 for r in rows.values() if (r or {}).get("company_url"))
     print(f"@@URLS@@ برابط صفحةٍ {with_url} من {len(rows)}")
     for sym in ("2222", "1120", "2010"):
