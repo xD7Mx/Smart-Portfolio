@@ -89,9 +89,6 @@ export default function CompanyProfileCards(
           <div className="space-y-2">
             <textarea className="input" rows={7} value={descDraft} onChange={e => setDescDraft(e.target.value)}
               placeholder="اكتب نبذة عن نشاط الشركة…" autoFocus />
-            <p className="text-[10px] text-[var(--ink-muted)]">
-              نصّك يتقدّم على المصدر ولا يُستبدَل. وإفراغ الحقل يُعيد الجلب من Yahoo.
-            </p>
             <div className="flex gap-2">
               <button className="btn-primary flex-1" disabled={save.isPending}
                 onClick={() => save.mutate({ description: descDraft })}>

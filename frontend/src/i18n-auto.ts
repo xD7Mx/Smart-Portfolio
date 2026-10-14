@@ -254,10 +254,6 @@ export const AR_EN: Record<string, string> = {
   "القيمة بعد 5 سنة": "Value after 5 years",
   "رأس المال الحالي": "Current capital",
   "إجمالي ما ستضخّه": "Total you will contribute",
-  "تقديرات افتراضية بناءً على مدخلاتك — العوائد الفعلية تتغير مع السوق.":
-    "Hypothetical estimates from your inputs — actual returns vary with the market.",
-  "يفترض إعادة استثمار العوائد شهرياً بمعدل ثابت — لتقريب الصورة لا للضمان.":
-    "Assumes monthly reinvestment at a constant rate — an approximation, not a guarantee.",
 
   // ── التقارير ──
   "أنشئ تقريراً فورياً عن محفظتك — يُحفظ في الأرشيف ويمكن تحميله كصورة.":

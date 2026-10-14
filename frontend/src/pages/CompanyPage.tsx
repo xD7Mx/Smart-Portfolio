@@ -252,9 +252,6 @@ function TxModal({ companyId, onClose }: { companyId: number; onClose: () => voi
                 <CheckBox checked={preSplitOk} onChange={setPreSplitOk} align="start" label={<>
                 <span className="text-[var(--ink)]">
                   أُقرّ بأن كميات العمليات السابقة هي كميات <b>ما قبل التجزئة</b>.
-                  <span className="block text-[var(--ink-muted)] mt-0.5">
-                    إن كنت أدخلتها كما تظهر في تطبيق الوسيط اليوم فهي مُجزَّأة أصلاً.
-                  </span>
                 </span>
               </>} />
               </div>
@@ -448,7 +445,6 @@ function TxEditForm({ t, ed, all = [] }: { t: any; ed: any; all?: any[] }) {
             أقرب سعر في سجلّك: <span className="text-[var(--ink)] font-bold tabular-nums" dir="ltr">{suggestion.price.toFixed(2)}</span>
             {" "}من عملية {suggestion.kind} بتاريخ <span dir="ltr">{suggestion.date}</span>
             {suggestion.days === 0 ? " — نفس اليوم" : ` — يبعد ${suggestion.days} يوماً`}.
-            {" "}وهو مسجَّل بنفس أساس التجزئة الذي بُنيت عليه كمياتك، فلا يتناقض معها.
           </p>
           <button type="button" className="btn-ghost text-[11px] mt-1.5"
             onClick={() => ed.setF((v: any) => ({ ...v, price: String(suggestion.price) }))}>
@@ -473,9 +469,6 @@ function TxEditForm({ t, ed, all = [] }: { t: any; ed: any; all?: any[] }) {
               </button>
             ))}
           </div>
-          <p className="text-[10px] text-[var(--ink-muted)] mt-1">
-            «ضخ» = رأس مال جديد. «إعادة استثمار» = استُهلك من حوض العائد فيُنقصه.
-          </p>
         </div>
       )}
 

@@ -201,7 +201,7 @@ export default function AutopilotCard() {
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-xs text-[var(--ink-muted)] py-6">
-          <Loader2 size={14} className="animate-spin" /> يقرأ المحفظةَ كلَّها: الأهدافَ والقوائمَ وآراءَ البيوت والأحداثَ ومستوياتِ D7M…
+          <Loader2 size={14} className="animate-spin" /> يقرأ المحفظة…
         </div>
       ) : isError || !data ? (
         <p className="text-xs text-[var(--ink-muted)] py-4">تعذّر رأي المستشار الآلي الآن.</p>

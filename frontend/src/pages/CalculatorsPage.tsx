@@ -92,10 +92,6 @@ function InvestmentCalc() {
         <Result label={`القيمة بعد ${n} سنة`} value={money(future) + ""} color="var(--chart-2)" />
         <Result label="إجمالي النمو الرأسمالي" value={"+" + money(totalReturn) + ""} color="var(--chart-4)" />
       </div>
-      <p className="text-[11px] text-[var(--ink-muted)] mt-3">
-        التوزيعات محسوبة على المبلغ الأصلي ومنفصلة عن نمو السعر، فلا يُعدّ أيٌّ منهما مرّتين —
-        تقديرات افتراضية بناءً على مدخلاتك، والعوائد الفعلية تتغير مع السوق.
-      </p>
     </Card>
   );
 }
@@ -173,7 +169,6 @@ function GoalCalc() {
           </ResponsiveContainer>
         </div>
       )}
-      <p className="text-[11px] text-[var(--ink-muted)] mt-2">يفترض إعادة استثمار العوائد شهرياً بمعدل ثابت — لتقريب الصورة لا للضمان.</p>
     </Card>
   );
 }

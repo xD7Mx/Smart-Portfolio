@@ -631,14 +631,6 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
       ? { label: "أسهمك بعد التجزئة", value: fmt(shares0 * Number(f.factor)) }
     : null;
 
-  const hint: Record<string, string> = {
-    BUY: "يُخصم الإجمالي من السيولة المتاحة. وسم «إعادة استثمار» يُنقص رصيد إعادة الاستثمار في التوازن التالي",
-    SELL: "يُضاف صافي البيع إلى السيولة المتاحة تلقائياً",
-    DIVIDEND: "يُضاف المبلغ إلى السيولة وإلى إجمالي التوزيعات",
-    BONUS: "تُضاف الأسهم مجاناً وينخفض متوسط التكلفة تلقائياً. سعر يوم المنح يُثبّت قيمتها في العائد المحقّق — بدونه تُقدَّر بالسعر الأخير فتتحرّك مع السوق",
-    SPLIT: "مثال: معامل 2 يعني كل سهم يصبح سهمين والسعر ينخفض للنصف",
-  };
-
   return (
     <Modal title={`معاملة — ${company.name_ar || company.name}`} onClose={onClose}>
       <div className="space-y-3">
@@ -757,9 +749,6 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
               <CheckBox checked={preSplitOk} onChange={setPreSplitOk} align="start" label={<>
               <span className="text-[var(--ink)]">
                 أُقرّ بأن كميات العمليات المسجَّلة قبل هذا التاريخ هي كميات <b>ما قبل التجزئة</b>.
-                <span className="block text-[var(--ink-muted)] mt-0.5">
-                  إن كنت أدخلت كمياتك كما تظهر في تطبيق الوسيط اليوم فهي مُجزَّأة أصلاً، ولا تُسجَّل التجزئة مرّةً أخرى.
-                </span>
               </span>
             </>} />
             </div>
@@ -769,8 +758,7 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
         {/* لا تاريخ مستقبلي: يُقفل في المتصفح أيضاً لا في الخادم وحده. */}
         <Field label={tr("port.txDate")}><DateInput className="input" max={new Date().toISOString().slice(0, 10)} value={f.date} onChange={upd("date")} /></Field>
 
-        <div className="panel rounded-xl p-3 text-xs text-[var(--ink-muted)]">{hint[type]}</div>
-
+        {/* ‏D709 (بأمر المالك): لا سطرَ تبريرٍ في بطاقة المعاملة — الأرقامُ ومعاينتُها تكفي */}
         {/* معاينة الأثر قبل التأكيد — لكل الأنواع لا للشراء والبيع وحدهما.
             التجزئة خصوصاً تغيّر عدد أسهمك وسعرها، ورؤيتها بعد التنفيذ متأخّرة. */}
         {/* متوسط التكلفة بعد هذه الصفقة — يُحسب لحظياً من حيازتك ومدخلاتك،
@@ -1074,10 +1062,9 @@ function HoldingModal({ holding, onClose }: { holding: any; onClose: () => void 
               {Number(holding.cost_basis_adjustment) > 0 ? "+" : ""}
               {Number(holding.cost_basis_adjustment).toLocaleString("en-US", { maximumFractionDigits: 2 })}
             </span>
-            <span className="text-[var(--ink-muted)]"> — تكلفتك المعتمدة أعلى/أدنى من مجموع عملياتك المسجّلة بهذا المقدار، ويُحفَظ الفارق كي لا تمحوه إعادة بناء الحيازة عند أي تعديل لاحق.</span>
           </div>
         )}
-        <p className="text-[11px] text-[var(--warn-ink)]">تصحيح مباشر للمركز فقط — لا يُنشئ عملية في سجل العمليات ولا يؤثر على السيولة. لتسجيل شراء/بيع فعلي يعكس أثره على السيولة استخدم زر "شراء/بيع" بدلاً من هذا.</p>
+        <p className="text-[11px] text-[var(--warn-ink)]">تصحيحٌ للمركز وحده — لا يُنشئ عمليةً ولا يمسّ السيولة.</p>
         <div className="flex gap-3 pt-1">
           <button className="btn-primary flex-1" onClick={() => mutation.mutate()} disabled={mutation.isPending || !qty || !avg}>
             {mutation.isPending ? tr("common.saving") : tr("common.save")}

@@ -531,6 +531,7 @@ python3 scripts/audit/tadawul_xbrl.py || _note "$LINENO"
 echo
 python3 scripts/audit/ownership.py || _note "$LINENO"
 python3 scripts/audit/ownership_html_d708.py || _note "$LINENO"
+python3 scripts/audit/no_justification_d709.py || _note "$LINENO"
 
 # D271: خطوةٌ واحدةٌ لا تُسقط كلَّ الشاشات — قاعدةٌ متأخّرةٌ أو جدولةٌ
 # متعثّرةٌ تُعلَن ولا تَقتل، والحالُ تُقاس في `/api/health` لا تُكتَب.
