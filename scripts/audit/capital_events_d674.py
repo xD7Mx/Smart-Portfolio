@@ -6,6 +6,7 @@
 سلامة · الصقر)، وتخفيضٌ لإطفاء خسائر (المجموعة السعودية). وقاعدةُ النسبة (منحةٌ معياريّة ±1٪) سوّت القديمةَ وفاتتها غيرُ المعياريّة،
 وسقطت في حارس التجميد. فالحارسُ يمنع العودة — سلوكاً على دالّة المدخلات نفسِها (‏gather) لا قراءةَ نصّ:
   · المصنِّفُ يقرأ عناوينَ «تداول» الحقيقية: منحةٌ · زيادةٌ بمقابل · تخفيض — وإعلانُ الإقرار يرث نوعَ توصيته.
+  · الحدثُ النافذُ وحده (نتائجُ الجمعية · التخصيص · الكسور) — لا التوصيةُ ولا الطلب.
   · منحةٌ بعد آخر قوائم ⇒ عددُ السوق ويُعلَن؛ زيادةٌ بمقابل بعدها ⇒ لا رقم (ولا احتياطَ يملؤه)؛ حدثٌ قبلها ⇒ عددُ القوائم.
   · ولا حدثَ ⇒ الحَكَمُ القديم كما هو، ولا تُضاعَف منحةٌ سجّلها كاشفُ الأسهم المصدرة.
   · والاختبارُ التاريخيّ لا يرى أحداثَ اليوم، والحصّادُ يعمل ليلاً بتمهّل.
@@ -84,13 +85,13 @@ def run(events, mkt=MKT, ledger=None):
     return asyncio.run(F.gather("9999"))
 
 
-i = run([{"k": "bonus", "d": "2026-04-20", "t": "منحة"}])
+i = run([{"k": "bonus", "d": "2026-04-20", "t": "Maharah Human Resources Company announces the deposit of the proceeds from the sale of fractional shares resulting from the capital increase"}])
 check(i and abs(i.shares - MKT) < 1 and any("منحةٌ أو تجزئة" in n and "إفصاحات «تداول»" in n for n in i.notes),
       "٣ منحةٌ بعد آخر قوائم ⇒ عددُ السوق ويُعلَن بتاريخها ومصدرها", f"{i and i.shares / 1e6:.1f} مليون")
-i = run([{"k": "bonus", "d": "2022-04-17", "t": "منحة قديمة"}])
+i = run([{"k": "bonus", "d": "2022-04-17", "t": "Maharah Human Resources Company announces the deposit of the proceeds from the sale of fractional shares resulting from the capital increase"}])
 check(i and abs(i.shares - STMT) < 1 and not i.capital_pending,
       "٤ ومنحةٌ قبل القوائم ليست سببَ الفرق ⇒ عددُ القوائم (المتقدمة 2022 · الجزيرة تكافل 2023)", f"{i and i.shares / 1e6:.1f} مليون")
-i = run([{"k": "paid", "d": "2026-05-10", "t": "حقوق أولوية"}])
+i = run([{"k": "paid", "d": "2026-05-10", "t": "Naseej International Trading Company Announces the Results of Rump Offering and the Allocation of the Right Issues"}])
 r = F.value(i) if i else {}
 b = F.blend(dict(r), {"value": 30.0, "low": 25.0, "high": 35.0}, i.archetype if i else None, 0.03) if i else {}
 check(i and i.capital_pending and r.get("value") is None and r.get("capital_pending") and "بمقابل" in str(r.get("reason"))
@@ -102,9 +103,17 @@ i = run([], mkt=STMT * 1.6)
 check(i and abs(i.shares - STMT * 1.6) < 1, "٧ ولا حدثَ ⇒ الحَكَمُ القديم كما هو (فرقٌ فوق المرّة والنصف يأخذ عددَ السوق)")
 i = run([], mkt=MKT)
 check(i and abs(i.shares - STMT) < 1, "٨ ولا حدثَ وفرقٌ دونها ⇒ عددُ القوائم كما كان")
-i = run([{"k": "bonus", "d": "2026-04-20", "t": "منحة"}], ledger=[{"d": "2026-04-21", "f": 1.25}])
+i = run([{"k": "bonus", "d": "2026-04-20", "t": "Maharah Human Resources Company announces the deposit of the proceeds from the sale of fractional shares resulting from the capital increase"}], ledger=[{"d": "2026-04-21", "f": 1.25}])
 check(i and abs(i.shares - MKT) < 1, "٩ ومنحةٌ سجّلها كاشفُ الأسهم المصدرة لا تُضاعَف (‏D621 بعد التصحيح)", f"{i and i.shares / 1e6:.1f} مليون")
 
+# ‏الحصادُ الأوّل (run 38491266548): «ميثانول» و«البحر الأحمر» حُجبتا بطلب حقوق أولويةٍ لم يُنفَّذ — والمعلَنُ لا يغيّر عدداً
+i = run([{"k": "paid", "d": "2026-09-30", "t": "Methanol Chemicals Co. Announces the Submission of the Increase of the Company’s Capital "
+                                              "by Offering Right Issues Application File to CMA"},
+         {"k": "bonus", "d": "2026-08-01", "t": "Al Hassan Ghazi Ibrahim Shaker Co. Announces the Board’s Recommendation to Increase "
+                                               "the Capital by Granting Bouns Shares"}])
+check(i and not i.capital_pending and abs(i.shares - STMT) < 1,
+      "٩ب والحدثُ المعلَنُ الذي لم يُنفَّذ (طلبٌ · توصية) لا يحجب الرقمَ ولا يغيّر العدد — النافذُ وحده (نتائجُ الجمعية · التخصيص · الكسور)",
+      f"{i and i.capital_pending}")
 bt = open(os.path.join(ROOT, "scripts/audit/fv_backtest_d699.py"), encoding="utf-8").read()
 check("_CE.kind_after = lambda *a, **k: None" in bt, "١٠ والاختبارُ التاريخيّ لا يرى أحداثَ اليوم (ما كان معلوماً يومها وحده)")
 sch = open(os.path.join(ROOT, "backend/app/scheduler/scheduler.py"), encoding="utf-8").read()

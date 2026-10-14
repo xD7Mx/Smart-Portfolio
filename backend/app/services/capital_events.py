@@ -32,6 +32,14 @@ _PAID = re.compile(r"rights?\s+issues?|right\s+shares|new\s+shares\s+subscriptio
 _BONUS = re.compile(r"bonus|bouns|stock\s+split|share\s+split|منحة|تجزئة", re.I)
 _INCREASE = re.compile(r"capital\s+increase|increas\w*\s+(of\s+)?(its\s+|the\s+)?(company.s\s+)?capital|زيادة\s+رأس", re.I)
 _FRACTION = re.compile(r"fraction|كسور", re.I)
+# الحدثُ النافذ لا المعلَن: التوصيةُ وتقديمُ الطلب وتعيينُ المستشار ودعوةُ الجمعية لا تغيّر عدداً — قِيس في الحصاد الأوّل
+# (run 38491266548): «ميثانول» و«البحر الأحمر» حُجبتا بطلب حقوق أولويةٍ لم يُنفَّذ. فالمعتبرُ ما يدلّ على التنفيذ:
+# نتائجُ الجمعية أو الطرح، والتخصيص، وتعويضُ أصحاب الحقوق، وبدءُ تداول الحقوق، وإيداعُ الكسور، وإدراجُ الأسهم الجديدة.
+_EFFECTIVE = re.compile(r"results?\s+of\s+(the\s+)?(extraordinary\s+|ordinary\s+)?general\s+assembly|"
+                        r"results?\s+of\s+(the\s+)?(rump|remaining)\s+offering|allo(cation|tment)\s+of\s+(the\s+)?(right|new|shares)|"
+                        r"distribution\s+of\s+compensation|start\s+of\s+(the\s+)?rights?\s+issues?\s+trading|"
+                        r"deposit\s+of\s+(the\s+)?(amounts|proceeds|sums)|(sale|selling)\s+of\s+(the\s+)?(shares\s+)?fraction|"
+                        r"listing\s+of\s+(the\s+)?new\s+shares|نتائج\s+(اجتماع\s+)?الجمعية|إيداع|تخصيص", re.I)
 
 
 def classify(title: str | None) -> str | None:
@@ -47,6 +55,11 @@ def classify(title: str | None) -> str | None:
         # بيعُ كسور الأسهم لا يكون إلّا من منحة (حقوقُ الأولوية تُعوَّض بعنوانها) — فهو نوعٌ لا مجهول
         return "bonus" if _FRACTION.search(t) else "increase"
     return None
+
+
+def effective(title: str | None) -> bool:
+    """أيدلّ العنوانُ على حدثٍ نُفِّذ (لا توصيةٍ ولا طلبٍ ولا دعوة)؟"""
+    return bool(_EFFECTIVE.search(str(title or "")))
 
 
 def resolve(events: list[dict]) -> list[dict]:
@@ -74,10 +87,11 @@ def events_of(symbol: str) -> list[dict]:
 
 
 def kind_after(symbol: str, as_of: str | None) -> dict | None:
-    """أثقلُ حدثٍ بعد تاريخ آخر قوائم ← {kind, date, title}: الزيادةُ بمقابل أوّلاً (فيها نقدٌ غائب)، ثمّ المنحةُ والتخفيض."""
+    """أثقلُ حدثٍ **نافذٍ** بعد تاريخ آخر قوائم ← {kind, date, title}: الزيادةُ بمقابل أوّلاً (فيها نقدٌ غائب)، ثمّ المنحةُ
+    والتخفيض. والمعلَنُ الذي لم يُنفَّذ لا يغيّر عدداً فلا يُحكم به."""
     if not as_of:
         return None
-    after = [e for e in events_of(symbol) if e["d"] > str(as_of)[:10]]
+    after = [e for e in events_of(symbol) if e["d"] > str(as_of)[:10] and effective(e.get("t"))]
     for k in ("paid", "bonus", "reduction"):
         hit = [e for e in after if e["k"] == k]
         if hit:
