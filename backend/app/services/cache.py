@@ -191,10 +191,29 @@ def get(key: str):
         return None
 
 
+# ‏D724: المنتهي يُحذف من الذاكرة — كان `get` يتجاهله ويبقى، فتنمو ذاكرةُ الخادم ما دام قائماً (قِيس: ‎236‎ م.ب مقيمة و‎268‎ في
+# المبادلة على خادمٍ ‎909‎ م.ب). والحذفُ آمن: القراءةُ تتجاهله أصلاً، والقرصُ لا يُحيي ميتاً (‏_load_disk). كلَّ خمس دقائق في `set`.
+_PURGE_EVERY = 300
+_purged_at = 0.0
+
+
+def _purge_expired(now: float) -> int:
+    """تُستدعى تحت القفل: تحذف ما انتهى عمرُه — وتُعيد عددَه."""
+    global _purged_at
+    _purged_at = now
+    dead = [k for k, (exp, _v) in _store.items() if exp <= now]
+    for k in dead:
+        _store.pop(k, None)
+    return len(dead)
+
+
 def set(key: str, value, ttl: int) -> None:
     global _dirty
     with _lock:
-        _store[key] = (time.time() + ttl, value)
+        now = time.time()
+        if now - _purged_at >= _PURGE_EVERY:
+            _purge_expired(now)
+        _store[key] = (now + ttl, value)
         if ttl >= _PERSIST_MIN_TTL:
             _dirty = True
             _flush()
