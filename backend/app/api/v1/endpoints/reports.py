@@ -197,77 +197,35 @@ async def _contributions_asof(db: AsyncSession):
     return asof
 
 
-def profit_candles(daily, period_from, period_to) -> dict | None:
-    """‏D711 (بأمر المالك): «أضف لتقرير المحفظة الرسمَ البيانيَّ بالشموع — فكرةٌ جميلةٌ تعطي هويّةَ التطبيق».
-    شموعٌ أسبوعيّةٌ لاثني عشر شهراً من **صافي الربح** اليوميّ ((القيمة السوقية + النقد) − صافي الضخّ حتى يومه) — لا من الثروة،
-    فالإيداعُ لا يُرسم صعوداً. الأسبوعُ أسبوعُ التداول (من الأحد)، وافتتاحُه إغلاقُ ما قبله، وأعلاه وأدناه من أيّامه. ولا شموعَ
-    مختلَقة: يومٌ بلا لقطةٍ لا يُملأ، وأقلُّ من عشرة أسابيع لا يُعدّ رسماً.
-    ‏`daily`: [(تاريخ، صافي الربح)] بأيّ ترتيب."""
-    from datetime import timedelta
-    pts = sorted((d, float(v)) for d, v in daily if d is not None and v is not None)
-    if not pts:
+def tasi_monthly(rows, period_from, period_to, years: int = 5) -> dict | None:
+    """‏D717 (المالك): «الشموعُ في تقرير المحفظة لتاسي فقط — احذف شموعَ الربح. وشموعُ تاسي شكلُها غريب: ضع فتراتِ السنوات في
+    الرسم، والتظليلُ يوضّح فترةَ التقرير». كانت أسابيعَ تاسي **المحاذيةَ** لأسابيع صافي الربح (‏D711)، فتقصر بقِصَر تاريخ المحفظة.
+    فصارت شموعاً **شهريّةً لخمس سنوات** من الشهريّ الذي يرسمه التطبيقُ نفسُه (‏get_bars · D663 · D713)، وفترةُ التقرير مظلَّلة.
+    ولا شموعَ مختلَقة: أقلُّ من اثني عشر شهراً لا يُعدّ رسماً.
+    ‏`rows`: [{date, open, high, low, close}] شهريّة بأيّ ترتيب."""
+    out = []
+    for r in sorted((r for r in rows or [] if r and r.get("date") and r.get("close")), key=lambda r: str(r["date"])):
+        c = float(r["close"])
+        o, h, lo = float(r.get("open") or c), float(r.get("high") or c), float(r.get("low") or c)
+        out.append({"d": f"{str(r['date'])[:7]}-01", "o": round(o, 2), "h": round(max(h, o, c), 2),
+                    "l": round(min(lo, o, c), 2), "c": round(c, 2)})
+    dedup: dict = {}
+    for row in out:                                               # شهرٌ مكرَّر ⇒ الأحدث (لا شمعتان لشهرٍ واحد)
+        dedup[row["d"]] = row
+    out = [dedup[k] for k in sorted(dedup)][-12 * years:]
+    if len(out) < 12:
         return None
-    end = pts[-1][0]
-    pts = [(d, v) for d, v in pts if d > end - timedelta(days=365)]
-    weeks: dict = {}
-    for d, v in pts:
-        weeks.setdefault(d - timedelta(days=(d.weekday() + 1) % 7), []).append((d, v))
-    out, prev_close = [], None
-    for wk in sorted(weeks):
-        vals = [v for _, v in sorted(weeks[wk])]
-        o = prev_close if prev_close is not None else vals[0]
-        out.append({"d": wk.isoformat(), "o": round(o, 2), "h": round(max(vals + [o]), 2),
-                    "l": round(min(vals + [o]), 2), "c": round(vals[-1], 2)})
-        prev_close = vals[-1]
-    if len(out) < 10:
-        return None
-    return {"interval": "أسبوعي", "series": "صافي الربح", "points": out,
+    return {"interval": "شهري", "series": "تاسي", "points": out,
             "from": period_from.isoformat() if period_from else None,
             "to": period_to.isoformat() if period_to else None}
 
 
-def tasi_weekly(points, profit: dict | None) -> dict | None:
-    """‏D711 (اقتراحُ المالك): «الشموعُ جزآن: أحدُهما ما صنعتَه، والآخرُ يليه يُظهر مؤشّرَ تاسي» — أسابيعُ تاسي **نفسُها**
-    التي رُسم فيها صافي الربح (أسبوعُ التداول من الأحد)، من شموعه الأسبوعية الرسمية (‏D438) لا من إغلاقٍ مقدَّر، وفترةُ التقرير
-    مظلَّلةٌ في الاثنين. ولا تاسي بلا شموع المحفظة: الجزءُ الثاني يُقرأ مقابلَ الأوّل."""
-    from datetime import date as _d, timedelta
-    if not profit or not profit.get("points"):
-        return None
-    first, last = profit["points"][0]["d"], profit["points"][-1]["d"]
-    out = []
-    for p in points or []:
-        try:
-            d = _d.fromisoformat(str(p.get("date"))[:10])
-        except (TypeError, ValueError):
-            continue
-        wk = (d - timedelta(days=(d.weekday() + 1) % 7)).isoformat()
-        if not (first <= wk <= last) or not p.get("close"):
-            continue
-        c = float(p["close"])
-        row = {"d": wk, "o": round(float(p.get("open") or c), 2), "h": round(float(p.get("high") or c), 2),
-               "l": round(float(p.get("low") or c), 2), "c": round(c, 2)}
-        if out and out[-1]["d"] == wk:                            # أسبوعٌ مكرَّر (جلسةُ اليوم) يُدمج لا يُكرَّر
-            b = out[-1]
-            row = {"d": wk, "o": b["o"], "h": max(b["h"], row["h"]), "l": min(b["l"], row["l"]), "c": row["c"]}
-            out[-1] = row
-        else:
-            out.append(row)
-    if len(out) < 10:
-        return None
-    return {"interval": "أسبوعي", "series": "تاسي", "points": out, "from": profit.get("from"), "to": profit.get("to")}
-
-
-async def _profit_candles(db: AsyncSession, report_type: str) -> dict | None:
-    """شموعُ صافي الربح للتقرير — من اللقطات اليومية وسجلّ النقد نفسيهما اللذين يبنيان صناديقَ النموّ."""
+async def _tasi_candles(report_type: str) -> dict | None:
+    """شموعُ تاسي للتقرير — شهريّةٌ لخمس سنوات، وفترةُ التقرير (المغلقةُ نفسُها التي تُقاس بها الأرقام) مظلَّلة."""
     from datetime import date as _date, timedelta
-    rows = await _snapshot_rows(db)
-    if len(rows) < 2:
-        return None
-    contributed = await _contributions_asof(db)
-    daily = [(r.snapshot_date, float(r.market_value or 0) + float(r.cash_balance or 0) - contributed(r.snapshot_date))
-             for r in rows]
+    from app.services.market_data import market_service
     end_a, prev_a = _period_anchors(_date.today(), report_type)
-    return profit_candles(daily, prev_a + timedelta(days=1), end_a)
+    return tasi_monthly(await market_service.get_bars("^TASI.SR", "1mo"), prev_a + timedelta(days=1), end_a)
 
 
 async def _return_growth_boxes(db: AsyncSession, report_type: str, weekly: dict | None) -> dict:
@@ -458,16 +416,9 @@ async def generate_report(report_type: str = "WEEKLY", db: AsyncSession = Depend
     # Both computed from the REAL daily PortfolioSnapshot history — never faked.
     growth = await _return_growth_boxes(db, report_type, weekly)
     try:
-        candles = await _profit_candles(db, report_type)
+        tasi_candles = await _tasi_candles(report_type)          # ‏D717: تاسي وحده، شهريّاً لخمس سنوات
     except Exception:                                             # noqa: BLE001
-        candles = None                                            # لا شموع ⇒ لا قسم — لا رسمَ مختلَق
-    tasi_candles = None
-    if candles:
-        try:
-            from app.services.market_data import market_service
-            tasi_candles = tasi_weekly(await market_service.get_history("^TASI.SR", "2y"), candles)
-        except Exception:                                         # noqa: BLE001
-            tasi_candles = None
+        tasi_candles = None                                       # لا شموع ⇒ لا قسم — لا رسمَ مختلَق
 
     # الرقم الموحَّد في التطبيق — من نفس دالة بطاقة المقاييس لا من حسابٍ ثانٍ.
     # كان التقرير المؤرشَف يحمل roi_pct (عائد الربح غير المحقّق: 2.73%) بلا
@@ -516,8 +467,7 @@ async def generate_report(report_type: str = "WEEKLY", db: AsyncSession = Depend
         },
         "growth": growth,
         "positions": positions,
-        "candles": candles,                       # ‏D711: شموعُ صافي الربح الأسبوعية لاثني عشر شهراً
-        "tasi_candles": tasi_candles,             # ‏D711: وتاسي في الأسابيع نفسِها — الجزءُ الثاني
+        "tasi_candles": tasi_candles,             # ‏D717: تاسي شهريّاً لخمس سنوات، وفترةُ التقرير مظلَّلة (شموعُ الربح حُذفت)
     }
 
     # ══ وسطرُ الفترة يقول الفترةَ لا يومَ الضغط ══ (D333)

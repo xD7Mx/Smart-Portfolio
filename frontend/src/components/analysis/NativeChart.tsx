@@ -352,7 +352,7 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
         // لونُ المالك من الإعدادات إن اختاره، وإلا لونُ المظهر
         const C = (k: string) => cfg.colors?.[k] || tok((D7M_COLORS.find(x => x[0] === k) || ["", "", "--ink"])[2], "#000");
         /* ‏D713 (المالك): «مؤشّرُ D7M بخطوطٍ سوداء قبيحة». «الأبيضُ» في السكربت لخلفيةٍ داكنة، وكان يُرسم بحبر النصّ (أسودَ في
-           الفاتح). فصار كتريدنق فيو: المستوياتُ رماديّةٌ شفيفةٌ متقطّعة، والذهبيّةُ ذهبٌ صلب، والقناةُ بلون الهويّة شفيفة —
+           الفاتح). فصار كتريدنق فيو: المستوياتُ رماديّةٌ شفيفةٌ متّصلة (‏D717)، والذهبيّةُ ذهبٌ صلب، والقناةُ بلون الهويّة شفيفة —
            وما اختاره المالكُ لوناً في الإعدادات يبقى له. */
         const ink = cfg.colors?.fib || tokA("--ink-muted", "#6b7280", 0.55);
         const inkTag = cfg.colors?.fib || tok("--ink-muted", "#6b7280");
@@ -372,8 +372,9 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
           for (const l of fib.lines) {
             if (cfg.fibLevels[String(l.level)] === false) continue;
             const gold = l.color === "yellow";
+            // ‏D717 (المالك): «المستويات جعلتها منقّطة — خلّها خطّاً متّصلاً». فكلُّها متّصلة، والذهبيّةُ تتميّز بلونها
             candle.createPriceLine({ price: l.price, color: gold ? yellow : ink, lineWidth: 1,
-              lineStyle: gold ? 0 : 2, axisLabelVisible: false, title: "" });
+              lineStyle: 0, axisLabelVisible: false, title: "" });
             levelsRef.current.push({ price: l.price, color: gold ? yellow : inkTag, text: [String(l.level), l.title].filter(Boolean).join(" · "),
                                      rank: gold ? 2 : 3 });
           }

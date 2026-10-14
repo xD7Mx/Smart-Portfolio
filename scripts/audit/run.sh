@@ -338,6 +338,8 @@ python3 scripts/audit/committee_env_d714.py || _note "$LINENO"
 python3 scripts/audit/deploy_complete_d715.py || _note "$LINENO"
 # D716: عملُ النشر لا يخنق الخادم (‏909 م.ب) — لا بناءَ ولا لجنةَ كاملةَ في الدورة، وكلُّ ثقيلٍ خلف بوّابة الذاكرة
 python3 scripts/audit/server_load_d716.py || _note "$LINENO"
+# D717 · D718 (المالك): مستوياتٌ متّصلة · تاسي وحده شهريّاً لخمس سنواتٍ بفترة التقرير · لا أيقونةَ لمطابقة كشف الوسيط
+python3 scripts/audit/owner_notes_d717.py || _note "$LINENO"
 # D698: تقريرُ الشركة يحمل شموعَ الفترة كتقارير البنوك — ولا رسمَ مختلَقاً بلا شموع
 _node scripts/audit/ui_d698.mjs || _note "$LINENO"
 _node scripts/audit/ui_d711.mjs || _note "$LINENO"

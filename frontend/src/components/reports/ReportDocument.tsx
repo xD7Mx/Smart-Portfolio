@@ -38,9 +38,7 @@ export interface ReportDocData {
     boxes?: { key: string; label: string; suffix: string; prev: number | null; now: number | null; neutral?: boolean }[];
   };
   positions?: { name: string; symbol: string; shares: number; market_value: number; pnl: number; pnl_pct: number }[];
-  /* ‏D711: شموعُ صافي الربح الأسبوعية لاثني عشر شهراً — تُحفظ مع التقرير لحظةَ إنشائه */
-  candles?: CandleSet | null;
-  /* ‏D711 (اقتراحُ المالك): وتاسي في الأسابيع نفسِها — الجزءُ الثاني يلي الأوّل */
+  /* ‏D717: شموعُ تاسي الشهريّة لخمس سنوات وفترةُ التقرير — تُحفظ مع التقرير لحظةَ إنشائه (شموعُ الربح حُذفت بأمر المالك) */
   tasi_candles?: CandleSet | null;
 }
 
@@ -133,18 +131,12 @@ const ReportDocument = React.forwardRef<HTMLDivElement, { data: ReportDocData }>
             وقد صار اثنان منها في الشبكة أعلاه بأمر المالك. وإبقاؤها يعني
             رقماً واحداً في موضعين من الورقة نفسها. */}
 
-        {/* ══ شموعُ صافي الربح ══ (بأمر المالك · D711) — هويّةُ التطبيق في ورقته: أسبوعيّةٌ لاثني عشر شهراً، وفترةُ التقرير
-            مظلَّلة، والصفرُ خطٌّ حين تعبره. من صافي الربح لا من الثروة: الإيداعُ لا يُرسم صعوداً. وبلا تاريخٍ كافٍ لا قسم. */}
-        {data.candles && (
-          <div style={{ marginBottom: 24 }}>
-            <ReportCandles c={data.candles} title="حركةُ صافي الربح — شموعٌ أسبوعيّة لاثني عشر شهراً"
-                           label="فترة التقرير" fmt={v => money(v)} zeroLine />
-            {data.tasi_candles && (
-              <div data-role="report-candles-tasi" style={{ marginTop: 14 }}>
-                <ReportCandles c={data.tasi_candles} title="مؤشّرُ تاسي — الأسابيعُ نفسُها"
-                               label="فترة التقرير" fmt={v => money(v)} />
-              </div>
-            )}
+        {/* ══ شموعُ تاسي ══ (بأمر المالك · D711 · D717) — «الشموعُ لتاسي فقط، احذف شموعَ الربح، وضع فتراتِ السنوات، والتظليلُ
+            يوضّح فترةَ التقرير». شهريّةٌ لخمس سنواتٍ بسنواتها، وفترةُ التقرير مظلَّلة. وبلا تاريخٍ كافٍ لا قسم. */}
+        {data.tasi_candles && (
+          <div data-role="report-candles-tasi" style={{ marginBottom: 24 }}>
+            <ReportCandles c={data.tasi_candles} title="مؤشّرُ تاسي"
+                           label="فترة التقرير" fmt={v => money(v)} />
           </div>
         )}
 

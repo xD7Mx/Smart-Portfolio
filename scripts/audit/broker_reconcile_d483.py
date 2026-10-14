@@ -21,8 +21,10 @@ check(bool(blk) and "db.commit" not in blk and "db.add" not in blk and ".quantit
       "١ المطابقةُ قراءةٌ محضة: لا تحفظ ولا تصحّح شيئاً تلقائياً")
 check('"ledger"' in blk and '"cash"' in blk and '"diff"' in blk,
       "٢ تعرض الفرقَ لكل شركةٍ وللنقد، وكميةَ إعادة التشغيل بجانب المخزَّنة")
-check("<ReconcileModal holdings={holdings}" in P and "holdingsApi.reconcile(" in P,
-      "٣ شاشةُ المطابقة متاحةٌ من المحفظة")
+# ‏D718 (بأمر المالك 2026-10-14): «أيقونةُ مطابقة كشف الوسيط احذفها — مكرّرةٌ بلا قيمةٍ مضافة». فالشاشةُ حُذفت والخدمةُ
+# القارئةُ باقيةٌ بحارسَيها أعلاه — وحارسُ الحذف في owner_notes_d717.py.
+check("ReconcileModal" not in P,
+      "٣ وشاشتُها حُذفت من المحفظة بأمر المالك (‏D718) — والخدمةُ قراءةٌ محضةٌ باقية")
 
 port, host = os.environ.get("SP_PG_PORT"), os.environ.get("SP_PG_HOST")
 if not port:

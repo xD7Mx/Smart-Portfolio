@@ -36,7 +36,7 @@ let total = 0;
 for (let [name, path, opener, w] of [["السوق: الفلاتر (حاسوب)", "/market", "text=فرز السوق|text=الفلاتر"], ["السوق: الفلاتر (جوّال)", "/market", "text=فرز السوق|text=الفلاتر", 400],
                                     ["السوق: فرز السوق", "/market", "text=فرز السوق"], ["الحاسبات", "/calculators", null], ["مختبر الأبحاث", "/stars", null], ["السوق: دليل الشركات", "/market", 'button[aria-label="دليل الشركات"]'],
                                     ["الرسم: إعدادات D7M", "/chart", 'button[aria-label="إعدادات المؤشّر"]'],
-                                    ["المحفظة: إضافة شركة", "/portfolio", "button.wealth-act >> nth=2"]]) {
+                                    ["المحفظة: إضافة شركة", "/portfolio", "button.wealth-act >> nth=-1"]]) {
   const page = await browser.newPage({ viewport: { width: w || 1280, height: 900 } });
   const errs = [];
   page.on("pageerror", e => errs.push(String(e).split("\n")[0].slice(0, 160)));

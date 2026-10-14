@@ -110,7 +110,7 @@ const CompanyReportDocument = React.forwardRef<HTMLDivElement, { data: any }>(({
           </div>
         )}
 
-        {r?.candles && <ReportCandles c={r.candles} title="حركةُ السعر — شموعٌ أسبوعيّة لاثني عشر شهراً"
+        {r?.candles && <ReportCandles c={r.candles} title="حركةُ السعر"
                                      label={t.annual ? `السنة ${String(t.as_of || "").slice(0, 4)}` : qName(t.as_of)} />}
 
         {!!(t.rows || []).length && (
