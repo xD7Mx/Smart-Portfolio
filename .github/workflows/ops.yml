@@ -57,6 +57,13 @@ jobs:
           cd ~/Smart-Portfolio
           git fetch origin "${GITHUB_REF_NAME}"
           git checkout FETCH_HEAD -- .
+          # ‏D715: والتسويةُ تامّة — يُثبَّت المستودعُ على إيداع الفرع، ويُزال ما يقول تاريخُ الفرع إنه حُذف (وحده)
+          git -c advice.detachedHead=false checkout -q -f --detach FETCH_HEAD 2>/dev/null || true
+          git ls-files --others --exclude-standard -- frontend/src backend/app scripts 2>/dev/null | while read -r f; do
+            if git log FETCH_HEAD -1 --format=%h --diff-filter=D -- "$f" 2>/dev/null | grep -q .; then
+              echo "  يُزال ملفٌّ حُذف من الفرع: $f"; rm -f -- "$f"
+            fi
+          done
           echo "الشجرةُ عند $(git rev-parse --short FETCH_HEAD)"
 
       - name: التنفيذ
@@ -97,6 +104,8 @@ jobs:
               docker compose build frontend
               docker compose up -d frontend
               docker restart sp_nginx >/dev/null
+              # ‏D715: بصمةُ الواجهة المبنيّة — فلا تُعاد في ‎complete.sh‎ ما لم تتغيّر
+              git rev-parse FETCH_HEAD:frontend > .web_built_tree 2>/dev/null || true
               echo "الواجهةُ بُنيت ونُشرت" ;;
             history_ab)
               # ══ ‏D706 (بأمر المالك: «التاريخُ جوهرُ توقّعات المستقبل»): الاختبارُ نفسُه على تاريخٍ أطول ══

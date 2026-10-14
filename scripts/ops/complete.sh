@@ -32,6 +32,16 @@ say "١ · تسويةُ الشجرة على $BR"
 git fetch origin "$BR" && git checkout FETCH_HEAD -- . && \
   echo "الشجرةُ عند $(git rev-parse --short FETCH_HEAD)" || \
   { echo "✘ تعذّرت التسوية — تُراجَع الشبكةُ أو الصلاحيات"; exit 1; }
+# ‏D715: والتسويةُ تامّة — `checkout -- .` يكتب الملفّاتِ ولا يحذف ما حُذف من الفرع، فبقيت على الخادم ملفّاتٌ محذوفة
+# (قِيس: ‏investor_calls.py · InvestorCalls.tsx). فيُثبَّت المستودعُ على إيداع الفرع، ويُزال من القرص ما يقول تاريخُ الفرع
+# إنه حُذف — وحده: لا يُمسّ ملفٌّ لا تاريخَ له (‏.env · البيانات).
+git -c advice.detachedHead=false checkout -q -f --detach FETCH_HEAD 2>/dev/null || true
+STALE="$(git ls-files --others --exclude-standard -- frontend/src backend/app scripts 2>/dev/null | while read -r f; do
+  git log FETCH_HEAD -1 --format=%h --diff-filter=D -- "$f" 2>/dev/null | grep -q . && echo "$f"; done)"
+if [ -n "$STALE" ]; then
+  echo "ملفّاتٌ حُذفت من الفرع وبقيت على القرص — تُزال:"; echo "$STALE" | sed 's/^/  /'
+  echo "$STALE" | while read -r f; do rm -f -- "$f"; done
+fi
 
 say "١ب · أسماءُ «تداول» الرسمية (D520) — قبل الإعادة لتُقرأ عند الإقلاع"
 docker exec "$C" python -c "
@@ -48,6 +58,23 @@ say "٢ · إعادةُ الخادم"
 docker compose up -d --no-deps backend >/dev/null 2>&1 || true
 docker restart "$C" >/dev/null 2>&1 && sleep 12 && echo "أُعيد $C" || \
   echo "⚠ تعذّرت إعادةُ $C — يُراجَع اسمُ الحاوية (SP_CONTAINER=…)"
+
+say "٢ب · الواجهة — تُبنى إن تغيّرت منذ آخر بناء (D715)"
+# ‏D715: كانت الدورةُ تُعيد الخادمَ وحدَه، والواجهةُ مهمّةٌ منفصلة (‏web) — فنُشرت تعديلاتُ الواجهة على الفرع ولم يرها المالك
+# («لم أجد التحديثات على التطبيق»). فبصمةُ شجرة الواجهة تُحفظ بعد كلّ بناء، ومتى اختلفت بُنيت الواجهةُ هنا.
+WEB_NOW="$(git rev-parse FETCH_HEAD:frontend 2>/dev/null || true)"
+WEB_MARK=".web_built_tree"
+if [ -n "$WEB_NOW" ] && [ "$(cat "$WEB_MARK" 2>/dev/null)" != "$WEB_NOW" ]; then
+  if docker compose build frontend >/dev/null 2>&1 && docker compose up -d frontend >/dev/null 2>&1; then
+    docker restart sp_nginx >/dev/null 2>&1 || true
+    echo "$WEB_NOW" > "$WEB_MARK"
+    echo "الواجهةُ بُنيت ونُشرت ($(printf %.8s "$WEB_NOW"))"
+  else
+    echo "✘ تعذّر بناءُ الواجهة — يُراجَع: docker compose build frontend"
+  fi
+else
+  echo "الواجهةُ كما بُنيت آخرَ مرّة — لا تغيير"
+fi
 
 say "٣ · لقطةُ «تداول»"
 docker exec "$C" python -c "
