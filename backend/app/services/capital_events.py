@@ -24,13 +24,13 @@ MAX_AGE_DAYS = 7
 LINK_DAYS = 400              # إعلانُ «زيادة رأس المال» بلا نوعٍ يرث نوعَ أقرب توصيةٍ قبله في هذه المدّة
 DEVIATION = 1.15             # فرقُ العدد الذي يستدعي السؤالَ عن الحدث
 
-_REDUCTION = re.compile(r"capital\s+(decrease|reduction)|(reduc|decreas)\w*\s+(of\s+)?(its\s+|the\s+)?(company.s\s+)?capital|"
+_REDUCTION = re.compile(r"capital\s+(decrease|reduction)|(reduc|decreas)\w*\s+(of\s+)?(its\s+|the\s+)?(company.s\s+)?(share\s+)?capital|"
                         r"تخفيض\s+رأس", re.I)
 _PAID = re.compile(r"rights?\s+issues?|right\s+shares|new\s+shares\s+subscription|privately|private\s+placement|"
                    r"for\s+the\s+purpose\s+of\s+acquir|by\s+means\s+of\s+a\s+capital\s+increase|in\s+exchange\s+for|"
                    r"share\s+purchase\s+and\s+subscription|حقوق\s+(ال)?أولوية|طرح\s+خاص|مقابل\s+الاستحواذ", re.I)
 _BONUS = re.compile(r"bonus|bouns|stock\s+split|share\s+split|منحة|تجزئة", re.I)
-_INCREASE = re.compile(r"capital\s+increase|increas\w*\s+(of\s+)?(its\s+|the\s+)?(company.s\s+)?capital|زيادة\s+رأس", re.I)
+_INCREASE = re.compile(r"capital\s+increase|increas\w*\s+(of\s+)?(its\s+|the\s+)?(company.s\s+)?(share\s+)?capital|زيادة\s+رأس", re.I)
 _FRACTION = re.compile(r"fraction|كسور", re.I)
 # الحدثُ النافذ لا المعلَن: التوصيةُ وتقديمُ الطلب وتعيينُ المستشار ودعوةُ الجمعية لا تغيّر عدداً — قِيس في الحصاد الأوّل
 # (run 38491266548): «ميثانول» و«البحر الأحمر» حُجبتا بطلب حقوق أولويةٍ لم يُنفَّذ. فالمعتبرُ ما يدلّ على التنفيذ:

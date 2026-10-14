@@ -18,6 +18,10 @@ sys.path.insert(0, _ROOT)
 import app as _app   # noqa: E402,F401  — يُثبّت الحزمةَ من الجذر المختار
 sys.path.insert(1, "/app/scripts/audit")
 from engine_freeze_d635 import FILES as _FILES, ROOT as _FROOT   # noqa: E402
+try:
+    from engine_freeze_d635 import LATER as _LATER                 # ‏D674
+except ImportError:
+    _LATER = frozenset()
 
 
 def _fp(root: str) -> str:
@@ -25,8 +29,10 @@ def _fp(root: str) -> str:
     h = hashlib.sha1()
     for f in _FILES:
         rel = f.relative_to(_FROOT).as_posix()
-        h.update(rel.encode())
         q = os.path.join(root, rel[len("backend/"):]) if rel.startswith("backend/") else os.path.join(root, rel)
+        if not os.path.exists(q) and rel in _LATER:               # ‏D674: أُضيف بعد التجميد وغائبٌ في الأساس
+            continue
+        h.update(rel.encode())
         h.update(open(q, "rb").read() if os.path.exists(q) else b"<missing>")
     return h.hexdigest()[:12]
 

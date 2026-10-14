@@ -41,11 +41,17 @@ def _fp(root: str) -> str | None:
         from engine_freeze_d635 import FILES, ROOT as FR
     except Exception:                                              # noqa: BLE001
         return None
+    try:
+        from engine_freeze_d635 import LATER
+    except ImportError:
+        LATER = frozenset()
     h = hashlib.sha1()
     for f in FILES:
         rel = f.relative_to(FR).as_posix()
-        h.update(rel.encode())
         q = os.path.join(root, rel[len("backend/"):]) if rel.startswith("backend/") else os.path.join(root, rel)
+        if not os.path.exists(q) and rel in LATER:                # ‏D674: أُضيف بعد التجميد وغائبٌ في الأساس
+            continue
+        h.update(rel.encode())
         h.update(open(q, "rb").read() if os.path.exists(q) else b"<missing>")
     return h.hexdigest()[:12]
 

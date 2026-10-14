@@ -49,6 +49,7 @@ REAL = {
     "Riyadh Development Company announces the signing of an acquisition agreement of two real estate assets worth SAR 1.4 Billion by means of a capital increase": "paid",
     "Salama Cooperative Insurance Co. Announces the Results of Remaining Offering and the Allotment of Right Issues": "paid",
     "Dallah Healthcare Company Announces the Results of the Extraordinary General Assembly’s Meeting Which Includes Approving Capital Increase (First Meeting)": "increase",
+    "Saudi Vitrified Clay Pipes Company Announces the Board of Directors’ Recommendation to Reduce the Company’s Share Capital": "reduction",
     "Al Rajhi Bank announces the distribution of cash dividends for the first half of 2026": None,
 }
 bad = [(t[:50], k, CE.classify(t)) for t, k in REAL.items() if CE.classify(t) != k]
@@ -119,5 +120,12 @@ check("_CE.kind_after = lambda *a, **k: None" in bt, "١٠ والاختبارُ 
 sch = open(os.path.join(ROOT, "backend/app/scheduler/scheduler.py"), encoding="utf-8").read()
 check("from app.services.capital_events import harvest" in sch and "harvest(limit=60)" in sch,
       "١١ والحصّادُ ليليٌّ بتمهّل: ستون شركةً في الليلة، والسوقُ كلُّه أسبوعياً")
+sys.path.insert(0, os.path.join(ROOT, "scripts/audit"))
+import engine_freeze_d635 as FZ
+from app.services import engine_identity as EI
+_rel = "backend/app/services/capital_events.py"
+check(any(f.relative_to(FZ.ROOT).as_posix() == _rel for f in FZ.FILES) and _rel in EI.FILES
+      and _rel in getattr(FZ, "LATER", ()) and _rel in getattr(EI, "LATER", ()) and FZ.fingerprint() == EI.fingerprint(),
+      "١٢ وأحداثُ رأس المال في بصمة المحرّك (تعديلُها يمرّ بحارس التجميد) — وغيابُها في شيفرة الأساس لا يغيّر هويّتها")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

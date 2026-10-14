@@ -17,9 +17,13 @@ FILES = sorted([
                         "expert_panel.py", "sector_multiples.py", "governance_rules.py", "valuation_fields.py",
                         "four_scores.py", "fair_value_models.py", "tadawul_financials.py", "tadawul_xbrl.py",
                         "decision_engine.py", "technical.py", "market_valuation_sweep.py", "material_events.py",
-                        "red_lines.py", "confidence.py", "financial_features.py")),
+                        "red_lines.py", "confidence.py", "financial_features.py",
+                        "capital_events.py")),                       # ‏D674: عددُ الأسهم يُحكم بحدث رأس المال
     ROOT / "backend/app/data/archetype_spec.py", ROOT / "backend/app/data/governance_rules.yaml",
 ])
+# ‏D674: ملفٌّ أُضيف إلى المحرّك بعد التجميد يُحسب في البصمة متى وُجد — وغيابُه في شيفرة الأساس لا يغيّر هويّتها
+# (وإلّا صار الأساسُ المجمَّد ببصمةٍ غيرِ بصمته فرُفض شاهدُه). يُقرأ هنا وفي البوابتين وفي engine_identity.
+LATER = frozenset({"backend/app/services/capital_events.py"})
 BASE = ROOT / "scripts/audit/engine_baseline.json"
 REPORTS = ROOT / "scripts/audit/engine_reports"
 
@@ -91,6 +95,8 @@ def reference(base: dict, rep: dict) -> tuple[dict, str]:
 def fingerprint() -> str:
     h = hashlib.sha1()
     for f in FILES:
+        if not f.exists() and f.relative_to(ROOT).as_posix() in LATER:
+            continue
         h.update(f.relative_to(ROOT).as_posix().encode())
         h.update(f.read_bytes() if f.exists() else b"<missing>")
     return h.hexdigest()[:12]

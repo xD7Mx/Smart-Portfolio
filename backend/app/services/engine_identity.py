@@ -19,9 +19,10 @@ FILES = tuple(sorted([
         "expert_panel.py", "sector_multiples.py", "governance_rules.py", "valuation_fields.py",
         "four_scores.py", "fair_value_models.py", "tadawul_financials.py", "tadawul_xbrl.py",
         "decision_engine.py", "technical.py", "market_valuation_sweep.py", "material_events.py",
-        "red_lines.py", "confidence.py", "financial_features.py")),
+        "red_lines.py", "confidence.py", "financial_features.py", "capital_events.py")),
     "backend/app/data/archetype_spec.py", "backend/app/data/governance_rules.yaml",
 ]))
+LATER = frozenset({"backend/app/services/capital_events.py"})   # ‏D674: يُحسب متى وُجد (كحارس التجميد)
 
 _BACKEND = pathlib.Path(__file__).resolve().parents[2]      # ‎<الجذر>/backend · أو ‎/app في الحاوية
 
@@ -31,6 +32,8 @@ def fingerprint(backend_dir: str | pathlib.Path | None = None) -> str:
     h = hashlib.sha1()
     for rel in FILES:
         f = base / rel.removeprefix("backend/")
+        if not f.exists() and rel in LATER:
+            continue
         h.update(rel.encode())
         h.update(f.read_bytes() if f.exists() else b"<missing>")
     return h.hexdigest()[:12]
