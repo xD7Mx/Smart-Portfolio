@@ -34,6 +34,7 @@ on:
           - web          # بناءُ الواجهة ونشرُها — داخلَ دوكر لا على المضيف
           - health       # حالُ الخادم: الحاوياتُ والموارد والردود — ويُشغَّل ما توقّف منها
           - memory       # خريطةُ الذاكرة: من يشغلها، وما يمكن تحريرُه — قراءةٌ فقط
+          - cleanup      # تنظيفٌ آمن: خدماتٌ لا يحتاجها خادمٌ سحابيّ، وذاكرةُ البناء، والصورُ اليتيمة، وسجلّاتُ النظام
       probe_name:
         description: >-
           اسمُ ملفِّ الكاشف حين تكون المهمّةُ probe — من `scripts/audit`
@@ -130,6 +131,21 @@ jobs:
                 "print(asyncio.run(sweep()))")" ;;
             complete)
               bash scripts/ops/complete.sh ;;
+            cleanup)
+              # ══ تنظيفٌ آمن (طلبُ المالك: «توسيعُ الذاكرة بتنظيفها وحذف المهملات») ══ — لا بياناتٌ ولا صورُ حاويةٍ مستعملة
+              echo "قبل:"; free -m | sed -n 2,3p; df -h / | tail -1
+              # خدماتٌ لا يحتاجها خادمٌ سحابيّ: لا مودم (‏ModemManager)، ولا أقراصُ SAN متعدّدةُ المسار (‏multipathd)، ولا تحديثُ برامج
+              # ثابتة (‏fwupd)، ولا إدارةُ أقراصٍ مكتبية (‏udisks2). تُوقف وتُعطَّل — وتُعاد بـ systemctl enable --now إن احتيج إليها.
+              for u in multipathd.socket multipathd ModemManager fwupd udisks2; do
+                sudo -n systemctl disable --now "$u" >/dev/null 2>&1 && echo "  أُوقفت: $u" || echo "  … $u غيرُ موجودة أو موقوفة"
+              done
+              # ذاكرةُ البناء: الخادمُ لا يبني الواجهةَ بعد اليوم (‏D716 · تُبنى على GitHub)، والصورُ اليتيمةُ (‏<none>) وحدها
+              docker builder prune -af 2>/dev/null | tail -1
+              docker image prune -f 2>/dev/null | tail -1
+              sudo -n journalctl --vacuum-size=100M 2>&1 | tail -1
+              sudo -n apt-get clean 2>/dev/null || true
+              sync; sleep 3
+              echo "بعد:"; free -m | sed -n 2,3p; df -h / | tail -1 ;;
             memory)
               # ══ خريطةُ الذاكرة (سؤالُ المالك: «ألا يمكن توسيعُ الذاكرة بتنظيفها؟») — قراءةٌ فقط، أسماءُ عمليّاتٍ وأرقام ══
               free -m; echo; grep -E "^(MemTotal|MemAvailable|Cached|SwapCached|Shmem|Slab|SReclaimable|AnonPages|Committed_AS)" /proc/meminfo
