@@ -33,6 +33,7 @@ on:
           - history_ab   # ‏D706: الاختبارُ التاريخيّ الطويل (منذ 2019) للأساس والمرشَّح — قراءةٌ فقط
           - web          # بناءُ الواجهة ونشرُها — داخلَ دوكر لا على المضيف
           - health       # حالُ الخادم: الحاوياتُ والموارد والردود — ويُشغَّل ما توقّف منها
+          - memory       # خريطةُ الذاكرة: من يشغلها، وما يمكن تحريرُه — قراءةٌ فقط
       probe_name:
         description: >-
           اسمُ ملفِّ الكاشف حين تكون المهمّةُ probe — من `scripts/audit`
@@ -129,6 +130,19 @@ jobs:
                 "print(asyncio.run(sweep()))")" ;;
             complete)
               bash scripts/ops/complete.sh ;;
+            memory)
+              # ══ خريطةُ الذاكرة (سؤالُ المالك: «ألا يمكن توسيعُ الذاكرة بتنظيفها؟») — قراءةٌ فقط، أسماءُ عمليّاتٍ وأرقام ══
+              free -m; echo; grep -E "^(MemTotal|MemAvailable|Cached|SwapCached|Shmem|Slab|SReclaimable|AnonPages|Committed_AS)" /proc/meminfo
+              echo "— swappiness: $(cat /proc/sys/vm/swappiness) · zram: $(ls /sys/block | grep -c zram)"
+              echo "— أثقلُ العمليّات (الذاكرةُ المقيمة ‎MB‎ · المبادلة ‎MB‎ · الأمر):"
+              for d in /proc/[0-9]*; do
+                r=$(awk '/^VmRSS/{print int($2/1024)}' $d/status 2>/dev/null); w=$(awk '/^VmSwap/{print int($2/1024)}' $d/status 2>/dev/null)
+                [ -n "$r" ] && [ "$r" -ge 8 ] && printf '%5s %5s  %s\n' "$r" "${w:-0}" "$(tr '\0' ' ' < $d/cmdline 2>/dev/null | cut -c1-90)"
+              done | sort -rn | head -25
+              echo "— الحاويات:"; docker stats --no-stream --format '{{.Name}}\t{{.MemUsage}}' || true
+              echo "— الخدماتُ العاملة:"; systemctl list-units --type=service --state=running --no-legend 2>/dev/null | awk '{print $1}' | tr '\n' ' '; echo
+              echo "— sudo بلا كلمة مرور: $(sudo -n true 2>/dev/null && echo نعم || echo لا)"
+              echo "— القرص:"; df -h / | tail -1; docker system df 2>/dev/null || true ;;
             health)
               # ══ حالُ الخادم (بلاغُ المالك 2026-10-14: «التطبيق واقف») ══ — أرقامٌ لا سجلّات: سجلُّ الحاوية قد يحمل
               # قيمَ إعدادات (‏D714)، فلا يُطبع. وما توقّف من الحاويات الأربع يُشغَّل بإعداده نفسِه.
