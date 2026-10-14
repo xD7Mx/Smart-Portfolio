@@ -31,7 +31,7 @@ async def main():
         TM.row_for = lambda s, _r=rows: _r.get(str(s)) or {}
     with_url = sum(1 for r in rows.values() if (r or {}).get("company_url"))
     print(f"@@URLS@@ برابط صفحةٍ {with_url} من {len(rows)}")
-    for sym in ("2222", "1120", "2010"):
+    for sym in ("2222", "1120"):
         r = TM.row_for(sym)
         url = (r or {}).get("company_url")
         print(f"\n══ {sym} · في اللقطة {bool(r)} · الرابط {url!r}")
@@ -50,6 +50,31 @@ async def main():
             await asyncio.sleep(1.5)
         page = await TO.company_page(sym)
         print(f"   company_page: {len(page or '')} حرفاً")
+        if page:
+            import json
+            base = TO._BASE_RE.search(page).group(1).rstrip("/")
+            names = sorted(set(TO._EP_RE.findall(page)))
+            for kind, rx in TO.KINDS.items():
+                hit = next((n for n in names if rx.search(n)), None)
+                if not hit:
+                    print(f"   [{kind}] لا نداءَ يطابق")
+                    continue
+                ep = next(m.group(0) for m in TO._EP_RE.finditer(page) if m.group(1) == hit)
+                st, raw = await fetch(f"{base}/{ep}", params={"requestLocale": "en"}, referer=base)
+                try:
+                    data = json.loads(raw) if raw else None
+                except Exception as e:                             # noqa: BLE001
+                    data = f"ليس JSON ({type(e).__name__})"
+                rows = data.get("data") if isinstance(data, dict) else data
+                shape = (f"dict مفاتيحُه {sorted(data)[:12]}" if isinstance(data, dict) else
+                         f"list بطول {len(data)}" if isinstance(data, list) else str(data)[:60])
+                r0 = rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
+                got = TO.normalize(rows if isinstance(rows, list) else [])
+                print(f"   [{kind}] {hit} · حالة {st} · {len(raw or '')} حرفاً · {shape}"
+                      f" · صفوف {len(rows) if isinstance(rows, list) else '—'} · مفهومٌ {len(got)}")
+                print(f"      مفاتيحُ أوّل صفّ: {sorted(r0)[:20] if r0 else '—'}")
+                print(f"      مطلعُ الردّ: {(raw or '')[:420]!r}")
+                await asyncio.sleep(0.8)
         rec = await TO.read_symbol(sym)
         print(f"   read_symbol: { {k: (v if k in ('error', 'names_seen') else len(v) if isinstance(v, list) else v) for k, v in rec.items()} }")
         await asyncio.sleep(1.0)
