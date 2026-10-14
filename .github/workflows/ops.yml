@@ -30,6 +30,7 @@ on:
           - complete     # الدورةُ كاملةً بالترتيب
           - probe        # كاشفٌ واحدٌ باسمه من scripts/audit — قراءةٌ فقط
           - candidate_ab # ‏D696: الأساسُ (مرجعُه في probe_name) ثمّ المرشَّح في الجولة نفسِها — قراءةٌ فقط
+          - history_ab   # ‏D706: الاختبارُ التاريخيّ الطويل (منذ 2019) للأساس والمرشَّح — قراءةٌ فقط
           - web          # بناءُ الواجهة ونشرُها — داخلَ دوكر لا على المضيف
       probe_name:
         description: >-
@@ -96,6 +97,23 @@ jobs:
               docker compose up -d frontend
               docker restart sp_nginx >/dev/null
               echo "الواجهةُ بُنيت ونُشرت" ;;
+            history_ab)
+              # ══ ‏D706 (بأمر المالك: «التاريخُ جوهرُ توقّعات المستقبل»): الاختبارُ نفسُه على تاريخٍ أطول ══
+              # الأساسُ المجمَّد (طريقةُ متوسّط النماذج) ثمّ المرشَّح، من 2019 وعلى آفاق 90 و180 و365 يوماً — قراءةٌ فقط.
+              case "$P" in
+                ""|*[!0-9a-f]*) echo "مرجعُ الأساس غيرُ مقبول: [$P] — بصمةُ إيداعٍ سداسيّةٌ عشرية"; exit 2 ;;
+              esac
+              rm -rf /tmp/sp-control && mkdir -p /tmp/sp-control
+              git archive "$P" backend/app | tar -x -C /tmp/sp-control
+              docker exec "$C" rm -rf /tmp/control
+              docker cp /tmp/sp-control/backend "$C":/tmp/control
+              docker exec "$C" sh -c 'for e in /app/*; do n=$(basename "$e"); [ "$n" = app ] || ln -sfn "$e" "/tmp/control/$n"; done'
+              echo "════════ التاريخ: الأساسُ $P ════════"
+              docker exec -e SP_CODE_ROOT=/tmp/control -e SP_BT_FIRST=2019-03 "$C" python /app/scripts/audit/fv_backtest_d699.py
+              echo "════════ التاريخ: المرشَّح ════════"
+              docker exec -e SP_BT_FIRST=2019-03 "$C" python /app/scripts/audit/fv_backtest_d699.py
+              docker exec "$C" rm -rf /tmp/control
+              rm -rf /tmp/sp-control ;;
             candidate_ab)
               # ══ ‏D696: الأساسُ والمرشَّحُ في الجولة نفسِها ══
               # حارسُ التجميد يقارن المرشَّحَ بالأساس، والبياناتُ تتحرّك بين يومٍ ويوم بل بين حصادٍ وحصاد (‏D692 · D693:

@@ -25,6 +25,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import statistics as st
 import sys
 from datetime import date, timedelta
@@ -55,12 +56,14 @@ def _fp(root: str) -> str | None:
         h.update(open(q, "rb").read() if os.path.exists(q) else b"<missing>")
     return h.hexdigest()[:12]
 
-H = (6, 12)
+H = (3, 6, 12)          # ‏D706 (بأمر المالك): 90 و180 و365 يوماً — التاريخُ جوهرُ التوقّع، فلا يُنتظر المستقبلُ ليُحكم
 # ‏D701: «محرّكٌ شاملٌ للسوق الرئيسي» — مع هذا المفتاح يُسجَّل لكلّ شركةٍ في كلّ تاريخٍ كلُّ ما يُعرف يومها (كلُّ نموذجٍ بنسبته إلى السعر
 # ولو امتنع المحرّك · المضاعفاتُ الخام · النموُّ والعائدُ على الحقوق · الزخمُ · التوزيع · الحجم) ومعه ما حدث — ليُبنى لكلّ نمطٍ
 # ما يثبت بالنتيجة. يضبطه `fv_universe_d701.py`.
 UNIVERSE = os.environ.get("SP_BT_UNIVERSE") == "1"
-FIRST = "2023-03"
+# ‏D706: أوّلُ تاريخٍ يُقاس — 2023 افتراضاً (مقاييسُ حارس التجميد)، ويمتدّ بـ‎SP_BT_FIRST إلى ما تسمح به البيانات (‏history_ab)
+_FIRST_ENV = os.environ.get("SP_BT_FIRST") or ""
+FIRST = _FIRST_ENV if re.fullmatch(r"20[12]\d-(03|06|09|12)", _FIRST_ENV) else "2023-03"
 STEP = 3
 
 
@@ -570,7 +573,49 @@ def outcome_metrics(obs, anchors):
         if ic is not None:
             ics.append(ic)
     m["o_tg_ic12"] = round(st.fmean(ics), 4) if ics else None
+    horizon_report(obs, anchors)
     return m
+
+
+def horizon_report(obs, anchors):
+    """‏D706: لكلّ أفقٍ (90 · 180 · 365 يوماً) — ارتباطُ العادل والمستهدف بالتفوّق، وإصابةُ «رخيص» و«غالٍ»، وفارقُ الخُمسين، ونصفا
+    التاريخ، وكلُّ سنةٍ وحدها — على المشاهدات نفسِها. يُطبع للقراءة ولا يدخل مقاييسَ الحارس إلا ‎o_ic{h}."""
+    half = anchors[len(anchors) // 2] if anchors else ""
+    for h in H:
+        k = f"x{h}"
+        _rel(obs, h)
+        g_all = [o for o in obs if o["sh"] and k in o]
+        if not g_all:
+            continue
+
+        def ic_of(rows, key):
+            ics = []
+            for t in sorted({o["t"] for o in rows}):
+                g = [o for o in rows if o["t"] == t and o.get(key)]
+                ic = spearman([o[key] / o["p0"] for o in g], [o[k] for o in g])
+                if ic is not None:
+                    ics.append(ic)
+            return (round(st.fmean(ics), 3), sum(x > 0 for x in ics), len(ics)) if ics else (None, 0, 0)
+        fv, tg = ic_of(g_all, "fv"), ic_of(g_all, "tg")
+        h1, h2 = ic_of([o for o in g_all if o["t"] < half], "fv"), ic_of([o for o in g_all if o["t"] >= half], "fv")
+        q = f"q{h}"
+        ch = [o for o in g_all if q in o and o["fv"] / o["p0"] >= 1.05]
+        de = [o for o in g_all if q in o and o["fv"] / o["p0"] <= 0.95]
+        qs = {0: [], 4: []}
+        for t in sorted({o["t"] for o in g_all}):
+            g = sorted([o for o in g_all if o["t"] == t and q in o], key=lambda o: -(o["fv"] / o["p0"]))
+            for j, o in enumerate(g):
+                b = min(4, j * 5 // max(1, len(g)))
+                if b in qs:
+                    qs[b].append(o[q])
+        spread = (st.fmean(qs[0]) - st.fmean(qs[4])) * 100 if qs[0] and qs[4] else None
+        yrs = {}
+        for y in sorted({o["t"][:4] for o in g_all}):
+            yrs[y] = ic_of([o for o in g_all if o["t"][:4] == y], "fv")[0]
+        print(f"@@HORIZON@@ {h * 30} يوماً · مشاهدات {len(g_all)} · العادل {fv[0]:+.3f} (موجبٌ {fv[1]}/{fv[2]}) · النصفان "
+              f"{h1[0]} / {h2[0]} · المستهدف {tg[0]} · إصابةُ «رخيص» {sum(o[q] > 0 for o in ch) / max(1, len(ch)):.0%} ({len(ch)}) · "
+              f"«غالٍ» {sum(o[q] < 0 for o in de) / max(1, len(de)):.0%} ({len(de)}) · فارقُ الخُمسين "
+              f"{spread if spread is None else round(spread, 1)} نقطة · بالسنة {yrs}")
 
 
 def report(obs, anchors):
