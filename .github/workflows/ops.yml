@@ -98,6 +98,12 @@ jobs:
               # ══ حالُ الخادم (بلاغُ المالك 2026-10-14: «التطبيق واقف») ══ — أرقامٌ لا سجلّات: سجلُّ الحاوية قد يحمل
               # قيمَ إعدادات (‏D714)، فلا يُطبع. وما توقّف من الحاويات الأربع يُشغَّل بإعداده نفسِه.
               uptime; free -m | head -3; df -h / | tail -1
+              echo "— نفادُ الذاكرة في الإقلاع السابق والحاليّ (أسماءُ العمليّات وحدها):"
+              for b in -1 0; do
+                (journalctl -k -b "$b" --no-pager 2>/dev/null || sudo -n journalctl -k -b "$b" --no-pager 2>/dev/null) \
+                  | grep -iE "out of memory|oom-kill|Killed process" | sed -E 's/.*(Killed process [0-9]+ \([^)]*\)|Out of memory[^,]*|oom-kill[^,]*).*/  [\1]/' | tail -6
+              done
+              last -x reboot 2>/dev/null | head -3
               docker ps -a --format '{{.Names}}\t{{.Status}}' | grep -E '^sp_' || true
               for s in postgres backend frontend nginx; do
                 [ "$(docker inspect -f '{{.State.Running}}' "sp_$s" 2>/dev/null)" = true ] || {
