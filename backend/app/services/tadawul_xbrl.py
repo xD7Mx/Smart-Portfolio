@@ -341,7 +341,8 @@ def parse(html: str) -> dict:
         # نسبةُ المديونية تُشتقّ من بندين مقروءين لا تُنسَخ من مكانٍ آخر.
         ta, tl = p.get("total_assets"), p.get("total_liabilities")
         if ta and tl is not None and ta > 0:
-            p["debt_ratio"] = round(tl / ta * 100, 2)
+            # ‏D720: كسرٌ (0–1) كبقيّة الطبقات ومنحنى الدرجة — كان ×100 فقُرئ 35٪ «3500٪» وعُدّت الشركةُ بنكاً
+            p["debt_ratio"] = round(tl / ta, 4)
         ocf, capex = p.get("operating_cash_flow"), p.get("capex")
         if ocf is not None and capex is not None:
             p["free_cash_flow"] = round(ocf - abs(capex), 2)

@@ -111,9 +111,11 @@ def _leverage_for(sym: str, cache, lastgood) -> tuple[float, float] | None:
         td = last.get("total_debt")
         if isinstance(td, (int, float)) and td >= 0:
             return (float(td), float(eq))
-        dr = last.get("debt_ratio")          # نسبةُ الالتزامات إلى الأصول ٪
-        if isinstance(dr, (int, float)) and 0 < dr < 100:
-            assets = eq / max(1e-9, (1 - dr / 100.0))
+        dr = last.get("debt_ratio")          # نسبةُ الالتزامات إلى الأصول — كسرٌ (‏D720)، ومئويٌّ قديمٌ يُطبَّع
+        if isinstance(dr, (int, float)) and dr > 2.5:
+            dr = dr / 100.0
+        if isinstance(dr, (int, float)) and 0 < dr < 1:
+            assets = eq / max(1e-9, (1 - dr))
             return (float(assets - eq), float(eq))
     return None
 

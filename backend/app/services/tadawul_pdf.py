@@ -319,7 +319,8 @@ def parse_pdf(data: bytes) -> dict:
             p["shares_source"] = "مشتقٌّ: صافي الربح ÷ ربحية السهم"
         ta, tl = p.get("total_assets"), p.get("total_liabilities")
         if ta and tl is not None and ta > 0:
-            p["debt_ratio"] = round(tl / ta * 100, 2)
+            # ‏D720: كسرٌ (0–1) كبقيّة الطبقات ومنحنى الدرجة — كان ×100 فقُرئ 35٪ «3500٪» وعُدّت الشركةُ بنكاً
+            p["debt_ratio"] = round(tl / ta, 4)
         if p.get("operating_cash_flow") is not None and p.get("capex") is not None:
             p["free_cash_flow"] = round(p["operating_cash_flow"] - abs(p["capex"]), 2)
         pre, fc = p.get("pretax_income"), p.get("interest_expense")

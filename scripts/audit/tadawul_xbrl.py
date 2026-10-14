@@ -97,8 +97,8 @@ check((got.get("kind") or "").lower().startswith("annual")
       and (got.get("audited") or "") == "Audited",
       "٣ ونوعُ الفترة وحالُ التدقيق من الملفّ نفسِه",
       f"{got.get('kind')} · {got.get('audited')}")
-check(last.get("debt_ratio") == round(106_605_479 / 318_438_777 * 100, 2),
-      "٤ والمديونيةُ تُشتقّ من بندين مقروءين", str(last.get("debt_ratio")))
+check(last.get("debt_ratio") == round(106_605_479 / 318_438_777, 4),
+      "٤ والمديونيةُ تُشتقّ من بندين مقروءين — كسراً كبقيّة الطبقات (‏D720)", str(last.get("debt_ratio")))
 check(last.get("free_cash_flow") == 28_000_000_000.0,
       "٤ب والتدفّقُ الحرّ = التشغيليُّ − الرأسماليّ", str(last.get("free_cash_flow")))
 check("retained_earnings" not in last and "equity" in last,

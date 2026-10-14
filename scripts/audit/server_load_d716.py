@@ -63,5 +63,9 @@ check(down.returncode == 1 and "لم يُكمل إقلاعَه" in down.stdout a
       and ok.returncode == 0,
       "٦ وسلوكاً: الخادمُ لا يردّ ⇒ لا يُشغَّل · المتاحُ يضيق ⇒ لا يُشغَّل · يتّسع والخادمُ يردّ ⇒ يُشغَّل",
       f"{down.returncode}/{tight.returncode}/{ok.returncode}")
+for task in ("history_ab", "candidate_ab"):
+    blk = ops[ops.index(f"            {task})"):]
+    blk = blk[:blk.index(";;")]
+    check("mem_gate.sh" in blk, f"٧ وقياسُ {task} الثقيلُ خلف البوّابة كذلك")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

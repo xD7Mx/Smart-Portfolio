@@ -27,6 +27,10 @@ const brief = (n: number) => {
 };
 
 /* Traffic-light dot like the reference report: green good, amber caution, red bad */
+/* ‏D720: نسبةُ المديونية كسرٌ (0–1) في كلّ الطبقات وتُعرض نسبةً مئوية — كانت تُعرض كما خُزّنت فظهر «35.21» بجانب «0.29»
+   في الصفّ نفسِه. وما فوق 2.5 مئويٌّ قديمٌ يُعرض كما هو. */
+const pctOf = (v: number) => `${(v > 2.5 ? v : v * 100).toFixed(1)}%`;
+
 function Light({ change, invert = false }: { change: number | null; invert?: boolean }) {
   if (change == null) return <span className="text-[var(--ink-muted)] text-xs">—</span>;
   const good = invert ? change <= 0 : change >= 0;
@@ -105,7 +109,7 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
   const ch = data.changes || {};
   const P = (field: string) => periodsDesc.map((p: any) => p[field]);
 
-  const sectionsAll: { title: string; rows: { label: string; field: string; invert?: boolean; ratio?: boolean }[] }[] = [
+  const sectionsAll: { title: string; rows: { label: string; field: string; invert?: boolean; ratio?: boolean; pct?: boolean }[] }[] = [
     { title: "النمو", rows: [
       { label: "الإيرادات", field: "revenue" },
       { label: "ربحية السهم", field: "eps", ratio: true },
@@ -119,7 +123,7 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
          القيمة الدفترية للشركة كلّها، وهذه هي نصيب السهم الواحد منها —
          وهي المعنى المتداول للمصطلح، وهي التي تُقارَن بالسعر مباشرةً. */
       { label: "القيمة الدفترية للسهم", field: "book_value", ratio: true },
-      { label: "نسبة المديونية", field: "debt_ratio", invert: true, ratio: true },
+      { label: "نسبة المديونية", field: "debt_ratio", invert: true, pct: true },
       { label: "تغطية الفوائد", field: "interest_coverage", ratio: true },
     ]},
     { title: "التدفقات النقدية", rows: [
@@ -218,7 +222,7 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
                           <div className="text-center text-[9px] text-[var(--ink-muted)] leading-tight tabular-nums"
                             dir="ltr">{head}</div>
                           <div className="text-center text-[12px] tabular-nums text-[var(--ink)] leading-tight mt-0.5">
-                            {v == null ? "—" : row.ratio ? v.toFixed(2) : brief(v)}
+                            {v == null ? "—" : row.pct ? pctOf(v) : row.ratio ? v.toFixed(2) : brief(v)}
                           </div>
                         </div>
                       );
@@ -281,7 +285,7 @@ export default function FinancialsTable({ symbol }: { symbol: string }) {
                     <td className="td text-[var(--ink)] fin-stick">{row.label}</td>
                     {vals.map((v: number, i: number) => (
                       <td key={i} className="td tabular-nums text-[var(--ink)] text-center">
-                        {v == null ? "—" : row.ratio ? v.toFixed(2) : compact(v)}
+                        {v == null ? "—" : row.pct ? pctOf(v) : row.ratio ? v.toFixed(2) : compact(v)}
                       </td>
                     ))}
                     <td className="td text-center">

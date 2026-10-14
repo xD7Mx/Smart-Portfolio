@@ -517,7 +517,7 @@ async def _fundamental_section(symbol: str) -> tuple[str, list[tuple[bool, str]]
         lines.append(f"• الهامش الصافي: {_f(margin)}%"
                      + (f" مقابل {_f(prev_margin)}% في السنة السابقة" if prev_margin is not None else ""))
     if latest.get("debt_ratio") is not None:
-        lines.append(f"• نسبة المديونية: {_f(latest['debt_ratio'])}%"
+        lines.append(f"• نسبة المديونية: {_f(latest['debt_ratio'] * 100 if latest['debt_ratio'] <= 2.5 else latest['debt_ratio'])}%"   # ‏D720: كسرٌ ← ٪
                      + (f" ({_pm(yoy('debt_ratio'))} عن العام السابق)" if yoy("debt_ratio") is not None else ""))
     if latest.get("interest_coverage") is not None:
         cov = float(latest["interest_coverage"])

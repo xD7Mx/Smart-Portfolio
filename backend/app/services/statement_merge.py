@@ -343,6 +343,18 @@ def _from_snapshot(p: dict, src: dict, row: dict, price) -> None:
         src["equity"] = "لقطةُ تداول: قيمةٌ سوقية ÷ مضاعفِ الدفترية"
 
 
+def debt_fraction(v):
+    """‏D720: نسبةُ الالتزامات إلى الأصول **كسراً** (0–1) أينما وردت. كانت طبقتا «تداول» (‏XBRL · PDF) تكتبانها ×100 وياهو
+    كسراً، فاختلطت الوحدتان في جدول القوائم (‏35.21 بجانب 0.29) وفي الدرجة: منحنى المديونية كسريٌّ فقُرئت ‎35٪‎ «3500٪»
+    وعُدّت الشركةُ بنكاً (‏> 0.75 بلا تغطية فوائد) فسقطت إشارتا الدين وجودةِ الربح. وما فوق 2.5 لا يكون كسراً لشركةٍ قائمة
+    (التزاماتٌ ضعفَ ونصفَ أصولها) — فهو نسبةٌ مئويةٌ مخزَّنةٌ قبل الإصلاح تُقسم على مئة."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None if v is None else v
+    return round(f / 100.0, 4) if f > 2.5 else f
+
+
 def complete(symbol, periods: list[dict], *,
              yahoo_periods: list[dict] | None = None,
              snapshot_row: dict | None = None,
@@ -424,6 +436,8 @@ def complete(symbol, periods: list[dict], *,
         if out:
             logger.debug("قوائمُ {} من «أرقام» وحدَها: {} فترة", symbol, len(out))
 
+    for p in out:
+        p["debt_ratio"] = debt_fraction(p.get("debt_ratio"))
     filled = sum(1 for p in out for k, v in (p.get("field_sources") or {}).items()
                  if v != (base_source or _OFFICIAL))
     if filled:

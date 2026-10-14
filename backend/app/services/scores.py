@@ -109,8 +109,38 @@ _CURVE_NI_GROWTH = [(-100, 0), (-50, 10), (-20, 25), (0, 45), (5, 70), (10, 90),
 #   وجودةُ الربح (−0.02 · +0.04) وهامشُ التدفّق الحرّ (−0.11 · +0.15) ينقلبان بين النظامين — فلا يُبنى عليهما وزن.
 # الدرجةُ القديمة −0.04 و+0.13 داخل القطاع (−0.13 و+0.17 في السوق كلّه)، وهذه +0.055 و+0.076 (‏+0.014 و+0.079) — الوحيدةُ
 # الموجبةُ في النصفين بالمقياسين بين ستّ أوزانٍ مجرَّبة. والخطوطُ الحمراءُ صفرٌ كما هي.
-FINANCE_WEIGHTS = {"revenue_growth": 0.15, "roe": 0.20, "ni_growth": 0.35, "debt": 0.15, "coverage": 0.15,
-                   "earnings_quality": 0.0, "fcf_margin": 0.0}
+# ‏D720 (المالك 2026-10-14: «أرقامٌ ظالمة لا تنمّ عن صدق القوائم المالية»): كانت أوزانُ ‏D703 تقيس «هل يتفوّق السهمُ بعد سنة»
+# لا «هل القوائمُ متينة» — فصافي ربح **سنةٍ واحدة** ‎35٪‎ من الدرجة، وجودةُ الربح بالنقد بلا وزن. وقِيس على الخادم
+# (‏finance_score_door · run 38628527640): الاتّصالات ‎46‎ بعائدٍ على الحقوق ‎18٪‎ وربحٍ مغطًّى بالنقد ‎1.21‎ لأنّ ربحَ سنةٍ نزل ‎39٪‎،
+# وأرامكو ‎56‎. فالدرجةُ **جودةُ القوائم**: ربحيّةٌ بمتوسّط ثلاث سنوات، ونموُّ ربحٍ وإيرادٍ **مركّبٌ عبر السنوات** لا سنةٌ واحدة،
+# وربحٌ مغطًّى بالنقد، وميزانيةٌ ومديونيةٌ وتغطيةُ فوائد. وما يسبق السعرَ مكانُه محرّكُ القرار لا درجةُ الجودة.
+FINANCE_WEIGHTS = {"revenue_growth": 0.15, "roe": 0.22, "ni_growth": 0.18, "debt": 0.15, "coverage": 0.15,
+                   "earnings_quality": 0.15, "fcf_margin": 0.0}
+# ‏D720: الريتُ ورقةٌ بنيتُها غيرُ بنية الشركة: يوزّع ‎90٪‎ من ربحه نظاماً، وربحُه المحاسبيّ يتقلّب بإعادة تقييم العقار، وشراءُ
+# العقار يُقرأ «تدفّقاً حرّاً سالباً»، وإصدارُ الوحدات لشراء الأصول ليس تخفيفاً ضارّاً. فيُقرأ بما يُقرأ به الريت: نموُّ دخل الإيجار،
+# وهامشُ التدفّق التشغيليّ ونموُّه (ما يموّل التوزيع)، والمديونيةُ دون سقف الـ‎50٪‎ النظاميّ، وتغطيةُ الفوائد.
+REIT_WEIGHTS = {"revenue_growth": 0.20, "ocf_margin": 0.25, "ocf_growth": 0.15, "debt": 0.25, "coverage": 0.15}
+_CURVE_NI_CAGR = [(-25, 5), (-10, 25), (0, 45), (3, 60), (6, 74), (10, 88), (15, 94), (25, 98), (40, 100)]
+_CURVE_OCF_MARGIN = [(0, 10), (20, 35), (40, 60), (55, 78), (70, 92), (85, 100)]
+_CURVE_REIT_DEBT = [(0, 95), (0.20, 90), (0.30, 82), (0.40, 66), (0.50, 42), (0.60, 18), (0.70, 5)]
+
+
+def _frac(v):
+    """نسبةُ المديونية كسراً — ومئويٌّ مخزَّنٌ قبل ‏D720 يُطبَّع (فوق 2.5 لا يكون كسراً لشركةٍ قائمة)."""
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f / 100.0 if f > 2.5 else f
+
+
+def _cagr(first, last, years):
+    """نموٌّ مركّبٌ ‎٪‎ بين قيمتين موجبتين — أو None."""
+    if not first or not last or first <= 0 or last <= 0 or years <= 0:
+        return None
+    return ((last / first) ** (1 / years) - 1) * 100
 
 
 # Heavy reinvestment threshold: capex at or above 8% of revenue is a
@@ -140,7 +170,7 @@ def is_investment_phase(periods: list) -> bool | None:
 
 
 def _finance_score_from_periods(periods: list) -> int | None:
-    """Weighs six real, multi-year signals — every one traceable back to a
+    """‏D720: quality of the statements, multi-year — weighs six real signals — every one traceable back to a
     row the investor sees in the financial statements table:
 
       revenue growth (20%)     — compound annual growth rate across every
@@ -179,6 +209,7 @@ def _finance_score_from_periods(periods: list) -> int | None:
     signal could be computed (i.e. periods carries no usable figures)."""
     if not periods:
         return None
+    periods = [dict(p, debt_ratio=_frac(p.get("debt_ratio"))) for p in periods]
     latest = periods[-1]
     prev = periods[-2] if len(periods) >= 2 else None
     first = periods[0]
@@ -188,64 +219,53 @@ def _finance_score_from_periods(periods: list) -> int | None:
         latest.get("debt_ratio") is not None and latest["debt_ratio"] > 0.75
         and all(p.get("interest_coverage") is None for p in periods)
     )
-    # ══ الجذرُ الكسريُّ لعددٍ سالبٍ عددٌ مركّب ══ (D153)
-    # كان الشرطُ يفحص أوّلَ إيرادٍ موجباً ولا يفحص آخرَه. وشركةٌ إيرادُها
-    # الأخير سالب (تصحيحاتٌ تفوق الإيراد — يقع في التأمين والمقاولات)
-    # تُخرج `(-0.5) ** (1/3)` عدداً مركّباً، فيسقط `round` بـTypeError
-    # وتسقط معه درجةُ الشركة كلُّها. والانهيارُ أسوأُ من درجةٍ منخفضة.
-    # فيُشترط الطرفان موجبَين، وإلّا انتقل الحسابُ إلى فرع التغيّر
-    # السنويّ أدناه — وهو يقسم على القيمة المطلقة فيحتمل السالب.
+    # ══ الجذرُ الكسريُّ لعددٍ سالبٍ عددٌ مركّب ══ (D153) — الطرفان موجبان أو التغيّرُ السنويّ
     if (len(periods) >= 3 and first.get("revenue") and latest.get("revenue")
             and first["revenue"] > 0 and latest["revenue"] > 0):
-        n = len(periods) - 1
-        cagr_pct = ((latest["revenue"] / first["revenue"]) ** (1 / n) - 1) * 100
+        cagr_pct = _cagr(first["revenue"], latest["revenue"], len(periods) - 1)
         signals.append((_curve(cagr_pct, _CURVE_REVENUE_CAGR), FINANCE_WEIGHTS["revenue_growth"]))
     elif prev and prev.get("revenue") and latest.get("revenue") is not None:
         growth_pct = (latest["revenue"] - prev["revenue"]) / abs(prev["revenue"]) * 100
         signals.append((_curve(growth_pct, _CURVE_REVENUE_CAGR), FINANCE_WEIGHTS["revenue_growth"]))
 
     if not looks_like_financial_institution:
+        # جودةُ الربح: التدفّقُ التشغيليُّ ÷ صافي الربح فوق ربحٍ موجب (‏D163) — ربحٌ مغطًّى بالنقد
         quality_ratios = [
             p["operating_cash_flow"] / p["net_income"]
             for p in periods
-            # ══ نسبةُ سالبٍ إلى سالبٍ موجبة ══ (D163)
-            # سنةٌ خسارتُها ‎−٢٠٠ وتدفّقُها ‎−٢٥٠ تُخرج ‎١٫٢٥ — فتُقرأ «تغطيةً
-            # ممتازةً للربح بالنقد» وهي خسارةٌ نازفةٌ نقداً. والنسبةُ لا
-            # معنى لها إلّا فوق ربحٍ موجب؛ والسنةُ الخاسرةُ يحكم عليها
-            # العائدُ على حقوق الملكية وهامشُ التدفّق الحرّ، لا هذه.
             if p.get("net_income") and p["net_income"] > 0 and p.get("operating_cash_flow") is not None
         ]
         if quality_ratios:
             avg_ratio = sum(quality_ratios) / len(quality_ratios)
             signals.append((_curve(avg_ratio, _CURVE_EARNINGS_QUALITY), FINANCE_WEIGHTS["earnings_quality"]))
 
-        fcf_margins = [
-            p["free_cash_flow"] / p["revenue"] * 100
-            for p in periods
-            if p.get("revenue") and p["revenue"] > 0 and p.get("free_cash_flow") is not None
-        ]
-        if fcf_margins:
-            avg_margin = sum(fcf_margins) / len(fcf_margins)
-            signals.append((_curve(avg_margin, _CURVE_FCF_MARGIN), FINANCE_WEIGHTS["fcf_margin"]))
+    # الربحيّةُ بمتوسّط آخر ثلاث سنوات — سنةٌ استثنائيّةٌ لا تصنع الدرجةَ ولا تهدمها
+    roes = [p["net_income"] / p["equity"] * 100 for p in periods[-3:]
+            if p.get("net_income") is not None and p.get("equity") and p["equity"] > 0]
+    if roes:
+        signals.append((_curve(sum(roes) / len(roes), _CURVE_ROE), FINANCE_WEIGHTS["roe"]))
 
-    if latest.get("net_income") is not None and latest.get("equity"):
-        roe_pct = latest["net_income"] / latest["equity"] * 100
-        signals.append((_curve(roe_pct, _CURVE_ROE), FINANCE_WEIGHTS["roe"]))
-    # ‏D703: نموُّ صافي الربح على السنة السابقة — أثبتُ مكوّنٍ بالنتيجة. والخسارةُ لا «تنمو»: انكماشُها من ‎−٢٠٠ إلى ‎−١٤٠
-    # يُقرأ ‎+٣٠٪ وهو خسارة — فالسنةُ الخاسرةُ صفرٌ في هذا المكوّن (وقِيس: يرفع الارتباطَ داخل القطاع في النصفين).
-    if latest.get("net_income") is not None and prev and prev.get("net_income"):
-        ni_g = max(-2.0, min(2.0, (latest["net_income"] - prev["net_income"]) / abs(prev["net_income"])))
-        ni_sc = 0 if latest["net_income"] <= 0 else _curve(ni_g * 100, _CURVE_NI_GROWTH)
-        signals.append((ni_sc, FINANCE_WEIGHTS["ni_growth"]))
+    # نموُّ الربح **مركّباً عبر السنوات** — والخسارةُ لا «تنمو» (‏D703): سنةٌ أخيرةٌ خاسرةٌ صفر، وكلُّ سنةٍ خاسرةٍ في النافذة تُنقص
+    nis = [p.get("net_income") for p in periods]
+    if latest.get("net_income") is not None and len([v for v in nis if v is not None]) >= 2:
+        losses = sum(1 for v in nis[-4:] if v is not None and v <= 0)
+        if latest["net_income"] <= 0:
+            ni_sc = 0
+        else:
+            k0 = next((i for i, v in enumerate(nis) if v is not None and v > 0), None)
+            g = _cagr(nis[k0], latest["net_income"], len(nis) - 1 - k0) if k0 is not None and k0 < len(nis) - 1 else None
+            if g is None and prev and prev.get("net_income"):
+                g = (latest["net_income"] - prev["net_income"]) / abs(prev["net_income"]) * 100
+            ni_sc = _curve(max(-100.0, min(200.0, g)), _CURVE_NI_CAGR) if g is not None else None
+            if ni_sc is not None:
+                ni_sc = _clamp(ni_sc - 12 * losses)
+        if ni_sc is not None:
+            signals.append((ni_sc, FINANCE_WEIGHTS["ni_growth"]))
 
     if latest.get("debt_ratio") is not None and not looks_like_financial_institution:
         debt_score = _curve(latest["debt_ratio"], _CURVE_DEBT_RATIO)
         if prev and prev.get("debt_ratio") is not None:
             delta = latest["debt_ratio"] - prev["debt_ratio"]
-            # Debt-funded expansion (heavy capex, revenue still holding) is a
-            # materially different risk than debt taken on to cover a
-            # shrinking business — so a rising ratio is penalized less
-            # harshly when it looks investment-driven, not eliminated.
             penalty_factor = 0.4 if (delta > 0 and is_investment_phase(periods)) else 1.0
             debt_score = _clamp(round(debt_score - delta * 100 * penalty_factor))
         signals.append((debt_score, FINANCE_WEIGHTS["debt"]))
@@ -260,9 +280,37 @@ def _finance_score_from_periods(periods: list) -> int | None:
     return round(sum(s * w for s, w in signals) / total_w)
 
 
-# Public alias — this IS the single source of truth for "how healthy/safe
-# is this company's balance sheet", used by the governance page, the
-# scheduler's company scoring pass, and the AI company-analysis score alike.
+def reit_finance_score(periods: list) -> int | None:
+    """‏D720: درجةُ جودة القوائم للريت — بما يُقرأ به الريت (انظر ‎REIT_WEIGHTS‎): نموُّ دخل الإيجار مركّباً، وهامشُ التدفّق
+    التشغيليّ ونموُّه، والمديونيةُ دون سقف الـ‎50٪‎، وتغطيةُ الفوائد. لا عائدَ على الحقوق ولا نموَّ ربحٍ محاسبيّ (يتقلّبان بإعادة
+    التقييم)، ولا «تخفيفَ» بإصدار الوحدات."""
+    if not periods:
+        return None
+    periods = [dict(p, debt_ratio=_frac(p.get("debt_ratio"))) for p in periods]
+    latest, first = periods[-1], periods[0]
+    n = len(periods) - 1
+    sig: list[tuple[float, float]] = []
+    g = _cagr(first.get("revenue"), latest.get("revenue"), n) if n >= 1 else None
+    if g is not None:
+        sig.append((_curve(g, _CURVE_REVENUE_CAGR), REIT_WEIGHTS["revenue_growth"]))
+    margins = [p["operating_cash_flow"] / p["revenue"] * 100 for p in periods[-3:]
+               if p.get("revenue") and p["revenue"] > 0 and p.get("operating_cash_flow") is not None]
+    if margins:
+        sig.append((_curve(sum(margins) / len(margins), _CURVE_OCF_MARGIN), REIT_WEIGHTS["ocf_margin"]))
+    ocfs = [p.get("operating_cash_flow") for p in periods]
+    k0 = next((i for i, v in enumerate(ocfs) if v is not None and v > 0), None)
+    if k0 is not None and ocfs[-1] is not None and k0 < len(ocfs) - 1:
+        og = _cagr(ocfs[k0], ocfs[-1], len(ocfs) - 1 - k0)
+        sig.append((_curve(og, _CURVE_REVENUE_CAGR) if og is not None else 0, REIT_WEIGHTS["ocf_growth"]))
+    if latest.get("debt_ratio") is not None:
+        sig.append((_curve(latest["debt_ratio"], _CURVE_REIT_DEBT), REIT_WEIGHTS["debt"]))
+    if latest.get("interest_coverage") is not None:
+        sig.append((_curve(latest["interest_coverage"], _CURVE_INTEREST_COVERAGE), REIT_WEIGHTS["coverage"]))
+    if not sig:
+        return None
+    return round(sum(s * w for s, w in sig) / sum(w for _, w in sig))
+
+
 finance_score_from_periods = _finance_score_from_periods
 
 
@@ -302,7 +350,7 @@ def financial_verdict(periods: list) -> str:
     fcf = latest.get("free_cash_flow")
 
     is_financial_institution = (
-        latest.get("debt_ratio") is not None and latest["debt_ratio"] > 0.75
+        _frac(latest.get("debt_ratio")) is not None and _frac(latest.get("debt_ratio")) > 0.75
         and all(p.get("interest_coverage") is None for p in periods)
     )
     quality_ok = True if is_financial_institution else (
@@ -386,7 +434,7 @@ def financial_strengths_weaknesses(periods: list) -> tuple[list[str], list[str]]
     latest = periods[-1]
     prev = periods[-2] if len(periods) >= 2 else None
     is_fi = (
-        latest.get("debt_ratio") is not None and latest["debt_ratio"] > 0.75
+        _frac(latest.get("debt_ratio")) is not None and _frac(latest.get("debt_ratio")) > 0.75
         and all(p.get("interest_coverage") is None for p in periods)
     )
 
@@ -421,10 +469,10 @@ def financial_strengths_weaknesses(periods: list) -> tuple[list[str], list[str]]
         elif roe < 6:
             weaknesses.append(f"عائد ضعيف على حقوق الملكية {roe:.0f}%")
 
-    if not is_fi and latest.get("debt_ratio") is not None:
-        if latest["debt_ratio"] <= 0.4:
+    if not is_fi and _frac(latest.get("debt_ratio")) is not None:
+        if _frac(latest["debt_ratio"]) <= 0.4:
             strengths.append("مديونية منخفضة")
-        elif latest["debt_ratio"] >= 0.7:
+        elif _frac(latest["debt_ratio"]) >= 0.7:
             weaknesses.append("مديونية مرتفعة نسبةً للأصول")
 
     coverage = latest.get("interest_coverage")
@@ -541,7 +589,6 @@ def governed_finance_score(periods: list, symbol: str | None = None) -> tuple:
     ويُحسب هنا لا في شاشةٍ واحدة: البطاقةُ والصفحةُ وجدولُ القوائم تقرأ هذه الدالّةَ نفسَها (D149) — طُبّق في الإصدار
     الأوّل في مخرَج الصفحة وحده فأمسكه حارسُ «محرّكٍ واحد» (البطاقة 0 والجدول 25). والخطوطُ تُقرأ من القوائم ونمطِ
     الورقة من قطاع «تداول» الرسميّ (`archetype_of`) — مصدرٌ واحدٌ للنمط فلا يشتعل خطٌّ في شاشةٍ دون أخرى."""
-    base = _finance_score_from_periods(periods)
     arch = None
     if symbol:
         try:
@@ -549,6 +596,8 @@ def governed_finance_score(periods: list, symbol: str | None = None) -> tuple:
             arch = archetype_of(symbol)
         except Exception:                                          # noqa: BLE001
             arch = None
+    # ‏D720: الريتُ بمساره (بنيتُه المحاسبيّة غيرُ بنية الشركة — دليلٌ نظاميّ لا اسمُ قطاع)، وما سواه بالدالّة العامّة
+    base = reit_finance_score(periods) if arch == "reit" else _finance_score_from_periods(periods)
     try:
         from app.services import red_lines as _rl
         lines, warnings = _rl.split(_rl.check({}, periods or [], arch))   # ‏D643: الإقصاءُ لتهديد البقاء وحده
