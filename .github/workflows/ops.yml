@@ -32,6 +32,7 @@ on:
           - candidate_ab # ‏D696: الأساسُ (مرجعُه في probe_name) ثمّ المرشَّح في الجولة نفسِها — قراءةٌ فقط
           - history_ab   # ‏D706: الاختبارُ التاريخيّ الطويل (منذ 2019) للأساس والمرشَّح — قراءةٌ فقط
           - web          # بناءُ الواجهة ونشرُها — داخلَ دوكر لا على المضيف
+          - health       # حالُ الخادم: الحاوياتُ والموارد والردود — ويُشغَّل ما توقّف منها
       probe_name:
         description: >-
           اسمُ ملفِّ الكاشف حين تكون المهمّةُ probe — من `scripts/audit`
@@ -93,6 +94,20 @@ jobs:
                 "print(asyncio.run(sweep()))")" ;;
             complete)
               bash scripts/ops/complete.sh ;;
+            health)
+              # ══ حالُ الخادم (بلاغُ المالك 2026-10-14: «التطبيق واقف») ══ — أرقامٌ لا سجلّات: سجلُّ الحاوية قد يحمل
+              # قيمَ إعدادات (‏D714)، فلا يُطبع. وما توقّف من الحاويات الأربع يُشغَّل بإعداده نفسِه.
+              uptime; free -m | head -3; df -h / | tail -1
+              docker ps -a --format '{{.Names}}\t{{.Status}}' | grep -E '^sp_' || true
+              for s in postgres backend frontend nginx; do
+                [ "$(docker inspect -f '{{.State.Running}}' "sp_$s" 2>/dev/null)" = true ] || {
+                  echo "↻ sp_$s متوقّفة — تُشغَّل"; docker compose up -d --no-deps "$s" 2>&1 | tail -2; }
+              done
+              docker stats --no-stream --format '{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' | grep -E '^sp_' || true
+              echo "— العمليّاتُ داخل الخادم:"; docker top "$C" -o pid,etime,pcpu,rss,args 2>/dev/null | cut -c1-150 | head -20
+              for u in http://localhost/ http://localhost/api/v1/health http://localhost:3000/; do
+                curl -sk -o /dev/null -m 20 -w "  $u → %{http_code} في %{time_total}s\n" "$u" || echo "  $u → لا ردّ"
+              done ;;
             web)
               # ══ بناءُ الواجهة داخلَ دوكر ══
               # `npm` غيرُ مثبَّتٍ على المضيف، والواجهةُ تُبنى أصلاً من
