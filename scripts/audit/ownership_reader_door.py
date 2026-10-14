@@ -32,23 +32,25 @@ async def main():
     eps = {m.group(1): m.group(0) for m in TO._EP_RE.finditer(page)}
     m = list(re.finditer(r"NJhistoryOfMajorShareHolder", page))
     for mm in m[:2]:
-        print("@@JS@@ …" + squash(page[max(0, mm.start() - 1700):mm.start() + 80])[-1500:])
-    for h in ("history", "false", "true", "1", "0", "Y", "N", ""):
-        for span in (365, 30):
-            p = TO.call_params("major_holders", sym)
-            p["history"] = h
-            if span != 365:
-                from datetime import date, timedelta
-                t = date.today()
-                p["fromDate"] = (t - timedelta(days=span)).strftime("%Y/%m/%d")
-            await asyncio.sleep(0.7)
-            st, raw = await fetch(f"{base}/{eps['historyOfMajorShareHolder']}", params=p, referer=base)
-            got = TO.parse_response("major_holders", raw or "") if st == 200 else []
-            print(f"@@MAJOR@@ history={h!r} · {span} يوماً · حالة {st} · {len(raw or '')} · مفهومٌ {len(got)} · "
-                  + (str(got[:3]) if got else repr(squash(raw)[:300])))
-            if st == 200 and len(raw or "") > 200 and not got:
-                print("   مطلعٌ أطول:", squash(raw)[:1500])
-    for s in ("2222", "1120", "2010", "7010"):
+        js = squash(page[max(0, mm.start() - 2600):mm.start()])
+        js = js[js.rfind("function"):] if "function" in js else js
+        print("@@JS@@ …" + js[-1400:])
+    for h in ("false", "true", "0", "1"):
+        p = TO.call_params("major_holders", sym)
+        p["history"] = h
+        await asyncio.sleep(0.7)
+        st, raw = await fetch(f"{base}/{eps['historyOfMajorShareHolder']}", params=p, referer=base)
+        body = re.sub(r"<svg\b.*?</svg>|<script\b.*?</script>", " ", raw or "", flags=re.S | re.I)
+        trs = re.findall(r"<tr\b.*?</tr>", body, re.S | re.I)
+        got = TO.parse_response("major_holders", raw or "") if st == 200 else []
+        print(f"\n@@MAJOR@@ history={h!r} · حالة {st} · {len(raw or '')} · صفوف {len(trs)} · مفهومٌ {len(got)} · {got[:2]}")
+        for tr in trs[:6]:
+            cells = [squash(re.sub(r"<[^>]+>", " ", c)) for c in re.findall(r"<t[hd]\b.*?</t[hd]>", tr, re.S | re.I)]
+            print("   |", " | ".join(cells))
+        print("   النصُّ بعد النموذج:", squash(re.sub(r"<[^>]+>", " ", body))[:900])
+        if trs[1:2]:
+            print("   خامُ صفّ:", squash(trs[1])[:700])
+    for s in ("4013",):
         await asyncio.sleep(1.0)
         rec = await TO.read_symbol(s)
         secs = {k: len(rec[k]) for k in TO.KINDS if rec.get(k)}
