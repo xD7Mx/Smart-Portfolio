@@ -359,8 +359,11 @@ async def sync(*, dry_run: bool = False) -> dict:
 MIN_OFFICIAL = 200        # دون ذلك في الرئيسيّ: جلبٌ فشل، فلا يُكتب شيء
 
 
+_FA_AR = str.maketrans({"ک": "ك", "ی": "ي", "ۀ": "ة", "ہ": "ه"})   # ‏D704: «تداول» تنشر بعضَ الأسماء بحروفٍ فارسية («شرکة … للحدید»)
+
+
 def official_name(raw) -> str | None:
-    t = " ".join(str(raw or "").split())
+    t = " ".join(str(raw or "").translate(_FA_AR).split())
     if t.startswith("شركة "):
         t = t[len("شركة "):].strip()
     return t or None

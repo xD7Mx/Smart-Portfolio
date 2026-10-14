@@ -114,5 +114,7 @@ sch = open(os.path.join(ROOT, "backend/app/scheduler/scheduler.py"), encoding="u
 check("_argaam_listed()" not in fl and "await sync_directory()" in src[src.index("async def sync_official"):]
       and "from app.services.tadawul_sync import sync_directory" in sch,
       "٨ والمزامنةُ ليليّةٌ وعند كلّ نشر (‏sync_official في complete.sh)، ولا رجوعَ إلى «أرقام»")
+check(TS.official_name("شرکة وطني للحدید والصلب") == "وطني للحديد والصلب",
+      "٩ والاسمُ بحروفٍ عربية — «تداول» تنشر بعضَها بالكاف والياء الفارسيتين («شرکة … للحدید»)")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)
