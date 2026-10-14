@@ -49,5 +49,38 @@ check('-v "$PWD":/repo:ro' in img and "docker inspect -f '{{.Config.Image}}' sp_
       and "exec bash scripts/audit/run.sh" in img
       and "bash scripts/ops/committee_image.sh" in comp and "bash scripts/ops/committee_image.sh ;;" in ops,
       "٥ واللجنةُ في النشر ومهمّة ‎audit‎ تُشغَّل في صورة الخادم نفسِها، والمستودعُ للقراءة فقط، والمضيفُ احتياطٌ إن غابت الصورة")
+
+# ‏D714 (الجولةُ الثانية · run 38605415518): ما سقط في الصورة وحدَها كان عيوبَ حرّاسٍ لا عيوبَ شيفرة — فيُمنع عودُها:
+eck = (ROOT / "scripts/audit/engine_cache_key.py").read_text(encoding="utf-8")
+check(".write_bytes(" not in eck and ".write_text(" not in eck,
+      "٦ حارسُ مفتاح الكاش يقيس بلا كتابةٍ في شيفرة المحرّك — كتب فيها ثمّ أعادها، فسقط حيث الشيفرةُ للقراءة فقط")
+import ast, os, tempfile
+st = (ROOT / "scripts/audit/static.py").read_text(encoding="utf-8")
+fn = next((n for n in ast.parse(st).body if isinstance(n, ast.FunctionDef) and n.name == "tracked_files"), None)
+got = None
+if fn is not None:
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as t:
+        t.write("a.py\nb/c.ts\n")
+    old_env = dict(os.environ)
+    os.environ.update(PATH="/nonexistent", SP_TRACKED=t.name)
+    ns = {"os": os, "subprocess": subprocess, "pathlib": pathlib, "ROOT": ROOT}
+    try:
+        exec(compile(ast.Module([fn], []), "static.py", "exec"), ns)
+        got = [x for x in ns["tracked_files"]() if x]
+    except Exception as e:                                           # noqa: BLE001
+        got = f"{type(e).__name__}: {e}"
+    finally:
+        os.environ.clear(); os.environ.update(old_env); os.unlink(t.name)
+ic = (ROOT / "scripts/audit/install_command.py").read_text(encoding="utf-8")
+check(got == ["a.py", "b/c.ts"] and "SP_TRACKED" in ic,
+      "٧ وحارسُ الأسرار (وجردُ أمر التركيب) يقرآن جردَ المضيف حين لا ‎git‎ — لا «تعذّر سردُ الملفّات» في صورة الخادم", str(got)[:80])
+check("git ls-files > \"$TRK\"" in img and "-e SP_TRACKED=/tmp/sp_tracked" in img and '"$TRK":/tmp/sp_tracked:ro' in img,
+      "٨ والمضيفُ يُعدّ الجردَ ويربطه للقراءة في حاوية اللجنة")
+dd = (ROOT / "scripts/audit/deals_and_depth.py").read_text(encoding="utf-8")
+c6 = dd.index("# ── ٦ ·")
+seg = dd[c6:dd.index("# ── ٨", c6) if "# ── ٨" in dd[c6:] else len(dd)]
+check(all(f"sd.{x}" in seg.split('"٦ ولا يُمحى')[0] for x in ("tadawul_negotiated", "tadawul_trade_details", "argaam_deals", "fetch_rows"))
+      and seg.count("sd.tadawul_negotiated") >= 2,
+      "٩ وحارسُ الصفقات يُبدّل طبقاتِ الجلب الأربعَ كلَّها في ٦ و٧ — بشبكةٍ أجاب «تداول» الحقيقيّ فقاس الحارسُ الشبكةَ لا السلوك")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

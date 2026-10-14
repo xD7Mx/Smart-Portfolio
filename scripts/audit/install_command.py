@@ -24,6 +24,7 @@
 # ─────────────────────────────────────────────────────────────────────────
 from __future__ import annotations
 
+import os
 import pathlib
 import re
 import subprocess
@@ -89,8 +90,15 @@ check("cp -a .env" in CMD,
 
 # ── ٤ · ولا مسارَ تشكيلٍ وهميٍّ في أيّ ملفٍّ متتبَّع ─────────────────────
 try:
-    tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, check=True,
-                             capture_output=True, text=True).stdout.split()
+    try:
+        tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, check=True,
+                                 capture_output=True, text=True).stdout.split()
+    except Exception:                                             # noqa: BLE001
+        # ‏D714: في صورة الخادم لا ‎git‎ — والجردُ أعدّه المضيف
+        _lst = os.environ.get("SP_TRACKED")
+        if not (_lst and os.path.isfile(_lst)):
+            raise
+        tracked = pathlib.Path(_lst).read_text(encoding="utf-8").split()
 except Exception as e:                                            # noqa: BLE001
     tracked = []
     print(f"…  تعذّر جردُ الملفّات ({type(e).__name__}) — لا يُعدّ نجاحاً")

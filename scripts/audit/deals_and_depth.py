@@ -138,6 +138,15 @@ async def _empty():
     return [], None
 
 
+# ‏D714: الطبقاتُ الأربعُ كلُّها تُبدَّل — قِيس على الخادم (صورتُه بشبكة) أنّ «تداول» الحقيقيّ أجاب فكتب صفقاتِ اليوم
+# فوق المحفوظ وسقط ٦ و٧؛ وكان البدلُ للطبقة الأخيرة وحدها، فالفحصُ يقيس الشبكةَ لا السلوك.
+async def _empty_l(*_a, **_k):
+    return [], "لا صفوف"
+
+
+_LAYERS = (sd.tadawul_negotiated, sd.tadawul_trade_details, sd.argaam_deals)   # تُعاد بعد ٧ — ‏١٦ يقيس الطبقاتِ نفسَها
+sd.tadawul_negotiated = sd.argaam_deals = _empty_l               # type: ignore[assignment]
+sd.tadawul_trade_details = _empty_l                              # type: ignore[assignment]
 sd.fetch_rows = _empty                                           # type: ignore[assignment]
 res = asyncio.run(sd.refresh())
 check(not res.get("count") and (sd.reading() or {}).get("deals"),
@@ -152,13 +161,15 @@ async def _never():
     return [], "ما كان ينبغي أن يُنادى"
 
 
-sd.fetch_rows = _never                                           # type: ignore[assignment]
+sd.fetch_rows = sd.tadawul_negotiated = sd.argaam_deals = _never  # type: ignore[assignment]
+sd.tadawul_trade_details = _never                                # type: ignore[assignment]
 out = _data(asyncio.run(M.get_special_deals()))
 check(not calls and out.get("available") and out.get("count") == 2,
       "٧ الشاشةُ تقرأ المحفوظَ ولا تُشغّل جلباً خارجياً", f"{len(calls)} نداء")
 one = _data(asyncio.run(M.get_special_deals(symbol="2010.SR")))
 check(one.get("count") == 1 and one["deals"][0]["symbol"] == "2010",
       "٧ب والتصفيةُ برمز الشركة تعمل مع لاحقة .SR", str(one.get("count")))
+sd.tadawul_negotiated, sd.tadawul_trade_details, sd.argaam_deals = _LAYERS
 
 SCH = (ROOT / "backend" / "app" / "scheduler"
        / "scheduler.py").read_text(encoding="utf-8")

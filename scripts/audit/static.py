@@ -14,6 +14,7 @@ import json
 import pathlib
 import ast
 import re
+import os
 import subprocess
 import sys
 
@@ -92,10 +93,22 @@ _SECRET = re.compile(
 )
 
 
+def tracked_files() -> list[str]:
+    """الملفّاتُ المتتبَّعة — من ‎git‎، أو من جردٍ أعدّه المضيفُ (‏SP_TRACKED) حين تُشغَّل اللجنةُ في صورة الخادم وليس فيها
+    ‎git‎ (‏D714: قِيس «تعذّر سرد الملفّات المتتبَّعة: No such file or directory: 'git'»). ولا جردَ ⇒ يُرفع الخطأ فيُقال."""
+    try:
+        return subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True,
+                              text=True, check=True).stdout.split("\n")
+    except Exception:                                             # noqa: BLE001
+        lst = os.environ.get("SP_TRACKED")
+        if lst and os.path.isfile(lst):
+            return pathlib.Path(lst).read_text(encoding="utf-8").split("\n")
+        raise
+
+
 def check_secrets() -> None:
     try:
-        files = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True,
-                               text=True, check=True).stdout.split("\n")
+        files = tracked_files()
     except Exception as e:                                        # noqa: BLE001
         note("S-SECRETS", "git", f"تعذّر سرد الملفّات المتتبَّعة: {e}")
         return

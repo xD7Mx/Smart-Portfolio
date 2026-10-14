@@ -37,8 +37,11 @@ for name, src in (("complete.sh", comp), ("ops.yml", ops)):
 
 # ٤ سلوكاً: مستودعٌ بحال الخادم يُسوّى بمقطع ‏complete.sh نفسِه
 m = re.search(r"(?s)(git -c advice\.detachedHead=false checkout -q -f --detach FETCH_HEAD.*?\nfi\n)", comp)
+import shutil
 if not m:
     check(False, "٤ مقطعُ التسوية موجودٌ في complete.sh")
+elif not shutil.which("git"):
+    print("… لم يُقَس ٤ (لا git في هذه البيئة — يُقاس على المضيف)")      # ‏D714: صورةُ الخادم بلا ‎git‎
 else:
     snippet = m.group(1)
     d = pathlib.Path(tempfile.mkdtemp(prefix="sp-d715-"))

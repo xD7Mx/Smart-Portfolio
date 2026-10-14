@@ -26,13 +26,15 @@ ok = callable(ev)
 print(f"{'PASS' if ok else 'FAIL'} ١ للمحرّك بصمةٌ في مفتاح الكاش")
 if ok:
     src = pathlib.Path(AN.__file__).resolve().parent / "fair_value.py"
-    bak = src.read_bytes()
+    # ‏D714: يُقاس بلا كتابة — كان يكتب في ملفّ المحرّك نفسِه ثمّ يُعيده، فسقط حيث الشيفرةُ للقراءة فقط (صورةُ الخادم ·
+    # ‏Read-only file system)، وكتابةٌ في شيفرة الإنتاج من فحصٍ قارئٍ عطبٌ ولو أُعيدت. فتُقرأ نسخةٌ معدَّلةٌ في الذاكرة.
     v1 = ev()
+    _rb = pathlib.Path.read_bytes
+    pathlib.Path.read_bytes = lambda self: _rb(self) + (b"\n# probe\n" if self.resolve() == src else b"")   # type: ignore
     try:
-        src.write_bytes(bak + b"\n# probe\n")
         v2 = ev()
     finally:
-        src.write_bytes(bak)
+        pathlib.Path.read_bytes = _rb                                                                 # type: ignore
     ok2 = v1 != v2 and ev() == v1
     print(f"{'PASS' if ok2 else 'FAIL'} ٢ وتعديلُ محرّك السعر العادل يبدّلها — {v1} → {v2}")
     ok3 = "_ENGINE_V" in (pathlib.Path(AN.__file__).read_text(encoding="utf-8").split("async def analyze_company", 1)[1][:400])
