@@ -47,7 +47,7 @@ SEC_AR, SEC_EN = "المواد الأساسية", "Materials"
 
 def rows_for(syms, loc):
     return [{"companySymbol": s, "companyName": (f"شركة اختبار {s}" if loc == "ar" else f"Test Co {s}"),
-             "sectorName": (SEC_AR if loc == "ar" else SEC_EN)} for s in syms]
+             "sectorName": (("السلع طويلة الاجل" if s == "1001" else SEC_AR) if loc == "ar" else SEC_EN)} for s in syms]
 
 
 state = {"main": MAIN}
@@ -77,6 +77,13 @@ check("4999" in MU and MU["4999"].get("name_ar") == "اختبار 4999" and MU["
       "٣ الجديدُ في الرئيسية يدخل الكونَ باسمه وقطاعه الرسميَّين — ويُحسب في السوق الرئيسية", str(MU.get("4999")))
 check("2998" not in MU or MU["2998"].get("market_td") == "nomu",
       "٤ و«نمو» لا يُضاف إليها جديد (المالكُ يريد تاسي)")
+from app.data import saudi_directory as SDmod, company_sectors as CSmod
+SDmod = importlib.reload(SDmod)
+CSmod = importlib.reload(CSmod)
+check(TS.directory()["main"]["1001"].get("sector") == "السلع طويلة الأجل" and CSmod.SYMBOL_TO_SECTOR_AR.get("1001") == "السلع طويلة الأجل"
+      and CSmod.SYMBOL_TO_SECTOR_AR.get("4999") == SEC_AR and SDmod.SYMBOL_TO_NAME.get("4999") == "اختبار 4999",
+      "٤ب والقطاعُ من «تداول» بإملاء التطبيق الواحد («الاجل» ← «الأجل») — في المصدر الذي تقرؤه الشاشاتُ والمحرّكاتُ كلُّها",
+      f"{CSmod.SYMBOL_TO_SECTOR_AR.get('1001')} · {CSmod.SYMBOL_TO_SECTOR_AR.get('4999')}")
 
 state["main"] = [s for s in MAIN if s != "1005"]
 asyncio.run(TS.sync_directory())

@@ -56,6 +56,27 @@ def _base(symbol: str) -> str:
     return str(symbol).replace(".SR", "").replace("TADAWUL:", "").strip()
 
 
+# ══ ‏D704: دليلُ «تداول» فوق الملفّ والطبقة — مصدرُ الاسم والقطاع (بأمر المالك 2026-10-14) ══
+# صفحتا «السوق الرئيسية» و«نمو» (‏tadawul_sync.sync_directory) تحملان لكلّ رمزٍ اسمَه الرسميّ وقطاعَه الذي تصنّفه «تداول» اليوم —
+# قِيس: 25 شركةً أعادت «تداول» تصنيفَها والملفُّ لم يتابع (البحري ← الطاقة · طيبة ← الخدمات الاستهلاكية · الكيميائية ← الرعاية
+# الصحية). والجديدُ في الرئيسية يُضاف، و«نمو» لا يُضاف إليها جديد. وبلا دليلٍ (بيئةُ الفحص · أوّلُ إقلاع) يبقى الملفُّ كما هو.
+try:
+    from app.services.tadawul_sync import directory as _tdir
+    _TD = _tdir()
+except Exception:                                                 # noqa: BLE001
+    _TD = {}
+for _mk in ("main", "nomu"):
+    for _s, _v in (_TD.get(_mk) or {}).items():
+        if _mk == "nomu" and _s not in SAUDI_DIRECTORY:
+            continue
+        _row = dict(SAUDI_DIRECTORY.get(_s) or {})
+        if _v.get("name"):
+            _row["name"] = _v["name"]
+        if _v.get("sector"):
+            _row["sector"] = _v["sector"]
+        SAUDI_DIRECTORY[_s] = _row
+
+
 # Backward-compatible derived lookups (same shape callers already expect).
 SYMBOL_TO_SECTOR_AR: dict[str, str] = {
     s: v["sector"] for s, v in SAUDI_DIRECTORY.items() if v.get("sector")

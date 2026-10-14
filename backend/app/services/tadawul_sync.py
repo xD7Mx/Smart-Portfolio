@@ -434,6 +434,30 @@ def apply_official(names: dict[str, str]) -> dict:
 DIRECTORY_KEY = "market:tadawul_directory"   # {"at", "main": {sym: {name, name_en, sector, sector_en}}, "nomu": {…}, "gone": {sym: since}}
 
 
+# إملاءُ التطبيق الواحد لقطاعات «تداول» — قِيس (‏tadawul_directory_door · run 38554487898): نصفُ الفروق الخمسين إملاءٌ لا تصنيف
+# («الاجل» · «الإستهلاكية» · «الادوية» · «الإتصالات» · «و الشخصية»)، والجداولُ (سقوفُ الثقة · أنماطُ الحوكمة) مفهرسةٌ بإملاءٍ واحد.
+CANON_SECTORS = ("المواد الأساسية", "السلع الرأسمالية", "إنتاج الأغذية", "إدارة وتطوير العقارات", "الرعاية الصحية", "التأمين",
+                 "الخدمات الاستهلاكية", "الصناديق العقارية المتداولة", "التطبيقات وخدمات التقنية", "تجزئة وتوزيع السلع الكمالية",
+                 "الخدمات التجارية والمهنية", "النقل", "الخدمات المالية", "الطاقة", "البنوك", "صناديق المؤشرات المتداولة",
+                 "تجزئة وتوزيع السلع الاستهلاكية", "المرافق العامة", "الإعلام والترفيه", "الاتصالات", "السلع طويلة الأجل",
+                 "المنتجات المنزلية والشخصية", "الأدوية")
+
+
+def _norm_sector(t: str) -> str:
+    t = re.sub("[أإآ]", "ا", " ".join(str(t or "").split()))
+    return re.sub(r"\sو\s", " و", t)
+
+
+_CANON_BY_NORM = {_norm_sector(c): c for c in CANON_SECTORS}
+
+
+def canon_sector(t: str | None) -> str | None:
+    """قطاعُ «تداول» بإملاء التطبيق — والتصنيفُ نفسُه من «تداول» لا يُمسّ؛ وما لا نظيرَ له يبقى بلفظ «تداول»."""
+    if not t:
+        return None
+    return _CANON_BY_NORM.get(_norm_sector(t), " ".join(str(t).split()))
+
+
 def _ar(t) -> str | None:
     t = " ".join(str(t or "").split())
     return t if re.search(r"[\u0600-\u06FF]", t) else None
@@ -463,7 +487,7 @@ async def sync_directory() -> dict:
                 e = out[mk].setdefault(m.group(1), {})
                 if loc == "ar":
                     e["name"] = official_name(_ar(r.get("companyName")))
-                    e["sector"] = _ar(r.get("sectorName"))
+                    e["sector"] = canon_sector(_ar(r.get("sectorName")))
                 else:
                     e["name_en"] = " ".join(str(r.get("companyName") or "").split()) or None
                     e["sector_en"] = " ".join(str(r.get("sectorName") or "").split()) or None
