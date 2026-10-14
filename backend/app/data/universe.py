@@ -35,7 +35,8 @@ NOMU = "NOMU"
 
 # مصدرُ التصنيف: قاعدةُ ترقيم تداول — «نمو» تبدأ بـ‎9، **إلا صناديقَ
 # المؤشرات المتداولة** (بقطاعها الرسميّ) فهي في السوق الرئيسة (D486).
-CLASSIFICATION_SOURCE = "تداول — بادئةُ الرمز (9xxx = «نمو» · صناديقُ المؤشرات بقطاعها الرسميّ في الرئيسة)"
+CLASSIFICATION_SOURCE = ("تداول — صفحتا «السوق الرئيسية» و«نمو» (‏D704)، والبادئةُ احتياطٌ لما لا يحمله الدليل "
+                         "(9xxx = «نمو» · صناديقُ المؤشرات بقطاعها الرسميّ في الرئيسة)")
 
 # ══ صناديقُ المؤشرات ليست «نمو» (بأمر المالك · D486) ══
 # قاعدةُ «ما بدأ بـ9 فهو نمو» أسقطت صناديقَ المؤشرات المتداولة (9400–9409
@@ -69,7 +70,35 @@ def market_of(symbol: str | None) -> str | None:
         return None
     if is_etf(s):
         return MAIN
+    # ‏D704: «تداول» تحسم السوق — من في صفحة «السوق الرئيسية» فهو منها، ومن في «نمو» فمنها، ولو خالف البادئة (المنقولُ بين
+    # السوقين). والبادئةُ احتياطٌ لما لا يحمله الدليل (لم يُقرأ بعد · بيئةُ الفحص) — لا تُحسم بها شركةٌ يعرفها الدليل.
+    dm = _directory_markets()
+    if dm:
+        if s in dm[0]:
+            return MAIN
+        if s in dm[1]:
+            return NOMU
     return NOMU if s.startswith("9") else MAIN
+
+
+_DM: tuple | None = None
+_DM_AT = 0.0
+
+
+def _directory_markets() -> tuple[set, set] | None:
+    """(رموزُ الرئيسية، رموزُ نمو) من دليل «تداول» المحفوظ — أو None. تُقرأ دقيقةً ثمّ تُجدَّد."""
+    global _DM, _DM_AT
+    import time
+    if time.monotonic() - _DM_AT < 60:
+        return _DM
+    _DM_AT = time.monotonic()
+    try:
+        from app.services.tadawul_sync import directory
+        d = directory()
+        _DM = (set(d.get("main") or {}), set(d.get("nomu") or {})) if d else None
+    except Exception:                                              # noqa: BLE001
+        _DM = None
+    return _DM
 
 
 def is_main(symbol: str | None) -> bool:

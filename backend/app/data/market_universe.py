@@ -41,6 +41,29 @@ def _build() -> dict[str, dict]:
             u.setdefault("name_ar", d["name"])
         if d.get("name_en"):
             u.setdefault("name_en", d["name_en"])
+    # ══ ‏D704: «تداول» مصدرُ الاسم والقطاع والعضوية (بأمر المالك 2026-10-14) ══
+    # الكونُ كان من ملفّاتٍ ثابتة لا يدخلها اكتتابٌ جديدٌ ولا يخرج منها مشطوب. فيُقرأ دليلُ «تداول» المحفوظ (صفحتا السوق الرئيسية
+    # ونمو باللغتين · tadawul_sync.sync_directory): الجديدُ في الرئيسية يدخل الكونَ باسمه وقطاعه الرسميَّين، والقائمُ يأخذ قطاعَه
+    # واسمَه العربيَّ من «تداول»، والشعارُ يبقى من مصدره. وبلا دليلٍ (بيئةُ الفحص · أوّلُ إقلاع) يبقى الكونُ كما كان.
+    try:
+        from app.services.tadawul_sync import directory as _tdir
+        _td = _tdir()
+    except Exception:                                             # noqa: BLE001
+        _td = {}
+    for mk in ("main", "nomu"):
+        for sym, v in (_td.get(mk) or {}).items():
+            if mk == "nomu" and sym not in universe:               # المالكُ يريد تاسي — «نمو» لا يُضاف إليها جديد
+                continue
+            u = universe.setdefault(sym, {})
+            if v.get("name"):
+                if u.get("name_ar") and u["name_ar"] != v["name"]:
+                    u.setdefault("name_alt", u["name_ar"])          # الاسمُ المتداوَل يبقى للبحث («أرامكو»)
+                u["name_ar"] = v["name"]
+            if v.get("name_en") and not u.get("name_en"):
+                u["name_en"] = v["name_en"]
+            if v.get("sector"):
+                u["sector"] = v["sector"]
+            u["market_td"] = mk
     for sym, u in universe.items():
         u.setdefault("name_ar", u.get("name_en") or sym)
         u.setdefault("name_en", u.get("name_ar") or sym)

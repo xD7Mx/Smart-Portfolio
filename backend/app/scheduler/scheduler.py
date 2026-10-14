@@ -258,6 +258,12 @@ async def job_tadawul_financials():
         logger.info(f"المعلوماتُ المالية: {await refresh()}")
     except Exception as e:
         logger.error(f"المعلوماتُ المالية: {e}")
+    # ‏D704: دليلُ السوق من «تداول» ليلاً — الجديدُ والمنقولُ والغائب (الاسمُ والقطاعُ وعضويةُ السوق)
+    try:
+        from app.services.tadawul_sync import sync_directory
+        logger.info(f"دليلُ «تداول»: {await sync_directory()}")
+    except Exception as e:
+        logger.error(f"دليلُ «تداول»: {e}")
     # ‏D622: بعد قراءة الصفحات — أحداثُ رأس المال من الأسهم المصدرة
     try:
         from app.services.split_watch import issued_watch

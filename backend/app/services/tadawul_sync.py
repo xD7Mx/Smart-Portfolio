@@ -181,6 +181,13 @@ async def fetch_listed() -> tuple[dict[str, dict], str | None]:
     # كان الجلبُ هنا يُردّ ‎403 فبُني بديلٌ من «أرقام». والحجبُ كان ببصمة
     # TLS لا بالرؤوس — فبانتحال بصمة كروم تُقرأ صفحاتُ «تداول» نفسُها،
     # ويبقى «أرقام» مسارَ احتياطٍ لا مصدراً أوّل.
+    # ‏D704: دليلُ صفحتَي السوق (يُقرأ ليلاً) أوّلُ المصادر — رمزٌ واسمٌ وقطاعٌ من «تداول» نفسِها
+    d = directory()
+    if d and d.get("at") == _now():
+        got = {s: {"name": v.get("name"), **({"sector": v["sector"]} if v.get("sector") else {})}
+               for mk in ("main", "nomu") for s, v in (d.get(mk) or {}).items() if v.get("name")}
+        if len(got) >= MIN_LISTED:
+            return got, None
     from app.services.tadawul_http import fetch as _raw_fetch
     last = None
     for url in SOURCES:
@@ -197,15 +204,8 @@ async def fetch_listed() -> tuple[dict[str, dict], str | None]:
             return got, None
         last = (f"فُهم {len(got)} رمزاً فقط من {url.rsplit('/', 1)[-1]} "
                 f"(الحدّ {MIN_LISTED})")
-    # ثمّ «أرقام» — مصدرٌ مقيسُ الوصول حين تردّ «تداول» ‎403.
-    try:
-        got = await _argaam_listed()
-    except Exception as e:                                        # noqa: BLE001
-        got, last = {}, f"أرقام: {type(e).__name__}: {e}"
-    if len(got) >= MIN_LISTED:
-        return got, None
-    if got:
-        last = f"فُهم {len(got)} رمزاً من «أرقام» (الحدّ {MIN_LISTED}) · {last or ''}"
+    # ‏D704 (بأمر المالك: «اجعل تداول هو مصدرك ومصدر التطبيق»): لا يُستبدل «أرقام» بـ«تداول» في الدليل — إن تعذّرت «تداول»
+    # بقي الدليلُ كما هو ولم يُوسَم أحدٌ موقوفاً (القائمةُ القصيرةُ تُرفض · القيدُ ٢)، وأُعيد غداً.
     return {}, last or "لم يُفهم أيُّ مصدر"
 
 
@@ -426,14 +426,85 @@ def apply_official(names: dict[str, str]) -> dict:
     return {"official": len(names), "changed": changed}
 
 
+# ══ ‏D704: دليلُ السوق من «تداول» وحدها — الاسمُ والقطاعُ وعضويةُ السوق (بأمر المالك 2026-10-14) ══
+# قال المالك: «اجعل تداول مصدرَك ومصدرَ التطبيق… المهمّ أن اسمَ الشركة وقطاعَها يظهر من تداول حتى يكون التطبيقُ مواكباً
+# للشركات الجديدة والمنقولة والموقوفة… لتعرف شركاتِ السوق الرئيسيّ وليس نمو». وكان التطبيقُ يحسم السوقَ ببادئة الرمز (9 = نمو)
+# ويبني كونَه من ملفّاتٍ ثابتة لا يدخلها اكتتابٌ جديد. وصفحتا «السوق الرئيسية» و«نمو» في «تداول» تنشران لكلّ شركةٍ رمزَها واسمَها
+# وقطاعَها بالعربية والإنجليزية (خدمةُ الجدول نفسُها · D357) — فلا تعريبَ يُخمَّن: العربيُّ من «تداول» بلغتها.
+DIRECTORY_KEY = "market:tadawul_directory"   # {"at", "main": {sym: {name, name_en, sector, sector_en}}, "nomu": {…}, "gone": {sym: since}}
+
+
+def _ar(t) -> str | None:
+    t = " ".join(str(t or "").split())
+    return t if re.search(r"[\u0600-\u06FF]", t) else None
+
+
+def directory() -> dict:
+    """دليلُ «تداول» المحفوظ — أو فارغ. يُقرأ عند بناء الكون وفي حكم السوق."""
+    from app.services import lastgood
+    d = lastgood.load(DIRECTORY_KEY)
+    return d if isinstance(d, dict) and len(d.get("main") or {}) >= MIN_OFFICIAL else {}
+
+
+async def sync_directory() -> dict:
+    """يقرأ الصفحتين باللغتين ويحفظ الدليل — ولا يحذف أحداً: الغائبُ عن الرئيسية يُوسَم بتاريخ غيابه (D242)."""
+    from app.services import lastgood
+    from app.services.tadawul_market import NOMU_PAGE, PAGE, fetch_rows
+    out: dict[str, dict] = {"main": {}, "nomu": {}}
+    for page, mk in ((PAGE, "main"), (NOMU_PAGE, "nomu")):
+        for loc in ("ar", "en"):
+            rows, why = await fetch_rows(page, locale=loc)
+            if why and mk == "main":
+                return {"ok": False, "why": f"{loc}: {why}"}
+            for r in rows or []:
+                m = _SYM.search(str((r or {}).get("companySymbol") or (r or {}).get("companyRef") or ""))
+                if not m:
+                    continue
+                e = out[mk].setdefault(m.group(1), {})
+                if loc == "ar":
+                    e["name"] = official_name(_ar(r.get("companyName")))
+                    e["sector"] = _ar(r.get("sectorName"))
+                else:
+                    e["name_en"] = " ".join(str(r.get("companyName") or "").split()) or None
+                    e["sector_en"] = " ".join(str(r.get("sectorName") or "").split()) or None
+    if len(out["main"]) < MIN_OFFICIAL:
+        return {"ok": False, "why": f"فُهم {len(out['main'])} رمزاً رئيسيّاً فقط (الحدّ {MIN_OFFICIAL})"}
+    prev = lastgood.load(DIRECTORY_KEY) or {}
+    gone = dict(prev.get("gone") or {}) if isinstance(prev, dict) else {}
+    for sym in (prev.get("main") or {}) if isinstance(prev, dict) else {}:
+        if sym not in out["main"]:
+            gone.setdefault(sym, _now())
+    gone = {k: v for k, v in gone.items() if k not in out["main"]}            # العائدُ يُرفع وسمُه
+    added = sorted(set(out["main"]) - set((prev.get("main") or {}) if isinstance(prev, dict) else {}))
+    rec = {"at": _now(), "main": {k: {kk: vv for kk, vv in v.items() if vv} for k, v in out["main"].items()},
+           "nomu": {k: {kk: vv for kk, vv in v.items() if vv} for k, v in out["nomu"].items()}, "gone": gone}
+    lastgood.save(DIRECTORY_KEY, rec)
+    logger.info(f"🗂️ دليلُ «تداول»: الرئيسية {len(rec['main'])} · نمو {len(rec['nomu'])} · جديد {len(added)} · غائب {len(gone)}")
+    return {"ok": True, "main": len(rec["main"]), "nomu": len(rec["nomu"]), "added": added, "gone": sorted(gone)}
+
+
 async def sync_official() -> dict:
-    names, why = await official_names()
+    try:
+        d = await sync_directory()                                 # ‏D704: الدليلُ أوّلاً، والأسماءُ منه
+    except Exception as e:                                         # noqa: BLE001
+        d = {"ok": False, "why": f"{type(e).__name__}: {e}"}
+    if not d.get("ok"):
+        logger.warning(f"دليلُ «تداول» تعذّر: {d.get('why')}")
+    dd = directory() if d.get("ok") else {}
+    if dd:                                                         # الأسماءُ من الدليل نفسِه — لا نداءٌ ثانٍ (الرئيسيةُ أوّلاً)
+        names, why = {}, None
+        for mk in ("main", "nomu"):
+            for sym, v in (dd.get(mk) or {}).items():
+                if v.get("name"):
+                    names.setdefault(sym, v["name"])
+    else:
+        names, why = await official_names()
     if not names:
         logger.warning(f"الأسماءُ الرسمية من «تداول» تعذّرت: {why}")
         return {"ok": False, "why": why}
     res = apply_official(names)
     logger.info(f"🗂️ أسماءُ «تداول» الرسمية: {res['official']} · تغيّر {len(res['changed'])}")
-    return {"ok": True, **res}
+    return {"ok": True, **res, "directory": {k: v for k, v in d.items() if k != "ok"}}
 
 
 def official_overlay() -> dict[str, str]:
