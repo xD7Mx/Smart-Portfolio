@@ -58,7 +58,9 @@ check(len(ov) == 10 and [r["date"] for r in ov if r["date"].startswith("2026-10-
 check(all(len(r["date"]) == 16 for r in ov), "١٠ وكلُّ شمعةٍ بساعتها — لا يومَ مجرّداً تحت اسم الساعة")
 
 # ‏D663: «والبقيّة» — اليومُ والأسبوعُ والشهر: شمعةُ إغلاقٍ إلى إغلاقٍ بلا ذيلٍ ليست شمعةَ يوم
-check("return await self._tasi_daily(tf)" in seg and "_th.real_daily(" in md and '"1y")) or []' not in seg,
+# ‏D713: وقد تُؤرَّخ الأسبوعيةُ بأوّلها بعد النداء (‏week_start) — والنداءُ نفسُه هو الحَكَم
+check(("return await self._tasi_daily(tf)" in seg or "rows = await self._tasi_daily(tf)" in seg)
+      and "_th.real_daily(" in md and '"1y")) or []' not in seg,
       "١٢ يومُ تاسي وأسبوعُه وشهرُه يمرّون بالشموع الحقيقية لا بسلسلة الإغلاق وحدَها")
 closes = [{"date": "2026-10-07", "open": 100, "high": 101, "low": 100, "close": 101, "volume": 0},
           {"date": "2026-10-08", "open": 101, "high": 102, "low": 101, "close": 102, "volume": 0}]

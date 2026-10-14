@@ -30,9 +30,13 @@ check('watchlist:     { to: "/watchlist",     icon: CandlestickChart, key: "nav.
 check('<Route path="/chart"          element={<Navigate to="/watchlist?tab=chart" replace />} />' in app
       and '["chart", "الرسم البياني", CandlestickChart]' in wp and "<ChartPage embedded />" in wp and "{!embedded && (" in cp,
       "٢ والرسمُ تبويبٌ داخليّ فيها بعنوانٍ واحد، ورابطُه القديم يفتحه هناك")
-check('document.addEventListener("touchstart", onStart, { passive: true })' in ml and "const open = isRtl ? dx < 0 : dx > 0;" in ml
-      and "Date.now() - t0 > 450" in ml and "Math.abs(dy) > Math.abs(dx) * 0.5" in ml,
-      "٣ إيماءةُ السحب على الجوال: من اليمين إلى اليسار تُخرج القائمة والعكسُ يُعيدها — سريعةٌ أفقيّةٌ لا تمريراً ولا ضغطةً مطوّلة")
+# ‏D712 (المالك): «تتبع حركةَ الإصبع» — فالعقدُ صار: الحكمُ أفقيٌّ أوّلاً، والضغطةُ المطوّلةُ لا تحرّكها، والاتّجاهُ باللغة؛
+# والسلوكُ نفسُه يقيسه اللمسُ الحقيقيّ في ui_d712.mjs وui_d683.mjs
+check('document.addEventListener("touchstart", onStart, { passive: true })' in ml
+      and 'document.addEventListener("touchmove", onMove, { passive: true })' in ml
+      and "const sign = isRtl ? -1 : 1;" in ml and "performance.now() - t0 > 320" in ml
+      and "Math.abs(dy) > Math.abs(dx) * 0.8" in ml,
+      "٣ إيماءةُ السحب على الجوال: من اليمين إلى اليسار تُخرج القائمةَ مع الإصبع والعكسُ يُعيدها — أفقيّةٌ لا تمريراً ولا ضغطةً مطوّلة")
 hook = rd("hooks/useLongPressSort.ts")
 check("const place = () =>" in hook and "const land = () =>" in hook and "el.offsetParent !== box" in hook
       and 'transform: "scale(1.04)"' not in hook,
