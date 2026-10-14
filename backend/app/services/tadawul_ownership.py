@@ -95,7 +95,7 @@ def normalize(rows: list) -> list[dict]:
 # قِيس على الخادم (‏ownership_url_door · run 38583314249 · ownership_html_door · run 38583682788): الصفحةُ تُقرأ
 # والنداءاتُ الثلاثةُ فيها، لكنّ شيفرتَها تطلبها `dataType: 'html'` فتعيد **أجزاءً تُلصق في الصفحة**: ‏foreginOwnerShip
 # قطعةٌ فيها الحدُّ والفعليُّ (ومصفوفةُ الرسم ‎`{name, y}`)، و‏historicalBoardMembersWithDates جدولٌ (تاريخُ التداول ·
-# المساهم · الصفة · النسبة …)، و‏historyOfMajorShareHolder يطلب ‎symbol · fromDate · toDate · history. وكان القارئُ
+# المساهم · الصفة · النسبة …)، و‏historyOfMajorShareHolder جدولان (كبارُ الملاك ثمّ فترةُ الحظر) ويطلب ‎history. وكان القارئُ
 # يفترض JSON فيسقط بندُه صامتاً: 0 من 272 والحارسُ أخضرُ على صفوفٍ مصطنعة. فيُقرأ ما يصل بشكله.
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _HAS_WORD = re.compile(r"[A-Za-z\u0600-\u06FF]")
@@ -181,23 +181,24 @@ def parse_response(kind: str, raw: str) -> list[dict]:
     try:
         data = json.loads(raw)
     except Exception:                                             # noqa: BLE001
-        return parse_foreign(raw) if kind == "foreign" else parse_rows_html(raw)
+        if kind == "foreign":
+            return parse_foreign(raw)
+        if kind == "major_holders":
+            # ‏الردُّ جدولان: كبارُ الملاك (5٪ فأكثر) أوّلاً، ثمّ المساهمون الخاضعون لفترة الحظر — فلا يُخلطان
+            tables = re.findall(r"<table\b.*?</table>", raw or "", re.S | re.I)
+            return parse_rows_html(tables[0] if tables else raw)
+        return parse_rows_html(raw)
     rows = data.get("data") if isinstance(data, dict) else data
     return normalize(rows if isinstance(rows, list) else [])
 
 
-def call_params(kind: str, sym: str, today: date | None = None) -> dict:
-    """ما تمرّره شيفرةُ الصفحة نفسُها لكلّ نداء (‏symbol، وللتاريخيّ مدى التاريخ بصيغة ‎yyyy/mm/dd)."""
-    from datetime import timedelta
+def call_params(kind: str, sym: str) -> dict:
+    """ما تمرّره شيفرةُ الصفحة نفسُها لكلّ نداء. ولكبار الملاك ‎history=0 بلا تاريخ — العرضُ الأوّلُ في الصفحة (أحدثُ يوم)؛
+    قِيس (‏run 38584582392): بلا ‎history يردّ 500، وبمدى سنةٍ (‎history=1) ربعُ مليون حرفٍ لأيّامٍ متكرّرة."""
     p = {"requestLocale": "en", "symbol": sym}
     if kind == "major_holders":
-        t = today or date.today()
-        p |= {"fromDate": (t - timedelta(days=365)).strftime("%Y/%m/%d"), "toDate": t.strftime("%Y/%m/%d"),
-              "history": MAJOR_HISTORY}
+        p["history"] = "0"
     return p
-
-
-MAJOR_HISTORY = "false"
 
 
 async def company_page(sym: str) -> str | None:

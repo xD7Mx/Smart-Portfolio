@@ -88,6 +88,10 @@ async def job_tadawul_snapshot():
         logger.error(f"Tadawul snapshot failed: {e}")
 
 
+OWNERSHIP_BATCH = 40           # ‏D708: شركاتٌ في الليلة من «تداول»
+OWNERSHIP_BROWSER_CAP = 5      # ومتصفّحُ «أرقام» لمن لم تقرأه — حدٌّ في الليلة
+
+
 async def job_ownership():
     """هيكلُ الملكية — دفعةٌ دوّارةٌ أسبوعية بالمتصفّح (D276).
 
@@ -100,6 +104,13 @@ async def job_ownership():
 
     وثقيلةٌ عمداً على مهلها: عشرُ شركاتٍ في الأسبوع، والمتصفّحُ صفحةً
     صفحةً، وبعد الإغلاق في عطلة نهاية الأسبوع.
+
+    ══ والرسميُّ خفيفٌ فيُقرأ كلَّ ليلة ══ (D708)
+    خمسٌ وعشرون في الأسبوع وعمرُ القراءة ثلاثون يوماً: لا تُغطّى أكثرُ من
+    مئة شركةٍ في أيّ وقت — والمقيسُ 0 من 272 لأنّ القارئَ كان يفترض JSON.
+    وقراءةُ «تداول» صفحةٌ وثلاثةُ نداءاتٍ بلا متصفّح، فتُقرأ أربعون كلَّ
+    ليلةٍ بمهلةٍ بينها (الكونُ في سبع ليالٍ، ويتجدّد قبل أن يشيخ)، ولا
+    يُفتح متصفّحُ «أرقام» إلا لخمسٍ في الليلة ممّن لم تقرأهم «تداول».
     """
     try:
         from app.data.market_universe import MARKET_UNIVERSE
@@ -118,12 +129,15 @@ async def job_ownership():
                 if not t_reading(s) and not reading(s)]
         if not syms:
             return
-        done = fresh = 0
-        for sym in syms[:25]:
+        import asyncio as _aio
+        done = fresh = browsed = 0
+        for sym in syms[:OWNERSHIP_BATCH]:
             res = await t_refresh(sym)
-            if not res.get("ok"):
+            if not res.get("ok") and browsed < OWNERSHIP_BROWSER_CAP:
+                browsed += 1
                 res = await refresh(sym)          # الطبقةُ الثانية بالمتصفّح
             done += 1
+            await _aio.sleep(1.0)                 # أدبٌ مع المصدر: صفحةٌ ثمّ مهلة
             if res.get("ok"):
                 fresh += 1
             else:
@@ -742,12 +756,13 @@ def start_scheduler():
         replace_existing=True,
     )
 
-    # هيكلُ الملكية — الجمعةَ فجراً: بطيءُ التغيّر (شهريّ)، والمتصفّحُ
-    # ثقيلٌ فلا يُشغَّل في وقت التداول.
+    # هيكلُ الملكية — كلَّ ليلةٍ بعد منتصفها (‏D708): «تداول» خفيفةٌ بلا متصفّح،
+    # فدفعةٌ ليليّةٌ تغطّي الكونَ في أسبوعٍ وتجدّده قبل أن يشيخ؛ والمتصفّحُ
+    # مقيَّدٌ بخمسٍ في الليلة ولا يُشغَّل في وقت التداول.
     _scheduler.add_job(
         job_ownership,
-        CronTrigger(day_of_week="fri", hour=5, minute=0),
-        id="ownership_weekly",
+        CronTrigger(hour=3, minute=40),
+        id="ownership_nightly",
         replace_existing=True,
     )
 

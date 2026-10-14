@@ -530,6 +530,7 @@ python3 scripts/audit/tadawul_xbrl.py || _note "$LINENO"
 #   docker exec sp_backend python /app/scripts/audit/ownership_probe.py --market 15 --apply
 echo
 python3 scripts/audit/ownership.py || _note "$LINENO"
+python3 scripts/audit/ownership_html_d708.py || _note "$LINENO"
 
 # D271: خطوةٌ واحدةٌ لا تُسقط كلَّ الشاشات — قاعدةٌ متأخّرةٌ أو جدولةٌ
 # متعثّرةٌ تُعلَن ولا تَقتل، والحالُ تُقاس في `/api/health` لا تُكتَب.

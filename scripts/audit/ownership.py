@@ -192,8 +192,8 @@ check("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1" in dockerfile
 # دُرتُ ثلاثَ جولاتِ مسبارٍ بلا ميزةٍ تصل المالك. فالقياسُ ينتقل إلى
 # التطبيق: وظيفةٌ أسبوعيةٌ تقرأ وتسجّل التغطيةَ في السجلّ.
 SCH = (ROOT / "backend" / "app" / "scheduler" / "scheduler.py").read_text(encoding="utf-8")
-check("job_ownership" in SCH and 'id="ownership_weekly"' in SCH,
-      "٦ القراءةُ مجدوَلةٌ — لا دالّةٌ لا يستدعيها أحد")
+check("job_ownership" in SCH and 'id="ownership_nightly"' in SCH,
+      "٦ القراءةُ مجدوَلةٌ — لا دالّةٌ لا يستدعيها أحد (ليليّةً منذ D708)")
 check("ownership:coverage" in SCH,
       "٦ب والتغطيةُ تُسجَّل فتُعرَف بلا مسبارٍ رابع")
 
