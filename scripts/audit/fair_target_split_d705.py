@@ -61,5 +61,19 @@ bt = open(os.path.join(ROOT, "scripts/audit/fv_backtest_d699.py"), encoding="utf
 fz = open(os.path.join(ROOT, "scripts/audit/engine_freeze_d635.py"), encoding="utf-8").read()
 check('m["o_tg_ic12"]' in bt and '"rpart": res.get("rel_part")' in bt and '"o_tg_ic12": (+1' in fz,
       "٥ والاختبارُ التاريخيّ يقيس العادلَ والمستهدفَ كلّاً بنفسه، وحارسُ التجميد يحرس الاثنين")
+# ‏التحدّي بالزمن: سجلُّ التحقّق يحمل رقمَ «إنفستنق برو» الفعليّ بجانب رقمنا ويحاكمهما بما حدث على الشركات والأيّام نفسِها
+import datetime as dt
+from app.services import engine_ledger as L
+d0, d1 = dt.date(2026, 1, 1), dt.date(2026, 4, 1)
+rows = []
+for k, (ours, ip, later) in enumerate([(12, 8, 11), (8, 12, 9), (11, 9, 10.8), (9, 11, 9.2)]):
+    rows.append({"s": f"T{k}", "d": d0.isoformat(), "px": 10.0, "fv": ours, "ip": ip, "conf": "متوسطة", "fp": "x"})
+    rows.append({"s": f"T{k}", "d": d1.isoformat(), "px": later, "fv": ours, "ip": ip, "conf": "متوسطة", "fp": "x"})
+res = L.outcomes(rows, today=dt.date(2026, 4, 2), factor=lambda *a: 1.0)
+ch = (res.get(90) or {}).get("challenge") or {}
+check(ch.get("ours", {}).get("hit") == 1.0 and ch.get("investing_pro", {}).get("hit") == 0.0
+      and "\"ip\":" in open(os.path.join(ROOT, "backend/app/services/engine_ledger.py"), encoding="utf-8").read().replace("\"ip\": (", "\"ip\":"),
+      "٦ والتحدّي يُحاكَم بالزمن: رقمُ «إنفستنق برو» الفعليّ (من مراجع المالك) بجانب رقمنا يومَه، ويُقاسان معاً بعد 90 و180 و365 يوماً",
+      str(ch))
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

@@ -47,6 +47,11 @@ def current_rows() -> list[dict]:
     store = fund_store_load()
     deep = lastgood.load("governance:deep") or {}
     scr = {str(r.get("symbol")).replace(".SR", ""): r for r in (get_cached_screener() or [])}
+    # ‏D705 (تحدّي المالك): رقمُ «إنفستنق برو» الفعليّ كما يكتبه المالك في المراجع — يُسجَّل بجانب رقمنا يومَه، فيُحاكَمان معاً بالزمن
+    try:
+        from app.services.reference_scores import get as _ip
+    except Exception:                                              # noqa: BLE001
+        _ip = lambda s: None                                      # noqa: E731
     out = []
     for s, meta in main_market(MARKET_UNIVERSE).items():
         r, st = scr.get(s) or {}, store.get(s) or {}
@@ -58,7 +63,8 @@ def current_rows() -> list[dict]:
                     "fv": st.get("fair_value"), "conf": st.get("fair_value_conf"),
                     "cal": st.get("fair_value_calibrated"), "q": st.get("finance_score"),
                     "dec": (d.get("raw") or d.get("label")) if isinstance(d, dict) else d,
-                    "at": r.get("analyst_target")})
+                    "at": r.get("analyst_target"),
+                    "ip": ((_ip(s) or {}).get("fair_value") if isinstance((_ip(s) or {}).get("fair_value"), (int, float)) else None)})
     return out
 
 
@@ -138,7 +144,8 @@ def outcomes(rows: list[dict] | None = None, today: dt.date | None = None, facto
             realized = series[d1] * (factor(r["s"], r["d"], d1) or 1) / r["px"] - 1
             up = r["fv"] / r["px"] - 1
             pts.append({"up": up, "real": realized, "conf": r.get("conf"), "cal": r.get("cal"), "sec": r.get("sec"),
-                        "fp": r.get("fp")})
+                        "fp": r.get("fp"),
+                        "ip_up": (r["ip"] / r["px"] - 1) if isinstance(r.get("ip"), (int, float)) and r["ip"] > 0 else None})
         if not pts:
             continue
 
@@ -154,4 +161,8 @@ def outcomes(rows: list[dict] | None = None, today: dt.date | None = None, facto
                   "uncalibrated": summ([p for p in pts if p["cal"] is False]) if any(p["cal"] is False for p in pts) else None,
                   # ‏D647: كلُّ إصدارٍ يُحكم عليه بأيّامه — لا يختلط 1.0 بالثاني
                   "by_fp": {fp: summ([p for p in pts if p["fp"] == fp]) for fp in sorted({p["fp"] for p in pts if p["fp"]})}}
+        # ‏D705: التحدّي على الشركات والأيّام نفسِها — رقمُنا ورقمُ «إنفستنق برو» كلاهما يُحاكَم بما حدث
+        both = [p for p in pts if p.get("ip_up") is not None]
+        if both:
+            res[h]["challenge"] = {"ours": summ(both), "investing_pro": summ([{**p, "up": p["ip_up"]} for p in both])}
     return res
