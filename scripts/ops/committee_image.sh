@@ -18,10 +18,13 @@ MASK=()
 for f in .env backend/.env; do [ -f "$f" ] && MASK+=(-v "/dev/null:/repo/$f:ro"); done
 # ‏D714: والصورةُ بلا ‎git‎ — فقِيس «تعذّر سرد الملفّات المتتبَّعة» في حارس الأسرار. فيُعدّ المضيفُ جردَ الملفّات المتتبَّعة
 # (‏git ls-files) ويُربط للقراءة، ويقرؤه الحارسُ حين لا ‎git‎ — فيُفحص كلُّ ملفٍّ متتبَّعٍ كما على المضيف.
+# ‏D716: والخادمُ ‎909‎ م.ب — فلا تبدأ اللجنةُ إلا والخادمُ يردّ والمتاحُ يتّسع، وحاويتُها بسقفٍ لا تتجاوزه: إن ضاقت
+# قُتلت هي لا الخادم.
+bash scripts/ops/mem_gate.sh 300 "لجنة كشف الأعطال" || exit 1
 TRK="$(mktemp)"
 git ls-files > "$TRK" 2>/dev/null || true
 echo "• اللجنةُ في صورة الخادم ${IMG} — المستودعُ للقراءة فقط، وأسرارُ الخادم مُقنَّعة"
-docker run --rm -e PYTHONDONTWRITEBYTECODE=1 -e TZ=Asia/Riyadh -v "$PWD":/repo:ro "${MASK[@]}" \
+docker run --rm --memory 384m --memory-swap 768m --cpus 1 -e PYTHONDONTWRITEBYTECODE=1 -e TZ=Asia/Riyadh -v "$PWD":/repo:ro "${MASK[@]}" \
   -v "$TRK":/tmp/sp_tracked:ro -e SP_TRACKED=/tmp/sp_tracked \
   -v "$PWD/backend":/app:ro -w /repo --entrypoint bash "${IMG}" scripts/audit/run.sh "$@"
 RC=$?

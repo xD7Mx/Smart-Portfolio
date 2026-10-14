@@ -25,9 +25,10 @@ def check(ok, label, det=""):
 comp = (ROOT / "scripts/ops/complete.sh").read_text(encoding="utf-8")
 ops = (ROOT / ".github/workflows/ops.yml").read_text(encoding="utf-8")
 gi = (ROOT / ".gitignore").read_text(encoding="utf-8")
-check('git rev-parse FETCH_HEAD:frontend' in comp and 'docker compose build frontend' in comp and '> "$WEB_MARK"' in comp
-      and comp.index('docker compose build frontend') < comp.index('say "٣ · لقطةُ «تداول»"'),
-      "١ دورةُ النشر تبني الواجهةَ متى تغيّرت شجرتُها منذ آخر بناء — لا تُعاد الخادمُ وحدَه")
+# ‏D716: والبناءُ لا يكون في دورة النشر (خنق الخادم) — الدورةُ تُعلن أنّ الواجهةَ تغيّرت، ومهمّةُ ‎web‎ تبنيها منفردة
+check('git rev-parse FETCH_HEAD:frontend' in comp and '.web_built_tree' in comp and "تُبنى بمهمّة web" in comp
+      and comp.index('git rev-parse FETCH_HEAD:frontend') < comp.index('say "٣ · لقطةُ «تداول»"'),
+      "١ دورةُ النشر تُعلن أنّ الواجهةَ تغيّرت منذ آخر بناء (لا صمتَ يُخفي أنّها لم تُنشر)، والبناءُ بمهمّة web منفردة (‏D716)")
 check("git rev-parse FETCH_HEAD:frontend > .web_built_tree" in ops and "/.web_built_tree" in gi,
       "٢ ومهمّةُ ‏web تحفظ بصمةَ ما بنته، والبصمةُ حالةُ نشرٍ لا تدخل المستودع")
 for name, src in (("complete.sh", comp), ("ops.yml", ops)):

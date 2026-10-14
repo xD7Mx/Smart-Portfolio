@@ -47,8 +47,9 @@ check('/dev/null:/repo/$f:ro' in img and 'for f in .env backend/.env' in img and
       "٤ب ولا يرى الحرّاسُ أسرارَ الخادم: ‎.env‎ مُقنَّعٌ بملفٍّ فارغ (قِيس أنّ الإعدادات تطبع قيمَ مفاتيحه الزائدة)، و‎/app‎ هي ‎backend‎ المستودع لا نسخةُ الصورة")
 check('-v "$PWD":/repo:ro' in img and "docker inspect -f '{{.Config.Image}}' sp_backend" in img
       and "exec bash scripts/audit/run.sh" in img
-      and "bash scripts/ops/committee_image.sh" in comp and "bash scripts/ops/committee_image.sh ;;" in ops,
-      "٥ واللجنةُ في النشر ومهمّة ‎audit‎ تُشغَّل في صورة الخادم نفسِها، والمستودعُ للقراءة فقط، والمضيفُ احتياطٌ إن غابت الصورة")
+      and "bash scripts/ops/committee_image.sh ;;" in ops,
+      "٥ واللجنةُ في مهمّة ‎audit‎ تُشغَّل في صورة الخادم نفسِها، والمستودعُ للقراءة فقط، والمضيفُ احتياطٌ إن غابت الصورة "
+      "(ولا تُشغَّل في دورة النشر — ‏D716)")
 
 # ‏D714 (الجولةُ الثانية · run 38605415518): ما سقط في الصورة وحدَها كان عيوبَ حرّاسٍ لا عيوبَ شيفرة — فيُمنع عودُها:
 eck = (ROOT / "scripts/audit/engine_cache_key.py").read_text(encoding="utf-8")

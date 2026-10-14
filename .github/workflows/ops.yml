@@ -129,6 +129,8 @@ jobs:
               # ودورةُ `complete.sh` لا تفعل هذا لأنّ البناءَ دقائقُ
               # والخادمَ وحدَه يكفي لأكثر التغييرات.
               df -h / | tail -1
+              # ‏D716: البناءُ ثقيلٌ والخادمُ ‎909‎ م.ب — لا يبدأ قبل أن يُكمل الخادمُ إقلاعَه ويتّسع المتاح
+              bash scripts/ops/mem_gate.sh 300 "بناء الواجهة"
               docker compose build frontend
               docker compose up -d frontend
               docker restart sp_nginx >/dev/null
