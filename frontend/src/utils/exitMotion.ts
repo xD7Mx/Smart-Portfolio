@@ -20,7 +20,8 @@ export function installExitMotion(): () => void {
     if (reduced?.matches) return;
     for (const m of muts) {
       m.removedNodes.forEach(n => {
-        if (!(n instanceof HTMLElement) || n.classList.contains("exit-anim")) return;
+        // ‏D712: وما خرج بحركته هو (القائمةُ مع الإصبع) لا يُنسخ — وإلّا انزلقت مرّتين
+        if (!(n instanceof HTMLElement) || n.classList.contains("exit-anim") || n.hasAttribute("data-noghost")) return;
         if (n.matches(IN_PLACE)) { if (m.target.isConnected) ghost(n, m.target, m.nextSibling); return; }
         // النافذةُ داخل غلافٍ حُذف معها: تُنسخ وحدها إلى جسم الصفحة (هي ثابتةُ الموضع أصلاً)
         const ov = n.querySelector?.(".modal-overlay");

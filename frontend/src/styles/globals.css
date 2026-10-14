@@ -765,6 +765,15 @@ html.light .ticker-txt { color: var(--ink); }
 @keyframes scrimIn { from { opacity: 0; } to { opacity: 1; } }
 .drawer-pop .drawer-scrim { animation: scrimIn .22s ease-out; }
 .drawer-closing .drawer-scrim { animation: scrimIn .18s ease-in reverse forwards; }
+/* ‏D712: «تتبعُ حركةَ الإصبع» — في السحب يحرّك الإصبعُ القائمةَ (‏transform بالشيفرة) فلا حركةَ محفوظة، وعناصرُها تلحقها بتأخّرٍ
+   خفيف (‏--dp تقدّمُ السحب 0..1): تنزاح 22px وتبهت ثمّ تستقرّ — عمقٌ كالحركة البطيئة لا قفزة. */
+.drawer-drag .drawer-scrim, .drawer-drag .mobile-drawer { animation: none !important; }
+.drawer-drag .mobile-drawer { will-change: transform; }
+.drawer-drag .mobile-drawer > nav, .drawer-drag .mobile-drawer > div:first-child {
+  transform: translateX(calc((1 - var(--dp, 1)) * 22px * var(--dsign, 1)));
+  opacity: calc(.3 + .7 * var(--dp, 1));
+  transition: var(--dp-t, none);
+}
 /* ‏D687: البطاقاتُ تطلع متتابعةً عند الظهور (وتأخيرُها من موضعها) */
 @keyframes cardRise { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: none; } }
 .card-rise { animation: cardRise .34s cubic-bezier(.2,.8,.2,1) both; }

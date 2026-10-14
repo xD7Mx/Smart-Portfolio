@@ -34,11 +34,17 @@ export default function MainLayout() {
   const [drawer, setDrawerRaw] = useState(false); // mobile off-canvas
   /* ‏D687: الحركةُ هويّة — القائمةُ تنزلق خارجةً كما دخلت، لا تختفي فجأة */
   const [closing, setClosing] = useState(false);
+  /* ‏D712: «تتبعُ حركةَ الإصبع» — `manual`: القائمةُ يحرّكها السحبُ لا حركةٌ محفوظة (فلا تُعاد حركةُ الدخول بعد أن استقرّت) */
+  const [manual, setManual] = useState(false);
   const drawerRef = useRef(false);
+  const asideRef = useRef<HTMLElement | null>(null);
+  const scrimRef = useRef<HTMLDivElement | null>(null);
+  const progRef = useRef(0);
   const setDrawer = (v: boolean) => {
-    if (v) { setClosing(false); drawerRef.current = true; setDrawerRaw(true); return; }
+    if (v) { setManual(false); setClosing(false); drawerRef.current = true; setDrawerRaw(true); return; }
     if (!drawerRef.current) return;
     drawerRef.current = false;
+    setManual(false);
     setClosing(true);
     setTimeout(() => { setDrawerRaw(false); setClosing(false); }, 180);
   };
@@ -103,12 +109,16 @@ export default function MainLayout() {
   // close the mobile drawer on navigation
   useEffect(() => { setDrawer(false); }, [location.pathname]);
 
-  /* ══ إيماءةُ السحب ══ (بأمر المالك · D687): على الجوال، سحبُ الإصبع من اليمين إلى اليسار يُخرج القائمةَ الجانبية
-     (وفي الواجهة الإنجليزية عكسُه)، والسحبُ المعاكس يُعيدها. سحبةٌ سريعةٌ أفقيّة (≥ 70px في أقلّ من 450 مل.ث، والرأسيُّ
-     أقلُّ من نصفها) — فالتمريرُ الرأسيّ والضغطةُ المطوّلة لترتيب البطاقات لا يفتحانها، ولا تبدأ من حقلٍ أو رسمٍ أو شريطٍ
-     يتمرّر أفقياً. */
+  /* ══ إيماءةُ السحب ══ (بأمر المالك · D687 · D712): على الجوال، سحبُ الإصبع من اليمين إلى اليسار يُخرج القائمةَ الجانبية
+     (وفي الواجهة الإنجليزية عكسُه)، والسحبُ المعاكس يُعيدها. ‏D712 (المالك): «بدلاً من أن تكون قاسية اجعلها تتبع حركةَ الإصبع
+     عند السحب ولو بدايةَ رأس القائمة» — فالقائمةُ تخرج بقدر ما يسحب الإصبعُ (حافّتُها أوّلاً)، والغطاءُ يغمق معها، وعناصرُها
+     تلحقها بتأخّرٍ خفيف؛ وعند الرفع تستقرّ مفتوحةً أو مغلقةً بالمسافة والسرعة بحركةٍ ناعمة. والحكمُ أفقيٌّ أوّلاً: التمريرُ
+     الرأسيّ والضغطةُ المطوّلة لترتيب البطاقات لا يحرّكانها، ولا تبدأ من حقلٍ أو رسمٍ أو شريطٍ يتمرّر أفقياً. */
   useEffect(() => {
-    let x0 = 0, y0 = 0, t0 = 0, armed = false;
+    const W = 256;                                             // عرضُ القائمة (‏w-64)
+    const sign = isRtl ? -1 : 1;                               // اتّجاهُ الفتح على محور الإصبع
+    const reduced = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    let x0 = 0, y0 = 0, t0 = 0, armed = false, mode: "" | "open" | "close" = "", lastX = 0, lastT = 0, vel = 0, raf = 0;
     const blocked = (el: Element | null) => {
       for (let i = 0; el && i < 10; i++, el = el.parentElement) {
         if (el.matches("input,textarea,select,canvas,svg,[contenteditable],[data-noswipe]")) return true;
@@ -117,24 +127,85 @@ export default function MainLayout() {
       }
       return false;
     };
+    const paint = (p: number, settle = false) => {
+      progRef.current = p;
+      const a = asideRef.current, sc = scrimRef.current;
+      const dur = settle && !reduced() ? ".34s cubic-bezier(.22,1,.36,1)" : "";
+      if (a) {
+        a.style.transition = dur ? `transform ${dur}` : "none";
+        a.style.transform = `translateX(${(isRtl ? 1 : -1) * (1 - p) * 100}%)`;
+        a.style.setProperty("--dp", String(p));
+        a.style.setProperty("--dp-t", dur ? `transform ${dur}, opacity ${dur}` : "none");
+      }
+      if (sc) { sc.style.transition = dur ? `opacity ${dur}` : "none"; sc.style.opacity = String(p); }
+    };
     const onStart = (e: TouchEvent) => {
       armed = window.innerWidth < 768 && e.touches.length === 1 && !blocked(e.target as Element);
+      mode = "";
       if (!armed) return;
-      x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now();
+      x0 = lastX = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = lastT = performance.now(); vel = 0;
     };
-    const onEnd = (e: TouchEvent) => {
+    const onMove = (e: TouchEvent) => {
       if (!armed) return;
+      const x = e.touches[0].clientX, dx = x - x0, dy = e.touches[0].clientY - y0;
+      if (!mode) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if (Math.abs(dy) > Math.abs(dx) * 0.8) { armed = false; return; }          // رأسيٌّ: تمريرٌ لا سحب
+        if (performance.now() - t0 > 320) { armed = false; return; }              // إصبعٌ ثبت ثمّ تحرّك: ضغطةٌ مطوّلةٌ لترتيب البطاقات
+        const opening = Math.sign(dx) === sign;
+        if (opening && !drawerRef.current) {
+          mode = "open"; drawerRef.current = true; progRef.current = 0;
+          setManual(true); setClosing(false); setDrawerRaw(true);
+        } else if (!opening && drawerRef.current && !closing) {
+          mode = "close"; setManual(true);
+        } else { armed = false; return; }
+      }
+      const t = performance.now();
+      if (t > lastT) vel = 0.6 * vel + 0.4 * ((x - lastX) / (t - lastT));
+      lastX = x; lastT = t;
+      const travel = (dx * sign) / W;                                               // موجبٌ نحو الفتح
+      const p = Math.max(0, Math.min(1, mode === "open" ? travel : 1 + travel));
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => paint(p));
+    };
+    const onEnd = () => {
+      if (!armed || !mode) { armed = false; return; }
       armed = false;
-      const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
-      if (Date.now() - t0 > 450 || Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.5) return;
-      const open = isRtl ? dx < 0 : dx > 0;
-      if (open && !drawerRef.current) setDrawer(true);
-      else if (!open && drawerRef.current) setDrawer(false);
+      cancelAnimationFrame(raf);
+      const v = performance.now() - lastT > 90 ? 0 : vel * sign;                   // إصبعٌ توقّف ثمّ رُفع: لا اندفاع
+      const p = progRef.current;
+      const open = v > 0.35 ? true : v < -0.35 ? false : p > (mode === "open" ? 0.4 : 0.6);
+      mode = "";
+      paint(open ? 1 : 0, true);
+      const done = () => {
+        if (open) { drawerRef.current = true; return; }
+        // خرجت مع الإصبع فعلاً: لا نسخةَ خروجٍ تُعيد انزلاقَها من موضع الفتح (‏exitMotion · D616)
+        asideRef.current?.parentElement?.setAttribute("data-noghost", "");
+        drawerRef.current = false; setDrawerRaw(false); setManual(false);
+      };
+      if (reduced()) done(); else setTimeout(done, 360);
     };
     document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchmove", onMove, { passive: true });
     document.addEventListener("touchend", onEnd, { passive: true });
-    return () => { document.removeEventListener("touchstart", onStart); document.removeEventListener("touchend", onEnd); };
-  }, [isRtl]);
+    document.addEventListener("touchcancel", onEnd, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("touchstart", onStart); document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd); document.removeEventListener("touchcancel", onEnd);
+    };
+  }, [isRtl, closing]);
+  /* أوّلُ إطارٍ بعد التركيب بالسحب: القائمةُ عند موضع الإصبع لا عند حركة الدخول المحفوظة */
+  React.useLayoutEffect(() => {
+    if (!drawer || !manual) return;
+    const a = asideRef.current, sc = scrimRef.current, p = progRef.current;
+    if (a && !a.style.transform) {
+      a.style.transition = "none";
+      a.style.transform = `translateX(${(isRtl ? 1 : -1) * (1 - p) * 100}%)`;
+      a.style.setProperty("--dp", String(p));
+    }
+    if (sc && !sc.style.opacity) { sc.style.transition = "none"; sc.style.opacity = String(p); }
+  }, [drawer, manual, isRtl]);
 
   const Brand = ({ compact = false }: { compact?: boolean }) => (
     // Client-side navigation to the dashboard — plain <a>/window.location would
@@ -228,10 +299,12 @@ export default function MainLayout() {
 
         {/* Mobile drawer */}
         {drawer && (
-          <div className={"drawer-pop md:hidden fixed inset-0 z-50" + (closing ? " drawer-closing" : "")} onClick={() => setDrawer(false)}>
-            <div className="drawer-scrim absolute inset-0 bg-black/60 backdrop-blur-sm" />
-            <aside dir={isRtl ? "rtl" : "ltr"} style={{ ["--drawer-from" as any]: isRtl ? "100%" : "-100%" }}
-              className={`mobile-drawer drawer-safe absolute top-0 ${isRtl ? "right-0" : "left-0"} h-full w-64 bg-[var(--field)] ${isRtl ? "border-l" : "border-r"} border-[var(--hairline)] flex flex-col ${closing ? "drawer-out" : "drawer-in"}`}
+          <div className={"drawer-pop md:hidden fixed inset-0 z-50" + (closing ? " drawer-closing" : "") + (manual ? " drawer-drag" : "")}
+               onClick={() => setDrawer(false)}>
+            <div ref={scrimRef} className="drawer-scrim absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <aside ref={asideRef} dir={isRtl ? "rtl" : "ltr"} style={{ ["--drawer-from" as any]: isRtl ? "100%" : "-100%",
+                                                                        ["--dsign" as any]: isRtl ? 1 : -1 }}
+              className={`mobile-drawer drawer-safe absolute top-0 ${isRtl ? "right-0" : "left-0"} h-full w-64 bg-[var(--field)] ${isRtl ? "border-l" : "border-r"} border-[var(--hairline)] flex flex-col ${manual ? "" : closing ? "drawer-out" : "drawer-in"}`}
               onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-4 py-4 border-b border-[var(--hairline)]">
                 <Brand />
