@@ -42,8 +42,10 @@ check('mem_gate.sh 250 "مسحة التقييم"' in comp[:sw],
       "٣ والمسحةُ خلف البوّابة كذلك — تُؤجَّل إلى موعدها الليليّ إن ضاقت الذاكرة")
 web = ops[ops.index("            web)"):]
 web = web[:web.index(";;")]
-check("mem_gate.sh" in web and web.index("mem_gate.sh") < web.index("docker compose build frontend"),
-      "٤ وبناءُ الواجهة (مهمّةُ web) خلف البوّابة")
+bj = ops[ops.index("\n  build_web:"):ops.index("\n  run:\n")] if "\n  build_web:" in ops else ""
+check("docker compose build" not in web and "runs-on: ubuntu-latest" in bj and "npm run build" in bj
+      and "upload-artifact" in bj and "download-artifact" in ops and "docker cp" in web and "docker commit" in web,
+      "٤ والواجهةُ تُبنى على أجهزة GitHub لا على الخادم — والخادمُ يضعها مكانَ القديمة فقط (بناءٌ امتدّ ١٧ دقيقةً على معالجٍ مستنزَف)")
 m = re.search(r"docker run [^\n]*--memory (\d+)m", img)
 check("mem_gate.sh" in img and m and img.index("mem_gate.sh") < img.index("docker run --rm") and int(m.group(1)) <= 512,
       "٥ واللجنةُ في صورة الخادم خلف البوّابة وحاويتُها بسقفٍ (إن ضاقت قُتلت هي لا الخادم)", f"سقف {m.group(1) if m else '؟'}م.ب")

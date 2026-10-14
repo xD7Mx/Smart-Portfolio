@@ -49,10 +49,45 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ══ ‏D716: الواجهةُ تُبنى على أجهزة GitHub لا على الخادم ══
+  # الخادمُ ‎909‎ م.ب ومعالجُه قابلٌ للاستنزاف: بناءٌ استغرق ثلاثَ دقائق ظهراً امتدّ سبعَ عشرةَ دقيقةً مساءً بعد يومٍ من العمل.
+  # فيُبنى هنا ويُرفع ملفّاً جاهزاً، ولا يفعل الخادمُ إلا أن يضعه مكانَ القديم — بلا بناءٍ ولا حِمل.
+  build_web:
+    if: inputs.task == 'web'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: البناء
+        run: |
+          cd frontend
+          npm ci --no-audit --no-fund
+          VITE_API_URL=/api/v1 npm run build
+          tar czf "$RUNNER_TEMP/web-build.tgz" build
+          ls -la "$RUNNER_TEMP/web-build.tgz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: ${{ runner.temp }}/web-build.tgz
+          retention-days: 3
+
   run:
+    needs: [build_web]
+    if: ${{ always() && (needs.build_web.result == 'success' || needs.build_web.result == 'skipped') }}
     runs-on: [self-hosted, smart-portfolio]
     timeout-minutes: 60
     steps:
+      - name: الواجهةُ المبنيّة
+        if: inputs.task == 'web'
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: ${{ runner.temp }}/web
       - name: تسويةُ الشجرة على الفرع
         run: |
           cd ~/Smart-Portfolio
@@ -122,21 +157,23 @@ jobs:
                 curl -sk -o /dev/null -m 20 -w "  $u → %{http_code} في %{time_total}s\n" "$u" || echo "  $u → لا ردّ"
               done ;;
             web)
-              # ══ بناءُ الواجهة داخلَ دوكر ══
-              # `npm` غيرُ مثبَّتٍ على المضيف، والواجهةُ تُبنى أصلاً من
-              # `frontend/Dockerfile`. فلا يُثبَّت شيءٌ على الخادم: يُبنى
-              # الصورةَ ويُرفع، فتنزل كلُّ تعديلات الواجهة دفعةً واحدة.
-              # ودورةُ `complete.sh` لا تفعل هذا لأنّ البناءَ دقائقُ
-              # والخادمَ وحدَه يكفي لأكثر التغييرات.
-              df -h / | tail -1
-              # ‏D716: البناءُ ثقيلٌ والخادمُ ‎909‎ م.ب — لا يبدأ قبل أن يُكمل الخادمُ إقلاعَه ويتّسع المتاح
-              bash scripts/ops/mem_gate.sh 300 "بناء الواجهة"
-              docker compose build frontend
-              docker compose up -d frontend
-              docker restart sp_nginx >/dev/null
-              # ‏D715: بصمةُ الواجهة المبنيّة — فلا تُعاد في ‎complete.sh‎ ما لم تتغيّر
+              # ══ ‏D716: الواجهةُ مبنيّةٌ على أجهزة GitHub (‏build_web) — والخادمُ يضعها مكانَ القديمة فقط ══
+              # تُنسخ إلى ‎build.new‎ ثمّ تُبدَّل بالاسم في لحظة (‏serve يقرأ المجلّدَ باسمه)، وتُحفظ في صورة الحاوية فلا تعود
+              # القديمةُ إن أُعيد إنشاؤها. ولا بناءَ للواجهة على الخادم بعد اليوم.
+              T="$RUNNER_TEMP/web/web-build.tgz"
+              [ -s "$T" ] || { echo "✘ لا واجهةَ مبنيّة"; exit 1; }
+              rm -rf /tmp/sp-web && mkdir -p /tmp/sp-web && tar xzf "$T" -C /tmp/sp-web
+              [ -f /tmp/sp-web/build/index.html ] || { echo "✘ البناءُ بلا index.html"; exit 1; }
+              docker exec sp_frontend rm -rf /app/build.new /app/build.old
+              docker cp /tmp/sp-web/build sp_frontend:/app/build.new
+              docker exec sp_frontend sh -c 'mv /app/build /app/build.old && mv /app/build.new /app/build && rm -rf /app/build.old'
+              IMG="$(docker inspect -f '{{.Config.Image}}' sp_frontend)"
+              docker commit sp_frontend "$IMG" >/dev/null && echo "حُفظت في الصورة ${IMG}"
+              rm -rf /tmp/sp-web
+              # ‏D715: بصمةُ الواجهة المنشورة
               git rev-parse FETCH_HEAD:frontend > .web_built_tree 2>/dev/null || true
-              echo "الواجهةُ بُنيت ونُشرت" ;;
+              curl -s -o /dev/null -w "الواجهة → %{http_code}\n" -m 20 http://localhost/
+              echo "الواجهةُ نُشرت (مبنيّةً على GitHub)" ;;
             history_ab)
               # ══ ‏D706 (بأمر المالك: «التاريخُ جوهرُ توقّعات المستقبل»): الاختبارُ نفسُه على تاريخٍ أطول ══
               # الأساسُ المجمَّد (طريقةُ متوسّط النماذج) ثمّ المرشَّح، من 2019 وعلى آفاق 90 و180 و365 يوماً — قراءةٌ فقط.
