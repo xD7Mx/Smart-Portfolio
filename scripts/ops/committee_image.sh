@@ -11,6 +11,11 @@ if [ -z "${IMG}" ]; then
   echo "… لا صورةَ للخادم (‏sp_backend) — تُشغَّل اللجنةُ على المضيف"
   exec bash scripts/audit/run.sh "$@"
 fi
-echo "• اللجنةُ في صورة الخادم ${IMG} — المستودعُ للقراءة فقط"
-exec docker run --rm -e PYTHONDONTWRITEBYTECODE=1 -e TZ=Asia/Riyadh -v "$PWD":/repo:ro -w /repo \
-  --entrypoint bash "${IMG}" scripts/audit/run.sh "$@"
+# ‏D714: وملفُّ ‎.env‎ مُقنَّعٌ بملفٍّ فارغ — قِيس (run 38604710923): الإعداداتُ تقرأ ‎.env‎ من مجلّد العمل فرفضت مفاتيحَه الزائدة
+# وطبعت **قيمَها** في السجلّ (ومنها كلمةُ مرور قاعدة البيانات) — فحُذف السجلّ، ولا يرى الحرّاسُ أسرارَ الخادم بعدها.
+# و‎/app‎ هي ‎backend‎ المستودع كما في الحاوية العاملة (‏./backend:/app) — لا نسخةُ الصورة المخبوزة القديمة.
+MASK=()
+for f in .env backend/.env; do [ -f "$f" ] && MASK+=(-v "/dev/null:/repo/$f:ro"); done
+echo "• اللجنةُ في صورة الخادم ${IMG} — المستودعُ للقراءة فقط، وأسرارُ الخادم مُقنَّعة"
+exec docker run --rm -e PYTHONDONTWRITEBYTECODE=1 -e TZ=Asia/Riyadh -v "$PWD":/repo:ro "${MASK[@]}" \
+  -v "$PWD/backend":/app:ro -w /repo --entrypoint bash "${IMG}" scripts/audit/run.sh "$@"
