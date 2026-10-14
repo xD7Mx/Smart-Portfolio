@@ -46,7 +46,8 @@ export default function MainLayout() {
     drawerRef.current = false;
     setManual(false);
     setClosing(true);
-    setTimeout(() => { setDrawerRaw(false); setClosing(false); }, 180);
+    // ‏D719: مدّةُ الخروج نفسُها في الأنماط (‏.26s) — فلا تُزال القائمةُ قبل أن تتلاشى ولا تبقى بعدها
+    setTimeout(() => { setDrawerRaw(false); setClosing(false); }, 260);
   };
   const expanded = !collapsed || hovered;
   const t = useT();
@@ -300,7 +301,10 @@ export default function MainLayout() {
         {/* Mobile drawer */}
         {drawer && (
           <div className={"drawer-pop md:hidden fixed inset-0 z-50" + (closing ? " drawer-closing" : "") + (manual ? " drawer-drag" : "")}
+               {...(closing ? { "data-noghost": "" } : {})}
                onClick={() => setDrawer(false)}>
+            {/* ‏D719 (المالك): «عند الضغط في الجهة الأخرى لتختفي القائمة تظهر رعشة». قِيس: كانت تخرج بحركتها، ثمّ حين تُزال
+                ينسخها ‎exitMotion‎ ويُعيد الخروجَ من أوّله — فيعود الغطاءُ داكناً (‏0.93) ويبهت ثانيةً. فالخارجةُ بحركتها لا تُنسخ. */}
             <div ref={scrimRef} className="drawer-scrim absolute inset-0 bg-black/60 backdrop-blur-sm" />
             <aside ref={asideRef} dir={isRtl ? "rtl" : "ltr"} style={{ ["--drawer-from" as any]: isRtl ? "100%" : "-100%",
                                                                         ["--dsign" as any]: isRtl ? 1 : -1 }}

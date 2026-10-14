@@ -758,13 +758,18 @@ html.light .ticker-txt { color: var(--ink); }
 
 /* ── Mobile drawer animation ─────────────────────────────────── */
 @keyframes drawerIn { from { transform: translateX(var(--drawer-from, -12px)); opacity: .4; } to { transform: translateX(0); opacity: 1; } }
-.drawer-in { animation: drawerIn .26s cubic-bezier(.2,.8,.2,1); }
+.drawer-in, .drawer-pop > .mobile-drawer.drawer-in { animation: drawerIn .26s cubic-bezier(.2,.8,.2,1); }
 /* ‏D687: والخروجُ انزلاقٌ كالدخول، والغطاءُ يبهت معه — لا اختفاءَ مفاجئ */
-@keyframes drawerOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(var(--drawer-from, -100%)); opacity: .4; } }
-.drawer-out { animation: drawerOut .18s ease-in forwards; }
+/* ‏D719 (المالك): «يجب أن تتلاشى القائمةُ بانسيابية». كان اسمُ ‎drawerOut‎ معرَّفاً مرّتين في الملفّ فيغلب الأخيرُ (انزلاقٌ بلا
+   تلاشٍ)، وكان الخروجُ ‎.18s‎ متسارعاً ينتهي بقفزة. فصار حركةً واحدةً باسمها: تنزلق وتتلاشى معاً بمنحنًى هادئ، والغطاءُ يبهت معها. */
+@keyframes drawerSlideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(var(--drawer-from, -100%)); opacity: 0; } }
+/* والقاعدةُ العامّة ‎.fixed.inset-0 > *‎ (ظهورُ كلّ نافذة) كانت تغلب هذه الأصنافَ بخصوصيّتها وموضعها — فلم تُشغَّل حركةُ الخروج
+   قطّ: بالزرّ تختفي القائمةُ دفعةً، وبعد السحب تُعاد حركةُ ظهور الغطاء فيومض داكناً. فصارت أصنافُ القائمة أخصَّ منها. */
+.drawer-pop > .mobile-drawer.drawer-out { animation: drawerSlideOut .26s cubic-bezier(.4,0,.2,1) forwards; }
 @keyframes scrimIn { from { opacity: 0; } to { opacity: 1; } }
-.drawer-pop .drawer-scrim { animation: scrimIn .22s ease-out; }
-.drawer-closing .drawer-scrim { animation: scrimIn .18s ease-in reverse forwards; }
+@keyframes scrimOut { to { opacity: 0; } }
+.fixed.drawer-pop > .drawer-scrim { animation: scrimIn .22s ease-out; }
+.fixed.drawer-pop.drawer-closing > .drawer-scrim { animation: scrimOut .26s cubic-bezier(.4,0,.2,1) forwards; }
 /* ‏D712: «تتبعُ حركةَ الإصبع» — في السحب يحرّك الإصبعُ القائمةَ (‏transform بالشيفرة) فلا حركةَ محفوظة، وعناصرُها تلحقها بتأخّرٍ
    خفيف (‏--dp تقدّمُ السحب 0..1): تنزاح 22px وتبهت ثمّ تستقرّ — عمقٌ كالحركة البطيئة لا قفزة. */
 .drawer-drag .drawer-scrim, .drawer-drag .mobile-drawer { animation: none !important; }
@@ -782,6 +787,8 @@ html.light .ticker-txt { color: var(--ink); }
 .wbar-mark { transition: inset-inline-start .32s cubic-bezier(.2,.8,.2,1); }
 @media (prefers-reduced-motion: reduce) {
   .drawer-in, .drawer-out, .drawer-pop .drawer-scrim, .drawer-closing .drawer-scrim, .card-rise { animation: none; }
+  .drawer-pop > .mobile-drawer.drawer-in, .drawer-pop > .mobile-drawer.drawer-out, .fixed.drawer-pop > .drawer-scrim,
+  .fixed.drawer-pop.drawer-closing > .drawer-scrim { animation: none; }
   .wbar-fill, .wbar-mark { transition: none; }
 }
 

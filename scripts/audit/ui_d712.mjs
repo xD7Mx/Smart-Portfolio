@@ -102,6 +102,42 @@ await T("touchEnd");
 await sleep(400);
 const v1 = await state();
 say(!v1.on, "٧ والتمريرُ الرأسيّ لا يحرّكها");
+// ٩ ‏D719 (المالك): «عند الضغط في الجهة الأخرى لتختفي القائمة تظهر رعشة — يجب أن تتلاشى بانسيابية». يُقاس إطاراً إطاراً بعد
+// النقر على الغطاء: القائمةُ لا تعود إلى الداخل بعد أن بدأت تخرج، والغطاءُ لا يعود فيغمق بعد أن بدأ يبهت، وتنتهي في أقلّ من ثانية.
+for (const how of ["سحب", "زرّ"]) {
+  await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});   // صفحةٌ نظيفةٌ بعد التمرير
+  await page.waitForTimeout(1500);
+  if (how === "سحب") { await T("touchStart", 330, 500); await glide(330, 150, 500, 6, 30); await T("touchEnd"); }
+  else await page.locator("button:has(svg.lucide-menu)").first().click({ timeout: 3000 }).catch(() => {});
+  await sleep(700);
+  const o9 = await state();
+  await page.evaluate(() => {
+    window.__trace = []; const t0 = performance.now();
+    const tick = () => {
+      const ds = [...document.querySelectorAll(".mobile-drawer")].map(a => { const m = getComputedStyle(a).transform;
+        return m && m !== "none" ? parseFloat(m.split(",")[4]) : 0; });
+      const ss = [...document.querySelectorAll(".drawer-scrim")].map(x => +getComputedStyle(x).opacity);
+      window.__trace.push({ t: Math.round(performance.now() - t0), ds, ss });
+      if (performance.now() - t0 < 900) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await T("touchStart", 40, 420); await T("touchEnd");
+  await sleep(1000);
+  const tr = await page.evaluate(() => window.__trace);
+  let far = -1e9, back = 0, low = 1e9, rise = 0, ghosts = 0, endT = null;
+  // وتتلاشى فعلاً: إطاراتٌ وسيطةٌ للغطاء بين الداكن والصافي — لا اختفاءَ دفعةً واحدة
+  const mid = tr.filter(f => f.ss.length && f.ss[0] > 0.1 && f.ss[0] < 0.9).length;
+  for (const f of tr) {
+    if (f.ds.length > 1) ghosts++;
+    if (f.ds.length) { const v = Math.min(...f.ds); far = Math.max(far, v); back = Math.max(back, far - v); }
+    if (f.ss.length) { const v = Math.max(...f.ss); low = Math.min(low, v); rise = Math.max(rise, v - low); }
+    if (!f.ds.length && endT == null) endT = f.t;
+  }
+  say(o9.on && back <= 6 && rise <= 0.05 && mid >= 3 && endT != null && endT <= 600,
+      `٩ والإغلاقُ بالنقر خارجها (فُتحت بـ${how}) يتلاشى بانسيابية: لا عودةَ للقائمة ولا للغطاء، ولا نسخةَ تُعيد الحركة`,
+      `عودةُ القائمة ${Math.round(back)}px · عودةُ الغطاء ${rise.toFixed(2)} · إطاراتُ التلاشي ${mid} · بنسختين ${ghosts} · انتهت عند ${endT ?? "—"}ms`);
+}
 say(errs.length === 0, "٨ بلا خطأٍ في الصفحة", errs[0] || "");
 await browser.close();
 console.log(fail ? "\nالنتيجة: عطب ✖" : "\nالنتيجة: نظيف ✔");
