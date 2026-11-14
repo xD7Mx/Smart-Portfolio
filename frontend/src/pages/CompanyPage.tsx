@@ -27,6 +27,7 @@ import StockOpinion from "../components/analysis/StockOpinion";
 import clsx from "clsx";
 import DateInput from "../components/common/DateInput";
 import CheckBox from "../components/common/CheckBox";
+import FundingSplit, { useFundingSplit } from "../components/portfolio/FundingSplit";
 
 const fmt  = (n: number, dec = 2) => (n ?? 0).toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 const fmt0 = (n: number) => (n ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -62,6 +63,10 @@ const FUNDING_SOURCES = [
   { id: "",         label: "ضخ",              color: "var(--ink-muted)" },
   { id: "REINVEST", label: "إعادة استثمار",   color: "var(--chart-6)" },
 ];
+/* ‏D730: الشراءُ المقسَّم يُقال شقُّه بأسهمه — «إعادة استثمار 7 من 372» — لا وسمٌ يوهم أنّ الشراءَ كلَّه منها */
+const fundTag = (t: any) => (t.reinvest_qty != null && Number(t.reinvest_qty) < Number(t.quantity))
+  ? `إعادة استثمار ${Number(t.reinvest_qty).toLocaleString("en-US")} من ${Number(t.quantity).toLocaleString("en-US")}`
+  : "إعادة استثمار";
 const TX_LABEL: Record<string, { label: string; color: string }> =
   Object.fromEntries(TX_TYPES.map(t => [t.id, t]));
 
@@ -99,8 +104,9 @@ function Stat({ label, value, sub, icon: Icon, ic, color, cls = "" }: any) {
 function TxModal({ companyId, onClose }: { companyId: number; onClose: () => void }) {
   const qc = useQueryClient();
   const [type, setType] = useState("BUY");
-  const [fundingSource, setFundingSource] = useState("");
   const [f, setF] = useState({ shares: "", price: "", amount: "", factor: "2", date: new Date().toISOString().slice(0, 10) });
+  // ‏D730 (بأمر المالك): التمويلُ لا يُختار — يقسمه الخادمُ بين إعادة الاستثمار والسيولة بسعر التنفيذ
+  const fs = useFundingSplit(companyId, type === "BUY", f.shares, f.price, f.date);
   const [preSplitOk, setPreSplitOk] = useState(false);
   // سياق القرار: كم تملك · متوسط تكلفتك · نقدك المتاح. كانت البطاقة عمياء عنه
   // فتقرّر ثم تكتشف الخطأ بعد الإرسال.
@@ -132,14 +138,13 @@ function TxModal({ companyId, onClose }: { companyId: number; onClose: () => voi
   const changeType = (id: string) => {
     setType(id);
     setF(v => ({ ...v, shares: "", price: "", amount: "", factor: "2" }));
-    if (id !== "BUY") setFundingSource("");
   };
 
   const mut = useMutation({
     mutationFn: () => {
       const payload: any = { company_id: companyId, transaction_type: type, transaction_date: f.date };
       if (type === "BUY" || type === "SELL") { payload.shares = Number(f.shares); payload.price_per_share = Number(f.price); }
-      if (type === "BUY" && fundingSource) { payload.funding_source = fundingSource; }
+      if (type === "BUY") { payload.funding_source = "AUTO"; payload.expect_reinvest_qty = fs.split?.reinvest_qty; }
       if (type === "DIVIDEND") { payload.amount = Number(f.amount); }
       if (type === "BONUS") {
         payload.shares = Number(f.shares);
@@ -149,6 +154,7 @@ function TxModal({ companyId, onClose }: { companyId: number; onClose: () => voi
       return transactionsApi.add(payload).then(r => r.data);
     },
     onSuccess: () => { qc.invalidateQueries(); onClose(); },
+    onError: (e: any) => { if (e?.response?.status === 409) fs.refetch(); },
   });
 
   const baseValid =
@@ -164,7 +170,7 @@ function TxModal({ companyId, onClose }: { companyId: number; onClose: () => voi
     : type === "BUY" && cashCtx && addQty * (Number(f.price) || 0) > availCash
       ? `السيولة المتاحة ${fmt0(availCash)} لا تكفي.`
     : null;
-  const valid = baseValid && !blockReason;
+  const valid = baseValid && !blockReason && (type !== "BUY" || !!fs.split);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -185,20 +191,6 @@ function TxModal({ companyId, onClose }: { companyId: number; onClose: () => voi
             </button>
           ))}
         </div>
-        {type === "BUY" && (
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            {FUNDING_SOURCES.map(s => (
-              <button key={s.id} onClick={() => setFundingSource(s.id)}
-                className="py-1.5 rounded-lg text-[11px] font-bold transition-all border"
-                style={fundingSource === s.id
-                  ? { background: `color-mix(in srgb, ${s.color} 14%, transparent)`, color: s.color,
-                      borderColor: `color-mix(in srgb, ${s.color} 42%, transparent)` }
-                  : { borderColor: "var(--line)", color: "var(--ink-muted)" }}>
-                {s.label}
-              </button>
-            ))}
-          </div>
-        )}
         <div className="tx-context grid grid-cols-3 gap-2 mb-3 text-center">
           <div><p className="text-[10px] text-[var(--ink-muted)]">أسهمك</p><p className="text-xs font-bold text-[var(--ink)] tabular-nums">{fmt(holding?.total_shares ?? 0, 2)}</p></div>
           <div><p className="text-[10px] text-[var(--ink-muted)]">متوسط التكلفة</p><p className="text-xs font-bold text-[var(--ink)] tabular-nums">{fmt(holding?.average_cost ?? 0)}</p></div>
@@ -267,11 +259,14 @@ function TxModal({ companyId, onClose }: { companyId: number; onClose: () => voi
             </div>
           )}
           <div><label className="label">التاريخ</label><DateInput className="input" max={new Date().toISOString().slice(0, 10)} value={f.date} onChange={set("date")} /></div>
+          {/* ‏D730: التقسيمُ الآليّ بسعر التنفيذ — قبل التأكيد */}
+          {type === "BUY" && <FundingSplit split={fs.split} pending={fs.pending} error={fs.error} />}
         </div>
         {blockReason && baseValid && <p className="text-[var(--warn-ink)] text-xs mt-3">{blockReason}</p>}
         <button className="btn-primary w-full mt-4" disabled={!valid || mut.isPending} onClick={() => mut.mutate()}>
           {mut.isPending ? "جارٍ الحفظ…" : "تنفيذ العملية"}
         </button>
+        {mut.isError && <p className="text-[var(--neg-ink)] text-xs mt-2">{(mut.error as any)?.response?.data?.detail || "تعذّر الحفظ."}</p>}
       </div>
     </div>
   );
@@ -295,7 +290,7 @@ const auditSummary = (r: any) => {
   const base = `${typ} ${fmt(Number(x.quantity || 0), 2)} × ${fmt(Number(x.price || 0))}`;
   if (r.op !== "UPDATE" || !r.old || !r.new) return base;
   const keys: [string, string][] = [["quantity", "الكمية"], ["price", "السعر"], ["fees", "الرسوم"],
-    ["total_amount", "الإجمالي"], ["executed_at", "التاريخ"], ["funding_source", "التمويل"], ["notes", "الملاحظة"]];
+    ["total_amount", "الإجمالي"], ["executed_at", "التاريخ"], ["funding_source", "التمويل"], ["reinvest_qty", "أسهم إعادة الاستثمار"], ["notes", "الملاحظة"]];
   const ch = keys.filter(([k]) => String(r.old[k] ?? "") !== String(r.new[k] ?? ""))
     .map(([k, ar]) => `${ar}: ${r.old[k] ?? "—"} ← ${r.new[k] ?? "—"}`);
   return ch.length ? `${typ} · ${ch.join(" · ")}` : base;
@@ -507,7 +502,7 @@ function TxCard({ t, all }: { t: any; all: any[] }) {
           <button type="button" disabled={!isOwner} onClick={isOwner ? ed.open : undefined}
             title={isOwner ? "تعديل مصدر التمويل" : undefined}
             className="px-1.5 py-0.5 rounded text-[10px] font-semibold shrink-0"
-            style={{ background: "color-mix(in srgb, var(--chart-4) 14%, transparent)", color: "var(--chart-6)" }}>إعادة استثمار</button>
+            style={{ background: "color-mix(in srgb, var(--chart-4) 14%, transparent)", color: "var(--chart-6)" }}>{fundTag(t)}</button>
         )}
         <span className="text-[11px] text-[var(--ink-muted)] tabular-nums ms-auto" dir="ltr">
           {t.date ? new Date(t.date).toLocaleDateString("en-GB") : "—"}
@@ -585,7 +580,7 @@ function TxRow({ t, all }: { t: any; all: any[] }) {
             title={isOwner ? "تعديل مصدر التمويل" : undefined}
             className="ms-1 px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{
             background: "color-mix(in srgb, var(--chart-4) 14%, transparent)", color: "var(--chart-6)",
-          }}>إعادة استثمار</button>
+          }}>{fundTag(t)}</button>
         )}
       </td>
       <td className="td tabular-nums">{fmt(t.quantity, 2)}</td>

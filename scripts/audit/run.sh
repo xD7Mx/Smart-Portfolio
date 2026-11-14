@@ -346,6 +346,8 @@ python3 scripts/audit/finance_quality_d720.py || _note "$LINENO"
 python3 scripts/audit/cache_purge_d724.py || _note "$LINENO"
 # D725: تصحيحُ المركز نقطةُ مطابقةٍ في السجل — لا يمحوه تعديلٌ لاحق، ولا يُرفض بيعُ المصحَّح، ولا يُعدّ خطأً في فحص السلامة
 python3 scripts/audit/reconcile_point_d725.py || _note "$LINENO"
+python3 scripts/audit/auto_funding_d730.py || _note "$LINENO"   # ‏D730: تقسيمُ الشراء آليّاً بين إعادة الاستثمار والسيولة
+_node scripts/audit/auto_funding_ui_d730.mjs || _note "$LINENO"
 # D698: تقريرُ الشركة يحمل شموعَ الفترة كتقارير البنوك — ولا رسمَ مختلَقاً بلا شموع
 _node scripts/audit/ui_d698.mjs || _note "$LINENO"
 _node scripts/audit/ui_d711.mjs || _note "$LINENO"

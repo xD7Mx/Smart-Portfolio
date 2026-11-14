@@ -3170,3 +3170,12 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
   .alloc-px-reset, .unsaved-tag.alloc-px-tag { animation: none; }
   .input[data-role="alloc-price"] { transition: none; }
 }
+
+/* ══ ‏D730: تقسيمُ الشراء الآليّ في نافذة المعاملة ══ يظهر بانسيابٍ لا قفزة، بلغة لوحات البطاقة نفسِها */
+.funding-split {
+  border: 1px solid var(--hairline); border-radius: 12px; padding: 10px 12px;
+  background: color-mix(in srgb, var(--brand) 5%, transparent);
+  animation: cardIn .22s ease-out both;
+}
+.funding-split-err { color: var(--neg-ink); font-size: 12px; background: color-mix(in srgb, var(--neg-ink) 8%, transparent); }
+@media (prefers-reduced-motion: reduce) { .funding-split { animation: none; } }

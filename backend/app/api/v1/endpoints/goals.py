@@ -108,11 +108,8 @@ async def _year_income(db: AsyncSession, year: int) -> dict:
     # Not part of "total" (already counted at the original SELL) — shown
     # separately so the income figure makes clear how much of it didn't
     # stay as idle cash but was put back to work in the market this year.
-    profit_reinvested = sum(
-        float(t.total_amount or 0) for t in txs
-        if t.transaction_type == TransactionType.BUY
-        and t.funding_source in ("REINVEST", "DIVIDEND", "PROFIT")
-    )
+    from app.services.funding import reinvested_amount   # ‏D730: الشقُّ الموسوم وحده من الشراء المقسَّم
+    profit_reinvested = sum(reinvested_amount(t) for t in txs)
 
     bonus_txs = [t for t in txs if t.transaction_type == TransactionType.BONUS]
     bonus_value = 0.0

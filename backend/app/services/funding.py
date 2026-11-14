@@ -70,3 +70,14 @@ async def auto_split(db, company_id: int, qty: float, price: float, fees: float,
         "headroom": round(head, 2),             # ما يحتمله الحوضُ في تاريخ العملية
         "unit_cost": round(unit, 6),
     }
+
+
+def funding_suffix(t) -> str:
+    """وصفُ تمويل الشراء في السجلّ وكشف الحساب — من موضعٍ واحد: «(إعادة استثمار)» للشراء كلّه،
+    و«(منها N سهم إعادة استثمار)» للشراء المقسَّم (‏D730). وبلا وسم: لا شيء."""
+    if _typ(t) != "BUY" or getattr(t, "funding_source", None) not in REINVEST_TAGS:
+        return ""
+    rq, q = getattr(t, "reinvest_qty", None), float(getattr(t, "quantity", 0) or 0)
+    if rq is not None and float(rq) < q:
+        return f" (منها {float(rq):g} سهم إعادة استثمار)"
+    return " (إعادة استثمار)"

@@ -438,6 +438,62 @@ def _as_dt(value):
     return None
 
 
+def _pool_events(divs, txs) -> list[tuple]:
+    """أحداثُ الحوض (الوقت، الأولوية، المبلغ، المعرّف): التوزيعةُ وحصيلةُ البيع تُضيفان، والشراءُ الموسومُ يستهلك.
+    يقرؤها الحوضُ وسعةُ الشراء المؤرَّخ (‏reinvest_headroom) من مصدرٍ واحد."""
+    from app.models.transaction import TransactionType
+    from app.services.funding import reinvested_amount
+    events: list[tuple] = []
+    for d in divs:
+        amt = float(d.received_amount or 0)
+        when = _as_dt(d.payment_date) or _as_dt(d.created_at)
+        if amt and when:
+            events.append((when, 0, amt, None))
+    for t in txs:
+        when = _as_dt(t.executed_at) or _as_dt(t.created_at)
+        if not when:
+            continue
+        if t.transaction_type == TransactionType.SELL:
+            # الحصيلة كاملةً للعمليات الرابحة — نفس شرط المعيار الأول.
+            proceeds = sale_harvest(t)
+            if proceeds > 0:
+                events.append((when, 0, proceeds, None))
+        else:
+            amt = reinvested_amount(t)
+            if amt > 0:
+                events.append((when, 1, -amt, t.id))
+    return events
+
+
+async def reinvest_headroom(db, when) -> float:
+    """أقصى ما يأخذه شراءٌ جديدٌ في وقت ‏when من الحوض دون أن يُنقص تمويلَ شراءٍ موسومٍ بعده (‏D730).
+
+    الحوضُ زمنيّ: الشراءُ لا يستهلك إلا ما كان فيه لحظةَ تنفيذه. فشراءٌ مؤرَّخٌ في الماضي يأخذ من رصيدٍ أنفقت منه
+    مشترياتٌ لاحقة؛ ولو أخذ أكثرَ ممّا بقي بعد أشدّها لصار تمويلُ إحداها «مستحيلاً» بعد أن كان صحيحاً — عطبٌ صامتٌ في
+    عمليةٍ لم يلمسها المالك. فالسعةُ = أدنى رصيدٍ جارٍ من لحظة الإدخال إلى اليوم، ولا تتجاوز النقدَ المتاح."""
+    from sqlalchemy import select
+    from app.models.transaction import Transaction, Cash, Dividend
+    cash_row = (await db.execute(select(Cash).limit(1))).scalar_one_or_none()
+    cash = float(cash_row.available_cash or 0) if cash_row else 0.0
+    divs = (await db.execute(select(Dividend))).scalars().all()
+    txs = (await db.execute(select(Transaction))).scalars().all()
+    events = sorted(_pool_events(divs, txs), key=lambda e: (e[0], e[1]))
+    at = _as_dt(when)
+    running, head = 0.0, None
+    for w, prio, delta, _tid in events:
+        if head is None and at is not None and (w, prio) > (at, 1):
+            head = running                      # موضعُ الإدخال: بعد كلّ ما وقته ≤ وقتُه
+        if delta >= 0:
+            running += delta
+        else:
+            running -= min(running, -delta)
+        if head is not None:
+            head = min(head, running)
+    if head is None:
+        head = running
+    return max(0.0, min(head, cash))
+
+
 async def compute_reinvestment_pool(db, as_of=None) -> dict:
     """رصيد «إعادة الاستثمار» — **مقياس نقدٍ متاح للتوظيف، لا مقياس ربح**:
     حصيلة البيع الكلية + التوزيعات المستلمة، ناقصاً ما أُعيد توظيفه منه.
@@ -487,34 +543,14 @@ async def compute_reinvestment_pool(db, as_of=None) -> dict:
     # يعد داخلاً في حساب الحوض.
     realized_gains = sum(float(t.realized_gain or 0)
                          for t in txs if t.transaction_type == TransactionType.SELL and t.realized_gain)
-    tagged_total = sum(float(t.total_amount or 0)
-                       for t in txs
-                       if t.transaction_type == TransactionType.BUY
-                       and t.funding_source in ("REINVEST", "DIVIDEND", "PROFIT"))
+    # ‏D730: ما موّله الحوضُ من كلّ شراء — من المصدر الواحد (الشراءُ المقسَّم يُحسب شقُّه الموسوم وحده)
+    from app.services.funding import reinvested_amount
+    tagged_total = sum(reinvested_amount(t) for t in txs)
 
     # ── الأحداث مرتّبة زمنياً ──────────────────────────────────────────────
     # المفتاح: (الوقت, أولوية). الإضافة قبل الاستهلاك عند تساوي الوقت تماماً،
     # فتوزيعةٌ وشراءٌ في اللحظة نفسها يعني منطقياً أن التوزيعة موّلت الشراء.
-    events: list[tuple] = []
-    for d in divs:
-        amt = float(d.received_amount or 0)
-        when = _as_dt(d.payment_date) or _as_dt(d.created_at)
-        if amt and when:
-            events.append((when, 0, amt, None))
-    for t in txs:
-        when = _as_dt(t.executed_at) or _as_dt(t.created_at)
-        if not when:
-            continue
-        if t.transaction_type == TransactionType.SELL:
-            # الحصيلة كاملةً للعمليات الرابحة — نفس شرط المعيار الأول.
-            proceeds = sale_harvest(t)
-            if proceeds > 0:
-                events.append((when, 0, proceeds, None))
-        elif (t.transaction_type == TransactionType.BUY
-              and t.funding_source in ("REINVEST", "DIVIDEND", "PROFIT")):
-            amt = float(t.total_amount or 0)
-            if amt > 0:
-                events.append((when, 1, -amt, t.id))
+    events = _pool_events(divs, txs)
     # as_of: نافذةٌ تاريخية للتقارير — نفس المحرّك مقطوعاً عند تاريخ، لا حساباً
     # ثانياً يتباعد عنه. (تقرير الشهر الماضي يجب أن يقرأ ما كان صحيحاً وقتَه.)
     if as_of is not None:

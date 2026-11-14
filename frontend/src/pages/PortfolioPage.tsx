@@ -20,6 +20,7 @@ import { WealthW, WIDGET_MAP } from "../widgets/Widgets";
 import FlashPrice from "../components/common/FlashPrice";
 import LivePrice, { LiveValue } from "../components/common/LivePrice";
 import LiquidityTab from "../components/portfolio/LiquidityTab";
+import FundingSplit, { useFundingSplit } from "../components/portfolio/FundingSplit";
 import PortfolioNewsPage from "./PortfolioNewsPage";
 import PortfolioCalendarPage from "./PortfolioCalendarPage";
 import NotificationsPage from "./NotificationsPage";
@@ -519,19 +520,14 @@ const TX_TYPES = [
   { id: "BONUS",    label: "منحة أسهم",  color: "var(--chart-3)" },
   { id: "SPLIT",    label: "تجزئة",      color: "var(--chart-7)" },
 ];
-const FUNDING_SOURCES = [
-  // خياران لا ثلاثة: مالٌ جديد من خارج المحفظة، أو مالٌ عاد منها (توزيعات أو
-  // حصيلة تصفية معاً — النقد لا لون له فالتفريق بينهما تصنيفٌ لا واقعة).
-  { id: "",         label: "ضخ",              color: "var(--ink-muted)" },
-  { id: "REINVEST", label: "إعادة استثمار",   color: "var(--chart-6)" },
-];
+/* ‏D730 (بأمر المالك): لا اختيارَ يدويَّ لتمويل الشراء — يقسمه الخادمُ بين إعادة الاستثمار والسيولة (‏FundingSplit). */
 
 function TransactionModal({ company, onClose }: { company: any; onClose: () => void }) {
   const tr = useT();
   const qc = useQueryClient();
   const [type, setType] = useState("BUY");
-  const [fundingSource, setFundingSource] = useState("");
   const [f, setF] = useState({ shares: "", price: "", amount: "", factor: "2", date: new Date().toISOString().split("T")[0] });
+  const fs = useFundingSplit(company.id, type === "BUY", f.shares, f.price, f.date);
   const [preSplitOk, setPreSplitOk] = useState(false);
   // سياق القرار داخل البطاقة: أسهمك · متوسط تكلفتك · سيولتك.
   const { data: holdingCtx } = useQuery({
@@ -561,14 +557,13 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
   const changeType = (id: string) => {
     setType(id);
     setF(s => ({ ...s, shares: "", price: "", amount: "", factor: "2" }));
-    if (id !== "BUY") setFundingSource("");
   };
 
   const mutation = useMutation({
     mutationFn: () => {
       const payload: any = { company_id: company.id, transaction_type: type, transaction_date: f.date };
       if (type === "BUY" || type === "SELL") { payload.shares = Number(f.shares); payload.price_per_share = Number(f.price); }
-      if (type === "BUY" && fundingSource) { payload.funding_source = fundingSource; }
+      if (type === "BUY") { payload.funding_source = "AUTO"; payload.expect_reinvest_qty = fs.split?.reinvest_qty; }
       if (type === "DIVIDEND") { payload.amount = Number(f.amount); }
       if (type === "BONUS") {
         payload.shares = Number(f.shares);
@@ -593,6 +588,8 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
       qc.invalidateQueries();
       onClose();
     },
+    // ‏409: تغيّر النصيبُ بين المعاينة والحفظ — تُعاد المعاينةُ فيرى المالكُ الرقمَ الجديد قبل أن يؤكّد ثانيةً
+    onError: (e: any) => { if (e?.response?.status === 409) fs.refetch(); },
   });
 
   // ما سيحدث فعلاً بالأرقام — يُحسب من مدخلاتك ومن حيازتك الحالية.
@@ -618,7 +615,8 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
     : type === "BUY" && cashCtx && (Number(f.shares) * Number(f.price)) > availCash
       ? `السيولة المتاحة ${fmt(availCash)} لا تكفي.`
     : null;
-  const valid = baseValid && !blockReason;
+  // ‏D730: لا شراءَ بلا تقسيمٍ محسوبٍ من الخادم
+  const valid = baseValid && !blockReason && (type !== "BUY" || !!fs.split);
 
   const preview: { label: string; value: string } | null =
     (type === "BUY" || type === "SELL") && Number(f.shares) > 0 && Number(f.price) > 0
@@ -663,24 +661,21 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
               const lp  = Number(myAlloc.last_price) || 0;
               const total = Math.round(liq) + Math.round(rei);
               const shr = (v: number) => lp > 0 ? Math.floor(v / lp) : 0;
-              /* معاينةٌ حيّة لا اعتماد: اختيارُ «سيولة» أو «إعادة استثمار» وكتابةُ الكمية
-                 تُنقص الرقمَ هنا فوراً، ولا يُكتب شيءٌ حتى «تأكيد العملية»؛ والإلغاءُ يعيده. */
-              const live = type === "BUY" && addQty > 0;
-              const row = (label: string, src: string, base: number, color: string) => {
-                const on = type === "BUY" && fundingSource === src;
-                const after = on && live ? Math.max(0, base - addQty) : base;
+              /* معاينةٌ حيّة لا اعتماد (‏D730): التقسيمُ الآليّ يُنقص كلَّ صنفٍ بما يأخذه منه فوراً، ولا يُكتب
+                 شيءٌ حتى «تأكيد العملية». والصفّان عرضٌ لا اختيار — التمويلُ لا يُختار. */
+              const sp = type === "BUY" ? fs.split : undefined;
+              const row = (label: string, take: number | undefined, base: number, color: string) => {
+                const after = take != null ? Math.max(0, base - take) : base;
                 return (
-                  <button type="button" onClick={() => { if (type !== "BUY") changeType("BUY"); setFundingSource(src); }}
-                    className="flex items-center justify-start gap-2 w-full rounded-md px-1 min-h-[22px]"
-                    style={on ? { background: mixA(color, 10) } : undefined}>
+                  <div className="flex items-center justify-start gap-2 w-full rounded-md px-1 min-h-[22px]">
                     <span className="text-[9.5px] text-[var(--ink-muted)]">{label}</span>
                     <span className="text-[10px] font-bold tabular-nums" dir="ltr" style={{ color }}>
-                      {on && live && after !== base && (
+                      {after !== base && (
                         <span className="line-through opacity-60 me-1">{base.toLocaleString("en-US")}</span>
                       )}
                       {after.toLocaleString("en-US")} سهم
                     </span>
-                  </button>
+                  </div>
                 );
               };
               return (
@@ -689,8 +684,8 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
                     <span className="text-[9.5px] text-[var(--ink-muted)]">المبلغ</span>
                     <span className="text-[10px] font-bold tabular-nums" dir="ltr">{fmt(total)}</span>
                   </div>
-                  {row("سيولة", "", shr(liq), "var(--pos-ink)")}
-                  {row("إعادة استثمار", "REINVEST", shr(rei), "var(--brand-ink)")}
+                  {row("سيولة", sp?.liquidity_qty, shr(liq), "var(--pos-ink)")}
+                  {row("إعادة استثمار", sp?.reinvest_qty, shr(rei), "var(--brand-ink)")}
                 </div>
               );
             })()}
@@ -708,19 +703,6 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
               </button>
             ))}
           </div>
-          {type === "BUY" && (
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              {FUNDING_SOURCES.map(s => (
-                <button key={s.id} onClick={() => setFundingSource(s.id)}
-                  className="py-1.5 rounded-lg text-[11px] font-bold transition-all"
-                  style={fundingSource === s.id
-                    ? { background: mixA(s.color, 13), color: s.color }
-                    : { background: "transparent", color: "var(--ink-muted)" }}>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          )}
         </Field>
 
         {(type === "BUY" || type === "SELL") && (
@@ -757,6 +739,9 @@ function TransactionModal({ company, onClose }: { company: any; onClose: () => v
 
         {/* لا تاريخ مستقبلي: يُقفل في المتصفح أيضاً لا في الخادم وحده. */}
         <Field label={tr("port.txDate")}><DateInput className="input" max={new Date().toISOString().slice(0, 10)} value={f.date} onChange={upd("date")} /></Field>
+
+        {/* ‏D730: التقسيمُ الآليّ بسعر التنفيذ — قبل التأكيد */}
+        {type === "BUY" && <FundingSplit split={fs.split} pending={fs.pending} error={fs.error} />}
 
         {/* ‏D709 (بأمر المالك): لا سطرَ تبريرٍ في بطاقة المعاملة — الأرقامُ ومعاينتُها تكفي */}
         {/* معاينة الأثر قبل التأكيد — لكل الأنواع لا للشراء والبيع وحدهما.

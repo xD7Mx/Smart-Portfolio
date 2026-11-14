@@ -168,6 +168,9 @@ export const transactionsApi = {
   list:   (companyId?: number, limit = 500) =>
     api.get<APIResponse>("/transactions" + (companyId ? `?company_id=${companyId}&limit=${limit}` : `?limit=${limit}`)),
   add:    (data: any) => api.post<APIResponse>("/transactions", data),
+  // ‏D730: معاينةُ تقسيم الشراء بين إعادة الاستثمار والسيولة — الدالّةُ نفسُها التي تحسب عند الحفظ
+  fundingPreview: (p: { company_id: number; quantity: number; price: number; transaction_date?: string }) =>
+    api.get<APIResponse>("/transactions/funding-preview", { params: p }),
   get:    (id: number) => api.get<APIResponse>(`/transactions/${id}`),
   // السببُ يُقيَّد في سجلّ التدقيق (D481)
   remove: (id: number, reason?: string) => api.delete<APIResponse>(`/transactions/${id}`, { params: reason ? { reason } : {} }),

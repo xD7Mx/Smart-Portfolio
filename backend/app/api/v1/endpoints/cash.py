@@ -90,17 +90,14 @@ async def get_cash_history(limit: int = 30, db: AsyncSession = Depends(get_db)):
         .where(Transaction.transaction_type.in_([TransactionType.BUY, TransactionType.SELL, TransactionType.DIVIDEND]))
         .order_by(Transaction.executed_at.desc()).limit(limit)
     )).scalars().all()
-    # الوسم الموحّد، والقديمان يُعرضان بنفس الصياغة فلا يبدو السجلّ نصفين.
-    source_suffix = {"REINVEST": " (إعادة استثمار)",
-                     "DIVIDEND": " (إعادة استثمار)",
-                     "PROFIT": " (إعادة استثمار)"}
     labels = {"BUY": "شراء", "SELL": "بيع", "DIVIDEND": "توزيع نقدي"}
     for t in txs:
         amt = float(t.total_amount or 0)
         signed = -amt if t.transaction_type == TransactionType.BUY else amt
         label = labels.get(t.transaction_type, t.transaction_type)
         if t.transaction_type == TransactionType.BUY and t.funding_source:
-            label += source_suffix.get(t.funding_source, "")
+            from app.services.funding import funding_suffix   # ‏D730: والشراءُ المقسَّم يُقال شقُّه بأسهمه
+            label += funding_suffix(t)
         items.append({
             "id": t.id,
             "kind": "transaction",
@@ -195,6 +192,7 @@ async def cash_statement(date_from: str | None = None, date_to: str | None = Non
                       "label": "إيداع" if dep else "سحب", "note": l.note, "symbol": None, "company": None,
                       "quantity": None, "price": None, "amount": float(l.amount or 0) * (1 if dep else -1)})
     labels = {"BUY": "شراء", "SELL": "بيع", "DIVIDEND": "توزيع نقدي"}
+    from app.services.funding import funding_suffix as _fsuf
     txs = (await db.execute(
         select(Transaction).options(selectinload(Transaction.company))
         .where(Transaction.transaction_type.in_([TransactionType.BUY, TransactionType.SELL, TransactionType.DIVIDEND]))
@@ -202,7 +200,8 @@ async def cash_statement(date_from: str | None = None, date_to: str | None = Non
     for t in txs:
         amt = float(t.total_amount or 0)
         moves.append({"at": t.executed_at, "ref": f"T{t.id}", "type": str(t.transaction_type.value if hasattr(t.transaction_type, "value") else t.transaction_type),
-                      "label": labels.get(t.transaction_type, t.transaction_type), "note": t.notes,
+                      # ‏D730: تمويلُ الشراء في الكشف كما في السجلّ — من الوصف الواحد
+                      "label": labels.get(t.transaction_type, t.transaction_type) + _fsuf(t), "note": t.notes,
                       "symbol": t.company.symbol if t.company else None,
                       "company": t.company.company_name if t.company else None,
                       "quantity": float(t.quantity or 0) or None, "price": float(t.price or 0) or None,

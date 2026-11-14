@@ -30,7 +30,7 @@ _RIYADH = timezone(timedelta(hours=3))
 # لون له — التوزيعات وحصيلة التصفية تختلطان في حسابٍ واحد، فالتمييز بينهما عند
 # الشراء تصنيفٌ يدوي لا واقعة يمكن إثباتها. الفارق الذي يستحقّ البقاء واحد:
 # مالٌ عاد من محفظتك (REINVEST) مقابل رأس مال جديد من خارجها (بلا وسم).
-REINVEST_TAGS = ("REINVEST", "DIVIDEND", "PROFIT")
+from app.services.funding import REINVEST_TAGS, reinvested_amount   # ‏D730: مصدرٌ واحدٌ للوسوم ولما موّله الحوض
 
 
 async def backfill_realized_gains(db: AsyncSession) -> int:
@@ -97,6 +97,10 @@ class TransactionCreate(BaseModel):
     # وNone = رأس مال جديد من خارجها. الوسمان القديمان DIVIDEND/PROFIT يبقيان
     # مقبولين ومقروءين للصفقات المسجَّلة سابقاً، فلا يتغيّر رقم واحد في سجلّك.
     funding_source: Optional[str] = None
+    # ‏D730: «AUTO» في funding_source = يقسم الخادمُ الشراءَ بين إعادة الاستثمار والسيولة. والعددُ الذي رآه المالك في
+    # المعاينة يُرسَل هنا، فإن خالفه حسابُ لحظة الحفظ رُفضت العملية ولم يُحفظ شيء. و‏reinvest_qty يكتبه الخادمُ وحده.
+    expect_reinvest_qty: Optional[float] = None
+    reinvest_qty: Optional[float] = None
     notes: Optional[str] = None
     executed_at: Optional[datetime] = None
     transaction_date: Optional[str] = None
@@ -307,8 +311,7 @@ async def _replay(db: AsyncSession, company_id: int, persist_gains: bool = True)
         if typ == "BUY":
             invested += qf * price + fees
             qty += qf
-            if t.funding_source in REINVEST_TAGS:
-                profit_reinvested += (qf * price + fees)
+            profit_reinvested += reinvested_amount(t)   # ‏D730: الشقُّ الموسوم وحده من الشراء المقسَّم
         elif typ == "SELL":
             avg = (invested / qty) if qty else 0
             sell_qty = min(qf, qty)  # never let a replay drive shares negative
@@ -406,7 +409,8 @@ async def _apply(db: AsyncSession, tx: TransactionCreate) -> tuple[float, float 
         # need no extra bookkeeping since the originating DIVIDEND
         # transaction already recorded that income.
         if tx.funding_source in REINVEST_TAGS:
-            h.profit_reinvested = float(h.profit_reinvested or 0) + total
+            _part = total if tx.reinvest_qty is None else total * min(float(tx.reinvest_qty), tx.quantity) / tx.quantity
+            h.profit_reinvested = float(h.profit_reinvested or 0) + _part
 
     elif t == "SELL":
         if not tx.quantity or not tx.price:
@@ -499,6 +503,7 @@ async def get_transactions(company_id: int | None = None, limit: int = 500, offs
         "quantity": float(t.quantity or 0), "price": float(t.price or 0),
         "total": float(t.total_amount or 0), "notes": t.notes,
         "funding_source": t.funding_source,
+        "reinvest_qty": (float(t.reinvest_qty) if t.reinvest_qty is not None else None),   # ‏D730
         # الربح المحقّق للبيع: يُحسب ويُخزَّن ويغذّي الدخل السنوي والتقارير،
         # لكنه لم يكن يظهر في سجلّ العمليات إطلاقاً — يرى المالك حصيلة البيع
         # (9,140) ولا يرى ربحه منها (2,300)، فيقرأ الحصيلة ربحاً. الفرق بينهما
@@ -512,6 +517,22 @@ async def get_transactions(company_id: int | None = None, limit: int = 500, offs
         data=items,
         message=f"total={total};limit={limit};offset={offset};has_more={int(offset + len(txs) < total)}",
     )
+
+
+@router.get("/funding-preview")
+async def funding_preview(company_id: int, quantity: float, price: float, fees: float = 0,
+                          transaction_date: str | None = None, db: AsyncSession = Depends(get_db)):
+    """معاينةُ التقسيم الآليّ لشراءٍ قبل تأكيده (‏D730) — الدالّةُ نفسُها التي تحسب عند الحفظ، بالوقت نفسِه
+    (‏TransactionCreate يحلّ التاريخَ إلى وقتٍ كما يحلّه عند الحفظ). تقرأ ولا تكتب."""
+    from app.services.funding import auto_split
+    if not (quantity > 0 and price > 0) or fees < 0:
+        raise HTTPException(422, "الكمية والسعر يجب أن يكونا أكبر من صفر.")
+    try:
+        d = TransactionCreate(company_id=company_id, transaction_type="BUY", quantity=quantity, price=price, fees=fees,
+                              transaction_date=transaction_date)
+    except ValueError as e:                 # تاريخٌ مستقبليّ أو غيرُ مقروء — كما يُرفض عند الحفظ
+        raise HTTPException(422, str(e).split("\n")[-1][:200])
+    return success_response(data=await auto_split(db, company_id, quantity, price, fees, d.executed_at))
 
 
 @router.post("")
@@ -566,6 +587,21 @@ async def add_transaction(data: TransactionCreate, db: AsyncSession = Depends(ge
                 f"فإن كنت أدخلتها بكمياتٍ مقروءةٍ من الوسيط بعد التجزئة فستُضرب "
                 f"مرّتين وتفسد حيازتك. أكّد أن الكميات السابقة مسجَّلة قبل التجزئة.",
             )
+    # ‏D730: التقسيمُ الآليّ — يُحسب هنا بالمدخلات نفسِها التي حسبتها المعاينة، وقبل أن يتغيّر شيء
+    split = None
+    data.reinvest_qty = None                         # لا يكتبه العميلُ أبداً
+    if data.transaction_type == "BUY" and (data.funding_source or "").upper() == "AUTO":
+        if not (data.quantity and data.quantity > 0 and data.price and data.price > 0):
+            raise HTTPException(422, "quantity and price are required for BUY")
+        from app.services.funding import auto_split
+        split = await auto_split(db, data.company_id, data.quantity, data.price, data.fees or 0, data.executed_at)
+        if data.expect_reinvest_qty is not None and abs(float(data.expect_reinvest_qty) - split["reinvest_qty"]) > 1e-9:
+            raise HTTPException(409, f"تغيّر نصيبُ الشركة من إعادة الاستثمار منذ المعاينة: كان {data.expect_reinvest_qty:g} سهماً "
+                                     f"وصار {split['reinvest_qty']} — راجع المعاينة وأكّد من جديد. لم يُحفظ شيء.")
+        data.funding_source = "REINVEST" if split["reinvest_qty"] > 0 else None
+        data.reinvest_qty = float(split["reinvest_qty"]) if split["reinvest_qty"] > 0 else None
+    elif data.transaction_type == "BUY" and data.funding_source not in (None, "", *REINVEST_TAGS):
+        raise HTTPException(422, "وسم تمويل غير معروف.")
     total, realized_gain, div_row = await _apply(db, data)
     tx = Transaction(
         company_id=data.company_id,
@@ -574,7 +610,8 @@ async def add_transaction(data: TransactionCreate, db: AsyncSession = Depends(ge
         price=data.price or 0,
         fees=data.fees,
         total_amount=total,
-        funding_source=data.funding_source if data.transaction_type == "BUY" else None,
+        funding_source=(data.funding_source or None) if data.transaction_type == "BUY" else None,
+        reinvest_qty=data.reinvest_qty if data.transaction_type == "BUY" else None,
         realized_gain=realized_gain,
         notes=data.notes,
         executed_at=data.executed_at,
@@ -603,7 +640,7 @@ async def add_transaction(data: TransactionCreate, db: AsyncSession = Depends(ge
                 invalidate_valuations(_sym)
         except Exception:                                         # noqa: BLE001
             pass
-    return success_response(data={"id": tx.id}, message="Transaction recorded.")
+    return success_response(data={"id": tx.id, "split": split}, message="Transaction recorded.")
 
 
 @router.get("/tag-audit")
@@ -730,6 +767,7 @@ async def untag_transactions(data: UntagRequest, db: AsyncSession = Depends(get_
             continue
         if t.funding_source:
             t.funding_source = None
+            t.reinvest_qty = None          # ‏D730: الوسمُ وشقُّه يُزالان معاً
             changed += 1
     if changed:
         await db.commit()
@@ -919,6 +957,13 @@ async def patch_transaction(tx_id: int, data: TransactionPatch,
         cash.available_cash = float(cash.available_cash or 0) + delta
         cash.total_cash = float(cash.total_cash or 0) + delta
 
+    # ‏D730: الشقُّ الممَوَّل من إعادة الاستثمار أسهمٌ — فتعديلُ السعر يتبعه مبلغُه وحده. ويُمسح حين يتغيّر الوسمُ فعلاً
+    # (بقاؤه على شراءٍ صار كلُّه موسوماً أو بلا وسم يُفسد الحوض)، ويُقصّ إلى الكمية إن نقصت عنه. أمّا حفظُ الوسم نفسِه
+    # كما هو (نافذةُ التحرير ترسله مع كلّ حفظ) فلا يمسّه — وإلّا صار الشراءُ المقسَّم كلُّه «إعادة استثمار» بصمت.
+    if new_funding != tx.funding_source:
+        tx.reinvest_qty = None
+    elif tx.reinvest_qty is not None:
+        tx.reinvest_qty = min(float(tx.reinvest_qty), qty)
     tx.quantity = qty
     tx.price = price
     tx.fees = fees
@@ -963,6 +1008,7 @@ async def patch_transaction(tx_id: int, data: TransactionPatch,
         "id": tx.id, "quantity": float(tx.quantity or 0), "price": float(tx.price or 0),
         "fees": float(tx.fees or 0), "total": float(tx.total_amount or 0),
         "funding_source": tx.funding_source,
+        "reinvest_qty": (float(tx.reinvest_qty) if tx.reinvest_qty is not None else None),
         "date": tx.executed_at.isoformat() if tx.executed_at else None,
     }, message="تم حفظ التعديل.")
 
