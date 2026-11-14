@@ -28,7 +28,8 @@ check('watchlist:     { to: "/watchlist",     icon: CandlestickChart, key: "nav.
       and not re.search(r'^\s*chart:\s*\{ to: "/chart"', ml, re.M) and '"nav.watchlist":   { ar: "غرفة التداول"' in rd("i18n.ts"),
       "١ «غرفة التداول» بأيقونة الرسم البيانيّ في القائمة، ولا بندَ مستقلّاً للرسم")
 check('<Route path="/chart"          element={<Navigate to="/watchlist?tab=chart" replace />} />' in app
-      and '["chart", "الرسم البياني", CandlestickChart]' in wp and "<ChartPage embedded />" in wp and "{!embedded && (" in cp,
+      # ‏D732 (المالك 2026-11-14): التبويبُ صار «الرسم والقوائم» — الرسمُ وقوائمُ المراقبة معاً (‏TradeRoom) — وهو الافتراض
+      and '["chart", "الرسم والقوائم", CandlestickChart]' in wp and "<TradeRoom />" in wp and "{!embedded && (" in cp,
       "٢ والرسمُ تبويبٌ داخليّ فيها بعنوانٍ واحد، ورابطُه القديم يفتحه هناك")
 # ‏D712 (المالك): «تتبع حركةَ الإصبع» — فالعقدُ صار: الحكمُ أفقيٌّ أوّلاً، والضغطةُ المطوّلةُ لا تحرّكها، والاتّجاهُ باللغة؛
 # والسلوكُ نفسُه يقيسه اللمسُ الحقيقيّ في ui_d712.mjs وui_d683.mjs

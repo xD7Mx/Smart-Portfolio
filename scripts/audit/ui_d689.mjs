@@ -60,7 +60,7 @@ const mk = await switchMoves("/market", "مفكرة السوق", "div.flex.gap-1
 say(mk > 0, "٢ وتبويباتُ السوق كذلك", `${mk} حركة`);
 
 // ورقةُ السهم: تصعد عند الفتح، وتبقى لحظةَ الإغلاق بحركة خروجها ثمّ تزول
-await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+await page.goto(`http://localhost:${PORT}/watchlist?tab=board`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
 await page.waitForTimeout(2200);
 const card = page.locator("[data-sort-key] button").first();
 await card.click({ timeout: 5000 }).catch(() => {});

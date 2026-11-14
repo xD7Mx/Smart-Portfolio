@@ -150,7 +150,7 @@ export default function LiquidityTab({ onRecord }: {
       </div>
 
       {!rows.length ? (
-        <div className="text-sm text-[var(--ink-muted)] py-6 text-center">لا أوزانَ مستهدفة بعد — حدّدها في «التوزيع النسبي».</div>
+        <div className="text-sm text-[var(--ink-muted)] py-6 text-center">لا أوزانَ مستهدفة بعد.</div>
       ) : (
         <div className="space-y-2" data-role="liq-orders">
           {rows.map((r: any, i: number) => {

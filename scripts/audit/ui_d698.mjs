@@ -64,7 +64,7 @@ for (const withCandles of [true, false]) {
     return r.fulfill(body([]));
   });
   await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe"); } catch { } });
-  await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+  await page.goto(`http://localhost:${PORT}/watchlist?tab=board`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2200);
   await page.locator('[data-sort-key="2222"]').first().click({ timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(1500);

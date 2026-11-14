@@ -65,7 +65,7 @@ for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isM
   await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe"); } catch { } });
 
   // ١ · المراقبةُ قسمٌ ببطاقاتٍ: اثنتان في الصفّ على الجوال، وثلاثٌ على الحاسوب
-  await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+  await page.goto(`http://localhost:${PORT}/watchlist?tab=board`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2500);
   const wl = await page.evaluate(() => {
     const W = document.documentElement.clientWidth;

@@ -181,7 +181,7 @@ export default function TradeRoom() {
           })}
           {!rows.length && (
             <div className="text-[12px] text-[var(--ink-muted)] text-center py-6">
-              {gid != null ? (isFetching ? "…" : "القائمةُ فارغة — أضف إليها بالبحث.") : "لا شركات."}
+              {gid != null ? (isFetching ? "…" : "القائمةُ فارغة.") : "لا شركات."}
             </div>
           )}
         </div>
