@@ -7,7 +7,7 @@
     ‏1072 ملفّاً: مذكّراتُ نتائج الشركات، والقطاعات، والاقتصاد، والتحليلُ الفنيّ، واليوميُّ والشهريّ.
     والتاريخُ في الجدول شهرٌ-يومٌ-سنة (‏«03-07-2024» لملفّ daily-07-03-2024 = ‏7 مارس).
   • جدوى للاستثمار — «التقارير الاقتصادية» بطاقاتٌ: عنوانٌ · `<time datetime>` · نوعٌ · ملفّ.
-  • الراجحي المالية — قائمةُ البحوث من نداء `ListingAPI/GetResearchListing` المذكور في صفحة «البحوث» نفسِها.
+  • الراجحي المالية — قائمةُ البحوث من نداء GraphQL ‏«SearchAndReports» الذي تطلبه صفحةُ «البحوث» نفسُها (‏D733).
   • الأهلي كابيتال: بوّابةُ أبحاثٍ بتسجيل دخول، والرياض المالية تُرسم بسكربت — فلا تُقرأ ولا يُدّعى أنها قُرئت.
 
 كلُّ بندٍ بجهته وتاريخه ورابط ملفّه الأصليّ. لا يُلخَّص ما لم يُقرأ، ولا يُختلق عنوانٌ ولا تاريخ.
@@ -28,7 +28,6 @@ JADWA = "https://www.jadwa.com"
 JADWA_PAGES = (JADWA + "/ar/economic-reports", JADWA + "/ar/special-reports")
 ARC = "https://www.alrajhi-capital.sa"
 ARC_PAGE = ARC + "/research"
-ARC_API = ARC + "/sitecore/api/ListingAPI/GetResearchListing"
 
 # الصنفُ من اسم الملفّ والعنوان — والأخصُّ أوّلاً
 _KINDS = (
@@ -141,64 +140,6 @@ def jadwa_items(page: str) -> list[dict]:
     return out
 
 
-def arc_params(page: str) -> list[dict]:
-    """معاملاتُ نداء قائمة البحوث من صفحة «البحوث» نفسِها — لا تُحفظ في الشيفرة (FETCH_METHOD §٢).
-
-    قِيس: المعرِّفُ في `data-parentId` واللغةُ في `data-lang` على نموذج البحث. والمرشِّحاتُ الفارغةُ تُجرَّب
-    بصورتيها (فارغةً ثمّ «0» كما يكتب سكربتُ الصفحة للتاريخ) — والردُّ يحكم أيُّهما يُقبل."""
-    pid = re.search(r"data-parentId=[\"']([^\"']{6,80})[\"']", page or "", re.I) or \
-        re.search(r"parentId\s*[=:]\s*['\"]([^'\"]{6,80})['\"]", page or "")
-    if not pid:
-        return []
-    lang = re.search(r"data-lang=[\"']([a-zA-Z-]{2,8})[\"']", page or "")
-    size = re.search(r'data-pagesize=["\']?(\d{1,3})', page or "", re.I)
-    base = {"pageNo": 1, "pageSize": max(int(size.group(1)) if size else 12, 30), "date": "0", "keyword": "",
-            "culture": lang.group(1) if lang else "ar", "parentId": pid.group(1)}
-    return [{**base, "category": "", "sector": "", "company": ""},
-            {**base, "category": "0", "sector": "0", "company": "0"}]
-
-
-def _leaves(x, path=()):
-    """كلُّ نصٍّ في الكائن بمساره — فالرابطُ والتاريخُ يُقرآن أينما تداخلا (‏Sitecore يلفّ كلَّ حقلٍ في `__interceptors`)."""
-    if isinstance(x, dict):
-        for k, v in x.items():
-            yield from _leaves(v, path + (str(k),))
-    elif isinstance(x, list):
-        for v in x:
-            yield from _leaves(v, path)
-    elif isinstance(x, str):
-        yield path, x
-
-
-def arc_items(raw: str) -> list[dict]:
-    """ردُّ قائمة البحوث: لكلّ بندٍ له «Title» يُقرأ من شجرته رابطُ ملفّه وتاريخُه وصنفُه — بالمعنى لا بالمسار المفترَض.
-
-    قِيس: `{"Items":[{"__interceptors":[{"Values":{"Title":…,"Companies":[…],"Categories":[{…"Values":{"Name":"Daily Arabic"…`."""
-    try:
-        data = json.loads(raw or "null")
-    except Exception:                                             # noqa: BLE001
-        return []
-    items = data.get("Items") if isinstance(data, dict) else data
-    out: list[dict] = []
-    for it in items if isinstance(items, list) else []:
-        lv = list(_leaves(it))
-        title = next((v for p, v in lv if p and p[-1] == "Title" and "Categories" not in p and "Companies" not in p), None)
-        link = next((v for p, v in lv if "Categories" not in p and re.search(r"\.pdf($|\?)|/-/media/", v, re.I)), None)
-        when = next((v for p, v in lv if p and "date" in p[-1].lower() and re.search(r"20\d\d", v)), None)
-        if not (title and link and when):
-            continue
-        d = re.search(r"(20\d\d)-?(\d\d)-?(\d\d)", when)
-        day = f"{d.group(1)}-{d.group(2)}-{d.group(3)}" if d else _mdy(when)
-        if not day:
-            continue
-        cat = next((v for p, v in lv if "Categories" in p and p[-1] == "Name"), "")
-        k = kind_of(cat, link, title)
-        out.append({"title": _txt(title), "kind": k, "url": link if link.startswith("http") else ARC + link,
-                    "date": day, "company": _company(title) if k == "تقرير شركة" else None,
-                    "source": "الراجحي المالية"})
-    return out
-
-
 async def _ajc() -> list[dict]:
     from app.services.tadawul_http import smart_fetch
     st, body = await smart_fetch(AJC_PAGE, warm=AJC + "/ar", referer=AJC + "/ar", timeout=45)
@@ -215,40 +156,139 @@ async def _jadwa() -> list[dict]:
     return out
 
 
-# ‏D664: قِيس (opinions_debug_door) أنّ القائمةَ بلا فئةٍ يوميٌّ وحدَه، وأنّ «بحوثَ الأسهم» المنشورةَ للعموم آخرُها 2019-12
-# و«بحوثَ الاقتصاد» آخرُها 2021-03 — فلا تُطلب كلَّ ساعةٍ لتُسقطها نافذةُ السنة. وآراءُ الراجحي المالية الحديثة في جدولها
-# لدى «أرقام» (`analyst_opinions.py`).
-ARC_CATS: tuple = ()
+
+
+# ══ الراجحي المالية بعد تغيّر موقعها (‏D733 · المالك 2026-11-14) ══
+# قِيس (arc_site_door · arc_graph_door): الصفحةُ صارت Next.js على Sitecore JSS؛ لا ‏data-parentId ولا ‏ListingAPI. والقائمةُ
+# نداءٌ واحد: ‎POST /sitecore/api/graph/edge?sc_apikey=…‎ باستعلام GraphQL ‏«SearchAndReports» — ولكلّ بندٍ حقلان بروابط وسائط:
+# ‏«DownloadLink» ملفُّ التقرير، و«icon» صورةُ «اشترك/حمّل» (‏arb-subscribe-report-download.png). وكان القارئُ القديمُ يأخذ أوّلَ
+# رابطٍ ‎/-/media/‎ في شجرة البند فيلتقط الأيقونة — وهو ما رآه المالك: «تخرج صورةُ أيقونة المشاركة». فالرابطُ هنا حقلُ
+# التحميل وحده، ويُقبل ملفَّ PDF وحده.
+ARC_GRAPH = ARC + "/sitecore/api/graph/edge"
+_GUID = r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}"
+# جذرُ البحوث وقالبُ بندها كما قِيسا في استعلام الصفحة (2026-11-14) — احتياطٌ إن لم يُقرآ من سكربتها
+ARC_ROOT_MEASURED = "{E771FC1D-B3C8-4BCD-B6E8-E57A753FC6B9}"
+ARC_TEMPLATE_MEASURED = "{8B6A8870-0EA1-4C6E-9174-94A1FC91D1B0}"
+
+
+def arc_discover(texts: list[str]) -> dict:
+    """من الصفحة وسكربتاتها: مفتاحُ الواجهة العامّ (يُرسَل من متصفّح كلّ زائر — لا يُحفظ في الشيفرة)، وجذرُ البحوث وقالبُها."""
+    out: dict = {}
+    for t in texts:
+        t = t or ""
+        if "key" not in out:
+            m = (re.search(r"sc_apikey=(" + _GUID + r")", t)
+                 or re.search(r"(?:sc_apikey|apiKey|sitecoreApiKey|SITECORE_API_KEY)[\"'\s:=,]{1,6}\{?(" + _GUID + r")", t, re.I))
+            if m:
+                out["key"] = m.group(1)
+        if "root" not in out:
+            m = re.search(r"_path\\?[\"']?\s*,\s*value\s*:\s*\\?[\"']?(\{" + _GUID + r"\})", t)
+            if m:
+                out["root"] = m.group(1)
+        if "template" not in out:
+            m = re.search(r"_templates\\?[\"']?\s*,\s*value\s*:\s*\\?[\"']?(\{" + _GUID + r"\})", t)
+            if m:
+                out["template"] = m.group(1)
+    return out
+
+
+def arc_query(root: str, template: str, first: int = 50, after: str | None = None, lang: str = "ar") -> str:
+    """استعلامُ الصفحة نفسُه (‏SearchAndReports) بحقول البند التي تُقرأ — والترتيبُ بالتاريخ تنازلياً."""
+    aft = f' after:"{after}"' if after else ""
+    return ("query SearchAndReports { search( where: { AND: [ { name: \"_language\", value:\"" + lang + "\" } "
+            "{ name: \"_path\", value: \"" + root + "\", operator: CONTAINS }, "
+            "{name: \"_templates\", value: \"" + template + "\",operator: EQ} ] } "
+            f"first: {int(first)}{aft} orderBy: {{ name: \"Date\", direction: DESC }} ) "
+            "{ total pageInfo { endCursor hasNext } results { id name "
+            "title: field(name: \"title\") { ... on TextField { value } } "
+            "Categories: field(name: \"Categories\") { ... on MultilistField{ targetItems{ fields{name,value} } } } "
+            "Companies: field(name: \"Companies\") { ... on MultilistField{ targetItems{ fields{name,value} } } } "
+            "Sectors: field(name: \"Sectors\") { ... on MultilistField{ targetItems{ fields{name,value} } } } "
+            "Date: field(name: \"Date\") { ... on DateField { value: formattedDateValue(format: \"g\", offset: -180) } } "
+            "DownloadPDFLink: field(name: \"DownloadLink\") { ... on LinkField { jsonValue } } } } }")
+
+
+def _names(field) -> list[str]:
+    out = []
+    for ti in ((field or {}).get("targetItems") or []):
+        v = next((f.get("value") for f in (ti.get("fields") or []) if str(f.get("value") or "").strip()), None)
+        if v:
+            out.append(str(v).strip())
+    return out
+
+
+def arc_graph_items(raw: str) -> tuple[list[dict], dict]:
+    """ردُّ ‏SearchAndReports: لكلّ بندٍ عنوانُه وتاريخُه وصنفُه وشركتُه — ورابطُه **حقلُ التحميل** ملفَّ PDF، وإلّا يُترك البند."""
+    try:
+        data = json.loads(raw or "null")
+        srch = data["data"]["search"]
+    except Exception:                                             # noqa: BLE001
+        return [], {}
+    out: list[dict] = []
+    for r in srch.get("results") or []:
+        title = _txt(((r.get("title") or {}).get("value")) or "")
+        link = (((((r.get("DownloadPDFLink") or {}).get("jsonValue") or {}).get("value")) or {}).get("href")) or ""
+        link = _html.unescape(str(link)).strip()
+        if not re.search(r"\.pdf$", link.split("?")[0], re.I):
+            continue                                              # بلا ملفٍّ لا رابط — ولا أيقونةٌ مكانه
+        day = _mdy((r.get("Date") or {}).get("value") or "")
+        if not (title and day):
+            continue
+        cats, comps, secs = _names(r.get("Categories")), _names(r.get("Companies")), _names(r.get("Sectors"))
+        cat = " ".join(cats)
+        k = ("تقرير يوميّ" if re.search(r"daily", cat, re.I) else
+             "تقرير شركة" if comps else
+             "تقرير قطاعيّ" if secs else kind_of(cat, link, title))
+        sym = None
+        if k == "تقرير شركة":
+            sym = next((x for x in (_company(c) for c in comps) if x), None) or _company(title)
+        url = link if link.startswith("http") else ARC + "/" + link.lstrip("/")
+        shown = title if not comps or any(c in title for c in comps) else f"{comps[0]} — {title}"
+        out.append({"title": shown, "kind": k, "url": url, "date": day, "company": sym, "source": "الراجحي المالية"})
+    return out, (srch.get("pageInfo") or {})
 
 
 async def _arc() -> list[dict]:
-    """قائمةُ بحوث الراجحي المالية بكلّ فئاتها — فئاتُها من خيارات نموذج الصفحة نفسِه (D664)."""
+    """قائمةُ بحوث الراجحي المالية من نداء صفحتها (‏D733): المفتاحُ والجذرُ من الصفحة وسكربتاتها، ثمّ صفحاتُ القائمة
+    خمسين خمسين حتى تجاوز السنة."""
+    from datetime import date as _d, timedelta as _td
     from app.services.tadawul_http import smart_flow
+    floor = (_d.today() - _td(days=WINDOW_DAYS)).isoformat()
 
     def plan():
         st, page = yield {"url": ARC_PAGE, "timeout": 40}
-        ps = arc_params(page) if st == 200 else []
-        if not ps:
+        if st != 200:
             return []
-        offered = set(re.findall(r'<option[^>]*value="([^"]+)"', page or ""))
+        texts = [page]
+        disc = arc_discover(texts)
+        srcs = re.findall(r"<script[^>]+src=[\"'](/_next/static/[^\"']+\.js)[\"']", page or "")
+        # سكربتاتُ الصفحة الخاصّةُ أوّلاً (التطبيقُ وصفحةُ المسار) — ثمّ البقيّة حتى يُعرف المفتاحُ والاستعلام
+        srcs.sort(key=lambda u: 0 if re.search(r"_app|path|pages/", u) else 1)
+        for src in srcs[:16]:
+            if {"key", "root", "template"} <= disc.keys():
+                break
+            st2, js = yield {"url": ARC + src, "referer": ARC_PAGE, "timeout": 30}
+            if st2 == 200:
+                disc = {**arc_discover([js]), **disc}
+        key = disc.get("key")
+        if not key:
+            logger.warning("الراجحي المالية: مفتاحُ واجهة البحوث لم يُقرأ من الصفحة ولا سكربتاتها")
+            return []
+        root, tpl = disc.get("root") or ARC_ROOT_MEASURED, disc.get("template") or ARC_TEMPLATE_MEASURED
         out: list[dict] = []
-        for cat in [""] + [c for c in ARC_CATS if c in offered]:
-            for pg in range(1, 4 if cat else 2):
-                p = {**ps[0], "category": cat, "pageNo": pg}
-                st2, raw = yield {"url": ARC_API, "params": p, "referer": ARC_PAGE,
-                                  "headers": {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json, text/javascript, */*"}}
-                got = arc_items(raw) if st2 == 200 else []
-                for it in got:
-                    if cat == "بحوث الأسهم" and it["kind"] in ("تقرير", "تقرير يوميّ"):
-                        it["kind"] = "تقرير قطاعيّ" if re.search(r"قطاع", it["title"]) else "تقرير شركة"
-                        it["company"] = it.get("company") or _company(it["title"])
-                    elif cat == "بحوث الاقتصاد":
-                        it["kind"] = "تقرير اقتصاديّ"
-                    elif cat == "بحوث الاستثمار" and it["kind"] in ("تقرير", "تقرير يوميّ"):
-                        it["kind"] = "تقرير دوريّ"
-                out += got
-                if len(got) < p["pageSize"]:
-                    break
+        after = None
+        for _ in range(12):
+            st3, raw = yield {"url": ARC_GRAPH, "method": "POST", "params": {"sc_apikey": key}, "referer": ARC_PAGE,
+                              "data": json.dumps({"query": arc_query(root, tpl, 50, after)}),
+                              "headers": {"Content-Type": "application/json", "Accept": "application/json"}}
+            if st3 != 200:
+                break
+            got, info = arc_graph_items(raw)
+            out += got
+            after = info.get("endCursor")
+            oldest = min((x["date"] for x in got), default="")
+            if not info.get("hasNext") or not after or (oldest and oldest < floor):
+                break
         return out
     return await smart_flow(plan, warm=ARC + "/ar", timeout=40) or []
 
@@ -274,6 +314,29 @@ def select(items: list[dict], today: str | None = None) -> list[dict]:
             daily[src] = daily.get(src, 0) + 1
         out.append(it)
     return out
+
+
+def link_opinions(opinions: list[dict], reports: list[dict], days: int = 7) -> list[dict]:
+    """رأيُ الجهة بلا ملفٍّ («أرقام» لا تنشر ملفَّ الراجحي المالية) يُربط بتقرير **الجهة نفسِها** عن **الشركة نفسِها** المنشور
+    في موقعها خلال أسبوعٍ من تاريخ الرأي — الأقربُ تاريخاً (‏D733). وما لا تقريرَ له يبقى بلا رابط: لا يُختلق رابط."""
+    from datetime import date as _d
+    norm = lambda x: re.sub(r"\.SR$", "", str(x or "").strip())
+    by: dict = {}
+    for r in reports:
+        if r.get("kind") == "تقرير شركة" and r.get("company") and r.get("url"):
+            by.setdefault((str(r.get("source") or "").strip(), norm(r["company"])), []).append(r)
+    for o in opinions:
+        if o.get("url") or not o.get("company") or not o.get("date"):
+            continue
+        cands = by.get((str(o.get("source") or "").strip(), norm(o["company"])), [])
+        try:
+            od = _d.fromisoformat(o["date"])
+            best = min(((abs((_d.fromisoformat(r["date"]) - od).days), r) for r in cands), key=lambda x: x[0], default=None)
+        except ValueError:
+            best = None
+        if best and best[0] <= days:
+            o["url"], o["report_title"] = best[1]["url"], best[1]["title"]
+    return opinions
 
 
 async def collect() -> list[dict]:

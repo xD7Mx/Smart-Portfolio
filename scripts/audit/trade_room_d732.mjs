@@ -34,10 +34,22 @@ const sm = I.stochastic(mixed);
 say(near(sm.k[15], 25), "٢ وإغلاقٌ عند ربع المدى ⇒ 25", String(sm.k[15]));
 const flat = Array.from({ length: 20 }, () => ({ high: 5, low: 5, close: 5 }));
 say(I.stochastic(flat).k.every(v => v == null), "٣ ومدًى صفريّ (قمّةٌ = قاع) فراغٌ لا رقمٌ مختلَق");
-// CVD: إغلاقٌ عند القمّة كلُّه شراء، وعند القاع كلُّه بيع، وفي المنتصف صفر
-const c = I.cvdApprox([{ high: 10, low: 8, close: 10, volume: 100 }, { high: 10, low: 8, close: 8, volume: 40 }, { high: 10, low: 8, close: 9, volume: 70 },
-  { high: 9, low: 9, close: 9, volume: 50 }]);
-say(JSON.stringify(c) === JSON.stringify([100, 60, 60, 60]), "٤ ‏CVD تراكميّ: +100 ثمّ −40 ثمّ 0 (منتصفُ المدى) ثمّ 0 (مدًى صفريّ)", JSON.stringify(c));
+// ‏CVD D7M — سكربتُ المالك بنصّه (2026-11-14): نسبةُ الاتّجاه = ½(فتيلان + (صاعدة ? 2×جسم : 0)) ÷ (فتيلان + جسم)، والصفرُ ½
+const cb = [{ open: 10, high: 12, low: 9, close: 11, volume: 100 }, { open: 11, high: 11.5, low: 10, close: 10.2, volume: 200 },
+            { open: 10, high: 10, low: 10, close: 10, volume: 50 }];
+const c = I.cvdCum(cb).map(v => +v.toFixed(4));
+say(JSON.stringify(c) === JSON.stringify([66.6667, -86.6667, -61.6667]),
+    "٤ ‏CVD D7M بمعادلة السكربت: +66.67 (صاعدة · ⅔) ثمّ −153.33 (هابطة) ثمّ +25 (شمعةٌ بلا مدى ⇒ ½)", JSON.stringify(c));
+const raw = I.cvdD7M(cb, { ...I.CVD_DEFAULTS, ha: false, scale: "volume", ema2: false });
+say(raw.o[0] == null && +raw.o[2].toFixed(4) === -86.6667 && +raw.c[2].toFixed(4) === -61.6667 && +raw.h[1].toFixed(4) === 66.6667,
+    "٤ب والشمعةُ: فتحُها تراكمُ الأمس وإغلاقُها تراكمُ اليوم، وقمّتُها وقاعُها أكبرُهما وأصغرُهما");
+const big = Array.from({ length: 300 }, (_, i) => ({ open: 50 + Math.sin(i / 7), high: 51.5 + Math.sin(i / 7), low: 48.6 + Math.sin(i / 7),
+  close: 50 + Math.sin(i / 7) + ((i * 37) % 11 - 5) / 10, volume: 1000 + (i * 53) % 400 }));
+const lv = I.cvdD7M(big), pc = I.cvdD7M(big, { ...I.CVD_DEFAULTS, scale: "pct" });
+const inR = (a, lo, hi) => a.every(v => v == null || (v >= lo - 1e-9 && v <= hi + 1e-9));
+say(I.CVD_DEFAULTS.scale === "levels" && I.CVD_DEFAULTS.len === 200 && I.CVD_DEFAULTS.ha && I.CVD_DEFAULTS.ema2 && I.CVD_DEFAULTS.ema2Len === 200
+    && inR(lv.h, 0, 100) && inR(lv.l, 0, 100) && inR(pc.h, -100, 100) && lv.ema2.filter(v => v != null).length > 250,
+    "٤ج وافتراضاتُ السكربت: «مستويات» 0–100 على 200 شمعة، وهايكن آشي، وEMA 200 — و«نسبة» بين −100 و100");
 let ok5 = true, worst = "";
 for (let n = 1; n <= 4; n++) {
   const L = I.paneLayout(n);
@@ -48,8 +60,17 @@ for (let n = 1; n <= 4; n++) {
 }
 say(ok5, "٥ اللوحاتُ السفلى (حتى أربع) لا يتداخل اثنتان منها، والحجمُ فوقها والسعرُ فوق الجميع", worst);
 const nc = (await import("node:fs")).readFileSync(join(FRONT, "src/components/analysis/NativeChart.tsx"), "utf-8");
-say(/\["stoch", "Stochastic"/.test(nc) && /\["cvd", "CVD"/.test(nc) && /\["d7m", "D7M"/.test(nc) && /sp_chart_ind/.test(nc) && /تقديرٌ من الشموع/.test(nc),
-    "٦ الرسمُ يعرض ستوكاستيك وCVD (مُسمًّى تقديراً من الشموع) بجانب RSI وMACD وD7M، واختيارُ المؤشّرات يُحفظ");
+say(/\["stoch", "Stochastic"/.test(nc) && /\["cvd", "CVD D7M"/.test(nc) && /\["d7m", "D7M"/.test(nc) && /sp_chart_ind/.test(nc) && /sp_cvd_cfg/.test(nc)
+    && /cvdD7M\(bars/.test(nc) && !/cvdApprox/.test(nc),
+    "٦ الرسمُ يعرض ستوكاستيك وCVD D7M (سكربتُ المالك بإعداداته) بجانب RSI وMACD وD7M، والاختياران يُحفظان");
+
+// حدودُ اللوحة تُضبط بعد إنشاء سلسلتها — مقياسٌ مُلحَقٌ لا يوجد قبل أوّل سلسلة، فضبطُه قبلها يضيع فتُرسم على الرسم كلّه
+// (عطبٌ قِيس في لقطة CVD D7M: شموعُه فوق شموع السعر)
+const order = ["rsi", "stoch", "macd", "cvd"].filter(k => {
+  const make = nc.indexOf(`priceScaleId: "${k}"`), set = nc.indexOf(`chart.priceScale("${k}").applyOptions`);
+  return !(make > 0 && set > make);
+});
+say(order.length === 0, "٦ب وكلُّ لوحةٍ سفلى تُحدُّ بعد إنشاء سلسلتها — لا مؤشّرَ يُرسم فوق شموع السعر", order.join(","));
 
 // ── المتصفّح ──
 const PORT = 5255;
@@ -136,8 +157,8 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await page.waitForTimeout(1500);
   const panes = await page.evaluate(() => [...document.querySelectorAll('[data-role="pane-tag"]')].map(e => ({ t: e.textContent, y: e.getBoundingClientRect().top })));
   const ys = panes.map(p => p.y);
-  say(panes.length === 4 && ys.every((y, i) => i === 0 || y - ys[i - 1] > 40) && /تقديرٌ من الشموع/.test(panes[3]?.t || ""),
-      `${label}: RSI وستوكاستيك وMACD وCVD معاً — أربعُ لوحاتٍ لا تتداخل، وCVD يُسمّى تقديراً`, panes.map(p => `${p.t}@${Math.round(p.y)}`).join(" | "));
+  say(panes.length === 4 && ys.every((y, i) => i === 0 || y - ys[i - 1] > 40) && /CVD D7M · مستويات 200/.test(panes[3]?.t || ""),
+      `${label}: RSI وستوكاستيك وMACD وCVD D7M معاً — أربعُ لوحاتٍ لا تتداخل`, panes.map(p => `${p.t}@${Math.round(p.y)}`).join(" | "));
   if (SHOTS) { const el = await page.$('[data-role="troom"]'); if (el) await el.screenshot({ path: join(SHOTS, `room_${vp.width}_${theme}.png`) }); }
   // قائمةٌ للسوق الأمريكي، وAAPL بالبحث، ثمّ إزالتُها
   await page.locator('[data-role="troom-new"]').click();

@@ -35,26 +35,9 @@ async def main():
     for x in j[:8]:
         print(f"   {x['date']} · {x['kind']} · {x['title'][:80]} · {x['url'][-60:]}")
 
-    from app.services.tadawul_http import smart_flow
-    def plan():
-        st, page = yield {"url": RR.ARC_PAGE, "timeout": 40}
-        ps = RR.arc_params(page)
-        print(f"\n═ الراجحي المالية: صفحة {st} · صِيَغ {ps}")
-        for p in ps:
-            st2, raw = yield {"url": RR.ARC_API, "params": p, "referer": RR.ARC_PAGE,
-                              "headers": {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json, text/javascript, */*"}}
-            print(f"   النداء {p.get('category')!r}/{p.get('culture')}: {st2} · {len(raw or '')} · {(raw or '')[:700]}")
-            try:
-                first = (json.loads(raw or "null") or {}).get("Items", [None])[0]
-                for pth, v in list(RR._leaves(first))[:40]:
-                    print(f"      {'/'.join(x for x in pth if x not in ('__interceptors', 'Values'))[-60:]} = {v[:90]}")
-            except Exception as e:                                 # noqa: BLE001
-                print(f"      ✘ {e}")
-            got = RR.arc_items(raw) if st2 == 200 else []
-            if got:
-                return got
-        return []
-    r = await smart_flow(plan, warm=RR.ARC + "/ar", timeout=40) or []
+    # ‏D733: موقعُ الراجحي المالية تغيّر (Next.js · GraphQL) — القارئُ الحاليّ نفسُه
+    r = await RR._arc()
+    print(f"\n═ الراجحي المالية: {len(r)} بنداً")
     print(f"   بنود {len(r)}")
     for x in r[:8]:
         print(f"   {x['date']} · {x['kind']} · {x['title'][:80]} · {x['url'][-60:]}")

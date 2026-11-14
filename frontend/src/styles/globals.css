@@ -3231,3 +3231,8 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 .troom-bar .inline-search[data-open="1"] { width: min(230px, 62vw); }
 .troom-bar .inline-search-btn { width: 32px; height: 32px; flex-basis: 32px; }
 .troom-bar .inline-search-input { height: 32px; }
+/* ‏CVD D7M — إعداداتُ سكربت المالك في قائمةٍ صغيرة تحت زرّها */
+.cvd-cfg { padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; min-width: 230px; }
+.cvd-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px;
+           font-size: 12px; font-weight: 700; color: var(--ink); width: 100%; }
+.cvd-tog { text-align: start; }

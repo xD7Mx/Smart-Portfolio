@@ -1,7 +1,7 @@
 import { autoFib, autoChannel, autoTrend, vwapAnchored, ema as ema7, dashboard, macdSmart, tradeTool,
   D7M_DEFAULTS, D7MSettings } from "./d7m";
 import D7MPanel from "./D7MPanel";
-import { stochastic, cvdApprox, paneLayout } from "../../lib/indicators";   // ‏D732
+import { stochastic, cvdD7M, CVD_DEFAULTS, CvdCfg, paneLayout } from "../../lib/indicators";   // ‏D732
 import { D7M_COLORS } from "./d7m";
 import React, { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -98,7 +98,7 @@ const TFS: [string, string][] = [["1h", "ساعة"], ["4h", "4 ساعات"], ["1
 
 const IND = [["sma20", "SMA20", "var(--chart-1)"], ["sma50", "SMA50", "var(--warn-ink)"], ["sma200", "SMA200", "var(--chart-4)"],
   ["rsi", "RSI", "var(--chart-5)"], ["stoch", "Stochastic", "var(--chart-2)"], ["macd", "MACD", "var(--chart-1)"],
-  ["cvd", "CVD", "var(--chart-3)"], ["d7m", "D7M", "var(--brand-ink)"]] as const;
+  ["cvd", "CVD D7M", "var(--chart-3)"], ["d7m", "D7M", "var(--brand-ink)"]] as const;
 type IndKey = typeof IND[number][0];
 /* ترتيبُ اللوحات السفلى من الأعلى: RSI · ستوكاستيك · MACD · CVD */
 const OSC: IndKey[] = ["rsi", "stoch", "macd", "cvd"];
@@ -163,6 +163,13 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
     const n = f(s);
     if (preset !== "d7m-weekly") { try { localStorage.setItem("sp_chart_ind", JSON.stringify(n)); } catch { /* خاصّ */ } }
     return n;
+  });
+  /* ‏CVD D7M — إعداداتُ سكربت المالك (النمط · المقياس · الفترة · هايكن آشي · المتوسّطات)، تُحفظ في المتصفّح */
+  const [cvdCfg, setCvdCfgState] = useState<CvdCfg>(() => {
+    try { return { ...CVD_DEFAULTS, ...(JSON.parse(localStorage.getItem("sp_cvd_cfg") || "{}") || {}) }; } catch { return CVD_DEFAULTS; }
+  });
+  const setCvd = (p: Partial<CvdCfg>) => setCvdCfgState(c => {
+    const n = { ...c, ...p }; try { localStorage.setItem("sp_cvd_cfg", JSON.stringify(n)); } catch { /* خاصّ */ } return n;
   });
   const oscOn = OSC.filter(k => ind[k]);
   const lay = paneLayout(oscOn.length);
@@ -361,10 +368,28 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
         dS.setData(series(st.d));
       }
       if (ind.cvd) {
-        const cv = chart.addLineSeries({ color: tok("--chart-3", "#7a5bd3"), lineWidth: 1.5, priceScaleId: "cvd", priceLineVisible: false, lastValueVisible: false,
-                                         priceFormat: { type: "volume" } });
+        /* ألوانُ السكربت: الصاعدةُ بيضاءُ لخلفيةٍ داكنة — فتُرسم بحبر النصّ ليُقرأ في المظهرين (كـD7M · ‏D713)، والهابطةُ #fc0808 */
+        const cv = cvdD7M(bars as any, cvdCfg);
+        const ink = tok("--ink", "#111"), red = "#fc0808";
+        const fmt = cvdCfg.scale === "volume" ? { type: "volume" } : { type: "price", precision: 1, minMove: 0.1 };
+        if (cvdCfg.style === "line") {
+          const ln = chart.addLineSeries({ color: "#2196f3", lineWidth: 2, priceScaleId: "cvd", priceLineVisible: false, lastValueVisible: false, priceFormat: fmt });
+          ln.setData(series(cv.line));
+        } else {
+          const cs = chart.addCandlestickSeries({ priceScaleId: "cvd", priceLineVisible: false, lastValueVisible: false, priceFormat: fmt,
+            upColor: ink, downColor: red, borderUpColor: ink, borderDownColor: red, wickUpColor: ink, wickDownColor: red });
+          cs.setData(bars.map((b: any, i: number) => cv.o[i] == null || cv.h[i] == null || cv.l[i] == null || cv.c[i] == null ? null : ({
+            time: tkey(b.date), open: cv.o[i], high: cv.h[i], low: cv.l[i], close: cv.c[i] })).filter(Boolean));
+          const ma = (vals: (number | null)[], color: string) => {
+            if (!vals.length) return;
+            const s2 = chart.addLineSeries({ color, lineWidth: 1.3, priceScaleId: "cvd", priceLineVisible: false, lastValueVisible: false, priceFormat: fmt });
+            s2.setData(series(vals));
+          };
+          ma(cv.sma1, ink); ma(cv.sma2, red); ma(cv.ema1, ink); ma(cv.ema2, ink);
+        }
+        /* حدودُ اللوحة بعد إنشاء سلاسلها — مقياسٌ مُلحَقٌ لا يوجد قبل أوّل سلسلةٍ عليه، فضبطُه قبلها يضيع وتُرسم الشموعُ
+           على الرسم كلّه (قِيس في اللقطة) */
         chart.priceScale("cvd").applyOptions({ scaleMargins: paneOf("cvd"), borderColor: tok("--hairline", "#dcdcdc") });
-        cv.setData(series(cvdApprox(bars as any)));
       }
       if (ind.macd) {
         const { line, signal, hist } = macd(closes);
@@ -494,7 +519,7 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
     }).catch(() => setErr(true));
     return () => { cancelled = true; chartRef.current = null; candleRef.current = null;
       try { ro && ro.disconnect(); chart && chart.remove(); } catch {} };
-  }, [barsKey, theme, ind, range, cfg, draws, tool]);
+  }, [barsKey, theme, ind, range, cfg, draws, tool, cvdCfg]);
   /* ‏D713: والشمعةُ الجاريةُ تُحدَّث في موضعها — افتتاحُها وأعلاها وأدناها وسعرُها — ووسمُ آخر سعرٍ معها */
   useEffect(() => {
     const cs = candleRef.current, b: any = bars[bars.length - 1];
@@ -598,6 +623,38 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
             </button>
           ))}
         </Drop>
+        {ind.cvd && (
+          <Drop label="⚙ CVD">
+            {() => (
+              <div className="cvd-cfg" data-role="cvd-cfg" onClick={e => e.stopPropagation()}>
+                {([["style", "النمط", [["candle", "شموع"], ["line", "خطّ"]]],
+                   ["scale", "المقياس", [["levels", "مستويات"], ["pct", "نسبة"], ["volume", "احجام"]]]] as const).map(([k, lbl, opts]) => (
+                  <div key={k} className="cvd-row">
+                    <span>{lbl}</span>
+                    <span className="seg inline-flex">
+                      {opts.map(([v, t]) => (
+                        <button key={v} type="button" className={"seg-btn chip" + ((cvdCfg as any)[k] === v ? " on" : "")}
+                          onClick={() => setCvd({ [k]: v } as any)}>{t}</button>
+                      ))}
+                    </span>
+                  </div>
+                ))}
+                <label className="cvd-row"><span>الفترة</span>
+                  <input className="input tabular-nums" style={{ width: 70, padding: "4px 6px" }} type="text" inputMode="numeric" lang="en" dir="ltr"
+                    defaultValue={String(cvdCfg.len)} aria-label="فترة المقياس"
+                    onBlur={e => { const v = Math.max(10, Math.floor(Number(e.target.value) || 200)); e.target.value = String(v); setCvd({ len: v }); }}
+                    onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /></label>
+                {([["ha", "شموع هايكن آشي"], ["ema2", `EMA ${cvdCfg.ema2Len}`], ["ema1", `EMA ${cvdCfg.ema1Len}`],
+                   ["sma1", `SMA ${cvdCfg.sma1Len}`], ["sma2", `SMA ${cvdCfg.sma2Len}`]] as const).map(([k, t]) => (
+                  <button key={k} type="button" className="cvd-row cvd-tog" aria-pressed={!!cvdCfg[k]} onClick={() => setCvd({ [k]: !cvdCfg[k] } as any)}>
+                    <span dir={k === "ha" ? undefined : "ltr"}>{t}</span>
+                    <span className="w-3 h-3 rounded-sm border" style={cvdCfg[k] ? { background: "var(--brand-ink)", borderColor: "var(--brand-ink)" } : { borderColor: "var(--hairline)" }} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </Drop>
+        )}
         {ind.d7m && (
           <button onClick={() => setShowCfg(true)} title="إعدادات المؤشّر" aria-label="إعدادات المؤشّر"
             className="px-2.5 py-1 min-h-[32px] rounded-lg text-[11px] font-bold border border-[var(--hairline)] text-[var(--ink)]">⚙ D7M</button>
@@ -630,7 +687,8 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
           {oscOn.map((k, i) => (
             <span key={k} className="chart-pane-tag" data-role="pane-tag" dir="ltr"
               style={{ top: Math.round(lay.panes[i].top * (frameH - 28)) + 2 }}>
-              {k === "rsi" ? "RSI 14" : k === "stoch" ? "Stoch 14 3 3" : k === "macd" ? "MACD 12 26 9" : "CVD · تقديرٌ من الشموع"}
+              {k === "rsi" ? "RSI 14" : k === "stoch" ? "Stoch 14 3 3" : k === "macd" ? "MACD 12 26 9"
+                : `CVD D7M · ${cvdCfg.scale === "levels" ? "مستويات" : cvdCfg.scale === "pct" ? "نسبة" : "احجام"} ${cvdCfg.len}`}
             </span>
           ))}
           <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: tool === "free" ? "auto" : "none",

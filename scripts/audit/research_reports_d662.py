@@ -68,10 +68,14 @@ j = R.jadwa_items(jd)
 check(len(j) == 1 and j[0]["date"] == "2026-10-06" and j[0]["url"] == "https://www.jadwa.com/sites/default/files/2026-10/Chartbook.pdf"
       and j[0]["source"] == "جدوى للاستثمار", "٧ جدوى: بطاقةٌ بعنوانها وتاريخها وملفّها، وما بلا تاريخٍ يُترك", str(j))
 
-check(R.arc_params("<p>لا معاملات</p>") == [], "٨ الراجحي المالية: لا نداءَ بمعاملاتٍ مخمَّنة — تُقرأ من الصفحة أو لا شيء")
-arc = R.arc_items('{"Items":[{"Title":"تقرير السوق اليومي","Date":"2026-10-08T00:00:00",'
-                  '"Url":"/-/media/Feature/AlRajhiCapital/ResearchListing/Daily-Reports/2026/OCT/DMR.pdf"},{"Title":"بلا رابط","Date":"2026-10-08"}]}')
-check(len(arc) == 1 and arc[0]["url"].startswith("https://www.alrajhi-capital.sa/-/media/"), "٩ وردُّ القائمة: ما بلا رابطٍ يُترك", str(arc))
+# ‏D733: موقعُ الراجحي المالية تغيّر — المفتاحُ والاستعلامُ من الصفحة وسكربتاتها، والردُّ GraphQL (‏arc_reader_d733 يفحصه كاملاً)
+check(R.arc_discover(["<p>لا شيء</p>"]) == {}, "٨ الراجحي المالية: لا مفتاحَ ولا جذرَ مخمَّن — يُقرآن من الصفحة أو لا شيء")
+arc, _ = R.arc_graph_items('{"data":{"search":{"results":[{"title":{"value":"التقرير اليومي لسوق الأسهم"},"Date":{"value":"10/8/2026 00:00"},'
+                           '"Categories":{"targetItems":[{"fields":[{"name":"Category","value":"Daily Reports"}]}]},'
+                           '"DownloadPDFLink":{"jsonValue":{"value":{"href":"-/media/Feature/AlRajhiCapital/ResearchListing/Daily-Reports/2026/OCT/DMR.pdf"}}}},'
+                           '{"title":{"value":"بلا رابط"},"Date":{"value":"10/8/2026 00:00"}}]}}}')
+check(len(arc) == 1 and arc[0]["url"].startswith("https://www.alrajhi-capital.sa/-/media/") and arc[0]["date"] == "2026-10-08",
+      "٩ وردُّ القائمة: ما بلا ملفٍّ يُترك", str(arc))
 
 items = [{"kind": "تقرير يوميّ", "date": f"2026-10-0{i}", "url": f"u{i}", "title": "t", "source": "س"} for i in range(1, 8)]
 items += [{"kind": "تقرير شركة", "date": "2026-10-05", "url": "c1", "title": "t"}, {"kind": "تقرير شركة", "date": "2026-10-05", "url": "c1", "title": "t"}]

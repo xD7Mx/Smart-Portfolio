@@ -116,6 +116,11 @@ async def build() -> list[dict]:
     except Exception as e:                                        # noqa: BLE001
         logger.warning(f"التوقعات/آراءُ بيوت الخبرة: {type(e).__name__}: {e}")
         opinions = []
+    try:                                                          # ‏D733: رأيُ الجهة بلا ملفٍّ يُربط بتقريرها عن الشركة نفسِها
+        from app.services.research_reports import link_opinions
+        opinions = link_opinions(opinions, reports)
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"التوقعات/ربطُ الآراء بتقاريرها: {type(e).__name__}: {e}")
     items = reports + opinions + news
     items.sort(key=lambda x: x.get("date") or "", reverse=True)
     if items:

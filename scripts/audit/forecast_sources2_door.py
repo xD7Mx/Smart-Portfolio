@@ -66,38 +66,9 @@ async def main():
     import app.services.research_reports as RR
     from app.services.tadawul_http import smart_flow
 
-    def plan():
-        st, page = yield {"url": RR.ARC_PAGE, "timeout": 40}
-        ps = RR.arc_params(page)
-        cats = re.findall(r'<option[^>]*value="([^"]*)"[^>]*>([^<]{2,60})</option>', page or "")
-        print(f"   خياراتُ المرشِّحات في الصفحة: {len(cats)} — {cats[:30]}")
-        if not ps:
-            return None
-        allc = collections.Counter()
-        tot = 0
-        for pg in range(1, 9):
-            p = {**ps[0], "pageNo": pg, "pageSize": 30}
-            st2, raw = yield {"url": RR.ARC_API, "params": p, "referer": RR.ARC_PAGE,
-                              "headers": {"X-Requested-With": "XMLHttpRequest"}}
-            try:
-                items = (json.loads(raw or "null") or {}).get("Items") or []
-            except Exception:                                      # noqa: BLE001
-                items = []
-            got = RR.arc_items(raw)
-            tot += len(got)
-            for it in items:
-                lv = list(RR._leaves(it))
-                cat = next((v for pth, v in lv if "Categories" in pth and pth[-1] == "Name"), "?")
-                allc[cat] += 1
-            print(f"   صفحة {pg}: HTTP {st2} · بنود {len(items)} · مقروءة {len(got)} · أوّلُها {[(g['date'], g['title'][:30]) for g in got[:2]]}")
-            if not items:
-                break
-        print(f"   الأصناف: {allc.most_common()}")
-        if items:
-            for pth, v in list(RR._leaves(items[0]))[:30]:
-                print(f"      {'/'.join(x for x in pth if x not in ('__interceptors', 'Values'))[-50:]} = {v[:70]}")
-        return tot
-    print("   المجموع:", await smart_flow(plan, warm=RR.ARC + "/ar", timeout=40))
+    # ‏D733: موقعُ الراجحي المالية تغيّر (Next.js · GraphQL) — القارئُ الحاليّ نفسُه، بأصنافه
+    got = await RR._arc()
+    print(f"   بنود {len(got)} · الأصناف: {collections.Counter(g['kind'] for g in got).most_common()}")
 
     print("\n═ ٤ الرياض المالية — نداءاتُ صفحة الأبحاث في المتصفّح")
     try:

@@ -301,6 +301,7 @@ python3 scripts/audit/events_dedupe_d651.py || _note "$LINENO"
 python3 scripts/audit/chart_everywhere_d652.py || _note "$LINENO"
 python3 scripts/audit/tasi_intraday_d661.py || _note "$LINENO"
 python3 scripts/audit/research_reports_d662.py || _note "$LINENO"
+python3 scripts/audit/arc_reader_d733.py || _note "$LINENO"   # ‏D733: قارئُ الراجحي المالية الجديد — ملفُّ التقرير لا أيقونةُ الاشتراك
 python3 scripts/audit/forecasts_all_d664.py || _note "$LINENO"
 python3 scripts/audit/calendar_text_d665.py || _note "$LINENO"
 python3 scripts/audit/unified_cards_d666.py || _note "$LINENO"
