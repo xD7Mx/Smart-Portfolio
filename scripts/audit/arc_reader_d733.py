@@ -61,6 +61,11 @@ d = R.arc_discover(["<html>لا شيء</html>", js])
 check(d == {"key": "00000000-1111-2222-3333-444444444444", "root": "{E771FC1D-B3C8-4BCD-B6E8-E57A753FC6B9}",
             "template": "{8B6A8870-0EA1-4C6E-9174-94A1FC91D1B0}"} and R.arc_discover(["<p/>"]) == {},
       "٥ المفتاحُ العامّ والجذرُ والقالبُ يُقرأون من سكربت الصفحة — وبلا ذلك لا شيءَ مخمَّن", str(d))
+# ٥ب الصيغتان كما قِيستا في الموقع فعلاً (arc_key_door): المفتاحُ في سكربت التطبيق احتياطاً لمتغيّر البيئة، والجذرُ مصدرُ المكوّن
+d2 = R.arc_discover(['{"uid":"fe39","componentName":"ResearchAndReports","dataSource":"{E771FC1D-B3C8-4BCD-B6E8-E57A753FC6B9}","params":{}',
+                     'let o={};o.sitecoreApiKey=n.env.SITECORE_API_KEY||"00000000-1111-2222-3333-444444444444",o.sitecoreApiHost=n.env.X'])
+check(d2.get("key") == "00000000-1111-2222-3333-444444444444" and d2.get("root") == "{E771FC1D-B3C8-4BCD-B6E8-E57A753FC6B9}",
+      "٥ب وبصيغتي الموقع المقيستين: ‏sitecoreApiKey=…SITECORE_API_KEY||\"…\"، و‏dataSource مكوّن «ResearchAndReports»", str(d2))
 q = R.arc_query(d["root"], d["template"], 50, "MTY=")
 check('after:"MTY="' in q and "DownloadLink" in q and "orderBy: { name: \"Date\", direction: DESC }" in q and "icon" not in q,
       "٦ والاستعلامُ استعلامُ الصفحة نفسُه بحقل التحميل — ولا يطلب الأيقونةَ أصلاً")

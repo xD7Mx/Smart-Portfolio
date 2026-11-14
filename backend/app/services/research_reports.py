@@ -178,11 +178,15 @@ def arc_discover(texts: list[str]) -> dict:
         t = t or ""
         if "key" not in out:
             m = (re.search(r"sc_apikey=(" + _GUID + r")", t)
-                 or re.search(r"(?:sc_apikey|apiKey|sitecoreApiKey|SITECORE_API_KEY)[\"'\s:=,]{1,6}\{?(" + _GUID + r")", t, re.I))
+                 or re.search(r"(?:sc_apikey|apiKey|sitecoreApiKey|SITECORE_API_KEY)[\"'\s:=,]{1,6}\{?(" + _GUID + r")", t, re.I)
+                 # قِيس (arc_key_door): ‏`o.sitecoreApiKey=n.env.SITECORE_API_KEY||"…"` في سكربت التطبيق
+                 or re.search(r"sitecoreApiKey\s*=\s*[\w.]*SITECORE_API_KEY\s*\|\|\s*[\"'](" + _GUID + r")", t))
             if m:
                 out["key"] = m.group(1)
         if "root" not in out:
-            m = re.search(r"_path\\?[\"']?\s*,\s*value\s*:\s*\\?[\"']?(\{" + _GUID + r"\})", t)
+            m = (re.search(r"_path\\?[\"']?\s*,\s*value\s*:\s*\\?[\"']?(\{" + _GUID + r"\})", t)
+                 # قِيس: الاستعلامُ يأخذ الجذرَ من مصدر مكوّن «ResearchAndReports» في بيانات الصفحة
+                 or re.search(r"\"componentName\"\s*:\s*\"ResearchAndReports\"[^{}]{0,200}?\"dataSource\"\s*:\s*\"(\{" + _GUID + r"\})", t))
             if m:
                 out["root"] = m.group(1)
         if "template" not in out:
