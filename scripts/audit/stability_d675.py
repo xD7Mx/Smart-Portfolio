@@ -43,8 +43,9 @@ check('"stability_label": conf.stability_label' in src_a and '"stability_label":
       in inspect.getsource(governance_engine), "٥ والوسمُ يصل الصفحةَ ونافذةَ الحوكمة من المنتِج الواحد")
 check("conf.score" not in inspect.getsource(decision_engine),
       "٦ والقرارُ لا يقرأ درجةَ الثقة (سنواتُ القوائم وحدها) — فالفصلُ لا يغيّر قراراً")
-fe = (ROOT / "frontend/src/components/governance/GovernanceV2Modal.tsx").read_text(encoding="utf-8")
-check("stability_label" in fe and "ثباتُ الأرباح" in fe and "var(--warn-ink)" in fe and "flex-wrap" in fe,
-      "٧ والنافذةُ تعرض «ثباتُ الأرباح» بجانب «ثقة X٪» بألوان الرموز، وتلتفّ على الجوال")
+# ‏D723 (المالك): نافذةُ «ميزان الخبراء» حُذفت — «ميزةٌ قديمة لا تحاكي تصميمَ التطبيق ولا هويّته». والوسمُ باقٍ في مخرَج المنتِج
+# الواحد (٥ أعلاه) ليُعرض في بطاقة الجودة بتصميم التطبيق.
+check(not (ROOT / "frontend/src/components/governance/GovernanceV2Modal.tsx").exists(),
+      "٧ ونافذةُ «ميزان الخبراء» محذوفةٌ بأمر المالك (‏D723) — والوسمُ باقٍ في مخرَج المنتِج الواحد")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

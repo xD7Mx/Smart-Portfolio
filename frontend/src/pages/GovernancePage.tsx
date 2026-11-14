@@ -7,14 +7,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Shield, ShieldCheck, ShieldAlert, AlertTriangle, Layers, TrendingUp, Landmark, Sparkles } from "lucide-react";
+import { Shield, ShieldCheck, ShieldAlert, AlertTriangle, Layers, TrendingUp, Landmark } from "lucide-react";
 import { ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { portfolioApi } from "../services/api";
 import CompanyLogo from "../components/common/CompanyLogo";
 import StockSheet from "../components/market/StockSheet";
 import { SafetyBar, safeColor } from "../components/common/ValueBars";
 import { ShariaBadge } from "../components/common/UI";
-import GovernanceV2Modal from "../components/governance/GovernanceV2Modal";
 import clsx from "clsx";
 
 /* اللوحة الأساسية الأولى (ما قبل 3d96cf1) بترتيبها الأصلي، لكنْ بالرموز
@@ -190,7 +189,8 @@ function AttentionList({ items }: { items: { severity: string; symbol: string | 
   );
 }
 
-function HoldingsHeatmap({ rows, onOpenV2 }: { rows: any[]; onOpenV2: (symbol: string, name: string) => void }) {
+/* ‏D723 (المالك): «ميزانُ الخبراء ميزةٌ قديمةٌ عفا عنها الزمن، ولا تحاكي تصميمَ تطبيقنا ولا هويّته» — حُذفت نافذتُه وزرُّه. */
+function HoldingsHeatmap({ rows }: { rows: any[] }) {
   const nav = useNavigate();
   return (
     <div className="card">
@@ -215,10 +215,6 @@ function HoldingsHeatmap({ rows, onOpenV2 }: { rows: any[]; onOpenV2: (symbol: s
                     </div>
                   )}
                 </div>
-              </button>
-              <button onClick={() => onOpenV2(r.symbol, r.name)} title="ميزان خبراء الحوكمة"
-                className="shrink-0 p-1.5 rounded-lg text-[var(--brand-ink)]">
-                <Sparkles size={15} className="ai-star" />
               </button>
               <div className="text-end shrink-0">
                 <div className="font-bold text-sm" style={{ color: r.insufficient_data ? "var(--ink-muted)" : scoreColor(r.finance_score) }}>
@@ -332,7 +328,6 @@ function MarketOpportunities() {
    الكبير فلا يتكرّر تحت تبويبات المحفظة، ويبقى مبدّلُ «محفظتي · السوق» في مكانه */
 export default function GovernancePage({ embedded = false }: { embedded?: boolean }) {
   const [mode, setMode] = useState<"portfolio" | "market">("portfolio");
-  const [v2Target, setV2Target] = useState<{ symbol: string; name: string } | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["portfolio-governance"],
     queryFn: () => portfolioApi.governance().then(r => r.data.data),
@@ -396,15 +391,12 @@ export default function GovernancePage({ embedded = false }: { embedded?: boolea
           {/* ‏D679 (بأمر المالك): المستشارُ الآليّ انتقل إلى «تحليل الذكاء» مكانَ التقرير الشامل */}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <HoldingsHeatmap rows={data.holdings} onOpenV2={(symbol, name) => setV2Target({ symbol, name })} />
+            <HoldingsHeatmap rows={data.holdings} />
             <AttentionList items={data.attention} />
           </div>
         </>
       )}
 
-      {v2Target && (
-        <GovernanceV2Modal symbol={v2Target.symbol} name={v2Target.name} onClose={() => setV2Target(null)} />
-      )}
     </div>
   );
 }

@@ -45,16 +45,28 @@ const state = () => page.evaluate(() => {
   return { on: true, tx: Math.round(tx), op: sc ? +(+getComputedStyle(sc).opacity).toFixed(2) : null };
 });
 
+// ما تسلّمته الصفحةُ فعلاً من حركات الإصبع — المتصفّحُ قد يدمج آخرَ حركةٍ أو يؤخّرها (قِيس بإصدار كروميوم أحدث: خمسُ حركاتٍ من
+// ستّ)، فالقائمةُ تُقاس بموضع آخرِ حركةٍ وصلت لا بالموضع المقصود.
+await page.evaluate(() => { window.__ev = []; for (const t of ["touchstart", "touchmove"]) document.addEventListener(t, e => window.__ev.push(e.touches[0]?.clientX ?? null), { passive: true, capture: true }); });
+const recv = () => page.evaluate(() => { const e = window.__ev; window.__ev = []; return e; });
+let ev = [];
+const dxSoFar = () => (ev.length >= 2 ? ev[ev.length - 1] - ev[0] : 0);
 // ١–٣ الفتحُ يتبع الإصبع: حافّتُها أوّلاً ثمّ بقدر السحب، والغطاءُ بقدرها، والرفعُ يستقرّ مفتوحةً
+await recv();
 await T("touchStart", 330, 500);
 await glide(330, 230, 500, 6, 30);
 await sleep(120);
 const a1 = await state();
+ev = ev.concat(await recv());
+const e1 = 256 + dxSoFar();                                        // ‏W − ما سُحب: موضعُ القائمة المتوقَّع بما وصل
 await glide(230, 150, 500, 5, 30);
 await sleep(120);
 const a2 = await state();
-say(a1.on && Math.abs(a1.tx - 156) <= 14 && a2.on && Math.abs(a2.tx - 76) <= 14 && a2.tx < a1.tx,
-    "١ القائمةُ أثناء السحب حيث الإصبع — 100px ⇒ تظهر 100px، و180px ⇒ 180px (لا حركةٌ محفوظة)", `${a1.tx}px ← ${a2.tx}px من الحافّة`);
+ev = ev.concat(await recv());
+const e2 = 256 + dxSoFar();
+say(a1.on && Math.abs(a1.tx - e1) <= 6 && Math.abs(-dxSoFar() - 180) <= 40 && a2.on && Math.abs(a2.tx - e2) <= 6 && a2.tx < a1.tx,
+    "١ القائمةُ أثناء السحب حيث الإصبع — موضعُها = آخرُ موضعٍ للإصبع وصل الصفحة (لا حركةٌ محفوظة)",
+    `${a1.tx}px (المتوقَّع ${e1}) ← ${a2.tx}px (المتوقَّع ${e2})`);
 say(a1.op != null && a2.op > a1.op && Math.abs(a1.op - 0.39) <= 0.08, "٢ والغطاءُ يغمق بقدر ما ظهر منها", `${a1.op} ← ${a2.op}`);
 await sleep(150);
 await T("touchEnd");
@@ -63,18 +75,21 @@ const a3 = await state();
 say(a3.on && Math.abs(a3.tx) <= 2, "٣ والرفعُ بعد أكثر من ثلثها يستقرّ مفتوحةً بحركةٍ ناعمة", `${a3.tx}px`);
 
 // ٤ الإغلاقُ يتبع الإصبعَ كذلك
+await recv(); ev = [];
 await T("touchStart", 120, 500);
 await glide(120, 220, 500, 6, 30);
 await sleep(120);
 const c1 = await state();
+ev = ev.concat(await recv());
+const ec1 = dxSoFar();
 await glide(220, 300, 500, 5, 30);
 await sleep(150);
 const c2 = await state();
 await T("touchEnd");
 await sleep(500);
 const c3 = await state();
-say(c1.on && Math.abs(c1.tx - 100) <= 14 && c2.tx > c1.tx && !c3.on,
-    "٤ والسحبُ المعاكسُ يُعيدها مع الإصبع ثمّ تُغلق", `${c1.tx}px ← ${c2.tx}px ← ${c3.on ? "مفتوحة" : "أُغلقت"}`);
+say(c1.on && Math.abs(c1.tx - ec1) <= 6 && ec1 >= 60 && c2.tx > c1.tx && !c3.on,
+    "٤ والسحبُ المعاكسُ يُعيدها مع الإصبع ثمّ تُغلق", `${c1.tx}px (المتوقَّع ${ec1}) ← ${c2.tx}px ← ${c3.on ? "مفتوحة" : "أُغلقت"}`);
 
 // ٥ القصيرةُ البطيئةُ ترتدّ
 await T("touchStart", 330, 500);

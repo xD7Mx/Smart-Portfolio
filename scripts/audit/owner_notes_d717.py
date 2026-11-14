@@ -72,5 +72,12 @@ check('data-role="year-label"' in rc and 'data-role="year-sep"' in rc and 'data-
 pp = visible("frontend/src/pages/PortfolioPage.tsx")
 check("كشف الوسيط" not in pp and "ReconcileModal" not in pp and "reconOpen" not in pp,
       "٨ ‏D718: لا أيقونةَ ولا نافذةَ لمطابقة كشف الوسيط في المحفظة — بأمر المالك: مكرّرةٌ بلا قيمةٍ مضافة")
+# ‏D723 (المالك): «ميزانُ الخبراء ميزةٌ قديمةٌ عفا عنها الزمن، ولا تحاكي تصميمَ تطبيقنا ولا هويّته» — كان يعرض «ما خفض الدرجة» من
+# محرّكٍ آخر (‏EV/EBITDA · اتّجاهُ السعر · تخفيفُ الوحدات) لرقمٍ لم يُحسب منها (‏D720)
+gp = visible("frontend/src/pages/GovernancePage.tsx")
+fe_all = "".join(f.read_text(encoding="utf-8") for f in (ROOT / "frontend/src").rglob("*.tsx"))
+check(not (ROOT / "frontend/src/components/governance/GovernanceV2Modal.tsx").exists() and "GovernanceV2Modal" not in fe_all
+      and "ميزان خبراء الحوكمة" not in gp and "onOpenV2" not in gp,
+      "٩ ‏D723: لا نافذةَ «ميزان الخبراء» ولا زرَّها — ميزةٌ قديمةٌ لا تحاكي هويّةَ التطبيق، وأسبابُها من محرّكٍ آخر")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)
