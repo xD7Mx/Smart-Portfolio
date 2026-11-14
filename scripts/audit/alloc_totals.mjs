@@ -171,8 +171,9 @@ const RB = { investable: 1_000_000, lastPrice: 50, freshCash: 100_000, reinvestP
   const pg = readFileSync(new URL("../../frontend/src/pages/PortfolioPage.tsx", import.meta.url), "utf-8");
   const heldFn = api.slice(api.indexOf("def held(h)"), api.indexOf("async def _snapshot"));
   say(/return float\(h\.market_value or 0\)/.test(heldFn) && !/invested_amount/.test(heldFn)
-      && /investable = sum\(held\(h\) for h in holdings\) \+ cash/.test(api) && /tw \/ 100 \* investable - held\(h\)/.test(api)
-      && /delta = target_value - held\(h\)/.test(api) && /investable: Number\(alloc\?\.investable\)/.test(pg),
+      && /investable = sum\(held\(h\) for h in holdings\) \+ cash/.test(api) && /tw \/ 100 \* investable - held_value/.test(api) && /split_need\(tw, investable, held\(h\), pool\)/.test(api)
+      && /delta = target_value - held\(h\)/.test(api) && /repriceRows<any>\(alloc\?\.items \?\? \[\], prices, Number\(alloc\?\.investable\) \|\| 0\)/.test(pg)
+      && /investable: priced\.investable/.test(pg),   // ‏D729: رأسُ مال الخادم نفسُه، ولا يتغيّر إلا بسعرٍ يكتبه المالك
       "١٨ج D563 الأوزانُ بقيمة اليوم لا بالمدفوع — والخادمُ والواجهةُ على أساسٍ واحد");
 }
 

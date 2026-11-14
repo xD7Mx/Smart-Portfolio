@@ -54,6 +54,9 @@ class Transaction(Base):
     fees = Column(Numeric(18, 6), default=0)
     total_amount = Column(Numeric(18, 6), nullable=False)
     funding_source = Column(String(20))  # BUY only: DIVIDEND / PROFIT / NULL (fresh cash) — informational
+    # ‏D730: أسهمُ هذا الشراء الممَوَّلة من حوض إعادة الاستثمار — والباقي من السيولة. يكتبه الخادمُ وحده عند التقسيم الآليّ.
+    # NULL مع وسم إعادة الاستثمار = الشراءُ كلُّه منه (سجلُّ ما قبل التقسيم كما هو، لا يتغيّر رقمٌ فيه).
+    reinvest_qty = Column(Numeric(18, 6))
     realized_gain = Column(Numeric(18, 6))  # SELL only: proceeds minus cost basis at sale time
     notes = Column(Text)
     executed_at = Column(DateTime(timezone=True), nullable=False, index=True)

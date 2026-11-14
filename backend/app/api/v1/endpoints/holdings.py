@@ -212,7 +212,6 @@ async def update_holding(company_id: int, data: HoldingUpdate, db: AsyncSession 
     silently wipe the correction out. Storing the difference — not the final
     figure — keeps future buys and sells moving the cost basis normally.
     """
-    from app.api.v1.endpoints.transactions import replay_holding
     result = await db.execute(
         select(Holding).options(selectinload(Holding.company)).where(Holding.company_id == company_id)
     )
@@ -227,8 +226,13 @@ async def update_holding(company_id: int, data: HoldingUpdate, db: AsyncSession 
     qty = float(h.quantity or 0)
     avg = float(h.average_cost or 0)
     h.invested_amount = qty * avg
-    replayed = await replay_holding(db, company_id)
-    h.cost_basis_adjustment = round(qty * avg - float(replayed["invested"]), 6) if qty > 0 else 0
+    # ‏D725: التصحيحُ نقطةُ مطابقةٍ مؤرَّخة (الكمية والتكلفة معاً) تُطبَّق في إعادة التشغيل في موضعها — لا رقمٌ نهائيّ يمحوه أوّلُ
+    # تعديلٍ لاحق، ولا فارقُ تكلفةٍ وحدَه تبقى معه الكميةُ بلا أثرٍ في السجل (قِيس: الألبان 45 سهماً والسجلُّ 22).
+    from datetime import datetime as _dt, timezone as _tz
+    h.reconciled_at = _dt.now(_tz.utc)
+    h.reconciled_quantity = qty
+    h.reconciled_invested = qty * avg
+    h.cost_basis_adjustment = 0
     lp = float(h.last_price or 0)
     h.market_value = qty * lp if lp else h.invested_amount
     inv = float(h.invested_amount or 0)

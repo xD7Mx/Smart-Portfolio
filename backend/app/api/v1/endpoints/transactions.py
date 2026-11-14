@@ -285,12 +285,20 @@ async def _replay(db: AsyncSession, company_id: int, persist_gains: bool = True)
     bonus = 0.0
     reinvest_shares = 0.0
     profit_reinvested = 0.0
+    # ‏D725: نقطةُ المطابقة مع كشف الوسيط — «في هذا التاريخ أملك كذا بتكلفة كذا». تُطبَّق قبل أوّل عمليةٍ بعدها، فما قبلها
+    # يحلّ محلّه ما في الكشف (والكشفُ يشمله)، وما بعدها يُبنى عليها: شراءٌ يضيف، وبيعٌ يبيع من المصحَّح، وتجزئةٌ تضاعفه.
+    cp = (await db.execute(select(Holding.reconciled_at, Holding.reconciled_quantity, Holding.reconciled_invested)
+                           .where(Holding.company_id == company_id))).first()
+    cp_at = cp.reconciled_at if cp is not None else None
+    cp_pending = cp_at is not None
     # عمليات بيعٍ لم تجد أسهماً كافية وقتَها فقُصّت — تُبلَّغ للأعلى بدل أن
     # تُقصّ بصمت: تعديلُ شراءٍ قديم قد يُنقص أسهم لحظةٍ لاحقة فيتغيّر بيعٌ لم
     # يلمسه المالك، وهو أخطر ما في التحرير لأنه لا يترك أثراً مرئياً.
     clipped: list[int] = []
 
     for t in txs:
+        if cp_pending and t.executed_at is not None and t.executed_at > cp_at:
+            qty, invested, cp_pending = float(cp.reconciled_quantity or 0), float(cp.reconciled_invested or 0), False
         qf = float(t.quantity or 0)
         price = float(t.price or 0)
         fees = float(t.fees or 0)
@@ -329,6 +337,8 @@ async def _replay(db: AsyncSession, company_id: int, persist_gains: bool = True)
             qty += shares
             invested += total
             reinvest_shares += shares
+    if cp_pending:
+        qty, invested = float(cp.reconciled_quantity or 0), float(cp.reconciled_invested or 0)
 
     # Dividend income comes from the dedicated Dividend LEDGER, not from
     # replaying DIVIDEND transactions — because dividends can also be recorded
@@ -522,6 +532,15 @@ async def add_transaction(data: TransactionCreate, db: AsyncSession = Depends(ge
         _co = (await db.execute(select(_Co).where(_Co.id == data.company_id))).scalar_one()
         if _co.status == "ARCHIVED":
             _co.status = "ACTIVE"
+
+    # ‏D725: عمليةٌ تحرّك الأسهمَ مؤرَّخةٌ قبل نقطة مطابقة المركز تُرفض — المركزُ المصحَّح من كشف الوسيط يشملها أصلاً، فلو
+    # قُبلت لما زادت الأسهمُ (النقطةُ تحلّ محلَّ ما قبلها) ولنقص النقدُ: فرقٌ صامت. والتوزيعُ النقديّ لا يحرّك الأسهمَ فيُقبل.
+    if data.transaction_type in ("BUY", "SELL", "BONUS", "SPLIT"):
+        _cp = (await db.execute(select(Holding.reconciled_at).where(Holding.company_id == data.company_id))).scalar()
+        if _cp is not None and data.executed_at is not None and data.executed_at <= _cp:
+            _d = _cp.astimezone(_RIYADH).date().isoformat()
+            raise HTTPException(422, f"رُفضت العملية: تاريخُها قبل مطابقة المركز مع كشف الوسيط ({_d})، والمركزُ المصحَّح يشملها. "
+                                     f"لتغيير الكمية بعد ذلك التاريخ استعمل «تعديل المركز». لم يُحفظ شيء.")
 
     _before = await _ledger_state(db, data.company_id)
 

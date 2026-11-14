@@ -46,6 +46,27 @@ def held(h) -> float:
     return float(h.market_value or 0)
 
 
+def split_need(tw: float, investable: float, held_value: float, pool: float) -> tuple[float, float, float]:
+    """نصيبُ الشركة (‏D561): ما ينقصها لبلوغ وزنها المستهدف من رأس المال كلّه، تموّله إعادةُ الاستثمار بحصّة الوزن أوّلاً
+    ثمّ السيولةُ الباقي. دالّةٌ واحدة يقرؤها الجدولُ وتقسيمُ الشراء الآليّ (‏D730) — فلا يختلف رقمان للشركة الواحدة."""
+    need = max(0.0, tw / 100 * investable - held_value)
+    reinvest_share = round(min(need, tw / 100 * pool), 2)
+    liquidity_share = round(need - reinvest_share, 2)
+    return need, reinvest_share, liquidity_share
+
+
+async def company_reinvest_share(db: AsyncSession, company_id: int) -> float:
+    """نصيبُ شركةٍ واحدة من حوض إعادة الاستثمار بالريال — الرقمُ نفسُه في عمود «إعادة الاستثمار» بالجدول (‏D730)."""
+    holdings, cash, total_mv, investable, targets = await _snapshot(db)
+    tw = targets.get(company_id, 0)
+    if tw <= 0:
+        return 0.0
+    from app.services.portfolio_return import compute_reinvestment_pool
+    pool = (await compute_reinvestment_pool(db))["pool"]
+    h = next((x for x in holdings if x.company_id == company_id), None)
+    return split_need(tw, investable, held(h) if h is not None else 0.0, pool)[1]
+
+
 async def _snapshot(db: AsyncSession):
     # ترتيب المالك من شاشة الحيازات — يسري على كل بطاقة تعرض شركات.
     result = await db.execute(
@@ -114,9 +135,7 @@ async def get_allocation(db: AsyncSession = Depends(get_db)):
             # ما ينقص الشركةَ لبلوغ هدفها، لا «الوزنُ × السيولة» الذي يُهمل ما تملكه أصلاً
             # (قِيس: الراجحي ريت 2.35٪ وهدفُه 2.8٪ — اقتُرح له 6,976 فيصير 4.5٪؛ وحاجتُه ~1,490).
             # تموّله إعادةُ الاستثمار بحصّة الوزن أوّلاً ثمّ السيولةُ الباقي — كإعادة التوازن.
-            need = max(0.0, tw / 100 * investable - held(h))
-            reinvest_share = round(min(need, tw / 100 * pool), 2)
-            liquidity_share = round(need - reinvest_share, 2)
+            need, reinvest_share, liquidity_share = split_need(tw, investable, held(h), pool)
             total_amount = round(need, 2)
             total_shares = round(total_amount / lp, 1) if lp else None
         else:
@@ -126,6 +145,8 @@ async def get_allocation(db: AsyncSession = Depends(get_db)):
             "symbol": h.company.symbol,
             "name": h.company.company_name,
             "market_value": mv,
+            # ‏D729: الكميةُ لتُعاد القيمةُ والوزنُ بسعرٍ يكتبه المالك بدل آخر إغلاق
+            "quantity": float(h.quantity or 0),
             "current_weight": round(held(h) / investable * 100, 2) if investable else 0,   # بقيمة اليوم (D563)
             "target_weight": tw,
             "last_price": lp,

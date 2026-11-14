@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SplitBanner } from "../components/portfolio/SplitBanner";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Pencil, Trash2, TrendingUp, TrendingDown, ShoppingCart, X, SlidersHorizontal, Wallet, Scale, Columns3, RefreshCw, Coins, LayoutGrid, Briefcase, Newspaper, CalendarDays, GripVertical, Star, Shield, ChevronDown, AlertTriangle, Droplets, Save } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, TrendingUp, TrendingDown, ShoppingCart, X, SlidersHorizontal, Wallet, Scale, Columns3, RefreshCw, Coins, LayoutGrid, Briefcase, Newspaper, CalendarDays, GripVertical, Star, Shield, ChevronDown, AlertTriangle, Droplets, Save, RotateCcw } from "lucide-react";
 import { GridLayout, useContainerWidth, verticalCompactor } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import { companiesApi, holdingsApi, transactionsApi, cashApi, allocationApi, portfolioApi, profileApi, goalsApi } from "../services/api";
@@ -10,7 +10,7 @@ import { yearsToGoal, yearsLabel } from "../utils/goal";
 import { useT } from "../i18n";
 import { searchCompanies, lookupCompany, SaudiCompany } from "../data/saudiCompanies";
 import StockSheet from "../components/market/StockSheet";
-import { weightedDividendYield, retainedCashPct, rescaleWeights, rebalanceRow } from "../lib/allocMath";
+import { weightedDividendYield, retainedCashPct, rescaleWeights, rebalanceRow, repriceRows, priceOverride } from "../lib/allocMath";
 import AllocationCharts from "../components/portfolio/AllocationCharts";
 import { useAppStore, GridItem } from "../store/appStore";
 import { useAuthStore } from "../store/authStore";
@@ -1227,6 +1227,8 @@ export function RebalanceCard() {
   const qc = useQueryClient();
   const { isOwner } = useAuthStore();
   const [targets, setTargets] = useState<Record<number, string>>({});
+  /* ‏D729 (المالك): سعرٌ يكتبه بدل آخر إغلاق — تخطيطٌ في هذه الشاشة لا يُحفظ في الخادم */
+  const [prices, setPrices] = useState<Record<number, string>>({});
   const [showProfit, setShowProfit] = useState(false);
   /* ══ اسمُ الشركة يفتح ورقتَها ══ (بأمر المالك · D207)
      الجدولُ يعرض شركاتِ المحفظة ولا يُفضي إليها، فمن أراد قراءةَ حال
@@ -1290,7 +1292,10 @@ export function RebalanceCard() {
     onSuccess: () => { qc.invalidateQueries(); },
   });
 
-  const items = alloc?.items ?? [];
+  /* ‏D729: الصفوفُ بالسعر المكتوب — القيمةُ والوزنُ الحاليّ والعائدُ ورأسُ المال كلُّها منه.
+     وبلا سعرٍ مكتوبٍ هي صفوفُ الخادم نفسُها حرفاً بحرف (‏allocMath.repriceRows). */
+  const priced = repriceRows<any>(alloc?.items ?? [], prices, Number(alloc?.investable) || 0);
+  const items = priced.rows;
   if (!items.length) return null;
   const val = (id: number, fallback: number) => targets[id] !== undefined ? targets[id] : String(fallback || "");
   const sumTargets = items.reduce((a: number, it: any) => a + (Number(val(it.company_id, it.target_weight)) || 0), 0);
@@ -1345,8 +1350,8 @@ export function RebalanceCard() {
     const rb = rebalanceRow({
       currentWeight: Number(it.current_weight) || 0,
       targetWeight: tw,
-      investable: Number(alloc?.investable) || 0,   // ‏D563: القيمةُ السوقية + السيولة، من الخادم نفسِه
-      lastPrice: Number(it.last_price) || 0,
+      investable: priced.investable,   // ‏D563: القيمةُ السوقية + السيولة — وبالسعر المكتوب إن كُتب (‏D729)
+      lastPrice: it.px,
       freshCash: availCash,
       reinvestPool: pool,
     });
@@ -1368,7 +1373,7 @@ export function RebalanceCard() {
        بطاقة التوزيع وبطاقة المعاملة — ومن رأى ذلك مرّةً شكّ في الأرقام
        كلّها. يُجمع المعروضان لا الخامان، فلا يبقى فرق. */
     const totalAmount = Math.round(liquidityShare) + Math.round(reinvestShare);
-    const totalShares = it.last_price > 0 ? totalAmount / it.last_price : null;
+    const totalShares = it.px > 0 ? totalAmount / it.px : null;
     return { tw, liquidityShare, reinvestShare, totalAmount, totalShares,
              side: "buy" as const, excessPct: rb.excessPct };
   };
@@ -1378,7 +1383,41 @@ export function RebalanceCard() {
   /* أسهم صحيحة لا كسور: تداول لا يقبل جزء سهم، فعرض «12.4 سهماً» ليس أمراً
      قابلاً للتنفيذ. يُقرَّب للأسفل كي لا يتجاوز الأمرُ المبلغَ المتاح. */
   const shrOf = (amount: number | null, it: any) =>
-    (amount != null && it.last_price > 0) ? Math.floor(amount / it.last_price) : 0;
+    (amount != null && it.px > 0) ? Math.floor(amount / it.px) : 0;
+  /* ‏D729: حقلُ السعر — يعرض آخرَ إغلاقٍ حتى يُكتب غيرُه، والفارغُ عودةٌ إليه */
+  const pxDraft = (it: any) => prices[it.company_id] !== undefined ? prices[it.company_id]
+    : (Number(it.last_price) > 0 ? String(Number(it.last_price)) : "");
+  const setPx = (id: number, raw: string) => setPrices(s => ({ ...s, [id]: raw
+    .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/[٫,]/g, ".")
+    .replace(/[^\d.]/g, "") }));
+  const pxBlur = (id: number) => setPrices(s => {
+    if (priceOverride(s[id]) != null) return s;
+    const o = { ...s }; delete o[id]; return o;
+  });
+  const pxReset = (id: number) => setPrices(s => { const o = { ...s }; delete o[id]; return o; });
+  /* دالّةُ عرضٍ لا مكوّن: مكوّنٌ يُعرَّف داخل الرسم يُعاد إنشاؤه كلَّ ضغطة فيفقد الحقلُ تركيزَه */
+  const priceField = (it: any, w: number, reset: boolean) => (
+    <span className="inline-flex items-center gap-0.5">
+      <input data-role="alloc-price" className={"input tabular-nums text-center" + (it.repriced ? " alloc-px-on" : "")}
+        style={{ width: w, padding: "5px 6px" }}
+        type="text" inputMode="decimal" lang="en" dir="ltr"
+        aria-label={`سعر ${it.name} — آخر إغلاق ${Number(it.last_price) || "غير متوفّر"}`}
+        title={it.repriced ? `سعرٌ مكتوب · آخر إغلاق ${Number(it.last_price)}` : "آخر إغلاق — اكتب سعراً غيره لتُعاد النسبةُ وعددُ الأسهم"}
+        value={pxDraft(it)}
+        onChange={e => setPx(it.company_id, e.target.value)}
+        onBlur={() => pxBlur(it.company_id)}
+        onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+      {reset && it.repriced && (
+        <button type="button" className="alloc-px-reset" data-role="alloc-price-reset"
+          title={`عودة إلى آخر إغلاق ${Number(it.last_price)}`} aria-label="عودة إلى آخر إغلاق"
+          onClick={() => pxReset(it.company_id)}>
+          <RotateCcw size={13} />
+        </button>
+      )}
+    </span>
+  );
   /* مجاميع الأعمدة — الجدول بلا مجموع يترك المالك يجمع بنفسه ليتحقّق أن
      النصيبين يساويان ما لديه فعلاً. */
   const totals = items.reduce((a: any, it: any) => {
@@ -1456,6 +1495,13 @@ export function RebalanceCard() {
           {hasUnsaved && (
             <span className="unsaved-tag">معاينة — أوزانٌ غير محفوظة</span>
           )}
+          {priced.count > 0 && (
+            <button type="button" className="unsaved-tag alloc-px-tag" data-role="alloc-price-tag"
+              title="أسعارٌ مكتوبةٌ بدل آخر إغلاق — اضغط للعودة إليه في الشركات كلّها"
+              onClick={() => setPrices({})}>
+              بسعرٍ مكتوب ({priced.count}) <RotateCcw size={11} />
+            </button>
+          )}
           {/* الترتيب في اتجاه الصفحة (يمين ← يسار): التصفية ثم الحفظ، فيقع
               الحفظ في أقصى اليسار. وصار أيقونةَ قرصِ الحفظ المعروفة بدل
               الجملة — واسمه يبقى في `title` و`aria-label` لمن يقرأ بالصوت
@@ -1480,6 +1526,7 @@ export function RebalanceCard() {
         <table className="w-full hidden lg:table">
           <thead><tr className="border-b border-[var(--hairline)]">
             <th className="th text-start">الشركة</th>
+            <th className="th text-start">السعر</th>
             <th className="th text-start">القيمة</th>
             <th className="th text-start">الوزن الحالي</th>
             <th className="th text-start">الوزن المستهدف %</th>
@@ -1513,6 +1560,7 @@ export function RebalanceCard() {
                     <ShariaBadge status={it.sharia_status} size={13} />
                   </button>
                 </td>
+                <td className="td text-start">{priceField(it, 78, true)}</td>
                 <td className="td text-start text-[var(--ink)]">{fmt(it.market_value)}</td>
                 <td className="td text-start"><span className="tag-n">{it.current_weight}%</span></td>
                 <td className="td text-start">
@@ -1568,6 +1616,7 @@ export function RebalanceCard() {
             <tfoot>
               <tr style={{borderTop:"2px solid var(--hairline)"}}>
                 <td className="td text-start text-[var(--ink-muted)] text-xs font-semibold">المجموع</td>
+                <td className="td" />
                 {/* تحت «القيمة»: مجموعُ قيمة المراكز — أساسُ الدخل المحسوب بجانبه. */}
                 <td className="td text-start">
                   <span className="text-[var(--ink)] text-xs font-bold tabular-nums" dir="ltr">
@@ -1639,7 +1688,7 @@ export function RebalanceCard() {
               return (
                 <div key={it.company_id} data-role="alloc-card" className="card-rise rounded-2xl p-3 border border-[var(--hairline)] bg-[var(--surface)]"
                   style={{ animationDelay: `${Math.min(i, 12) * 28}ms` }}>
-                  <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5">
+                  <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-2">
                     <CompanyLogo symbol={it.symbol} size={34} />
                     <button type="button" onClick={() => setSheet(it.symbol)} className="min-w-0 text-start min-h-[32px]"
                       title={`اعرض ورقة ${it.name}`}>
@@ -1652,6 +1701,10 @@ export function RebalanceCard() {
                         {it.market_value ? <> · <span className="tabular-nums" dir="ltr">{fmt(it.market_value)}</span></> : null}
                       </span>
                     </button>
+                    <div className="flex flex-col items-center gap-0.5 shrink-0">
+                      <span className="text-[9.5px] text-[var(--ink-muted)]">السعر</span>
+                      {priceField(it, 62, false)}
+                    </div>
                     <label className="flex flex-col items-center gap-0.5 shrink-0">
                       <span className="text-[9.5px] text-[var(--ink-muted)]">الهدف %</span>
                       <input data-role="alloc-target" className="input tabular-nums text-center" style={{ width: 64, padding: "5px 6px" }}
@@ -2107,13 +2160,8 @@ export default function PortfolioPage() {
      شيء ما دامت سليمة: المعيار لا يُطلَب من المالك أن يضغط زرّه ولا أن يراه
      كل يوم. وحين ينكسر شيءٌ فعلاً — كإيداعٍ لم يُسجَّل يجعل الرصيد يخالف
      السجل — يظهر شريطٌ واحد يقول ماذا انكسر. */
-  const { data: integrity } = useQuery({
-    queryKey: ["portfolio-integrity"],
-    queryFn: () => portfolioApi.integrity().then((r: any) => r.data.data),
-    retry: 0,
-    staleTime: 10 * 60 * 1000,
-  });
-  const broken = (integrity?.checks || []).filter((c: any) => c && c.ok === false);
+  /* ‏D726 (المالك): «فحصُ السلامة مزعجٌ يأتي إنذاراً ويجعل الشكلَ قبيحاً — مكانُه الخفاء، وضمانُ البنية عملُك». فلا شريط؛
+     والفحصُ يعمل في الخلفية وتقيسه لجنةُ كشف الأعطال، وأصلُ إنذاره الأخير عُولج (‏D725: تصحيحُ الكمية نقطةُ مطابقة). */
 
   const filtered = holdings.filter((h: any) => {
     const q = search.toLowerCase();
@@ -2656,20 +2704,6 @@ export default function PortfolioPage() {
         </div>
       )}
       </>
-      )}
-
-      {/* شريط السلامة — لا يظهر إلا عند كسرٍ فعلي */}
-      {broken.length > 0 && (
-        <div className="rounded-xl p-3 flex items-start gap-2.5"
-          style={{ background: "transparent", border: "1px solid var(--hairline)" }}>
-          <AlertTriangle size={15} className="text-[var(--neg-ink)] shrink-0 mt-0.5" />
-          <div className="min-w-0">
-            <p className="text-[12.5px] font-bold text-[var(--neg-ink)]">
-              {broken.length === 1 ? "فحص سلامة لم يمرّ" : `${broken.length} فحوص سلامة لم تمرّ`}
-            </p>
-            <p className="text-[11.5px] text-[var(--ink-muted)] mt-0.5">{broken[0].name}{broken[0].detail ? ` — ${broken[0].detail}` : ""}</p>
-          </div>
-        </div>
       )}
 
       {/* Modals */}

@@ -119,6 +119,21 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
   say(m2.n >= 3 && m2.tags === m2.n, `${label}: بطاقاتُ «التوقعات» البطاقةُ الموحّدة بوسمٍ صلب`, `${m2.tags}/${m2.n}`);
   say(m2.sw <= m2.W + 1 && m2.over === 0, `${label}: «التوقعات» بلا فيضٍ أفقيّ`, `محتوى ${m2.sw} · شاشة ${m2.W}`);
   say(m2.logos === m2.n, `${label}: لكلّ بطاقةٍ شعار — وعلامةُ التطبيق مكانَ الغائب (D667)`, `${m2.logos}/${m2.n}`);
+  // ‏D727 (المالك): «الإطارُ الطويل لكل الجهات قبيح» — الجهةُ سهمٌ داخل الشريحة المختارة، والاختيارُ يُكتب فيها ويفرز
+  const w = await page.evaluate(() => {
+    const t = document.querySelector('[aria-label="الجهة"]');
+    const chip = document.querySelector('[data-role="fc-chip-on"]');
+    return { has: !!t, inChip: !!(t && chip && chip.contains(t)), tw: t ? Math.round(t.getBoundingClientRect().width) : 0,
+             W: innerWidth, list: document.querySelectorAll('.sp-select-list').length };
+  });
+  say(w.has && w.inChip && w.tw <= 60, `${label}: الجهةُ سهمٌ داخل الشريحة المختارة — لا إطارٌ طويلٌ تحتها (‏D727)`, `عرضُه ${w.tw}px`);
+  await page.locator('[aria-label="الجهة"]').first().click().catch(() => {});
+  await page.waitForTimeout(400);
+  await page.locator('.sp-select-list [role="option"]:has-text("الجزيرة كابيتال")').first().click().catch(() => {});
+  await page.waitForTimeout(500);
+  const w2 = await page.evaluate(() => ({ chip: (document.querySelector('[data-role="fc-chip-on"]') || {}).textContent || "",
+                                           n: document.querySelectorAll('.event-item').length }));
+  say(w2.chip.includes("الجزيرة كابيتال") && w2.n === 1, `${label}: والجهةُ المختارة تُكتب في الشريحة وتفرز البنود`, `${w2.chip} · ${w2.n}`);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `forecasts_${vp.width}.png`) });
   await ctx.close();
 }

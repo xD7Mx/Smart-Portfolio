@@ -50,8 +50,9 @@ for r in rs:
     r["page"] = "https://www.argaam.com/ar/analystestimates/brokeropinions/3/2604"
 fc = AO.as_forecasts({"4190": rs[:1], "4260": rs[1:]})
 check(fc[0]["source"] == "الراجحي المالية" and fc[0]["via"] == "أرقام" and fc[0]["kind"] == "توصية وسعرٌ مستهدف"
-      and "(كانت محايد)" in fc[0]["title"] and fc[0]["url"].endswith("/2604"),
-      "٥ البندُ باسم الجهة و«أرقام» ناقلٌ يُذكر، وتغيُّرُ التوصية يُقال", str(fc[0]))
+      and "(كانت محايد)" in fc[0]["title"] and fc[0]["url"] is None and fc[1]["url"].endswith(".pdf"),
+      "٥ البندُ باسم الجهة و«أرقام» ناقلٌ يُذكر، وتغيُّرُ التوصية يُقال — والرابطُ ملفُّ التقرير وحده، لا صفحةُ الجهة العامّة (‏D728)",
+      str(fc[0]))
 check(len({x["id"] for x in fc}) == 2, "٦ ولكلّ رأيٍ هويّتُه — لا يُسقط رأيٌ لأنّ رابطَه صفحةُ الجهة نفسُها")
 
 items = [{"id": f"o{i}", "kind": "توصية وسعرٌ مستهدف", "date": f"2026-0{1 + i % 9}-15", "source": "س"} for i in range(80)]

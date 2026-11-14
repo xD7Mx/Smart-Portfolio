@@ -131,3 +131,61 @@ export function rebalanceRow(i: RebalanceInput): RebalanceResult {
     excessPct,
   };
 }
+
+/* ══ سعرٌ يكتبه المالك بدل آخر إغلاق ══ (بأمر المالك 2026-11-14 · D729)
+   «لو أحطّ سعر مصرف الراجحي بدل 64 مثلاً 60، فتطلع لي النسبة ويطلع لي العدد
+   الصحيح بالضبط لعدد الأسهم». فالسعرُ المكتوب سعرٌ مفترَضٌ للسوق كلّه في هذه
+   الشركة، لا للشراء الجديد وحده — ومنه يُعاد كلُّ ما يتبعه:
+     · قيمةُ المركز = الكمية × السعر المكتوب
+     · رأسُ المال = ما كان − (القيمة القديمة − الجديدة)، فتتحرّك أوزانُ الشركات كلّها
+     · الوزنُ الحاليّ لكلّ صفّ = قيمتُه ÷ رأس المال الجديد
+     · عائدُ التوزيعات = العائد × آخر إغلاق ÷ المكتوب (التوزيعُ للسهم لا يتغيّر بسعره)
+   ولا يُكتب شيءٌ في الخادم: تخطيطُ أمرٍ لا تعديلُ سعر. وبلا سعرٍ مكتوبٍ تُعاد
+   الصفوفُ كما جاءت من الخادم حرفاً بحرف — فلا يتغيّر رقمٌ لم يُطلب تغييرُه. */
+export type PricedRow = {
+  company_id: number;
+  market_value?: number | null;
+  last_price?: number | null;
+  quantity?: number | null;
+  current_weight?: number | null;
+  dividend_yield?: number | null;
+};
+
+export function priceOverride(raw: string | undefined): number | null {
+  if (raw == null) return null;
+  const v = Number(String(raw).trim());
+  return isFinite(v) && v > 0 ? v : null;
+}
+
+export function repriceRows<T extends PricedRow>(
+  rows: T[], overrides: Record<number, string | undefined>, investable: number,
+): { rows: (T & { px: number; repriced: boolean })[]; investable: number; count: number } {
+  let delta = 0, count = 0;
+  const staged = rows.map(r => {
+    const lp = Number(r.last_price) || 0;
+    const mv = Number(r.market_value) || 0;
+    const o = priceOverride(overrides[r.company_id]);
+    if (o == null || o === lp) return { r, px: lp, mv, repriced: false };
+    count += 1;
+    // الكميةُ من الخادم؛ وإن غابت فمن القيمة ÷ آخر إغلاق (هي نفسُها ما ضربه الخادم)
+    const q = Number(r.quantity) > 0 ? Number(r.quantity) : (lp > 0 ? mv / lp : 0);
+    const mv2 = q * o;
+    delta += mv2 - mv;
+    return { r, px: o, mv: mv2, repriced: true };
+  });
+  if (!count) return { rows: rows.map(r => ({ ...r, px: Number(r.last_price) || 0, repriced: false })), investable, count };
+  const inv = (Number(investable) || 0) + delta;
+  return {
+    count,
+    investable: inv,
+    rows: staged.map(({ r, px, mv, repriced }) => {
+      const lp = Number(r.last_price) || 0;
+      const dy = r.dividend_yield;
+      return {
+        ...r, px, repriced, market_value: mv,
+        current_weight: inv > 0 ? Math.round(mv / inv * 100 * 100) / 100 : 0,
+        dividend_yield: repriced && typeof dy === "number" && isFinite(dy) && lp > 0 ? dy * lp / px : dy,
+      };
+    }),
+  };
+}

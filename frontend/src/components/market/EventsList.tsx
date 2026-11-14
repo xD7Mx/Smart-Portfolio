@@ -327,23 +327,28 @@ function ForecastsPanel({ data, loading }: { data?: any[]; loading: boolean }) {
     return <div className="py-16 text-center text-[var(--ink-muted)] text-sm">التوقعات غير متوفّرة حالياً</div>;
   return (
     <div className="space-y-2">
+      {/* ‏D727 (المالك): «الإطارُ الطويل لكل الجهات قبيح — كلمتان لسطرٍ كامل». فالجهةُ سهمٌ صغيرٌ داخل الشريحة المختارة نفسِها
+          («الكل» أو «توصيات وأسعار مستهدفة»…): الشريحةُ تعني كلَّ الجهات، والسهمُ يفتح قائمتَها للتخصيص، والجهةُ المختارة تُكتب فيها. */}
       <div className="flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="نوع التوقعات">
-        {groups.map(([id, label]) => (
-          <button key={id} role="tab" aria-selected={grp === id}
+        {groups.map(([id, label]) => grp === id ? (
+          <div key={id} role="tab" aria-selected className="seg-btn chip on shrink-0 fc-chip" data-role="fc-chip-on">
+            <button type="button" onClick={() => { setWho(""); setN(FC_PAGE); }} className="fc-chip-label">{label}</button>
+            {sources.length > 1 && (
+              <Select value={who} onChange={ev => { setWho(ev.target.value); setN(FC_PAGE); }} aria-label="الجهة"
+                className="fc-who" trigger={who ? <span className="truncate fc-who-name">{who}</span> : null}>
+                <option value="">كل الجهات</option>
+                {sources.map(s => <option key={s} value={s}>{s}</option>)}
+              </Select>
+            )}
+          </div>
+        ) : (
+          <button key={id} role="tab" aria-selected={false}
             onClick={() => { setGrp(id); setWho(""); setN(FC_PAGE); }}
-            aria-pressed={grp === id} className={"seg-btn chip shrink-0" + (grp === id ? " on" : "")}>
+            aria-pressed={false} className="seg-btn chip shrink-0">
             {label}
           </button>
         ))}
       </div>
-      {sources.length > 1 && (
-        /* ‏D678 (بأمر المالك): «قائمةٌ منسدلة ليست بتصميم التطبيق» — قائمةُ التطبيق المرسومة لا نافذةُ النظام */
-        <Select value={who} onChange={ev => { setWho(ev.target.value); setN(FC_PAGE); }} aria-label="الجهة"
-          className="w-full min-h-[36px] rounded-lg px-2 text-[12px] bg-[var(--field)] border border-[var(--hairline)] text-[var(--ink)]">
-          <option value="">كل الجهات</option>
-          {sources.map(s => <option key={s} value={s}>{s}</option>)}
-        </Select>
-      )}
       <div className="space-y-1.5">
         {shown.slice(0, n).map((f: any, i: number) => {
           const num = (v: number) => <b className="text-[var(--ink)] tabular-nums" dir="ltr">{v.toFixed(2)}</b>;

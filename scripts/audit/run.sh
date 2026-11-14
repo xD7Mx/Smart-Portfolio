@@ -344,6 +344,8 @@ python3 scripts/audit/owner_notes_d717.py || _note "$LINENO"
 python3 scripts/audit/finance_quality_d720.py || _note "$LINENO"
 # D724: الكاشُ لا يحتفظ بالمنتهي في الذاكرة — ذاكرةُ الخادم لا تنمو ما دام قائماً
 python3 scripts/audit/cache_purge_d724.py || _note "$LINENO"
+# D725: تصحيحُ المركز نقطةُ مطابقةٍ في السجل — لا يمحوه تعديلٌ لاحق، ولا يُرفض بيعُ المصحَّح، ولا يُعدّ خطأً في فحص السلامة
+python3 scripts/audit/reconcile_point_d725.py || _note "$LINENO"
 # D698: تقريرُ الشركة يحمل شموعَ الفترة كتقارير البنوك — ولا رسمَ مختلَقاً بلا شموع
 _node scripts/audit/ui_d698.mjs || _note "$LINENO"
 _node scripts/audit/ui_d711.mjs || _note "$LINENO"
@@ -470,6 +472,7 @@ python3 scripts/audit/fv_synthetic.py || _note "$LINENO"
 # والمقام معاً: عدُّها صفراً يخفض المعدّل برقمٍ لا مصدرَ له.
 echo
 _node scripts/audit/alloc_totals.mjs || _note "$LINENO"
+_node scripts/audit/alloc_price_d729.mjs || _note "$LINENO"   # ‏D729: سعرٌ يكتبه المالك في التوزيع النسبي
 
 # D198: درجةُ الحوكمة تُقرأ من المحرّك، والعمودُ المخزَّن يملأ الفراغَ ولا
 # يغلبه. كان المخزَّنُ أوّلاً فيُعرض رقمٌ قديمٌ في الفرز وخريطة القطاعات

@@ -98,6 +98,10 @@ async def init_db() -> None:
         await _safe("ALTER TABLE watchlist DROP CONSTRAINT IF EXISTS watchlist_symbol_key")
         await _safe("ALTER TABLE goals ADD COLUMN IF NOT EXISTS target_type VARCHAR(20) DEFAULT 'AMOUNT'")
         await _safe("ALTER TABLE holdings ADD COLUMN IF NOT EXISTS profit_reinvested NUMERIC(18,6) DEFAULT 0")
+        # ‏D725: نقطةُ مطابقة المركز مع كشف الوسيط
+        await _safe("ALTER TABLE holdings ADD COLUMN IF NOT EXISTS reconciled_at TIMESTAMPTZ")
+        await _safe("ALTER TABLE holdings ADD COLUMN IF NOT EXISTS reconciled_quantity NUMERIC(18,6)")
+        await _safe("ALTER TABLE holdings ADD COLUMN IF NOT EXISTS reconciled_invested NUMERIC(18,6)")
         await _safe("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS realized_gain NUMERIC(18,6)")
         # الكتب المرفوعة قبل نظام المعالجة الخلفية تُعتبَر جاهزة (DEFAULT TRUE)
         # كي لا تظهر عالقة في «جارٍ التحضير»؛ الرفع الجديد يضبطها False ثم True.
@@ -123,6 +127,8 @@ async def init_db() -> None:
         if "reinvestment_source" in cols and "funding_source" not in cols:
             await _safe("ALTER TABLE transactions RENAME COLUMN reinvestment_source TO funding_source")
         await _safe("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS funding_source VARCHAR(20)")
+        # ‏D730: الشقُّ الممَوَّل من إعادة الاستثمار في شراءٍ واحد (أسهماً) — إضافةٌ بلا مساسٍ بصفٍّ قائم
+        await _safe("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS reinvest_qty NUMERIC(18,6)")
         # نبذة نشاط الشركة — إضافةٌ آمنة (IF NOT EXISTS) بلا أي مساس ببيانات
         # قائمة، على نفس نمط الترحيلات أعلاه.
         await _safe("ALTER TABLE companies ADD COLUMN IF NOT EXISTS description TEXT")

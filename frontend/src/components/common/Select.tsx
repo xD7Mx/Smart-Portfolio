@@ -17,6 +17,8 @@ type Props = {
   disabled?: boolean;
   title?: string;
   "aria-label"?: string;
+  /* ‏D727: محتوى الزرّ بدل اسم المختار — سهمٌ وحده بجانب شريحة (فرزُ «التوقعات» بالجهة)، أو اسمٌ مختصر */
+  trigger?: React.ReactNode;
 };
 
 const textOf = (n: React.ReactNode): string =>
@@ -36,7 +38,7 @@ function collect(children: React.ReactNode, out: Opt[] = []): Opt[] {
   return out;
 }
 
-export default function Select({ value, onChange, children, className = "", style, disabled, title, ...rest }: Props) {
+export default function Select({ value, onChange, children, className = "", style, disabled, title, trigger, ...rest }: Props) {
   const opts = collect(children);
   const cur = String(value ?? "");
   const sel = opts.find(o => o.value === cur);
@@ -109,7 +111,7 @@ export default function Select({ value, onChange, children, className = "", styl
               disabled={disabled} title={title} aria-label={rest["aria-label"]}
               aria-haspopup="listbox" aria-expanded={open}
               className={`sp-select ${className}`} style={style}>
-        <span className="truncate">{sel ? sel.label : "—"}</span>
+        {trigger !== undefined ? trigger : <span className="truncate">{sel ? sel.label : "—"}</span>}
         <ChevronDown size={14} className={`sp-select-chev${open ? " is-open" : ""}`} />
       </button>
       {/* القائمةُ في جسم الصفحة لا بجوار الزرّ: داخل <label> (صفوفُ إعدادات D7M) كانت نقرةُ الخيار

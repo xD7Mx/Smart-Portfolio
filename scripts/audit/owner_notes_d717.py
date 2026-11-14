@@ -79,5 +79,8 @@ fe_all = "".join(f.read_text(encoding="utf-8") for f in (ROOT / "frontend/src").
 check(not (ROOT / "frontend/src/components/governance/GovernanceV2Modal.tsx").exists() and "GovernanceV2Modal" not in fe_all
       and "ميزان خبراء الحوكمة" not in gp and "onOpenV2" not in gp,
       "٩ ‏D723: لا نافذةَ «ميزان الخبراء» ولا زرَّها — ميزةٌ قديمةٌ لا تحاكي هويّةَ التطبيق، وأسبابُها من محرّكٍ آخر")
+# ‏D726 (المالك 2026-11-14): «فحصُ السلامة مزعجٌ يأتي إنذاراً ويجعل الشكلَ قبيحاً — مكانُه الخفاء، وضمانُ البنية عملُك»
+check("فحص سلامة لم يمرّ" not in pp and "portfolio-integrity" not in pp,
+      "١٠ ‏D726: لا شريطَ «فحص السلامة» في المحفظة — الفحصُ في الخلفية، وأصلُ إنذاره الأخير عُولج (‏D725)")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)
