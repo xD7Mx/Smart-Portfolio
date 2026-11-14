@@ -35,6 +35,7 @@ on:
           - health       # حالُ الخادم: الحاوياتُ والموارد والردود — ويُشغَّل ما توقّف منها
           - memory       # خريطةُ الذاكرة: من يشغلها، وما يمكن تحريرُه — قراءةٌ فقط
           - cleanup      # تنظيفٌ آمن: خدماتٌ لا يحتاجها خادمٌ سحابيّ، وذاكرةُ البناء، والصورُ اليتيمة، وسجلّاتُ النظام
+          - remove_extras # بإذن المالك الصريح: حذفُ نسخة التطبيق الثانية (sp2) وبرنامج d7m_v5 — بعد نسخةٍ احتياطيّةٍ على الخادم
       probe_name:
         description: >-
           اسمُ ملفِّ الكاشف حين تكون المهمّةُ probe — من `scripts/audit`
@@ -131,6 +132,49 @@ jobs:
                 "print(asyncio.run(sweep()))")" ;;
             complete)
               bash scripts/ops/complete.sh ;;
+            remove_extras)
+              # ══ بإذن المالك الصريح: «احذف الكوبي وd7m_v5» ══ — نسخةٌ احتياطيّةٌ أوّلاً على الخادم نفسِه، ثمّ الحذف.
+              # والتطبيقُ الرئيسيّ (‏sp_* · ~/Smart-Portfolio · وحدةُ تخزينه) محميٌّ بفحوصٍ صريحة.
+              set +e
+              BK="$HOME/Smart-Portfolio/backups/removed-$(date +%Y%m%d-%H%M)"; mkdir -p "$BK"
+              echo "قبل:"; free -m | sed -n 2,3p; df -h / | tail -1
+              MAIN_VOLS=" $(docker inspect sp_postgres --format '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}' 2>/dev/null) "
+              WD=$(docker inspect sp2_backend --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' 2>/dev/null)
+              VOLS=$(docker inspect sp2_postgres --format '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}' 2>/dev/null)
+              echo "— النسخةُ الثانية: مجلّدُها ${WD:-غير معروف} · وحداتُ تخزينها: ${VOLS:-لا شيء}"
+              REMOVE_VOLS=""
+              for v in $VOLS; do
+                case "$MAIN_VOLS" in *" $v "*) echo "  ✘ $v يستعملها التطبيقُ الرئيسيّ — لا تُمسّ"; continue ;; esac
+                docker run --rm --entrypoint tar -v "$v":/v:ro -v "$BK":/b postgres:16-alpine czf "/b/volume-$v.tgz" -C /v . \
+                  && echo "  نُسخت احتياطيّاً: $v" && REMOVE_VOLS="$REMOVE_VOLS $v"
+              done
+              for c in sp2_frontend sp2_backend sp2_postgres sp2_nginx; do
+                docker rm -f "$c" >/dev/null 2>&1 && echo "  حُذفت الحاوية: $c"; done
+              for v in $REMOVE_VOLS; do docker volume rm "$v" >/dev/null && echo "  حُذفت وحدةُ التخزين: $v"; done
+              for i in $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E '^smart-portfolio-2-'); do
+                docker image rm "$i" >/dev/null && echo "  حُذفت الصورة: $i"; done
+              docker network ls --format '{{.Name}}' | grep -E '^smart-portfolio-2' | xargs -r docker network rm >/dev/null 2>&1
+              MAIN_DIR="$(readlink -f "$HOME/Smart-Portfolio")"
+              if [ -n "$WD" ] && [ -d "$WD" ] && [ "$(readlink -f "$WD")" != "$MAIN_DIR" ] && [ "$(readlink -f "$WD")" != "$HOME" ] && [ "$WD" != "/" ]; then
+                tar czf "$BK/$(basename "$WD").tgz" --exclude=node_modules --exclude=.git --exclude=build -C "$(dirname "$WD")" "$(basename "$WD")" \
+                  && rm -rf "$WD" && echo "  حُذف المجلّد: $WD (نسختُه في الاحتياط)"
+              else
+                echo "  … مجلّدُ النسخة الثانية لم يُحذف (غيرُ معروف أو هو مجلّدُ التطبيق الرئيسيّ)"
+              fi
+              echo "— d7m_v5:"; du -sh "$HOME/d7m_v5" 2>/dev/null
+              UNIT=$(systemctl show -p FragmentPath d7m.service --value 2>/dev/null)
+              sudo -n systemctl disable --now d7m.service >/dev/null 2>&1 && echo "  أُوقفت الخدمةُ d7m.service وعُطّلت"
+              if [ -d "$HOME/d7m_v5" ]; then
+                tar czf "$BK/d7m_v5.tgz" --exclude=__pycache__ --exclude=venv --exclude=.venv -C "$HOME" d7m_v5 \
+                  && rm -rf "$HOME/d7m_v5" && echo "  حُذف المجلّد: ~/d7m_v5 (نسختُه في الاحتياط)"
+              fi
+              [ -n "$UNIT" ] && [ -f "$UNIT" ] && sudo -n rm -f "$UNIT" && sudo -n systemctl daemon-reload && echo "  حُذف ملفُّ الخدمة: $UNIT"
+              docker image prune -f >/dev/null 2>&1
+              sync; sleep 3
+              echo "— الاحتياط: $BK"; ls -la "$BK" | awk 'NR>1{print "  " $5 "\t" $9}'
+              echo "— الحاوياتُ الباقية:"; docker ps -a --format '  {{.Names}}\t{{.Status}}'
+              echo "بعد:"; free -m | sed -n 2,3p; df -h / | tail -1
+              curl -s -o /dev/null -w "التطبيق → %{http_code}\n" -m 20 http://localhost/api/v1/health ;;
             cleanup)
               # ══ تنظيفٌ آمن (طلبُ المالك: «توسيعُ الذاكرة بتنظيفها وحذف المهملات») ══ — لا بياناتٌ ولا صورُ حاويةٍ مستعملة
               echo "قبل:"; free -m | sed -n 2,3p; df -h / | tail -1
