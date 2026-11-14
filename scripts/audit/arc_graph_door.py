@@ -40,9 +40,9 @@ async def main():
         html = await page.content()
         print("نداءاتُ graph/edge:", len(reqs))
         key_src = re.findall(r"sc_apikey=([0-9A-Fa-f-]{36})", " ".join(u for u, _, _ in reqs))
-        print("المفتاحُ في النداء (أوّلُ ثمانيةٍ فقط):", [k[:8] for k in set(key_src)])
+        print("في النداء مفتاحٌ عامّ:", bool(key_src))       # لا يُطبع منه شيء (‏D385)
         for i, (u, m, body) in enumerate(reqs[:6]):
-            print(f"\n── الطلب {i}: {m} {re.sub(r'sc_apikey=[^&]+', 'sc_apikey=…', u)[:140]}")
+            print(f"\n── الطلب {i}: {m} {u.split('?')[0][:140]}")
             try:
                 j = json.loads(body)
                 q = j.get("query", "") if isinstance(j, dict) else ""

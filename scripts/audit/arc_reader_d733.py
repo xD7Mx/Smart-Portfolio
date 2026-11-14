@@ -70,7 +70,10 @@ q = R.arc_query(d["root"], d["template"], 50, "MTY=")
 check('after:"MTY="' in q and "DownloadLink" in q and "orderBy: { name: \"Date\", direction: DESC }" in q and "icon" not in q,
       "٦ والاستعلامُ استعلامُ الصفحة نفسُه بحقل التحميل — ولا يطلب الأيقونةَ أصلاً")
 src = (ROOT / "backend/app/services/research_reports.py").read_text(encoding="utf-8")
-check("B4E643CA" not in src and "sc_apikey" in src and "arc_items" not in src and "/-/media/|" not in src,
+import re as _re
+_lits = [g for g in _re.findall(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}", src)
+         if "{" + g + "}" not in src]                            # الجذرُ والقالبُ بأقواسهما معرّفا بنودٍ لا مفاتيح
+check(not _lits and "sc_apikey" in src and "arc_items" not in src and "/-/media/|" not in src,
       "٧ ولا مفتاحَ محفوظاً في الشيفرة، والقارئُ القديمُ (أوّلُ رابطِ وسائط) محذوف")
 # ٨ رأيُ الجهة بلا ملفٍّ يُربط بتقريرها عن الشركة نفسِها خلال أسبوع — الأقربُ تاريخاً
 reps = [{"kind": "تقرير شركة", "company": "2280", "source": "الراجحي المالية", "date": "2026-11-03", "url": "https://x/a.pdf", "title": "أ"},

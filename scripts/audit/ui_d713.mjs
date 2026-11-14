@@ -75,7 +75,8 @@ await page.waitForTimeout(3000);
 // تفعيلُ D7M من قائمة المؤشّرات
 await page.locator("button", { hasText: "SMA20" }).first().click({ timeout: 6000 }).catch(() => {});
 await page.waitForTimeout(400);
-await page.locator('button[aria-pressed]', { hasText: "D7M" }).first().click({ timeout: 6000 }).catch(() => {});
+// ‏D734: «CVD D7M» زرٌّ آخرُ في القائمة نفسِها — فيُختار «D7M» بنصّه كاملاً
+await page.locator('button[aria-pressed]', { hasText: /^D7M$/ }).first().click({ timeout: 6000 }).catch(() => {});
 await page.waitForTimeout(2500);
 const read = () => page.evaluate(() => {
   const surf = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim();

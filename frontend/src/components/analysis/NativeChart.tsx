@@ -368,12 +368,13 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
         dS.setData(series(st.d));
       }
       if (ind.cvd) {
-        /* ألوانُ السكربت: الصاعدةُ بيضاءُ لخلفيةٍ داكنة — فتُرسم بحبر النصّ ليُقرأ في المظهرين (كـD7M · ‏D713)، والهابطةُ #fc0808 */
+        /* ألوانُ السكربت من رموز التطبيق: الصاعدةُ بيضاءُ لخلفيةٍ داكنة — فتُرسم بحبر النصّ ليُقرأ في المظهرين (كـD7M · ‏D713)،
+           والهابطةُ حمراءُ برمز الهبوط، والخطُّ أزرقُ برمز الرسم */
         const cv = cvdD7M(bars as any, cvdCfg);
-        const ink = tok("--ink", "#111"), red = "#fc0808";
+        const ink = tok("--ink", "#111"), red = down;
         const fmt = cvdCfg.scale === "volume" ? { type: "volume" } : { type: "price", precision: 1, minMove: 0.1 };
         if (cvdCfg.style === "line") {
-          const ln = chart.addLineSeries({ color: "#2196f3", lineWidth: 2, priceScaleId: "cvd", priceLineVisible: false, lastValueVisible: false, priceFormat: fmt });
+          const ln = chart.addLineSeries({ color: tok("--chart-4", "#4a8fbd"), lineWidth: 2, priceScaleId: "cvd", priceLineVisible: false, lastValueVisible: false, priceFormat: fmt });
           ln.setData(series(cv.line));
         } else {
           const cs = chart.addCandlestickSeries({ priceScaleId: "cvd", priceLineVisible: false, lastValueVisible: false, priceFormat: fmt,
