@@ -136,7 +136,9 @@ jobs:
               # ══ بإذن المالك الصريح: «احذف الكوبي وd7m_v5» ══ — نسخةٌ احتياطيّةٌ أوّلاً على الخادم نفسِه، ثمّ الحذف.
               # والتطبيقُ الرئيسيّ (‏sp_* · ~/Smart-Portfolio · وحدةُ تخزينه) محميٌّ بفحوصٍ صريحة.
               set +e
-              BK="$HOME/Smart-Portfolio/backups/removed-$(date +%Y%m%d-%H%M)"; mkdir -p "$BK"
+              # الاحتياطُ في مجلّدٍ يملكه مستخدمُ الخادم — ‎~/Smart-Portfolio/backups‎ ملكُ النظام (يُنشئه دوكر) فرُفضت الكتابةُ فيه
+              BK="$HOME/removed-backups/$(date +%Y%m%d-%H%M)"
+              mkdir -p "$BK" || { echo "✘ تعذّر إنشاءُ مجلّد الاحتياط $BK — لا يُحذف شيء"; exit 1; }
               echo "قبل:"; free -m | sed -n 2,3p; df -h / | tail -1
               MAIN_VOLS=" $(docker inspect sp_postgres --format '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}' 2>/dev/null) "
               WD=$(docker inspect sp2_backend --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' 2>/dev/null)
@@ -170,6 +172,7 @@ jobs:
               fi
               [ -n "$UNIT" ] && [ -f "$UNIT" ] && sudo -n rm -f "$UNIT" && sudo -n systemctl daemon-reload && echo "  حُذف ملفُّ الخدمة: $UNIT"
               docker image prune -f >/dev/null 2>&1
+              echo "— الصورُ الباقية:"; docker images --format '  {{.Repository}}:{{.Tag}}\t{{.Size}}'
               sync; sleep 3
               echo "— الاحتياط: $BK"; ls -la "$BK" | awk 'NR>1{print "  " $5 "\t" $9}'
               echo "— الحاوياتُ الباقية:"; docker ps -a --format '  {{.Names}}\t{{.Status}}'
