@@ -189,3 +189,55 @@ export function repriceRows<T extends PricedRow>(
     }),
   };
 }
+
+/* ══ أوامرُ الشراء آليّاً من الحيازات والأهداف والرصيد ══ (بأمر المالك 2026-11-14 · D731)
+   «إدارة السيولة… أبغاها أوتوماتيكية… هو يعرف الشركات في الحيازات، ويعرف كم الرصيد… بالإمكان تخصيص بعض
+   الأشياء، لكن أوامر الشراء يفترض أنها أوتوماتيكية». فالأوامرُ تُشتقّ ولا تُكتب:
+     ١ حاجةُ كلّ شركة = ما ينقصها لبلوغ وزنها المستهدف من رأس المال كلّه (‏D561 — كجدول «التوزيع النسبي»).
+     ٢ الميزانيةُ (كلُّ السيولة، أو مبلغٌ، أو دفعةٌ من N) تُقسَم على الحاجات بنسبها إن قصرت عنها، وتُغطّيها إن كفت.
+     ٣ أسهمٌ صحيحةٌ للأسفل، ثمّ يُوزَّع ما بقي سهماً سهماً على أكبر الكسور (طريقةُ أكبر البواقي) ما دام يكفي.
+     ٤ والعمولةُ تُحجز من الميزانية أوّلاً: فلا يتجاوز مجموعُ الأوامر بعمولتها ما في الحساب — وإلّا رُفض آخرُ أمرٍ عند الوسيط.
+   الشركةُ المستبعدة لا تأخذ شيئاً، ولا تُعاد حاجتُها إلى غيرها (لا تُضخَّم شركةٌ فوق هدفها لأنّ أختها استُبعدت). */
+export type OrderRow = {
+  company_id: number; px: number; market_value?: number | null; target_weight?: number | null;
+};
+export type Order = { company_id: number; shares: number; px: number; cost: number; need: number; alloc: number; weightAfter: number };
+
+export function buildOrders(
+  rows: OrderRow[], o: { investable: number; budget: number; feePct?: number; excluded?: Set<number> },
+): { orders: Order[]; spent: number; fees: number; left: number; needTotal: number; budget: number } {
+  const inv = Number(o.investable) || 0;
+  const budget = Math.max(0, Number(o.budget) || 0);
+  const fee = Math.max(0, Number(o.feePct) || 0) / 100;
+  const ex = o.excluded ?? new Set<number>();
+  const base = rows.map(r => {
+    const tw = Number(r.target_weight) || 0, mv = Number(r.market_value) || 0, px = Number(r.px) || 0;
+    const need = !ex.has(r.company_id) && tw > 0 && px > 0 ? Math.max(0, tw / 100 * inv - mv) : 0;
+    return { company_id: r.company_id, px, mv, need };
+  });
+  const needTotal = base.reduce((a, b) => a + b.need, 0);
+  const net = budget / (1 + fee);                          // ما يبقى للأسهم بعد حجز العمولة
+  const scale = needTotal > 0 ? Math.min(1, net / needTotal) : 0;
+  const st = base.map(b => {
+    const alloc = b.need * scale;
+    const shares = b.px > 0 ? Math.floor(alloc / b.px + 1e-9) : 0;
+    return { ...b, alloc, shares };
+  });
+  let left = net - st.reduce((a, b) => a + b.shares * b.px, 0);
+  // أكبرُ البواقي: سهمٌ واحدٌ زائدٌ على الأكثر لكلّ شركة، بترتيب كسرها — ولا يُتجاوز الصافي أبداً
+  const order = st.map((b, i) => ({ i, frac: b.px > 0 ? b.alloc / b.px - b.shares : 0 }))
+    .filter(x => x.frac > 1e-9).sort((a, b) => b.frac - a.frac || a.i - b.i);
+  for (const { i } of order) {
+    if (st[i].px <= left + 1e-9) { st[i].shares += 1; left -= st[i].px; }
+  }
+  const spent = st.reduce((a, b) => a + b.shares * b.px, 0);
+  const fees = spent * fee;
+  const invAfter = inv - fees;
+  return {
+    budget, needTotal, spent, fees, left: budget - spent - fees,
+    orders: st.map(b => ({
+      company_id: b.company_id, shares: b.shares, px: b.px, cost: b.shares * b.px, need: b.need, alloc: b.alloc,
+      weightAfter: invAfter > 0 ? (b.mv + b.shares * b.px) / invAfter * 100 : 0,
+    })),
+  };
+}

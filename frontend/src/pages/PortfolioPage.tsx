@@ -522,11 +522,11 @@ const TX_TYPES = [
 ];
 /* ‏D730 (بأمر المالك): لا اختيارَ يدويَّ لتمويل الشراء — يقسمه الخادمُ بين إعادة الاستثمار والسيولة (‏FundingSplit). */
 
-function TransactionModal({ company, onClose }: { company: any; onClose: () => void }) {
+function TransactionModal({ company, onClose, initial }: { company: any; onClose: () => void; initial?: { shares?: string; price?: string } }) {
   const tr = useT();
   const qc = useQueryClient();
   const [type, setType] = useState("BUY");
-  const [f, setF] = useState({ shares: "", price: "", amount: "", factor: "2", date: new Date().toISOString().split("T")[0] });
+  const [f, setF] = useState({ shares: initial?.shares ?? "", price: initial?.price ?? "", amount: "", factor: "2", date: new Date().toISOString().split("T")[0] });
   const fs = useFundingSplit(company.id, type === "BUY", f.shares, f.price, f.date);
   const [preSplitOk, setPreSplitOk] = useState(false);
   // سياق القرار داخل البطاقة: أسهمك · متوسط تكلفتك · سيولتك.
@@ -1975,6 +1975,7 @@ export default function PortfolioPage() {
   const [addOpen, setAddOpen]   = useState(false);
   const [editComp, setEditComp] = useState<any>(null);
   const [txComp, setTxComp]     = useState<any>(null);
+  const [txInit, setTxInit]     = useState<{ shares?: string; price?: string } | null>(null);   // ‏D731: أمرٌ من «إدارة السيولة»
   const [delComp, setDelComp]   = useState<any>(null);
   const [editHold, setEditHold] = useState<any>(null);
   const [cashOpen, setCashOpen] = useState(false);
@@ -2316,7 +2317,10 @@ export default function PortfolioPage() {
         <DashboardGrid />
       </div>
       {tab === "dashboard" && dashSubTab === "rebalance" && <RebalanceCard />}
-      {tab === "dashboard" && dashSubTab === "liquidity" && <LiquidityTab />}
+      {tab === "dashboard" && dashSubTab === "liquidity" && (
+        /* ‏D731: الأمرُ يُسجَّل تنفيذُه من مكانه — نافذةُ المعاملة بعدده وسعره، وتمويلُه يُقسَم آليّاً هناك (‏D730) */
+        <LiquidityTab onRecord={(c, shares, price) => { setTxInit({ shares: String(shares), price: String(price) }); setTxComp(c); }} />
+      )}
       {tab === "governance" && <GovernancePage embedded />}
       {tab === "portfolioNews" && <PortfolioNewsPage />}
       {tab === "portfolioCalendar" && <PortfolioCalendarPage />}
@@ -2694,7 +2698,7 @@ export default function PortfolioPage() {
       {/* Modals */}
       {addOpen   && <CompanyModal onClose={() => setAddOpen(false)} />}
       {editComp  && <CompanyModal company={editComp} onClose={() => setEditComp(null)} />}
-      {txComp    && <TransactionModal company={txComp} onClose={() => setTxComp(null)} />}
+      {txComp    && <TransactionModal company={txComp} initial={txInit ?? undefined} onClose={() => { setTxComp(null); setTxInit(null); }} />}
       {delComp   && <DeleteModal company={delComp} onClose={() => setDelComp(null)} />}
       {editHold  && <HoldingModal holding={editHold} onClose={() => setEditHold(null)} />}
       {cashOpen  && <CashModal onClose={() => setCashOpen(false)} />}

@@ -3179,3 +3179,22 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 }
 .funding-split-err { color: var(--neg-ink); font-size: 12px; background: color-mix(in srgb, var(--neg-ink) 8%, transparent); }
 @media (prefers-reduced-motion: reduce) { .funding-split { animation: none; } }
+
+/* ══ ‏D731: «إدارة السيولة» أوامرُ آليّة ══ بطاقاتُ أوامرٍ بلغة بطاقات التوزيع النسبي: رأسُ الشركة، فالسعرُ، فالأسهمُ
+   بارزةً (وحدةُ القرار)، فالمبلغ، فالأفعال — وشريطُ الوزن تحتها يُري الحاليَّ وما بعد التنفيذ والهدف. */
+.liq-stat { border: 1px solid var(--hairline); background: color-mix(in srgb, var(--ink) 2.5%, transparent); }
+.liq-row { border: 1px solid var(--hairline); background: var(--surface);
+           transition: opacity .25s ease, border-color .2s ease, background-color .2s ease; }
+.liq-row.liq-off { opacity: .55; background: transparent; }
+.liq-grid { display: grid; align-items: center; gap: 8px 12px;
+            grid-template-columns: minmax(0, 1.6fr) auto minmax(84px, .8fr) minmax(90px, .8fr) auto; }
+.liq-act { min-width: 32px; min-height: 32px; padding: 4px; display: inline-flex; align-items: center; justify-content: center; }
+.liq-total { background: color-mix(in srgb, var(--brand) 7%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 22%, transparent); }
+.liq .wbar-fill { transition: width .32s ease; }
+@media (max-width: 767px) {
+  .liq-grid { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "co acts" "px px" "sh amt"; }
+  .liq-co { grid-area: co; } .liq-acts { grid-area: acts; } .liq-px { grid-area: px; }
+  .liq-shares { grid-area: sh; } .liq-amt { grid-area: amt; }
+  .liq-px { display: flex; align-items: center; gap: 8px; } .liq-px > div:first-child { margin: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .liq-row, .liq .wbar-fill { transition: none; } }

@@ -1,430 +1,235 @@
-/* إدارة السيولة — خطّة ضخّ رأس المال على دفعات.
+/* ══ إدارة السيولة — أوامرُ شراءٍ آليّة ══ (بأمر المالك 2026-11-14 · D731)
 
-   مربّعٌ واحد: قيمة الدفعة. وكل شركةٍ لها نسبةٌ منها تبدأ من وزنها **المستهدف**
-   في التوزيع النسبي وتقبل التحرير، فالمبلغ = الدفعة × النسبة × عدد الدفعات
-   المؤشَّرة. والحساب محليٌّ فوريّ، والحفظ بزرٍّ صريح: الخطّة تُعدَّل عشرات
-   المرّات في الجلسة، فحفظ كل ضغطة يملأ الشبكة ويجعل التراجع مستحيلاً.
-*/
+   «ما عجبني التصميم الحالي، عيد التصميم… أبغاها أوتوماتيكية: هو يعرف الشركات في الحيازات وأوزانها المستهدفة،
+   ويعرف كم الرصيد… بالإمكان تخصيص بعض الأشياء، لكن أوامر الشراء يفترض أنها أوتوماتيكية».
+
+   كانت خطّةً تُكتب باليد: قيمةُ دفعة، ونسبةٌ لكلّ شركة، وخمسةُ مربّعاتٍ تؤشَّر، ثمّ بطاقةُ أوامر بعدد دفعاتٍ يُكتب.
+   فصارت تُشتقّ: الأوامرُ من حاجة كلّ شركةٍ إلى هدفها (‏allocMath.buildOrders) على الرصيد الحاضر، والتخصيصُ أربعة:
+   الميزانية (كلُّ السيولة · مبلغ · دفعةٌ من N)، والسعر (آخر إغلاقٍ حتى يُكتب غيرُه)، واستبعادُ شركة، والعمولة.
+   والتخصيصُ تفضيلُ جهازٍ لا بيانُ محفظة: يُحفظ هنا ولا يمسّ رقماً في الخادم. والتنفيذُ يُسجَّل من الأمر نفسِه
+   في نافذة المعاملة (العددُ والسعرُ معبّآن) فيُقسَم تمويلُه آليّاً هناك (‏D730). */
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Droplets, Save, RotateCcw, ClipboardList } from "lucide-react";
-import { liquidityApi } from "../../services/api";
+import { useQuery } from "@tanstack/react-query";
+import { Droplets, Copy, Check, RotateCcw, EyeOff, Eye, PenLine } from "lucide-react";
+import { allocationApi } from "../../services/api";
 import { NumInput } from "../common/UI";
 import CompanyLogo from "../common/CompanyLogo";
-import CheckBox from "../common/CheckBox";
+import { buildOrders, repriceRows, priceOverride } from "../../lib/allocMath";
 
-const fmt = (n: number | null | undefined, d = 0) =>
-  n == null ? "—" : Number(n).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
+const n0 = (n: number | null | undefined) =>
+  n == null || !isFinite(Number(n)) ? "—" : Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 });
+const n2 = (n: number | null | undefined) =>
+  n == null || !isFinite(Number(n)) ? "—" : Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-type Row = {
-  company_id: number; symbol: string; name: string;
-  share_pct: number; pct_is_auto: boolean; tranches: boolean[]; exec_tranches: number;
-  price: number; live_price: number; price_is_override: boolean;
+type Mode = "all" | "amount" | "tranches";
+type Prefs = { mode: Mode; amount: string; n: number; fee: string; excluded: number[] };
+const KEY = "sp.liq.v2";
+const DEF: Prefs = { mode: "all", amount: "", n: 2, fee: "0", excluded: [] };
+const loadPrefs = (): Prefs => {
+  try { return { ...DEF, ...(JSON.parse(localStorage.getItem(KEY) || "{}") || {}) }; } catch { return DEF; }
 };
+const latin = (v: string) => v.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+  .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0)).replace(/[٫,]/g, ".").replace(/[^\d.]/g, "");
 
-type Draft = Record<string, string>;
-
-/* حقلٌ رقميّ محرَّر: يعرض النصّ الخام أثناء الكتابة، وإلّا فالقيمة المنسَّقة.
-
-   ومكانه **خارج** المكوّن الأب عمداً: تعريف مكوّنٍ داخل دالة العرض يُنتج نوعاً
-   جديداً مع كل ضغطة مفتاح، فيُفكّك React الحقل ويُعيد بناءه فيضيع التركيز
-   ويتوقّف الكتابة فجأة — وهي العلّة نفسها التي أُصلحت في صناديق التحرير سابقاً. */
-function Field({ id, field, value, width, decimals, onNum, allowDecimal = true, draft, setDraft }: {
-  id: number; field: string; value: number; width: number;
-  decimals?: number; allowDecimal?: boolean; onNum: (n: number) => void;
-  draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>;
+export default function LiquidityTab({ onRecord }: {
+  onRecord?: (company: { id: number; name_ar: string; symbol: string }, shares: number, price: number) => void;
 }) {
-  const key = `${id}:${field}`;
-  const shown = draft[key] ?? (decimals != null ? Number(value ?? 0).toFixed(decimals) : String(value ?? ""));
-  return (
-    <NumInput className="input" style={{ width, padding: "5px 8px" }}
-      allowDecimal={allowDecimal}
-      value={shown}
-      onChange={(v: string) => {
-        setDraft(d => ({ ...d, [key]: v }));
-        onNum(Number(v) || 0);
-      }}
-      onBlur={() => setDraft(d => { const n = { ...d }; delete n[key]; return n; })} />
-  );
-}
-
-export default function LiquidityTab() {
-  const qc = useQueryClient();
-  const { data, isLoading } = useQuery({
-    queryKey: ["liquidity"],
-    queryFn: () => liquidityApi.get().then((r: any) => r.data.data),
-    retry: 0,
+  const { data: alloc, isLoading, isError } = useQuery({
+    queryKey: ["allocation"],
+    queryFn: () => allocationApi.get().then(r => r.data.data),
   });
+  const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
+  useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch { /* وضعُ التصفّح الخاصّ */ } }, [prefs]);
+  const set = (p: Partial<Prefs>) => setPrefs(s => ({ ...s, ...p }));
+  const [prices, setPrices] = useState<Record<number, string>>({});
+  const [copied, setCopied] = useState(false);
 
-  const [rows, setRows] = useState<Row[]>([]);
-  const [tranche, setTranche] = useState<string>("");
-  /* بطاقتان مستقلّتان بزرَّي حفظ. والعَلَمان منفصلان ليعرف المالك أيّهما فيه
-     تغييرٌ معلّق؛ أمّا الإرسال فيحمل الخطّة كاملةً في الحالتين — الطلب واحد،
-     وإرسال نصف الخطّة يعني حفظاً جزئياً لا يطلبه أحد. ولذلك يُطفأ العَلَمان
-     معاً عند النجاح. */
-  /* نصّ الحقل أثناء الكتابة، بمفتاح «معرّف الشركة:الحقل». وبدونه تُبتلع
-     النقطة العشرية: «23.» تُقرأ رقماً فتعود 23 ويُمحى ما كُتب قبل إكماله.
-     فالمعروض هو ما كتبه المالك حتى يترك الحقل، والمحسوب هو تأويله رقماً. */
-  const [draft, setDraft] = useState<Record<string, string>>({});
-  const [dirtyPlan, setDirtyPlan] = useState(false);
-  const [dirtyOrders, setDirtyOrders] = useState(false);
-  const dirty = dirtyPlan || dirtyOrders;
+  const cash = Number(alloc?.available_cash) || 0;
+  const pool = Number(alloc?.reinvestment_pool) || 0;
+  const priced = useMemo(() => repriceRows<any>(alloc?.items ?? [], prices, Number(alloc?.investable) || 0),
+                         [alloc, prices]);
+  const excluded = useMemo(() => new Set(prefs.excluded), [prefs.excluded]);
+  const amountNum = Number(prefs.amount) || 0;
+  const budget = prefs.mode === "all" ? cash
+    : prefs.mode === "amount" ? Math.min(cash, amountNum)
+    : cash / Math.max(1, prefs.n);
+  const plan = useMemo(() => buildOrders(priced.rows, { investable: priced.investable, budget,
+    feePct: Number(prefs.fee) || 0, excluded }), [priced, budget, prefs.fee, excluded]);
+  const byId = new Map(plan.orders.map(o => [o.company_id, o]));
+  const rows = priced.rows.filter((r: any) => Number(r.target_weight) > 0);
+  const active = plan.orders.filter(o => o.shares > 0);
 
-  /* الخادم مصدر الحقيقة عند القراءة، والتحرير محليّ. ولا نستبدل تحريراً غير
-     محفوظ بردٍّ متأخّر من الخادم — فذلك يمحو عمل المالك أمام عينيه. */
-  useEffect(() => {
-    if (data?.items && !dirty) {
-      setRows(data.items);
-      // بلا قيمةٍ محفوظة تبدأ الدفعة بالسيولة كاملةً — وهو الافتراض الطبيعي:
-      // ما لديك هو ما تخطّط لضخّه حتى تقرّر غيره.
-      setTranche(String(data.tranche_value || data.available_cash || 0));
-      setDraft({});
-    }
-  }, [data, dirty]);
-
-  const trancheValue = Number(tranche) || 0;
-
-  const save = useMutation({
-    mutationFn: () => liquidityApi.save(
-      rows.map(r => ({
-        company_id: r.company_id,
-        // النسبة التلقائية لا تُرسَل كرقم: إرسالها يجمّدها على وزن اليوم،
-        // فتتوقّف عن متابعة المحفظة من غير أن يطلب المالك ذلك.
-        ...(r.pct_is_auto ? { clear_share_pct: true } : { share_pct: r.share_pct }),
-        tranches: r.tranches,
-        exec_tranches: r.exec_tranches ?? 0,
-        ...(r.price_is_override ? { price_override: r.price } : { clear_price_override: true }),
-      })),
-      trancheValue,
-    ).then((r: any) => r.data),
-    onSuccess: () => {
-      setDirtyPlan(false);
-      setDirtyOrders(false);
-      setDraft({});
-      qc.invalidateQueries({ queryKey: ["liquidity"] });
-    },
-  });
-
-  const patch = (id: number, next: Partial<Row>, from: "plan" | "orders" = "plan") => {
-    (from === "plan" ? setDirtyPlan : setDirtyOrders)(true);
-    setRows(rs => rs.map(r => (r.company_id === id ? { ...r, ...next } : r)));
+  const copy = async () => {
+    const lines = rows.map((r: any) => {
+      const o = byId.get(r.company_id);
+      return o && o.shares > 0 ? `شراء ${o.shares.toLocaleString("en-US")} سهم ${r.symbol} ${r.name} بسعر ${n2(o.px)} = ${n2(o.cost)}` : null;
+    }).filter(Boolean);
+    try { await navigator.clipboard.writeText(lines.join("\n")); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* لا حافظة */ }
   };
+  const pxField = (r: any) => (
+    <span className="inline-flex items-center gap-0.5">
+      <input data-role="liq-price" className={"input tabular-nums text-center" + (r.repriced ? " alloc-px-on" : "")}
+        style={{ width: 74, padding: "5px 6px" }} type="text" inputMode="decimal" lang="en" dir="ltr"
+        aria-label={`سعر ${r.name}`} title={r.repriced ? `سعرٌ مكتوب · آخر إغلاق ${Number(r.last_price)}` : "آخر إغلاق — اكتب سعرَ أمرك"}
+        value={prices[r.company_id] ?? (Number(r.last_price) > 0 ? String(Number(r.last_price)) : "")}
+        onChange={e => setPrices(s => ({ ...s, [r.company_id]: latin(e.target.value) }))}
+        onBlur={() => setPrices(s => { if (priceOverride(s[r.company_id]) != null) return s; const o = { ...s }; delete o[r.company_id]; return o; })}
+        onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+      {r.repriced && (
+        <button type="button" className="alloc-px-reset" title={`عودة إلى آخر إغلاق ${Number(r.last_price)}`} aria-label="عودة إلى آخر إغلاق"
+          onClick={() => setPrices(s => { const o = { ...s }; delete o[r.company_id]; return o; })}><RotateCcw size={13} /></button>
+      )}
+    </span>
+  );
 
-  /* نفس معادلة الخادم حرفياً — تُعاد هنا للاستجابة الفورية وحدها، والقراءة
-     التالية تأتي من الخادم فتكشف أي تباعُد لو وقع. */
-  const calc = useMemo(() => {
-    const items = rows.map(r => {
-      const done = r.tranches.filter(Boolean).length;
-      const pct = Number(r.share_pct) || 0;
-      const reserved = trancheValue * pct / 100;
-      const amount = reserved * done;
-      // تداول لا يقبل جزء سهم: الكسر يُقرَّب للأسفل، فالمبلغ الإجمالي هو ما
-      // يُخصم فعلاً لا ما رُصد — والفرق بينهما نقدٌ يبقى في الحساب.
-      const price = Number(r.price) || 0;
-      const shares = price > 0 ? Math.floor(amount / price) : 0;
-      // أوامر الشراء بعدد دفعاتها هي — بطاقةٌ مستقلّة بقرارٍ مستقل.
-      const execN = Number(r.exec_tranches) || 0;
-      const execAmount = reserved * execN;
-      const execShares = price > 0 ? Math.floor(execAmount / price) : 0;
-      return { ...r, done, pct, reserved, amount, price, shares, total: shares * price,
-               execN, execAmount, execShares, execTotal: execShares * price };
-    });
-    return {
-      items,
-      pctTotal: items.reduce((a, x) => a + x.pct, 0),
-      amountTotal: items.reduce((a, x) => a + x.amount, 0),
-      sharesTotal: items.reduce((a, x) => a + x.execShares, 0),
-      grandTotal: items.reduce((a, x) => a + x.execTotal, 0),
-    };
-  }, [rows, trancheValue]);
+  if (isLoading) return <div className="card"><div className="h-40 skeleton rounded-xl" /></div>;
+  if (isError || !alloc) return <div className="card text-sm text-[var(--neg-ink)]">تعذّر جلبُ الحيازات والرصيد.</div>;
 
-  const pctOff = Math.abs(calc.pctTotal - 100) > 0.05;
-
-  if (isLoading) return <div className="p-4 text-[var(--ink-muted)] text-sm">جارٍ التحميل…</div>;
-  if (!rows.length) return <div className="p-4 text-[var(--ink-muted)] text-sm">لا مراكز لبناء خطّة عليها.</div>;
+  const toggle = (id: number) => set({ excluded: excluded.has(id) ? prefs.excluded.filter(x => x !== id) : [...prefs.excluded, id] });
+  const scale = Math.max(1, ...rows.map((r: any) => Math.max(Number(r.current_weight) || 0, Number(r.target_weight) || 0,
+                                                          byId.get(r.company_id)?.weightAfter || 0)));
 
   return (
-    <div className="space-y-4">
-      <div className="card">
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <Droplets size={15} className="text-[var(--brand-ink)]" />
-          <h2 className="card-title">إدارة السيولة</h2>
-          <div className="mr-auto flex items-center gap-2">
-            {/* الدفعة مُدمَجة في شريط البطاقة: التسمية داخل الإطار لا فوقه،
-                فيبقى ارتفاع الشريط واحداً ولا ينكسر السطر بجانب زر الحفظ. */}
-            <div className="flex items-center gap-2 rounded-lg ps-2.5 pe-1 py-1"
-              style={{ background: "transparent", border: "1px solid var(--hairline)" }}>
-              <span className="text-[11px] text-[var(--brand)] whitespace-nowrap">الدفعة</span>
-              <NumInput className="text-[14px] font-bold tabular-nums bg-transparent border-0 outline-none text-[var(--ink)] p-0"
-                style={{ width: 84, textAlign: "start" }}
-                value={tranche}
-                onChange={(v: string) => { setDirtyPlan(true); setTranche(v); }} />
+    <div className="card liq" data-role="liq">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <Droplets size={15} className="text-[var(--brand-ink)]" />
+        <h2 className="card-title">إدارة السيولة</h2>
+        <div className="ms-auto flex items-center gap-2">
+          {priced.count > 0 && (
+            <button type="button" className="unsaved-tag alloc-px-tag" onClick={() => setPrices({})}
+              title="أسعارٌ مكتوبةٌ بدل آخر إغلاق — اضغط للعودة إليه">بسعرٍ مكتوب ({priced.count}) <RotateCcw size={11} /></button>
+          )}
+          <button type="button" className={active.length ? "btn-primary" : "btn-ghost"} data-role="liq-copy"
+            disabled={!active.length} onClick={copy} title="نسخ الأوامر" aria-label="نسخ الأوامر">
+            {copied ? <Check size={15} /> : <Copy size={15} />}
+          </button>
+        </div>
+      </div>
+
+      {/* المحصّلةُ أوّلاً: ما في الحساب، وما يُوظَّف الآن، وما يبقى */}
+      <div className="liq-stats grid grid-cols-2 md:grid-cols-4 gap-2 mb-3" data-role="liq-stats">
+        {([["السيولة المتاحة", cash, "var(--ink)"], ["منها إعادة استثمار", pool, "var(--brand-ink)"],
+           ["تُوظَّف الآن", plan.spent + plan.fees, "var(--pos-ink)"], ["تبقى نقداً", Math.max(0, cash - plan.spent - plan.fees), "var(--ink-muted)"]] as [string, number, string][])
+          .map(([l, v, c]) => (
+            <div key={l} className="liq-stat rounded-xl px-3 py-2">
+              <div className="text-[10px] text-[var(--ink-muted)]">{l}</div>
+              <div className="text-[15px] font-extrabold tabular-nums mt-0.5" style={{ color: c }}><span dir="ltr">{n0(v)}</span></div>
             </div>
-            {dirtyPlan && <span className="unsaved-tag">غير محفوظ</span>}
-            {/* زرّ الحفظ واحدٌ في التطبيق كلّه: أيقونة قرصٍ وحدها، واسمُه في
-                `title`. كان هنا أيقونةً ونصّاً وفي «التوزيع النسبي» أيقونةً
-                وحدها — زرّان لفعلٍ واحد بشكلين. */}
-            <button className="btn-primary" onClick={() => save.mutate()}
-              title={save.isPending ? "جارٍ الحفظ…" : "حفظ"} aria-label="حفظ"
-              disabled={!dirtyPlan || save.isPending}>
-              <Save size={15} />
-            </button>
-          </div>
+          ))}
+      </div>
+
+      {/* التخصيص: الميزانيةُ والعمولة — وما سواهما يُحسب */}
+      <div className="flex items-center gap-2 flex-wrap mb-3" data-role="liq-controls">
+        <div className="seg inline-flex" role="tablist" aria-label="الميزانية">
+          {([["all", "كل السيولة"], ["amount", "مبلغ"], ["tranches", "دفعات"]] as [Mode, string][]).map(([m, l]) => (
+            <button key={m} type="button" role="tab" aria-selected={prefs.mode === m}
+              className={"seg-btn chip" + (prefs.mode === m ? " on" : "")} onClick={() => set({ mode: m })}>{l}</button>
+          ))}
         </div>
+        {prefs.mode === "amount" && (
+          <span className="liq-in inline-flex items-center gap-1.5">
+            <NumInput className="input tabular-nums" style={{ width: 110, padding: "5px 8px" }} value={prefs.amount}
+              placeholder={n0(cash)} aria-label="المبلغ" onChange={(v: string) => set({ amount: v })} />
+            {amountNum > cash && <span className="text-[11px] text-[var(--warn-ink)]">أكثر من المتاح — يُكتفى بـ{n0(cash)}</span>}
+          </span>
+        )}
+        {prefs.mode === "tranches" && (
+          <span className="liq-in seg inline-flex" role="tablist" aria-label="عدد الدفعات">
+            {[2, 3, 4, 5].map(k => (
+              <button key={k} type="button" className={"seg-btn chip" + (prefs.n === k ? " on" : "")} onClick={() => set({ n: k })}>
+                <span dir="ltr">1/{k}</span>
+              </button>
+            ))}
+          </span>
+        )}
+        <label className="inline-flex items-center gap-1.5 ms-auto text-[11px] text-[var(--ink-muted)]">
+          العمولة %
+          <NumInput className="input tabular-nums" style={{ width: 64, padding: "5px 6px" }} value={prefs.fee}
+            aria-label="العمولة %" onChange={(v: string) => set({ fee: v })} />
+        </label>
+      </div>
 
-        <div className="overflow-x-auto hidden md:block">
-          <table className="w-full">
-            <thead><tr className="border-b border-[var(--hairline)]">
-              <th className="th text-start">الشركة</th>
-              <th className="th text-start">النسبة المستهدفة %</th>
-              {[1, 2, 3, 4, 5].map(i => <th key={i} className="th text-center">{i}</th>)}
-              <th className="th text-start">المبلغ</th>
-            </tr></thead>
-            <tbody>
-              {calc.items.map(r => (
-                <tr key={r.company_id}>
-                  <td className="td text-start">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <CompanyLogo symbol={r.symbol} size={20} />
-                      <span className="text-[12.5px] text-[var(--ink)] font-semibold truncate">{r.name}</span>
+      {!rows.length ? (
+        <div className="text-sm text-[var(--ink-muted)] py-6 text-center">لا أوزانَ مستهدفة بعد — حدّدها في «التوزيع النسبي».</div>
+      ) : (
+        <div className="space-y-2" data-role="liq-orders">
+          {rows.map((r: any, i: number) => {
+            const o = byId.get(r.company_id);
+            const off = excluded.has(r.company_id);
+            const sh = o?.shares || 0;
+            const cw = Number(r.current_weight) || 0, tw = Number(r.target_weight) || 0, aw = o?.weightAfter ?? cw;
+            const rq = sh > 0 && o!.px > 0 ? Math.min(sh, Math.floor((Number(r.reinvest_share) || 0) / o!.px + 1e-9)) : 0;
+            return (
+              <div key={r.company_id} data-role="liq-order" data-off={off ? "1" : undefined}
+                className={"liq-row card-rise rounded-2xl p-3" + (off ? " liq-off" : "")}
+                style={{ animationDelay: `${Math.min(i, 12) * 26}ms` }}>
+                <div className="liq-grid">
+                  <div className="flex items-center gap-2.5 min-w-0 liq-co">
+                    <CompanyLogo symbol={r.symbol} size={30} />
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-semibold text-[var(--ink)] truncate">{r.name}</div>
+                      <div className="text-[10px] text-[var(--ink-muted)] tabular-nums"><span className="text-[var(--brand-ink)]">{r.symbol}</span></div>
                     </div>
-                  </td>
-                  <td className="td text-start">
-                    <div className="flex items-center gap-1">
-                      <Field draft={draft} setDraft={setDraft} id={r.company_id} field="pct" value={r.share_pct} width={72} decimals={2}
-                        onNum={n => patch(r.company_id, { share_pct: n, pct_is_auto: false })} />
-                      {!r.pct_is_auto && (
-                        /* العودة إلى الوزن المستهدف. */
-                        <button className="btn-ghost" style={{ padding: "3px 5px" }} title="الوزن المستهدف"
-                          onClick={() => {
-                            setDraft(d => { const n = { ...d }; delete n[`${r.company_id}:pct`]; return n; });
-                            patch(r.company_id, { pct_is_auto: true });
-                          }}>
-                          <RotateCcw size={12} />
-                        </button>
-                      )}
+                  </div>
+                  <div className="liq-px">
+                    <div className="text-[10px] text-[var(--ink-muted)] mb-0.5">السعر</div>
+                    {pxField(r)}
+                  </div>
+                  <div className="liq-shares" data-role="liq-shares">
+                    <div className="text-[10px] text-[var(--ink-muted)]">{off ? "مستبعدة" : sh > 0 ? "اشترِ" : "عند هدفها"}</div>
+                    <div className="text-[17px] font-extrabold tabular-nums leading-tight"
+                      style={{ color: sh > 0 && !off ? "var(--pos-ink)" : "var(--ink-muted)" }}>
+                      <span dir="ltr">{off ? "—" : n0(sh)}</span>{sh > 0 && !off && <span className="text-[10px] font-normal"> سهم</span>}
                     </div>
-                  </td>
-                  {r.tranches.map((on, i) => (
-                    <td key={i} className="td text-center">
-                      <CheckBox checked={on} aria-label={`الشريحة ${i + 1}`} className="mx-auto justify-center"
-                        onChange={v => {
-                          const next = [...r.tranches];
-                          next[i] = v;
-                          patch(r.company_id, { tranches: next });
-                        }} />
-                    </td>
-                  ))}
-                  <td className="td text-start">
-                    <span className="text-[13px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{fmt(r.amount)}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ borderTop: "2px solid var(--hairline)" }}>
-                <td className="td text-start text-[var(--ink-muted)] text-xs font-semibold">المجموع</td>
-                <td className="td text-start">
-                  <span className="text-[12px] font-bold tabular-nums" dir="ltr"
-                    style={{ color: pctOff ? "var(--warn-ink)" : "var(--brand-ink)" }}>{fmt(calc.pctTotal, 2)}%</span>
-                </td>
-                <td className="td" colSpan={5} />
-                <td className="td text-start">
-                  <span className="text-[13px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{fmt(calc.amountTotal)}</span>
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        {/* الجوّال: بطاقةٌ لكل شركة. الجدول أفقيّ بطبعه، وحشره في شاشةٍ ضيّقة
-            يُنتج تمريراً جانبياً وحقولاً لا تُصاب بالإصبع. */}
-        <div className="md:hidden space-y-2">
-          {calc.items.map(r => (
-            <div key={r.company_id} className="rounded-xl p-3 space-y-2.5"
-              style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
-              <div className="flex items-center gap-2 min-w-0">
-                <CompanyLogo symbol={r.symbol} size={22} />
-                <span className="text-[13px] text-[var(--ink)] font-semibold truncate">{r.name}</span>
-                <span className="mr-auto text-[14px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{fmt(r.amount)}</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-[var(--ink-muted)] whitespace-nowrap">النسبة المستهدفة %</span>
-                <Field draft={draft} setDraft={setDraft} id={r.company_id} field="pct" value={r.share_pct} width={80} decimals={2}
-                  onNum={n => patch(r.company_id, { share_pct: n, pct_is_auto: false })} />
-                {!r.pct_is_auto && (
-                  <button className="btn-ghost" style={{ padding: "4px 6px" }} title="الوزن المستهدف"
-                    onClick={() => {
-                      setDraft(d => { const n = { ...d }; delete n[`${r.company_id}:pct`]; return n; });
-                      patch(r.company_id, { pct_is_auto: true });
-                    }}>
-                    <RotateCcw size={13} />
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-[var(--ink-muted)] whitespace-nowrap">الدفعات</span>
-                <div className="flex items-center gap-1.5">
-                  {r.tranches.map((on, i) => (
-                    /* مربّعات أكبر على الجوّال — هدف الإصبع لا يقلّ عن ٤٤ بكسل
-                       في التوصيات، وسهم الفأرة وحده هو من يصيب ١٦ بكسل. */
-                    <label key={i} className="flex items-center justify-center rounded-lg cursor-pointer"
-                      style={{ width: 34, height: 34,
-                        background: on ? "color-mix(in srgb, var(--pos-ink) 15%, transparent)" : "var(--bg)",
-                        border: `1px solid ${on ? "color-mix(in srgb, var(--pos-ink) 45%, transparent)" : "var(--line)"}` }}>
-                      <CheckBox checked={on} aria-label={`الشريحة ${i + 1}`} className="justify-center"
-                        onChange={v => {
-                          const next = [...r.tranches];
-                          next[i] = v;
-                          patch(r.company_id, { tranches: next });
-                        }} />
-                    </label>
-                  ))}
+                    {rq > 0 && !off && <div className="text-[10px] text-[var(--brand-ink)] tabular-nums">منها <span dir="ltr">{n0(rq)}</span> إعادة استثمار</div>}
+                  </div>
+                  <div className="liq-amt">
+                    <div className="text-[10px] text-[var(--ink-muted)]">المبلغ</div>
+                    <div className="text-[13px] font-bold tabular-nums text-[var(--ink)]"><span dir="ltr">{sh > 0 && !off ? n2(o!.cost) : "—"}</span></div>
+                  </div>
+                  <div className="liq-acts flex items-center gap-1">
+                    {sh > 0 && !off && onRecord && (
+                      <button type="button" className="btn-ghost liq-act" data-role="liq-record" title="سجّل التنفيذ" aria-label="سجّل التنفيذ"
+                        onClick={() => onRecord({ id: r.company_id, name_ar: r.name, symbol: r.symbol }, sh, o!.px)}>
+                        <PenLine size={15} />
+                      </button>
+                    )}
+                    <button type="button" className="btn-ghost liq-act" data-role="liq-toggle"
+                      title={off ? "أعدها إلى الأوامر" : "استبعدها من هذه الأوامر"} aria-label={off ? "إعادة" : "استبعاد"}
+                      onClick={() => toggle(r.company_id)}>
+                      {off ? <Eye size={15} /> : <EyeOff size={15} />}
+                    </button>
+                  </div>
+                </div>
+                {/* الوزنُ: الحاليُّ مملوءٌ، وبعد التنفيذ امتدادُه، والهدفُ علامة — بمقياسٍ واحدٍ للصفوف كلّها */}
+                <div className="mt-2.5" data-role="liq-bar" title={`الحالي ${cw}% · بعد التنفيذ ${aw.toFixed(2)}% · الهدف ${tw}%`}>
+                  <div className="flex items-center justify-between text-[10px] text-[var(--ink-muted)] mb-1">
+                    <span>الحالي <b className="text-[var(--ink)] tabular-nums" dir="ltr">{cw.toFixed(1)}%</b>
+                      {sh > 0 && !off && <> ← <b className="text-[var(--pos-ink)] tabular-nums" dir="ltr">{aw.toFixed(1)}%</b></>}</span>
+                    <span>الهدف <b className="text-[var(--brand-ink)] tabular-nums" dir="ltr">{tw}%</b></span>
+                  </div>
+                  <div className="wbar relative h-2 rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 8%, transparent)" }}>
+                    {sh > 0 && !off && (
+                      <div className="wbar-fill absolute inset-y-0 rounded-full"
+                        style={{ insetInlineStart: 0, width: `${Math.min(100, aw / scale * 100)}%`, background: "color-mix(in srgb, var(--pos-ink) 40%, transparent)" }} />
+                    )}
+                    <div className="wbar-fill absolute inset-y-0 rounded-full"
+                      style={{ insetInlineStart: 0, width: `${Math.min(100, cw / scale * 100)}%`, background: "color-mix(in srgb, var(--brand) 50%, transparent)" }} />
+                    <div className="wbar-mark absolute rounded-full"
+                      style={{ insetInlineStart: `calc(${Math.min(100, tw / scale * 100)}% - 1.5px)`, top: -3, bottom: -3, width: 3, background: "var(--brand-ink)" }} />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-
-          <div className="flex items-center gap-2 pt-2" style={{ borderTop: "2px solid var(--hairline)" }}>
-            <span className="text-xs font-semibold text-[var(--ink-muted)]">المجموع</span>
-            <span className="text-[12px] font-bold tabular-nums" dir="ltr"
-              style={{ color: pctOff ? "var(--warn-ink)" : "var(--brand-ink)" }}>{fmt(calc.pctTotal, 2)}%</span>
-            <span className="mr-auto text-[14px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{fmt(calc.amountTotal)}</span>
+            );
+          })}
+          <div className="liq-total rounded-2xl px-3 py-2.5 flex items-center gap-3 flex-wrap" data-role="liq-total">
+            <span className="text-[11px] font-bold text-[var(--brand-ink)]">المجموع</span>
+            <span className="text-[12px] text-[var(--ink-muted)]"><b className="text-[var(--pos-ink)] tabular-nums" dir="ltr">{n0(active.reduce((a, o) => a + o.shares, 0))}</b> سهم · {active.length} أمر</span>
+            {plan.fees > 0 && <span className="text-[11px] text-[var(--ink-muted)]">العمولة <b className="tabular-nums" dir="ltr">{n2(plan.fees)}</b></span>}
+            <span className="ms-auto text-[15px] font-extrabold tabular-nums text-[var(--ink)]"><span dir="ltr">{n2(plan.spent + plan.fees)}</span></span>
           </div>
         </div>
-      </div>
-
-      {/* التنفيذ — ما يُشترى فعلاً. الأعلى قرار توزيع، وهذه ترجمته إلى أوامر:
-          عدد أسهمٍ عند سعرٍ معلوم بمبلغٍ يُخصم من الحساب. */}
-      <div className="card">
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <ClipboardList size={15} className="text-[var(--pos-ink)]" />
-          <h2 className="card-title">أوامر الشراء</h2>
-          <div className="mr-auto flex items-center gap-2">
-            {dirtyOrders && <span className="unsaved-tag">غير محفوظ</span>}
-            <button className="btn-primary" onClick={() => save.mutate()}
-              title={save.isPending ? "جارٍ الحفظ…" : "حفظ"} aria-label="حفظ"
-              disabled={!dirtyOrders || save.isPending}>
-              <Save size={15} />
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto hidden md:block">
-          <table className="w-full">
-            <thead><tr className="border-b border-[var(--hairline)]">
-              <th className="th text-start">الشركة</th>
-              <th className="th text-start">عدد الدفعات</th>
-              <th className="th text-start">عدد الأسهم</th>
-              <th className="th text-start">السعر</th>
-              <th className="th text-start">المبلغ الإجمالي</th>
-            </tr></thead>
-            <tbody>
-              {calc.items.map(r => (
-                <tr key={r.company_id}>
-                  <td className="td text-start">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <CompanyLogo symbol={r.symbol} size={20} />
-                      <span className="text-[12.5px] text-[var(--ink)] font-semibold truncate">{r.name}</span>
-                    </div>
-                  </td>
-                  {/* عدد الدفعات رقمٌ هنا ومربّعاتٌ فوق، وهما شيءٌ واحد: كتابة
-                      «٣» تؤشّر أوّل ثلاثة، فلا تتباعد البطاقتان أبداً. */}
-                  <td className="td text-start">
-                    <Field draft={draft} setDraft={setDraft} id={r.company_id} field="execN" value={r.execN} width={60} allowDecimal={false}
-                      onNum={v => patch(r.company_id, { exec_tranches: Math.max(0, Math.min(5, Math.floor(v))) }, "orders")} />
-                  </td>
-                  <td className="td text-start">
-                    <span className="text-[13px] font-bold tabular-nums" dir="ltr"
-                      style={{ color: r.execShares > 0 ? "var(--pos-ink)" : "var(--ink-muted)" }}>{fmt(r.execShares)}</span>
-                  </td>
-                  <td className="td text-start">
-                    <div className="flex items-center gap-1">
-                      <Field draft={draft} setDraft={setDraft} id={r.company_id} field="price" value={r.price} width={78}
-                        onNum={n => patch(r.company_id, { price: n, price_is_override: true }, "orders")} />
-                      {r.price_is_override && (
-                        /* السعر اليدوي يتقادم بصمت، ولا رجوع عنه بلا زرٍّ صريح. */
-                        <button className="btn-ghost" style={{ padding: "3px 5px" }} title="سعر السوق"
-                          onClick={() => {
-                            setDraft(d => { const n = { ...d }; delete n[`${r.company_id}:price`]; return n; });
-                            patch(r.company_id, { price: r.live_price, price_is_override: false }, "orders");
-                          }}>
-                          <RotateCcw size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                  <td className="td text-start">
-                    <span className="text-[13px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{fmt(r.execTotal)}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ borderTop: "2px solid var(--hairline)" }}>
-                <td className="td text-start text-[var(--ink-muted)] text-xs font-semibold">المجموع</td>
-                <td className="td" />
-                <td className="td text-start">
-                  <span className="text-[13px] font-bold tabular-nums" dir="ltr" style={{ color: "var(--pos-ink)" }}>
-                    {fmt(calc.sharesTotal)}
-                  </span>
-                </td>
-                <td className="td" />
-                <td className="td text-start">
-                  <span className="text-[13px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{fmt(calc.grandTotal)}</span>
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        <div className="md:hidden space-y-2">
-          {calc.items.map(r => (
-            <div key={r.company_id} className="rounded-xl p-3 space-y-2.5"
-              style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
-              <div className="flex items-center gap-2 min-w-0">
-                <CompanyLogo symbol={r.symbol} size={22} />
-                <span className="text-[13px] text-[var(--ink)] font-semibold truncate">{r.name}</span>
-                <span className="mr-auto text-[14px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{fmt(r.execTotal)}</span>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] text-[var(--ink-muted)]">الدفعات</span>
-                <Field draft={draft} setDraft={setDraft} id={r.company_id} field="execN" value={r.execN} width={56} allowDecimal={false}
-                  onNum={v => patch(r.company_id, { exec_tranches: Math.max(0, Math.min(5, Math.floor(v))) }, "orders")} />
-                <span className="text-[11px] text-[var(--ink-muted)] ms-1">السعر</span>
-                <Field draft={draft} setDraft={setDraft} id={r.company_id} field="price" value={r.price} width={78}
-                  onNum={n => patch(r.company_id, { price: n, price_is_override: true }, "orders")} />
-                {r.price_is_override && (
-                  <button className="btn-ghost" style={{ padding: "4px 6px" }} title="سعر السوق"
-                    onClick={() => {
-                      setDraft(d => { const n = { ...d }; delete n[`${r.company_id}:price`]; return n; });
-                      patch(r.company_id, { price: r.live_price, price_is_override: false }, "orders");
-                    }}>
-                    <RotateCcw size={13} />
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-[var(--ink-muted)]">عدد الأسهم</span>
-                <span className="text-[14px] font-bold tabular-nums" dir="ltr"
-                  style={{ color: r.execShares > 0 ? "var(--pos-ink)" : "var(--ink-muted)" }}>{fmt(r.execShares)}</span>
-              </div>
-            </div>
-          ))}
-
-          <div className="flex items-center gap-2 pt-2" style={{ borderTop: "2px solid var(--hairline)" }}>
-            <span className="text-xs font-semibold text-[var(--ink-muted)]">المجموع</span>
-            <span className="text-[13px] font-bold tabular-nums" dir="ltr" style={{ color: "var(--pos-ink)" }}>
-              {fmt(calc.sharesTotal)}
-            </span>
-            <span className="mr-auto text-[14px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{fmt(calc.grandTotal)}</span>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
