@@ -39,6 +39,15 @@ async def main():
             print("اختيارُ القارئ:", g["url"][:160])
         return []
     await smart_flow(plan, warm=R.ARC + "/ar", timeout=40)
+    # ما تعرضه «التوقعات» فعلاً لبنود الراجحي — من المخزَّن الذي تقرؤه الصفحة
+    from app.services import forecasts as F
+    items = await F.get()
+    rj = [x for x in items or [] if "الراجحي" in str(x.get("source") or "") or "rajhi" in str(x.get("url") or "").lower()]
+    print("بنودُ الراجحي في التوقعات:", len(rj), "من", len(items or []))
+    from collections import Counter
+    print("نطاقاتُ روابطها:", Counter(re.sub(r"^https?://([^/]+).*", r"\1", str(x.get("url") or "")) for x in rj).most_common(6))
+    for x in rj[:8]:
+        print("  ", x.get("date"), "|", x.get("kind"), "|", str(x.get("title"))[:50], "|", str(x.get("url"))[:150], "| via", x.get("via"))
 
 
 asyncio.run(main())
