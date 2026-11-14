@@ -1,0 +1,176 @@
+// ─────────────────────────────────────────────────────────────────────────
+// D732 (بأمر المالك 2026-11-14): «غرفة التداول… أضيف شركات في القائمة المفضّلة، وأضع قوائم للسوق الأمريكي وللسوق
+// السعودي… إذا ضغطتُ على الشركة يظهر الشارت بخصائص: ستوكاستيك، RSI، الماكد، CVD… والمؤشّر حقّي».
+// الحالُ قبله: الرسمُ تبويبٌ ثانٍ بلا قوائم، والقوائمُ بطاقاتٌ تفتح ورقةَ السهم لا رسمَه؛ ولا ستوكاستيك ولا CVD،
+// واللوحتان السفليّتان (RSI · MACD) بهوامشَ ثابتةٍ لا تحتمل ثالثة.
+// ١–٦ سلوكيّ على الدوالّ نفسِها (‏lib/indicators) · ٧–… المتصفّح: التطبيقُ الحقيقيّ والمكتبةُ الحقيقيّة.
+//    SHOTS=dir node scripts/audit/trade_room_d732.mjs
+// ─────────────────────────────────────────────────────────────────────────
+import { existsSync, mkdirSync, mkdtempSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const FRONT = join(ROOT, "frontend");
+let fail = 0;
+const say = (ok, label, detail = "") => { if (!ok) fail = 1; console.log(`${ok ? "PASS" : "FAIL"} ${label}${detail ? " — " + detail : ""}`); };
+const SRC = join(FRONT, "src/lib/indicators.ts");
+if (!existsSync(SRC)) { say(false, "١ دوالُّ المؤشّرات موجودة"); console.log("\nالنتيجة: عطب ✖"); process.exit(1); }
+const { build } = await import(pathToFileURL(join(FRONT, "node_modules/esbuild/lib/main.js")).href);
+const out = join(mkdtempSync(join(tmpdir(), "sp-d732-")), "ind.mjs");
+await build({ entryPoints: [SRC], outfile: out, format: "esm", bundle: false, logLevel: "silent" });
+const I = await import(pathToFileURL(out).href);
+const near = (a, b, e = 1e-9) => a != null && Math.abs(a - b) < e;
+
+// ستوكاستيك: سلسلةٌ صاعدةٌ بانتظام تُغلق عند قمّتها ⇒ ‏%K = 100
+const up = Array.from({ length: 30 }, (_, i) => ({ high: 10 + i + 0.5, low: 10 + i - 0.5, close: 10 + i + 0.5, volume: 100 }));
+const st = I.stochastic(up);
+say(st.k[15] != null && near(st.k[29], 100) && near(st.d[29], 100) && st.k[14] == null && st.k[15] != null,
+    "١ ستوكاستيك 14·3·3: إغلاقٌ عند أعلى قمّةٍ ⇒ ‏%K = ‏%D = 100، ولا قيمةَ قبل 14 + 3 − 1 شمعة", `${st.k[29]} · أوّل ${st.k.findIndex(v => v != null)}`);
+const mixed = [{ high: 12, low: 8, close: 10 }, ...Array.from({ length: 15 }, () => ({ high: 12, low: 8, close: 9 }))];
+const sm = I.stochastic(mixed);
+say(near(sm.k[15], 25), "٢ وإغلاقٌ عند ربع المدى ⇒ 25", String(sm.k[15]));
+const flat = Array.from({ length: 20 }, () => ({ high: 5, low: 5, close: 5 }));
+say(I.stochastic(flat).k.every(v => v == null), "٣ ومدًى صفريّ (قمّةٌ = قاع) فراغٌ لا رقمٌ مختلَق");
+// CVD: إغلاقٌ عند القمّة كلُّه شراء، وعند القاع كلُّه بيع، وفي المنتصف صفر
+const c = I.cvdApprox([{ high: 10, low: 8, close: 10, volume: 100 }, { high: 10, low: 8, close: 8, volume: 40 }, { high: 10, low: 8, close: 9, volume: 70 },
+  { high: 9, low: 9, close: 9, volume: 50 }]);
+say(JSON.stringify(c) === JSON.stringify([100, 60, 60, 60]), "٤ ‏CVD تراكميّ: +100 ثمّ −40 ثمّ 0 (منتصفُ المدى) ثمّ 0 (مدًى صفريّ)", JSON.stringify(c));
+let ok5 = true, worst = "";
+for (let n = 1; n <= 4; n++) {
+  const L = I.paneLayout(n);
+  const tops = L.panes.map(p => p.top), bots = L.panes.map(p => 1 - p.bottom);
+  for (let i = 0; i < n; i++) if (!(tops[i] < bots[i])) { ok5 = false; worst = `n=${n} i=${i}`; }
+  for (let i = 1; i < n; i++) if (!(tops[i] >= bots[i - 1] - 1e-9)) { ok5 = false; worst = `تداخل n=${n} i=${i}`; }
+  if (!(1 - L.price.bottom <= L.volume.top + 1e-9 && 1 - L.volume.bottom <= tops[0] + 1e-9)) { ok5 = false; worst = `سعر/حجم n=${n}`; }
+}
+say(ok5, "٥ اللوحاتُ السفلى (حتى أربع) لا يتداخل اثنتان منها، والحجمُ فوقها والسعرُ فوق الجميع", worst);
+const nc = (await import("node:fs")).readFileSync(join(FRONT, "src/components/analysis/NativeChart.tsx"), "utf-8");
+say(/\["stoch", "Stochastic"/.test(nc) && /\["cvd", "CVD"/.test(nc) && /\["d7m", "D7M"/.test(nc) && /sp_chart_ind/.test(nc) && /تقديرٌ من الشموع/.test(nc),
+    "٦ الرسمُ يعرض ستوكاستيك وCVD (مُسمًّى تقديراً من الشموع) بجانب RSI وMACD وD7M، واختيارُ المؤشّرات يُحفظ");
+
+// ── المتصفّح ──
+const PORT = 5255;
+const SHOTS = process.env.SHOTS || "";
+if (SHOTS) mkdirSync(SHOTS, { recursive: true });
+const CHROME = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome", "/opt/pw-browsers/chromium"].find(p => existsSync(p));
+const PW = [join(FRONT, "node_modules", "playwright", "index.js"), "/opt/node22/lib/node_modules/playwright/index.js"].find(p => existsSync(p));
+const LW_URL = "https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js";
+const LW_CACHE = join(tmpdir(), "sp-audit-lw-4.1.3.js");
+let LW = [process.env.LW_PATH, "/tmp/claude-0/lw/package/dist/lightweight-charts.standalone.production.js",
+  join(FRONT, "node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js"), LW_CACHE].find(p => p && existsSync(p));
+if (!LW && spawnSync("curl", ["-fsSL", "-o", LW_CACHE, LW_URL]).status === 0 && existsSync(LW_CACHE)) LW = LW_CACHE;
+if (!PW || !CHROME || !LW) { console.log("… تعذّر فحصُ المتصفّح (المتصفّح أو مكتبةُ الرسم غيرُ متاحة) — لا حكم."); console.log("\nالنتيجة:", fail ? "عطب ✖" : "نظيف ✔"); process.exit(fail); }
+const _pw = await import(pathToFileURL(PW).href);
+const chromium = _pw.chromium || _pw.default?.chromium;
+const body = (data) => ({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data }) });
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const bars = (n = 160) => Array.from({ length: n }, (_, i) => {
+  const d = new Date(Date.UTC(2026, 0, 5) + i * 7 * 864e5).toISOString().slice(0, 10), b = 60 + 6 * Math.sin(i / 9) + i * 0.05;
+  return { date: d, open: b, high: b + 1.2, low: b - 1.1, close: b + (i % 3 - 1) * 0.6, volume: 1e5 + (i % 7) * 1e4 };
+});
+const HOLD = [{ company: { symbol: "1120", name_ar: "مصرف الراجحي" }, last_price: 64.2, change_pct: 1.25 },
+              { company: { symbol: "2222", name_ar: "أرامكو السعودية" }, last_price: 25.1, change_pct: -0.4 }];
+const vite = spawn("npx", ["vite", "--port", String(PORT), "--strictPort"], { cwd: FRONT, stdio: "ignore" });
+process.on("exit", () => { try { vite.kill("SIGKILL"); } catch { } });
+let upv = false;
+for (let i = 0; i < 60 && !upv; i++) { await sleep(500); try { upv = (await fetch(`http://localhost:${PORT}/`)).ok; } catch { } }
+if (!upv) { console.log("… لم يقلع خادمُ التطوير."); console.log("\nالنتيجة:", fail ? "عطب ✖" : "نظيف ✔"); process.exit(fail); }
+const browser = await chromium.launch({ executablePath: CHROME });
+for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 }, "light"], ["الجوال · داكن", { width: 390, height: 844 }, "dark"]]) {
+  const desk = vp.width >= 1024;
+  const ctx = await browser.newContext({ viewport: vp, isMobile: !desk, hasTouch: !desk });
+  const page = await ctx.newPage();
+  const errs = [], calls = [], barsFor = [];
+  let groups = [{ id: 1, name: "الرئيسية", color: "var(--chart-1)", is_default: true }];
+  const lists = { 1: [] };
+  page.on("pageerror", e => errs.push(String(e.message || e)));
+  await page.route("https://unpkg.com/**", r => r.fulfill({ path: LW, contentType: "application/javascript" }));
+  await page.route("**/api/v1/**", async r => {
+    const u = new URL(r.request().url()), p = u.pathname.replace(/^.*\/api\/v1/, ""), m = r.request().method();
+    if (/^\/market\/(bars|history)\//.test(p)) { barsFor.push(decodeURIComponent(p.split("/").pop())); return r.fulfill(body(bars())); }
+    if (p === "/holdings") return r.fulfill(body(HOLD));
+    if (p === "/market/watchlist/groups" && m === "GET") return r.fulfill(body(groups));
+    if (p === "/market/watchlist/groups" && m === "POST") {
+      const b = JSON.parse(r.request().postData() || "{}"); const g = { id: groups.length + 1, name: b.name, is_default: false };
+      groups = [...groups, g]; lists[g.id] = []; calls.push(["create", b.name]); return r.fulfill(body(g));
+    }
+    if (p === "/market/watchlist" && m === "POST") {
+      const b = JSON.parse(r.request().postData() || "{}"); lists[b.group_id] = [...(lists[b.group_id] || []), { symbol: b.symbol, name: b.symbol, price: 191.2, change_pct: 0.8 }];
+      calls.push(["add", b.symbol, b.group_id]); return r.fulfill(body(null));
+    }
+    if (/^\/market\/watchlist\//.test(p) && m === "DELETE") {
+      const s = p.split("/").pop(), g = Number(u.searchParams.get("group_id")); lists[g] = lists[g].filter(x => x.symbol !== s);
+      calls.push(["remove", s, g]); return r.fulfill(body(null));
+    }
+    if (p === "/market/watchlist") return r.fulfill(body(lists[Number(u.searchParams.get("group_id"))] || []));
+    return r.fulfill(body([]));
+  });
+  await page.addInitScript((th) => { try {
+    localStorage.setItem("sp_token", "probe"); localStorage.removeItem("sp_room_symbol"); localStorage.removeItem("sp_room_list");
+    localStorage.setItem("sp_chart_ind", JSON.stringify({ sma20: false, sma50: false, macd: false }));
+    const s = JSON.parse(localStorage.getItem("sp-app-store") || "{}");
+    localStorage.setItem("sp-app-store", JSON.stringify({ ...s, state: { ...(s.state || {}), theme: th }, version: s.version ?? 0 }));
+  } catch { } }, theme);
+  await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(2600);
+  const lay = await page.evaluate(() => {
+    const c = document.querySelector('[data-role="troom-chart"]')?.getBoundingClientRect(), l = document.querySelector('[data-role="troom-list"]')?.getBoundingClientRect();
+    return c && l ? { side: Math.abs(c.top - l.top) < 4 && c.width > l.width * 2, below: l.top >= c.bottom - 1 } : null;
+  });
+  say(!!lay && (desk ? lay.side : lay.below), `${label}: الرسمُ في الصدر وقوائمُ المراقبة ${desk ? "بجانبه" : "تحته"} — افتراضُ الغرفة`, JSON.stringify(lay));
+  const rowsTxt = await page.locator('[data-role="troom-row"]').allTextContents();
+  say(rowsTxt.length === 2 && /مصرف الراجحي/.test(rowsTxt[0]) && /64\.20/.test(rowsTxt[0]) && /\+1\.25%/.test(rowsTxt[0]),
+      `${label}: «محفظتي» قائمةٌ ثابتة بأسعارها وتغيّرها`, rowsTxt[0]?.replace(/\s+/g, " "));
+  await page.locator('[data-role="troom-row"]').nth(1).click();
+  await page.waitForTimeout(1400);
+  const ident = await page.evaluate(() => document.querySelector('[data-role="troom-chart"]')?.textContent || "");
+  say(/2222/.test(ident) && barsFor.includes("2222"), `${label}: الضغطُ على الشركة يفتح رسمَها`, barsFor.slice(-2).join(","));
+  // المؤشّرات الأربعة معاً
+  const drop = page.locator('[data-role="troom-chart"] button[aria-expanded]').nth(1);
+  await drop.click();
+  for (const n of ["RSI", "Stochastic", "MACD", "CVD"]) { await page.locator("button[aria-pressed]", { hasText: n }).first().click(); await sleep(120); }
+  await page.mouse.click(5, 5);
+  await page.waitForTimeout(1500);
+  const panes = await page.evaluate(() => [...document.querySelectorAll('[data-role="pane-tag"]')].map(e => ({ t: e.textContent, y: e.getBoundingClientRect().top })));
+  const ys = panes.map(p => p.y);
+  say(panes.length === 4 && ys.every((y, i) => i === 0 || y - ys[i - 1] > 40) && /تقديرٌ من الشموع/.test(panes[3]?.t || ""),
+      `${label}: RSI وستوكاستيك وMACD وCVD معاً — أربعُ لوحاتٍ لا تتداخل، وCVD يُسمّى تقديراً`, panes.map(p => `${p.t}@${Math.round(p.y)}`).join(" | "));
+  if (SHOTS) { const el = await page.$('[data-role="troom"]'); if (el) await el.screenshot({ path: join(SHOTS, `room_${vp.width}_${theme}.png`) }); }
+  // قائمةٌ للسوق الأمريكي، وAAPL بالبحث، ثمّ إزالتُها
+  await page.locator('[data-role="troom-new"]').click();
+  await page.waitForTimeout(250);
+  await page.locator('[data-role="troom-preset"]', { hasText: "السوق الأمريكي" }).click();
+  await page.waitForTimeout(900);
+  const onUS = await page.locator('[data-role="troom-tab"][aria-selected="true"]').textContent();
+  await page.locator('[data-role="troom-list"] button[aria-label="ابحث عن سهم"]').click();
+  await page.locator('[data-role="troom-list"] .inline-search-input').fill("AAPL");
+  await page.waitForTimeout(200);
+  await page.locator('[data-role="troom-list"] .sp-menu button').first().click();
+  await page.waitForTimeout(900);
+  const usRows = await page.locator('[data-role="troom-row"]').allTextContents();
+  say(onUS === "السوق الأمريكي" && calls.some(c => c[0] === "create" && c[1] === "السوق الأمريكي")
+      && calls.some(c => c[0] === "add" && c[1] === "AAPL" && c[2] === 2) && usRows.length === 1 && /AAPL/.test(usRows[0]),
+      `${label}: قائمةُ «السوق الأمريكي» تُنشأ بضغطة، وAAPL يُضاف إليها بحقل البحث`, JSON.stringify(calls));
+  await page.locator('[data-role="troom-edit"]').click();
+  await page.locator('[data-role="troom-remove"]').first().click();
+  await page.waitForTimeout(800);
+  say(calls.some(c => c[0] === "remove" && c[1] === "AAPL" && c[2] === 2) && (await page.locator('[data-role="troom-row"]').count()) === 0,
+      `${label}: وتُزال من قائمتها وحدها في وضع التحرير`);
+  const m = await page.evaluate(() => {
+    const W = document.documentElement.clientWidth, main = document.querySelector(".app-main");
+    const sw = Math.max(document.documentElement.scrollWidth, main ? main.scrollWidth : 0);
+    const root = document.querySelector('[data-role="troom-list"]');
+    const t = [...root.querySelectorAll("button, input")].filter(e => e.offsetParent).map(e => e.getBoundingClientRect().height);
+    const f = [...root.querySelectorAll("*")].filter(e => [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())).map(e => parseFloat(getComputedStyle(e).fontSize));
+    return { over: sw - W, minT: Math.min(...t), minF: Math.min(...f) };
+  });
+  say(m.over <= 1 && m.minT >= 32 && m.minF >= 9.5, `${label}: لا فيضَ أفقيّ، ولمسٌ ≥ 32px، وخطٌّ ≥ 9.5px`, `${m.over}px · ${Math.round(m.minT)}px · ${m.minF}px`);
+  say(errs.length === 0, `${label}: لا خطأ`, errs[0] || "");
+  await ctx.close();
+}
+await browser.close();
+console.log("\nالنتيجة:", fail ? "عطب ✖" : "نظيف ✔");
+process.exit(fail);

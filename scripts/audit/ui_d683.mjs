@@ -70,7 +70,7 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
   await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe"); sessionStorage.setItem("sp:market:tab", "screener"); } catch { } });
 
   // ═══ ١ · «الشاشة» ═══
-  await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+  await page.goto(`http://localhost:${PORT}/watchlist?tab=board`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2500);
   const g = await page.evaluate(() => {
     const W = document.documentElement.clientWidth;
@@ -222,13 +222,13 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
     say(s.sr.length === 0 && s.sw <= s.W + 1, `${label}: الفرز — الرمزُ بلا «.SR» مقلوب، ولا فيضَ أفقيّ`, `محتوى ${s.sw} · شاشة ${s.W}`);
     if (SHOTS) await page.screenshot({ path: join(SHOTS, `screener_${vp.width}.png`), fullPage: true });
 
-    // ═══ ٤ · غرفة التداول (‏D687): الرسمُ تبويبٌ داخلها، وإيماءةُ السحب تُخرج القائمة ═══
+    // ═══ ٤ · غرفة التداول (‏D687): الرسمُ تبويبٌ داخلها، وإيماءةُ السحب تُخرج القائمة ═══ (‏D732: «الشركات» صار ?tab=board)
     await page.goto(`http://localhost:${PORT}/chart`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
     await page.waitForTimeout(2500);
     const room = await page.evaluate(() => ({
       url: location.pathname + location.search,
       h1: [...document.querySelectorAll("h1")].map(h => h.textContent.trim()),
-      tab: [...document.querySelectorAll("nav button")].some(b => b.textContent.trim() === "الرسم البياني" && b.getAttribute("aria-pressed") === "true"),
+      tab: [...document.querySelectorAll("nav button")].some(b => ["الرسم البياني", "الرسم والقوائم"].includes(b.textContent.trim()) && b.getAttribute("aria-pressed") === "true"),
       chart: [...document.querySelectorAll("button")].some(b => b.textContent.includes("المؤشرات")),
       chartNav: !!document.querySelector('a[href="/chart"]'),
       roomNav: [...document.querySelectorAll('a[href="/watchlist"]')].length > 0,
@@ -244,7 +244,7 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
       await sleep(450);
     };
     const drawerOn = () => page.evaluate(() => !!document.querySelector(".mobile-drawer"));
-    await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+    await page.goto(`http://localhost:${PORT}/watchlist?tab=board`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
     await page.waitForTimeout(2200);
     const rise = await page.evaluate(() => document.querySelectorAll("[data-sort-key] > .card-rise").length);
     say(rise === 8, `${label}: البطاقاتُ تطلع متتابعةً عند الظهور (حركةٌ لا قفزة)`, `${rise}/8`);

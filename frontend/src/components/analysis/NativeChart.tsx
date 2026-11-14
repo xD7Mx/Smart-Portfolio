@@ -1,6 +1,7 @@
 import { autoFib, autoChannel, autoTrend, vwapAnchored, ema as ema7, dashboard, macdSmart, tradeTool,
   D7M_DEFAULTS, D7MSettings } from "./d7m";
 import D7MPanel from "./D7MPanel";
+import { stochastic, cvdApprox, paneLayout } from "../../lib/indicators";   // ‏D732
 import { D7M_COLORS } from "./d7m";
 import React, { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -96,7 +97,11 @@ const tkey = (d: string): any =>
 const TFS: [string, string][] = [["1h", "ساعة"], ["4h", "4 ساعات"], ["1d", "يوم"], ["1wk", "أسبوع"], ["1mo", "شهر"]];
 
 const IND = [["sma20", "SMA20", "var(--chart-1)"], ["sma50", "SMA50", "var(--warn-ink)"], ["sma200", "SMA200", "var(--chart-4)"],
-  ["macd", "MACD", "var(--chart-1)"], ["rsi", "RSI", "var(--chart-5)"], ["d7m", "D7M", "var(--brand-ink)"]] as const;
+  ["rsi", "RSI", "var(--chart-5)"], ["stoch", "Stochastic", "var(--chart-2)"], ["macd", "MACD", "var(--chart-1)"],
+  ["cvd", "CVD", "var(--chart-3)"], ["d7m", "D7M", "var(--brand-ink)"]] as const;
+type IndKey = typeof IND[number][0];
+/* ترتيبُ اللوحات السفلى من الأعلى: RSI · ستوكاستيك · MACD · CVD */
+const OSC: IndKey[] = ["rsi", "stoch", "macd", "cvd"];
 
 /** زرٌّ يُظهر المختارَ وحدَه، وعند الضغط تنسدل الخيارات ثمّ تُطوى. */
 function Drop({ label, children }: { label: string; children: (close: () => void) => React.ReactNode }) {
@@ -148,9 +153,20 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
   const setRange = (v: string) => { setRangeState(v); try { localStorage.setItem("sp_chart_tf", v); } catch {} };
   // صفحةُ السهم: الرسمُ وحدَه (ملاحظةُ المالك) — لا جدولَ إطاراتٍ ولا قرارَ دخولٍ فوقه
   const chartOnly = preset === "d7m-weekly";
-  const [ind, setInd] = useState(preset === "d7m-weekly"
-    ? { sma20: false, sma50: false, sma200: false, macd: false, rsi: false, d7m: true }
-    : { sma20: true, sma50: true, sma200: false, macd: true, rsi: false, d7m: false });
+  /* ‏D732: اختيارُ المؤشّرات يُحفظ في المتصفّح (غرفة التداول) — يعود المالكُ فيجد ما اختاره */
+  const [ind, setIndState] = useState<Record<IndKey, boolean>>(() => {
+    if (preset === "d7m-weekly") return { sma20: false, sma50: false, sma200: false, rsi: false, stoch: false, macd: false, cvd: false, d7m: true };
+    const def = { sma20: true, sma50: true, sma200: false, rsi: false, stoch: false, macd: true, cvd: false, d7m: false };
+    try { return { ...def, ...(JSON.parse(localStorage.getItem("sp_chart_ind") || "{}") || {}) }; } catch { return def; }
+  });
+  const setInd = (f: (s: Record<IndKey, boolean>) => Record<IndKey, boolean>) => setIndState(s => {
+    const n = f(s);
+    if (preset !== "d7m-weekly") { try { localStorage.setItem("sp_chart_ind", JSON.stringify(n)); } catch { /* خاصّ */ } }
+    return n;
+  });
+  const oscOn = OSC.filter(k => ind[k]);
+  const lay = paneLayout(oscOn.length);
+  const frameH = height + 80 * Math.max(0, oscOn.length - 1);   // لوحاتٌ أكثر ⇒ رسمٌ أطول، فلا تنضغط الشموع
   const [err, setErr] = useState(false);
   // ══ إعداداتُ مؤشّر D7M — تُحفظ في المتصفّح (بأمر المالك: زرُّ إعدادات) ══
   const [cfg, setCfg] = useState<D7MSettings>(() => {
@@ -286,7 +302,7 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
            فتُقرأ الرموز هنا قيماً محسوبة عبر `tok` قبل التمرير. */
         layout: { background: { color: "transparent" }, textColor: tok("--ink-muted", "#4a4a4a"), fontFamily: "inherit" },
         grid: { vertLines: { color: tok("--hairline", "#dcdcdc") }, horzLines: { color: tok("--hairline", "#dcdcdc") } },
-        rightPriceScale: { borderColor: tok("--hairline", "#dcdcdc"), scaleMargins: { top: 0.06, bottom: (ind.rsi || ind.macd) ? 0.28 : 0.14 } },
+        rightPriceScale: { borderColor: tok("--hairline", "#dcdcdc"), scaleMargins: lay.price },
         timeScale: { borderColor: tok("--hairline", "#dcdcdc"), timeVisible: bars.some((b: any) => String(b.date || "").length > 10) },
         crosshair: { mode: 0 },
         /* ══ الإصبعُ العموديُّ للصفحة لا للرسم ══ (بأمر المالك)
@@ -313,7 +329,7 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
       // volume
       /* ‏D713: والحجمُ بلا كتلةٍ على المحور — أعمدتُه تكفي، كتريدنق فيو */
       const vol = chart.addHistogramSeries({ priceScaleId: "", priceFormat: { type: "volume" }, priceLineVisible: false, lastValueVisible: false });
-      vol.priceScale().applyOptions({ scaleMargins: { top: 0.86, bottom: 0 } });
+      vol.priceScale().applyOptions({ scaleMargins: lay.volume });
       vol.setData(bars.map((b: any) => ({ time: tkey(b.date), value: b.volume, color: b.close >= b.open ? tokA("--pos-ink", "#16a34a", .4) : tokA("--neg-ink", "#dc2626", .4) })));
 
       const closes = bars.map((b: any) => b.close);
@@ -325,18 +341,34 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
       if (ind.sma50) addSMA(50, tok("--warn-ink", "#92400e"));
       if (ind.sma200) addSMA(200, tok("--chart-4", "#4a8fbd"));
 
-      const bothPanes = ind.rsi && ind.macd;
+      /* ‏D732: كلُّ مؤشّرٍ ذبذبيٍّ في لوحته (‏paneLayout) — لا يتداخل اثنان مهما اجتمعت */
+      const paneOf = (k: IndKey) => lay.panes[oscOn.indexOf(k)];
+      const series = (vals: (number | null)[]) => vals.map((v, i) => v == null ? null : ({ time: tkey(bars[i].date), value: v })).filter(Boolean);
+      const guide = (sr: any, levels: number[]) => levels.forEach(v => sr.createPriceLine({ price: v, color: tokA("--ink-muted", "#888", .45), lineWidth: 1, lineStyle: 2, axisLabelVisible: false }));
       if (ind.rsi) {
         const rs = chart.addLineSeries({ color: tok("--chart-5", "#c08a45"), lineWidth: 1.5, priceScaleId: "rsi", priceLineVisible: false, lastValueVisible: false });
-        chart.priceScale("rsi").applyOptions({
-          scaleMargins: bothPanes ? { top: 0.74, bottom: 0.14 } : { top: 0.74, bottom: 0.02 },
-          borderColor: tok("--hairline", "#dcdcdc"),
-        });
-        rs.setData(rsi(closes).map((v, i) => v == null ? null : ({ time: tkey(bars[i].date), value: v })).filter(Boolean));
+        chart.priceScale("rsi").applyOptions({ scaleMargins: paneOf("rsi"), borderColor: tok("--hairline", "#dcdcdc") });
+        rs.setData(series(rsi(closes)));
+        guide(rs, [70, 30]);
+      }
+      if (ind.stoch) {
+        const st = stochastic(bars as any);
+        const kS = chart.addLineSeries({ color: tok("--chart-2", "#2f8f83"), lineWidth: 1.4, priceScaleId: "stoch", priceLineVisible: false, lastValueVisible: false });
+        chart.priceScale("stoch").applyOptions({ scaleMargins: paneOf("stoch"), borderColor: tok("--hairline", "#dcdcdc") });
+        kS.setData(series(st.k));
+        guide(kS, [80, 20]);
+        const dS = chart.addLineSeries({ color: tok("--warn-ink", "#92400e"), lineWidth: 1.2, priceScaleId: "stoch", priceLineVisible: false, lastValueVisible: false });
+        dS.setData(series(st.d));
+      }
+      if (ind.cvd) {
+        const cv = chart.addLineSeries({ color: tok("--chart-3", "#7a5bd3"), lineWidth: 1.5, priceScaleId: "cvd", priceLineVisible: false, lastValueVisible: false,
+                                         priceFormat: { type: "volume" } });
+        chart.priceScale("cvd").applyOptions({ scaleMargins: paneOf("cvd"), borderColor: tok("--hairline", "#dcdcdc") });
+        cv.setData(series(cvdApprox(bars as any)));
       }
       if (ind.macd) {
         const { line, signal, hist } = macd(closes);
-        const macdMargins = bothPanes ? { top: 0.88, bottom: 0 } : { top: 0.74, bottom: 0.02 };
+        const macdMargins = paneOf("macd");
         const macdHist = chart.addHistogramSeries({ priceScaleId: "macd", priceLineVisible: false, lastValueVisible: false });
         chart.priceScale("macd").applyOptions({ scaleMargins: macdMargins, borderColor: tok("--hairline", "#dcdcdc") });
         macdHist.setData(hist.map((v, i) => v == null ? null : ({ time: tkey(bars[i].date), value: v, color: v >= 0 ? tokA("--pos-ink", "#16a34a", .5) : tokA("--neg-ink", "#dc2626", .5) })).filter(Boolean));
@@ -525,7 +557,7 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
     saveDraws([...draws, { h: Math.round(hyPrice * 100) / 100 }]); setTool(null);
   };
 
-  const toggle = (k: keyof typeof ind) => setInd(s => ({ ...s, [k]: !s[k] }));
+  const toggle = (k: IndKey) => setInd(s => ({ ...s, [k]: !s[k] }));
 
   return (
     <div className="space-y-2">
@@ -592,8 +624,15 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
         <div className="h-[420px] flex items-center justify-center text-[var(--ink-muted)] text-sm">لا توجد بيانات سعرية تاريخية لهذا الرمز حالياً.</div>
       ) : (
         <div className="relative">
-        <div className="relative chart-frame" style={{ height, width: "100%" }}>
+        <div className="relative chart-frame" style={{ height: frameH, width: "100%", transition: "height .28s ease" }}>
           <div ref={el} style={{ position: "absolute", inset: 0 }} />
+          {/* ‏D732: اسمُ كلّ لوحةٍ سفلى في زاويتها — فتُعرف بلا تخمين، و«CVD» يقول إنه تقديرٌ من الشموع */}
+          {oscOn.map((k, i) => (
+            <span key={k} className="chart-pane-tag" data-role="pane-tag" dir="ltr"
+              style={{ top: Math.round(lay.panes[i].top * (frameH - 28)) + 2 }}>
+              {k === "rsi" ? "RSI 14" : k === "stoch" ? "Stoch 14 3 3" : k === "macd" ? "MACD 12 26 9" : "CVD · تقديرٌ من الشموع"}
+            </span>
+          ))}
           <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: tool === "free" ? "auto" : "none",
                touchAction: tool === "free" ? "none" : undefined, cursor: tool === "free" ? "crosshair" : undefined, zIndex: 3 }}
                onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>

@@ -3,17 +3,18 @@ import { useSearchParams } from "react-router-dom";
 import { CandlestickChart, LayoutGrid } from "lucide-react";
 import WatchlistTab from "../components/market/WatchlistTab";
 import StockSheet from "../components/market/StockSheet";
-import ChartPage from "./ChartPage";
+import TradeRoom from "../components/market/TradeRoom";
 
 /* ══ غرفة التداول ══ (بأمر المالك · D687 — كانت «الشاشة» · D683، وقبلها «المراقبة» · D677)
    تبويبان داخليّان بلغة تبويبات المحفظة: «الشركات» بطاقاتٍ، و«الرسم البياني» (كان قسماً في القائمة — ورابطُه القديم
    /chart يفتحه هنا). والتنقّلُ بينهما بحركةٍ لا قفزة. */
-const TABS = [["board", "الشركات", LayoutGrid], ["chart", "الرسم البياني", CandlestickChart]] as const;
+/* ‏D732 (المالك 2026-11-14): الرسمُ وقوائمُ المراقبة أوّلاً وافتراضاً — «إذا ضغطتُ على الشركة يظهر الشارت» */
+const TABS = [["chart", "الرسم والقوائم", CandlestickChart], ["board", "الشركات", LayoutGrid]] as const;
 
 export default function WatchlistPage() {
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "chart" ? "chart" : "board";
-  const setTab = (t: string) => setParams(t === "chart" ? { tab: "chart" } : {}, { replace: true });
+  const tab = params.get("tab") === "board" ? "board" : "chart";
+  const setTab = (t: string) => setParams(t === "board" ? { tab: "board" } : {}, { replace: true });
   const [sheet, setSheet] = useState<string | null>(null);
   return (
     <div className="space-y-3 fade-in">
@@ -33,7 +34,7 @@ export default function WatchlistPage() {
         ))}
       </nav>
       <div key={tab} className="fade-in">
-        {tab === "chart" ? <ChartPage embedded /> : <WatchlistTab onOpen={setSheet} />}
+        {tab === "chart" ? <TradeRoom /> : <WatchlistTab onOpen={setSheet} />}
       </div>
       {sheet && <StockSheet symbol={sheet} onClose={() => setSheet(null)} />}
     </div>

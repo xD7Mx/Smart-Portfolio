@@ -3198,3 +3198,36 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
   .liq-px { display: flex; align-items: center; gap: 8px; } .liq-px > div:first-child { margin: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .liq-row, .liq .wbar-fill { transition: none; } }
+
+/* ‏D732: اسمُ اللوحة السفلى في الرسم البيانيّ — صغيرٌ هادئٌ فوق اللوحة، لا يلتقط اللمس */
+.chart-pane-tag { position: absolute; left: 8px; z-index: 2; pointer-events: none;
+  font-size: 10px; font-weight: 700; color: var(--ink-muted); padding: 1px 6px; border-radius: 6px;
+  background: color-mix(in srgb, var(--bg) 80%, transparent); transition: top .28s ease; }
+@media (prefers-reduced-motion: reduce) { .chart-pane-tag { transition: none; } }
+
+/* ══ ‏D732: غرفة التداول — الرسمُ في الصدر وقوائمُ المراقبة بجانبه (تحته على الجوال) ══ */
+.troom { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 1024px) { .troom { grid-template-columns: minmax(0, 1fr) 300px; } .troom-list { position: sticky; top: 12px; } }
+.troom-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.troom-tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.troom-tabs::-webkit-scrollbar { display: none; }
+.troom-new { flex: none; min-width: 32px; padding-inline: 8px !important; color: var(--brand-ink); }
+.troom-naming { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; animation: menuIn .2s ease-out both; }
+.troom-naming .input { flex: 1 1 140px; min-height: 32px; padding: 5px 10px; }
+.troom-bar { display: flex; align-items: center; gap: 6px; min-height: 32px; }
+.troom-icon { min-width: 32px; min-height: 32px; padding: 4px; display: inline-flex; align-items: center; justify-content: center; }
+.troom-icon.on { color: var(--brand-ink); }
+.troom-danger:hover { color: var(--neg-ink); }
+.troom-rows { display: flex; flex-direction: column; gap: 2px; max-height: 70vh; overflow-y: auto; }
+@media (max-width: 1023px) { .troom-rows { max-height: none; } }
+.troom-row { display: flex; align-items: center; gap: 4px; border-radius: 10px; transition: background-color .18s ease; }
+.troom-row:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.troom-row.on { background: color-mix(in srgb, var(--brand) 11%, transparent); }
+.troom-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 8px; min-height: 44px; text-align: start; }
+.troom-dot { width: 8px; height: 8px; border-radius: 9px; background: var(--brand-ink); flex: none; margin-inline: 8px; }
+@media (prefers-reduced-motion: reduce) { .troom-naming { animation: none; } .troom-row { transition: none; } }
+/* البحثُ في لوحة القوائم بهدف لمسٍ ٣٢px — ويتمدّد إلى عرض اللوحة حين يُفتح */
+.troom-bar .inline-search { height: 34px; width: 34px; }
+.troom-bar .inline-search[data-open="1"] { width: min(230px, 62vw); }
+.troom-bar .inline-search-btn { width: 32px; height: 32px; flex-basis: 32px; }
+.troom-bar .inline-search-input { height: 32px; }
