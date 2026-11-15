@@ -188,8 +188,9 @@ def daily_candles(rows: list) -> list:
         if not isinstance(p, (int, float)) or p <= 0 or len(dt) < 10:
             continue
         o = prev if prev is not None else p
+        # ‏D739: «basis» يَسِمُ الشمعةَ المبنيّةَ من الإغلاقات وحدها — فيُقال عنها ذلك في الرسم ولا تُعرض كأنّ لها أعلى وأدنى رسميّين
         out.append({"date": dt, "time": 0, "open": o, "high": max(o, p),
-                    "low": min(o, p), "close": p, "volume": 0})
+                    "low": min(o, p), "close": p, "volume": 0, "basis": "close"})
         prev = p
     return out
 
@@ -211,6 +212,8 @@ def weekly(rows: list) -> list:
             b["high"], b["low"] = max(b["high"], r["high"]), min(b["low"], r["low"])
             b["close"], b["date"] = r["close"], r["date"][:10]
             b["volume"] = (b.get("volume") or 0) + (r.get("volume") or 0)
+            if r.get("basis"):
+                b["basis"] = r["basis"]
         else:
             out.append({**r, "date": r["date"][:10], "_wk": wk})
     for b in out:

@@ -112,8 +112,11 @@ def _mins(stamp: str) -> int:
 
 
 def _agg(group: list, date: str) -> dict:
-    return {"date": date, "open": group[0]["open"], "high": max(g["high"] for g in group), "low": min(g["low"] for g in group),
-            "close": group[-1]["close"], "volume": sum((g.get("volume") or 0) for g in group)}
+    out = {"date": date, "open": group[0]["open"], "high": max(g["high"] for g in group), "low": min(g["low"] for g in group),
+           "close": group[-1]["close"], "volume": sum((g.get("volume") or 0) for g in group)}
+    if any(g.get("basis") for g in group):                        # ‏D739: شمعةٌ فيها يومٌ من الإغلاقات وحدها تُوسَم كذلك
+        out["basis"] = "close"
+    return out
 
 
 def _utc_min(stamp: str) -> int | None:

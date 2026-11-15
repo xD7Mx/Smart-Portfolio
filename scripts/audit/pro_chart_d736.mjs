@@ -37,10 +37,20 @@ const clean = D.sanitizeBars(dirty);
 say(JSON.stringify(clean.map(b => b.time)) === JSON.stringify(["2026-10-18", "2026-11-01", "2026-11-08"]) && clean[2].close === 11 && clean[0].high === 9,
     "١ الشموعُ تُسلَّم للرسم مرتَّبةً بلا تاريخٍ مكرَّر ولا شمعةٍ مختلّة — وآخرُ المكرَّرَين يحكم، والقمّةُ تحوي الجسم",
     clean.map(b => b.time).join(" · "));
+// ‏D739 (المالك: «توقيتٌ موحّدٌ مثل تريدنق فيو… أغيّره −3 −2 على توقيت غرينتش»): الشمعةُ بالتوقيت العالميّ الحقيقيّ، والعرضُ بالمنطقة المختارة
 const t10 = D.barTime("2026-11-12 10:00");
-say(typeof t10 === "number" && D.tickLabel(t10, 3) === "10:00" && D.barTime("2026-11-12") === "2026-11-12" && /12 .* 2026/.test(D.crossLabel("2026-11-12"))
-    && !/[٠-٩]/.test(D.crossLabel(t10) + D.tickLabel("2026-11-12", 1)),
-    "٢ وقتُ الرياض كما هو على المحور (افتتاحُ 10:00 يُقرأ 10:00)، والتاريخُ بشهرٍ عربيٍّ وأرقامٍ لاتينية", `${D.tickLabel(t10, 3)} · ${D.crossLabel(t10)}`);
+const at = (tz) => D.tickLabel(D.displayTimes([{ time: t10 }], tz)[0], 3);
+say(t10 === Date.UTC(2026, 10, 12, 7, 0) / 1000 && at("Asia/Riyadh") === "10:00" && at("UTC") === "07:00" && at("America/New_York") === "02:00"
+    && at("America/Sao_Paulo") === "04:00" && D.barTime("2026-11-12") === "2026-11-12" && D.displayTimes([{ time: "2026-11-12" }], "America/New_York")[0] === "2026-11-12"
+    && /12 .* 2026/.test(D.crossLabel("2026-11-12")) && !/[٠-٩]/.test(D.crossLabel(t10) + D.tickLabel("2026-11-12", 1)),
+    "٢ الشمعةُ بالتوقيت العالميّ، وتُعرض بأيّ منطقة: افتتاحُ الرياض 10:00 = 07:00 UTC = 02:00 نيويورك = 04:00 (UTC−3) — واليوميةُ لا تتبع منطقة",
+    ["Asia/Riyadh", "UTC", "America/New_York", "America/Sao_Paulo"].map(at).join(" · "));
+const fb = Date.UTC(2026, 10, 1, 5, 30) / 1000;          // ساعةُ الرجوع عن الصيفيّ في نيويورك تتكرّر: 01:30 مرّتين
+const ny = D.displayTimes([{ time: fb }, { time: fb + 3600 }, { time: fb + 7200 }], "America/New_York");
+say(ny[0] < ny[1] && ny[1] < ny[2] && D.tickLabel(ny[0], 3) === "01:30" && D.tickLabel(ny[1], 3) === "01:30" && D.tickLabel(ny[2], 3) === "02:30"
+    && D.fmtOffset(-180) === "UTC−3" && D.fmtOffset(330) === "UTC+5:30" && D.fmtOffset(0) === "UTC" && D.exchangeTz("1120.SR") === "Asia/Riyadh"
+    && D.exchangeTz("AAPL") === "America/New_York" && D.exchangeTz("BTC-USD") === "UTC" && D.TZ_LIST.length >= 20,
+    "٢ب والصيفيُّ والشتويُّ يُحسبان لحظتَهما، وساعةُ الرجوع المكرَّرة لا تكسر الرسم، ولكلّ رمزٍ منطقةُ بورصته", ny.map(t => D.tickLabel(t, 3)).join(" · "));
 const tf = (s) => { const p = D.parseTf(s); return p ? `${p.n}${p.unit}` : null; };
 say(tf("6h") === "6h" && tf("45m") === "45m" && tf("120m") === "2h" && tf("3d") === "3d" && tf("2w") === "2wk" && tf("1mo") === "1mo"
     && tf("25h") === null && tf("0d") === null && tf("13mo") === null && tf("abc") === null && tf("6") === null,
@@ -106,6 +116,10 @@ const weekly = (n = 420, seed = 3) => {
   out.push({ ...l, close: +(l.close + 0.4).toFixed(2), high: +(l.high + 0.4).toFixed(2) });
   return out;
 };
+// ساعاتٌ بختم الخادم (ساعةُ الرياض): 10:00–13:00 لخمسين يوماً
+const hourly = () => { const out = []; for (let d = 0; d < 50; d++) for (const h of [10, 11, 12, 13]) {
+  const day = new Date(Date.UTC(2026, 8, 1) + d * 864e5).toISOString().slice(0, 10), b = 60 + Math.sin(d + h) * 2;
+  out.push({ date: `${day} ${h}:00`, open: b, high: b + 0.5, low: b - 0.5, close: b + 0.2, volume: 1e5 }); } return out; };
 const HOLD = [{ company: { symbol: "1120", name_ar: "مصرف الراجحي" }, last_price: 64.2, change_pct: 1.25 },
               { company: { symbol: "2222", name_ar: "أرامكو السعودية" }, last_price: 25.1, change_pct: -0.4 }];
 const vite = spawn("npx", ["vite", "--port", String(PORT), "--strictPort"], { cwd: FRONT, stdio: "ignore" });
@@ -123,7 +137,13 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   page.on("request", r => { if (/unpkg\.com|jsdelivr|cdnjs/.test(r.url())) ext.push(r.url()); });
   await page.route("**/api/v1/**", async r => {
     const u = new URL(r.request().url()), p = u.pathname.replace(/^.*\/api\/v1/, ""), m = r.request().method();
-    if (/^\/market\/(bars|history)\//.test(p)) { const s = decodeURIComponent(p.split("/").pop()); reqs.push(`${s}?${u.searchParams.get("tf")}`); return r.fulfill(body(weekly(420, s.length))); }
+    if (/^\/market\/(bars|history)\//.test(p)) {
+      const s = decodeURIComponent(p.split("/").pop()), tfq = u.searchParams.get("tf") || "";
+      reqs.push(`${s}?${tfq}`);
+      if (/^\d+(m|h)$/.test(tfq)) return r.fulfill(body(hourly()));
+      const w = weekly(420, s.length);
+      return r.fulfill(body(s === "^GSPC" ? w.map(x => ({ ...x, volume: 0 })) : w));
+    }
     if (/^\/market\/drawings\//.test(p)) { if (m !== "GET") saves.push([decodeURIComponent(p.split("/").pop()), JSON.parse(r.request().postData() || "{}")]); return r.fulfill(body(m === "GET" ? [] : null)); }
     if (p === "/holdings") return r.fulfill(body(HOLD));
     if (p === "/market/watchlist/groups") return r.fulfill(body([{ id: 1, name: "الرئيسية", is_default: true }]));
@@ -149,11 +169,11 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   const lay = await page.evaluate(() => {
     const c = document.querySelector('[data-role="troom-chart"]')?.getBoundingClientRect(), l = document.querySelector('[data-role="troom-list"]')?.getBoundingClientRect();
     const tabs = [...document.querySelectorAll('[data-role="room-tab"]')].map(b => b.textContent.trim());
-    return c && l ? { listRight: l.left >= c.right - 1 && Math.abs(c.top - l.top) < 4, below: l.top >= c.bottom - 1, tabs, stageBottom: document.querySelector('[data-role="pc-stage"]').getBoundingClientRect().bottom, H: innerHeight } : null;
+    return c && l ? { listRight: l.left >= c.right - 1 && Math.abs(c.top - l.top) < 4, below: l.top >= c.bottom - 1, tabs, stageBottom: document.querySelector('[data-role="pc-foot"]').getBoundingClientRect().bottom, H: innerHeight } : null;
   });
   say(!!lay && (desk ? lay.listRight : lay.below) && JSON.stringify(lay.tabs) === JSON.stringify(["الرسم البياني", "مختبر الأبحاث"]),
       `${label}: ${desk ? "الشركاتُ يمينَ الشاشة والرسمُ يسارَها" : "الرسمُ أوّلاً والقوائمُ تحته"}، والتبويبان «الرسم البياني» و«مختبر الأبحاث»`, JSON.stringify(lay?.tabs));
-  if (desk) say(lay.stageBottom <= lay.H + 1, `${label}: الرسمُ كلُّه داخل الشاشة — لا لوحةَ تحت الطيّ`, `${Math.round(lay.stageBottom)} ≤ ${lay.H}`);
+  if (desk) say(lay.stageBottom <= lay.H + 1, `${label}: الرسمُ كلُّه داخل الشاشة بشريطه السفليّ — لا لوحةَ ولا شريطَ تحت الطيّ`, `${Math.round(lay.stageBottom)} ≤ ${lay.H}`);
 
   // ١١ شموعٌ حقيقيةٌ مقروءة: 421 شمعةً من المصدر (آخرُها مكرَّر) ⇒ 420 على الرسم، والمعروضُ آخرُها لا الكلُّ محشوراً
   const s0 = await st();
@@ -198,6 +218,33 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await page.locator('[data-role="pc-tfs"] .pc-tf', { hasText: desk ? "أسبوع" : "6س" }).first().click().catch(() => {});
   if (!desk) { await page.locator('[data-role="pc-tf-more"]').click(); await page.locator('[data-role="pc-tf-more-menu"] .pc-tf', { hasText: "أسبوع" }).click(); }
   await page.waitForTimeout(1200);
+
+  // ١٣ب المنطقةُ الزمنية كتريدنق فيو: «توقيتُ البورصة» افتراضاً، والساعةُ تعمل، وكلُّ اختيارٍ يُعيد كتابةَ أوقات الشموع ويُحفظ
+  await page.locator('[data-role="pc-tfs"] .pc-tf', { hasText: "1س" }).first().click().catch(async () => {
+    await page.locator('[data-role="pc-tf-more"]').click(); await page.locator('[data-role="pc-tf-more-menu"] .pc-tf', { hasText: /^ساعة$/ }).click(); });
+  await page.waitForTimeout(1200);
+  const tzRead = () => page.evaluate(() => ({ last: document.querySelector('[data-role="pro-chart"]').dataset.lastT,
+    btn: document.querySelector('.pc-btn[data-role="pc-tz"]')?.textContent || "", clock: document.querySelector('[data-role="pc-clock"]')?.textContent || "" }));
+  const tz0 = await tzRead();
+  const pickTz = async (k) => { await page.locator('.pc-btn[data-role="pc-tz"]').click(); await page.locator(`[data-role="pc-tz-menu"] [data-tz="${k}"]`).click(); await page.waitForTimeout(700); return tzRead(); };
+  const tzU = await pickTz("UTC"), tzS = await pickTz("America/Sao_Paulo"), tzN = await pickTz("America/New_York");
+  const keptTz = await page.evaluate(() => localStorage.getItem("sp_chart_tz"));
+  say(/ 13:00$/.test(tz0.last) && /\(UTC\+3\)/.test(tz0.btn) && /^\d{2}:\d{2}:\d{2}$/.test(tz0.clock) && / 10:00$/.test(tzU.last) && /\(UTC\)/.test(tzU.btn)
+      && / 07:00$/.test(tzS.last) && /UTC−3/.test(tzS.btn) && / 06:00$/.test(tzN.last) && keptTz === "America/New_York",
+      `${label}: المنطقةُ الزمنية كتريدنق فيو — البورصة (UTC+3) ثمّ UTC ثمّ UTC−3 ثمّ نيويورك (صيفيٌّ في 20 أكتوبر: UTC−4) تُعيد أوقاتَ الشموع، والساعةُ تعمل، والاختيارُ يُحفظ`,
+      `${tz0.last} · ${tzU.last} · ${tzS.last} · ${tzN.last} · ${tz0.clock}`);
+  await pickTz("exchange");
+  // ١٣ج أزرارُ المدى تختار إطارَها وتعرض مدّتَها، والمقياسُ النسبيُّ واللوغاريتميّ
+  await page.locator('[data-role="pc-ranges"] .pc-tf', { hasText: "5 سنوات" }).click();
+  await page.waitForTimeout(1300);
+  const r5 = await st();
+  await page.locator('[data-role="pc-pct"]').click(); await page.waitForTimeout(250);
+  const sPct = (await st()).scale;
+  await page.locator('[data-role="pc-log"]').click(); await page.waitForTimeout(250);
+  const sLog = (await st()).scale;
+  await page.locator('[data-role="pc-log"]').click(); await page.waitForTimeout(250);
+  say(r5.tf === "1wk" && Math.abs(Number(r5.vis) - 263) <= 6 && sPct === "2" && sLog === "1" && (await st()).scale === "0",
+      `${label}: «5 سنوات» يختار الأسبوعيَّ ويعرض خمسَ سنوات، و% وlog يبدّلان مقياسَ السعر`, `${r5.tf} · ${r5.vis} شمعة (${r5.to} من ${r5.bars}) · ${sPct}/${sLog}`);
 
   // ١٤ خطُّ التقاطع والتكبير والسحب (الحاسوب) — «تحريك السهم»
   const sb = await box('[data-role="pc-stage"]');
@@ -247,7 +294,7 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   const lastSave = saves[saves.length - 1] || [null, {}];
   const items = lastSave[1].items || [];
   const tr = items.find(x => x.a && x.b), hl = items.find(x => typeof x.h === "number"), fr = items.find(x => Array.isArray(x.free));
-  say(lastSave[0] === sym && !!tr && tr.v === 2 && tr.a.t !== tr.b.t && !!hl && (!desk || (fr && fr.free.length > 10 && fr.free.some(q => q.o > 0 && q.o < 1))),
+  say(lastSave[0] === sym && !!tr && tr.v === 3 && tr.a.t !== tr.b.t && !!hl && (!desk || (fr && fr.free.length > 10 && fr.free.some(q => q.o > 0 && q.o < 1))),
       `${label}: خطُّ الاتجاه (نقرتان سريعتان) والأفقيُّ${desk ? " والفرشاةُ بمواضعها الكسريّة" : ""} تُحفظ على الرمز المعروض ${sym}`,
       `${lastSave[0]} · ${items.map(x => (x.a ? "اتجاه" : x.h != null ? "أفقيّ" : "فرشاة")).join(" · ")}`);
   const dr = await st();
@@ -269,7 +316,9 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await page.locator('[data-role="troom-row"]', { hasText: "S&P 500" }).click();
   await page.waitForTimeout(1500);
   const ix = await st();
-  say(ix.symbol === "^GSPC" && ix.bars === "420" && /\d/.test(ix.c) && !ix.cover, `${label}: والمؤشّراتُ (S&P 500) تُرسم بشموعها`, `${ix.symbol} · ${ix.bars} شمعة · ${ix.c}`);
+  const volTxt = await page.locator('[data-role="pc-legend"] [data-ind="vol"]').textContent().catch(() => "");
+  say(ix.symbol === "^GSPC" && ix.bars === "420" && /\d/.test(ix.c) && !ix.cover && /غير متوفّر/.test(volTxt || ""),
+      `${label}: والمؤشّراتُ (S&P 500) تُرسم بشموعها — وحجمٌ لا يسلّمه المصدر «غير متوفّر» لا أعمدةٌ صفرية`, `${ix.symbol} · ${ix.bars} شمعة · ${volTxt}`);
 
   // ١٧ ملءُ الشاشة، والقياسات
   if (!desk) await page.evaluate(() => scrollTo(0, 0));

@@ -28,8 +28,10 @@ check("lab(" in seg and "Holding" not in seg and "commit" not in seg, "٥ الم
 sp = (ROOT / "frontend/src/pages/StarsPage.tsx").read_text()
 check("starsLab(syms, start)" in sp and "الماضي ليس وعداً" not in sp, "٦ المختبرُ هو الصفحة (D612) — بلا حاشيةٍ تفسيرية أسفلها")
 cp = (ROOT / "frontend/src/pages/CompanyPage.tsx").read_text()
-nc = (ROOT / "frontend/src/components/analysis/NativeChart.tsx").read_text()
-check("<PriceOrChart" in cp and 'preset="d7m-weekly"' in cp and 'preset === "d7m-weekly"' in nc,
+nc = (ROOT / "frontend/src/components/chart/ProChart.tsx").read_text()
+poc = (ROOT / "frontend/src/components/analysis/PriceOrChart.tsx").read_text()
+# ‏D739: المفتاحُ في PriceOrChart، والرسمُ الاحترافيُّ بإعداد صفحة السهم: أسبوعيٌّ وD7M افتراضاً
+check("<PriceOrChart" in cp and 'preset="stock"' in poc and "d7m: true" in nc[nc.index("const IND_STOCK"):nc.index("const IND_STOCK") + 260],
       "٧ صفحةُ السهم: مفتاحٌ بين حركة السعر والرسم على D7M الأسبوعيّ")
 pp = (ROOT / "frontend/src/pages/PortfolioPage.tsx").read_text()
 check("newAvgCost" in pp.split("نصيبه من التوازن")[0] and "line-through" in pp, "٨ بطاقةُ المعاملة: المتوسطُ الجديد ومعاينةُ النقص قبل التأكيد")

@@ -6,11 +6,73 @@
 export type RawBar = { date: string; open: number; high: number; low: number; close: number; volume?: number };
 export type CBar = RawBar & { time: string | number };
 
-/** «2026-11-12» يومٌ كما هو؛ و«2026-11-12 10:00» ثوانٍ بساعة حائط الرياض. */
+/** «2026-11-12» يومُ جلسةٍ كما هو (كتريدنق فيو: الشمعةُ اليوميةُ لا تتبع منطقةً زمنية)؛ و«2026-11-12 10:00» — ختمُ الخادم
+    بساعة الرياض (‏UTC+3 ثابتٌ بلا توقيتٍ صيفيّ) — ثوانٍ بالتوقيت العالميّ الحقيقيّ (‏D739). والعرضُ بأيّ منطقةٍ يختارها المالك
+    (‏displayTimes). */
 export function barTime(date: string): string | number {
   const d = String(date || "");
   if (d.length <= 10) return d;
-  return Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10), +d.slice(11, 13), +d.slice(14, 16)) / 1000;
+  return Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10), +d.slice(11, 13), +d.slice(14, 16)) / 1000 - 10800;
+}
+
+/* ══ المناطقُ الزمنية كتريدنق فيو (‏D739 · المالك 2026-11-15: «توقيتٌ موحّدٌ مثل تريدنق فيو… أغيّره −3 −2 على توقيت غرينتش») ══
+   «توقيتُ البورصة» افتراضاً (كتريدنق فيو)، و«UTC»، ومدنٌ تغطّي الفروقَ من −10 إلى +13 — وفرقُ كلٍّ يُحسب لحظتَه (الصيفيُّ والشتويّ). */
+export const TZ_LIST: [string, string][] = [
+  ["Pacific/Honolulu", "هونولولو"], ["America/Anchorage", "أنكوريج"], ["America/Los_Angeles", "لوس أنجلوس"], ["America/Denver", "دنفر"],
+  ["America/Chicago", "شيكاغو"], ["America/New_York", "نيويورك"], ["America/Halifax", "هاليفاكس"], ["America/Sao_Paulo", "ساو باولو"],
+  ["Atlantic/South_Georgia", "جورجيا الجنوبية"], ["Atlantic/Azores", "الأزور"], ["Europe/London", "لندن"], ["Europe/Berlin", "برلين"],
+  ["Africa/Cairo", "القاهرة"], ["Asia/Riyadh", "الرياض"], ["Asia/Dubai", "دبي"], ["Asia/Karachi", "كراتشي"], ["Asia/Kolkata", "كولكاتا"],
+  ["Asia/Dhaka", "دكا"], ["Asia/Bangkok", "بانكوك"], ["Asia/Singapore", "سنغافورة"], ["Asia/Tokyo", "طوكيو"], ["Australia/Sydney", "سيدني"],
+  ["Pacific/Auckland", "أوكلاند"]];
+
+/** منطقةُ البورصة لرمزٍ — كما يعرضها تريدنق فيو افتراضاً. */
+export function exchangeTz(symbol: string): string {
+  const s = String(symbol || "").toUpperCase();
+  if (/^\d{4}(\.SR)?$/.test(s) || s.endsWith(".SR") || /TASI/.test(s)) return "Asia/Riyadh";
+  if (/-(USD|USDT|EUR|BTC|ETH)$/.test(s)) return "UTC";
+  if (/^BZ=F$/.test(s) || s.endsWith(".L") || s === "^FTSE") return "Europe/London";
+  if (s.endsWith(".DE") || s === "^GDAXI") return "Europe/Berlin";
+  if (s.endsWith(".T") || s === "^N225") return "Asia/Tokyo";
+  if (s.endsWith("=X")) return "Europe/London";
+  return "America/New_York";
+}
+
+const _fmts = new Map<string, Intl.DateTimeFormat>();
+/** فرقُ المنطقة عن التوقيت العالميّ بالدقائق في لحظةٍ بعينها (الصيفيُّ يُحسب). */
+export function tzOffsetMin(tz: string, utcSec: number): number {
+  if (!tz || tz === "UTC") return 0;
+  let f = _fmts.get(tz);
+  if (!f) {
+    try { f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
+    catch { return 0; }
+    _fmts.set(tz, f);
+  }
+  const p: Record<string, number> = {};
+  for (const x of f.formatToParts(new Date(utcSec * 1000))) if (x.type !== "literal") p[x.type] = +x.value;
+  const wall = Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute) / 1000;
+  return Math.round((wall - Math.floor(utcSec / 60) * 60) / 60);
+}
+export function fmtOffset(min: number): string {
+  if (!min) return "UTC";
+  const a = Math.abs(min), h = Math.floor(a / 60), m = a % 60;
+  return `UTC${min > 0 ? "+" : "−"}${h}${m ? ":" + String(m).padStart(2, "0") : ""}`;
+}
+
+/** أوقاتُ العرض: الشمعةُ دون اليوم تُزاح بفرق المنطقة في لحظتها فيقرأ المحورُ ساعتَها هناك، واليوميةُ كما هي. وتبقى متزايدةً
+    تماماً — ساعةُ الرجوع عن الصيفيّ تتكرّر في الساعة الحائطية والمكتبةُ ترفض التكرار. */
+export function displayTimes(bars: { time: string | number }[], tz: string): (string | number)[] {
+  const out: (string | number)[] = new Array(bars.length);
+  let prev = -Infinity, cacheH = NaN, cacheOff = 0;
+  for (let i = 0; i < bars.length; i++) {
+    const t = bars[i].time;
+    if (typeof t !== "number") { out[i] = t; continue; }
+    const h = Math.floor(t / 3600);
+    if (h !== cacheH) { cacheH = h; cacheOff = tzOffsetMin(tz, h * 3600 + 1800); }
+    let d = t + cacheOff * 60;
+    if (d <= prev) d = prev + 1;
+    out[i] = prev = d;
+  }
+  return out;
 }
 
 /** مرتَّبةٌ بلا زمنٍ مكرَّر ولا شمعةٍ مختلّة (أرقامٌ موجبة، والقمّةُ والقاعُ يحويان الجسم) — وآخرُ المكرَّرَين يحكم. */

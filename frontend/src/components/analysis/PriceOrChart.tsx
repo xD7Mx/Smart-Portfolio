@@ -1,11 +1,12 @@
 import React from "react";
 import PriceChart from "./PriceChart";
-import NativeChart from "./NativeChart";
+import ProChart from "../chart/ProChart";
 import { useAppStore } from "../../store/appStore";
 
 /* ‏D607: بأمر المالك — حركةُ السعر والرسمُ البيانيّ في مكانٍ واحدٍ بمفتاح، اختصاراً للمسافة، والاختيارُ يُذكر.
    ‏(ملاحظةُ المالك 2026-10-09): «الرسمُ البيانيّ بجانب حركة السعر في كلّ مكانٍ تُفتح فيه صفحةُ السهم» — فصار مكوّناً
-   واحداً تستعمله صفحةُ الشركة في المحفظة وصفحةُ السهم خارجها. والرسمُ هنا رسمٌ فقط بإطاراتٍ كتريدنق فيو. */
+   واحداً تستعمله صفحةُ الشركة في المحفظة وصفحةُ السهم خارجها. والرسمُ هنا رسمٌ فقط بإطاراتٍ كتريدنق فيو.
+   ‏D739: الرسمُ هو الاحترافيُّ نفسُه الذي في غرفة التداول (‏chart/ProChart) — محرّكٌ واحدٌ للرسم في التطبيق كلّه. */
 export default function PriceOrChart({ symbol }: { symbol: string }) {
   const theme = useAppStore(s => s.theme);
   const [view, setView] = React.useState<"price" | "chart">(() => {
@@ -23,7 +24,7 @@ export default function PriceOrChart({ symbol }: { symbol: string }) {
         ))}
       </div>
       {view === "price" ? <PriceChart symbol={symbol} />
-        : <div className="card p-2"><NativeChart symbol={symbol} theme={theme === "light" ? "light" : "dark"} preset="d7m-weekly" height={380} /></div>}
+        : <div className="card p-0 overflow-visible" data-role="stock-chart"><ProChart symbol={symbol} theme={theme === "light" ? "light" : "dark"} preset="stock" /></div>}
     </div>
   );
 }

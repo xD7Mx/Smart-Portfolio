@@ -349,6 +349,8 @@ def monthly(rows: list) -> list:
             b = out[-1]
             b["high"], b["low"], b["close"] = max(b["high"], r["high"]), min(b["low"], r["low"]), r["close"]
             b["volume"] = (b.get("volume") or 0) + (r.get("volume") or 0)
+            if r.get("basis"):
+                b["basis"] = r["basis"]
         else:
             out.append({**r, "date": f"{m}-01"})
     return out
@@ -1852,7 +1854,7 @@ class MarketDataService:
         سلسلةُ الإغلاق الرسمية كما هي. والأسبوعُ (الأحد–الخميس) والشهرُ منها."""
         from app.services import cache
         from app.services import tasi_history as _th
-        ck = f"bars:tasi:{tf}:v2"
+        ck = f"bars:tasi:{tf}:v3"
         hit = cache.get(ck)
         if hit is not None:
             return hit
@@ -1862,12 +1864,12 @@ class MarketDataService:
             hours = _th.overlay(await self._yahoo()._fetch_hourly("^TASI.SR", TASI_HOURS_RANGE), await _th.capture())
             if hours:
                 cache.set(hk, hours, 30 * 60)
-        closes = await _th.history({"1d": "d2y", "1wk": "d5y", "1mo": "dall"}.get(tf, "d2y")) or []
+        # ‏D739 (المالك: «تريدنق فيو… لا ثغرات»): التاريخُ كلُّه منذ 2007 في كلّ إطار — كان اليوميُّ سنتين والأسبوعيُّ خمساً فينتهي الرسمُ
+        # حين يُسحب إلى الماضي. وما قبل مدى الساعات شموعٌ من الإغلاقات الرسمية وحدها (لا يُنشر لها أعلى وأدنى) موسومةٌ «basis»
+        # فيقولها الرسم — وقِيس (‏tasi_ohlc_door): لا نوعَ رسمٍ في «تداول» يسلّم أعلى وأدنى قبل ذلك.
+        closes = await _th.history("dall") or []
         days = _th.real_daily(closes, hours or [])
-        if tf == "1d" and hours:                                  # اليوميُّ كلُّه حقيقيّ: من أوّل يومٍ له ساعات
-            first = str(hours[0]["date"])[:10]
-            days = [d for d in days if str(d["date"])[:10] >= first] or days
-        rows = days if tf == "1d" else _th.weekly(days)[-260:] if tf == "1wk" else monthly(days)
+        rows = days if tf == "1d" else _th.weekly(days) if tf == "1wk" else monthly(days)
         if len(rows) >= 2:
             cache.set(ck, rows, 5 * 60)
         return rows

@@ -15,7 +15,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   createChart, CandlestickSeries, BarSeries, LineSeries, AreaSeries, HistogramSeries, createSeriesMarkers, CrosshairMode, LineStyle,
-  type IChartApi, type ISeriesApi, type MouseEventParams, type Logical,
+  PriceScaleMode, type IChartApi, type ISeriesApi, type MouseEventParams, type Logical,
 } from "lightweight-charts";
 import {
   CandlestickChart, LineChart, AreaChart, BarChart3, Activity, Brush, TrendingUp, Minus, Trash2, Undo2, Camera, Maximize2, Minimize2,
@@ -24,6 +24,7 @@ import {
 import { marketApi } from "../../services/api";
 import {
   sanitizeBars, CBar, TF_BAR, TF_PRESETS, TF_UNITS, TfUnit, parseTf, tfKey, tfShort, tfLong, tfIntraday, tickLabel, crossLabel, fmtPrice, fmtVol,
+  TZ_LIST, exchangeTz, tzOffsetMin, fmtOffset, displayTimes,
 } from "../../lib/chartData";
 import { ChartOverlay, Level, Segment, Path, Note } from "../../lib/chartOverlay";
 import { sma, rsi, macd, stochastic, cvdD7M, CVD_DEFAULTS, CvdCfg } from "../../lib/indicators";
@@ -44,6 +45,9 @@ type ChartType = "candles" | "hollow" | "bars" | "line" | "area";
 const TYPES: [ChartType, string, any][] = [["candles", "شموع", CandlestickChart], ["hollow", "شموعٌ مفرَّغة", CandlestickChart],
   ["bars", "أعمدة", BarChart3], ["line", "خطّ", LineChart], ["area", "منطقة", AreaChart]];
 type Tool = null | "trend" | "hline" | "brush";
+/* أزرارُ المدى أسفلَ الرسم كتريدنق فيو: كلٌّ يختار إطارَه ويعرض مدّتَه */
+const RANGES: [string, number | "ytd" | "all", string][] = [["يوم", 1, "1m"], ["5 أيام", 5, "5m"], ["شهر", 30, "30m"], ["3 أشهر", 91, "1h"],
+  ["6 أشهر", 182, "2h"], ["منذ بداية العام", "ytd", "1d"], ["سنة", 365, "1d"], ["5 سنوات", 1826, "1wk"], ["الكل", "all", "1mo"]];
 
 const lsGet = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* وضعُ التصفّح الخاصّ */ } };
@@ -62,8 +66,8 @@ const tokA = (name: string, fb: string, a: number) => {
 };
 
 /** قائمةٌ تنسدل تحت زرّها وتُطوى بالنقر خارجها. */
-function Menu({ label, title, children, role, wide }: {
-  label: React.ReactNode; title: string; role?: string; wide?: boolean; children: (close: () => void) => React.ReactNode;
+function Menu({ label, title, children, role, wide, up }: {
+  label: React.ReactNode; title: string; role?: string; wide?: boolean; up?: boolean; children: (close: () => void) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -77,22 +81,27 @@ function Menu({ label, title, children, role, wide }: {
     <div ref={ref} className="pc-menu-wrap">
       <button type="button" className={"pc-btn" + (open ? " on" : "")} title={title} aria-label={title} aria-expanded={open}
         data-role={role} onClick={() => setOpen(o => !o)}>{label}</button>
-      {open && <div className={"sp-menu pc-menu" + (wide ? " pc-menu-wide" : "")} data-role={role ? role + "-menu" : undefined}>{children(() => setOpen(false))}</div>}
+      {open && <div className={"sp-menu pc-menu" + (wide ? " pc-menu-wide" : "") + (up ? " pc-menu-up" : "")} data-role={role ? role + "-menu" : undefined}>{children(() => setOpen(false))}</div>}
     </div>
   );
 }
 
-export default function ProChart({ symbol, identity, theme = "dark" }: {
-  symbol: string; identity?: React.ReactNode; theme?: "dark" | "light";
+/* ‏preset «stock»: صفحةُ السهم (‏D739 — كانت على الرسم القديم): الرسمُ نفسُه بإطارٍ أسبوعيٍّ وD7M افتراضاً، واختياراتُها محفوظةٌ
+   لها وحدها فلا تمسّ غرفةَ التداول، وبلا لوحة القرار فوقه (‏D652). والرسمُ اليدويُّ واحدٌ للرمز في المكانين كتريدنق فيو. */
+const IND_STOCK: Record<IndKey, boolean> = { vol: true, sma20: false, sma50: false, sma200: false, rsi: false, stoch: false, macd: false, cvd: false, d7m: true };
+
+export default function ProChart({ symbol, identity, theme = "dark", preset }: {
+  symbol: string; identity?: React.ReactNode; theme?: "dark" | "light"; preset?: "stock";
 }) {
   /* ── الاختيارات المحفوظة ── */
-  const [tf, setTfState] = useState(() => { const v = lsGet("sp_chart_tf"); return v && parseTf(v) ? v : "1wk"; });
-  const setTf = (v: string) => { if (parseTf(v)) { setTfState(v); lsSet("sp_chart_tf", v); } };
+  const KT = preset ? "sp_stock_tf" : "sp_chart_tf", KI = preset ? "sp_stock_ind" : "sp_chart_ind";
+  const [tf, setTfState] = useState(() => { const v = lsGet(KT); return v && parseTf(v) ? v : "1wk"; });
+  const setTf = (v: string) => { if (parseTf(v)) { setTfState(v); lsSet(KT, v); } };
   const [customTfs, setCustomTfs] = useState<string[]>(() => { try { return (JSON.parse(lsGet("sp_chart_tf_custom") || "[]") as string[]).filter(x => parseTf(x)).slice(0, 4); } catch { return []; } });
   const [ctype, setCtypeState] = useState<ChartType>(() => (TYPES.some(t => t[0] === lsGet("sp_chart_type")) ? lsGet("sp_chart_type") as ChartType : "candles"));
   const setCtype = (v: ChartType) => { setCtypeState(v); lsSet("sp_chart_type", v); };
-  const [ind, setIndState] = useState<Record<IndKey, boolean>>(() => lsJson("sp_chart_ind", IND_DEF));
-  const toggleInd = (k: IndKey) => setIndState(s => { const n = { ...s, [k]: !s[k] }; lsSet("sp_chart_ind", JSON.stringify(n)); return n; });
+  const [ind, setIndState] = useState<Record<IndKey, boolean>>(() => lsJson(KI, preset ? IND_STOCK : IND_DEF));
+  const toggleInd = (k: IndKey) => setIndState(s => { const n = { ...s, [k]: !s[k] }; lsSet(KI, JSON.stringify(n)); return n; });
   const [cvdCfg, setCvdState] = useState<CvdCfg>(() => lsJson("sp_cvd_cfg", CVD_DEFAULTS));
   const setCvd = (p: Partial<CvdCfg>) => setCvdState(c => { const n = { ...c, ...p }; lsSet("sp_cvd_cfg", JSON.stringify(n)); return n; });
   const [cfg, setCfgState] = useState<D7MSettings>(() => {
@@ -104,6 +113,13 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
   const [tool, setTool] = useState<Tool>(null);
   const [railOpen, setRailOpen] = useState(false);
   const [full, setFull] = useState(false);
+  /* المنطقةُ الزمنيةُ ومقياسُ السعر — كتريدنق فيو، ويُحفظان لكلّ الرموز */
+  const [tzPref, setTzState] = useState(() => lsGet("sp_chart_tz") || "exchange");
+  const setTz = (v: string) => { setTzState(v); lsSet("sp_chart_tz", v); };
+  const [scaleMode, setScaleState] = useState<number>(() => { const v = Number(lsGet("sp_chart_scale")); return v === 1 || v === 2 ? v : 0; });
+  const setScale = (v: number) => { setScaleState(v); lsSet("sp_chart_scale", String(v)); };
+  const pendRange = useRef<number | "ytd" | "all" | null>(null);
+  const clockRef = useRef<HTMLSpanElement>(null);
   const [away, setAway] = useState(false);            // آخرُ شمعةٍ خارج المشهد ⇒ زرُّ العودة إليها
   const [manual, setManual] = useState(false);        // مقياسُ السعر سُحب يدوياً ⇒ الزرُّ نفسُه يعيده تلقائياً
   const [paneTops, setPaneTops] = useState<Record<string, number>>({});
@@ -124,6 +140,16 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
     refetchInterval: tfIntraday(tf) ? 30_000 : 60_000,
   });
   const bars = useMemo(() => sanitizeBars(raw), [raw]);
+  /* الشموعُ بالتوقيت العالميّ الحقيقيّ، والعرضُ بمنطقة المالك: «توقيتُ البورصة» افتراضاً أو ما اختاره (‏D739) */
+  const tzName = tzPref === "exchange" ? exchangeTz(symbol) : tzPref;
+  const disp = useMemo(() => displayTimes(bars, tzName), [bars, tzName]);
+  /* الحجمُ مرسومٌ حين يكون للمصدر حجمٌ فعلاً (‏≥80% من الشموع) — وإلّا فهو «غير متوفّر» لا أعمدةٌ صفرية (يوميُّ تاسي · ساعاتُ البتكوين) */
+  const volRef = useRef(true);
+  const volOk = useMemo(() => {
+    if (raw !== undefined) volRef.current = bars.length > 0 && bars.filter(b => b.volume > 0).length >= bars.length * 0.8;
+    return volRef.current;
+  }, [raw, bars]);
+  const eff = useMemo(() => ({ ...ind, vol: ind.vol && volOk, cvd: ind.cvd && volOk }), [ind, volOk]);
   const isUS = !!symbol && !/^\d{4}(\.SR)?$/.test(symbol) && !/TASI/i.test(symbol);
   const { data: frames } = useQuery({
     queryKey: ["frames", symbol],
@@ -192,25 +218,25 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
   const pend = useRef<any>(null);                 // أوّلُ نقطتَي خطّ الاتجاه
   const preview = useRef<Segment | null>(null);
   const stroke = useRef<{ x: number; y: number }[] | null>(null);
-  const S = useRef({ bars, calc, tool, d7m, cfg, draws, ind, ctype, theme, cvdCfg });
-  S.current = { bars, calc, tool, d7m, cfg, draws, ind, ctype, theme, cvdCfg };
+  const S = useRef({ bars, calc, tool, d7m, cfg, draws, ind, ctype, theme, cvdCfg, disp });
+  S.current = { bars, calc, tool, d7m, cfg, draws, ind, ctype, theme, cvdCfg, disp };
 
   /* الارتفاع: الرسمُ كلُّه داخل الشاشة كتريدنق فيو — اللوحاتُ السفلى تقتسم ارتفاعَه ولا تدفعه تحت الطيّ، إلّا إن ضاقت الرئيسةُ عن حدّها */
-  const oscOn = OSC.filter(k => ind[k]);
+  const oscOn = OSC.filter(k => eff[k]);
   const oscPx = wide ? 104 : 88;
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   const chromeH = (topRef.current?.offsetHeight ?? 50) + (narrow && (railOpen || tool) ? 42 : 0);
-  const baseH = full ? Math.max(300, winH - chromeH - 2) : wide ? clamp(winH - 300, 440, 760) : clamp(winH - 380, 340, 460);
+  const baseH = full ? Math.max(300, winH - chromeH - 2) : preset ? (wide ? 480 : 400) : wide ? clamp(winH - 345, 420, 740) : clamp(winH - 380, 340, 460);
   const mainPx = Math.max(full ? 200 : wide ? 300 : 250, baseH - oscOn.length * oscPx);
   const stageH = mainPx + oscOn.length * oscPx;
 
   /* ── نقطةُ رسمٍ محفوظة ← موضعٌ منطقيّ: بزمن شمعتها وكسرها، فتتبع الرسمَ في أيّ إطار ── */
   const secs = useMemo(() => bars.map(b => (typeof b.time === "number" ? b.time : Date.parse(b.time + "T00:00:00Z") / 1000)), [bars]);
   const secsRef = useRef(secs); secsRef.current = secs;
-  const toX = (pt: any, v2: boolean): number | null => {
+  const toX = (pt: any, ver: number): number | null => {
     const sc = secsRef.current;
     if (!sc.length || pt == null) return null;
-    const s = typeof pt.t === "number" ? (v2 ? pt.t : pt.t + 10800) : Date.parse(String(pt.t) + "T00:00:00Z") / 1000;
+    const s = typeof pt.t === "number" ? (ver === 2 ? pt.t - 10800 : pt.t) : Date.parse(String(pt.t) + "T00:00:00Z") / 1000;
     if (!isFinite(s)) return null;
     let lo = 0, hi = sc.length - 1;
     while (lo < hi) { const m = (lo + hi + 1) >> 1; if (sc[m] <= s) lo = m; else hi = m - 1; }
@@ -260,7 +286,7 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
                         color: st.cfg.colors?.channel || tokA("--brand-ink", "#5b52d3", 0.65), width: 1, dash: [5, 4] });
     }
     for (const d of st.draws) {
-      const v2 = d.v === 2;
+      const v2 = Number(d.v) || 1;
       if (typeof d.h === "number") levels.push({ price: d.h, color: drawC, tag: true, rank: 1, width: 1.5 });
       else if (d.a && d.b) {
         const x1 = toX(d.a, v2), x2 = toX(d.b, v2);
@@ -297,6 +323,8 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
       set("chg", `${d >= 0 ? "+" : ""}${d.toFixed(dp)} (${p >= 0 ? "+" : ""}${p.toFixed(2)}%)`, d >= 0 ? "var(--pos-ink)" : "var(--neg-ink)");
     } else set("chg", "");
     set("vol", fmtVol(r.volume));
+    // ‏D739: شمعةٌ من الإغلاقات الرسمية وحدها (تاريخُ تاسي القديم) يُقال عنها ذلك — لا يُوهَم أنّ لها أعلى وأدنى رسميّين
+    set("basis", (r as any).basis === "close" ? "من الإغلاقات اليومية — الأعلى والأدنى غيرُ متوفّرَين" : "");
     const f = (v: number | null | undefined, dp = 2) => (v == null || !isFinite(v) ? "—" : v.toFixed(dp));
     set("sma20", fmtPrice(c.sma20[i])); set("sma50", fmtPrice(c.sma50[i])); set("sma200", fmtPrice(c.sma200[i]));
     set("rsi", f(c.rsi[i])); set("stochK", f(c.stoch.k[i])); set("stochD", f(c.stoch.d[i]));
@@ -325,6 +353,9 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
         root.dataset.bars = String(S.current.bars.length); root.dataset.panes = String(chart.panes().length);
         root.dataset.vis = vr ? String(Math.round(vr.to - vr.from)) : ""; root.dataset.to = vr ? vr.to.toFixed(1) : "";
         root.dataset.spacing = chart.timeScale().options().barSpacing.toFixed(2);
+        const D = S.current.disp;
+        root.dataset.lastT = D.length ? crossLabel(D[D.length - 1]) : "";
+        root.dataset.scale = String(chart.priceScale("right").options().mode);
       }
     } catch { /* لم يُرسم بعد */ }
   };
@@ -337,7 +368,7 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
       autoSize: true,
       layout: { background: { color: "transparent" }, attributionLogo: true, panes: { enableResize: true } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.08, bottom: 0.2 } },
-      timeScale: { borderVisible: false, rightOffset: 6, barSpacing: 9, minBarSpacing: 1.2, secondsVisible: false,
+      timeScale: { borderVisible: false, rightOffset: 6, barSpacing: 9, minBarSpacing: 0.5, secondsVisible: false,
                    tickMarkFormatter: (t: any, type: number) => tickLabel(t, type), lockVisibleTimeRangeOnResize: true },
       crosshair: { mode: CrosshairMode.Normal },
       /* كتريدنق فيو: السحبُ يحرّك، والعجلةُ والقرصُ يكبّران، والمحوران يُسحبان؛ وعلى اللمس الإصبعُ العموديُّ للصفحة لا للرسم */
@@ -401,10 +432,12 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
     const lastC = bars.length ? bars[bars.length - 1].close : 10;
     const prec = lastC >= 1 ? 2 : lastC >= 0.01 ? 4 : 6;
     main.applyOptions({ priceFormat: { type: "custom", minMove: 1 / 10 ** prec, formatter: (v: number) => fmtPrice(v) } });
-    const toMain = (b: CBar) => (lineLike ? { time: b.time as any, value: b.close } : { time: b.time as any, open: b.open, high: b.high, low: b.low, close: b.close });
+    const D = disp;
+    const toMain = (b: CBar, i: number) => (lineLike ? { time: D[i] as any, value: b.close } : { time: D[i] as any, open: b.open, high: b.high, low: b.low, close: b.close });
+    chart.priceScale("right").applyOptions({ mode: scaleMode === 1 ? PriceScaleMode.Logarithmic : scaleMode === 2 ? PriceScaleMode.Percentage : PriceScaleMode.Normal });
 
     /* ٢ البيانات: إطارٌ أو رمزٌ جديد ⇒ سلسلةٌ جديدةٌ ومشهدٌ على آخر الشموع؛ وإلّا فالشمعةُ الجاريةُ تُحدَّث في مكانها والموضعُ يبقى */
-    const n = bars.length, key = `${symbol}|${tf}|${mainSig}`, view = `${symbol}|${tf}`;
+    const n = bars.length, key = `${symbol}|${tf}|${mainSig}|${tzName}`, view = `${symbol}|${tf}`;
     const prev = sigRef.current;
     /* أثناء الجلب (إطارٌ أو رمزٌ جديد) تبقى الصورةُ السابقةُ كما هي تحت غلالةٍ خفيفة — لا وميضَ فراغٍ بين إطارَين */
     if (raw === undefined) return;
@@ -412,8 +445,8 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
     {
       const same = prev.key === key && n > 0 && n - prev.n >= 0 && n - prev.n <= 1 && prev.first === bars[0]?.time;
       if (same) {
-        if (n > prev.n && n >= 2) main.update(toMain(bars[n - 2]));
-        main.update(toMain(bars[n - 1]));
+        if (n > prev.n && n >= 2) main.update(toMain(bars[n - 2], n - 2));
+        main.update(toMain(bars[n - 1], n - 1));
       } else {
         main.setData(bars.map(toMain));
         resetView = !prev.key.startsWith(view + "|") && n > 0;
@@ -425,7 +458,7 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
     const c = calc;
     const pts = (vals: (number | null | undefined)[]) => {
       const out: any[] = [];
-      for (let i = 0; i < vals.length && i < n; i++) { const v = vals[i]; if (v != null && isFinite(v)) out.push({ time: bars[i].time as any, value: v }); }
+      for (let i = 0; i < vals.length && i < n; i++) { const v = vals[i]; if (v != null && isFinite(v)) out.push({ time: D[i] as any, value: v }); }
       return out;
     };
     const ln = (pane: number, color: string, width: 1 | 2 | 3 | 4 = 1, extra: any = {}) =>
@@ -474,7 +507,7 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
       },
     };
     const feed: Record<IndKey, (s: ISeriesApi<any>[]) => void> = {
-      vol: s => s[0].setData(bars.map(b => ({ time: b.time as any, value: b.volume || 0,
+      vol: s => s[0].setData(bars.map((b, i) => ({ time: D[i] as any, value: b.volume || 0,
         color: b.close >= b.open ? tokA("--pos-ink", "#16a34a", 0.42) : tokA("--neg-ink", "#dc2626", 0.42) }))),
       sma20: s => s[0].setData(pts(c.sma20)), sma50: s => s[0].setData(pts(c.sma50)), sma200: s => s[0].setData(pts(c.sma200)),
       rsi: s => s[0].setData(pts(c.rsi)),
@@ -484,7 +517,7 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
         const col = (v: number, p: number | null) => v >= 0 ? tokA("--pos-ink", "#16a34a", p != null && v < p ? 0.4 : 0.85)
                                                              : tokA("--neg-ink", "#dc2626", p != null && v > p ? 0.4 : 0.85);
         const rows: any[] = [];
-        for (let i = 0; i < n; i++) { const v = h[i]; if (v != null) rows.push({ time: bars[i].time as any, value: v, color: col(v, i ? h[i - 1] : null) }); }
+        for (let i = 0; i < n; i++) { const v = h[i]; if (v != null) rows.push({ time: D[i] as any, value: v, color: col(v, i ? h[i - 1] : null) }); }
         s[0].setData(rows); s[1].setData(pts(c.macd.line)); s[2].setData(pts(c.macd.signal));
       },
       cvd: s => {
@@ -492,7 +525,7 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
         if (cvdCfg.style === "line") { s[0].setData(pts(v.line)); return; }
         const rows: any[] = [];
         for (let i = 0; i < n; i++) if (v.o[i] != null && v.h[i] != null && v.l[i] != null && v.c[i] != null)
-          rows.push({ time: bars[i].time as any, open: v.o[i], high: v.h[i], low: v.l[i], close: v.c[i] });
+          rows.push({ time: D[i] as any, open: v.o[i], high: v.h[i], low: v.l[i], close: v.c[i] });
         s[0].setData(rows);
         let j = 1;
         (["sma1", "sma2", "ema1", "ema2"] as const).forEach(k => { if (cvdCfg[k] && s[j]) s[j++].setData(pts(v[k])); });
@@ -513,7 +546,7 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
     const R = reg.current;
     for (const [k] of IND) {
       const cur = R.get(k);
-      if (!ind[k]) { if (cur) { cur.series.forEach(s => chart.removeSeries(s)); R.delete(k); } continue; }
+      if (!eff[k]) { if (cur) { cur.series.forEach(s => chart.removeSeries(s)); R.delete(k); } continue; }
       const sig = sigOf(k);
       if (!cur || cur.sig !== sig) {
         // اللوحةُ نفسُها إن وُجدت (فلا يقفز المؤشّرُ إلى الأسفل حين تتغيّر إعداداتُه)، وإلّا لوحةٌ جديدةٌ آخرَ الرسم
@@ -524,9 +557,10 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
       }
       feed[k](R.get(k)!.series);
     }
-    main.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: ind.vol ? 0.2 : 0.06 } });
+    main.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: eff.vol ? 0.2 : 0.06 } });
     /* المشهدُ الأوّل لإطارٍ أو رمزٍ جديد: آخرُ الشموع بعرضٍ مقروء (لا الكلُّ محشوراً) — بعد أن تستقرّ السلاسلُ كلُّها على الزمن الجديد */
-    if (resetView) {
+    if (pendRange.current != null && n) { const pr = pendRange.current; pendRange.current = null; rangeTo(pr); }
+    else if (resetView) {
       const vis = Math.min(n, wide ? 150 : 64);
       chart.timeScale().setVisibleLogicalRange({ from: n - vis - 0.5, to: n + 5.5 });
       chart.priceScale("right").applyOptions({ autoScale: true });
@@ -536,7 +570,7 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
     const sigs = d7m?.trend && cfg.trendShapes ? d7m.trend.signals : [];
     markRef.current?.setMarkers(sigs.filter(sg => bars[sg.index]).sort((a, b) => a.index - b.index).map(sg => {
       const dn = sg.kind === "breakDown" || sg.kind === "reactDown";
-      return { time: bars[sg.index].time as any, position: dn ? "aboveBar" : "belowBar", shape: dn ? "arrowDown" : "arrowUp", color: muted };
+      return { time: D[sg.index] as any, position: dn ? "aboveBar" : "belowBar", shape: dn ? "arrowDown" : "arrowUp", color: muted };
     }));
 
     /* ٥ اللوحات: الرئيسةُ بارتفاعها والسفلى بارتفاعٍ واحد — تُضبط حين يتغيّر عددُها أو ارتفاعُ الرسم وحدهما، فما سحبه المالكُ
@@ -547,7 +581,7 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
     fill(n - 1);
     requestAnimationFrame(readLayout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [raw, bars, calc, d7m, ind, ctype, cvdCfg, cfg, theme, tf, symbol, mainPx, oscPx, wide]);
+  }, [raw, bars, disp, tzName, eff, scaleMode, calc, d7m, ind, ctype, cvdCfg, cfg, theme, tf, symbol, mainPx, oscPx, wide]);
 
   /* لوحةٌ سفلى ظهرت للتوّ: وسيلةُ إيضاحها تُركَّب بعد أن يُعرف موضعُها — فتُملأ قيمُها حينها، لا عند أوّل حركةٍ للمؤشّر (كانت «———») */
   useEffect(() => { fill(S.current.bars.length - 1); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [paneTops]);
@@ -595,7 +629,7 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
     const t = S.current.tool;
     if (t === "brush") { if (stroke.current) { const p = drawPt(e); if (p) { stroke.current.push(p); paint(); } } return; }
     if (t !== "trend" || !pend.current) return;
-    const p = drawPt(e), x1 = toX(pend.current, true);
+    const p = drawPt(e), x1 = toX(pend.current, 3);
     if (p && x1 != null) { preview.current = { x1, y1: pend.current.p, x2: p.x, y2: p.y, color: drawColor(), width: 2, dash: [4, 4] }; paint(); }
   };
   const drawUp = (e: React.PointerEvent) => {
@@ -603,7 +637,7 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
     press.current = null;
     if (t === "brush") {
       const pts = stroke.current; stroke.current = null;
-      if (pts && pts.length > 1) saveDraws([...S.current.draws, { free: pts.map(q => mkPt(q.x, q.y)), v: 2 }]); else paint();
+      if (pts && pts.length > 1) saveDraws([...S.current.draws, { free: pts.map(q => mkPt(q.x, q.y)), v: 3 }]); else paint();
       return;
     }
     if (!pr || !p) return;
@@ -613,12 +647,12 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
       if (pr.fresh && Math.hypot(e.clientX - pr.x, e.clientY - pr.y) < 8) return;
       const a = pend.current, b = mkPt(p.x, p.y);
       pend.current = null; preview.current = null;
-      saveDraws([...S.current.draws, { a, b, v: 2 }]); setTool(null);
+      saveDraws([...S.current.draws, { a, b, v: 3 }]); setTool(null);
     }
   };
   const drawCancel = () => {
     press.current = null;
-    if (stroke.current) { const pts = stroke.current; stroke.current = null; if (pts.length > 1) saveDraws([...S.current.draws, { free: pts.map(q => mkPt(q.x, q.y)), v: 2 }]); else paint(); }
+    if (stroke.current) { const pts = stroke.current; stroke.current = null; if (pts.length > 1) saveDraws([...S.current.draws, { free: pts.map(q => mkPt(q.x, q.y)), v: 3 }]); else paint(); }
   };
 
   const shot = () => {
@@ -628,6 +662,34 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
         a.download = `${symbol.replace(/[^\w.-]/g, "")}-${tf}.png`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); });
     } catch { /* لا لقطة */ }
   };
+  /* زرُّ المدى: يختار إطارَه، ثمّ يعرض المدّةَ من آخر شمعة */
+  const rangeTo = (days: number | "ytd" | "all") => {
+    const c = chartRef.current, D = S.current.disp, n = D.length;
+    if (!c || !n) return;
+    const sec = (t: any) => (typeof t === "number" ? t : Date.parse(t + "T00:00:00Z") / 1000);
+    const end = sec(D[n - 1]);
+    const from = days === "all" ? -Infinity : days === "ytd" ? Date.UTC(new Date(end * 1000).getUTCFullYear(), 0, 1) / 1000 : end - days * 86400;
+    let i = 0;
+    while (i < n - 1 && sec(D[i]) < from) i++;
+    c.timeScale().setVisibleLogicalRange({ from: i - 0.5, to: n + 2.5 });
+    c.priceScale("right").applyOptions({ autoScale: true });
+  };
+  const goRange = (days: number | "ytd" | "all", rtf: string) => {
+    if (rtf === tf && raw !== undefined) { rangeTo(days); return; }
+    pendRange.current = days; setTf(rtf);
+  };
+  useEffect(() => {
+    let f: Intl.DateTimeFormat;
+    try { f = new Intl.DateTimeFormat("en-GB", { timeZone: tzName, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }); }
+    catch { f = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }); }
+    const tick = () => { if (clockRef.current) clockRef.current.textContent = f.format(new Date()); };
+    tick();
+    const t = window.setInterval(tick, 1000);
+    return () => window.clearInterval(t);
+  }, [tzName]);
+  const nowS = Date.now() / 1000;
+  const tzItems: [string, string, number][] = [["exchange", "توقيت البورصة", tzOffsetMin(exchangeTz(symbol), nowS)], ["UTC", "UTC", 0],
+    ...TZ_LIST.map(([k, n]) => [k, n, tzOffsetMin(k, nowS)] as [string, string, number]).sort((a, b) => a[2] - b[2])];
   const goLive = () => {
     const c = chartRef.current, n = bars.length;
     if (!c || !n) return;
@@ -768,7 +830,7 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
           </div>
         )}
 
-        <div className="pc-main" style={{ ["--d7m-bottom" as any]: `${stageH - mainPx + 34}px` }}>
+        <div className="pc-main" style={{ ["--d7m-bottom" as any]: `${stageH - mainPx + 34 + 41}px` }}>
         <div className="pc-stage chart-lock" style={{ height: stageH }} data-role="pc-stage" data-noswipe>
           <div ref={boxRef} className="pc-box" />
 
@@ -778,9 +840,12 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
               <span className="pc-k">O</span><b ref={lv("o")} data-k="o">—</b><span className="pc-k">H</span><b ref={lv("h")} data-k="h">—</b>
               <span className="pc-k">L</span><b ref={lv("l")} data-k="l">—</b><span className="pc-k">C</span><b ref={lv("c")} data-k="c">—</b>
               <b ref={lv("chg")} className="pc-chg" data-k="chg" />
+              <b ref={lv("basis")} className="pc-dim pc-basis" data-k="basis" />
             </div>
             <div className="pc-chips">
-              {ind.vol && chip("vol", <><span className="pc-k">Vol</span><b ref={lv("vol")}>—</b></>)}
+              {ind.vol && (volOk ? chip("vol", <><span className="pc-k">Vol</span><b ref={lv("vol")}>—</b></>)
+                : chip("vol", <><span className="pc-k">Vol</span><b className="pc-dim">غير متوفّر</b></>))}
+              {ind.cvd && !volOk && chip("cvd", <><span className="pc-k" style={{ color: "var(--chart-3)" }}>CVD D7M</span><b className="pc-dim">غير متوفّر — لا حجم</b></>)}
               {ind.sma20 && chip("sma20", <><span className="pc-k" style={{ color: "var(--chart-1)" }}>SMA 20</span><b ref={lv("sma20")}>—</b></>)}
               {ind.sma50 && chip("sma50", <><span className="pc-k" style={{ color: "var(--warn-ink)" }}>SMA 50</span><b ref={lv("sma50")}>—</b></>)}
               {ind.sma200 && chip("sma200", <><span className="pc-k" style={{ color: "var(--chart-4)" }}>SMA 200</span><b ref={lv("sma200")}>—</b></>)}
@@ -814,7 +879,32 @@ export default function ProChart({ symbol, identity, theme = "dark" }: {
             </div>
           )}
         </div>
-        {ind.d7m && <D7MPanels dash={dash} msmart={msmart} tt={tt} alerts={alerts} pos={cfg.dashPos} axisW={axisW} />}
+        {/* ══ الشريطُ السفليّ تحت الرسم مباشرةً كتريدنق فيو: المدى · الساعةُ بمنطقتها الزمنية · مقياسُ السعر ══ */}
+        <div className="pc-foot" data-role="pc-foot">
+          <div className="pc-ranges" role="group" aria-label="المدى" data-role="pc-ranges">
+            {RANGES.map(([lbl, d, rtf]) => (
+              <button key={lbl} type="button" className="pc-tf" title={`${lbl} · ${tfLong(rtf)}`} onClick={() => goRange(d, rtf)}>{lbl}</button>
+            ))}
+          </div>
+          <span className="pc-grow" />
+          <Menu up role="pc-tz" title="المنطقة الزمنية" label={<span dir="ltr" className="pc-clockwrap"><span ref={clockRef} className="tabular-nums" data-role="pc-clock" />
+            <span className="pc-dim"> ({fmtOffset(tzOffsetMin(tzName, nowS))})</span></span>}>
+            {close => tzItems.map(([k, name, off]) => (
+              <button key={k} type="button" className={"pc-item" + (tzPref === k ? " on" : "")} data-tz={k} onClick={() => { setTz(k); close(); }}>
+                <span className="pc-off tabular-nums" dir="ltr">{fmtOffset(off)}</span><span>{name}</span>
+                {tzPref === k && <Check size={14} className="pc-check" />}
+              </button>
+            ))}
+          </Menu>
+          <span className="pc-sep" aria-hidden />
+          <button type="button" className={"pc-btn" + (scaleMode === 2 ? " on" : "")} aria-pressed={scaleMode === 2} title="مقياسٌ نسبيّ" aria-label="مقياسٌ نسبيّ"
+            data-role="pc-pct" onClick={() => setScale(scaleMode === 2 ? 0 : 2)}>%</button>
+          <button type="button" className={"pc-btn" + (scaleMode === 1 ? " on" : "")} aria-pressed={scaleMode === 1} title="مقياسٌ لوغاريتميّ" aria-label="مقياسٌ لوغاريتميّ"
+            data-role="pc-log" onClick={() => setScale(scaleMode === 1 ? 0 : 1)}>log</button>
+          <button type="button" className={"pc-btn" + (!manual ? " on" : "")} aria-pressed={!manual} title="مقياسٌ تلقائيّ" aria-label="مقياسٌ تلقائيّ"
+            data-role="pc-auto" onClick={() => { chartRef.current?.priceScale("right").applyOptions({ autoScale: true }); setManual(false); }}>تلقائي</button>
+        </div>
+        {ind.d7m && !preset && <D7MPanels dash={dash} msmart={msmart} tt={tt} alerts={alerts} pos={cfg.dashPos} axisW={axisW} />}
         </div>
       </div>
     </div>

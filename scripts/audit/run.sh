@@ -299,6 +299,7 @@ python3 scripts/audit/screener_live_d641.py || _note "$LINENO"
 python3 scripts/audit/events_view_d644.py || _note "$LINENO"
 python3 scripts/audit/events_dedupe_d651.py || _note "$LINENO"
 python3 scripts/audit/chart_everywhere_d652.py || _note "$LINENO"
+python3 scripts/audit/stars_lab_d608.py || _note "$LINENO"   # ‏D739: كان خارج اللجنة فسقط صامتاً — صفحةُ السهم ومختبرُ الأبحاث
 python3 scripts/audit/tasi_intraday_d661.py || _note "$LINENO"
 python3 scripts/audit/research_reports_d662.py || _note "$LINENO"
 python3 scripts/audit/arc_reader_d733.py || _note "$LINENO"   # ‏D733: قارئُ الراجحي المالية الجديد — ملفُّ التقرير لا أيقونةُ الاشتراك

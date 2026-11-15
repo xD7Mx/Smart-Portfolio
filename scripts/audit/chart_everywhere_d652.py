@@ -24,12 +24,16 @@ users = sorted(str(p.relative_to(src)) for p in src.rglob("*.tsx")
 check(users == ["components/analysis/PriceOrChart.tsx"], "١ حركةُ السعر لا تُعرض وحدَها في أيّ صفحة — تمرّ بالمفتاح المشترك", str(users))
 for f in ("pages/CompanyPage.tsx", "components/market/StockView.tsx"):
     check("<PriceOrChart symbol=" in (src / f).read_text(encoding="utf-8"), f"٢ {f} يعرض المفتاحَ: حركةُ السعر والرسمُ البيانيّ")
-nc = (src / "components/analysis/NativeChart.tsx").read_text(encoding="utf-8")
-tfs = re.search(r"const TFS: \[string, string\]\[\] = (\[.*?\]);", nc)
-check(bool(tfs) and all(x in tfs.group(1) for x in ('"ساعة"', '"4 ساعات"', '"يوم"', '"أسبوع"', '"شهر"')) and "RANGES" not in nc,
-      "٣ الرسمُ بإطارات: ساعة · 4 ساعات · يوم · أسبوع · شهر — لا مدد")
-check("marketApi.bars(symbol, range)" in nc, "٤ ويجلب شموعَ الإطار المختار")
-check("const chartOnly = preset === \"d7m-weekly\"" in nc and "{!chartOnly && ind.d7m && (dash" in nc,
+# ‏D739: صفحةُ السهم على الرسم الاحترافيّ نفسِه (‏chart/ProChart) — محرّكٌ واحدٌ للرسم في التطبيق
+nc = (src / "components/chart/ProChart.tsx").read_text(encoding="utf-8")
+cd = (src / "lib/chartData.ts").read_text(encoding="utf-8")
+poc = (src / "components/analysis/PriceOrChart.tsx").read_text(encoding="utf-8")
+tfs = re.search(r"export const TF_BAR = (\[.*?\]);", cd)
+check(bool(tfs) and all(x in tfs.group(1) for x in ('"1h"', '"4h"', '"1d"', '"1wk"', '"1mo"')) and 'data-role="pc-tfs"' in nc
+      and 'import ProChart from "../chart/ProChart"' in poc and "NativeChart" not in poc,
+      "٣ الرسمُ بإطارات: ساعة · 4 ساعات · يوم · أسبوع · شهر (والمدى أسفلَه يختار إطارَه كتريدنق فيو) — والمحرّكُ واحد")
+check("marketApi.bars(symbol, tf)" in nc, "٤ ويجلب شموعَ الإطار المختار")
+check('preset="stock"' in poc and "{ind.d7m && !preset && <D7MPanels" in nc,
       "٥ وفي صفحة السهم رسمٌ فقط — لا جدولَ إطاراتٍ ولا قرارَ دخولٍ فوقه")
 pc = (src / "components/analysis/PriceChart.tsx").read_text(encoding="utf-8")
 check('"5 سنوات"' in pc, "٦ وحركةُ السعر تبقى على مددها كما أراد المالك")

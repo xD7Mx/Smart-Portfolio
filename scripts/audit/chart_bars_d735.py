@@ -77,6 +77,14 @@ gb = mds[mds.index("    async def get_bars(self, symbol: str, tf: str) -> list:\
 gb = gb[:gb.index("    async def _tasi_bars(")]
 check(gb.count("return B.finalize(") == 4 and "return await" not in gb.replace("return await self._tasi_bars", "X"),
       "٤و وكلُّ مسارٍ إلى الرسم (تاسي · السهمُ السعوديّ يوميّاً وشهرياً · بقيّةُ الرموز) يمرّ من البابِ الأخير")
+# ‏D739: شمعةٌ من الإغلاقات وحدها (تاريخُ تاسي القديم) موسومةٌ «basis» من مصدرها إلى كلّ تجميع — فيقولها الرسم
+sys.path.insert(0, str(ROOT / "backend"))
+from app.services import tasi_history as TH   # noqa: E402
+dc = TH.daily_candles([{"dateTime": "2015-01-04", "indexPrice": 9000}, {"dateTime": "2015-01-05", "indexPrice": 9100}])
+wk = TH.weekly(dc + [{"date": "2015-01-06", "open": 9100, "high": 9200, "low": 9050, "close": 9150, "volume": 0}])
+ag = B.bucket_n(dc + [bar("2015-01-06", 9100, 9200, 9050, 9150, 0)], 3)
+check(all(r.get("basis") == "close" for r in dc) and wk[0].get("basis") == "close" and ag[-1].get("basis") == "close",
+      "٤ح شمعةُ الإغلاقات وحدها موسومةٌ من مصدرها إلى الأسبوعيّ والمجمَّع — لا تُعرض كأنّ لها أعلى وأدنى رسميّين")
 # ‏D739: التثبيتُ كتريدنق فيو — المشفّرةُ من منتصف ليل التوقيت العالميّ، والآجلةُ من أوّل شمعةٍ بعد فاصلها اليوميّ
 btc = [bar(f"2026-11-12 {h:02d}:00", 1, 2, 0.5, 1.5, 5) for h in range(0, 24)]
 u4 = [r["date"][11:] for r in B.bucket_intraday(btc, 240, B.session_mode("BTC-USD"))]
