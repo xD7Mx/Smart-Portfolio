@@ -465,7 +465,7 @@ async def gather(today: date | None = None) -> dict | None:
     glob, com, fx, rates = await asyncio.gather(_quote_table(GLOBAL), _quote_table(COMMOD), _quote_table(FX), _quote_table(RATES, bp=True))
     return {"date": today.isoformat(), "at": at, "tasi": tasi, "mt30": mt, "tech": t, "breadth": breadth, **tables,
             "intraday": [{"t": b["date"][11:16], "c": b["close"], "v": b["volume"]} for b in intra],
-            "daily": [{"d": b["date"][:10], "o": b["open"], "h": b["high"], "l": b["low"], "c": b["close"]} for b in _bars_ok(daily)[-130:]],
+            "daily": [{"d": b["date"][:10], "o": b["open"], "h": b["high"], "l": b["low"], "c": b["close"], "v": b["volume"]} for b in _bars_ok(daily)[-130:]],
             "global": glob, "commodities": com, "fx": fx, "rates": rates,
             "actions": await corporate_actions(today)}
 
@@ -544,7 +544,7 @@ def market_at(day: str, ctx: dict, store: dict | None = None) -> dict | None:
             "tasi": {"close": t["close"], "high": t["high"], "low": t["low"], "open": t["open"], "prev": t["prev"], "chg": t["chg"], "pct": t["chg_pct"]},
             "mt30": {}, "tech": t, "breadth": breadth, **tables,
             "intraday": [{"t": b["date"][11:16], "c": b["close"], "v": b["volume"]} for b in intra],
-            "daily": [{"d": b["date"][:10], "o": b["open"], "h": b["high"], "l": b["low"], "c": b["close"]} for b in bars[-130:]],
+            "daily": [{"d": b["date"][:10], "o": b["open"], "h": b["high"], "l": b["low"], "c": b["close"], "v": b["volume"]} for b in bars[-130:]],
             "global": q(GLOBAL), "commodities": q(COMMOD), "fx": q(FX), "rates": q(RATES, True), "actions": acts[:10]}
 
 
@@ -604,7 +604,7 @@ def pick_levels(bars: list[dict]) -> dict | None:
     stop = min(p["s2"], c - 1.5 * a)
     return {"close": c, "buy": [round(min(lo, c), 2), round(c, 2)], "target": [round(tgt_lo, 2), round(tgt_hi, 2)], "stop": round(stop, 2),
             "rsi": t["rsi"], "sma50": t["sma50"], "sma200": t["sma200"], "macd_hist": t["macd_hist"],
-            "bars": [{"d": b["date"][:10], "o": b["open"], "h": b["high"], "l": b["low"], "c": b["close"]} for b in _bars_ok(bars)[-70:]]}
+            "bars": [{"d": b["date"][:10], "o": b["open"], "h": b["high"], "l": b["low"], "c": b["close"], "v": b["volume"]} for b in _bars_ok(bars)[-70:]]}
 
 
 async def picks_for(held: set[str]) -> list[dict]:
@@ -734,39 +734,23 @@ def pick_note(k: dict) -> str:
 
 
 # ── الرسوم (SVG) ───────────────────────────────────────────────────────────
-INK, SLATE, CU, CU_L, RULE, MUT, POS, NEG, BAND = "#221f1f", "#323f48", "#9a6a45", "#b27e58", "#dedfe0", "#5f676d", "#1d7f52", "#c0392b", "#eef0f1"
+# ‏D752 (بأمر المالك: «الرسمُ البيانيُّ نفسُ الذي في الجزيرة كابيتال» — رسمُ تريدنق فيو): شموعُ تريدنق فيو بألوانها، ومتوسّطاها الأزرقُ
+# والبرتقاليّ، ومحورُ السعر يمينَ الرسم ببطاقة آخر سعر، وسطرُ الأسعار أعلاه (‏O H L C)، ولوحةُ القوة النسبية بنطاقها البنفسجيّ.
+# وما سوى الرسوم بهويّة تقارير التطبيق (‏saqr_report): البنفسجيُّ والذهبيُّ على الورق الكريميّ.
+TV_UP, TV_DN, TV_GRID, TV_AX, TV_BORDER = "#26a69a", "#ef5350", "#f0f3fa", "#787b86", "#e0e3eb"
+TV_MA = ("#2962ff", "#ff6d00", "#9c27b0")
+TV_RSI, TV_RSI_BAND = "#7e57c2", "rgba(126,87,194,.10)"
+try:
+    from app.services.saqr_report import NAVY, NAVY_2, GOLD, GOLD_L, GREEN, RED, PAPER, INK, LINE, ZEBRA, MUTED
+except Exception:                                                 # noqa: BLE001
+    NAVY, NAVY_2, GOLD, GOLD_L = "#3b1e78", "#6d28d9", "#d4af37", "#f3d98b"
+    GREEN, RED, PAPER, INK, LINE, ZEBRA, MUTED = "#0f9d63", "#c0273c", "#faf6ee", "#241f1a", "#e4dcc2", "#f6f2e4", "#6b6459"
+MUT, POS, NEG = MUTED, GREEN, RED
 
 
 def _scale(lo, hi, a, b):
     span = (hi - lo) or 1
     return lambda v: b - (v - lo) / span * (b - a)
-
-
-def svg_intraday(pts: list[dict], w: int = 340, h: int = 150) -> str:
-    if len(pts) < 3:
-        return ""
-    cs = [p["c"] for p in pts]
-    lo, hi = min(cs), max(cs)
-    pad = (hi - lo) * 0.08 or 1
-    lo, hi = lo - pad, hi + pad
-    X0, X1, Y0, Y1, VB = 8, w - 44, 10, h - 34, h - 16
-    y = _scale(lo, hi, Y0, Y1)
-    x = lambda i: X0 + i / (len(pts) - 1) * (X1 - X0)   # noqa: E731
-    vmax = max(p["v"] for p in pts) or 1
-    g = [f'<line x1="{X0}" x2="{X1}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="{RULE}" stroke-width=".6"/>'
-         f'<text x="{X1 + 4}" y="{y(v) + 3:.1f}" font-size="9.5" fill="{MUT}">{v:,.0f}</text>' for v in _ticks(lo, hi, 4)]
-    vb = "".join(f'<rect x="{x(i) - 1.4:.1f}" y="{VB - p["v"] / vmax * 18:.1f}" width="2.8" height="{p["v"] / vmax * 18:.1f}" fill="#c9cdd0"/>'
-                 for i, p in enumerate(pts))
-    line = " ".join(f"{x(i):.1f},{y(p['c']):.1f}" for i, p in enumerate(pts))
-    area = f"{X0},{Y1} {line} {x(len(pts) - 1):.1f},{Y1}"
-    hrs = []
-    for i, p in enumerate(pts):
-        if p["t"].endswith(":00") and (not hrs or hrs[-1][1] != p["t"]):
-            hrs.append((i, p["t"]))
-    xl = "".join(f'<text x="{x(i):.1f}" y="{h - 3}" font-size="9.5" fill="{MUT}" text-anchor="middle">{t}</text>' for i, t in hrs)
-    col = POS if cs[-1] >= cs[0] else NEG
-    return (f'<svg direction="ltr" viewBox="0 0 {w} {h}" width="100%" role="img" aria-label="حركة المؤشر خلال الجلسة">{"".join(g)}{vb}'
-            f'<polygon points="{area}" fill="{col}" opacity=".08"/><polyline points="{line}" fill="none" stroke="{col}" stroke-width="1.6"/>{xl}</svg>')
 
 
 def _ticks(lo, hi, n):
@@ -781,8 +765,57 @@ def _ticks(lo, hi, n):
     return out
 
 
+def _fmt(v: float) -> str:
+    return f"{v:,.0f}" if abs(v) >= 1000 else f"{v:,.2f}"
+
+
+def _tag(x: float, y: float, txt: str, fill: str, w: int = 44) -> str:
+    """بطاقةُ قيمةٍ على محور السعر كتريدنق فيو."""
+    return (f'<rect x="{x:.1f}" y="{y - 7:.1f}" width="{w}" height="14" rx="2" fill="{fill}"/>'
+            f'<text x="{x + 3:.1f}" y="{y + 3.5:.1f}" font-size="9.5" fill="#fff" font-family="Arial,sans-serif">{txt}</text>')
+
+
+def svg_intraday(pts: list[dict], w: int = 340, h: int = 150) -> str:
+    """حركةُ المؤشر خلال الجلسة — خطٌّ بمساحةٍ متدرّجة وأعمدةُ كمّيةٍ بلون اتجاهها، كخطّ تريدنق فيو."""
+    if len(pts) < 3:
+        return ""
+    cs = [p["c"] for p in pts]
+    lo, hi = min(cs), max(cs)
+    pad = (hi - lo) * 0.08 or 1
+    lo, hi = lo - pad, hi + pad
+    X0, X1, Y0, Y1, VB = 4, w - 46, 8, h - 34, h - 16
+    y = _scale(lo, hi, Y0, Y1)
+    x = lambda i: X0 + i / (len(pts) - 1) * (X1 - X0)   # noqa: E731
+    vmax = max(p["v"] for p in pts) or 1
+    out = [f'<rect x="0.5" y="0.5" width="{w - 1}" height="{h - 1}" fill="#fff" stroke="{TV_BORDER}"/>',
+           '<defs><linearGradient id="ig" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2962ff" stop-opacity=".28"/>'
+           '<stop offset="1" stop-color="#2962ff" stop-opacity="0"/></linearGradient></defs>']
+    out += [f'<line x1="{X0}" x2="{X1}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="{TV_GRID}"/>'
+            f'<text x="{X1 + 4}" y="{y(v) + 3:.1f}" font-size="9.5" fill="{TV_AX}" font-family="Arial,sans-serif">{_fmt(v)}</text>'
+            for v in _ticks(lo, hi, 4)]
+    for i, p in enumerate(pts):
+        up = i == 0 or p["c"] >= pts[i - 1]["c"]
+        bh = p["v"] / vmax * 18
+        out.append(f'<rect x="{x(i) - 1.4:.1f}" y="{VB - bh:.1f}" width="2.8" height="{bh:.1f}" fill="{TV_UP if up else TV_DN}" opacity=".5"/>')
+    line = " ".join(f"{x(i):.1f},{y(p['c']):.1f}" for i, p in enumerate(pts))
+    out.append(f'<polygon points="{X0},{Y1} {line} {x(len(pts) - 1):.1f},{Y1}" fill="url(#ig)"/>'
+               f'<polyline points="{line}" fill="none" stroke="#2962ff" stroke-width="1.6"/>')
+    seen = set()
+    for i, p in enumerate(pts):
+        if p["t"].endswith(":00") and p["t"] not in seen:
+            seen.add(p["t"])
+            out.append(f'<text x="{x(i):.1f}" y="{h - 3}" font-size="9.5" fill="{TV_AX}" text-anchor="middle" font-family="Arial,sans-serif">{p["t"]}</text>')
+    out.append(_tag(X1 + 1, y(cs[-1]), _fmt(cs[-1]), TV_UP if cs[-1] >= cs[0] else TV_DN))
+    return f'<svg direction="ltr" viewBox="0 0 {w} {h}" width="100%" role="img" aria-label="حركة المؤشر خلال الجلسة">{"".join(out)}</svg>'
+
+
+_LVL = {"s1": "دعم 1", "s2": "دعم 2", "r1": "مقاومة 1", "r2": "مقاومة 2", "p": "المحور"}
+
+
 def svg_candles(bars: list[dict], w: int = 470, h: int = 270, sma=(10, 50), levels: dict | None = None, rsi: bool = True,
                 band: tuple | None = None, label: str = "") -> str:
+    """الرسمُ اليوميّ بهيئة تريدنق فيو: سطرُ الأسعار، والشموع، والمتوسّطان، ومستوياتُ الدعم والمقاومة ببطاقاتها على المحور، والكمّية،
+    ولوحةُ القوة النسبية — كرسم التقرير المرجعيّ."""
     if len(bars) < 10:
         return ""
     cl = [b["c"] for b in bars]
@@ -790,91 +823,123 @@ def svg_candles(bars: list[dict], w: int = 470, h: int = 270, sma=(10, 50), leve
     lvl = levels or {}
     vals = [b["h"] for b in bars] + [b["l"] for b in bars] + [v for v in lvl.values() if v] + ([v for v in band if v] if band else [])
     lo, hi = min(vals), max(vals)
-    pad = (hi - lo) * 0.04 or 1
+    pad = (hi - lo) * 0.05 or 1
     lo, hi = lo - pad, hi + pad
-    RH = 56 if rsi else 0
-    X0, X1, Y0, Y1 = 6, w - 48, 8, h - 18 - RH
+    RH = 58 if rsi else 0
+    X0, X1, Y0, Y1 = 4, w - 50, 20, h - 16 - RH
     y = _scale(lo, hi, Y0, Y1)
     n = len(bars)
     bw = (X1 - X0) / n
     x = lambda i: X0 + (i + 0.5) * bw   # noqa: E731
-    out = [f'<line x1="{X0}" x2="{X1}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="{RULE}" stroke-width=".6"/>'
-           f'<text x="{X1 + 4}" y="{y(v) + 3:.1f}" font-size="9.5" fill="{MUT}">{v:,.0f}</text>' for v in _ticks(lo, hi, 5)]
+    out = [f'<rect x="0.5" y="0.5" width="{w - 1}" height="{h - 1}" fill="#fff" stroke="{TV_BORDER}"/>']
+    out += [f'<line x1="{X0}" x2="{X1}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="{TV_GRID}"/>'
+            f'<text x="{X1 + 4}" y="{y(v) + 3:.1f}" font-size="9.5" fill="{TV_AX}" font-family="Arial,sans-serif">{_fmt(v)}</text>'
+            for v in _ticks(lo, hi, 5)]
+    vols = [b.get("v") or 0 for b in bars]
+    vmax = max(vols) or 0
+    if vmax:
+        for i, b in enumerate(bars):
+            vh = (b.get("v") or 0) / vmax * (Y1 - Y0) * 0.18
+            out.append(f'<rect x="{x(i) - bw * 0.34:.1f}" y="{Y1 - vh:.1f}" width="{bw * 0.68:.1f}" height="{vh:.1f}" '
+                       f'fill="{TV_UP if b["c"] >= b["o"] else TV_DN}" opacity=".28"/>')
     if band and band[0] and band[1]:
-        out.append(f'<rect x="{X0}" y="{y(max(band)):.1f}" width="{X1 - X0}" height="{max(1.0, abs(y(band[0]) - y(band[1]))):.1f}" fill="{POS}" opacity=".12"/>')
+        out.append(f'<rect x="{X0}" y="{y(max(band)):.1f}" width="{X1 - X0}" height="{max(1.0, abs(y(band[0]) - y(band[1]))):.1f}" fill="{TV_UP}" opacity=".14"/>')
     for i, b in enumerate(bars):
-        col = POS if b["c"] >= b["o"] else NEG
-        out.append(f'<line x1="{x(i):.1f}" x2="{x(i):.1f}" y1="{y(b["h"]):.1f}" y2="{y(b["l"]):.1f}" stroke="{col}" stroke-width=".8"/>'
-                   f'<rect x="{x(i) - bw * 0.34:.1f}" y="{y(max(b["o"], b["c"])):.1f}" width="{bw * 0.68:.1f}" '
+        col = TV_UP if b["c"] >= b["o"] else TV_DN
+        out.append(f'<line x1="{x(i):.1f}" x2="{x(i):.1f}" y1="{y(b["h"]):.1f}" y2="{y(b["l"]):.1f}" stroke="{col}" stroke-width=".9"/>'
+                   f'<rect x="{x(i) - bw * 0.36:.1f}" y="{y(max(b["o"], b["c"])):.1f}" width="{bw * 0.72:.1f}" '
                    f'height="{max(0.8, abs(y(b["o"]) - y(b["c"]))):.1f}" fill="{col}"/>')
-    for (k, ser), col in zip(smas.items(), (CU_L, SLATE, MUT)):
+    for (k, ser), col in zip(smas.items(), TV_MA):
         pts = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in enumerate(ser) if v is not None)
         if pts:
-            out.append(f'<polyline points="{pts}" fill="none" stroke="{col}" stroke-width="1.2"/>')
-    for name, v in lvl.items():
-        if v and lo <= v <= hi:
-            col = NEG if name.startswith(("s", "وقف")) else POS if name.startswith(("r", "هدف")) else INK
-            out.append(f'<line x1="{X0}" x2="{X1}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="{col}" stroke-width=".8" stroke-dasharray="4 3"/>'
-                       f'<text x="{X0 + 2}" y="{y(v) - 2:.1f}" font-size="9.5" fill="{col}">{_html.escape(_LVL.get(name, name))} {v:,.2f}</text>')
-    leg = " ".join(f'<tspan fill="{c}">■</tspan> متوسّط {k}' for k, c in zip(sma, (CU_L, SLATE, MUT)))
-    out.append(f'<text x="{X1}" y="{h - RH - 4}" font-size="9.5" fill="{MUT}" text-anchor="end">{leg}{(" · " + label) if label else ""}</text>')
+            out.append(f'<polyline points="{pts}" fill="none" stroke="{col}" stroke-width="1.3"/>')
+    last = bars[-1]
+    # بطاقاتُ المحور لا تتراكب: آخرُ سعرٍ أوّلاً ثمّ المستوياتُ تُزاح عنه وعن بعضها، واسمُ المستوى يُكتب إن اتّسع له المكان
+    tags = [(y(last["c"]), _fmt(last["c"]), TV_UP if last["c"] >= last["o"] else TV_DN)]
+    names_y: list[float] = []
+    for name, v in sorted(((k, v) for k, v in lvl.items() if v and lo <= v <= hi), key=lambda kv: -kv[1]):
+        col = TV_DN if name.startswith(("s", "وقف")) else TV_UP if name.startswith(("r", "هدف")) else TV_AX
+        out.append(f'<line x1="{X0}" x2="{X1}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="{col}" stroke-width=".9" stroke-dasharray="5 4"/>')
+        if all(abs(y(v) - z) >= 11 for z in names_y):
+            names_y.append(y(v))
+            out.append(f'<text x="{X0 + 3}" y="{y(v) - 2.5:.1f}" font-size="9.5" fill="{col}">{_html.escape(_LVL.get(name, name))}</text>')
+        tags.append((y(v), _fmt(v), col))
+    placed: list[float] = []
+    for ty, txt, col in tags:
+        t = ty
+        while any(abs(t - z) < 14 for z in placed):
+            t += 14 if t >= ty else -14
+            if t > Y1 + 6:
+                t = ty - 14
+        placed.append(t)
+        out.append(_tag(X1 + 1, t, txt, col))
+    prev = bars[-2]["c"]
+    chg = last["c"] - prev
+    leg = (f'<tspan fill="{INK}" font-weight="700">{_html.escape(label or "يومي")}</tspan>'
+           + "".join(f'<tspan fill="{TV_AX}"> {k} </tspan><tspan fill="{TV_UP if last["c"] >= last["o"] else TV_DN}">{_fmt(last[k2])}</tspan>'
+                     for k, k2 in (("O", "o"), ("H", "h"), ("L", "l"), ("C", "c")))
+           + f'<tspan fill="{TV_UP if chg >= 0 else TV_DN}"> {chg:+,.2f} ({chg / prev * 100:+.2f}%)</tspan>')
+    out.append(f'<text x="{X0 + 4}" y="13" font-size="9.5" font-family="Arial,sans-serif">{leg}</text>')
+    ma = "".join(f'<tspan fill="{c}">SMA {k} </tspan>' for k, c in zip(sma, TV_MA))
+    out.append(f'<text x="{X0 + 4}" y="{Y1 - 4 if not vmax else Y0 + 12}" font-size="9.5" font-family="Arial,sans-serif">{ma}</text>')
     if rsi:
-        rs = []
-        for i in range(len(cl)):
-            rs.append(_rsi(cl[:i + 1]) if i >= 15 else None)
-        ry = _scale(0, 100, h - RH + 4, h - 4)
-        out.append(f'<rect x="{X0}" y="{h - RH + 4}" width="{X1 - X0}" height="{RH - 8}" fill="{BAND}"/>')
+        rs = [_rsi(cl[:i + 1]) if i >= 15 else None for i in range(len(cl))]
+        ry = _scale(0, 100, h - RH + 2, h - 14)
+        out.append(f'<line x1="0" x2="{w}" y1="{h - RH - 2}" y2="{h - RH - 2}" stroke="{TV_BORDER}"/>'
+                   f'<rect x="{X0}" y="{ry(70):.1f}" width="{X1 - X0}" height="{ry(30) - ry(70):.1f}" fill="{TV_RSI_BAND}"/>')
         for lv in (30, 70):
-            out.append(f'<line x1="{X0}" x2="{X1}" y1="{ry(lv):.1f}" y2="{ry(lv):.1f}" stroke="{MUT}" stroke-width=".5" stroke-dasharray="3 3"/>'
-                       f'<text x="{X1 + 4}" y="{ry(lv) + 3:.1f}" font-size="9.5" fill="{MUT}">{lv}</text>')
+            out.append(f'<line x1="{X0}" x2="{X1}" y1="{ry(lv):.1f}" y2="{ry(lv):.1f}" stroke="{TV_AX}" stroke-width=".6" stroke-dasharray="3 3"/>'
+                       f'<text x="{X1 + 4}" y="{ry(lv) + 3:.1f}" font-size="9.5" fill="{TV_AX}" font-family="Arial,sans-serif">{lv}</text>')
         pts = " ".join(f"{x(i):.1f},{ry(v):.1f}" for i, v in enumerate(rs) if v is not None)
-        out.append(f'<polyline points="{pts}" fill="none" stroke="{SLATE}" stroke-width="1"/>'
-                   f'<text x="{X0 + 3}" y="{h - RH + 15}" font-size="9.5" fill="{MUT}">RSI 14</text>')
+        out.append(f'<polyline points="{pts}" fill="none" stroke="{TV_RSI}" stroke-width="1.2"/>')
+        if rs[-1] is not None:
+            out.append(f'<text x="{X0 + 4}" y="{h - RH + 12}" font-size="9.5" font-family="Arial,sans-serif"><tspan fill="{INK}">RSI 14</tspan>'
+                       f'<tspan fill="{TV_RSI}"> {rs[-1]:.2f}</tspan></text>')
+    # التواريخ أسفلَ الرسم
+    step = max(1, n // 5)
+    for i in range(step // 2, n, step):
+        d = bars[i]["d"]
+        out.append(f'<text x="{x(i):.1f}" y="{h - 3}" font-size="9.5" fill="{TV_AX}" text-anchor="middle" font-family="Arial,sans-serif">{d[8:10]}/{d[5:7]}</text>')
     return f'<svg direction="ltr" viewBox="0 0 {w} {h}" width="100%" role="img" aria-label="الرسم البياني اليومي">{"".join(out)}</svg>'
-
-
-_LVL = {"s1": "دعم 1", "s2": "دعم 2", "r1": "مقاومة 1", "r2": "مقاومة 2", "p": "المحور"}
 
 
 def svg_gauge(view: str, w: int = 230, h: int = 136) -> str:
     cx, cy, R, r = w / 2, h - 18, 96, 58
-    n = len(VIEWS)
+    nV = len(VIEWS)
     k = VIEWS.index(view) if view in VIEWS else 3
-    shades = ("#8a3a2c", "#b06a52", "#c99a6b", "#b9bec2", "#7f97a8", "#4f7d6a", "#1d7f52")
+    shades = ("#8c1d2f", RED, "#d98c6a", "#b8ad94", NAVY_2, "#3f9e76", GREEN)
     out = []
-    for i in range(n):
-        # من اليسار (هابط) إلى اليمين (شراء)
-        a0, a1 = math.pi - i * math.pi / n, math.pi - (i + 1) * math.pi / n
+    for i in range(nV):
+        a0, a1 = math.pi - i * math.pi / nV, math.pi - (i + 1) * math.pi / nV
 
         def pt(a, rr):
             return cx + rr * math.cos(a), cy - rr * math.sin(a)
         (x0, y0), (x1, y1), (x2, y2), (x3, y3) = pt(a0, R), pt(a1, R), pt(a1, r), pt(a0, r)
         on = i == k
         out.append(f'<path d="M{x0:.1f},{y0:.1f} A{R},{R} 0 0 1 {x1:.1f},{y1:.1f} L{x2:.1f},{y2:.1f} A{r},{r} 0 0 0 {x3:.1f},{y3:.1f} Z" '
-                   f'fill="{shades[i]}" opacity="{1 if on else .22}" stroke="#fff" stroke-width="1.5"/>')
-        am = (a0 + a1) / 2
-        lx, ly = pt(am, (R + r) / 2)
+                   f'fill="{shades[i]}" opacity="{1 if on else .2}" stroke="{PAPER}" stroke-width="1.5"/>')
+        lx, ly = pt((a0 + a1) / 2, (R + r) / 2)
         words = VIEWS[i].split(" ")
         for j, wd in enumerate(words):
             out.append(f'<text x="{lx:.1f}" y="{ly + (j - (len(words) - 1) / 2) * 10 + 3:.1f}" font-size="9.5" text-anchor="middle" '
-                       f'fill="{"#fff" if on else INK}" font-weight="700">{wd}</text>')
-    am = math.pi - (k + 0.5) * math.pi / n
+                       f'fill="{"#fff" if on else INK}">{wd}</text>')
+    am = math.pi - (k + 0.5) * math.pi / nV
     nx, ny = cx + (r - 8) * math.cos(am), cy - (r - 8) * math.sin(am)
-    out.append(f'<line x1="{cx}" y1="{cy}" x2="{nx:.1f}" y2="{ny:.1f}" stroke="{INK}" stroke-width="2.4" stroke-linecap="round"/>'
-               f'<circle cx="{cx}" cy="{cy}" r="5" fill="{INK}"/>'
-               f'<text x="{cx}" y="{h - 2}" font-size="11" text-anchor="middle" font-weight="700" fill="{INK}">{_html.escape(view)}</text>')
+    out.append(f'<line x1="{cx}" y1="{cy}" x2="{nx:.1f}" y2="{ny:.1f}" stroke="{NAVY}" stroke-width="2.4" stroke-linecap="round"/>'
+               f'<circle cx="{cx}" cy="{cy}" r="5" fill="{GOLD}" stroke="{NAVY}" stroke-width="1.5"/>'
+               f'<text x="{cx}" y="{h - 2}" font-size="12" text-anchor="middle" fill="{NAVY}">{_html.escape(view)}</text>')
     return f'<svg direction="ltr" viewBox="0 0 {w} {h}" width="100%" role="img" aria-label="نظرتنا: {_html.escape(view)}">{"".join(out)}</svg>'
 
 
 def svg_breadth(up, unch, down, w: int = 230, h: int = 118) -> str:
-    vals = [("ارتفاع", _f(up) or 0, POS), ("استقرار", _f(unch) or 0, "#9aa1a6"), ("انخفاض", _f(down) or 0, NEG)]
+    vals = [("ارتفاع", _f(up) or 0, GREEN), ("استقرار", _f(unch) or 0, "#b8ad94"), ("انخفاض", _f(down) or 0, RED)]
     mx = max(v for _, v, _ in vals) or 1
     out, bw = [], 46
     for i, (lbl, v, col) in enumerate(vals):
-        xr = w - 30 - i * (bw + 26)                               # من اليمين
+        xr = w - 30 - i * (bw + 26)
         bh = v / mx * (h - 40)
-        out.append(f'<rect x="{xr - bw:.1f}" y="{h - 20 - bh:.1f}" width="{bw}" height="{bh:.1f}" fill="{col}"/>'
-                   f'<text x="{xr - bw / 2:.1f}" y="{h - 24 - bh:.1f}" font-size="11" font-weight="700" text-anchor="middle" fill="{INK}">{int(v)}</text>'
+        out.append(f'<rect x="{xr - bw:.1f}" y="{h - 20 - bh:.1f}" width="{bw}" height="{bh:.1f}" rx="2" fill="{col}"/>'
+                   f'<text x="{xr - bw / 2:.1f}" y="{h - 24 - bh:.1f}" font-size="11" text-anchor="middle" fill="{INK}">{int(v)}</text>'
                    f'<text x="{xr - bw / 2:.1f}" y="{h - 5}" font-size="9.5" text-anchor="middle" fill="{MUT}">{lbl}</text>')
     return f'<svg direction="ltr" viewBox="0 0 {w} {h}" width="100%" role="img" aria-label="عمق السوق">{"".join(out)}</svg>'
 
@@ -920,16 +985,17 @@ def _bp(v) -> str:
 
 
 def _page(n: int, total: int, title: str, day: str, body: str, pname: str) -> str:
+    """الصفحةُ بهويّة تقارير التطبيق: ترويسةٌ بنفسجيةٌ بالاسم والتاريخ والعنوان، وشريطٌ ذهبيّ، وتذييلٌ برقم الصفحة."""
     return (f'<section class="page"><header class="ph"><div class="brand">المحفظة الذكية<small>قسم الأبحاث · {_e(pname)}</small></div>'
-            f'<div class="pt"><div class="d">{_e(day_label(day))}</div><h1>{_e(title)}</h1></div></header>'
-            f'<div class="pb">{body}</div><footer class="pf"><span>{_e(day_label(day))}</span><b class="pn">{n}</b></footer></section>')
+            f'<div class="pt"><div class="d">{_e(day_label(day))}</div><h1>{_e(title)}</h1></div></header><div class="gold"></div>'
+            f'<div class="pb">{body}</div><footer class="pf"><span>المحفظة الذكية · قسم الأبحاث · {_e(day_label(day))}</span><b class="pn">{n}</b></footer></section>')
 
 
 def _fonts() -> str:
+    """خطُّ تقارير التطبيق نفسُه (‏saqr_report): الرِقعيُّ العريض بأوزانه الثلاثة."""
     try:
-        from app.services.saqr_report import _face
-        return "".join([_face("Thmanyah Sans", "thmanyahsans-Regular.woff2", 400), _face("Thmanyah Sans", "thmanyahsans-Bold.woff2", 700),
-                        _face("Thmanyah Serif Display", "thmanyahserifdisplay-Medium.woff2", 500)])
+        from app.services.saqr_report import _fonts as f
+        return f()
     except Exception:                                             # noqa: BLE001
         return ""
 
@@ -937,56 +1003,59 @@ def _fonts() -> str:
 CSS = f"""
 *{{box-sizing:border-box}}
 html,body{{margin:0;padding:0}}
-body{{background:#e6e8ea;color:{INK};font-family:'Thmanyah Sans','Segoe UI',Tahoma,sans-serif;direction:rtl;text-align:right;
-      font-size:10.5px;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-.page{{width:794px;min-height:1123px;margin:0 auto 18px;background:#fff;padding:30px 32px 52px;position:relative;
-       box-shadow:0 1px 3px rgba(0,0,0,.12)}}
-.ph{{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid {INK};padding-bottom:8px;margin-bottom:14px}}
-.brand{{font-family:'Thmanyah Serif Display','Thmanyah Sans',serif;font-size:17px;font-weight:500;line-height:1.25}}
-.brand small{{display:block;font-family:'Thmanyah Sans',sans-serif;color:{CU};font-size:10.5px;font-weight:700}}
-.pt{{text-align:left}} .pt .d{{color:#7d878c;font-weight:700;font-size:14px}} .pt h1{{margin:0;font-size:19px;line-height:1.3}}
+body{{background:#ebe5d4;color:{INK};font-family:'Thmanyah Serif Display','Segoe UI',Tahoma,sans-serif;direction:rtl;text-align:right;
+      font-size:10.5px;line-height:1.6;font-weight:400;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+.page{{width:794px;min-height:1123px;margin:0 auto 18px;background:{PAPER};position:relative;box-shadow:0 1px 4px rgba(36,31,26,.16)}}
+.ph{{background:linear-gradient(135deg,{NAVY},{NAVY_2});padding:18px 32px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px}}
+.brand{{color:#fff;font-size:20px;font-weight:500;line-height:1.25}}
+.brand small{{display:block;color:{GOLD_L};font-size:11px;font-weight:300}}
+.pt{{text-align:left;color:{GOLD_L}}} .pt .d{{font-size:11px;font-weight:300}} .pt h1{{margin:0;color:#fff;font-size:18px;font-weight:500;line-height:1.3}}
+.gold{{height:4px;background:linear-gradient(90deg,{GOLD},{GOLD_L},{GOLD})}}
+.pb{{padding:16px 30px 58px}}
 .cols{{display:grid;grid-template-columns:1fr 1fr;gap:18px}}
 .cols.w{{grid-template-columns:1.45fr 1fr}}
-.band{{background:{SLATE};color:#fff;font-weight:700;font-size:10.5px;padding:3px 8px;margin:9px 0 0}}
-.blk:first-child .band{{margin-top:0}}
-h2{{color:{CU};font-size:13.5px;margin:12px 0 6px;line-height:1.3}} h2:first-child{{margin-top:0}}
-h3{{font-size:12px;margin:10px 0 4px}}
+.band{{background:#efe7cf;color:{NAVY};border-bottom:2px solid {GOLD};font-weight:500;font-size:11px;padding:4px 8px;margin:10px 0 0}}
+.blk > .band:first-child{{margin-top:0}}
+h2{{color:{NAVY};font-size:13.5px;font-weight:500;margin:12px 0 6px;line-height:1.3;border-inline-start:3px solid {GOLD};padding-inline-start:8px}}
+h2:first-child{{margin-top:0}}
+h3{{color:{NAVY};font-size:12px;font-weight:500;margin:8px 0 4px}}
 .tw{{overflow-x:auto}}
 table{{width:100%;border-collapse:collapse;font-size:9.5px;line-height:1.35}}
-th{{font-weight:700;border-bottom:1.2px solid {INK};padding:3px 4px;text-align:right;vertical-align:bottom;line-height:1.25}}
-td{{padding:2.4px 4px;border-bottom:1px solid {RULE};text-align:right}}
-tbody tr:nth-child(even) td{{background:#f6f7f7}}
+th{{font-weight:500;color:{NAVY};border-bottom:1px solid {LINE};padding:3px 4px;text-align:right;vertical-align:bottom;line-height:1.25}}
+td{{padding:2.4px 4px;border-bottom:1px solid #e9e2cc;text-align:right}}
+tbody tr:nth-child(even) td{{background:{ZEBRA}}} tbody tr:nth-child(odd) td{{background:#fff}}
 .n{{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums;white-space:nowrap}}
-.pos{{color:{POS}}} .neg{{color:{NEG}}} .mut{{color:{MUT}}}
-p{{margin:0 0 6px}} .para{{text-align:justify}}
+.pos{{color:{GREEN}}} .neg{{color:{RED}}} .mut{{color:{MUTED}}}
+p{{margin:0 0 6px}} .para{{text-align:justify;background:#fff;border:1px solid {LINE};border-radius:8px;padding:8px 10px}}
 ul.bul{{list-style:none;margin:0;padding:0}}
 ul.bul li{{position:relative;padding-inline-start:13px;margin-bottom:6px;text-align:justify}}
-ul.bul li::before{{content:'';position:absolute;inset-inline-start:0;top:.55em;width:6px;height:6px;background:{CU_L}}}
-.kv{{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:10.5px}} .kv span:nth-child(odd){{color:{MUT}}}
-.kv span:nth-child(even){{font-weight:700}}
-.box{{border:1px solid {RULE};padding:8px 10px;margin-top:10px}}
+ul.bul li::before{{content:'';position:absolute;inset-inline-start:0;top:.55em;width:6px;height:6px;border-radius:1px;background:{GOLD}}}
+.kv{{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:10.5px}} .kv span:nth-child(odd){{color:{MUTED}}}
+.kv span:nth-child(even){{font-weight:500;color:{NAVY}}}
+.box{{border:1px solid {LINE};border-radius:8px;background:#fff;padding:8px 10px;margin-top:10px;overflow:hidden}}
 .box .band{{margin:-8px -10px 8px}}
-.lv{{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:10.5px;margin-top:6px}}
-.lv div{{padding:4px 2px}} .lv .h{{background:{SLATE};color:#fff;font-weight:700}} .lv .h.s{{background:#7e4b3b}} .lv .h.r{{background:#2f5d4b}}
-.lv .v{{border-bottom:1px solid {RULE};font-weight:700}}
+.lv{{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:10.5px;margin-top:6px;border-radius:8px;overflow:hidden;border:1px solid {LINE}}}
+.lv div{{padding:4px 2px}} .lv .h{{background:{NAVY};color:#fff;font-weight:500}} .lv .h.s{{background:{RED}}} .lv .h.r{{background:{GREEN}}}
+.lv .v{{background:#fff;font-weight:500;color:{NAVY}}}
 .kpis{{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:12px 0}}
-.kpis div{{border-top:2px solid {CU_L};background:#f6f7f7;padding:6px 8px}} .kpis b{{display:block;font-size:13.5px}}
-.kpis span{{color:{MUT};font-size:9.5px}}
-.view{{display:inline-block;background:{SLATE};color:#fff;font-weight:700;padding:1px 8px;font-size:10.5px}}
-.view.buy{{background:{POS}}} .view.sell{{background:#8a3a2c}} .view.hold{{background:#4f6472}} .view.warn{{background:#a0662f}}
-.headline{{font-family:'Thmanyah Serif Display','Thmanyah Sans',serif;font-size:15px;font-weight:500;border-inline-start:3px solid {CU_L};
-           padding:2px 10px;margin:0 0 12px}}
-.pf{{position:absolute;bottom:14px;left:32px;right:0;display:flex;justify-content:space-between;align-items:center;color:{MUT};font-size:9.5px}}
-.pn{{background:{SLATE};color:#fff;width:40px;height:28px;display:flex;align-items:center;justify-content:center;font-size:13px;order:-1}}
-.empty{{color:{MUT};padding:6px 0}}
-.chart{{margin-top:6px}}
+.kpis div{{background:#fff;border:1px solid {LINE};border-radius:8px;padding:6px 8px}} .kpis b{{display:block;font-size:14px;font-weight:300;color:{NAVY}}}
+.kpis span{{color:{MUTED};font-size:9.5px}}
+.view{{display:inline-block;color:#fff;font-weight:500;padding:1px 9px;font-size:10.5px;border-radius:999px;background:{NAVY}}}
+.view.buy{{background:{GREEN}}} .view.sell{{background:{RED}}} .view.hold{{background:{NAVY}}} .view.warn{{background:#a0662f}}
+.headline{{font-size:15px;font-weight:500;color:{NAVY};background:{ZEBRA};border:1px solid {GOLD};border-radius:8px;padding:8px 12px;margin:0 0 12px}}
+.pf{{position:absolute;bottom:0;left:0;right:0;height:38px;background:linear-gradient(135deg,{NAVY},{NAVY_2});display:flex;
+     justify-content:space-between;align-items:center;padding:0 30px;color:{GOLD_L};font-size:9.5px;font-weight:300}}
+.pn{{background:{GOLD};color:{NAVY};min-width:28px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+     font-size:12px;font-weight:500;order:-1}}
+.empty{{color:{MUTED};padding:6px 0}}
+.chart{{margin-top:6px;border-radius:6px;overflow:hidden}}
 @page{{size:A4;margin:0}}
-@media print{{body{{background:#fff}} .page{{margin:0;box-shadow:none;page-break-after:always;break-after:page}}}}
+@media print{{body{{background:{PAPER}}} .page{{margin:0;box-shadow:none;page-break-after:always;break-after:page}}}}
 @media screen and (max-width:820px){{
-  body{{font-size:12px;background:#fff}}
-  .page{{width:auto;min-height:0;margin:0 0 10px;padding:16px 14px 46px;box-shadow:none;border-bottom:8px solid #e6e8ea}}
+  body{{font-size:12px;background:{PAPER}}}
+  .page{{width:auto;min-height:0;margin:0 0 12px;box-shadow:none}}
+  .ph{{flex-wrap:wrap;padding:14px}} .pt{{text-align:right}} .pb{{padding:14px 14px 52px}} .pf{{padding:0 14px}}
   .cols,.cols.w{{grid-template-columns:1fr}} .kpis{{grid-template-columns:repeat(2,1fr)}}
-  .ph{{flex-wrap:wrap;gap:6px}} .pt{{text-align:right}} .pf{{left:14px}}
 }}
 """
 
@@ -1076,7 +1145,7 @@ def render(r: dict, part: str = "all") -> str:
                f'<h2>التوقعات الفنية</h2><ul class="bul"><li>{_e(c2)} {_e(adv)}</li></ul>'
                f'<h2>المقاومة والدعم للمؤشر</h2>{lv}{kpis}'
                f'<h2>الرسم البياني اليومي — مؤشر السوق الرئيسي</h2><div class="chart">'
-               f'{svg_candles(m.get("daily") or [], levels={k: p.get(k) for k in ("s1", "s2", "r1", "r2")})}</div>')
+               f'{svg_candles(m.get("daily") or [], levels={k: p.get(k) for k in ("s1", "s2", "r1", "r2")}, label="تاسي · يومي")}</div>')
         notes = [("المؤشر", "تاسي"), ("آخر إغلاق", n2(tech.get("close"))), ("نظرة قريبة المدى", tech.get("view")),
                  ("الأعلى – الأدنى خلال 52 أسبوعاً", f"{n0(tech.get('hi52'))} – {n0(tech.get('lo52'))}")]
         mkt = [("قيمة التداول (مليون ريال)", n2((b.get("value") or 0) / 1e6) if b.get("value") else "—"),
@@ -1108,7 +1177,7 @@ def render(r: dict, part: str = "all") -> str:
                 f'<span class="n">{n2(k["buy"][0])} – {n2(k["buy"][1])}</span>', f'<span class="n">{n2(k["target"][0])} – {n2(k["target"][1])}</span>',
                 _num(k["stop"])] for k in pk]
     charts = "".join(f'<div class="box">{_band(k["name"] + " — ملاحظات فنية")}<p>{_e(pick_note(k))}</p>'
-                     f'{svg_candles(k.get("bars") or [], w=470, h=200, sma=(50,), levels={"وقف الخسارة": k["stop"], "هدف": k["target"][1]}, rsi=False, band=tuple(k["buy"]))}</div>'
+                     f'{svg_candles(k.get("bars") or [], w=470, h=200, sma=(50,), levels={"وقف الخسارة": k["stop"], "هدف": k["target"][1]}, rsi=False, band=tuple(k["buy"]), label=k["symbol"] + " · يومي")}</div>'
                      for k in pk[:2])
     body4 = ((f'<p class="headline">{_e(r.get("portfolio_headline") or r.get("headline"))}</p>' if (r.get("portfolio_headline") or r.get("headline")) else "")
              + _band("نظرتنا لمراكز المحفظة")

@@ -134,5 +134,14 @@ check("@page{size:A4;margin:0}" in html and "max-width:820px" in html and 'dir="
 rd = (ROOT / "backend/app/services/research_desk.py").read_text(encoding="utf-8")
 check("send_file(data, f\"daily-report-{r['date']}.pdf\", caption(r))" in rd and "RP.gather(today)" in rd and "if not market:" in rd,
       "١٦ تُرسَل الورقةُ ملفَّ PDF مؤرَّخاً إلى تلغرام — ولا تقريرَ في يومٍ بلا جلسة")
+from app.services import saqr_report as SR   # noqa: E402
+check(all(getattr(RP, k) == getattr(SR, k) for k in ("NAVY", "NAVY_2", "GOLD", "GOLD_L", "GREEN", "RED", "PAPER", "INK", "LINE", "ZEBRA", "MUTED"))
+      and f"linear-gradient(135deg,{SR.NAVY},{SR.NAVY_2})" in html and f"background:{SR.PAPER}" in html and "Thmanyah Serif Display" in html
+      and not any(c in html for c in ("#323f48", "#b27e58", "#9a6a45")),
+      "١٧ ‏D752 الورقةُ بهويّة تقارير التطبيق نفسِها: ألوانُها من مصدرها الواحد (‏saqr_report) وخطُّها، ولا بقيّةَ من ألوان الهيئة المستعارة")
+svg = RP.svg_candles([{"d": f"2026-0{1 + i // 28}-{1 + i % 28:02d}", "o": 10 + i * .1, "h": 10.5 + i * .1, "l": 9.8 + i * .1, "c": 10.2 + i * .1, "v": 100 + i}
+                      for i in range(60)], levels={"s1": 12, "r1": 15.5}, label="تاسي · يومي")
+check(RP.TV_UP in svg and RP.TV_DN not in svg.split("<polyline")[0][:200] and "SMA 10" in svg and "RSI 14" in svg and " O " in svg and "تاسي · يومي" in svg
+      and svg.count('rx="2"') >= 3, "١٨ ‏D752 والرسمُ اليوميّ بهيئة تريدنق فيو كرسم التقرير المرجعيّ: شموعُه وألوانُه، وسطرُ O H L C، والمتوسّطان، وبطاقاتُ المحور، ولوحةُ RSI")
 print(("FAIL" if fail else "PASS") + " D746 — ورقةُ التقرير اليوميّ على هيئة بيوت الأبحاث: مؤرّخةٌ، بأرقامٍ محسوبة، ونظرتِنا واختياراتِنا، وبلا مصادر")
 sys.exit(fail)
