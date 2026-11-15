@@ -10,6 +10,18 @@ import { marketApi } from "../services/api";
 import { useAuthStore } from "../store/authStore";
 
 type Part = "market" | "portfolio";
+type Day = { date: string; label: string };
+/** «الأحد 15 نوفمبر 2026» ← الشهرُ «نوفمبر 2026» واليومُ «15» — والأيامُ بترتيبها تحت شهرها */
+const months = (ds: Day[]): [string, Day[]][] => {
+  const out: [string, Day[]][] = [];
+  for (const d of ds) {
+    const p = d.label.split(" ");
+    const m = `${p[2]} ${p[3]}`;
+    if (!out.length || out[out.length - 1][0] !== m) out.push([m, []]);
+    out[out.length - 1][1].push(d);
+  }
+  return out;
+};
 
 export default function ResearchLab() {
   const owner = useAuthStore((s: any) => s.isOwner);
@@ -85,10 +97,16 @@ export default function ResearchLab() {
       </div>
 
       {(head.data?.dates?.length || 0) > 1 && (
-        <div className="rl-days" role="group" aria-label="أيام التقارير">
-          {head.data.dates.slice(0, 20).map((d: { date: string; label: string }) => (
-            <button key={d.date} type="button" className={"seg-btn chip" + ((day || head.data.dates[0].date) === d.date ? " on" : "")}
-              onClick={() => setDay(d.date)} data-role="rl-day">{d.label}</button>
+        /* ‏D749 (بأمر المالك): «بصيغة أيام — 15 · 14 · 13 — وبتسلسلٍ تاريخيّ لجميع الأيام»: الأيامُ أرقاماً تحت شهرها، الأحدثُ أوّلاً */
+        <div className="rl-days" role="group" aria-label="أيام التقارير" data-role="rl-days">
+          {months(head.data.dates).map(([m, ds]) => (
+            <div key={m} className="rl-month">
+              <span className="rl-mname">{m}</span>
+              {ds.map(d => (
+                <button key={d.date} type="button" className={"seg-btn chip rl-day" + ((day || head.data.dates[0].date) === d.date ? " on" : "")}
+                  onClick={() => setDay(d.date)} data-role="rl-day" title={d.label} aria-label={d.label}>{d.label.split(" ")[1]}</button>
+              ))}
+            </div>
           ))}
         </div>
       )}

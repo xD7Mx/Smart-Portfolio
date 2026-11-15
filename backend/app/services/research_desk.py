@@ -29,7 +29,7 @@ from datetime import date, datetime, timedelta
 from loguru import logger
 
 KEEP_NOTES_DAYS = 365
-KEEP_REPORTS = 120
+KEEP_REPORTS = 600                                                # تقريرٌ لكلّ محفظةٍ لكلّ جلسة — أرشيفٌ يتّسع لنحو سنة
 MAX_PDF = 25 * 1024 * 1024
 _KIND_RANK = {"تقرير يوميّ": 0, "تقرير اقتصاديّ": 1, "تقرير قطاعيّ": 2, "تقرير دوريّ": 2, "تقرير شهريّ": 2, "تقرير شركة": 3}
 
@@ -291,9 +291,10 @@ async def ingest_cli() -> None:
 
 # ── التقرير ─────────────────────────────────────────────────────────────────────
 
-def recent_sources(notes: list[dict], today: date, days: int = 3, limit: int = 12) -> list[dict]:
+def recent_sources(notes: list[dict], today: date, days: int = 3, limit: int = 12, upto: str | None = None) -> list[dict]:
+    """مذكّراتُ الأيام الأخيرة — و`upto` سقفٌ لأرشيف ما مضى: لا يدخل تقريرَ جلسةٍ ما نُشر بعدها."""
     floor = (today - timedelta(days=days)).isoformat()
-    pick = [n for n in notes if str(n.get("date") or "") >= floor]
+    pick = [n for n in notes if str(n.get("date") or "") >= floor and (upto is None or str(n.get("date") or "") <= upto)]
     pick.sort(key=lambda n: (str(n.get("date") or ""), -_KIND_RANK.get(str(n.get("kind")), 2)), reverse=True)
     return pick[:limit]
 
@@ -402,10 +403,11 @@ def sessions_store(k: dict | None = None) -> dict:
     return st
 
 
-def latest_tables(notes: list[dict], today: date) -> tuple[dict, list[dict]]:
-    """أحدثُ جدولٍ للأسواق الإقليمية ولأسعار الفائدة بين البنوك من تقارير الأيام السبعة الأخيرة — بتاريخ جلسته."""
+def latest_tables(notes: list[dict], today: date, upto: str | None = None) -> tuple[dict, list[dict]]:
+    """أحدثُ جدولٍ للأسواق الإقليمية ولأسعار الفائدة بين البنوك من تقارير الأيام السبعة الأخيرة — بتاريخ جلسته (وحتى `upto` لما مضى)."""
     floor = (today - timedelta(days=7)).isoformat()
-    rows = sorted([n for n in notes if str(n.get("date") or "") >= floor], key=lambda n: str(n.get("date") or ""), reverse=True)
+    rows = sorted([n for n in notes if str(n.get("date") or "") >= floor and (upto is None or str(n.get("date") or "") <= upto)],
+                  key=lambda n: str(n.get("date") or ""), reverse=True)
     # الجدولُ الكامل لا صفٌّ منه: أحدثُ مذكّرةٍ فيها ثلاثةُ أسواقٍ فأكثر غيرُ السعودية، وأحدثُ جدولِ فائدةٍ بآجالٍ ثلاثةٍ فأكثر
     full = lambda n: len([x for x in n.get("regional") or [] if "سعود" not in x["market"]]) >= 3   # noqa: E731
     reg = next(({"date": (n.get("session") or {}).get("date") or n.get("date"), "rows": n["regional"]} for n in rows if full(n)), {})
@@ -453,6 +455,65 @@ async def compose_for(db, pid: int, pname: str, market: dict, today: date | None
            "no_pick_reason": "" if picks else "لم يجتمع في أيّ سهمٍ اليومَ قرارُ شراءٍ وصعودٌ إلى القيمة العادلة واتجاهٌ صاعدٌ بلا تشبّع.",
            **ai, "n_sources": len(srcs)}
     return rep
+
+
+async def _market_text(day: date, market: dict, upto: str) -> dict:
+    """نصُّ السوق لجلسةٍ مضت (العنوانُ والأخبارُ وما يُتابَع) — نداءٌ واحدٌ يشترك فيه تقريرُ كلِّ محفظة، ومن مذكّراتٍ حتى `upto` وحدها."""
+    k = knowledge()
+    srcs = recent_sources(k["notes"], day, upto=upto)
+    if not srcs:
+        return {"headline": "", "local": [], "global": [], "portfolio": [], "watch": [], "n_sources": 0}
+    prompt = COMPOSE_PROMPT.format(pname="السوق", today=day.isoformat(), sources="\n\n".join(_fmt_source(i + 1, n) for i, n in enumerate(srcs)),
+                                   context=_context([n for n in k["notes"] if str(n.get("date") or "") <= upto], day, {n.get("key") for n in srcs}),
+                                   portfolio="لا مراكز — تقريرُ أرشيف.", market=_market_line(market))
+    obj = await _gemini([{"text": prompt}], max_tokens=4000, temperature=0.2)
+    v = validate(obj or {}, len(srcs), set())
+    return {**v, "portfolio": [], "n_sources": len(srcs)}
+
+
+async def backfill(sessions: int = 60) -> dict:
+    """أرشيفُ الجلسات الماضية (‏D749 · بأمر المالك: «يتوفّر لجميع الأيام بتسلسلٍ تاريخيّ — 15 · 14 · 13»): لكلّ جلسةٍ من آخر `sessions`
+    بلا تقرير تقريرُها من أرقامها هي (‏research_paper.market_at) ونصِّ مذكّراتها حتى الجلسة التالية. وتقريرُ الأرشيف الذي كُتب بلا أخبار
+    يُعاد نصُّه حين تصل مذكّراتُ يومه. وصفحةُ المحفظة لا تُعاد لما مضى (المراكزُ مراكزُ اليوم)."""
+    from sqlalchemy import select
+    from app.core.database import AsyncSessionLocal
+    from app.models.portfolio import Portfolio
+    from app.services import research_paper as RP
+    async with AsyncSessionLocal() as db:
+        ps = (await db.execute(select(Portfolio.id, Portfolio.name).where(Portfolio.is_archived.is_(False)).order_by(Portfolio.id))).all()
+    ctx = await RP.history_context()
+    st = sessions_store()
+    today = date.today().isoformat()
+    days = [b["date"][:10] for b in ctx["tasi"] if b["date"][:10] < today][-sessions:]
+    nxt = {d: (days[i + 1] if i + 1 < len(days) else today) for i, d in enumerate(days)}
+    notes = knowledge()["notes"]
+    made, renewed = 0, 0
+    for d in days:
+        have = {pid: load_report(pid, d) for pid, _ in ps}
+        have = {pid: r for pid, r in have.items() if r and r.get("date") == d}
+        need = [(pid, pn) for pid, pn in ps if pid not in have]
+        stale = [(pid, pn) for pid, pn in ps if pid in have and have[pid].get("backfill") and not have[pid].get("local")
+                 and any(d <= str(n.get("date") or "") <= nxt[d] for n in notes)]
+        if not need and not stale:
+            continue
+        m = RP.market_at(d, ctx, st)
+        if not m:
+            continue
+        ai = await _market_text(date.fromisoformat(d), m, nxt[d])
+        reg, sai = latest_tables(notes, date.fromisoformat(d), upto=nxt[d])
+        av = RP.averages(st, d)
+        for pid, pname in need + stale:
+            save_report({"date": d, "portfolio_id": pid, "portfolio_name": pname, "at": datetime.now().isoformat(timespec="minutes"),
+                         "market": m, "averages": av, "analysis": RP.market_analysis(m, av), "tech_text": list(RP.tech_commentary(m)),
+                         "regional": reg, "saibor": sai, "positions": [], "picks": [], "no_pick_reason": "", "backfill": True, **ai})
+        made += len(need)
+        renewed += len(stale)
+    logger.info("قسم الأبحاث: الأرشيف — كُتب {} وجُدّد {} ({} جلسة)", made, renewed, len(days))
+    return {"made": made, "renewed": renewed, "sessions": len(days)}
+
+
+async def backfill_cli() -> None:
+    await backfill(60)
 
 
 def caption(r: dict) -> str:

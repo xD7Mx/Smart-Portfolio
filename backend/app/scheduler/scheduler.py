@@ -369,6 +369,22 @@ async def job_research_night():
     await job_research_ingest(night=True)
 
 
+async def job_research_backfill():
+    """قسمُ الأبحاث (‏D749): أرشيفُ الجلسات الماضية — تقريرٌ لكلّ جلسةٍ بلا تقرير، وتجديدُ نصِّ ما وصلت مذكّراتُ يومه — في عمليةٍ منفصلة."""
+    import asyncio, sys
+    try:
+        p = await asyncio.create_subprocess_exec(
+            sys.executable, "-c",
+            "import asyncio, sys; sys.path.insert(0, '/app'); from app.services.research_desk import backfill_cli; asyncio.run(backfill_cli())")
+        try:
+            await asyncio.wait_for(p.wait(), timeout=2 * 60 * 60)
+        except asyncio.TimeoutError:
+            p.kill()
+            logger.warning("قسم الأبحاث: الأرشيفُ جاوز مهلتَه فأُوقف")
+    except Exception as e:
+        logger.error(f"قسم الأبحاث: الأرشيف {e}")
+
+
 async def job_research_report():
     """قسمُ الأبحاث (D745 · D746): التقريرُ اليوميّ لكلّ محفظة بعد إغلاق السوق — يُحفظ ويُرسَل ملفّاً مؤرَّخاً إلى تلغرام."""
     try:
@@ -840,6 +856,7 @@ def start_scheduler():
     _scheduler.add_job(job_research_ingest, CronTrigger(hour=8, minute=50), id="research_ingest_morning", replace_existing=True)
     _scheduler.add_job(job_research_ingest, CronTrigger(hour=15, minute=5), id="research_ingest_afternoon", replace_existing=True)
     _scheduler.add_job(job_research_night, CronTrigger(hour=2, minute=30), id="research_ingest_night", replace_existing=True)
+    _scheduler.add_job(job_research_backfill, CronTrigger(hour=5, minute=10), id="research_backfill", replace_existing=True)
     # ‏D746 (بأمر المالك): «التقريرُ اليوميّ يجيني على تلغرام بعد ما يقفل السوق» — بعد مزاد الإغلاق والتداول على سعره (15:20)
     _scheduler.add_job(job_research_report, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=15, minute=40),
                        id="research_report_close", replace_existing=True)

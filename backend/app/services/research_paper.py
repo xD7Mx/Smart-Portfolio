@@ -258,7 +258,7 @@ def market_tables(rows: dict, names: dict, sectors: dict, fund: dict, dy: dict) 
         if chg is None and prev:
             chg = _pct(px, prev)
         plain.append({"symbol": sym, "name": names.get(sym) or r.get("name_en") or sym, "price": px, "pct": chg,
-                      "value": _f(r.get("turnover")) or 0.0})
+                      "value": _f(r.get("turnover"))})
         tot["n"] += 1
         f = fund.get(sym) or {}
         sh = f.get("shares")
@@ -268,9 +268,10 @@ def market_tables(rows: dict, names: dict, sectors: dict, fund: dict, dy: dict) 
             if not (eq and eq > 0 and 0.05 <= sh * px / eq <= 50):
                 sh = None
         name_sec = sectors.get(sym) or "غير مصنّف"
-        s = sec.setdefault(name_sec, {"name": name_sec, "cap": 0.0, "prev_cap": 0.0, "ni": 0.0, "value": 0.0, "up": 0, "down": 0, "n": 0, "pcts": []})
+        s = sec.setdefault(name_sec, {"name": name_sec, "cap": 0.0, "prev_cap": 0.0, "ni": 0.0, "value": None, "up": 0, "down": 0, "n": 0, "pcts": []})
         s["n"] += 1
-        s["value"] += _f(r.get("turnover")) or 0.0
+        if _f(r.get("turnover")) is not None:
+            s["value"] = (s["value"] or 0.0) + _f(r.get("turnover"))
         if chg is not None:
             s["pcts"].append(chg)
             if chg > 0:
@@ -312,36 +313,43 @@ def market_tables(rows: dict, names: dict, sectors: dict, fund: dict, dy: dict) 
     return {"sectors": out_sec,
             "gainers": sorted(movers, key=lambda p: -p["pct"])[:5],
             "losers": sorted(movers, key=lambda p: p["pct"])[:5],
-            "active": sorted(plain, key=lambda p: -p["value"])[:5],
+            "active": sorted([p for p in plain if p["value"] is not None], key=lambda p: -p["value"])[:5],
             "heavy": sorted(caps, key=lambda c: -c["cap"])[:5],
             "fin": fin}
 
 
-async def _quote_table(spec, bp: bool = False) -> list[dict]:
-    """إغلاقٌ وتغيّرٌ يوميّ وشهريّ ومنذ بداية العام لكلّ رمز — من تاريخه اليوميّ؛ والفائدةُ تغيّرُها بنقاط الأساس."""
+def quote_row(sym: str, name: str, pts: list[dict], bp: bool = False, upto: str | None = None) -> dict | None:
+    """إغلاقٌ وتغيّرٌ يوميّ وشهريّ ومنذ بداية العام من تاريخٍ يوميّ — حتى يومٍ بعينه (`upto`) لأرشيف ما مضى؛ والفائدةُ بنقاط الأساس."""
+    pts = [p for p in pts or [] if _f(p.get("close")) and (upto is None or str(p.get("date"))[:10] <= upto)]
+    if len(pts) < 30:
+        return None
+    last, prev = pts[-1], pts[-2]
+    d = str(last.get("date"))[:10]
+    mb = [p for p in pts if str(p.get("date"))[:7] < d[:7]]
+    yb = [p for p in pts if str(p.get("date"))[:4] < d[:4]]
+    c, pc = _f(last["close"]), _f(prev["close"])
+    mbase, ybase = (_f(mb[-1]["close"]) if mb else None), (_f(yb[-1]["close"]) if yb else None)
+    if bp:
+        ch = lambda b: (c - b) * 100 if b is not None else None   # noqa: E731
+        return {"symbol": sym, "name": name, "close": c, "d1": ch(pc), "mtd": ch(mbase), "ytd": ch(ybase), "date": d, "bp": True}
+    return {"symbol": sym, "name": name, "close": c, "d1": _pct(c, pc), "mtd": _pct(c, mbase), "ytd": _pct(c, ybase), "date": d}
+
+
+async def _histories(spec) -> dict:
     from app.services.market_data import market_service as M
 
-    async def one(sym, name):
+    async def one(sym):
         try:
-            pts = await asyncio.wait_for(M.get_history(sym, "1y"), 25) or []
+            return sym, await asyncio.wait_for(M.get_history(sym, "1y"), 25) or []
         except Exception:                                         # noqa: BLE001
-            return None
-        pts = [p for p in pts if _f(p.get("close"))]
-        if len(pts) < 30:
-            return None
-        last, prev = pts[-1], pts[-2]
-        d = str(last.get("date"))[:10]
-        y, m = d[:4], d[:7]
-        mb = [p for p in pts if str(p.get("date"))[:7] < m]
-        yb = [p for p in pts if str(p.get("date"))[:4] < y]
-        c, pc = _f(last["close"]), _f(prev["close"])
-        mbase, ybase = (_f(mb[-1]["close"]) if mb else None), (_f(yb[-1]["close"]) if yb else None)
-        if bp:
-            ch = lambda b: (c - b) * 100 if b is not None else None   # noqa: E731
-            return {"symbol": sym, "name": name, "close": c, "d1": ch(pc), "mtd": ch(mbase), "ytd": ch(ybase), "date": d, "bp": True}
-        return {"symbol": sym, "name": name, "close": c, "d1": _pct(c, pc), "mtd": _pct(c, mbase), "ytd": _pct(c, ybase), "date": d}
-    got = await asyncio.gather(*(one(s, n) for s, n in spec))
-    return [g for g in got if g]
+            return sym, []
+    return dict(await asyncio.gather(*(one(s) for s, _ in spec)))
+
+
+async def _quote_table(spec, bp: bool = False) -> list[dict]:
+    """إغلاقٌ وتغيّرٌ يوميّ وشهريّ ومنذ بداية العام لكلّ رمز — من تاريخه اليوميّ؛ والفائدةُ تغيّرُها بنقاط الأساس."""
+    h = await _histories(spec)
+    return [r for r in (quote_row(s, n, h.get(s), bp) for s, n in spec) if r]
 
 
 def history_append(store: dict, day: str, rec: dict) -> dict:
@@ -460,6 +468,84 @@ async def gather(today: date | None = None) -> dict | None:
             "daily": [{"d": b["date"][:10], "o": b["open"], "h": b["high"], "l": b["low"], "c": b["close"]} for b in _bars_ok(daily)[-130:]],
             "global": glob, "commodities": com, "fx": fx, "rates": rates,
             "actions": await corporate_actions(today)}
+
+
+# ── أرشيفُ الجلسات الماضية (‏D749 · بأمر المالك: «يتوفّر لجميع الأيام بتسلسلٍ تاريخيّ») ──────────────────────
+async def history_context() -> dict:
+    """ما يُبنى منه سوقُ أيّ جلسةٍ مضت — يُجمع مرّةً للأرشيف كلِّه: شموعُ تاسي اليومية وشموعُه دون اليوم، وإغلاقاتُ كلِّ شركةٍ في
+    السوق الرئيسي سنةً، والإفصاحُ، وتواريخُ الأسواق العالمية والسلع والعملات والفائدة، ومفكرةُ السوق."""
+    from app.services import tadawul_market as TM
+    from app.services.market_data import market_service as M
+    from app.data.market_universe import MARKET_UNIVERSE as U
+    from app.data.universe import is_main
+    syms = [s for s in (TM.usable_rows()[0] or {}) if is_main(s)]
+    sem = asyncio.Semaphore(6)
+
+    async def one(sym):
+        async with sem:
+            try:
+                pts = await asyncio.wait_for(M.daily_base(f"{sym}.SR", "1y"), 30) or []
+            except Exception:                                     # noqa: BLE001
+                pts = []
+            return sym, {str(p.get("date"))[:10]: _f(p.get("close")) for p in pts if _f(p.get("close"))}
+    closes = dict(await asyncio.gather(*(one(s) for s in syms)))
+    fund = dict(zip(syms, await asyncio.to_thread(lambda: [_fundamentals(s) for s in syms])))
+    hist = {}
+    for spec in (GLOBAL, COMMOD, FX, RATES):
+        hist.update(await _histories(spec))
+    try:
+        from app.services.content_engine import market_wide_events, clean_events
+        events = clean_events(await market_wide_events()) or []
+    except Exception:                                             # noqa: BLE001
+        events = []
+    dy = {}
+    try:
+        from app.services.market_screener import get_cached_screener
+        dy = {str(r.get("symbol") or "").replace(".SR", ""): _f(r.get("dividend_yield")) for r in get_cached_screener() or []
+              if _f(r.get("dividend_yield")) is not None}
+    except Exception:                                             # noqa: BLE001
+        pass
+    return {"tasi": _bars_ok(await M.get_bars("^TASI.SR", "1d") or []), "intra": _bars_ok(await M.get_bars("^TASI.SR", "5m") or []),
+            "closes": closes, "fund": fund, "hist": hist, "events": events, "dy": dy,
+            "names": {s: (U.get(s) or {}).get("name_ar") for s in syms}, "sectors": {s: (U.get(s) or {}).get("sector") for s in syms}}
+
+
+def market_at(day: str, ctx: dict, store: dict | None = None) -> dict | None:
+    """سوقُ جلسةٍ مضت من سياقها — كلُّ رقمٍ حتى ذلك اليوم لا بعده: الشموعُ حتّاه، والقطاعاتُ والأكثرُ ارتفاعاً وانخفاضاً وعمقُ السوق من
+    إغلاقات الشركات يومَها وما قبله، والقيمةُ والكمّيةُ والصفقاتُ من سجلّ الجلسات إن حُفظت، والأسواقُ العالمية بآخر إغلاقٍ حتّاه."""
+    bars = [b for b in ctx["tasi"] if b["date"][:10] <= day]
+    t = technicals(bars)
+    if not t or t["date"] != day:
+        return None
+    rows = {}
+    for sym, cl in ctx["closes"].items():
+        c = cl.get(day)
+        prev = [v for d, v in cl.items() if d < day]
+        if c and prev:
+            pk = max(d for d in cl if d < day)
+            rows[sym] = {"price": c, "prev_close": cl[pk], "change_pct": _pct(c, cl[pk]), "turnover": None}
+    tables = market_tables(rows, ctx["names"], ctx["sectors"], ctx["fund"], ctx["dy"])
+    ch = [r["change_pct"] for r in rows.values() if r["change_pct"] is not None]
+    rec = (store or {}).get(day) or {}
+    breadth = {"up": sum(1 for c in ch if c > 0) if ch else None, "down": sum(1 for c in ch if c < 0) if ch else None,
+               "unch": sum(1 for c in ch if c == 0) if ch else None,
+               "value": _f(rec.get("value")), "volume": _f(rec.get("volume")), "trades": _f(rec.get("trades"))}
+    d0 = date.fromisoformat(day)
+    acts, seen = [], set()
+    for e in sorted(ctx["events"], key=lambda e: str(e.get("date") or "")):
+        ed = str(e.get("date") or "")[:10]
+        k = (ed, e.get("symbol"), e.get("title"))
+        if day <= ed <= (d0 + timedelta(days=7)).isoformat() and k not in seen and str(e.get("symbol") or "") in ctx["closes"]:
+            seen.add(k)
+            acts.append({"date": ed, "company": e.get("company_name") or e.get("symbol"), "type": e.get("title") or "—"})
+    q = lambda spec, bp=False: [r for r in (quote_row(s, n, ctx["hist"].get(s), bp, upto=day) for s, n in spec) if r]   # noqa: E731
+    intra = [b for b in ctx["intra"] if b["date"][:10] == day]
+    return {"date": day, "at": None, "past": True,
+            "tasi": {"close": t["close"], "high": t["high"], "low": t["low"], "open": t["open"], "prev": t["prev"], "chg": t["chg"], "pct": t["chg_pct"]},
+            "mt30": {}, "tech": t, "breadth": breadth, **tables,
+            "intraday": [{"t": b["date"][11:16], "c": b["close"], "v": b["volume"]} for b in intra],
+            "daily": [{"d": b["date"][:10], "o": b["open"], "h": b["high"], "l": b["low"], "c": b["close"]} for b in bars[-130:]],
+            "global": q(GLOBAL), "commodities": q(COMMOD), "fx": q(FX), "rates": q(RATES, True), "actions": acts[:10]}
 
 
 # ── الاختيارات ونظرتُنا للمراكز ───────────────────────────────────────────
@@ -930,7 +1016,7 @@ def render(r: dict, part: str = "all") -> str:
     fin_rows = [[k, _num(v, f)] for k, v, f in (("مكرّر الربحية (مرّة)", fin.get("pe"), n2), ("السعر إلى القيمة الدفترية (مرّة)", fin.get("pb"), n2),
                                               ("عائد التوزيع (%)", fin.get("dy"), n2), ("العائد على حقوق المساهمين (%)", fin.get("roe"), n2))
                 if _f(v) is not None]
-    sec_rows = [[_e(s["name"]), _pc(s.get("pct")), _num((s.get("value") or 0) / 1e6, n0), _num(s.get("weight"), n2), _num(s.get("pe"), n2)]
+    sec_rows = [[_e(s["name"]), _pc(s.get("pct")), _num(s["value"] / 1e6 if s.get("value") is not None else None, n0), _num(s.get("weight"), n2), _num(s.get("pe"), n2)]
                 for s in m.get("sectors") or []]
     avg_rows = [[_e(a["label"]), _num(a.get("a5")), _num(a.get("a10")), _num(a.get("a20"))]
                 for k, a in av.items() if isinstance(a, dict) and "label" in a and any(_f(a.get(x)) is not None for x in ("a5", "a10", "a20"))]
@@ -1033,6 +1119,10 @@ def render(r: dict, part: str = "all") -> str:
                 if pk_rows else f'<p class="empty">لا اختياراتِ اليوم: {_e(r.get("no_pick_reason") or "لم تجتمع الشروط في أيّ سهم.")}</p>')
              + (f'<div class="cols" style="margin-top:4px">{charts}</div>' if charts else "")
              + (("<h2>للمتابعة</h2>" + _bul(r.get("watch") or [])) if r.get("watch") else ""))
+    if r.get("backfill"):
+        body4 = ((f'<p class="headline">{_e(r.get("headline"))}</p>' if r.get("headline") else "")
+                 + '<p class="empty">صفحةُ المحفظة تُكتب يومَ الجلسة نفسِها بمراكزها وقتئذٍ — ولا تُعاد كتابتُها لجلسةٍ مضت بمراكز اليوم.</p>'
+                 + (("<h2>للمتابعة</h2>" + _bul(r.get("watch") or [])) if r.get("watch") else ""))
     pages.append(("محفظتنا واختياراتنا", body4, "portfolio"))
 
     keep = [pg for pg in pages if part == "all" or pg[2] == part]

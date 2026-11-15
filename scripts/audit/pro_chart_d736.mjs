@@ -165,7 +165,8 @@ const hourly = () => { const out = []; for (let d = 0; d < 50; d++) for (const h
   out.push({ date: `${day} ${h}:00`, open: b, high: b + 0.5, low: b - 0.5, close: b + 0.2, volume: 1e5 }); } return out; };
 // ‏D746: قسمُ الأبحاث ورقةٌ يكتبها الخادم (‏services/research_paper) — والصفحةُ تعرضها بتاريخها، والمصادرُ لا تُعرض
 const RD_HEAD = { date: "2026-11-15", label: "الأحد 15 نوفمبر 2026", headline: "تراجعٌ بقيادة البنوك", close: 10258.22, pct: -0.66, view: "محايد", picks: 1 };
-const RD_DATES = [{ date: "2026-11-15", label: "الأحد 15 نوفمبر 2026" }, { date: "2026-11-12", label: "الخميس 12 نوفمبر 2026" }];
+const RD_DATES = [{ date: "2026-11-15", label: "الأحد 15 نوفمبر 2026" }, { date: "2026-11-12", label: "الخميس 12 نوفمبر 2026" },
+  { date: "2026-10-29", label: "الخميس 29 أكتوبر 2026" }];
 const RD_PAPER = part => `<!doctype html><html lang="ar" dir="rtl"><body style="margin:0"><section class="page" style="min-height:1100px">
   <h1>${part === "portfolio" ? "محفظتنا واختياراتنا" : "التقرير اليومي"}</h1><table><tr><td>تاسي</td><td>10,258.22</td></tr></table></section></body></html>`;
 const HOLD = [{ company: { symbol: "1120", name_ar: "مصرف الراجحي" }, last_price: 64.2, change_pct: 1.25 },
@@ -439,13 +440,15 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   const doc = await page.evaluate(() => { const W = document.documentElement.clientWidth, main = document.querySelector(".app-main");
     return { tabs: [...document.querySelectorAll('[data-role="rl-tab"]')].map(b => b.textContent.trim()),
              days: [...document.querySelectorAll('[data-role="rl-day"]')].map(b => b.textContent.trim()),
+             months: [...document.querySelectorAll('[data-role="rl-days"] .rl-mname')].map(b => b.textContent.trim()),
              pdf: !!document.querySelector('[data-role="rl-pdf"]'), lib: !!document.querySelector('[data-role="rl-lib"]'),
              srcs: (document.querySelector('[data-role="research-lab"]')?.textContent || "").includes("المصادر"),
              over: Math.max(document.documentElement.scrollWidth, main ? main.scrollWidth : 0) - W }; });
   const p1 = await paperOf();
   await page.locator('[data-role="rl-tab"]', { hasText: "التوصيات" }).click(); await page.waitForTimeout(900);
   const p2 = await paperOf();
-  say(JSON.stringify(doc.tabs) === JSON.stringify(["التقرير اليومي", "التوصيات"]) && doc.days[0] === "الأحد 15 نوفمبر 2026" && doc.pdf && !doc.lib && !doc.srcs
+  say(JSON.stringify(doc.tabs) === JSON.stringify(["التقرير اليومي", "التوصيات"]) && JSON.stringify(doc.days) === JSON.stringify(["15", "12", "29"])
+      && JSON.stringify(doc.months) === JSON.stringify(["نوفمبر 2026", "أكتوبر 2026"]) && doc.pdf && !doc.lib && !doc.srcs
       && p1.h1 === "التقرير اليومي" && p1.h >= 1000 && p2.h1 === "محفظتنا واختياراتنا" && doc.over <= 1,
       `${label}: مختبرُ الأبحاث ورقةُ التقرير بتاريخها — التقريرُ اليوميّ ثمّ التوصيات، وملفّ PDF، ولا مكتبةَ ولا مصادر`, JSON.stringify({ ...doc, p1, p2 }));
   let olds = 0;
