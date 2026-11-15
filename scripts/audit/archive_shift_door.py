@@ -34,3 +34,40 @@ async def main():
 
 
 asyncio.run(main())
+
+
+async def verify():
+    """إغلاقُ آخر جلسةٍ قبل اليوم من ياهو مقابل «الإغلاق السابق» الرسميّ في لقطة «تداول» — لكلّ شركات السوق الرئيسي."""
+    from app.services import tadawul_market as TM
+    from app.services.market_data import market_service as M
+    from app.data.universe import is_main
+    from app.services import research_paper as RP
+    rows = {s: r for s, r in (TM.usable_rows()[0] or {}).items() if is_main(s)}
+    tasi = RP._bars_ok(await M.get_bars("^TASI.SR", "1d"))
+    last = tasi[-1]["date"][:10]
+    prevd = tasi[-2]["date"][:10]
+    ok = bad = miss = 0
+    worst = []
+    sem = asyncio.Semaphore(6)
+
+    async def one(s, r):
+        async with sem:
+            b = RP._bars_ok(await M.get_bars(f"{s}.SR", "1d"))
+        return s, r, {x["date"][:10]: x["close"] for x in b}
+    for s, r, cl in await asyncio.gather(*(one(s, r) for s, r in rows.items())):
+        pc = r.get("prev_close")
+        y = cl.get(prevd)
+        if not pc or not y:
+            miss += 1
+            continue
+        d = abs(y / pc - 1) * 100
+        if d <= 0.3:
+            ok += 1
+        else:
+            bad += 1
+            worst.append((s, round(y, 2), pc, round(d, 1)))
+    print(f"إغلاقُ {prevd} (آخرُ جلسةٍ قبل {last}): مطابقٌ {ok} · مخالفٌ {bad} · غائب {miss}")
+    print("  أكبرُ المخالفات:", sorted(worst, key=lambda w: -w[3])[:12])
+
+
+asyncio.run(verify())
