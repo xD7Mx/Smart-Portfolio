@@ -20,8 +20,10 @@ checks = [
      "٢ والمراقبةُ قسمٌ مكانه في الترتيب المحلّيّ والمحفوظ على الخادم معاً — وصفحةُ البداية والمخفيّةُ تتبعانه"),
     # ‏D612 ← D745 (المالك 2026-11-15: «نغيّر الفكرةَ كلياً»): مختبرُ الأبحاث قسمُ أبحاث — تقريرٌ يوميٌّ وتوصياتٌ ومكتبةُ ما قُرئ،
     # كلُّ سطرٍ برقم مصدره؛ وأُلغيت سلّةُ الشركات القديمة (StarsPage)
-    (all(t in page for t in ('"التقرير اليومي"', '"التوصيات"', '"المكتبة"', "<Cite src=", "researchDesk(")) and "starsLab(" not in page
-     and not (SRC / "pages" / "StarsPage.tsx").exists(), "٣ D745 مختبرُ الأبحاث قسمُ أبحاث: التقريرُ اليوميّ والتوصياتُ والمكتبة، وكلُّ سطرٍ بمصدره"),
+    # ‏D746: والمصادرُ تُلزِم ولا تُعرض، والمكتبةُ في الخفاء — الصفحةُ ورقةُ التقرير نفسُها بتاريخها
+    (all(t in page for t in ('"التقرير اليومي"', '"التوصيات"', "researchDesk(", "researchPaper(", "researchPdf(", "srcDoc=")) and "starsLab(" not in page
+     and "rl-lib" not in page and "researchLibrary" not in page and "<Cite" not in page and not (SRC / "pages" / "StarsPage.tsx").exists(),
+     "٣ D745 · D746 مختبرُ الأبحاث قسمُ أبحاث: ورقةُ التقرير اليوميّ والتوصيات بتاريخها وملفّها — بلا مكتبةٍ ولا مصادرَ معروضة"),
     ("stars" not in rd("pages", "ChartPage.tsx"), "٤ لا درجَ لها في الرسم البياني"),
 ]
 fail = 0
