@@ -76,7 +76,8 @@ check(st["2026-11-15"]["value"] == 3e9 and abs(av["value"]["a5"] - 3.8) < 1e-9 a
 
 rows = {"1": {"price": 110, "prev_close": 100, "change_pct": 10, "turnover": 5e6}, "2": {"price": 90, "prev_close": 100, "change_pct": -10, "turnover": 1e6},
         "3": {"price": 50, "prev_close": 50, "change_pct": 0, "turnover": 2e6}}
-fund = {"1": {"shares": 3e6, "ni": 2e7, "eq": 1e8}, "2": {"shares": 1e6, "ni": 1e6, "eq": 5e7}, "3": {"shares": 2e6, "ni": 1e6, "eq": 5e7}}
+fund = {"1": {"shares": 3e6, "verified": True, "ni": 2e7, "eq": 1e8}, "2": {"shares": 1e6, "verified": True, "ni": 1e6, "eq": 5e7},
+        "3": {"shares": 2e6, "verified": True, "ni": 1e6, "eq": 5e7}}
 tb = RP.market_tables(rows, {"1": "أ", "2": "ب", "3": "ج"}, {"1": "البنوك", "2": "البنوك", "3": "الطاقة"}, fund, {"1": 4.0})
 bank = next(s for s in tb["sectors"] if s["name"] == "البنوك")
 check(abs(bank["pct"] - ((3e6 * 110 + 1e6 * 90) / (3e6 * 100 + 1e6 * 100) - 1) * 100) < 1e-9 and bank["up"] == 1 and bank["down"] == 1
@@ -85,7 +86,15 @@ check(abs(bank["pct"] - ((3e6 * 110 + 1e6 * 90) / (3e6 * 100 + 1e6 * 100) - 1) *
       "٧ القطاعُ بأوزان قيمته السوقية (الأسهمُ من الإفصاح × السعر)، والأكثرُ ارتفاعاً وانخفاضاً ووزناً، ومكرّرُ السوق = القيمةُ ÷ الأرباح",
       f"{bank['pct']:.3f}% · مكرّر {tb['fin']['pe']:.2f}" if tb["fin"] else "")
 tb2 = RP.market_tables(rows, {}, {}, {"1": fund["1"]}, {})
-check(tb2["fin"] is None, "٨ وإن قلّت تغطيةُ الإفصاح عن 85٪ من الشركات لا تُكتب مؤشّراتُ السوق المالية")
+check(tb2["fin"] is None, "٨ وإن قلّت تغطيةُ الإفصاح عن 75٪ من الشركات لا تُكتب مؤشّراتُ السوق المالية")
+vs = RP.verified_shares
+check(vs(250e9, 266226640, 1.06) == (250e6, True) and vs(5.625e9, 79098000, 0.14) == (562.5e6, True)
+      and vs(3838261223, 8527980356, 1.91) == (3838261223, True) and abs(vs(4.5e6, 6.4e9, 2.5)[0] - 2.56e9) < 1 and vs(4.5e6, 6.4e9, 2.5)[1]
+      and vs(31500000e9, 1e8, 0.1) == (None, False) and vs(2e9, None, None) == (2e9, False),
+      "٨ب الأسهمُ متحقَّقٌ منها بصافي الربح ÷ ربحية السهم: وحدةُ الألف والعشرة تُصحَّح (‏الطبية التخصصية · ينبع)، والبعيدُ بلا قوّة عشرةٍ يُستبدل بالضمنية أو يُستبعد")
+rows3 = {"9": {"price": 10, "prev_close": 10, "change_pct": 0, "turnover": 1}}
+tb3 = RP.market_tables(rows3, {}, {"9": "التأمين"}, {"9": {"shares": 1e15, "verified": False, "ni": None, "eq": 1e9}}, {})
+check(not tb3["heavy"], "٨ج وغيرُ المتحقَّق منه بمضاعف دفتريةٍ غيرِ معقول لا يدخل الأكبرَ وزناً ولا مكرّرَ السوق")
 check(RP.position_view({"action": "أضف على دفعتين"}) == "شراء" and RP.position_view({"action": "خفّف", "pnl": 12}) == "جني الأرباح"
       and RP.position_view({"action": "خفّف", "pnl": -3}) == "تخفيف" and RP.position_view({"action": "احتفظ"}) == "احتفاظ",
       "٩ نظرتُنا للمركز هي موقفُ مستشار التطبيق بمفردات بيوت الأبحاث — والتخفيفُ في الربح «جني الأرباح»")

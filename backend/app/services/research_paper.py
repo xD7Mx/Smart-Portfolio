@@ -220,8 +220,29 @@ def _fundamentals(sym: str) -> dict:
     p = rows[-1]
     if p.get("shares_unit_gap") or p.get("shares_mismatch"):
         return {}
-    sh = _f(p.get("shares_outstanding"))
-    return {"shares": sh if sh and sh > 0 else None, "ni": _f(p.get("net_income")), "eq": _f(p.get("equity"))}
+    ni, eps = _f(p.get("net_income")), _f(p.get("eps"))
+    sh, ok = verified_shares(_f(p.get("shares_outstanding")), ni, eps)
+    return {"shares": sh, "verified": ok, "ni": ni, "eq": _f(p.get("equity"))}
+
+
+def verified_shares(sh: float | None, ni: float | None, eps: float | None) -> tuple[float | None, bool]:
+    """الأسهمُ القائمةُ مُتحقَّقاً منها بالأسهم الضمنية (صافي الربح ÷ ربحية السهم) — قِيس (‏paper_caps_door): اثنتان وخمسون شركةً وحدةُ أسهمها
+    في الإفصاح خاطئة (×1000 · ×10 · ÷1000)، فظهرت «الطبية التخصصية» ثانيةَ السوق وزناً. فإن قاربت الضمنيةَ (بين ثلثَيها ومرّةٍ ونصف — فرقُ
+    المتوسّط المرجّح والإصدار) بقيت، وإن بعُدت بقوّةٍ من قوى العشرة صُحّحت وحدتُها، وإلا فالضمنيةُ إن كانت ربحيةُ السهم كبيرةً بما يكفي لدقّتها،
+    وإلا لا أسهم. وبلا ربحيةٍ تبقى غيرَ متحقَّقٍ منها فتُختبر بمضاعف الدفترية لاحقاً."""
+    if not sh or sh <= 0:
+        sh = None
+    imp = ni / eps if ni and eps and abs(eps) >= 0.05 else None
+    if imp is None or imp <= 0:
+        return sh, False
+    if sh:
+        r = sh / imp
+        if 0.66 <= r <= 1.5:
+            return sh, True
+        k = round(math.log10(r))
+        if k and 0.8 <= r / 10 ** k <= 1.25:
+            return sh / 10 ** k, True
+    return (imp, True) if abs(eps) >= 0.5 else (None, False)
 
 
 def market_tables(rows: dict, names: dict, sectors: dict, fund: dict, dy: dict) -> dict:
@@ -241,6 +262,11 @@ def market_tables(rows: dict, names: dict, sectors: dict, fund: dict, dy: dict) 
         tot["n"] += 1
         f = fund.get(sym) or {}
         sh = f.get("shares")
+        if sh and not f.get("verified"):
+            # غيرُ المتحقَّق منه يُقبل إن عقل مضاعفُ دفتريته (‏0.05–50) — وإلا يُستبعد ولا يُرتَّب
+            eq = f.get("eq")
+            if not (eq and eq > 0 and 0.05 <= sh * px / eq <= 50):
+                sh = None
         name_sec = sectors.get(sym) or "غير مصنّف"
         s = sec.setdefault(name_sec, {"name": name_sec, "cap": 0.0, "prev_cap": 0.0, "ni": 0.0, "value": 0.0, "up": 0, "down": 0, "n": 0, "pcts": []})
         s["n"] += 1
@@ -279,7 +305,7 @@ def market_tables(rows: dict, names: dict, sectors: dict, fund: dict, dy: dict) 
     movers = [p for p in plain if p["pct"] is not None]
     cover = tot["with"] / tot["n"] if tot["n"] else 0
     fin = None
-    if cover >= 0.85 and tot["cap"] > 0:
+    if cover >= 0.75 and tot["cap"] > 0:
         fin = {"cap": tot["cap"], "pe": tot["cap"] / tot["ni"] if tot["ni"] > 0 else None, "pb": tot["cap"] / tot["eq"] if tot["eq"] > 0 else None,
                "roe": tot["ni"] / tot["eq"] * 100 if tot["eq"] > 0 else None, "dy": tot["dyw"] / tot["dyc"] if tot["dyc"] > 0 else None,
                "cover": round(cover * 100)}
