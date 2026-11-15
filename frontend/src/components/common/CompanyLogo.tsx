@@ -19,7 +19,9 @@ const RESOLVED = new Map<string, string>();
  *  ٤. حرفٌ على تدرّج — فلا تظهر صورةٌ مكسورة أبداً.
  */
 export default function CompanyLogo({ symbol, color, size = 40, logoUrl }: { symbol: string; color?: string; size?: number; logoUrl?: string | null }) {
-  const base = (symbol || "").replace(".SR", "").trim();
+  // ‏D747: عقدُ الخيار بشعار أصله (‏SPY261120C00600000 ⇐ SPY)
+  const opt = /^([A-Z]{1,6})\d{6}[CP]\d{8}$/.exec((symbol || "").trim().toUpperCase());
+  const base = opt ? opt[1] : (symbol || "").replace(".SR", "").trim();
 
   /* ══ ترتيب المصادر — صُحِّح بالقياس لا بالافتراض ══
      كان المخزَّن في قاعدة البيانات أولاً والخريطة ثانياً، بحجّة أن المخزَّن

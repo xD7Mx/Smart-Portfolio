@@ -2169,18 +2169,48 @@ _RD_RUN = {"on": False, "at": None, "msg": ""}
 
 @router.get("/research-desk")
 async def research_desk_view(day: str | None = None):
-    """تقريرُ المحفظة النشطة اليوميّ (أو يومٍ بعينه)، وأيامُ الأرشيف، وحالُ المعرفة المقروءة."""
+    """أيامُ التقارير المؤرّخة للمحفظة النشطة، وخلاصةُ اليوم المطلوب (أو الأحدث) — والورقةُ نفسُها من `/research-desk/paper`."""
     from app.core.portfolio_scope import active_pid
     from app.services import research_desk as RD
+    from app.services.research_paper import day_label
     pid = active_pid() or 0
-    return success_response({"report": RD.load_report(pid, day), "dates": RD.report_dates(pid), "stats": RD.stats(), "running": dict(_RD_RUN)})
+    r = RD.load_report(pid, day)
+    head = None
+    if r:
+        t = (r.get("market") or {}).get("tasi") or {}
+        head = {"date": r["date"], "label": day_label(r["date"]), "headline": r.get("headline"), "close": t.get("close"), "pct": t.get("pct"),
+                "view": ((r.get("market") or {}).get("tech") or {}).get("view"), "picks": len(r.get("picks") or [])}
+    dates = RD.report_dates(pid)
+    return success_response({"report": head, "dates": [{"date": d, "label": day_label(d)} for d in dates], "running": dict(_RD_RUN)})
 
 
-@router.get("/research-desk/library")
-async def research_desk_library():
-    """ما قرأه القسمُ من تقارير الجهات — الأحدثُ أوّلاً، بخلاصته ورابط ملفّه الأصليّ."""
+@router.get("/research-desk/paper")
+async def research_desk_paper(day: str | None = None, part: str = "market"):
+    """الورقةُ (HTML) — صفحاتُ السوق (‏market) أو صفحةُ المحفظة (‏portfolio) أو كلُّها (‏all)."""
+    from app.core.portfolio_scope import active_pid
     from app.services import research_desk as RD
-    return success_response(RD.library())
+    from app.services.research_paper import render
+    r = RD.load_report(active_pid() or 0, day)
+    if not r:
+        return success_response({"html": None})
+    return success_response({"html": render(r, part if part in ("market", "portfolio", "all") else "market"), "date": r["date"]})
+
+
+@router.get("/research-desk/pdf")
+async def research_desk_pdf(day: str | None = None):
+    """الورقةُ كاملةً ملفَّ PDF بتاريخ جلستها — كما تصل إلى تلغرام."""
+    from fastapi import Response
+    from app.core.portfolio_scope import active_pid
+    from app.services import research_desk as RD
+    from app.services.research_paper import pdf
+    r = RD.load_report(active_pid() or 0, day)
+    if not r:
+        raise HTTPException(status_code=404, detail="لا تقريرَ لهذا اليوم.")
+    data = await pdf(r)
+    if not data:
+        raise HTTPException(status_code=503, detail="تعذّرت طباعةُ التقرير الآن.")
+    return Response(content=data, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="daily-report-{r["date"]}.pdf"', "Cache-Control": "no-store"})
 
 
 @router.post("/research-desk/run", dependencies=[Depends(require_owner)])
@@ -2194,10 +2224,10 @@ async def research_desk_run():
     async def _go():
         _RD_RUN.update(on=True, at=_dtm.now().isoformat(timespec="minutes"), msg="يقرأ التقارير الجديدة")
         try:
-            got = await RD.ingest(budget=4, days=10)
-            _RD_RUN["msg"] = f"قُرئ {got['read']} — يكتب التقرير"
+            await RD.ingest(budget=4, days=10)
+            _RD_RUN["msg"] = "يكتب التقرير"
             rep = await RD.compose_all(send=False)
-            _RD_RUN["msg"] = "اكتمل" if rep else "لا مصادرَ مقروءةً حديثة"
+            _RD_RUN["msg"] = "اكتمل" if rep else "لا جلسةَ اليوم"
         except Exception as e:                                    # noqa: BLE001
             logger.warning("قسم الأبحاث: التشغيل {}", type(e).__name__)
             _RD_RUN["msg"] = "تعذّر"
@@ -2205,6 +2235,22 @@ async def research_desk_run():
             _RD_RUN["on"] = False
     asyncio.create_task(_go())
     return success_response({"on": True, "msg": "بدأ"})
+
+
+# ══ ‏D747: البحثُ في السوق الأمريكي كلِّه وسلسلةُ عقود الخيارات ══
+@router.get("/symbol-search")
+async def symbol_search(q: str = ""):
+    """رموزُ السوق الأمريكي كلِّه (وغيرِه) بأسمائها وبورصاتها وأنواعها — للبحث في غرفة التداول."""
+    from app.services.options_chain import search
+    return success_response(await search(q))
+
+
+@router.get("/options/{symbol}")
+async def option_chain(symbol: str, date: int | None = None):
+    """سلسلةُ عقود الخيارات لأجلٍ واحد (أو أقربِ أجل): الآجالُ بأيامها، وعقودُ الشراء والبيع بأسعارها."""
+    from app.services.options_chain import chain
+    got = await chain(symbol, date)
+    return success_response(got, message="سلسلةُ الخيارات." if got else "لا عقودَ خياراتٍ لهذا الرمز.")
 
 
 @public_router.get("/logo/{symbol}")

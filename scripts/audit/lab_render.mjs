@@ -52,27 +52,36 @@ await page.route("**/api/v1/**", r => {
 // ‏D613 ← D745: مختبرُ الأبحاث صار قسمَ أبحاث — يُرسَم بلا خطأٍ بلا تقريرٍ بعد، ثمّ بتقريرٍ كامل، ولا شاشةَ سوداء في الحالين
 await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe"); } catch { /* */ } });
 let withReport = false;
+const parts = [];
 await page.unroute("**/api/v1/**");
 await page.route("**/api/v1/**", r => {
   const u = new URL(r.request().url());
-  if (u.pathname.endsWith("/market/research-desk")) return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: withReport
-    ? { report: { date: "2026-11-15", portfolio_id: 1, portfolio_name: "محفظتي", tasi: { price: 10258.22, pct: -0.66 }, headline: "عنوان", market: { summary: "س", points: [] },
-        local: [{ text: "محليّ", src: [1] }], global: [], sectors: [], portfolio: [], watch: [], recommendations: [], no_rec_reason: "لا ما يستحقّ",
-        sources: [{ n: 1, source: "الجزيرة كابيتال", title: "اليومي", date: "2026-11-15", kind: "تقرير يوميّ" }] }, dates: ["2026-11-15"], stats: { notes: 3 }, running: { on: false } }
-    : { report: null, dates: [], stats: { notes: 0 }, running: { on: false } } }) });
-  return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: [] }) });
+  const ok = data => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data }) });
+  if (u.pathname.endsWith("/market/research-desk")) return ok(withReport
+    ? { report: { date: "2026-11-15", label: "الأحد 15 نوفمبر 2026", headline: "عنوان", close: 10258.22, pct: -0.66, view: "محايد", picks: 0 },
+        dates: [{ date: "2026-11-15", label: "الأحد 15 نوفمبر 2026" }], running: { on: false } }
+    : { report: null, dates: [], running: { on: false } });
+  if (u.pathname.endsWith("/market/research-desk/paper")) {
+    const part = u.searchParams.get("part"); parts.push(part);
+    return ok({ html: `<!doctype html><html dir="rtl"><body><section class="page"><h1>${part === "portfolio" ? "محفظتنا واختياراتنا" : "التقرير اليومي"}</h1>`
+      + `<p>${part === "portfolio" ? "لا اختياراتِ اليوم: لم تجتمع الشروط." : "خبرٌ محليّ"}</p></section></body></html>`, date: "2026-11-15" });
+  }
+  return ok([]);
 });
 await page.goto(`http://localhost:${PORT}/watchlist?tab=lab`, { waitUntil: "load", timeout: 30000 });
 await page.waitForTimeout(1500);
-say(errs.length === 0 && await page.locator('[data-role="rl-empty"]').count() === 1, "١ المختبرُ يُفتح بلا خطأ — وبلا تقريرٍ يقول ذلك", errs.join(" ‖ "));
+const empty = (await page.textContent('[data-role="rl-empty"]').catch(() => "")) || "";
+say(errs.length === 0 && empty.includes("بعد إغلاق السوق"), "١ المختبرُ يُفتح بلا خطأ — وبلا تقريرٍ يقول متى يصدر", errs.join(" ‖ ") || empty);
 withReport = true;
 await page.reload({ waitUntil: "load" });
-await page.waitForTimeout(1500);
-const t2 = (await page.textContent('[data-role="rl-doc"]').catch(() => "")) || "";
-say(errs.length === 0 && t2.includes("التقرير اليومي") && t2.includes("محليّ"), "٢ وبتقريرٍ يُرسَم التقريرُ كاملاً (لا شاشةَ سوداء)", `نصّ ${t2.length}`);
+await page.waitForTimeout(1800);
+const inFrame = () => page.evaluate(() => document.querySelector('[data-role="rl-doc"] iframe')?.contentDocument?.body?.textContent || "");
+const t2 = await inFrame();
+say(errs.length === 0 && t2.includes("التقرير اليومي") && t2.includes("خبرٌ محليّ"), "٢ وبتقريرٍ تُرسَم ورقتُه كاملةً (لا شاشةَ سوداء)", `نصّ ${t2.length}`);
 await page.locator('[data-role="rl-tab"]', { hasText: "التوصيات" }).click();
-await page.waitForTimeout(400);
-say(((await page.textContent('[data-role="rl-recs"]').catch(() => "")) || "").includes("لا توصيةَ اليوم: لا ما يستحقّ"), "٣ وغيابُ التوصية يُقال بسببه");
+await page.waitForTimeout(900);
+const t3 = await inFrame();
+say(parts.includes("portfolio") && t3.includes("لا اختياراتِ اليوم: لم تجتمع الشروط."), "٣ والتوصياتُ صفحةُ المحفظة — وغيابُ الاختيار يُقال بسببه", t3.slice(0, 80));
 await browser.close(); stop();
 console.log("\nالنتيجة:", fail ? "عطب ✖" : "نظيف ✔");
 process.exit(fail);

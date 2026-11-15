@@ -10,6 +10,7 @@ Supported providers:
 """
 
 from typing import Optional, List
+import re
 import yfinance as yf
 import httpx
 from loguru import logger
@@ -649,12 +650,15 @@ class YahooFinanceAdapter:
             if not can_call("yahoo"):
                 return cache.get(stale_k) or []
             record("yahoo")
+            # ‏D747: عقدُ الخيار عمرُه قصير — والمزوّدُ يرفض له المدى الطويل (قِيس: ‎5m/60d و‎60m/2y فارغان واليوميُّ حاضر)، فيُطلب بمدًى يناسبه
+            opt = bool(re.match(r"^[A-Z]{1,6}\d{6}[CP]\d{8}$", symbol.upper()))
             if unit == "m":
                 base = 30 if n % 30 == 0 else 15 if n % 15 == 0 else 5 if n % 5 == 0 else 1
-                rows = B.clean_intraday(await self._fetch_intraday(symbol, "7d" if base == 1 else "60d", f"{base}m"))
+                rng = ("5d" if base == 1 else "1mo") if opt else ("7d" if base == 1 else "60d")
+                rows = B.clean_intraday(await self._fetch_intraday(symbol, rng, f"{base}m"))
                 pts, ttl = (B.bucket_intraday(rows, n, B.session_mode(symbol), base) if n != base else rows), 60
             elif unit == "h":
-                rows = B.clean_intraday(await self._fetch_intraday(symbol, "2y", "60m"))
+                rows = B.clean_intraday(await self._fetch_intraday(symbol, "3mo" if opt else "2y", "60m"))
                 pts, ttl = (B.bucket_intraday(rows, n * 60, B.session_mode(symbol)) if n > 1 else rows), 2 * 60
             else:
                 pts, ttl = B.bucket_n(riyadh_months(await self._fetch_chart_points(symbol, "max", "1mo")), n), 10 * 60

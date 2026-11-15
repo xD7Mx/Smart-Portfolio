@@ -370,7 +370,7 @@ async def job_research_night():
 
 
 async def job_research_report():
-    """قسمُ الأبحاث (D745): التقريرُ اليوميّ لكلّ محفظة قبل الافتتاح — يُحفظ ويُرسَل في التطبيق وتلغرام."""
+    """قسمُ الأبحاث (D745 · D746): التقريرُ اليوميّ لكلّ محفظة بعد إغلاق السوق — يُحفظ ويُرسَل ملفّاً مؤرَّخاً إلى تلغرام."""
     try:
         from app.services.research_desk import compose_all
         await compose_all(send=True)
@@ -838,10 +838,11 @@ def start_scheduler():
                        id="advisor_weekly_thu", replace_existing=True)
     # ‏D745: قسمُ الأبحاث — يقرأ صباحاً وعصراً، ويبني السياقَ ليلاً، ويكتب التقريرَ قبل الافتتاح أيامَ التداول
     _scheduler.add_job(job_research_ingest, CronTrigger(hour=8, minute=50), id="research_ingest_morning", replace_existing=True)
-    _scheduler.add_job(job_research_ingest, CronTrigger(hour=16, minute=40), id="research_ingest_afternoon", replace_existing=True)
+    _scheduler.add_job(job_research_ingest, CronTrigger(hour=15, minute=5), id="research_ingest_afternoon", replace_existing=True)
     _scheduler.add_job(job_research_night, CronTrigger(hour=2, minute=30), id="research_ingest_night", replace_existing=True)
-    _scheduler.add_job(job_research_report, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=9, minute=40),
-                       id="research_report_morning", replace_existing=True)
+    # ‏D746 (بأمر المالك): «التقريرُ اليوميّ يجيني على تلغرام بعد ما يقفل السوق» — بعد مزاد الإغلاق والتداول على سعره (15:20)
+    _scheduler.add_job(job_research_report, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=15, minute=40),
+                       id="research_report_close", replace_existing=True)
     # ‏D581: قبل الافتتاح وبعد الإغلاق — والمخزَّنُ يعيش يوماً فيبقى جاهزاً بينهما
     _scheduler.add_job(job_stock_warm, CronTrigger(hour=8, minute=40), id="stock_warm_morning", replace_existing=True)
     _scheduler.add_job(job_stock_warm, CronTrigger(hour=16, minute=10), id="stock_warm_close", replace_existing=True)

@@ -482,6 +482,9 @@ _node scripts/audit/trade_room_d732.mjs || _note "$LINENO"   # ‏D732: غرفة
 python3 scripts/audit/chart_bars_d735.py || _note "$LINENO"   # ‏D735: شموعُ الرسم نظيفة — لا تكرارَ ولا شمعةَ عطلة، وأيُّ إطارٍ مخصَّص
 _node scripts/audit/pro_chart_d736.mjs || _note "$LINENO"   # ‏D736: الرسمُ الاحترافيّ — شموعٌ مقروءة ولوحاتٌ حقيقية وأدواتُ رسم، والقوائمُ يمينَ الشاشة
 python3 scripts/audit/research_desk_d745.py || _note "$LINENO"   # ‏D745: قسمُ الأبحاث — مصادرُ موثّقة وتوصياتٌ بدليلين وتقريرٌ يوميٌّ إلى تلغرام
+python3 scripts/audit/research_paper_d746.py || _note "$LINENO"   # ‏D746: ورقةُ التقرير اليوميّ على هيئة بيوت الأبحاث — مؤرّخةٌ وبلا مصادر
+python3 scripts/audit/options_chain_d747.py || _note "$LINENO"   # ‏D747: البحثُ في السوق الأمريكي كلِّه وسلسلةُ عقود الخيارات
+_node scripts/audit/options_d747.mjs || _note "$LINENO"   # ‏D747: الخياراتُ في غرفة التداول — الآجالُ بأيامها وفتحُ رسم العقد وإضافتُه
 
 # D198: درجةُ الحوكمة تُقرأ من المحرّك، والعمودُ المخزَّن يملأ الفراغَ ولا
 # يغلبه. كان المخزَّنُ أوّلاً فيُعرض رقمٌ قديمٌ في الفرز وخريطة القطاعات

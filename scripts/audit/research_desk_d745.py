@@ -33,21 +33,18 @@ items = [{"url": "co", "date": "2026-11-14", "kind": "تقرير شركة"}, {"u
 q = [i["url"] for i in RD.queue(items, {"d1": {}}, T, 10)]
 check(q == ["d2", "ec", "co"], "١ الطابور: اليوميُّ الأحدثُ أوّلاً ثمّ الاقتصاديّ ثمّ الشركات — ولا يُعاد المقروء ولا ما خرج عن المدى أو بلا ملفّ", str(q))
 
-obj = {"headline": "h", "market": {"summary": "s", "points": [{"text": "بمصدر", "src": [1]}, {"text": "بلا مصدر", "src": []}, {"text": "مصدرٌ وهميّ", "src": [7]}]},
-       "local": [{"text": "من التطبيق وحده", "src": [0]}, {"text": "محليّ", "src": [2]}],
-       "portfolio": [{"symbol": "1120", "stance": "إيجابي", "text": "ت", "src": [0]}, {"symbol": "9999", "text": "غريب", "src": [1]}],
-       "recommendations": [{"symbol": "1120", "action": "إضافة", "why": "سبب", "src": [0, 1]},
-                           {"symbol": "2222", "action": "شراء", "why": "سبب", "src": [1]},
-                           {"symbol": "7777", "action": "شراء", "why": "سبب", "src": [0, 1]},
-                           {"symbol": "2010", "action": "شراء", "why": "", "src": [0, 2]}], "no_rec_reason": "x"}
-v = RD.validate(obj, 2, {"1120", "2222", "2010"})
-check([r["text"] for r in v["market"]["points"]] == ["بمصدر"] and [r["text"] for r in v["local"]] == ["محليّ"],
-      "٢ لا سطرَ بلا مصدرٍ صحيح — والخبرُ لا يكفيه رقمُ التطبيق وحده (‏0)", str([r["text"] for r in v["market"]["points"] + v["local"]]))
-check([r["symbol"] for r in v["portfolio"]] == ["1120"], "٣ ولا مركزَ لرمزٍ خارج المحفظة والمصادر")
-check([r["symbol"] for r in v["recommendations"]] == ["1120"] and v["no_rec_reason"] == "",
-      "٤ والتوصيةُ بدليلين (مصدرٌ بحثيّ + أرقامُ التطبيق) ولرمزٍ معروفٍ وبسبب — وإلا تُحذف", str([r["symbol"] for r in v["recommendations"]]))
-v0 = RD.validate({"recommendations": [], "no_rec_reason": "لا ما يستحقّ"}, 1, set())
-check(v0["recommendations"] == [] and v0["no_rec_reason"] == "لا ما يستحقّ", "٥ وإن لم تكن توصيةٌ قيل ذلك وسببُه")
+obj = {"headline": "h", "local": [{"text": "من التطبيق وحده", "src": [0]}, {"text": "محليّ", "src": [2]}, {"text": "بلا مصدر", "src": []},
+                                  {"text": "مصدرٌ وهميّ", "src": [7]}, {"text": "قالت الجزيرة كابيتال إنّ السوق", "src": [1]}, {"text": "خبرٌ (أرقام)", "src": [1]}],
+       "portfolio": [{"symbol": "1120", "text": "ت", "src": [0, 1]}, {"symbol": "9999", "text": "غريب", "src": [1]}, {"symbol": "2222", "text": "أرقامٌ فقط", "src": [0]}],
+       "recommendations": [{"symbol": "1120", "action": "شراء", "why": "سبب", "src": [0, 1]}]}
+v = RD.validate(obj, 2, {"1120", "2222"})
+check([r["text"] for r in v["local"]] == ["محليّ"],
+      "٢ لا سطرَ بلا مصدرٍ بحثيٍّ صحيح — ولا اسمَ جهةٍ ناشرةٍ في النصّ (‏D746: «اعتمدها ولا تذكرها»)", str([r["text"] for r in v["local"]]))
+check([r["symbol"] for r in v["portfolio"]] == ["1120"], "٣ ولا مركزَ لرمزٍ خارج المحفظة، ولا ما يعني المركزَ بلا خبرٍ من المصادر")
+check("recommendations" not in v and "recommendations" not in RD.COMPOSE_PROMPT,
+      "٤ والنموذجُ لا يوصي: أفضلُ الاختيارات محسوبةٌ بشروطٍ معلنة (‏research_paper.pick_candidates)")
+v0 = RD.validate({"headline": "توقّعت الراجحي المالية ارتفاعاً"}, 1, set())
+check(v0["headline"] == "", "٥ والعنوانُ الذي يسمّي جهةً ناشرةً يُحذف")
 
 n = RD._clean_note({"headline": " خ ", "points": ["a", "", "b"], "companies": [{"symbol": "1120.SR", "name": "الراجحي", "target": 80},
                     {"symbol": "1120", "name": "الراجحي", "target": -3}, {"symbol": None}], "sectors": [{"name": "البنوك", "view": "إيجابي"}]})
@@ -55,12 +52,12 @@ check(n["headline"] == "خ" and n["points"] == ["a", "b"] and [c["symbol"] for c
       and n["companies"][1]["target"] is None and n["companies"][0]["target"] == 80.0 and n["sectors"][0]["name"] == "البنوك",
       "٦ المذكّرة: حقولُها منظّفة، والرمزُ أربعةُ أرقامٍ وإلا لا رمز، والسعرُ المستهدف موجبٌ أو لا شيء")
 
-rep = {"portfolio_name": "محفظتي", "date": "2026-11-15", "headline": "عنوان", "market": {"summary": "مستقرّ"},
-       "local": [{"text": "محليّ", "src": [1]}], "global": [], "portfolio": [{"name": "الراجحي", "stance": "إيجابي", "text": "ت", "src": [0, 1]}],
-       "recommendations": [], "no_rec_reason": "لا ما يستحقّ", "sources": [{"n": 1, "source": "الجزيرة كابيتال"}, {"n": 2, "source": "الراجحي المالية"}]}
-L = RD.telegram_lines(rep)
-check(L[0].startswith("📑 التقرير اليوميّ — محفظتي") and any("لا توصيةَ اليوم" in x for x in L) and "المصادر: الجزيرة كابيتال · الراجحي المالية" in L[-1],
-      "٧ رسالةُ تلغرام: العنوانُ والسوقُ والأخبارُ ومحفظتُنا والتوصياتُ (أو سببُ غيابها) والمصادر", L[-1])
+rep = {"portfolio_name": "محفظتي", "date": "2026-11-15", "headline": "عنوان", "picks": [{"symbol": "8010"}],
+       "market": {"tasi": {"close": 10258.22, "pct": -0.66}, "breadth": {"value": 2.7e9}, "tech": {"view": "محايد"}}}
+cap = RD.caption(rep)
+check(cap.startswith("<b>التقرير اليومي — الأحد 15 نوفمبر 2026</b>") and "10,258.22" in cap and "-0.66%" in cap and "اختياراتنا اليوم: 1" in cap
+      and not any(h in cap for h in ("الجزيرة", "الراجحي المالية", "المصادر")),
+      "٧ تعليقُ ملفّ تلغرام مؤرَّخٌ بيوم الجلسة، بأرقامها ونظرتِنا، وبلا مصادر", cap.replace("\n", " ¦ "))
 
 k = RD.knowledge()
 k["notes"] = [{"key": "a", "date": "2025-10-01"}, {"key": "b", "date": "2026-11-01"}]
@@ -71,13 +68,16 @@ check([x["key"] for x in p["notes"]] == ["b"] and set(p["read"]) == {"b"}, "٨ �
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
 check("create_subprocess_exec" in sch[sch.index("async def job_research_ingest"):sch.index("async def job_research_night")]
-      and 'CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=9, minute=40)' in sch and 'id="research_ingest_night"' in sch
-      and "compose_all(send=True)" in sch,
-      "٩ الجدول: القراءةُ في عمليةٍ منفصلة صباحاً وعصراً وليلاً، والتقريرُ قبل الافتتاح أيامَ التداول ويُرسَل")
+      and 'CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=15, minute=40)' in sch and 'id="research_ingest_night"' in sch
+      and 'CronTrigger(hour=15, minute=5), id="research_ingest_afternoon"' in sch and "compose_all(send=True)" in sch
+      and 'id="research_report_morning"' not in sch,
+      "٩ الجدول: القراءةُ في عمليةٍ منفصلة صباحاً وقبيل الإغلاق وليلاً، والتقريرُ بعد إغلاق السوق أيامَ التداول ويُرسَل")
 check('@router.post("/research-desk/run", dependencies=[Depends(require_owner)])' in mk and '@router.get("/research-desk")' in mk
-      and "compose_all(send=False)" in mk, "١٠ التشغيلُ اليدويّ للمالك وحده ولا يُكرّر رسالةَ تلغرام")
+      and '@router.get("/research-desk/paper")' in mk and '@router.get("/research-desk/pdf")' in mk and "/research-desk/library" not in mk
+      and "compose_all(send=False)" in mk, "١٠ التشغيلُ اليدويّ للمالك وحده ولا يُرسَل، والورقةُ وملفُّها مساران، ولا مكتبةَ معروضة")
 rd = (ROOT / "backend/app/services/research_desk.py").read_text(encoding="utf-8")
-check("لا مصدرَ غيرها" in rd and "src" in RD.COMPOSE_PROMPT and "من نصّ التقرير وأرقامه حرفاً" in RD.READ_PROMPT,
+check("لا مصدرَ غيرها" in RD.COMPOSE_PROMPT and "src" in RD.COMPOSE_PROMPT and "من نصّ التقرير وأرقامه حرفاً" in RD.READ_PROMPT
+      and "لا تذكر أسماءَ الجهات الناشرة" in RD.COMPOSE_PROMPT,
       "١١ النموذجُ مُلزَمٌ بالمصادر: القراءةُ من نصّ التقرير حرفاً، والتقريرُ لا مصدرَ له غيرُ المقروء وأرقامِ التطبيق")
-print(("FAIL" if fail else "PASS") + " D745 — قسمُ الأبحاث: مصادرُ موثّقة، وتوصياتٌ انتقائية بدليلين، وتقريرٌ يوميٌّ إلى تلغرام")
+print(("FAIL" if fail else "PASS") + " D745 · D746 — قسمُ الأبحاث: مصادرُ تُلزِم ولا تُعرض، وتقريرٌ مؤرَّخٌ بعد الإغلاق إلى تلغرام")
 sys.exit(fail)

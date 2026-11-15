@@ -10,12 +10,12 @@
     والقطاعيةُ والدورية ثمّ تقاريرُ الشركات — يُنزَّل ملفُّها الرسميّ ويُرسَل إلى النموذج متعدّد الوسائط فيراه صفحاتٍ (القارئُ
     البصريّ نفسُه · file_reader) ويعيد مذكّرةً منظّمة: العنوانُ والنقاطُ والسوقُ والأخبارُ المحلية والعالمية والاقتصادُ والقطاعاتُ
     والشركاتُ ومخاطرُها — من نصّ التقرير حرفاً. والمقروءُ لا يُعاد، والمذكّراتُ تبقى سنةً فيتكوّن السياقُ التاريخيّ.
-  ٢ **التقرير** (‏compose): لكلّ محفظةٍ تقريرُها اليوميّ: مذكّراتُ الأيام الثلاثة الأخيرة كاملةً وخلاصةُ ثلاثين يوماً سياقاً،
-    ومراكزُ المحفظة بملفّ التطبيق (السعرُ العادل وصعودُه وقرارُ التطبيق وموقفُ المستشار ووزنُ المركز) — فيكتب النموذجُ بلسان
-    رئيس قسم أبحاث: السوق، والأخبارُ المحلية والعالمية، والقطاعات، ومراكزُنا، وما يُتابَع. وكلُّ سطرٍ يحمل رقمَ مصدره، وما لا
-    مصدرَ له يُحذف عند التحقّق.
-  ٣ **التوصيات**: صفرٌ إلى ثلاث، ولا تُقبل إلا لرمزٍ في المحفظة أو مذكورٍ في المصادر، وبسببٍ من المصادر ومن أرقام التطبيق معاً؛
-    وإن لم يكن ما يستحقّ قيل ذلك وسببُه.
+  ٢ **التقرير** (‏compose · D746): بعد إغلاق السوق أيامَ التداول تُحسب أرقامُ الجلسة في `research_paper` (المؤشّرُ ومؤشّراتُه
+    المالية، والقطاعات، والإحصاءات، والأسواقُ العالمية والسلعُ والعملات، والنظرةُ الفنية ونظرتُنا، وأفضلُ اختياراتنا بنطاق الشراء
+    والمستهدف ووقف الخسارة) — ويكتب النموذجُ النصَّ الحرَّ وحده: العنوانَ والأخبارَ المحلية والعالمية وما يعني مراكزَنا وما يُتابَع؛
+    كلُّ سطرٍ بأرقام مصادره وما لا مصدرَ له يُحذف. والمصادرُ تُلزِم ولا تُعرض (بأمر المالك: «اعتمدها ولا تذكرها»).
+  ٣ **الورقة**: على هيئة «التقرير اليوميّ والنظرة الفنية» لبيوت الأبحاث — أربعُ صفحاتٍ مؤرّخةٍ بيوم الجلسة، تُعرض في التطبيق
+    وتُرسَل ملفَّ PDF إلى تلغرام. والمكتبةُ لا تُعرض: القراءةُ تعمل في الخفاء.
 ثمّ يُحفظ التقريرُ ويُرسَل في التطبيق وتلغرام. والقراءةُ في عمليةٍ منفصلة (ذاكرةُ الخادم 1GB — كالقارئ البصريّ).
 """
 from __future__ import annotations
@@ -44,35 +44,38 @@ READ_PROMPT = """أنت محلّلٌ في قسم أبحاث مدير محفظة.
   "macro": ["مؤشّراتٌ اقتصادية: النفط · الفائدة · التضخّم · الناتج — كما وردت"],
   "sectors": [{{"name": "القطاع", "view": "إيجابي|سلبي|محايد", "note": "ما قيل عنه"}}],
   "companies": [{{"symbol": "رمزٌ من أربعة أرقام إن ذُكر وإلا null", "name": "الشركة", "view": "إيجابي|سلبي|محايد", "target": null, "note": "ما قيل عنها"}}],
-  "risks": ["مخاطرُ ذكرها التقرير"]}}"""
+  "risks": ["مخاطرُ ذكرها التقرير"],
+  "session": {{"date": "تاريخُ الجلسة التي يصفها التقرير YYYY-MM-DD أو null", "close": null, "value_bn": null, "volume_mn": null, "trades": null, "up": null, "down": null}},
+  "regional": [{{"market": "دبي", "close": null, "d1": null, "mtd": null, "ytd": null}}],
+  "rates": [{{"name": "سايبور 3 أشهر", "value": null, "d1_bp": null, "mtd_bp": null, "ytd_bp": null}}]}}
+والحقولُ الثلاثةُ الأخيرة أرقامٌ مجرّدةٌ كما في جداول التقرير (النسبُ بلا علامة %، والقيمةُ بالمليار والكمّيةُ بالمليون)، و"regional" جدولُ الأسواق
+الإقليمية و"rates" جدولُ أسعار الفائدة بين البنوك إن وُجدا — وإلا فارغة."""
 
-COMPOSE_PROMPT = """أنت رئيسُ قسم الأبحاث في مدير محفظةٍ سعوديٍّ مخضرم — بمنهج كبار رؤساء الأبحاث في السوق السعودية: انتقائيٌّ، دقيق، يربط الحدثَ
-بالمحفظة، ولا يقول ما لا يملك عليه دليلاً. اكتب التقريرَ اليوميّ الخاصَّ بمحفظة «{pname}» ليوم {today}.
+COMPOSE_PROMPT = """أنت رئيسُ قسم الأبحاث في مدير محفظةٍ سعوديٍّ مخضرم — انتقائيٌّ دقيق، يربط الحدثَ بالمحفظة ولا يقول ما لا دليلَ عليه.
+اكتب الأقسامَ النصّية في «التقرير اليوميّ» لمحفظة «{pname}» عن جلسة {today} بعد إغلاق السوق. أرقامُ الجلسة والجداولُ والنظرةُ الفنية
+محسوبةٌ في التطبيق فلا تكرّرها؛ ودورُك: العنوان، والأخبارُ المحلية والعالمية، وما يعني مراكزَنا، وما يُتابَع.
 
-المصادرُ المقروءةُ مرقّمة (لا مصدرَ غيرها): كلُّ ما تكتبه عن السوق والأخبار والقطاعات والشركات يجب أن يكون منها، ويحمل أرقامَ مصادره
-في "src". وأرقامُ التطبيق للمراكز (السعر العادل · القرار · الموقف) مصدرٌ مستقلّ رقمُه 0.
+المصادرُ المقروءةُ مرقّمة (لا مصدرَ غيرها). كلُّ سطرٍ يحمل أرقامَ مصادره في "src" — لا تُعرض للقارئ، وإنما تُلزمك ألّا تكتب إلا منها.
+وأرقامُ التطبيق مصدرٌ رقمُه 0.
 {sources}
 
-السياقُ التاريخيّ (خلاصةُ ثلاثين يوماً من التقارير — للربط والمقارنة لا للنقل):
+السياقُ التاريخيّ (خلاصةُ ثلاثين يوماً — للربط والمقارنة لا للنقل):
 {context}
 
-مراكزُ المحفظة (المصدر 0 — أرقامُ التطبيق):
+جلسةُ اليوم (المصدر 0): {market}
+
+مراكزُ المحفظة (المصدر 0):
 {portfolio}
 
-السوقُ الآن: {market}
-
 أعد JSON فقط:
-{{"headline": "عنوانُ اليوم في جملةٍ واحدة",
-  "market": {{"summary": "حالُ السوق في جملتين", "points": [{{"text": "...", "src": [1]}}]}},
-  "local": [{{"text": "خبرٌ محليّ وأثرُه", "src": [1]}}],
-  "global": [{{"text": "خبرٌ عالميّ وأثرُه على السوق السعودية", "src": [2]}}],
-  "sectors": [{{"name": "القطاع", "view": "إيجابي|سلبي|محايد", "text": "...", "src": [1]}}],
-  "portfolio": [{{"symbol": "1120", "stance": "إيجابي|محايد|سلبي|انتباه", "text": "ما يعني المركزَ اليومَ من المصادر وأرقام التطبيق", "src": [0, 1]}}],
-  "watch": [{{"text": "ما يُتابَع في الأيام القادمة", "src": [1]}}],
-  "recommendations": [{{"symbol": "1120", "action": "شراء|إضافة|تخفيف|بيع|انتظار", "why": "السببُ من المصادر ومن أرقام التطبيق معاً", "condition": "شرطُ التنفيذ إن وُجد", "src": [0, 1]}}],
-  "no_rec_reason": "إن لم تكن توصية: لماذا"}}
-قواعد: التوصياتُ من صفرٍ إلى ثلاث، ولا توصيةَ إلا بدليلين: مصدرٌ بحثيّ وأرقامُ التطبيق؛ ولرمزٍ في المحفظة أو مذكورٍ في المصادر فقط.
-والمراكزُ التي لا جديدَ عنها لا تُذكر. ولا تكتب نصيحةً عامّة. والأرقامُ لاتينية، والعربيةُ فصيحةٌ موجزة."""
+{{"headline": "عنوانُ اليوم في جملةٍ واحدة: ما جرى وما يعني محفظتنا",
+  "local": [{{"text": "خبرٌ محليٌّ موجزٌ بأرقامه — اسمُ الشركة أو الجهة أوّلاً", "src": [1]}}],
+  "global": [{{"text": "خبرٌ عالميٌّ أو حركةُ سوقٍ عالمية وأثرُها", "src": [2]}}],
+  "portfolio": [{{"symbol": "1120", "text": "ما يعني هذا المركزَ اليومَ من الأخبار والتقارير", "src": [0, 1]}}],
+  "watch": [{{"text": "حدثٌ أو مستوًى يُتابَع في الأيام القادمة", "src": [1]}}]}}
+قواعد: الأخبارُ المحلية سبعٌ على الأكثر، والعالميةُ خمس، والمراكزُ ستّةٌ لا يُذكر منها إلا ما جاء فيه جديد، والمتابعةُ أربع.
+لا تذكر أسماءَ الجهات الناشرة ولا المصادرَ في النصّ (لا «أرقام» ولا «تداول» بين قوسين، ولا اسمَ بيت أبحاث). ولا نصيحةَ عامّة.
+والأرقامُ لاتينية، والعربيةُ فصيحةٌ موجزةٌ بأسلوب التقارير اليومية لبيوت الأبحاث."""
 
 
 def _dir() -> str:
@@ -138,7 +141,30 @@ def _clean_note(obj: dict) -> dict:
     return {"headline": str(obj.get("headline") or "").strip(), "points": lst(obj.get("points"), 8),
             "market": {k: str(m.get(k) or "").strip() for k in ("tasi", "turnover", "summary")},
             "local_news": lst(obj.get("local_news"), 8), "global_news": lst(obj.get("global_news"), 8), "macro": lst(obj.get("macro"), 6),
-            "sectors": secs, "companies": cos, "risks": lst(obj.get("risks"), 6)}
+            "sectors": secs, "companies": cos, "risks": lst(obj.get("risks"), 6), **_clean_tables(obj)}
+
+
+def _num(v):
+    if isinstance(v, bool) or v is None:
+        return None
+    try:
+        x = float(str(v).replace(",", "").replace("%", "").strip())
+        return x if x == x and abs(x) < 1e13 else None
+    except ValueError:
+        return None
+
+
+def _clean_tables(obj: dict) -> dict:
+    """أرقامُ الجلسة وجدولا الأسواق الإقليمية والفائدة — أرقامٌ أو لا شيء، ولا صفَّ بلا اسمٍ وقيمة."""
+    s = obj.get("session") if isinstance(obj.get("session"), dict) else {}
+    d = str(s.get("date") or "").strip()
+    sess = {"date": d if re.fullmatch(r"20\d\d-\d\d-\d\d", d) else None,
+            **{k: _num(s.get(k)) for k in ("close", "value_bn", "volume_mn", "trades", "up", "down")}}
+    reg = [{"market": str(x.get("market")).strip(), **{k: _num(x.get(k)) for k in ("close", "d1", "mtd", "ytd")}}
+           for x in (obj.get("regional") or []) if isinstance(x, dict) and x.get("market") and _num(x.get("close"))][:10]
+    rates = [{"name": str(x.get("name")).strip(), **{k: _num(x.get(k)) for k in ("value", "d1_bp", "mtd_bp", "ytd_bp")}}
+             for x in (obj.get("rates") or []) if isinstance(x, dict) and x.get("name") and _num(x.get("value")) is not None][:8]
+    return {"session": sess if any(v is not None for k, v in sess.items() if k != "date") else None, "regional": reg, "rates": rates}
 
 
 async def _download(it: dict) -> str | None:
@@ -203,7 +229,7 @@ async def _read(path: str, it: dict) -> dict | None:
     try:
         obj = await _gemini([{"file_data": {"mime_type": "application/pdf", "file_uri": uri}},
                              {"text": READ_PROMPT.format(title=it.get("title"), source=it.get("source"), date=it.get("date"), kind=it.get("kind"))}],
-                            max_tokens=3000)
+                            max_tokens=4000)
     finally:
         await _forget(fname)
     note = _clean_note(obj or {})
@@ -295,40 +321,32 @@ def _context(notes: list[dict], today: date, exclude: set) -> str:
                      for n in rows[:40]) or "لا سياقَ بعد."
 
 
+_HOUSES = re.compile(r"الجزيرة كابيتال|الراجحي المالية|جدوى للاستثمار|\((?:أرقام|تداول|رويترز|بلومبرغ|أرقام كابيتال)\)")
+
+
 def validate(obj: dict, n_src: int, universe: set) -> dict:
-    """لا سطرَ بلا مصدرٍ صحيح، ولا توصيةَ لرمزٍ خارج المحفظة والمصادر أو بلا دليلين (مصدرٌ بحثيّ + أرقامُ التطبيق)."""
+    """لا سطرَ بلا مصدرٍ بحثيٍّ صحيح، ولا مركزَ خارج المحفظة، ولا اسمَ جهةٍ ناشرة في النصّ (بأمر المالك: «اعتمدها ولا تذكرها»)."""
     ok = lambda src: [s for s in (src or []) if isinstance(s, int) and 0 <= s <= n_src]   # noqa: E731
-    def rows(v, need_research=True):
+
+    def rows(v, n):
         out = []
         for r in (v or []):
             if not isinstance(r, dict) or not str(r.get("text") or "").strip():
                 continue
             s = ok(r.get("src"))
-            if not s or (need_research and not any(x > 0 for x in s)):
+            t = str(r["text"]).strip()
+            if not any(x > 0 for x in s) or _HOUSES.search(t):
                 continue
-            out.append({**{k: r[k] for k in r if k not in ("src", "text")}, "text": str(r["text"]).strip(), "src": s})
-        return out
-    mk = obj.get("market") if isinstance(obj.get("market"), dict) else {}
+            out.append({**{k: r[k] for k in r if k not in ("src", "text")}, "text": t, "src": s})
+        return out[:n]
     port = []
-    for r in rows(obj.get("portfolio"), need_research=False):
+    for r in rows(obj.get("portfolio"), 6):
         sym = str(r.get("symbol") or "").replace(".SR", "")
         if sym in universe:
             port.append({**r, "symbol": sym})
-    recs = []
-    for r in (obj.get("recommendations") or [])[:3]:
-        if not isinstance(r, dict):
-            continue
-        sym = str(r.get("symbol") or "").replace(".SR", "")
-        s = ok(r.get("src"))
-        if sym in universe and 0 in s and any(x > 0 for x in s) and str(r.get("why") or "").strip():
-            recs.append({"symbol": sym, "action": str(r.get("action") or "").strip(), "why": str(r["why"]).strip(),
-                         "condition": str(r.get("condition") or "").strip(), "src": s})
-    return {"headline": str(obj.get("headline") or "").strip(),
-            "market": {"summary": str(mk.get("summary") or "").strip(), "points": rows(mk.get("points"))},
-            "local": rows(obj.get("local")), "global": rows(obj.get("global")),
-            "sectors": [r for r in rows(obj.get("sectors")) if r.get("name")],
-            "portfolio": port, "watch": rows(obj.get("watch")), "recommendations": recs,
-            "no_rec_reason": "" if recs else str(obj.get("no_rec_reason") or "").strip()}
+    head = str(obj.get("headline") or "").strip()
+    return {"headline": "" if _HOUSES.search(head) else head, "local": rows(obj.get("local"), 7), "global": rows(obj.get("global"), 5),
+            "portfolio": port, "watch": rows(obj.get("watch"), 4)}
 
 
 async def _positions(db) -> list[dict]:
@@ -346,69 +364,106 @@ async def _positions(db) -> list[dict]:
             st = A.stance(f)
         except Exception:                                         # noqa: BLE001
             continue
-        out.append({"symbol": f["symbol"], "name": f.get("name"), "weight": f.get("weight"), "pnl": f.get("pnl_pct"), "price": f.get("price"),
-                    "fv": f.get("fv"), "upside": f.get("upside"), "decision": f.get("decision"), "action": st.get("action"), "why": st.get("why")})
+        out.append({"symbol": str(f["symbol"]).replace(".SR", ""), "name": f.get("name"), "weight": f.get("weight"), "pnl": f.get("pnl_pct"),
+                    "price": f.get("price"), "fv": f.get("fv"), "upside": f.get("upside"), "decision": f.get("decision"),
+                    "action": st.get("action"), "why": st.get("why")})
     return out
 
 
 def _fmt_positions(ps: list[dict]) -> str:
     f = lambda v, s="": "—" if v is None else f"{v:.2f}{s}" if isinstance(v, (int, float)) else str(v)   # noqa: E731
     return "\n".join(f"- {p['symbol']} {p['name']}: الوزن {f(p.get('weight'), '%')} · الربح {f(p.get('pnl'), '%')} · السعر {f(p.get('price'))}"
-                     f" · العادل {f(p.get('fv'))} · الصعود {f(p.get('upside'), '%')} · قرارُ التطبيق {p.get('decision') or '—'}"
-                     f" · المستشار: {p.get('action') or '—'} ({p.get('why') or ''})" for p in ps) or "لا مراكز."
+                     f" · تغيّرُ اليوم {f(p.get('pct'), '%')} · العادل {f(p.get('fv'))} · الصعود {f(p.get('upside'), '%')}"
+                     f" · قرارُ التطبيق {p.get('decision') or '—'} · نظرتُنا {p.get('view')}" for p in ps) or "لا مراكز."
 
 
-async def compose_for(db, pid: int, pname: str, today: date | None = None) -> dict | None:
-    from app.services.market_data import market_service
+def _market_line(m: dict) -> str:
+    from app.services.research_paper import n2, p2
+    t, b, tech = m["tasi"], m["breadth"], m["tech"]
+    sec = [x for x in m.get("sectors") or [] if x.get("pct") is not None]
+    return (f"تاسي {n2(t.get('close'))} ({p2(t.get('pct'))}) · قيمةُ التداول {((b.get('value') or 0) / 1e9):.2f} مليار · المرتفعة/المنخفضة "
+            f"{b.get('up')}/{b.get('down')} · الأفضلُ قطاعاً {sec[0]['name'] if sec else '—'} والأضعفُ {sec[-1]['name'] if sec else '—'}"
+            f" · نظرتُنا الفنية للمؤشّر: {tech.get('view')}")
+
+
+# ── سجلُّ الجلسات والجداولُ المقروءة ─────────────────────────────────────────
+def sessions_store(k: dict | None = None) -> dict:
+    """سجلُّ الجلسات: ما سجّله التطبيقُ بعد كلّ إغلاق، وما قُرئ من أرقام الجلسات في التقارير اليومية لما قبله."""
+    from app.services.research_paper import history_append
+    st = _load("sessions.json", {})
+    for n in (k or knowledge())["notes"]:
+        s = n.get("session") or {}
+        if n.get("kind") != "تقرير يوميّ" or not s.get("date") or s["date"] >= str(n.get("date") or ""):
+            continue
+        rec = {"value": s["value_bn"] * 1e9 if s.get("value_bn") else None, "volume": s["volume_mn"] * 1e6 if s.get("volume_mn") else None,
+               "trades": s.get("trades"), "up": s.get("up"), "down": s.get("down"), "close": s.get("close"), "src": "report"}
+        st = history_append(st, s["date"], rec)
+    return st
+
+
+def latest_tables(notes: list[dict], today: date) -> tuple[dict, list[dict]]:
+    """أحدثُ جدولٍ للأسواق الإقليمية ولأسعار الفائدة بين البنوك من تقارير الأيام السبعة الأخيرة — بتاريخ جلسته."""
+    floor = (today - timedelta(days=7)).isoformat()
+    rows = sorted([n for n in notes if str(n.get("date") or "") >= floor], key=lambda n: str(n.get("date") or ""), reverse=True)
+    reg = next(({"date": (n.get("session") or {}).get("date") or n.get("date"), "rows": n["regional"]} for n in rows if n.get("regional")), {})
+    sai = next((n["rates"] for n in rows if n.get("rates")), [])
+    return reg, [r for r in sai if "سايبور" in r["name"] or "سوفر" in r["name"] or "إيبور" in r["name"]]
+
+
+async def compose_for(db, pid: int, pname: str, market: dict, today: date | None = None) -> dict | None:
+    from app.services import research_paper as RP
     today = today or date.today()
     k = knowledge()
     srcs = recent_sources(k["notes"], today)
-    if not srcs:
-        return None
     ps = await _positions(db)
-    tasi = None
+    rows = {}
     try:
-        t = await market_service.get_price("^TASI.SR") or {}
-        if isinstance(t.get("price"), (int, float)):
-            tasi = {"price": float(t["price"]), "pct": float(t["change_percent"]) if isinstance(t.get("change_percent"), (int, float)) else None}
+        from app.services.market_screener import get_cached_screener
+        rows = {str(r.get("symbol") or "").replace(".SR", ""): r for r in get_cached_screener() or []}
     except Exception:                                             # noqa: BLE001
-        tasi = None
-    market = f"تاسي {tasi['price']} ({tasi['pct']}%)" if tasi else "غير متوفّر"
-    prompt = COMPOSE_PROMPT.format(pname=pname, today=today.isoformat(),
-                                   sources="\n\n".join(_fmt_source(i + 1, n) for i, n in enumerate(srcs)),
-                                   context=_context(k["notes"], today, {n.get("key") for n in srcs}), portfolio=_fmt_positions(ps), market=market)
-    obj = await _gemini([{"text": prompt}], max_tokens=6000, temperature=0.2)
-    if not obj:
-        return None
-    universe = {p["symbol"] for p in ps} | {c["symbol"] for n in srcs for c in n.get("companies") or [] if c.get("symbol")}
-    rep = validate(obj, len(srcs), universe)
-    names = {p["symbol"]: p["name"] for p in ps}
-    names.update({c["symbol"]: c["name"] for n in srcs for c in n.get("companies") or [] if c.get("symbol") and c["symbol"] not in names})
-    for r in rep["portfolio"] + rep["recommendations"]:
-        r["name"] = names.get(r["symbol"], r["symbol"])
-    rep.update({"date": today.isoformat(), "portfolio_id": pid, "portfolio_name": pname, "market_now": market, "tasi": tasi,
-                "at": datetime.now().isoformat(timespec="minutes"),
-                "sources": [{"n": i + 1, "source": n.get("source"), "title": n.get("title"), "date": n.get("date"), "kind": n.get("kind"),
-                             "url": n.get("url")} for i, n in enumerate(srcs)]})
+        pass
+    snap = {}
+    try:
+        from app.services.tadawul_market import usable_rows
+        snap = usable_rows()[0] or {}
+    except Exception:                                             # noqa: BLE001
+        pass
+    for p in ps:
+        p["pct"] = RP._f((snap.get(p["symbol"]) or {}).get("change_pct"))
+        p["trend"] = RP.trend_of(rows.get(p["symbol"]))
+        p["view"] = RP.position_view(p)
+    ai = {"headline": "", "local": [], "global": [], "portfolio": [], "watch": []}
+    if srcs:
+        prompt = COMPOSE_PROMPT.format(pname=pname, today=today.isoformat(),
+                                       sources="\n\n".join(_fmt_source(i + 1, n) for i, n in enumerate(srcs)),
+                                       context=_context(k["notes"], today, {n.get("key") for n in srcs}), portfolio=_fmt_positions(ps),
+                                       market=_market_line(market))
+        obj = await _gemini([{"text": prompt}], max_tokens=5000, temperature=0.2)
+        if obj:
+            ai = validate(obj, len(srcs), {p["symbol"] for p in ps})
+    st = sessions_store(k)
+    reg, sai = latest_tables(k["notes"], today)
+    picks = await RP.picks_for({p["symbol"] for p in ps})
+    rep = {"date": today.isoformat(), "portfolio_id": pid, "portfolio_name": pname, "at": datetime.now().isoformat(timespec="minutes"),
+           "market": market, "averages": RP.averages(st, today.isoformat()), "analysis": RP.market_analysis(market, RP.averages(st, today.isoformat())),
+           "tech_text": list(RP.tech_commentary(market)), "regional": reg, "saibor": sai, "positions": ps, "picks": picks,
+           "no_pick_reason": "" if picks else "لم يجتمع في أيّ سهمٍ اليومَ قرارُ شراءٍ وصعودٌ إلى القيمة العادلة واتجاهٌ صاعدٌ بلا تشبّع.",
+           **ai, "n_sources": len(srcs)}
     return rep
 
 
-def telegram_lines(r: dict) -> list[str]:
-    L = [f"📑 التقرير اليوميّ — {r.get('portfolio_name')} · {r.get('date')}", "", r.get("headline") or ""]
-    if r["market"].get("summary"):
-        L += ["", "السوق: " + r["market"]["summary"]]
-    for title, key, n in (("محليّاً", "local", 3), ("عالمياً", "global", 2)):
-        if r.get(key):
-            L += ["", title + ":"] + [f"• {x['text']}" for x in r[key][:n]]
-    if r.get("portfolio"):
-        L += ["", "محفظتنا:"] + [f"• {x['name']} — {x.get('stance', '')}: {x['text']}" for x in r["portfolio"][:6]]
-    if r.get("recommendations"):
-        L += ["", "التوصيات:"] + [f"• {x['action']} {x['name']}: {x['why']}" + (f" (الشرط: {x['condition']})" if x.get("condition") else "")
-                                 for x in r["recommendations"]]
-    elif r.get("no_rec_reason"):
-        L += ["", "لا توصيةَ اليوم: " + r["no_rec_reason"]]
-    L += ["", "المصادر: " + " · ".join(sorted({s["source"] for s in r.get("sources") or []}))]
-    return [x for x in L if x is not None]
+def caption(r: dict) -> str:
+    """تعليقُ ملفّ التقرير في تلغرام — مؤرَّخٌ بيوم الجلسة، وبلا مصادر."""
+    import html
+    from app.services.research_paper import day_label, n2, p2
+    m = r.get("market") or {}
+    t, b, tech = m.get("tasi") or {}, m.get("breadth") or {}, m.get("tech") or {}
+    L = [f"<b>التقرير اليومي — {html.escape(day_label(r['date']))}</b>", html.escape(r.get("portfolio_name") or ""),
+         f"تاسي {n2(t.get('close'))} ({p2(t.get('pct'))}) · قيمة التداول {((b.get('value') or 0) / 1e9):.2f} مليار ريال",
+         f"نظرتنا: {html.escape(str(tech.get('view') or '—'))} · اختياراتنا اليوم: {len(r.get('picks') or [])}"]
+    if r.get("headline"):
+        L += ["", html.escape(r["headline"])]
+    return "\n".join(L)[:1000]
 
 
 def save_report(r: dict) -> None:
@@ -431,30 +486,65 @@ def report_dates(pid: int) -> list[str]:
 def load_report(pid: int, day: str | None = None) -> dict | None:
     days = report_dates(pid)
     day = day if day in days else (days[0] if days else None)
-    return _load(os.path.join("reports", f"{day}_{pid}.json"), None) if day else None
+    r = _load(os.path.join("reports", f"{day}_{pid}.json"), None) if day else None
+    return r if isinstance(r, dict) and isinstance(r.get("market"), dict) else None
+
+
+async def deliver(r: dict) -> bool:
+    """الورقةُ ملفَّ PDF إلى تلغرام بتعليقٍ مؤرَّخ، وإشعارٌ في التطبيق — وإن تعذّرت الطباعةُ فالتعليقُ نصّاً."""
+    from app.services import research_paper as RP
+    ok = False
+    try:
+        from app.services.saqr_bot import bot
+        if bot.enabled:
+            data = await RP.pdf(r)
+            if data:
+                ok = bool(await bot.send_file(data, f"daily-report-{r['date']}.pdf", caption(r)))
+            if not ok:
+                ok = bool(await bot.send(caption(r), keyboard=False))
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("قسم الأبحاث: تلغرام {}", type(e).__name__)
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.models.market import Notification, NotificationPriority
+        async with AsyncSessionLocal() as db:
+            db.add(Notification(category="advisor", priority=NotificationPriority.MEDIUM, title=f"التقرير اليومي — {RP.day_label(r['date'])}",
+                                message=r.get("headline") or "صدر التقرير اليومي.", extra_data={"source": "research", "date": r["date"]}))
+            await db.commit()
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("قسم الأبحاث: الإشعار {}", type(e).__name__)
+    return ok
 
 
 async def compose_all(send: bool = True) -> dict:
-    """لكلّ محفظةٍ غيرِ مؤرشفة تقريرُها — يُحفظ ويُرسَل في التطبيق وتلغرام."""
+    """بعد إغلاق السوق: أرقامُ الجلسة مرّةً، ثمّ لكلّ محفظةٍ غيرِ مؤرشفة تقريرُها — يُحفظ ويُرسَل ملفّاً مؤرَّخاً."""
     from sqlalchemy import select
     from app.core.database import AsyncSessionLocal
     from app.core.portfolio_scope import reset_scope, set_scope
     from app.models.portfolio import Portfolio
-    from app.services.advisor_memory import notify
+    from app.services import research_paper as RP
+    today = date.today()
+    market = await RP.gather(today)
+    if not market:
+        return {}
+    b = market["breadth"]
+    st = RP.history_append(_load("sessions.json", {}), today.isoformat(),
+                           {"value": b.get("value"), "volume": b.get("volume"), "trades": b.get("trades"), "up": b.get("up"),
+                            "down": b.get("down"), "close": market["tasi"].get("close"), "src": "app"})
+    _save("sessions.json", st)
     rep = {}
     async with AsyncSessionLocal() as db:
         ps = (await db.execute(select(Portfolio.id, Portfolio.name).where(Portfolio.is_archived.is_(False)).order_by(Portfolio.id))).all()
         try:
             for pid, pname in ps:
                 set_scope(pid, False)
-                r = await compose_for(db, pid, pname)
+                r = await compose_for(db, pid, pname, market, today)
                 if not r:
                     continue
                 save_report(r)
-                rep[pid] = len(r.get("sources") or [])
+                rep[pid] = {"local": len(r["local"]), "global": len(r["global"]), "picks": len(r["picks"]), "positions": len(r["positions"])}
                 if send:
-                    L = telegram_lines(r)
-                    await notify(L[0], L[2:], raw=True)
+                    rep[pid]["sent"] = await deliver(r)
         finally:
             reset_scope()
     logger.info("قسم الأبحاث: التقارير {}", rep)
@@ -470,9 +560,3 @@ def stats() -> dict:
     last = max((v.get("at") or "" for v in k["read"].values()), default="")
     return {"notes": len(notes), "by_source": by, "last_read": last or None,
             "first": min((str(n.get("date")) for n in notes), default=None), "latest": max((str(n.get("date")) for n in notes), default=None)}
-
-
-def library(limit: int = 60) -> list[dict]:
-    notes = sorted(knowledge()["notes"], key=lambda n: str(n.get("date") or ""), reverse=True)[:limit]
-    return [{"date": n.get("date"), "source": n.get("source"), "title": n.get("title"), "kind": n.get("kind"), "url": n.get("url"),
-             "headline": n.get("headline"), "points": (n.get("points") or [])[:4]} for n in notes]

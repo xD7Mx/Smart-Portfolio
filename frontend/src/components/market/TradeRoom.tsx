@@ -7,10 +7,12 @@
    (‏chart/ProChart) يبقى قائماً حين يتبدّل الرمز — لا يُهدم ويُبنى. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Pencil, Check, Trash2 } from "lucide-react";
+import { Plus, X, Pencil, Check, Trash2, Layers } from "lucide-react";
 import ProChart from "../chart/ProChart";
 import CompanyLogo from "../common/CompanyLogo";
 import InlineStockSearch from "./InlineStockSearch";
+import OptionChain from "./OptionChain";
+import { isOption, optionSub, optionTitle, parseOption } from "../../lib/options";
 import { holdingsApi, marketApi } from "../../services/api";
 import { invalidateWatchlist } from "../../services/watchlistCache";
 import { useAppStore } from "../../store/appStore";
@@ -24,6 +26,14 @@ const PRESETS = ["السوق السعودي", "السوق الأمريكي"];
 type Row = { symbol: string; name: string; price?: number | null; change_pct?: number | null };
 const isSaudi = (s: string) => /^\d{4}(\.SR)?$/.test(s);
 const pct = (v?: number | null) => v == null || !isFinite(Number(v)) ? null : Number(v);
+/* ‏D747: لأيّ سهمٍ أو صندوقٍ أمريكيّ سلسلةُ خيارات — والمؤشّرُ إلى مؤشّر خياراته (‏S&P 500 ⇐ SPX · ناسداك ⇐ NDX) */
+const OPT_INDEX: Record<string, string> = { "^GSPC": "^SPX", "^SPX": "^SPX", "^IXIC": "^NDX", "^NDX": "^NDX", "^RUT": "^RUT", "^VIX": "^VIX" };
+const chainOf = (s: string): string | null => {
+  const o = parseOption(s);
+  if (o) return o.root;
+  if (OPT_INDEX[s]) return OPT_INDEX[s];
+  return /^[A-Z][A-Z.\-]{0,6}$/.test(s) && !isSaudi(s) && !/-USD$/.test(s) ? s : null;
+};
 
 export default function TradeRoom() {
   const qc = useQueryClient();
@@ -39,6 +49,7 @@ export default function TradeRoom() {
     if (window.innerWidth < 1024) chartRef.current?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   };
   const [editing, setEditing] = useState(false);
+  const [chainFor, setChainFor] = useState<string | null>(null);
   const [naming, setNaming] = useState<string | null>(null);
 
   const { data: holdings = [] } = useQuery({
@@ -70,7 +81,7 @@ export default function TradeRoom() {
   const label = INDICES.find(([s]) => s === symbol)?.[1];
 
   const add = useMutation({
-    mutationFn: (s: string) => marketApi.watchAdd(s, undefined, gid!),
+    mutationFn: (a: { s: string; name?: string }) => marketApi.watchAdd(a.s, a.name, gid!),
     onSuccess: () => invalidateWatchlist(qc),
   });
   const remove = useMutation({
@@ -123,7 +134,7 @@ export default function TradeRoom() {
 
         {gid != null && group && (
           <div className="troom-bar">
-            {owner && <InlineStockSearch onPick={s => add.mutate(s)} global />}
+            {owner && <InlineStockSearch onPick={s => add.mutate({ s })} global />}
             <span className="text-[11px] text-[var(--ink-muted)] tabular-nums ms-auto">{wrows.length}</span>
             {owner && (
               <button type="button" className={"btn-ghost troom-icon" + (editing ? " on" : "")} title={editing ? "تمّ" : "تحرير القائمة"}
@@ -150,11 +161,20 @@ export default function TradeRoom() {
                   title={r.name}>
                   <CompanyLogo symbol={r.symbol} size={24} />
                   <span className="min-w-0 flex-1 text-start">
-                    <span className="block text-[12.5px] font-bold text-[var(--ink)] truncate">{list === "idx" ? r.name : (isSaudi(r.symbol) ? r.name : r.symbol)}</span>
-                    <span className="block text-[10px] text-[var(--ink-muted)] truncate tabular-nums" dir={isSaudi(r.symbol) ? undefined : "ltr"}
-                      style={{ textAlign: "right" }}>
-                      {list === "idx" ? r.symbol : isSaudi(r.symbol) ? r.symbol.replace(".SR", "") : (r.name !== r.symbol ? r.name : "")}
-                    </span>
+                    {(() => {
+                      const o = parseOption(r.symbol);
+                      if (o) return (<>
+                        <span className="block text-[12.5px] font-bold text-[var(--ink)] truncate">{optionTitle(o)}</span>
+                        <span className="block text-[10px] text-[var(--ink-muted)] truncate tabular-nums">{optionSub(o)}</span>
+                      </>);
+                      return (<>
+                        <span className="block text-[12.5px] font-bold text-[var(--ink)] truncate">{list === "idx" ? r.name : (isSaudi(r.symbol) ? r.name : r.symbol)}</span>
+                        <span className="block text-[10px] text-[var(--ink-muted)] truncate tabular-nums" dir={isSaudi(r.symbol) ? undefined : "ltr"}
+                          style={{ textAlign: "right" }}>
+                          {list === "idx" ? r.symbol : isSaudi(r.symbol) ? r.symbol.replace(".SR", "") : (r.name !== r.symbol ? r.name : "")}
+                        </span>
+                      </>);
+                    })()}
                   </span>
                   {r.price != null && (
                     <span className="text-end shrink-0">
@@ -183,10 +203,26 @@ export default function TradeRoom() {
         <ProChart symbol={symbol} theme={theme === "light" ? "light" : "dark"}
           identity={<span className="flex items-center gap-1.5 min-w-0">
             <CompanyLogo symbol={symbol} size={26} />
-            <span className="text-[14px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{label || symbol.replace(".SR", "")}</span>
-            {!label && <span className="text-[12px] text-[var(--ink-muted)] truncate max-w-[40vw] lg:max-w-[180px]">
-              {rows.find(r => r.symbol === symbol)?.name || ""}</span>}
+            {isOption(symbol) ? (() => { const o = parseOption(symbol)!; return (<>
+              <span className="text-[14px] font-bold text-[var(--ink)] tabular-nums whitespace-nowrap">{optionTitle(o)}</span>
+              <span className="troom-osub tabular-nums">{optionSub(o)}</span>
+            </>); })() : (<>
+              <span className="text-[14px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{label || symbol.replace(".SR", "")}</span>
+              {!label && <span className="text-[12px] text-[var(--ink-muted)] truncate max-w-[40vw] lg:max-w-[180px]">
+                {rows.find(r => r.symbol === symbol)?.name || ""}</span>}
+            </>)}
+            {chainOf(symbol) && (
+              <button type="button" className="btn-ghost troom-oc" onClick={() => setChainFor(chainOf(symbol))} data-role="troom-options"
+                title="عقود الخيارات" aria-label={`عقود خيارات ${chainOf(symbol)}`}>
+                <Layers size={13} className="inline-block align-[-2px] me-1" />الخيارات
+              </button>
+            )}
           </span>} />
+        {chainFor && (
+          <OptionChain underlying={chainFor} onClose={() => setChainFor(null)}
+            onPick={c => { setChainFor(null); pick(c); }}
+            onAdd={owner && gid != null && group ? (c, name) => add.mutate({ s: c, name }) : undefined} />
+        )}
       </section>
     </div>
   );

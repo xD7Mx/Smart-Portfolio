@@ -2,6 +2,11 @@ import React from "react";
 import { Search, X } from "lucide-react";
 import { searchCompanies, SaudiCompany } from "../../data/saudiCompanies";
 import CompanyLogo from "../common/CompanyLogo";
+import { marketApi } from "../../services/api";
+import { isOption, optionTitle, parseOption } from "../../lib/options";
+
+type Remote = { symbol: string; name: string; type: string; exchange: string; us: boolean };
+const LATIN = /^[\^A-Za-z][A-Za-z0-9.=^ -]{0,24}$/;
 
 /* ══ بحثٌ يتمدّد في محلّه ══ (بأمر المالك · D210)
 
@@ -18,10 +23,24 @@ export default function InlineStockSearch(
   const [open, setOpen] = React.useState(false);
   const [q, setQ] = React.useState("");
   const [hits, setHits] = React.useState<SaudiCompany[]>([]);
+  /* ‏D747: «قائمةُ البحث تشمل جميعَ أسهم السوق الأمريكي» — الحرفُ اللاتينيُّ يسأل خادمَنا عن السوق كلِّه (بعد توقّفٍ قصيرٍ في الكتابة) */
+  const [remote, setRemote] = React.useState<Remote[]>([]);
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => {
+    const t = q.trim();
+    if (!global || !open || !LATIN.test(t) || isOption(t)) { setRemote([]); setBusy(false); return; }
+    let live = true;
+    setBusy(true);
+    const id = window.setTimeout(() => {
+      marketApi.symbolSearch(t).then(r => { if (live) setRemote(Array.isArray(r.data?.data) ? r.data.data : []); })
+        .catch(() => { if (live) setRemote([]); }).finally(() => { if (live) setBusy(false); });
+    }, 260);
+    return () => { live = false; window.clearTimeout(id); };
+  }, [q, open, global]);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
 
-  const close = () => { setOpen(false); setQ(""); setHits([]); };
+  const close = () => { setOpen(false); setQ(""); setHits([]); setRemote([]); };
 
   React.useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -57,20 +76,37 @@ export default function InlineStockSearch(
           tabIndex={open ? 0 : -1}
           onChange={e => { setQ(e.target.value); setHits(searchCompanies(e.target.value, 400)); }}
           onKeyDown={e => {
-            if (e.key === "Enter" && (hits[0] || q)) pick(hits[0]?.symbol || q);
+            if (e.key === "Enter" && (hits[0] || remote[0] || q)) pick(hits[0]?.symbol || remote[0]?.symbol || q.trim());
             if (e.key === "Escape") close();
           }} />
       </div>
 
       {/* ══ السوقان في حقلٍ واحد ══ (بأمر المالك · D521)
          رمزٌ لاتينيٌّ لا يعرفه الدليلُ السعوديّ يُفتح رمزاً عالمياً (AAPL · BTC-USD). */}
-      {open && global && !hits.length && /^[\^A-Za-z][A-Za-z0-9.=^-]{0,14}$/.test(q.trim()) && (
-        <div className="sp-menu absolute z-30 top-full mt-1.5 end-0 rounded-xl overflow-hidden shadow-2xl" style={{ width: 280 }}>
-          <button type="button" onClick={() => pick(q.trim())}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[32px] text-start hover:panel transition-colors">
-            <span className="tabular-nums text-[12px] font-semibold text-[var(--ink)]" dir="ltr">{q.trim().toUpperCase()}</span>
-            <span className="text-[var(--ink-muted)] text-[12px]">سوقٌ عالميّ</span>
-          </button>
+      {open && global && !hits.length && (remote.length > 0 || isOption(q.trim()) || (!busy && /^[\^A-Za-z][A-Za-z0-9.=^-]{0,14}$/.test(q.trim()))) && (
+        <div className="sp-menu absolute z-30 top-full mt-1.5 end-0 rounded-xl overflow-hidden shadow-2xl" style={{ width: 300, maxHeight: 340, overflowY: "auto" }}
+          data-role="search-remote">
+          {isOption(q.trim()) ? (
+            <button type="button" onClick={() => pick(q.trim())} className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[36px] text-start hover:panel transition-colors">
+              <CompanyLogo symbol={q.trim()} size={22} />
+              <span className="text-[12.5px] font-bold text-[var(--ink)]">{optionTitle(parseOption(q.trim())!)}</span>
+              <span className="text-[var(--ink-muted)] text-[11px] ms-auto">عقد خيار</span>
+            </button>
+          ) : remote.length ? remote.map(r => (
+            <button key={r.symbol} type="button" onClick={() => pick(r.symbol)} data-role="search-hit"
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[36px] text-start hover:panel transition-colors">
+              <CompanyLogo symbol={r.symbol} size={22} />
+              <span className="tabular-nums text-[12px] font-bold text-[var(--ink)] shrink-0" dir="ltr">{r.symbol}</span>
+              <span className="text-[var(--ink)] text-[12px] truncate min-w-0" dir="ltr" style={{ textAlign: "right" }}>{r.name}</span>
+              <span className="text-[var(--ink-muted)] text-[10.5px] ms-auto shrink-0">{r.type}{r.exchange ? ` · ${r.exchange}` : ""}</span>
+            </button>
+          )) : (
+            <button type="button" onClick={() => pick(q.trim())}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[32px] text-start hover:panel transition-colors">
+              <span className="tabular-nums text-[12px] font-semibold text-[var(--ink)]" dir="ltr">{q.trim().toUpperCase()}</span>
+              <span className="text-[var(--ink-muted)] text-[12px]">سوقٌ عالميّ</span>
+            </button>
+          )}
         </div>
       )}
       {open && hits.length > 0 && (
