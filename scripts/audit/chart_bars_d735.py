@@ -85,6 +85,13 @@ wk = TH.weekly(dc + [{"date": "2015-01-06", "open": 9100, "high": 9200, "low": 9
 ag = B.bucket_n(dc + [bar("2015-01-06", 9100, 9200, 9050, 9150, 0)], 3)
 check(all(r.get("basis") == "close" for r in dc) and wk[0].get("basis") == "close" and ag[-1].get("basis") == "close",
       "٤ح شمعةُ الإغلاقات وحدها موسومةٌ من مصدرها إلى الأسبوعيّ والمجمَّع — لا تُعرض كأنّ لها أعلى وأدنى رسميّين")
+# ‏D740: طلبُ مولّد «تداول» يحمل صفحتَه المُحيلة (بدونها 403 فيسقط التاريخُ صامتاً إلى نسخةٍ قديمة)، والمحفوظُ يتّسع للتاريخ كلّه،
+# واليومُ الذي ليس له ساعاتٌ موسومٌ أيّاً كان مصدرُه
+ths = (ROOT / "backend/app/services/tasi_history.py").read_text(encoding="utf-8")
+rd_ = TH.real_daily([{"date": "2012-05-01", "open": 7000, "high": 7000, "low": 7000, "close": 7000, "volume": 0}], [])
+check("fetch(URL_DAILY, referer=REFERER_DAILY)" in ths and ths.count("fetch(URL, referer=REFERER_SESSION)") == 2 and "await fetch(URL)" not in ths
+      and "daily[-6000:]" in ths and rd_[0].get("basis") == "close" and B.MAX_BARS >= 5000,
+      "٤ط تاريخُ تاسي اليوميُّ كلُّه من مصدره الرسميّ (الطلبُ بصفحته المُحيلة) — لا يسقط صامتاً إلى نسخةٍ قديمة، والإغلاقُ وحده موسوم")
 # ‏D739: التثبيتُ كتريدنق فيو — المشفّرةُ من منتصف ليل التوقيت العالميّ، والآجلةُ من أوّل شمعةٍ بعد فاصلها اليوميّ
 btc = [bar(f"2026-11-12 {h:02d}:00", 1, 2, 0.5, 1.5, 5) for h in range(0, 24)]
 u4 = [r["date"][11:] for r in B.bucket_intraday(btc, 240, B.session_mode("BTC-USD"))]

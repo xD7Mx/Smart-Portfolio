@@ -25,6 +25,10 @@ URL_DAILY = ("https://www.saudiexchange.sa/tadawul.eportal.charts.v2/ChartGenera
              "?methodType=parsingMethod&chart-type=SQL_T_IC_ALL_COM&chart-parameter=tasi"
              "&format=json")
 SYMBOLS = {"^TASI.SR", "^TASI", "TASI"}
+# ‏D740: مولّدُ الرسم يردّ 403 لطلبٍ بلا صفحةٍ مُحيلة — قِيس (‏tasi_ohlc_door · 2026-11-15) — فكان التاريخُ اليوميُّ يسقط صامتاً إلى
+# نسخةٍ قديمةٍ محفوظة (‏1400 يوم من 2021). فكلُّ طلبٍ يحمل صفحتَه كما يفعل المتصفّح.
+REFERER_DAILY = "https://www.saudiexchange.sa/wps/portal/saudiexchange/ourmarkets/main-market-watch/indices-performance"
+REFERER_SESSION = "https://www.saudiexchange.sa/wps/portal/saudiexchange/home"
 _KEEP = {"1mo": 22, "3mo": 66, "6mo": 132, "1y": 260, "2y": 520, "5y": 1300,
          # ‏D663: يوميٌّ بلا تجميعٍ أسبوعيّ لإطارات الرسم — سنتان · خمسٌ · كلُّه منذ 2007
          "d2y": 520, "d5y": 1300, "dall": 10 ** 6}
@@ -156,7 +160,7 @@ def real_daily(closes: list, hours: list) -> list:
             cl = c["close"]
             out.append({**r, "close": cl, "high": max(r["high"], cl), "low": min(r["low"], cl)})
         else:
-            out.append(c)
+            out.append({**c, "basis": "close"})                   # ‏D739: يومٌ من الإغلاق وحده — موسومٌ أيّاً كان مصدرُه (الحيُّ أو المحفوظ)
     out += [v for d, v in real.items() if d not in have]
     return sorted(out, key=lambda x: str(x["date"]))
 
@@ -165,7 +169,7 @@ async def capture() -> dict:
     """جلسةُ «تداول» الأخيرة تُقرأ وتُحفظ ساعاتُها — بعد الإغلاق مجدولةً، وعند كلّ طلبٍ لساعة تاسي."""
     from app.services.tadawul_http import fetch
     try:
-        st, body = await fetch(URL)
+        st, body = await fetch(URL, referer=REFERER_SESSION)
         session = parse_session(body) if st == 200 else []
     except Exception as e:                                        # noqa: BLE001
         logger.warning(f"tasi session: {type(e).__name__}: {e}")
@@ -235,18 +239,18 @@ async def history(range_: str = "3mo") -> Optional[list]:
     daily = cache.get("hist:tadawul:tasi:daily")
     if daily is None:
         try:
-            st, body = await fetch(URL_DAILY)
+            st, body = await fetch(URL_DAILY, referer=REFERER_DAILY)
             daily = daily_candles(json.loads(body)) if st == 200 and body else []
         except Exception as e:                                    # noqa: BLE001
             logger.warning(f"tasi daily: {type(e).__name__}: {e}")
             daily = []
         if daily:
             cache.set("hist:tadawul:tasi:daily", daily, 6 * 3600)
-            lastgood.save("market:tasi_daily_full", {"rows": daily[-1400:]})
+            lastgood.save("market:tasi_daily_full", {"rows": daily[-6000:]})
         else:
             daily = ((lastgood.load("market:tasi_daily_full") or {}).get("rows")) or []
     try:
-        st, body = await fetch(URL)
+        st, body = await fetch(URL, referer=REFERER_SESSION)
         session = parse_session(body) if st == 200 else []
     except Exception as e:                                        # noqa: BLE001
         logger.warning(f"tasi history: {type(e).__name__}: {e}")

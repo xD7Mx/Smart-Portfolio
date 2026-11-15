@@ -17,7 +17,7 @@ import re
 
 _TF = re.compile(r"^(\d{1,3})(mo|wk|w|m|h|d)$")
 _MAX = {"m": 240, "h": 24, "d": 30, "wk": 12, "mo": 12}
-MAX_BARS = 3000
+MAX_BARS = 5000                 # ‏D740: يوميُّ تاسي منذ 2007 (~4,950) وعشرُ سنواتٍ لغيره
 
 
 def parse_tf(tf) -> tuple[int, str] | None:
