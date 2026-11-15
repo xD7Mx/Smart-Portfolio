@@ -240,6 +240,13 @@ async def job_autopilot():
             try:
                 async with AsyncSessionLocal() as db:
                     await opinion(db, force=True)
+                # ‏D750: أوامرُ اليوم بأرقامها وبوّاباتها، ويُشعر المالكُ بما استجدّ ليعتمده (على منهج «سندباد»)
+                try:
+                    from app.services.robo_orders import refresh as robo_refresh
+                    async with AsyncSessionLocal() as db:
+                        await robo_refresh(db, notify=True)
+                except Exception as e:                            # noqa: BLE001
+                    logger.warning(f"أوامر المستشار: {type(e).__name__}: {e}")
             finally:
                 reset_scope()
         logger.info(f"الطيار الآليّ: {len(pids)} محفظة")

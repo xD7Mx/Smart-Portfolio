@@ -4,6 +4,7 @@ from sqlalchemy import select
 from loguru import logger
 from app.core.database import get_db
 from app.core.response import success_response
+from app.core.auth import require_owner
 from app.models.market import AIResult
 
 router = APIRouter()
@@ -354,6 +355,55 @@ async def get_autopilot_plan(years: int = 4, db: AsyncSession = Depends(get_db))
             if (p.get("autopilot") or {}).get("action") in ("خفّف", "صفِّ جزئياً", "خذ الربح", "اخرج عند الارتداد")]
     return success_response(data={"wealth": wealth, "target": target, "cagr_pct": cagr, "plan": plan,
                                   "buy_now": buy, "trim": trim, "pack_ready": bool(pos)})
+
+
+# ══ ‏D750: أوامرُ المستشار الآليّ — على منهج «سندباد»: أمرٌ بأرقامه، وبوّاباتُ سيولةٍ وحدودٍ، واعتمادُ المالك، وسجلُّ دقّة ══
+@router.get("/robo")
+async def robo_orders_view():
+    """أوامرُ اليوم وما قبلها، وما أُجّل وسببُه، والحدود، وحالُ الإيقاف، وسجلُّ الدقّة — من السجلّ بلا نداءٍ ثقيل."""
+    from app.core.portfolio_scope import active_pid
+    from app.services import robo_orders as R
+    return success_response(R.view(R.load(active_pid())))
+
+
+@router.post("/robo/refresh", dependencies=[Depends(require_owner)])
+async def robo_orders_refresh(db: AsyncSession = Depends(get_db)):
+    """يبني أوامرَ الآن من رأي الطيار الآليّ — بلا إشعار (المالكُ أمام الشاشة)."""
+    from app.services import robo_orders as R
+    return success_response(await R.refresh(db, notify=False))
+
+
+@router.post("/robo/orders/{oid}/{decision}", dependencies=[Depends(require_owner)])
+async def robo_order_decide(oid: str, decision: str):
+    """اعتمادُ المالك أو رفضُه — كمدير المحفظة الذي يعتمد كلَّ توصيةٍ قبل تنفيذها."""
+    from fastapi import HTTPException
+    from app.core.portfolio_scope import active_pid
+    from app.services import robo_orders as R
+    if decision not in ("approve", "reject"):
+        raise HTTPException(status_code=422, detail="قرارٌ غيرُ مقبول.")
+    pid = active_pid()
+    st = R.load(pid)
+    o = R.decide(st, oid, decision == "approve")
+    if not o:
+        raise HTTPException(status_code=404, detail="لا أمرَ معلّقاً بهذا الرقم.")
+    R.save(st, pid)
+    return success_response(R.view(st))
+
+
+@router.post("/robo/pause", dependencies=[Depends(require_owner)])
+async def robo_pause(payload: dict):
+    """إيقافُ المستشار أو استئنافُه — الموقوفُ لا يُصدر أمراً ولا يُشعر."""
+    from app.core.portfolio_scope import active_pid
+    from app.services import robo_orders as R
+    pid = active_pid()
+    st = R.load(pid)
+    st["paused"] = bool((payload or {}).get("paused"))
+    if st["paused"]:
+        for o in st["orders"]:
+            if o["status"] == "pending":
+                o.update(status="expired", why_closed="أُوقف المستشار")
+    R.save(st, pid)
+    return success_response(R.view(st))
 
 
 @router.post("/portfolio-autopilot/ask")

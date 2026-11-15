@@ -4,6 +4,7 @@ import { Briefcase, ShieldCheck, Target, BookOpen, Loader2, Send, Pencil, Check,
 import { aiApi, goalsApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import CompanyLogo from "../common/CompanyLogo";
+import RoboOrders from "./RoboOrders";
 
 /* D587 · D591 — الطيارُ الآليّ للمحفظة (بأمر المالك): مستشارٌ يرى المحفظةَ كلَّها ويحميها من قراراتها.
    رأيٌ واحد بلا مفتاح: يفكّر كمستثمرٍ بعيد المدى ويدخل بحذر مضارب — «اشترِ» قناعةٌ مكتملةُ الشروط لا هلوسة. */
@@ -310,6 +311,7 @@ export default function AutopilotCard() {
           )}
         </>
       )}
+      <RoboOrders />
       <GoalPlan />
       <AutopilotChat />
     </div>

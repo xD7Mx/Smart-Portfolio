@@ -66,6 +66,10 @@ lab = (ROOT / "frontend/src/pages/ResearchLab.tsx").read_text(encoding="utf-8")
 check("backfill_cli" in sch and 'id="research_backfill"' in sch and "create_subprocess_exec" in sch[sch.index("async def job_research_backfill"):]
       and hasattr(RD, "backfill") and RD.KEEP_REPORTS >= 600,
       "٧ الأرشيفُ يُكتب ليلاً في عمليةٍ منفصلة، ويتّسع لنحو سنةٍ من التقارير")
+rp = (ROOT / "backend/app/services/research_paper.py").read_text(encoding="utf-8")
+ro = (ROOT / "backend/app/services/robo_orders.py").read_text(encoding="utf-8")
+check("M.daily_base" not in rp and "M.daily_base" not in ro and 'M.get_bars(f"{sym}.SR", "1d")' in rp and RD.BACKFILL_V >= 2,
+      "٧ب وإغلاقاتُ الشركات من باب الشموع العامّ (قِيس: `daily_base` ليست في الخدمة فعادت فارغةً وكُتب الأرشيفُ بلا قطاعات) — وما كُتب بنسخةٍ أقدم يُعاد")
 check("months(head.data.dates)" in lab and 'data-role="rl-day"' in lab and 'd.label.split(" ")[1]' in lab,
       "٨ والأيامُ في الصفحة أرقاماً تحت شهرها — 15 · 14 · 13")
 print(("FAIL" if fail else "PASS") + " D749 — أرشيفُ التقارير لجميع الجلسات بتسلسلٍ تاريخيّ، كلُّ جلسةٍ بأرقامها هي")

@@ -484,7 +484,7 @@ async def history_context() -> dict:
     async def one(sym):
         async with sem:
             try:
-                pts = await asyncio.wait_for(M.daily_base(f"{sym}.SR", "1y"), 30) or []
+                pts = await asyncio.wait_for(M.get_bars(f"{sym}.SR", "1d"), 30) or []
             except Exception:                                     # noqa: BLE001
                 pts = []
             return sym, {str(p.get("date"))[:10]: _f(p.get("close")) for p in pts if _f(p.get("close"))}

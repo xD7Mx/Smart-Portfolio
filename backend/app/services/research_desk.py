@@ -29,6 +29,7 @@ from datetime import date, datetime, timedelta
 from loguru import logger
 
 KEEP_NOTES_DAYS = 365
+BACKFILL_V = 2                                                     # نسخةُ تقرير الأرشيف — ما كُتب بنسخةٍ أقدم يُعاد (‏D749: كُتبت الأولى بلا إغلاقات الشركات)
 KEEP_REPORTS = 600                                                # تقريرٌ لكلّ محفظةٍ لكلّ جلسة — أرشيفٌ يتّسع لنحو سنة
 MAX_PDF = 25 * 1024 * 1024
 _KIND_RANK = {"تقرير يوميّ": 0, "تقرير اقتصاديّ": 1, "تقرير قطاعيّ": 2, "تقرير دوريّ": 2, "تقرير شهريّ": 2, "تقرير شركة": 3}
@@ -491,8 +492,8 @@ async def backfill(sessions: int = 60) -> dict:
     for d in days:
         have = {pid: load_report(pid, d) for pid, _ in ps}
         have = {pid: r for pid, r in have.items() if r and r.get("date") == d}
-        need = [(pid, pn) for pid, pn in ps if pid not in have]
-        stale = [(pid, pn) for pid, pn in ps if pid in have and have[pid].get("backfill") and not have[pid].get("local")
+        need = [(pid, pn) for pid, pn in ps if pid not in have or (have[pid].get("backfill") and have[pid].get("v") != BACKFILL_V)]
+        stale = [(pid, pn) for pid, pn in ps if (pid, pn) not in need and pid in have and have[pid].get("backfill") and not have[pid].get("local")
                  and any(d <= str(n.get("date") or "") <= nxt[d] for n in notes)]
         if not need and not stale:
             continue
@@ -505,7 +506,7 @@ async def backfill(sessions: int = 60) -> dict:
         for pid, pname in need + stale:
             save_report({"date": d, "portfolio_id": pid, "portfolio_name": pname, "at": datetime.now().isoformat(timespec="minutes"),
                          "market": m, "averages": av, "analysis": RP.market_analysis(m, av), "tech_text": list(RP.tech_commentary(m)),
-                         "regional": reg, "saibor": sai, "positions": [], "picks": [], "no_pick_reason": "", "backfill": True, **ai})
+                         "regional": reg, "saibor": sai, "positions": [], "picks": [], "no_pick_reason": "", "backfill": True, "v": BACKFILL_V, **ai})
         made += len(need)
         renewed += len(stale)
     logger.info("قسم الأبحاث: الأرشيف — كُتب {} وجُدّد {} ({} جلسة)", made, renewed, len(days))

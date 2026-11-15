@@ -342,6 +342,10 @@ export const aiApi = {
     api.post<APIResponse>("/ai/portfolio-autopilot/ask", { question, history }, { timeout: 180000 }),
   portfolioAutopilot: () => api.get<APIResponse>("/ai/portfolio-autopilot", { timeout: 180000 }),
   autopilotPlan: (years: number) => api.get<APIResponse>("/ai/portfolio-autopilot/plan", { params: { years } }),
+  robo: () => api.get<APIResponse>("/ai/robo"),
+  roboRefresh: () => api.post<APIResponse>("/ai/robo/refresh", {}, { timeout: 180000 }),
+  roboDecide: (id: string, decision: "approve" | "reject") => api.post<APIResponse>(`/ai/robo/orders/${encodeURIComponent(id)}/${decision}`),
+  roboPause: (paused: boolean) => api.post<APIResponse>("/ai/robo/pause", { paused }),
   stockOpinion: (symbol: string, name?: string) => api.get<APIResponse>(`/ai/stock-opinion/${symbol}`, { params: name ? { name } : undefined }),
 };
 
