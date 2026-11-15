@@ -27,7 +27,8 @@ seg = seg[seg.index("async def get_bars"):]
 seg = seg[:seg.index("async def get_history")]
 check(not re.search(r'"1h"\s*:\s*"\d', seg) and not re.search(r'"4h"\s*:\s*"\d', seg),
       "١ ساعةُ تاسي وأربعُ ساعاته لا تُحوَّلان إلى مدّةٍ يومية")
-check('if tf in ("1h", "4h"):' in seg and "return await self._tasi_intraday(tf)" in seg,
+# ‏D735: الإطارُ صار (عددٌ، وحدة) — فساعاتُ تاسي كلُّها (ومنها المخصَّصة) من ساعاته الحقيقية، تُجمَّع منها
+check('if unit == "h":' in seg and 'await self._tasi_intraday("1h")' in seg,
       "٢ وتمرّان بمصدرٍ دون اليوم")
 check('self._yahoo().get_bars("^TASI.SR", tf)' in seg and "_th.capture()" in seg and "_th.overlay(" in seg,
       "٣ مصدرُها: ساعاتُ ياهو لـ^TASI.SR والجلساتُ الرسمية المحفوظة من «تداول» فوقها")
@@ -59,7 +60,7 @@ check(all(len(r["date"]) == 16 for r in ov), "١٠ وكلُّ شمعةٍ بسا�
 
 # ‏D663: «والبقيّة» — اليومُ والأسبوعُ والشهر: شمعةُ إغلاقٍ إلى إغلاقٍ بلا ذيلٍ ليست شمعةَ يوم
 # ‏D713: وقد تُؤرَّخ الأسبوعيةُ بأوّلها بعد النداء (‏week_start) — والنداءُ نفسُه هو الحَكَم
-check(("return await self._tasi_daily(tf)" in seg or "rows = await self._tasi_daily(tf)" in seg)
+check(("return await self._tasi_daily(tf)" in seg or "rows = await self._tasi_daily(tf)" in seg or "await self._tasi_daily(" in seg)
       and "_th.real_daily(" in md and '"1y")) or []' not in seg,
       "١٢ يومُ تاسي وأسبوعُه وشهرُه يمرّون بالشموع الحقيقية لا بسلسلة الإغلاق وحدَها")
 closes = [{"date": "2026-10-07", "open": 100, "high": 101, "low": 100, "close": 101, "volume": 0},

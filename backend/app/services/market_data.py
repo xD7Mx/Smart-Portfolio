@@ -605,49 +605,76 @@ class YahooFinanceAdapter:
         cache.set(stale_k, points, 14 * 24 * 3600)
         return points
 
-    async def get_bars(self, symbol: str, tf: str) -> list:
-        """إطاراتُ الرسم كتريدنق فيو (ملاحظةُ المالك 2026-10-09): «الفترة أتلخبط بها — خلّه إطارات: ساعة · أربع ساعات ·
-        يوم · أسبوع · شهر». فالمختارُ طولُ الشمعة لا طولُ المدّة، والمدّةُ ما يكفي الإطار.
-
-        الأسبوعُ من اليوميّ الأحد–الخميس (D465)، والأربعُ ساعات تُجمع من الساعة على جلسة الرياض (10:00 · 14:00) — ياهو لا
-        يسلّم 4H. والساعةُ بتوقيت الرياض «YYYY-MM-DD HH:MM» كما يقرؤها الرسم."""
+    async def daily_base(self, symbol: str, range_: str = "5y") -> list:
+        """اليوميُّ النظيف — أساسُ اليوم والأسبوع وما يُجمَّع منهما (‏D735): بلا تكرارِ تاريخٍ ولا خاناتِ عطل."""
         from app.services.usage_tracker import record, can_call
-        from app.services import cache
-        if tf not in BAR_FRAMES:
-            return []
-        ck, stale_k = f"bars:yahoo:{symbol}:{tf}:v2", f"bars:stale:{symbol}:{tf}:v2"   # ‏D713: v2 — شهرٌ بتقويم الرياض وأسبوعٌ بأوّله
+        from app.services import cache, bars as B
+        ck, stale_k = f"bars:yahoo:{symbol}:daily:{range_}:v3", f"bars:stale:{symbol}:daily:{range_}:v3"
         hit = cache.get(ck)
         if hit is not None:
             return hit
-        if tf == "1wk":
-            pts = week_start(await self.get_history(symbol, "5y") or [])
+        if not can_call("yahoo"):
+            return cache.get(stale_k) or []
+        record("yahoo")
+        pts = B.clean_daily(await self._fetch_chart_points(symbol, range_, "1d"))
+        if len(pts) < 2:
+            return cache.get(stale_k) or []
+        cache.set(ck, pts, 5 * 60)
+        cache.set(stale_k, pts, 14 * 24 * 3600)
+        return pts
+
+    async def get_bars(self, symbol: str, tf: str) -> list:
+        """إطاراتُ الرسم كتريدنق فيو — أيُّ إطار (‏D735 · المالك: «خيارُ تخصيصٍ في الأطر، مثلاً 6 ساعات»): دقائقُ وساعاتٌ وأيامٌ
+        وأسابيعُ وشهور. المختارُ طولُ الشمعة، والمدّةُ ما يكفيه؛ ويُجمَّع من أقرب أساسٍ حقيقيّ (‏services/bars).
+
+        الأسبوعُ من اليوميّ بتقويم سوقه (الأحد–الخميس للسعوديّ)، والساعاتُ مثبَّتةٌ بأوّل شمعةٍ في يومها (الرياض 10:00 ⇒ أربعُ
+        ساعات = 10:00 و14:00). والأوقاتُ بتوقيت الرياض «YYYY-MM-DD HH:MM» كما يقرؤها الرسم."""
+        from app.services.usage_tracker import record, can_call
+        from app.services import cache, bars as B
+        spec = B.parse_tf(tf)
+        if not spec:
+            return []
+        n, unit = spec
+        ck, stale_k = f"bars:yahoo:{symbol}:{n}{unit}:v3", f"bars:stale:{symbol}:{n}{unit}:v3"
+        hit = cache.get(ck)
+        if hit is not None:
+            return hit
+        if unit in ("d", "wk"):
+            daily = await self.daily_base(symbol, "10y" if (unit == "wk" or n > 1) else "5y")
+            pts = B.bucket_n(daily, n) if unit == "d" else B.bucket_n(B.weeks(daily, symbol.upper().endswith(".SR")), n)
+            ttl = 5 * 60
         else:
             if not can_call("yahoo"):
                 return cache.get(stale_k) or []
             record("yahoo")
-            if tf == "1d":
-                pts = await self._fetch_chart_points(symbol, "2y", "1d")
-            elif tf == "1mo":
-                pts = riyadh_months(await self._fetch_chart_points(symbol, "10y", "1mo"))
+            if unit == "m":
+                base = 30 if n % 30 == 0 else 15 if n % 15 == 0 else 5 if n % 5 == 0 else 1
+                rows = B.clean_intraday(await self._fetch_intraday(symbol, "7d" if base == 1 else "60d", f"{base}m"))
+                pts, ttl = (B.bucket_intraday(rows, n) if n != base else rows), 60
+            elif unit == "h":
+                rows = B.clean_intraday(await self._fetch_intraday(symbol, "1y" if n == 1 else "2y", "60m"))
+                pts, ttl = (B.bucket_intraday(rows, n * 60) if n > 1 else rows), 2 * 60
             else:
-                pts = await self._fetch_hourly(symbol, "3mo" if tf == "1h" else "1y")
-                if tf == "4h":
-                    pts = four_hour(pts, saudi=symbol.upper().endswith(".SR"))
+                pts, ttl = B.bucket_n(riyadh_months(await self._fetch_chart_points(symbol, "max", "1mo")), n), 10 * 60
+        pts = pts[-B.MAX_BARS:]
         if len(pts) < 2:
             return cache.get(stale_k) or []
-        cache.set(ck, pts, 15 * 60 if tf in ("1h", "4h") else cache.HISTORY_TTL)
+        cache.set(ck, pts, ttl)
         cache.set(stale_k, pts, 14 * 24 * 3600)
         return pts
 
     async def _fetch_hourly(self, symbol: str, range_: str) -> list:
-        """شموعُ ساعةٍ بتوقيت الرياض — لا تُدمج في يومٍ واحد كما يفعل `_fetch_chart_points`."""
+        return await self._fetch_intraday(symbol, range_, "60m")
+
+    async def _fetch_intraday(self, symbol: str, range_: str, interval: str = "60m") -> list:
+        """شموعٌ دون اليوم (‏1m · 5m · 15m · 30m · 60m) بتوقيت الرياض — لا تُدمج في يومٍ واحد كما يفعل `_fetch_chart_points`."""
         from datetime import datetime, timezone, timedelta
         res = None
         try:
             async with httpx.AsyncClient(timeout=12, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}) as client:
                 for host in ("query1", "query2"):
                     try:
-                        r = await client.get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{symbol}?range={range_}&interval=60m")
+                        r = await client.get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{symbol}?range={range_}&interval={interval}")
                         if r.status_code == 200 and (r.json().get("chart", {}).get("result")):
                             res = r.json()["chart"]["result"][0]
                             break
@@ -1773,26 +1800,48 @@ class MarketDataService:
         return await self._yahoo().get_intraday(symbol)
 
     async def get_bars(self, symbol: str, tf: str) -> list:
-        """إطاراتُ الرسم (ساعة · 4 ساعات · يوم · أسبوع · شهر). «تاسي» من مولّد «تداول» (D438): ياهو لا يملك له تاريخاً."""
+        """إطاراتُ الرسم — أيُّ إطار (‏D735). «تاسي» من مولّد «تداول» (D438): ياهو لا يملك له تاريخاً.
+        والسهمُ السعوديّ: شمعتُه الجاريةُ من جلسة «تداول» الرسمية على اليوميّ، ومنه يُجمَّع الأسبوعُ وما فوقه — فلا شمعةَ في عطلة."""
+        from app.services import bars as B
         from app.services import tasi_history as _th
+        spec = B.parse_tf(tf)
+        if not spec:
+            return []
+        n, unit = spec
         if symbol.upper() in _th.SYMBOLS:
-            if tf in ("1h", "4h"):
-                return await self._tasi_intraday(tf)
-            rows = await self._tasi_daily(tf)
-            return week_start(rows) if tf == "1wk" else rows
-        rows = await self._yahoo().get_bars(symbol, tf)
-        # ‏D713: والشمعةُ الجاريةُ للسهم السعوديّ من جلسة «تداول» الرسمية — تتحرّك مع التداول لا بذاكرة يوم
-        if rows and tf in ("1d", "1wk", "1mo") and symbol.upper().endswith(".SR"):
-            try:
-                from app.services import tadawul_market as _tm
-                from datetime import datetime as _dtm
-                _rows, _live, _at = _tm.usable_rows()
-                snap = _rows.get(symbol.upper().replace(".SR", "")) if _rows else None
-                day = _dtm.fromisoformat(str(_at).replace("Z", "+00:00")).astimezone(_RIYADH_TZ).date().isoformat() if _at else None
-                rows = live_tail(rows, snap, day, tf)
-            except Exception:                                     # noqa: BLE001
-                pass
-        return rows
+            return await self._tasi_bars(n, unit)
+        y = self._yahoo()
+        if not (symbol.upper().endswith(".SR") and unit in ("d", "wk", "mo")):
+            return await y.get_bars(symbol, tf)
+        snap, at, live = None, None, False
+        try:
+            from app.services import tadawul_market as _tm
+            from datetime import datetime as _dtm
+            _rows, live, _at = _tm.usable_rows()
+            snap = _rows.get(symbol.upper().replace(".SR", "")) if _rows else None
+            at = _dtm.fromisoformat(str(_at).replace("Z", "+00:00")).astimezone(_RIYADH_TZ) if _at else None
+        except Exception:                                         # noqa: BLE001
+            snap = at = None
+        if unit == "mo":
+            rows = await y.get_bars(symbol, "1mo")
+            if rows and snap and at:
+                rows = live_tail(rows, snap, B.session_day(at, bool(live)).isoformat(), "1mo")
+            return B.bucket_n(rows, n)
+        daily = B.live_daily(await y.daily_base(symbol, "10y" if (unit == "wk" or n > 1) else "5y"), snap, at, bool(live))
+        rows = B.bucket_n(daily, n) if unit == "d" else B.bucket_n(B.weeks(daily, True), n)
+        return rows[-B.MAX_BARS:]
+
+    async def _tasi_bars(self, n: int, unit: str) -> list:
+        """تاسي بأيّ إطار (‏D735): الدقائقُ من ياهو، والساعاتُ من ساعاته الحقيقية (D661)، واليومُ والأسبوعُ والشهرُ من سلسلته (D663)."""
+        from app.services import bars as B
+        if unit == "m":
+            return await self._yahoo().get_bars("^TASI.SR", f"{n}m")
+        if unit == "h":
+            rows = B.clean_intraday(await self._tasi_intraday("1h"))
+            return (B.bucket_intraday(rows, n * 60) if n > 1 else rows)[-B.MAX_BARS:]
+        if unit == "wk":
+            return B.bucket_n(B.clean_daily(week_start(await self._tasi_daily("1wk"))), n)
+        return B.bucket_n(B.clean_daily(await self._tasi_daily("1mo" if unit == "mo" else "1d")), n)
 
     async def _tasi_daily(self, tf: str) -> list:
         """يومُ تاسي وأسبوعُه وشهرُه بشموعٍ حقيقية (D663).

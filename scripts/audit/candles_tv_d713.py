@@ -62,9 +62,11 @@ check(wk[-1]["high"] == 25.72 and wk[-1]["low"] == 25.38 and wk[-1]["close"] == 
       and mo[-1]["high"] == 26.04 and mo[-1]["low"] == 25.12 and mo[-1]["close"] == 25.38 and len(mo) == 1,
       "٤ والأسبوعُ والشهرُ الجاريان يمتدّان بأعلى الجلسة وأدناها ويُغلقان بسعرها — ولا يُمسّ افتتاحُهما", f"{wk[-1]} · {mo[-1]}")
 src = open(os.path.join(ROOT, "backend/app/services/market_data.py"), encoding="utf-8").read()
-check("riyadh_months(await self._fetch_chart_points(symbol, \"10y\", \"1mo\"))" in src
-      and "week_start(await self.get_history(symbol, \"5y\")" in src and "rows = live_tail(rows, snap, day, tf)" in src
-      and "return week_start(rows) if tf == \"1wk\" else rows" in src,
+# ‏D735: البابُ أُعيد بناؤه على (عددٍ، وحدة): الشهرُ بتقويم الرياض كما كان، والأسبوعُ يُجمَّع من اليوميّ بأوّله (‏bars.weeks)،
+# والجاريةُ من جلسة «تداول» على اليوميّ (‏bars.live_daily) ومنه إلى الأسبوع — وتاسي بأوّل أسبوعه
+check("riyadh_months(await self._fetch_chart_points(symbol, \"max\", \"1mo\"))" in src
+      and "B.weeks(daily" in src and "B.live_daily(" in src and "live_tail(rows, snap, B.session_day(" in src
+      and "week_start(await self._tasi_daily(\"1wk\"))" in src,
       "٥ وبابُ الرسم يستعملها: شهرُ الأسهم بتقويم الرياض، وأسبوعُ الأسهم وتاسي بأوّله، والجاريةُ من جلسة «تداول»")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

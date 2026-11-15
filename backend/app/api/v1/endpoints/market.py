@@ -32,8 +32,12 @@ async def get_price_history(symbol: str, range: str = "3mo", tf: str | None = No
 
     ‏`tf` (ملاحظةُ المالك 2026-10-09): إطارُ الشمعة كتريدنق فيو — 1h · 4h · 1d · 1wk · 1mo — للرسم البيانيّ؛
     و«حركة السعر» تبقى على المدّة (`range`)."""
-    from app.services.market_data import market_service, BAR_FRAMES
-    if tf in BAR_FRAMES:
+    from app.services.market_data import market_service
+    from app.services.bars import parse_tf
+    if tf:
+        # ‏D735: أيُّ إطارٍ صحيح (‏6h · 45m · 3d · 2wk …) — وما لا يُفهم يُرفض ولا يُستبدل بإطارٍ آخر صامتاً
+        if not parse_tf(tf):
+            raise HTTPException(status_code=422, detail="إطارٌ غيرُ مقبول.")
         return success_response(data=await market_service.get_bars(_normalize_symbol(symbol), tf) or [])
     if range not in ("1mo", "3mo", "6mo", "1y", "2y", "5y"):
         range = "6mo"

@@ -46,6 +46,9 @@ m = monthly([{"date": "2026-09-01", "open": 1, "high": 2, "low": 0, "close": 1.5
              {"date": "2026-10-01", "open": 4, "high": 4, "low": 3, "close": 3.5, "volume": 1}])
 check(len(m) == 2 and m[0]["high"] == 5 and m[0]["close"] == 4, "٩ والشهريُّ شمعةٌ لكلّ شهر")
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
-check(BAR_FRAMES == ("1h", "4h", "1d", "1wk", "1mo") and "if tf in BAR_FRAMES:" in mk, "١٠ والخادمُ يسلّم الإطاراتِ الخمسة")
+# ‏D735: والخمسةُ صارت أيَّ إطارٍ صحيح (‏6h · 45m · 3d …) — يُقرأ بـ‏parse_tf، والخمسةُ منه
+from app.services.bars import parse_tf as _ptf
+check(BAR_FRAMES == ("1h", "4h", "1d", "1wk", "1mo") and all(_ptf(t) for t in BAR_FRAMES) and "parse_tf(tf)" in mk,
+      "١٠ والخادمُ يسلّم الإطاراتِ الخمسة")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)
