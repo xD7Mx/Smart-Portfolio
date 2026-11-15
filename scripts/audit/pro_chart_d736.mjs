@@ -27,6 +27,8 @@ const tmp = mkdtempSync(join(tmpdir(), "sp-d736-"));
 await build({ entryPoints: [DATA], outfile: join(tmp, "data.mjs"), format: "esm", bundle: false, logLevel: "silent" });
 await build({ entryPoints: [OVER], outfile: join(tmp, "over.mjs"), format: "esm", bundle: true, logLevel: "silent" });
 const D = await import(pathToFileURL(join(tmp, "data.mjs")).href);
+await build({ entryPoints: [join(FRONT, "src/lib/indicators.ts")], outfile: join(tmp, "ind.mjs"), format: "esm", bundle: false, logLevel: "silent" });
+const I = await import(pathToFileURL(join(tmp, "ind.mjs")).href);
 const { ChartOverlay } = await import(pathToFileURL(join(tmp, "over.mjs")).href);
 
 // ── ١–٤ البيانات والإطارات ──
@@ -58,6 +60,29 @@ say(tf("6h") === "6h" && tf("45m") === "45m" && tf("120m") === "2h" && tf("3d") 
 say(D.tfLong("6h") === "6 ساعات" && D.tfLong("2h") === "ساعتان" && D.tfLong("1h") === "ساعة" && D.tfLong("15m") === "15 دقيقة" && D.tfLong("3d") === "3 أيام"
     && D.tfShort("6h") === "6س" && D.tfShort("1wk") === "أسبوع" && D.fmtPrice(0) === "0.00" && D.fmtPrice(1234.5) === "1,234.50",
     "٤ واسمُ الإطار بالفصحى (ساعة · ساعتان · 6 ساعات · 15 دقيقة) والسعرُ بهللتين", `${D.tfLong("6h")} · ${D.tfLong("2h")} · ${D.tfShort("6h")}`);
+
+// ── ٤ب ‏D741: Stoch RSI بسكربت تريدنق فيو الذي أرسله المالك — يُعاد حسابُه هنا من نصّ السكربت مستقلّاً ويُطابَق ──
+{
+  const px = Array.from({ length: 160 }, (_, i) => 100 + 8 * Math.sin(i / 7) + 3 * Math.sin(i / 2.3) + ((i * 37) % 11 - 5) / 4);
+  const rma = (a, n) => { const o = Array(a.length).fill(null); let s = null; for (let i = 0; i < a.length; i++) { if (a[i] == null) continue;
+    if (s == null) { const w = a.slice(i - n + 1, i + 1); if (w.length === n && w.every(v => v != null)) { s = w.reduce((x, y) => x + y, 0) / n; o[i] = s; } }
+    else { s = (s * (n - 1) + a[i]) / n; o[i] = s; } } return o; };
+  const up = px.map((v, i) => (i ? Math.max(v - px[i - 1], 0) : null)), dn = px.map((v, i) => (i ? Math.max(px[i - 1] - v, 0) : null));
+  const ru = rma(up, 14), rd = rma(dn, 14);
+  const r = ru.map((u, i) => (u == null || rd[i] == null ? null : rd[i] === 0 ? 100 : u === 0 ? 0 : 100 - 100 / (1 + u / rd[i])));
+  const st = r.map((v, i) => { if (i < 13) return null; const w = r.slice(i - 13, i + 1); if (w.some(x => x == null)) return null;
+    const hh = Math.max(...w), ll = Math.min(...w); return hh > ll ? 100 * (v - ll) / (hh - ll) : null; });
+  const smaR = (a, n) => a.map((_, i) => { if (i < n - 1) return null; const w = a.slice(i - n + 1, i + 1); return w.some(x => x == null) ? null : w.reduce((x, y) => x + y, 0) / n; });
+  const K = smaR(st, 3), Dd = smaR(K, 3);
+  const ours = I.stochRsi(px, I.STOCHRSI_DEFAULTS);
+  const diff = Math.max(...K.map((v, i) => (v == null && ours.k[i] == null ? 0 : v == null || ours.k[i] == null ? 1e9 : Math.abs(v - ours.k[i]))),
+                        ...Dd.map((v, i) => (v == null && ours.d[i] == null ? 0 : v == null || ours.d[i] == null ? 1e9 : Math.abs(v - ours.d[i]))));
+  const flat = I.stochRsi(Array(60).fill(50));
+  say(diff < 1e-9 && ours.k.findIndex(v => v != null) === 29 && ours.d.findIndex(v => v != null) === 31 && flat.k.every(v => v == null)
+      && JSON.stringify(I.STOCHRSI_DEFAULTS) === JSON.stringify({ k: 3, d: 3, rsiLen: 14, stochLen: 14 }),
+      "٤ب Stoch RSI بسكربت تريدنق فيو حرفاً: RSI 14 (وايلدر) ← ستوكاستيك 14 ← K 3 · D 3 — أوّلُ قيمةٍ عند الشمعة 30، ومدًى صفريٌّ فراغٌ لا رقم",
+      `أكبرُ فرق ${diff.toExponential(1)} · آخرُ K ${ours.k[159].toFixed(4)} · D ${ours.d[159].toFixed(4)}`);
+}
 
 // ── ٥ طبقةُ الرسم: موضعٌ كسريٌّ بين شمعتين (المكتبةُ تعيد صفراً لرقم شمعةٍ كسريّ ⇒ خطٌّ على حافّة الرسم) ──
 const rec = [];
@@ -186,7 +211,7 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
 
   // ١٢ لوحاتٌ حقيقيةٌ للمؤشّرات بقيمها
   await page.locator('[data-role="pc-ind"]').click();
-  for (const k of ["rsi", "macd"]) { await page.locator(`[data-role="pc-ind-menu"] [data-ind="${k}"]`).click(); await sleep(150); }
+  for (const k of ["rsi", "macd", "stochrsi"]) { await page.locator(`[data-role="pc-ind-menu"] [data-ind="${k}"]`).click(); await sleep(150); }
   await page.mouse.click(5, 5);
   await page.waitForTimeout(1200);
   const panes = await page.evaluate(() => {
@@ -197,9 +222,11 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
                f: Math.min(...[...e.querySelectorAll("*")].map(x => parseFloat(getComputedStyle(x).fontSize))) })) };
   });
   const nums = (t) => t.v.filter(x => /^-?\d+\.\d+$/.test(x)).length;
-  say(panes.n === 3 && panes.tags.length === 2 && panes.tags[1].y - panes.tags[0].y > 40 && panes.tags.every(t => t.y > panes.stage[0] + 100 && t.y < panes.stage[1])
-      && nums(panes.tags[0]) === 1 && nums(panes.tags[1]) === 3 && panes.tags.every(t => t.f >= 9.5),
-      `${label}: RSI وMACD لكلٍّ لوحتُه الحقيقيةُ بقيمه — لا رسمٌ فارغ ولا تداخل، والخطُّ ≥ 9.5px`, panes.tags.map(t => `${t.k} ${t.v.join(" ")} @${Math.round(t.y)}`).join(" | "));
+  const srTag = panes.tags.find(t => t.k === "stochrsi");
+  say(panes.n === 4 && panes.tags.length === 3 && [...panes.tags].sort((a, b) => a.y - b.y).every((t, i, arr) => !i || t.y - arr[i - 1].y > 40) && panes.tags.every(t => t.y > panes.stage[0] + 100 && t.y < panes.stage[1])
+      && nums(panes.tags.find(t => t.k === "rsi")) === 1 && nums(panes.tags.find(t => t.k === "macd")) === 3 && !!srTag && nums(srTag) === 2
+      && /Stoch RSI 3 3 14 14/.test(srTag.t) && panes.tags.every(t => t.f >= 9.5),
+      `${label}: RSI وStoch RSI وMACD لكلٍّ لوحتُه الحقيقيةُ بقيمه — لا رسمٌ فارغ ولا تداخل، والخطُّ ≥ 9.5px`, panes.tags.map(t => `${t.k} ${t.v.join(" ")} @${Math.round(t.y)}`).join(" | "));
 
   // ١٣ الإطارُ المخصَّص: 6 ساعات
   await page.locator('[data-role="pc-tf-more"]').click();

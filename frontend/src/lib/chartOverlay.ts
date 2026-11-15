@@ -18,6 +18,22 @@ export type Segment = { x1: number; y1: number; x2: number; y2: number; color: s
 export type Path = { pts: { x: number; y: number }[]; color: string; width?: number };
 export type Note = { x: number; y: number; text: string; color: string };
 
+/** خلفيةٌ بين مستويين في لوحة مؤشّر — ‏fill(h0, h1) في سكربت تريدنق فيو (‏Stoch RSI بين 80 و20 · D741). */
+export class BandFill implements ISeriesPrimitive<Time> {
+  private s: ISeriesApi<SeriesType> | null = null;
+  constructor(private hi: number, private lo: number, private color: string) {}
+  attached(p: SeriesAttachedParameter<Time>) { this.s = p.series; }
+  detached() { this.s = null; }
+  paneViews() {
+    return [{ zOrder: () => "bottom" as const, renderer: () => ({ draw: (t: CanvasRenderingTarget2D) => t.useMediaCoordinateSpace(({ context: c, mediaSize }) => {
+      const a = this.s?.priceToCoordinate(this.hi), b = this.s?.priceToCoordinate(this.lo);
+      if (a == null || b == null) return;
+      c.fillStyle = this.color;
+      c.fillRect(0, Math.min(a as number, b as number), mediaSize.width, Math.abs((b as number) - (a as number)));
+    }) }) }];
+  }
+}
+
 export class ChartOverlay implements ISeriesPrimitive<Time> {
   private chart: IChartApi | null = null;
   private series: ISeriesApi<SeriesType> | null = null;

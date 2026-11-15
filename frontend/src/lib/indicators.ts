@@ -174,3 +174,21 @@ export function macd(data: number[], fast = 12, slow = 26, sig = 9) {
   const hist = line.map((v, i) => (v == null || signal[i] == null ? null : v - (signal[i] as number)));
   return { line, signal, hist };
 }
+
+/* ══ Stoch RSI — سكربتُ تريدنق فيو بنصّه (‏Pine v6 «Stochastic RSI» · أرسله المالك 2026-11-15 · D741) ══
+   rsi1 = ta.rsi(close, lengthRSI) · k = ta.sma(ta.stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK) · d = ta.sma(k, smoothD).
+   ‏ta.rsi بمتوسّط وايلدر (‏RMA) المبذور بمتوسّطٍ بسيط — كدالّة rsi أعلاه؛ و‏ta.stoch = ‏100 × (الحاليّ − الأدنى) ÷ (الأعلى − الأدنى) على
+   ‏lengthStoch شمعة، ومدًى صفريٌّ ‏na لا رقمٌ مختلَق؛ و‏ta.sma على نافذةٍ فيها ‏na ‏na. */
+export type StochRsiCfg = { k: number; d: number; rsiLen: number; stochLen: number };
+export const STOCHRSI_DEFAULTS: StochRsiCfg = { k: 3, d: 3, rsiLen: 14, stochLen: 14 };
+export function stochRsi(closes: number[], cfg: StochRsiCfg = STOCHRSI_DEFAULTS) {
+  const r = rsi(closes, cfg.rsiLen), n = r.length, L = cfg.stochLen;
+  const raw: (number | null)[] = Array(n).fill(null);
+  for (let i = L - 1; i < n; i++) {
+    let hh = -Infinity, ll = Infinity, ok = true;
+    for (let j = i - L + 1; j <= i; j++) { const v = r[j]; if (v == null) { ok = false; break; } if (v > hh) hh = v; if (v < ll) ll = v; }
+    if (ok && hh > ll) raw[i] = 100 * ((r[i] as number) - ll) / (hh - ll);
+  }
+  const k = smaN(raw, cfg.k);
+  return { k, d: smaN(k, cfg.d) };
+}
