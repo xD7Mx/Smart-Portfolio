@@ -16,7 +16,11 @@ def shape(rows):
     gapless = sum(1 for a, b in zip(rows, rows[1:]) if b["open"] == a["close"])
     novol = sum(1 for r in rows if not r.get("volume"))
     bad = sum(1 for r in rows if not (r["low"] <= min(r["open"], r["close"]) and r["high"] >= max(r["open"], r["close"])))
-    return f"مسطّحة {flat} · بلا ذيل {nowick} · فتحٌ=إغلاقُ السابقة {gapless} · بلا حجم {novol} · مختلّة {bad}"
+    basis = sum(1 for r in rows if r.get("basis"))
+    dup = n - len({str(r["date"]) for r in rows})
+    flat0 = sum(1 for r in rows if r["open"] == r["high"] == r["low"] == r["close"] and not r.get("volume"))
+    return (f"مسطّحة {flat} (بلا حجم {flat0}) · بلا ذيل {nowick} · فتحٌ=إغلاقُ السابقة {gapless} · بلا حجم {novol} · مختلّة {bad}"
+            f" · مكرَّرة {dup} · من الإغلاقات {basis}")
 
 
 async def main():
