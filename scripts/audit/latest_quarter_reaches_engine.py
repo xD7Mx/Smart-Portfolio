@@ -80,10 +80,16 @@ except (ModuleNotFoundError, ImportError) as e:
     print(("FAIL" if fail else "PASS") + " D412")
     sys.exit(fail)
 
-_per = [{"as_of": "2025-12-31", "equity": 1000.0, "total_assets": 6000.0,
+# ‏D737: التواريخُ تُقاس من اليوم — كانت ثابتةً (‏2026-06-30) والمحرّكُ يقيس الشيخوخةَ بتقويم اليوم (‏137 يوماً)، فانقلب الفحصُ
+# عطباً يومَ جاوز الربعُ الثابتُ مهلتَه (‏2026-11-15) بلا أيّ تغييرٍ في المحرّك. فالسنةُ هنا شائخةٌ دائماً والربعُ في أوانه دائماً.
+import datetime as _dt
+_today = _dt.date.today()
+_Q, _Y, _Y2 = ((_today - _dt.timedelta(days=d)).isoformat() for d in (60, 320, 685))
+
+_per = [{"as_of": _Y, "equity": 1000.0, "total_assets": 6000.0,
          "net_income": 120.0, "shares_outstanding": 100.0, "eps": 1.2,
          "revenue": 400.0, "total_liabilities": 5000.0},
-        {"as_of": "2024-12-31", "equity": 950.0, "total_assets": 5800.0,
+        {"as_of": _Y2, "equity": 950.0, "total_assets": 5800.0,
          "net_income": 110.0, "shares_outstanding": 100.0, "eps": 1.1,
          "revenue": 380.0, "total_liabilities": 4850.0}]
 _info = {"book_value": 10.0, "trailing_eps": 1.2, "return_on_equity": 0.12}
@@ -91,12 +97,12 @@ _kw = dict(price=12.0, sector_avg_pe=10.0, sector_avg_pb=1.1,
            periods=_per, archetype="bank", symbol="0000")
 
 _a = compute(_info, **_kw)
-_b = compute(_info, latest_quarter={"as_of": "2026-06-30",
+_b = compute(_info, latest_quarter={"as_of": _Q,
                                     "equity": 1050.0}, **_kw)
 
-check(_a.get("data_asof") == "2025-12-31",
+check(_a.get("data_asof") == _Y,
       "٣ بلا ربعٍ: تاريخُ الأرقام من أحدثِ سنة", str(_a.get("data_asof")))
-check(_b.get("data_asof") == "2026-06-30",
+check(_b.get("data_asof") == _Q,
       "٣ب ومعه: من أحدثِ إفصاحٍ منشور", str(_b.get("data_asof")))
 check(bool(_b.get("asof_from_quarter")),
       "٣ج والمصدرُ مُعلَنٌ في المخرَج — لا تبديلَ صامت")

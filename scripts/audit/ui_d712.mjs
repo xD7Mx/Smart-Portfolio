@@ -33,7 +33,8 @@ const errs = [];
 page.on("pageerror", e => errs.push(String(e.message || e)));
 await page.route("**/api/v1/**", r => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: [] }) }));
 await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe"); } catch { } });
-await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+// ‏D736: الإيماءةُ تُقاس على «مختبر الأبحاث» — صفحةُ الغرفة الأولى رسمٌ بيانيّ، والسحبُ عليه يحرّك الشموعَ لا القائمة (‏pro_chart_d736)
+await page.goto(`http://localhost:${PORT}/watchlist?tab=lab`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
 await page.waitForTimeout(2200);
 const cdp = await ctx.newCDPSession(page);
 const T = (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
@@ -120,7 +121,7 @@ say(!v1.on, "٧ والتمريرُ الرأسيّ لا يحرّكها");
 // ٩ ‏D719 (المالك): «عند الضغط في الجهة الأخرى لتختفي القائمة تظهر رعشة — يجب أن تتلاشى بانسيابية». يُقاس إطاراً إطاراً بعد
 // النقر على الغطاء: القائمةُ لا تعود إلى الداخل بعد أن بدأت تخرج، والغطاءُ لا يعود فيغمق بعد أن بدأ يبهت، وتنتهي في أقلّ من ثانية.
 for (const how of ["سحب", "زرّ"]) {
-  await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});   // صفحةٌ نظيفةٌ بعد التمرير
+  await page.goto(`http://localhost:${PORT}/watchlist?tab=lab`, { waitUntil: "load", timeout: 30000 }).catch(() => {});   // صفحةٌ نظيفةٌ بعد التمرير
   await page.waitForTimeout(1500);
   if (how === "سحب") { await T("touchStart", 330, 500); await glide(330, 150, 500, 6, 30); await T("touchEnd"); }
   else await page.locator("button:has(svg.lucide-menu)").first().click({ timeout: 3000 }).catch(() => {});
