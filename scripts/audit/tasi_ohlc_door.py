@@ -19,6 +19,8 @@ async def main():
                 if "chart" in js.lower() or "indice" in js.lower() or "graph" in js.lower():
                     st2, b2 = await fetch(js if js.startswith("http") else base + js)
                     found = set(re.findall(r"SQL_[A-Z0-9_]+", b2 or ""))
+                    for m in re.finditer(r"SQL_T_ID|SQL_T_IC_ALL_COM", b2 or ""):
+                        print("   ⟵", (b2 or "")[max(0, m.start() - 260):m.end() + 200].replace("\n", " "))
                     print("  سكربت", js[-60:], st2, sorted(found)[:40])
                     names |= found
             names |= set(re.findall(r"SQL_[A-Z0-9_]+", body or ""))
@@ -28,7 +30,9 @@ async def main():
     for n in sorted(names):
         url = f"{base}/tadawul.eportal.charts.v2/ChartGenerator?methodType=parsingMethod&chart-type={n}&chart-parameter=tasi&format=json"
         try:
-            st, body = await fetch(url)
+            st, body = await fetch(url, referer=base + "/wps/portal/saudiexchange/ourmarkets/main-market-watch/indices-performance")
+            if st != 200:
+                st, body = await fetch(url + "&pageName=MarketStatusHomeGraph", referer=base + "/wps/portal/saudiexchange/home")
             data = json.loads(body) if st == 200 and body else None
         except Exception as e:                                    # noqa: BLE001
             print(f"{n}: ✘ {type(e).__name__}")

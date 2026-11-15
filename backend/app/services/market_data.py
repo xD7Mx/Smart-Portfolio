@@ -635,12 +635,12 @@ class YahooFinanceAdapter:
         if not spec:
             return []
         n, unit = spec
-        ck, stale_k = f"bars:yahoo:{symbol}:{n}{unit}:v3", f"bars:stale:{symbol}:{n}{unit}:v3"
+        ck, stale_k = f"bars:yahoo:{symbol}:{n}{unit}:v4", f"bars:stale:{symbol}:{n}{unit}:v4"
         hit = cache.get(ck)
         if hit is not None:
             return hit
         if unit in ("d", "wk"):
-            daily = await self.daily_base(symbol, "10y" if (unit == "wk" or n > 1) else "5y")
+            daily = await self.daily_base(symbol, "10y")
             pts = B.bucket_n(daily, n) if unit == "d" else B.bucket_n(B.weeks(daily, symbol.upper().endswith(".SR")), n)
             ttl = 5 * 60
         else:
@@ -650,13 +650,13 @@ class YahooFinanceAdapter:
             if unit == "m":
                 base = 30 if n % 30 == 0 else 15 if n % 15 == 0 else 5 if n % 5 == 0 else 1
                 rows = B.clean_intraday(await self._fetch_intraday(symbol, "7d" if base == 1 else "60d", f"{base}m"))
-                pts, ttl = (B.bucket_intraday(rows, n) if n != base else rows), 60
+                pts, ttl = (B.bucket_intraday(rows, n, B.session_mode(symbol), base) if n != base else rows), 60
             elif unit == "h":
-                rows = B.clean_intraday(await self._fetch_intraday(symbol, "1y" if n == 1 else "2y", "60m"))
-                pts, ttl = (B.bucket_intraday(rows, n * 60) if n > 1 else rows), 2 * 60
+                rows = B.clean_intraday(await self._fetch_intraday(symbol, "2y", "60m"))
+                pts, ttl = (B.bucket_intraday(rows, n * 60, B.session_mode(symbol)) if n > 1 else rows), 2 * 60
             else:
                 pts, ttl = B.bucket_n(riyadh_months(await self._fetch_chart_points(symbol, "max", "1mo")), n), 10 * 60
-        pts = pts[-B.MAX_BARS:]
+        pts = B.finalize(pts)
         if len(pts) < 2:
             return cache.get(stale_k) or []
         cache.set(ck, pts, ttl)
@@ -1809,10 +1809,10 @@ class MarketDataService:
             return []
         n, unit = spec
         if symbol.upper() in _th.SYMBOLS:
-            return await self._tasi_bars(n, unit)
+            return B.finalize(await self._tasi_bars(n, unit))
         y = self._yahoo()
         if not (symbol.upper().endswith(".SR") and unit in ("d", "wk", "mo")):
-            return await y.get_bars(symbol, tf)
+            return B.finalize(await y.get_bars(symbol, tf))
         snap, at, live = None, None, False
         try:
             from app.services import tadawul_market as _tm
@@ -1826,10 +1826,10 @@ class MarketDataService:
             rows = await y.get_bars(symbol, "1mo")
             if rows and snap and at:
                 rows = live_tail(rows, snap, B.session_day(at, bool(live)).isoformat(), "1mo")
-            return B.bucket_n(rows, n)
-        daily = B.live_daily(await y.daily_base(symbol, "10y" if (unit == "wk" or n > 1) else "5y"), snap, at, bool(live))
+            return B.finalize(B.bucket_n(rows, n))
+        daily = B.live_daily(await y.daily_base(symbol, "10y"), snap, at, bool(live))
         rows = B.bucket_n(daily, n) if unit == "d" else B.bucket_n(B.weeks(daily, True), n)
-        return rows[-B.MAX_BARS:]
+        return B.finalize(rows)
 
     async def _tasi_bars(self, n: int, unit: str) -> list:
         """تاسي بأيّ إطار (‏D735): الدقائقُ من ياهو، والساعاتُ من ساعاته الحقيقية (D661)، واليومُ والأسبوعُ والشهرُ من سلسلته (D663)."""
@@ -1838,7 +1838,7 @@ class MarketDataService:
             return await self._yahoo().get_bars("^TASI.SR", f"{n}m")
         if unit == "h":
             rows = B.clean_intraday(await self._tasi_intraday("1h"))
-            return (B.bucket_intraday(rows, n * 60) if n > 1 else rows)[-B.MAX_BARS:]
+            return (B.bucket_intraday(rows, n * 60) if n > 1 else rows)
         if unit == "wk":
             return B.bucket_n(B.clean_daily(week_start(await self._tasi_daily("1wk"))), n)
         return B.bucket_n(B.clean_daily(await self._tasi_daily("1mo" if unit == "mo" else "1d")), n)

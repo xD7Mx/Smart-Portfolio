@@ -80,9 +80,10 @@ def _gap_min(a: str, b: str) -> float | None:
 
 
 def clean_intraday(rows: list) -> list:
-    """دون اليوم: مرتَّبٌ بلا تكرار، وعلامةُ الإغلاق (آخرُ شمعةٍ مسطّحةٍ بلا حجم) تُدمج في آخر شمعةٍ من جلستها — سعرٌ لا شمعة.
-    والجلسةُ تُعرف بالقُرب لا بتاريخ التقويم: إغلاقُ نيويورك منتصفُ ليل الرياض، فعلامتُه «00:00» من اليوم التالي وشمعتُها
-    الأخيرة «23:30» من اليوم السابق (قِيس على الخادم 2026-11-15: شرطةٌ مسطّحةٌ آخرَ ساعيِّ S&P 500 وأبل بعد النشر الأوّل)."""
+    """دون اليوم: مرتَّبٌ بلا تكرار، وكلُّ شمعةٍ مسطّحةٍ بلا حجمٍ في سلسلةٍ لها حجمٌ ساعةٌ بلا صفقة — لا شمعة (تريدنق فيو لا يرسم
+    ساعةً لم يُتداول فيها). فإن كانت آخرَ جلستها (لا شمعةَ بعدها في ثلاث ساعات) فهي علامةُ الإغلاق: سعرُها إغلاقُ الشمعة التي قبلها.
+    والجلسةُ تُعرف بالقُرب لا بتاريخ التقويم — إغلاقُ نيويورك منتصفُ ليل الرياض (‏D738)، وقِيست مسطّحاتٌ وسطَ ساعات تاسي
+    والنفط والذهب بعد نشر D735 (‏D739)."""
     out: list = []
     for r in sorted((x for x in rows or [] if _ok(x)), key=lambda x: str(x["date"])):
         r = _fix(r)
@@ -90,14 +91,20 @@ def clean_intraday(rows: list) -> list:
             out[-1] = _merge(out[-1], r)
         else:
             out.append(r)
-    has_vol = sum(1 for r in out if r.get("volume")) > len(out) / 2
-    if has_vol and len(out) >= 2:
-        last, prev = out[-1], out[-2]
-        gap = _gap_min(prev["date"], last["date"])
-        if _is_flat(last) and not last.get("volume") and gap is not None and 0 < gap <= 180:
-            out[-2] = {**prev, "high": max(prev["high"], last["high"]), "low": min(prev["low"], last["low"]), "close": last["close"]}
-            out.pop()
-    return out
+    if not (sum(1 for r in out if r.get("volume")) > len(out) / 2):
+        return out
+    kept: list = []
+    for i, r in enumerate(out):
+        if not (_is_flat(r) and not r.get("volume")):
+            kept.append(r)
+            continue
+        nxt = out[i + 1] if i + 1 < len(out) else None
+        g_prev = _gap_min(kept[-1]["date"], r["date"]) if kept else None
+        g_next = _gap_min(r["date"], nxt["date"]) if nxt else None
+        if kept and g_prev is not None and 0 < g_prev <= 180 and (g_next is None or g_next > 180):
+            p = kept[-1]
+            kept[-1] = {**p, "high": max(p["high"], r["close"]), "low": min(p["low"], r["close"]), "close": r["close"]}
+    return kept
 
 
 def _mins(stamp: str) -> int:
@@ -109,17 +116,49 @@ def _agg(group: list, date: str) -> dict:
             "close": group[-1]["close"], "volume": sum((g.get("volume") or 0) for g in group)}
 
 
-def bucket_intraday(rows: list, minutes: int) -> list:
-    """شموعٌ دون اليوم ← إطارٌ أطول، مثبَّتاً بأوّل شمعةٍ في يومها: جلسةُ الرياض تبدأ 10:00 فالأربعُ ساعات 10:00 و14:00."""
+def _utc_min(stamp: str) -> int | None:
+    """دقائقُ التوقيت العالميّ منذ 1970 لختمٍ بساعة الرياض (‏UTC+3 ثابتٌ بلا توقيتٍ صيفيّ)."""
+    try:
+        t = _dt.datetime.strptime(str(stamp)[:16], "%Y-%m-%d %H:%M")
+        return int((t - _dt.datetime(1970, 1, 1)).total_seconds() // 60) - 180
+    except Exception:                                             # noqa: BLE001
+        return None
+
+
+def session_mode(symbol: str) -> str:
+    """كيف تُثبَّت الإطاراتُ المجمَّعة دون اليوم — كتريدنق فيو:
+    «day» الأسهمُ والمؤشّرات: من افتتاح جلستها كلَّ يوم (الرياض 10:00 · نيويورك 9:30).
+    «gap» العقودُ الآجلة والعملات (تداولٌ شبهُ متّصل بفاصلٍ يوميّ): من أوّل شمعةٍ بعد الفاصل — افتتاحُ جلستها.
+    «utc» العملاتُ المشفّرة (بلا فاصل): من منتصف ليل التوقيت العالميّ — 00:00 و04:00 و08:00…"""
+    s = str(symbol or "").upper()
+    if re.search(r"-(USD|USDT|EUR|BTC|ETH)$", s):
+        return "utc"
+    if s.endswith("=F") or s.endswith("=X"):
+        return "gap"
+    return "day"
+
+
+def bucket_intraday(rows: list, minutes: int, mode: str = "day", base: int = 60) -> list:
+    """شموعٌ دون اليوم ← إطارٌ أطول، مثبَّتاً بافتتاح الجلسة (‏session_mode): الأسهمُ من أوّل شمعةٍ في يومها (جلسةُ الرياض
+    10:00 ⇒ أربعُ ساعات = 10:00 و14:00)، والآجلةُ من أوّل شمعةٍ بعد فاصلها اليوميّ، والمشفّرةُ من منتصف ليل التوقيت العالميّ."""
     if minutes <= 0:
         return rows
     out: list = []
-    day, anchor, key, group = None, 0, None, []
+    sess, anchor, key, group, prev_u = None, 0, None, [], None
     for r in rows:
-        d = str(r["date"])[:10]
-        if d != day:
-            day, anchor = d, _mins(str(r["date"]))
-        k = (d, (_mins(str(r["date"])) - anchor) // minutes)
+        st = str(r["date"])
+        u = _utc_min(st)
+        if mode == "utc" and u is not None:
+            k = ("u", u // minutes)
+        else:
+            if mode == "gap" and u is not None:
+                new = prev_u is None or u - prev_u > base
+            else:
+                new = st[:10] != sess
+            if new:
+                sess, anchor = st[:10], (u if mode == "gap" and u is not None else _mins(st))
+            k = (sess, anchor, ((u if mode == "gap" and u is not None else _mins(st)) - anchor) // minutes)
+        prev_u = u
         if k != key and group:
             out.append(_agg(group, group[0]["date"]))
             group = []
@@ -170,6 +209,16 @@ def months(rows: list) -> list:
     if group:
         out.append(_agg(group, f"{key}-01"))
     return out
+
+
+def finalize(rows: list) -> list:
+    """البابُ الأخير قبل الرسم (‏D739) — كلُّ مسارٍ يمرّ منه، فلا تصل الرسمَ شمعةٌ مختلّة (قمّةٌ دون جسمها: قِيست في شهريّ الذهب)
+    ولا مكرَّرةٌ ولا غيرُ مرتَّبة ولا خانةُ عطلةٍ أو ساعةٌ بلا صفقة، أيّاً كان مصدرُها أو تجميعُها."""
+    rows = [r for r in rows or [] if _ok(r)]
+    if not rows:
+        return []
+    intraday = any(len(str(r["date"])) > 10 for r in rows)
+    return (clean_intraday(rows) if intraday else clean_daily(rows))[-MAX_BARS:]
 
 
 def session_day(at: _dt.datetime, live: bool) -> _dt.date:
