@@ -216,7 +216,7 @@ function App() {
             {/* ‏D677: المختبرُ تبويبٌ في المحفظة، والمراقبةُ قسمٌ مكانه — والرابطُ القديم يصل المختبرَ في موضعه الجديد */}
             <Route path="/watchlist"      element={<WatchlistPage />} />
             {/* ‏D694: المختبرُ تبويبٌ في تحليل الذكاء، والحوكمةُ تبويبٌ في المحفظة — والرابطان القديمان يفتحانهما */}
-            <Route path="/stars"          element={<Navigate to="/ai?tab=lab" replace />} />
+            <Route path="/stars"          element={<Navigate to="/watchlist?tab=lab" replace />} />
             <Route path="/governance"      element={<Navigate to="/portfolio?tab=governance" replace />} />
             <Route path="/ai"             element={<AIPage />} />
             <Route path="/calculators"    element={<CalculatorsPage />} />

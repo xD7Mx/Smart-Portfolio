@@ -44,10 +44,10 @@ for (const [label, vp, mobile] of [["الجوال", { width: 390, height: 844 },
     .map(b => ({ t: b.textContent.trim(), on: b.getAttribute("aria-pressed") === "true" })));
   const advisorShown = () => page.evaluate(() => [...document.querySelectorAll("h2")].some(h => h.textContent.trim() === "المستشار الآلي"));
 
-  // ١ · ثلاثةُ تبويبات بالترتيب: التحليل · المختبر · المستشار — والتحليلُ بلا مستشار
+  // ١ · تبويبان: التحليل · المستشار — والتحليلُ بلا مستشار (‏D736: «المختبر» انتقل إلى غرفة التداول بأمر المالك 2026-11-15)
   await go("/ai");
   const t1 = (await tabs()).map(x => x.t);
-  say(t1.join("|") === "التحليل|المختبر|المستشار", `${label}: تحليلُ الذكاء ثلاثةُ تبويبات — «المستشار» ثالثاً بجانب المختبر`, t1.join(" · "));
+  say(t1.join("|") === "التحليل|المستشار", `${label}: تحليلُ الذكاء تبويبان — «المستشار» بجانب «التحليل»`, t1.join(" · "));
   say(!(await advisorShown()), `${label}: «التحليل» بلا مستشار — لا تكرار`);
 
   // ٢ · «المستشار» يفتحه بحركةٍ ويحمل رابطَه
@@ -72,7 +72,7 @@ for (const [label, vp, mobile] of [["الجوال", { width: 390, height: 844 },
   await go("/ai?tab=advisor");
   say((await tabs()).find(x => x.t === "المستشار")?.on && (await advisorShown()), `${label}: /ai?tab=advisor يفتح المستشارَ مباشرة`);
   await go("/ai?tab=lab");
-  say((await tabs()).find(x => x.t === "المختبر")?.on && !(await advisorShown()), `${label}: والمختبرُ في تبويبه بلا مستشار`);
+  say((await tabs()).find(x => x.t === "مختبر الأبحاث")?.on && !(await advisorShown()), `${label}: والمختبرُ في تبويبه (غرفة التداول) بلا مستشار`);
   say(errs.length === 0, `${label}: لا خطأَ في الصفحات`, errs[0] || "");
   await ctx.close();
 }

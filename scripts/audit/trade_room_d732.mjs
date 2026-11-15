@@ -72,18 +72,18 @@ const order = ["rsi", "stoch", "macd", "cvd"].filter(k => {
 });
 say(order.length === 0, "٦ب وكلُّ لوحةٍ سفلى تُحدُّ بعد إنشاء سلسلتها — لا مؤشّرَ يُرسم فوق شموع السعر", order.join(","));
 
+const proSrc = (await import("node:fs")).readFileSync(join(FRONT, "src/components/chart/ProChart.tsx"), "utf-8");
+say(/\["stoch", "Stochastic"/.test(proSrc) && /\["cvd", "CVD D7M"/.test(proSrc) && /\["d7m", "D7M"/.test(proSrc) && /sp_chart_ind/.test(proSrc) && /sp_cvd_cfg/.test(proSrc)
+    && /cvdD7M\(bars/.test(proSrc) && /import ProChart from "\.\.\/chart\/ProChart"/.test((await import("node:fs")).readFileSync(join(FRONT, "src/components/market/TradeRoom.tsx"), "utf-8")),
+    "٦ج والرسمُ الاحترافيّ في الغرفة (‏D736) يحمل المؤشّراتِ نفسَها بإعداداتها المحفوظة");
+
 // ── المتصفّح ──
 const PORT = 5255;
 const SHOTS = process.env.SHOTS || "";
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 const CHROME = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome", "/opt/pw-browsers/chromium"].find(p => existsSync(p));
 const PW = [join(FRONT, "node_modules", "playwright", "index.js"), "/opt/node22/lib/node_modules/playwright/index.js"].find(p => existsSync(p));
-const LW_URL = "https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js";
-const LW_CACHE = join(tmpdir(), "sp-audit-lw-4.1.3.js");
-let LW = [process.env.LW_PATH, "/tmp/claude-0/lw/package/dist/lightweight-charts.standalone.production.js",
-  join(FRONT, "node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js"), LW_CACHE].find(p => p && existsSync(p));
-if (!LW && spawnSync("curl", ["-fsSL", "-o", LW_CACHE, LW_URL]).status === 0 && existsSync(LW_CACHE)) LW = LW_CACHE;
-if (!PW || !CHROME || !LW) { console.log("… تعذّر فحصُ المتصفّح (المتصفّح أو مكتبةُ الرسم غيرُ متاحة) — لا حكم."); console.log("\nالنتيجة:", fail ? "عطب ✖" : "نظيف ✔"); process.exit(fail); }
+if (!PW || !CHROME) { console.log("… تعذّر فحصُ المتصفّح (المتصفّح غيرُ متاح) — لا حكم."); console.log("\nالنتيجة:", fail ? "عطب ✖" : "نظيف ✔"); process.exit(fail); }
 const _pw = await import(pathToFileURL(PW).href);
 const chromium = _pw.chromium || _pw.default?.chromium;
 const body = (data) => ({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data }) });
@@ -108,7 +108,6 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   let groups = [{ id: 1, name: "الرئيسية", color: "var(--chart-1)", is_default: true }];
   const lists = { 1: [] };
   page.on("pageerror", e => errs.push(String(e.message || e)));
-  await page.route("https://unpkg.com/**", r => r.fulfill({ path: LW, contentType: "application/javascript" }));
   await page.route("**/api/v1/**", async r => {
     const u = new URL(r.request().url()), p = u.pathname.replace(/^.*\/api\/v1/, ""), m = r.request().method();
     if (/^\/market\/(bars|history)\//.test(p)) { barsFor.push(decodeURIComponent(p.split("/").pop())); return r.fulfill(body(bars())); }
@@ -139,9 +138,10 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await page.waitForTimeout(2600);
   const lay = await page.evaluate(() => {
     const c = document.querySelector('[data-role="troom-chart"]')?.getBoundingClientRect(), l = document.querySelector('[data-role="troom-list"]')?.getBoundingClientRect();
-    return c && l ? { side: Math.abs(c.top - l.top) < 4 && c.width > l.width * 2, below: l.top >= c.bottom - 1 } : null;
+    return c && l ? { side: Math.abs(c.top - l.top) < 4 && c.width > l.width * 2, listRight: l.left >= c.right - 1, below: l.top >= c.bottom - 1 } : null;
   });
-  say(!!lay && (desk ? lay.side : lay.below), `${label}: الرسمُ في الصدر وقوائمُ المراقبة ${desk ? "بجانبه" : "تحته"} — افتراضُ الغرفة`, JSON.stringify(lay));
+  // ‏D736 (المالك 2026-11-15): «المستخدم عربيّ — الشركاتُ في اليمين والرسمُ البيانيُّ على اليسار»
+  say(!!lay && (desk ? lay.side && lay.listRight : lay.below), `${label}: ${desk ? "القوائمُ يمينَ الشاشة والرسمُ يسارَها" : "الرسمُ أوّلاً والقوائمُ تحته"} — افتراضُ الغرفة`, JSON.stringify(lay));
   const rowsTxt = await page.locator('[data-role="troom-row"]').allTextContents();
   say(rowsTxt.length === 2 && /مصرف الراجحي/.test(rowsTxt[0]) && /64\.20/.test(rowsTxt[0]) && /\+1\.25%/.test(rowsTxt[0]),
       `${label}: «محفظتي» قائمةٌ ثابتة بأسعارها وتغيّرها`, rowsTxt[0]?.replace(/\s+/g, " "));
@@ -150,15 +150,16 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   const ident = await page.evaluate(() => document.querySelector('[data-role="troom-chart"]')?.textContent || "");
   say(/2222/.test(ident) && barsFor.includes("2222"), `${label}: الضغطُ على الشركة يفتح رسمَها`, barsFor.slice(-2).join(","));
   // المؤشّرات الأربعة معاً
-  const drop = page.locator('[data-role="troom-chart"] button[aria-expanded]').nth(1);
-  await drop.click();
-  for (const n of ["RSI", "Stochastic", "MACD", "CVD"]) { await page.locator("button[aria-pressed]", { hasText: n }).first().click(); await sleep(120); }
+  await page.locator('[data-role="pc-ind"]').click();
+  for (const k of ["rsi", "stoch", "macd", "cvd"]) { await page.locator(`[data-role="pc-ind-menu"] [data-ind="${k}"]`).click(); await sleep(120); }
   await page.mouse.click(5, 5);
   await page.waitForTimeout(1500);
   const panes = await page.evaluate(() => [...document.querySelectorAll('[data-role="pane-tag"]')].map(e => ({ t: e.textContent, y: e.getBoundingClientRect().top })));
   const ys = panes.map(p => p.y);
-  say(panes.length === 4 && ys.every((y, i) => i === 0 || y - ys[i - 1] > 40) && /CVD D7M · مستويات 200/.test(panes[3]?.t || ""),
-      `${label}: RSI وستوكاستيك وMACD وCVD D7M معاً — أربعُ لوحاتٍ لا تتداخل`, panes.map(p => `${p.t}@${Math.round(p.y)}`).join(" | "));
+  const nPanes = await page.evaluate(() => Number(document.querySelector('[data-role="pro-chart"]')?.dataset.panes || 0));
+  say(panes.length === 4 && nPanes === 5 && ys.every((y, i) => i === 0 || y - ys[i - 1] > 40) && /CVD D7M · مستويات 200/.test(panes[3]?.t || "")
+      && panes.every(p => /\d/.test(p.t.replace(/14 3 3|12 26 9|RSI 14|200/g, ""))),
+      `${label}: RSI وستوكاستيك وMACD وCVD D7M معاً — أربعُ لوحاتٍ حقيقيةٍ لا تتداخل، ولكلٍّ قيمُه`, panes.map(p => `${p.t}@${Math.round(p.y)}`).join(" | "));
   if (SHOTS) { const el = await page.$('[data-role="troom"]'); if (el) await el.screenshot({ path: join(SHOTS, `room_${vp.width}_${theme}.png`) }); }
   // قائمةٌ للسوق الأمريكي، وAAPL بالبحث، ثمّ إزالتُها
   await page.locator('[data-role="troom-new"]').click();

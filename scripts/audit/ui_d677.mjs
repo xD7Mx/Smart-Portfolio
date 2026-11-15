@@ -64,42 +64,39 @@ for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isM
   });
   await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe"); } catch { } });
 
-  // ١ · المراقبةُ قسمٌ ببطاقاتٍ: اثنتان في الصفّ على الجوال، وثلاثٌ على الحاسوب
+  // ١ · ‏D736 (المالك 2026-11-15): «ألغِ الشركات، ما أشوف لها داعي» — غرفةُ التداول تبويبان: «الرسم البياني» و«مختبر الأبحاث»،
+  //     ولا شبكةَ بطاقاتٍ فيها؛ والرابطُ القديم ?tab=board يفتح الرسم. (كان هنا فحصُ شبكة البطاقات · D677 · D685)
   await page.goto(`http://localhost:${PORT}/watchlist?tab=board`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2500);
   const wl = await page.evaluate(() => {
     const W = document.documentElement.clientWidth;
     const main = document.querySelector(".app-main");
     const sw = Math.max(document.documentElement.scrollWidth, main ? main.scrollWidth : 0);
-    const grid = [...document.querySelectorAll("div.grid")].find(g => g.querySelector(":scope > [data-sort-key]") && g.children.length >= 6);
-    const cards = grid ? [...grid.children] : [];
-    const tops = cards.map(c => Math.round(c.getBoundingClientRect().top));
-    const perRow = tops.filter(t => t === tops[0]).length;
-    const minH = cards.length ? Math.min(...cards.map(c => Math.round(c.getBoundingClientRect().height))) : 0;
-    const withFv = cards.filter(c => c.textContent.includes("العادل")).length;
+    const tabs = [...document.querySelectorAll('[data-role="room-tab"]')].map(b => b.textContent.trim());
     const h1 = [...document.querySelectorAll("h1")].some(h => h.textContent.trim() === "غرفة التداول");   // ‏D683 ← D687: «المراقبة» ثمّ «الشاشة» ثمّ «غرفة التداول»
-    return { W, sw, n: cards.length, perRow, minH, withFv, h1 };
+    return { W, sw, tabs, h1, grid: document.querySelectorAll("div.grid > [data-sort-key]").length, room: !!document.querySelector('[data-role="troom"]'),
+             minTab: Math.min(...[...document.querySelectorAll('[data-role="room-tab"]')].map(b => Math.round(b.getBoundingClientRect().height))) };
   });
-  say(wl.h1 && wl.n === 7, `${label}: «غرفة التداول» قسمٌ مستقلٌّ ببطاقةٍ لكلّ شركة`, `${wl.n} بطاقات`);
-  say(wl.perRow === cols, `${label}: ${cols === 3 ? "ثلاثُ" : "أربعُ"} بطاقاتٍ في الصفّ (‏D685)`, `${wl.perRow}`);
-  say(wl.withFv === wl.n, `${label}: تفاصيلُ ملمومة — العادلُ والقرارُ في كلّ بطاقة`, `${wl.withFv}/${wl.n}`);
-  say(wl.sw <= wl.W + 1 && wl.minH >= 32, `${label}: لا فيضَ أفقيّ، والبطاقةُ هدفُ لمسٍ ≥ 32px`, `محتوى ${wl.sw} · شاشة ${wl.W} · ${wl.minH}px`);
+  say(wl.h1 && JSON.stringify(wl.tabs) === JSON.stringify(["الرسم البياني", "مختبر الأبحاث"]),
+      `${label}: «غرفة التداول» تبويبان: «الرسم البياني» و«مختبر الأبحاث» (‏D736)`, wl.tabs.join(" · "));
+  say(wl.grid === 0 && wl.room, `${label}: ولا تبويبَ «الشركات» ولا شبكةَ بطاقات — والرابطُ القديم يفتح الرسم`, `${wl.grid} بطاقة`);
+  say(wl.sw <= wl.W + 1 && wl.minTab >= 32, `${label}: لا فيضَ أفقيّ، والتبويبُ هدفُ لمسٍ ≥ 32px`, `محتوى ${wl.sw} · شاشة ${wl.W} · ${wl.minTab}px`);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `watchlist_${vp.width}.png`), fullPage: true });
 
   // ٢ · القائمةُ الجانبية: المراقبةُ مكانَ المختبر
   const nav = await page.evaluate(() => ({ wl: !!document.querySelector('a[href="/watchlist"]'), stars: !!document.querySelector('a[href="/stars"]') }));
   say(nav.wl && !nav.stars, `${label}: بندُ «غرفة التداول» في القائمة مكانَ «مختبر الأبحاث»`);
 
-  // ٣ · المختبرُ تبويبٌ (‏D694: في تحليل الذكاء — كان في المحفظة)، والرابطُ القديم يفتحه
+  // ٣ · المختبرُ تبويبٌ (‏D694: في تحليل الذكاء — كان في المحفظة · ‏D736: في غرفة التداول بأمر المالك)، والرابطُ القديم يفتحه
   await page.goto(`http://localhost:${PORT}/stars`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2500);
   const lab = await page.evaluate(() => ({
     url: location.pathname + location.search,
-    tab: [...document.querySelectorAll("nav button")].some(b => b.textContent.trim() === "المختبر" && b.getAttribute("aria-pressed") === "true"),
+    tab: [...document.querySelectorAll("nav button")].some(b => b.textContent.trim() === "مختبر الأبحاث" && b.getAttribute("aria-pressed") === "true"),
     title: document.body.textContent.includes("مختبر الأبحاث"),
-    noWatchTab: ![...document.querySelectorAll("nav button")].some(b => ["المراقبة", "الشاشة", "غرفة التداول"].includes(b.textContent.trim())),
+    inRoom: [...document.querySelectorAll("h1")].some(h => h.textContent.trim() === "غرفة التداول"),
   }));
-  say(lab.tab && lab.title && lab.noWatchTab && lab.url === "/ai?tab=lab", `${label}: «المختبر» تبويبٌ في تحليل الذكاء (‏D694)، والرابطُ القديم يفتحه`, lab.url);
+  say(lab.tab && lab.title && lab.inRoom && lab.url === "/watchlist?tab=lab", `${label}: «مختبر الأبحاث» تبويبٌ في غرفة التداول (‏D736)، والرابطُ القديم يفتحه`, lab.url);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `lab_${vp.width}.png`) });
 
   // ٤ · المستشارُ في تحليل الذكاء مكانَ التقرير الشامل (‏D697: في تبويبه الثالث)
@@ -125,7 +122,7 @@ for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isM
 
   // ٥ · لا عنصرَ تحكّمٍ من نظام الجهاز في هذه الصفحات (D678)
   let natives = 0;
-  for (const path of ["/watchlist", "/ai?tab=lab", "/portfolio?tab=governance", "/ai", "/settings"]) {
+  for (const path of ["/watchlist", "/watchlist?tab=lab", "/portfolio?tab=governance", "/ai", "/settings"]) {
     await page.goto(`http://localhost:${PORT}${path}`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
     await page.waitForTimeout(1200);
     natives += await page.evaluate(() => document.querySelectorAll('select, input[type="checkbox"], input[type="radio"]').length);
@@ -134,5 +131,5 @@ for (const [label, vp, cols] of [["الجوال", { width: 390, height: 844, isM
   await ctx.close();
 }
 await browser.close(); stop();
-console.log((fail ? "FAIL" : "PASS") + " D677 · D678 · D679 — المراقبةُ قسمٌ والمختبرُ تبويب · عناصرُ التحكّم الموحّدة · المستشارُ في تحليل الذكاء");
+console.log((fail ? "FAIL" : "PASS") + " D677 · D678 · D679 · D736 — غرفةُ التداول تبويبان والمختبرُ فيها · عناصرُ التحكّم الموحّدة · المستشارُ في تحليل الذكاء");
 process.exit(fail);

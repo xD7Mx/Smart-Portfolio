@@ -29,8 +29,10 @@ wl, wp, pp = rd("components/market/WatchlistTab.tsx"), rd("pages/WatchlistPage.t
 check('GRID = "grid grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3"' in wl and "العادل" in wl and "DECISION_INK" in wl and 'queryKey: ["screener-lite"]' in wl,
       "١ المراقبةُ («الشاشة» منذ D683) بطاقاتٌ: ثلاثٌ في الصفّ على الجوال وأربعٌ على الحاسوب (‏D683 · D685)، وتفاصيلُ كلّ شركة (العادلُ والقرار) من الفرز نفسِه")
 check('dir="ltr"' in wl, "٢ والنسبُ بإشارتها في موضعها (لا «%15.0-»)")
-check("<WatchlistTab onOpen={setSheet} />" in wp and "StockSheet" in wp and "WatchlistTab" not in pp and "<GovernancePage embedded />" in pp,
-      "٣ المراقبةُ قسمٌ يفتح ورقةَ السهم، ولم تعد تبويباً في المحفظة؛ ومكانُها فيها الحوكمةُ (‏D694 — والمختبرُ في تحليل الذكاء)")
+# ‏D736 (المالك 2026-11-15): «ألغِ الشركات، ما أشوف لها داعي» — شبكةُ البطاقات لم تعد موصولةً بالغرفة (مكوّنُها باقٍ في الشيفرة
+# غيرَ معروض)، والغرفةُ «الرسم البياني» و«مختبر الأبحاث»
+check("WatchlistTab" not in wp and '["lab", "مختبر الأبحاث", FlaskConical]' in wp and "WatchlistTab" not in pp and "<GovernancePage embedded />" in pp,
+      "٣ الغرفةُ قسمٌ بتبويبَي «الرسم البياني» و«مختبر الأبحاث» بلا شبكة بطاقات (‏D736)، وليست تبويباً في المحفظة؛ ومكانُها فيها الحوكمة")
 # ── D678 ──
 native = []
 for f in SRC.rglob("*.tsx"):

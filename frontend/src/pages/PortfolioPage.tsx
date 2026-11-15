@@ -1985,7 +1985,7 @@ export default function PortfolioPage() {
   const _q0 = new URLSearchParams(window.location.search).get("tab");
   const [tab, setTab] = useState<"holdings" | "dashboard" | "governance" | "portfolioNews" | "portfolioCalendar" | "notifications">(
     () => (_q0 === "governance" ? "governance" : "holdings"));
-  useEffect(() => { if (_q0 === "lab") navigate("/ai?tab=lab", { replace: true }); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (_q0 === "lab") navigate("/watchlist?tab=lab", { replace: true }); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const [dashSubTab, setDashSubTab] = useState<"grid" | "rebalance" | "liquidity">("grid");
   const tabsRef = useRef<HTMLElement | null>(null);
   usePaneMotion(tabsRef, `${tab}:${dashSubTab}`);           // ‏D689: المحتوى يطلع بحركةٍ عند تبديل التبويب

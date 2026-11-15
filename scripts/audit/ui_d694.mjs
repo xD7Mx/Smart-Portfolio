@@ -66,30 +66,35 @@ for (const [label, vp, mobile] of [["الجوال", { width: 390, height: 844 },
   say(!gv.navLink, `${label}: ولا بندَ «الحوكمة» في القائمة الجانبية — هي في المحفظة`);
   say((await overflow()) <= 1, `${label}: الحوكمةُ في المحفظة بلا فيضٍ أفقيّ`);
 
-  // ٣ · تحليلُ الذكاء: تبويبان «التحليل · المختبر»، والتبديلُ بحركةٍ لا قفزة، والمختبرُ يحمل رابطَه
-  await go("/ai");
+  // ٣ · ‏D736 (المالك 2026-11-15): «مختبر الأبحاث» تبويبٌ في غرفة التداول بجانب «الرسم البياني» (كان في تحليل الذكاء · D694) —
+  //     والتبديلُ بحركةٍ لا قفزة، والمختبرُ يحمل رابطَه؛ وتحليلُ الذكاء «التحليل · المستشار» بلا مختبر
+  await go("/watchlist");
   const at = await tabs();
-  say(at.map(x => x.t).join("|").includes("التحليل|المختبر") && at.find(x => x.t === "التحليل")?.on,
-      `${label}: تحليلُ الذكاء يفتح على «التحليل» وبجانبه «المختبر»`, at.map(x => x.t).join(" · "));
-  await page.locator("nav button", { hasText: "المختبر" }).first().click({ timeout: 5000 }).catch(() => {});
+  say(at.map(x => x.t).join("|") === "الرسم البياني|مختبر الأبحاث" && at.find(x => x.t === "الرسم البياني")?.on,
+      `${label}: غرفةُ التداول تفتح على «الرسم البياني» وبجانبه «مختبر الأبحاث»`, at.map(x => x.t).join(" · "));
+  await page.locator("nav button", { hasText: "مختبر الأبحاث" }).first().click({ timeout: 5000 }).catch(() => {});
   await sleep(60);
   const moving = await page.evaluate(() => {
-    const nav = [...document.querySelectorAll("nav")].find(n => [...n.querySelectorAll("button")].some(b => b.textContent.trim() === "المختبر"));
+    const nav = [...document.querySelectorAll("nav")].find(n => [...n.querySelectorAll("button")].some(b => b.textContent.trim() === "مختبر الأبحاث"));
     let n = 0;
     for (let el = nav?.nextElementSibling; el; el = el.nextElementSibling) n += el.getAnimations({ subtree: true }).length;
     return n;
   });
   await page.waitForTimeout(1500);
-  const lab = await page.evaluate(() => ({ url: location.pathname + location.search, title: document.body.textContent.includes("مختبر الأبحاث") }));
-  say(lab.url === "/ai?tab=lab" && lab.title && moving > 0, `${label}: «المختبر» يفتح مختبرَ الأبحاث بحركةٍ ويحمل رابطَه`, `${lab.url} · ${moving} حركة`);
-  say((await overflow()) <= 1, `${label}: المختبرُ في تحليل الذكاء بلا فيضٍ أفقيّ`);
+  const lab = await page.evaluate(() => ({ url: location.pathname + location.search, title: !!document.querySelector('input[placeholder*="أضف شركة"]') || document.body.textContent.includes("أضف شركاتك") }));
+  say(lab.url === "/watchlist?tab=lab" && lab.title && moving > 0, `${label}: «مختبر الأبحاث» يفتح المختبرَ بحركةٍ ويحمل رابطَه`, `${lab.url} · ${moving} حركة`);
+  say((await overflow()) <= 1, `${label}: المختبرُ في غرفة التداول بلا فيضٍ أفقيّ`);
+  await go("/ai");
+  const ai = (await tabs()).map(x => x.t);
+  say(ai.includes("التحليل") && ai.includes("المستشار") && !ai.some(t => t.includes("المختبر") || t.includes("مختبر")),
+      `${label}: وتحليلُ الذكاء بلا تبويب مختبر — مكانٌ واحد`, ai.join(" · "));
 
   // ٤ · الروابطُ القديمة للمختبر تصل مكانَه الجديد
-  for (const old of ["/stars", "/portfolio?tab=lab"]) {
+  for (const old of ["/stars", "/portfolio?tab=lab", "/ai?tab=lab"]) {
     await go(old, 2600);
     const u = await page.evaluate(() => location.pathname + location.search);
-    const on = (await tabs()).find(x => x.t === "المختبر")?.on;
-    say(u === "/ai?tab=lab" && on, `${label}: الرابطُ القديم ${old} يفتح المختبرَ في تحليل الذكاء`, u);
+    const on = (await tabs()).find(x => x.t === "مختبر الأبحاث")?.on;
+    say(u === "/watchlist?tab=lab" && on, `${label}: الرابطُ القديم ${old} يفتح المختبرَ في غرفة التداول`, u);
   }
   say(errs.length === 0, `${label}: لا خطأَ في الصفحات`, errs[0] || "");
   await ctx.close();

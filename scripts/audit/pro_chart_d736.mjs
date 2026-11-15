@@ -1,0 +1,312 @@
+// ─────────────────────────────────────────────────────────────────────────
+// D736 (بأمر المالك 2026-11-15): «في غرفة التداول خلِّه الرسم البياني… الشركاتُ في اليمين والرسمُ على اليسار… سخّر كلَّ
+// الإمكانيات لجعل الرسم وجمالِه وثباتِه وتحريكِ السهم ومؤشّرِ D7M والدعوم شبيهاً بتريدنق فيو سلاسةً ودقّةً وثباتاً… الشموعُ
+// كأنها ديكور ليست حقيقية… المؤشّراتُ رسومُها فارغة… خيارُ تخصيصٍ في الأطر — مثلاً 6 ساعات… الرسمُ له أيقونةُ فرشة والمؤشّراتُ
+// أيقونة… وخلّها الرسم البياني ومختبر الأبحاث وألغِ الشركات».
+// الحالُ قبله (‏NativeChart في الغرفة): الشموعُ كلُّها تُحشر في عرض الشاشة (‏fitContent)، والعجلةُ معطَّلة، والرسمُ يُهدم ويُبنى مع
+// كلّ تغيير، وتاريخٌ مكرَّرٌ من المصدر يُفرغه كلَّه، واللوحاتُ السفلى هوامشُ على مقياسٍ واحد، ولا إطارَ مخصَّصاً، والقائمةُ يسار الرسم.
+// ١–٩ سلوكيٌّ على الدوالّ نفسِها (‏lib/chartData · lib/chartOverlay) وساكنٌ على المصدر · ١٠–… المتصفّح: التطبيقُ والمكتبةُ الحقيقيّان.
+//    SHOTS=dir node scripts/audit/pro_chart_d736.mjs
+// ─────────────────────────────────────────────────────────────────────────
+import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const FRONT = join(ROOT, "frontend");
+let fail = 0;
+const say = (ok, label, detail = "") => { if (!ok) fail = 1; console.log(`${ok ? "PASS" : "FAIL"} ${label}${detail ? " — " + detail : ""}`); };
+const done = () => { console.log("\nالنتيجة:", fail ? "عطب ✖" : "نظيف ✔"); process.exit(fail); };
+const rd = (p) => { try { return readFileSync(join(FRONT, p), "utf-8"); } catch { return ""; } };
+const DATA = join(FRONT, "src/lib/chartData.ts"), OVER = join(FRONT, "src/lib/chartOverlay.ts");
+if (!existsSync(DATA) || !existsSync(OVER)) { say(false, "١ دوالُّ بيانات الرسم وطبقتُه موجودة"); done(); }
+const { build } = await import(pathToFileURL(join(FRONT, "node_modules/esbuild/lib/main.js")).href);
+const tmp = mkdtempSync(join(tmpdir(), "sp-d736-"));
+await build({ entryPoints: [DATA], outfile: join(tmp, "data.mjs"), format: "esm", bundle: false, logLevel: "silent" });
+await build({ entryPoints: [OVER], outfile: join(tmp, "over.mjs"), format: "esm", bundle: true, logLevel: "silent" });
+const D = await import(pathToFileURL(join(tmp, "data.mjs")).href);
+const { ChartOverlay } = await import(pathToFileURL(join(tmp, "over.mjs")).href);
+
+// ── ١–٤ البيانات والإطارات ──
+const bar = (date, o, h, l, c, v = 100) => ({ date, open: o, high: h, low: l, close: c, volume: v });
+const dirty = [bar("2026-11-08", 10, 11, 9, 10.5), bar("2026-11-01", 9, 10, 8, 9.5), bar("2026-11-08", 10, 12, 9, 11),
+               bar("2026-10-25", 0, 5, 4, 4.5), bar("2026-10-18", 8, 8.2, 7, 9), { date: "2026-10-11", open: 7, high: 8, low: 6, close: NaN }];
+const clean = D.sanitizeBars(dirty);
+say(JSON.stringify(clean.map(b => b.time)) === JSON.stringify(["2026-10-18", "2026-11-01", "2026-11-08"]) && clean[2].close === 11 && clean[0].high === 9,
+    "١ الشموعُ تُسلَّم للرسم مرتَّبةً بلا تاريخٍ مكرَّر ولا شمعةٍ مختلّة — وآخرُ المكرَّرَين يحكم، والقمّةُ تحوي الجسم",
+    clean.map(b => b.time).join(" · "));
+const t10 = D.barTime("2026-11-12 10:00");
+say(typeof t10 === "number" && D.tickLabel(t10, 3) === "10:00" && D.barTime("2026-11-12") === "2026-11-12" && /12 .* 2026/.test(D.crossLabel("2026-11-12"))
+    && !/[٠-٩]/.test(D.crossLabel(t10) + D.tickLabel("2026-11-12", 1)),
+    "٢ وقتُ الرياض كما هو على المحور (افتتاحُ 10:00 يُقرأ 10:00)، والتاريخُ بشهرٍ عربيٍّ وأرقامٍ لاتينية", `${D.tickLabel(t10, 3)} · ${D.crossLabel(t10)}`);
+const tf = (s) => { const p = D.parseTf(s); return p ? `${p.n}${p.unit}` : null; };
+say(tf("6h") === "6h" && tf("45m") === "45m" && tf("120m") === "2h" && tf("3d") === "3d" && tf("2w") === "2wk" && tf("1mo") === "1mo"
+    && tf("25h") === null && tf("0d") === null && tf("13mo") === null && tf("abc") === null && tf("6") === null,
+    "٣ الإطارُ المخصَّص «عددٌ + وحدة»: 6 ساعات و45 دقيقة و3 أيام تُقبل، وما خرج عن الحدّ أو اختلّ لا يُقبل", ["6h", "120m", "25h"].map(tf).join(" · "));
+say(D.tfLong("6h") === "6 ساعات" && D.tfLong("2h") === "ساعتان" && D.tfLong("1h") === "ساعة" && D.tfLong("15m") === "15 دقيقة" && D.tfLong("3d") === "3 أيام"
+    && D.tfShort("6h") === "6س" && D.tfShort("1wk") === "أسبوع" && D.fmtPrice(0) === "0.00" && D.fmtPrice(1234.5) === "1,234.50",
+    "٤ واسمُ الإطار بالفصحى (ساعة · ساعتان · 6 ساعات · 15 دقيقة) والسعرُ بهللتين", `${D.tfLong("6h")} · ${D.tfLong("2h")} · ${D.tfShort("6h")}`);
+
+// ── ٥ طبقةُ الرسم: موضعٌ كسريٌّ بين شمعتين (المكتبةُ تعيد صفراً لرقم شمعةٍ كسريّ ⇒ خطٌّ على حافّة الرسم) ──
+const rec = [];
+const ctx2d = new Proxy({}, { get: (t, k) => (k in t ? t[k] : (...a) => { rec.push([k, a]); }), set: (t, k, v) => { t[k] = v; return true; } });
+const target = { useMediaCoordinateSpace: (cb) => cb({ context: ctx2d, mediaSize: { width: 600, height: 400 } }) };
+const ov = new ChartOverlay();
+ov.attached({ chart: { timeScale: () => ({ logicalToCoordinate: (k) => (Number.isInteger(k) ? 100 + 10 * k : 0), options: () => ({ barSpacing: 10 }) }) },
+              series: { priceToCoordinate: (p) => 400 - p }, requestUpdate() { } });
+ov.set({ segments: [{ x1: 2.5, y1: 100, x2: 7.25, y2: 150, color: "C" }], paths: [{ pts: [{ x: 1.2, y: 50 }, { x: 1.7, y: 60 }], color: "C" }] });
+ov.paneViews()[0].renderer().draw(target);
+const mv = rec.filter(r => r[0] === "moveTo" || r[0] === "lineTo").map(r => r[1].map(v => +v.toFixed(2)).join(","));
+say(JSON.stringify(mv) === JSON.stringify(["125,300", "172.5,250", "112,350", "117,340"]),
+    "٥ خطُّ الاتجاه والفرشاةُ بموضعهما الكسريّ بين الشموع — لا يُرسمان على حافّة الرسم ولا سلالمَ", mv.join(" → "));
+
+// ── ٦–٩ ساكنٌ على المصدر ──
+const pc = rd("src/components/chart/ProChart.tsx"), room = rd("src/components/market/TradeRoom.tsx"), wp = rd("src/pages/WatchlistPage.tsx");
+const pkg = JSON.parse(rd("package.json") || "{}");
+const code = pc.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+say(/from "lightweight-charts"/.test(pc) && /^\d+\.\d+\.\d+$/.test(pkg.dependencies?.["lightweight-charts"] || "") && !/unpkg\.com/.test(code),
+    "٦ مكتبةُ الرسم مع التطبيق بإصدارٍ مثبَّت — لا تُنزَّل من الشبكة عند فتح الرسم", pkg.dependencies?.["lightweight-charts"] || "غير مثبَّتة");
+say(!/fitContent\(/.test(code) && /setVisibleLogicalRange\(/.test(code) && /mouseWheel: true/.test(code) && /pinch: true/.test(code) && /vertTouchDrag: false/.test(code)
+    && (code.match(/createChart\(/g) || []).length === 1,
+    "٧ الرسمُ يُنشأ مرّةً، ومشهدُه آخرُ الشموع بعرضٍ مقروء (لا الكلُّ محشوراً)، والعجلةُ والقرصُ يكبّران والإصبعُ العموديُّ للصفحة");
+say(!/subscribeClick\(/.test(code) && /onPointerDown=\{drawDown\}/.test(code) && /<Brush /.test(code) && /<Activity /.test(code) && /data-role="pc-draw"/.test(code),
+    "٨ أدواتُ الرسم تلتقط الإصبعَ بنفسها (نقرةُ المكتبة تبتلع الثانيةَ السريعة)، وللرسم أيقونةُ فرشاةٍ وللمؤشّرات أيقونة");
+say(/import ProChart from "\.\.\/chart\/ProChart"/.test(room) && !/key=\{symbol\}/.test(room) && !/NativeChart/.test(room)
+    && /\["chart", "الرسم البياني", CandlestickChart\], \["lab", "مختبر الأبحاث", FlaskConical\]/.test(wp) && !/WatchlistTab|الشركات"/.test(wp),
+    "٩ الغرفةُ على الرسم الاحترافيّ يبقى قائماً حين يتبدّل الرمز، وتبويباها «الرسم البياني» و«مختبر الأبحاث» بلا «الشركات»");
+const css = rd("src/styles/globals.css");
+say(/\.pc-btn, \.pc-tf \{ min-width: 32px; min-height: 32px;/.test(css) && /prefers-reduced-motion: reduce\) \{\s*\.pc-btn/.test(css)
+    && /\.troom \{ grid-template-columns: 300px minmax\(0, 1fr\); \}/.test(css) && /\.troom-chart \{ order: -1; \}/.test(css),
+    "٩ب أزرارُ الشريط هدفُ لمسٍ ≥ 32px، والحركةُ تحترم تقليلَها، والقائمةُ أوّلُ عمودٍ (يمينَ الشاشة) والرسمُ أوّلاً على الجوال");
+
+// ── المتصفّح ──
+const PORT = 5256;
+const SHOTS = process.env.SHOTS || "";
+if (SHOTS) mkdirSync(SHOTS, { recursive: true });
+const CHROME = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome", "/opt/pw-browsers/chromium"].find(p => existsSync(p));
+const PW = [join(FRONT, "node_modules", "playwright", "index.js"), "/opt/node22/lib/node_modules/playwright/index.js", "/usr/lib/node_modules/playwright/index.js"].find(p => existsSync(p));
+if (!PW || !CHROME) { console.log("… تعذّر فحصُ المتصفّح (المتصفّح غيرُ متاح) — لا حكم."); done(); }
+const _pw = await import(pathToFileURL(PW).href);
+const chromium = _pw.chromium || _pw.default?.chromium;
+const body = (data) => ({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data }) });
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const fmt = (v) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// 420 أسبوعاً متعرّجاً — وآخرُها مكرَّرُ التاريخ كما كان المصدرُ يفعل (العطبُ الذي كان يُفرغ الرسم)
+const weekly = (n = 420, seed = 3) => {
+  const out = []; let p = 60;
+  for (let i = 0; i < n; i++) {
+    const d = new Date(Date.UTC(2018, 10, 4) + i * 7 * 864e5).toISOString().slice(0, 10);
+    const c = +(p * (1 + Math.sin(i / 6 + seed) * 0.02 + ((i * 37 + seed) % 11 - 5) / 400)).toFixed(2);
+    out.push({ date: d, open: +p.toFixed(2), high: +(Math.max(p, c) + 0.6).toFixed(2), low: +(Math.min(p, c) - 0.6).toFixed(2), close: c, volume: 1e6 + (i % 9) * 1e5 });
+    p = c;
+  }
+  const l = out[out.length - 1];
+  out.push({ ...l, close: +(l.close + 0.4).toFixed(2), high: +(l.high + 0.4).toFixed(2) });
+  return out;
+};
+const HOLD = [{ company: { symbol: "1120", name_ar: "مصرف الراجحي" }, last_price: 64.2, change_pct: 1.25 },
+              { company: { symbol: "2222", name_ar: "أرامكو السعودية" }, last_price: 25.1, change_pct: -0.4 }];
+const vite = spawn("npx", ["vite", "--port", String(PORT), "--strictPort"], { cwd: FRONT, stdio: "ignore" });
+process.on("exit", () => { try { vite.kill("SIGKILL"); } catch { } });
+let upv = false;
+for (let i = 0; i < 60 && !upv; i++) { await sleep(500); try { upv = (await fetch(`http://localhost:${PORT}/`)).ok; } catch { } }
+if (!upv) { console.log("… لم يقلع خادمُ التطوير."); done(); }
+const browser = await chromium.launch({ executablePath: CHROME });
+for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 }, "dark"], ["الجوال", { width: 390, height: 844 }, "light"]]) {
+  const desk = vp.width >= 1024;
+  const ctx = await browser.newContext({ viewport: vp, isMobile: !desk, hasTouch: !desk });
+  const page = await ctx.newPage();
+  const errs = [], reqs = [], saves = [], ext = [];
+  page.on("pageerror", e => errs.push(String(e.message || e)));
+  page.on("request", r => { if (/unpkg\.com|jsdelivr|cdnjs/.test(r.url())) ext.push(r.url()); });
+  await page.route("**/api/v1/**", async r => {
+    const u = new URL(r.request().url()), p = u.pathname.replace(/^.*\/api\/v1/, ""), m = r.request().method();
+    if (/^\/market\/(bars|history)\//.test(p)) { const s = decodeURIComponent(p.split("/").pop()); reqs.push(`${s}?${u.searchParams.get("tf")}`); return r.fulfill(body(weekly(420, s.length))); }
+    if (/^\/market\/drawings\//.test(p)) { if (m !== "GET") saves.push([decodeURIComponent(p.split("/").pop()), JSON.parse(r.request().postData() || "{}")]); return r.fulfill(body(m === "GET" ? [] : null)); }
+    if (p === "/holdings") return r.fulfill(body(HOLD));
+    if (p === "/market/watchlist/groups") return r.fulfill(body([{ id: 1, name: "الرئيسية", is_default: true }]));
+    return r.fulfill(body([]));
+  });
+  await page.addInitScript((th) => { try {
+    localStorage.setItem("sp_token", "probe");
+    for (const k of ["sp_room_symbol", "sp_room_list", "sp_chart_tf", "sp_chart_tf_custom", "sp_chart_type"]) localStorage.removeItem(k);
+    if (!sessionStorage.getItem("sp_d736_seeded")) { localStorage.setItem("sp_chart_ind", JSON.stringify({ vol: true, sma20: true, sma50: false, macd: false })); sessionStorage.setItem("sp_d736_seeded", "1"); }
+    const s = JSON.parse(localStorage.getItem("sp-app-store") || "{}");
+    localStorage.setItem("sp-app-store", JSON.stringify({ ...s, state: { ...(s.state || {}), theme: th }, version: s.version ?? 0 }));
+  } catch { } }, theme);
+  await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(3000);
+  const st = () => page.evaluate(() => {
+    const r = document.querySelector('[data-role="pro-chart"]'), q = (k) => document.querySelector(`[data-k="${k}"]`)?.textContent || "";
+    return r ? { ...r.dataset, o: q("o"), c: q("c"), chg: q("chg"), canv: document.querySelectorAll('[data-role="pc-stage"] canvas').length,
+                 cover: !!document.querySelector('[data-role="pc-cover"]') } : null;
+  });
+  const box = async (sel) => page.locator(sel).first().boundingBox();
+
+  // ١٠ الترتيب والتبويبان
+  const lay = await page.evaluate(() => {
+    const c = document.querySelector('[data-role="troom-chart"]')?.getBoundingClientRect(), l = document.querySelector('[data-role="troom-list"]')?.getBoundingClientRect();
+    const tabs = [...document.querySelectorAll('[data-role="room-tab"]')].map(b => b.textContent.trim());
+    return c && l ? { listRight: l.left >= c.right - 1 && Math.abs(c.top - l.top) < 4, below: l.top >= c.bottom - 1, tabs, stageBottom: document.querySelector('[data-role="pc-stage"]').getBoundingClientRect().bottom, H: innerHeight } : null;
+  });
+  say(!!lay && (desk ? lay.listRight : lay.below) && JSON.stringify(lay.tabs) === JSON.stringify(["الرسم البياني", "مختبر الأبحاث"]),
+      `${label}: ${desk ? "الشركاتُ يمينَ الشاشة والرسمُ يسارَها" : "الرسمُ أوّلاً والقوائمُ تحته"}، والتبويبان «الرسم البياني» و«مختبر الأبحاث»`, JSON.stringify(lay?.tabs));
+  if (desk) say(lay.stageBottom <= lay.H + 1, `${label}: الرسمُ كلُّه داخل الشاشة — لا لوحةَ تحت الطيّ`, `${Math.round(lay.stageBottom)} ≤ ${lay.H}`);
+
+  // ١١ شموعٌ حقيقيةٌ مقروءة: 421 شمعةً من المصدر (آخرُها مكرَّر) ⇒ 420 على الرسم، والمعروضُ آخرُها لا الكلُّ محشوراً
+  const s0 = await st();
+  const want = weekly(420, 4), lastW = want[want.length - 1];
+  say(!!s0 && s0.bars === "420" && !s0.cover && s0.canv >= 6 && s0.c === fmt(lastW.close) && s0.o === fmt(lastW.open) && s0.last === fmt(lastW.close),
+      `${label}: تاريخٌ مكرَّرٌ من المصدر لا يُفرغ الرسم — 420 شمعةً، ووسيلةُ الإيضاح ووسمُ آخر سعرٍ بقيم آخر شمعةٍ حقيقية`, s0 ? `${s0.bars} شمعة · ${s0.o} / ${s0.c}` : "لا رسم");
+  say(!!s0 && Number(s0.vis) > 20 && Number(s0.vis) <= (desk ? 170 : 80) && Number(s0.spacing) >= 3 && Number(s0.to) >= 419,
+      `${label}: المعروضُ آخرُ الشموع بعرضٍ مقروء — لا 420 شمعةً خيوطاً في عرض الشاشة`, s0 ? `${s0.vis} معروضة · عرضُ الشمعة ${s0.spacing}px` : "");
+  say(ext.length === 0, `${label}: لا مكتبةَ تُجلب من الشبكة عند فتح الرسم`, ext[0] || "");
+
+  // ١٢ لوحاتٌ حقيقيةٌ للمؤشّرات بقيمها
+  await page.locator('[data-role="pc-ind"]').click();
+  for (const k of ["rsi", "macd"]) { await page.locator(`[data-role="pc-ind-menu"] [data-ind="${k}"]`).click(); await sleep(150); }
+  await page.mouse.click(5, 5);
+  await page.waitForTimeout(1200);
+  const panes = await page.evaluate(() => {
+    const sb = document.querySelector('[data-role="pc-stage"]').getBoundingClientRect();
+    return { n: Number(document.querySelector('[data-role="pro-chart"]').dataset.panes), stage: [sb.top, sb.bottom],
+             tags: [...document.querySelectorAll('[data-role="pane-tag"]')].map(e => ({ k: e.dataset.ind, t: e.textContent, y: e.getBoundingClientRect().top,
+               v: [...e.querySelectorAll("b")].map(b => b.textContent.trim()),
+               f: Math.min(...[...e.querySelectorAll("*")].map(x => parseFloat(getComputedStyle(x).fontSize))) })) };
+  });
+  const nums = (t) => t.v.filter(x => /^-?\d+\.\d+$/.test(x)).length;
+  say(panes.n === 3 && panes.tags.length === 2 && panes.tags[1].y - panes.tags[0].y > 40 && panes.tags.every(t => t.y > panes.stage[0] + 100 && t.y < panes.stage[1])
+      && nums(panes.tags[0]) === 1 && nums(panes.tags[1]) === 3 && panes.tags.every(t => t.f >= 9.5),
+      `${label}: RSI وMACD لكلٍّ لوحتُه الحقيقيةُ بقيمه — لا رسمٌ فارغ ولا تداخل، والخطُّ ≥ 9.5px`, panes.tags.map(t => `${t.k} ${t.v.join(" ")} @${Math.round(t.y)}`).join(" | "));
+
+  // ١٣ الإطارُ المخصَّص: 6 ساعات
+  await page.locator('[data-role="pc-tf-more"]').click();
+  await page.waitForTimeout(250);
+  const inp = page.locator('[data-role="pc-custom"] input');
+  await inp.fill("6");
+  await page.locator('[data-role="pc-custom"] .seg-btn', { hasText: "ساعة" }).click();
+  const applyTxt = (await page.locator('[data-role="pc-custom-apply"]').textContent() || "").trim();
+  await page.locator('[data-role="pc-custom-apply"]').click();
+  await page.waitForTimeout(1300);
+  const s6 = await st();
+  const saved6 = await page.evaluate(() => [localStorage.getItem("sp_chart_tf"), localStorage.getItem("sp_chart_tf_custom")]);
+  const onBar = await page.locator('[data-role="pc-tfs"] .pc-tf.on').first().textContent();
+  say(applyTxt === "اعرض 6 ساعات" && reqs.some(x => /\?6h$/.test(x)) && s6.tf === "6h" && saved6[0] === "6h" && /6h/.test(saved6[1] || "") && onBar.trim() === "6س" && !s6.cover,
+      `${label}: إطارٌ مخصَّص «6 ساعات» يُطلب من الخادم ويُعرض ويُحفظ ويبقى زرّاً في الشريط`, `${reqs.filter(x => /6h/.test(x))[0]} · ${onBar}`);
+  await page.locator('[data-role="pc-tfs"] .pc-tf', { hasText: desk ? "أسبوع" : "6س" }).first().click().catch(() => {});
+  if (!desk) { await page.locator('[data-role="pc-tf-more"]').click(); await page.locator('[data-role="pc-tf-more-menu"] .pc-tf', { hasText: "أسبوع" }).click(); }
+  await page.waitForTimeout(1200);
+
+  // ١٤ خطُّ التقاطع والتكبير والسحب (الحاسوب) — «تحريك السهم»
+  const sb = await box('[data-role="pc-stage"]');
+  if (desk) {
+    const a0 = await st();
+    await page.mouse.move(sb.x + sb.width * 0.3, sb.y + 150);
+    await page.waitForTimeout(250);
+    const a1 = await st();
+    say(a1.c !== a0.c && /\d/.test(a1.c) && /%\)$/.test(a1.chg), `${label}: خطُّ التقاطع يقرأ شمعتَه — وسيلةُ الإيضاح تتبعه بقيمها وتغيّرها`, `${a0.c} ← ${a1.c} ${a1.chg}`);
+    for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, -240); await sleep(70); }
+    await page.waitForTimeout(400);
+    const a2 = await st();
+    say(Number(a2.vis) < Number(a0.vis) && a2.canv === a0.canv, `${label}: العجلةُ تكبّر حول المؤشّر — واللوحةُ نفسُها`, `${a0.vis} ← ${a2.vis} معروضة`);
+    await page.mouse.move(sb.x + 200, sb.y + 180); await page.mouse.down(); await page.mouse.move(sb.x + 620, sb.y + 185, { steps: 10 }); await page.mouse.up();
+    await page.waitForTimeout(900);
+    const a3 = await st();
+    const live = page.locator('[data-role="pc-live"]');
+    say(Number(a3.to) < Number(a2.to) - 5 && (await live.count()) === 1, `${label}: السحبُ يحرّك الشموعَ إلى الماضي ويظهر زرُّ العودة`, `${a2.to} ← ${a3.to}`);
+    await live.click();
+    await page.waitForTimeout(500);
+    const a4 = await st();
+    say(Number(a4.to) >= 419 && (await live.count()) === 0, `${label}: وزرُّ العودة يعيد آخرَ شمعة`, a4.to);
+  }
+
+  // ١٥ أدواتُ الرسم: خطُّ اتجاهٍ بنقرتين سريعتين، وأفقيّ، وفرشاة — تُحفظ على الرمز المعروض
+  await page.locator('[data-role="pc-draw"]').click();
+  await page.waitForTimeout(350);
+  const s2 = await box('[data-role="pc-stage"]');
+  const sym = (await st()).symbol;
+  const tap = async (x, y) => { if (desk) await page.mouse.click(x, y); else await page.touchscreen.tap(x, y); };
+  await page.locator('[data-tool="trend"]').click();
+  await tap(s2.x + s2.width * 0.25, s2.y + 150);
+  await sleep(120);                                              // دون نصف ثانية: كانت المكتبةُ تبتلع الثانية
+  await tap(s2.x + s2.width * 0.6, s2.y + 100);
+  await page.waitForTimeout(350);
+  await page.locator('[data-tool="hline"]').click();
+  await tap(s2.x + s2.width * 0.4, s2.y + 170);
+  await page.waitForTimeout(350);
+  if (desk) {
+    await page.locator('[data-tool="brush"]').click();
+    await page.mouse.move(s2.x + 150, s2.y + 90); await page.mouse.down();
+    for (let i = 1; i <= 24; i++) await page.mouse.move(s2.x + 150 + i * 7, s2.y + 90 + 20 * Math.sin(i / 3));
+    await page.mouse.up();
+    await page.waitForTimeout(350);
+    await page.locator('[data-tool="null"]').click();
+  }
+  const lastSave = saves[saves.length - 1] || [null, {}];
+  const items = lastSave[1].items || [];
+  const tr = items.find(x => x.a && x.b), hl = items.find(x => typeof x.h === "number"), fr = items.find(x => Array.isArray(x.free));
+  say(lastSave[0] === sym && !!tr && tr.v === 2 && tr.a.t !== tr.b.t && !!hl && (!desk || (fr && fr.free.length > 10 && fr.free.some(q => q.o > 0 && q.o < 1))),
+      `${label}: خطُّ الاتجاه (نقرتان سريعتان) والأفقيُّ${desk ? " والفرشاةُ بمواضعها الكسريّة" : ""} تُحفظ على الرمز المعروض ${sym}`,
+      `${lastSave[0]} · ${items.map(x => (x.a ? "اتجاه" : x.h != null ? "أفقيّ" : "فرشاة")).join(" · ")}`);
+  const dr = await st();
+  say(Number(dr.draws) === items.length && Number(dr.segs) >= 1, `${label}: والرسمُ على اللوحة نفسِها`, `${dr.draws} رسماً · ${dr.segs} خطّاً`);
+  await page.locator('[data-role="pc-undo"]').click();
+  await page.waitForTimeout(250);
+  say(Number((await st()).draws) === items.length - 1, `${label}: والتراجعُ يزيل آخرَ رسم`);
+
+  // ١٦ تبديلُ الشركة: الرسمُ نفسُه يبقى، والمشهدُ على آخر شموعها
+  await page.evaluate(() => { document.querySelector('[data-role="pc-stage"] canvas').__same = 1; });
+  if (!desk) await page.locator('[data-role="troom-list"]').scrollIntoViewIfNeeded();
+  await page.locator('[data-role="troom-row"]').nth(1).click();
+  await page.waitForTimeout(1500);
+  const sw = await st();
+  const same = await page.evaluate(() => document.querySelector('[data-role="pc-stage"] canvas')?.__same === 1);
+  say(same && sw.symbol === "2222" && reqs.some(x => /^2222\?/.test(x)) && Number(sw.to) >= 419 && Number(sw.draws) === 0 && !sw.cover,
+      `${label}: الضغطُ على شركةٍ يبدّل شموعَ الرسم نفسِه (لا يُهدم ويُبنى) ورسومُ كلّ شركةٍ لها`, `${sw.symbol} · ${sw.bars} شمعة`);
+  await page.locator('[data-role="troom-tab"]', { hasText: "المؤشرات" }).click();
+  await page.locator('[data-role="troom-row"]', { hasText: "S&P 500" }).click();
+  await page.waitForTimeout(1500);
+  const ix = await st();
+  say(ix.symbol === "^GSPC" && ix.bars === "420" && /\d/.test(ix.c) && !ix.cover, `${label}: والمؤشّراتُ (S&P 500) تُرسم بشموعها`, `${ix.symbol} · ${ix.bars} شمعة · ${ix.c}`);
+
+  // ١٧ ملءُ الشاشة، والقياسات
+  if (!desk) await page.evaluate(() => scrollTo(0, 0));
+  await page.locator('[data-role="pc-full"]').click();
+  await page.waitForTimeout(600);
+  const fb = await page.evaluate(() => { const r = document.querySelector('[data-role="pro-chart"]').getBoundingClientRect(); return [r.left, r.top, r.width, r.height, innerWidth, innerHeight]; });
+  say(fb[0] === 0 && fb[1] === 0 && fb[2] === fb[4] && Math.abs(fb[3] - fb[5]) <= 1, `${label}: ملءُ الشاشة يغطّيها كلَّها`, fb.slice(2).join("×"));
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, `pro_full_${vp.width}_${theme}.png`) });
+  await page.locator('[data-role="pc-full"]').click();
+  await page.waitForTimeout(500);
+  const m = await page.evaluate(() => {
+    const W = document.documentElement.clientWidth, main = document.querySelector(".app-main");
+    const sw = Math.max(document.documentElement.scrollWidth, main ? main.scrollWidth : 0);
+    const root = document.querySelector('[data-role="pro-chart"]');
+    const t = [...root.querySelectorAll("button")].filter(e => e.offsetParent).map(e => { const r = e.getBoundingClientRect(); return Math.min(r.width, r.height); });
+    const f = [...root.querySelectorAll("*")].filter(e => e.offsetParent && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())).map(e => parseFloat(getComputedStyle(e).fontSize));
+    const icons = ["pc-draw", "pc-ind", "pc-type", "pc-full"].every(k => !!root.querySelector(`[data-role="${k}"] svg`));
+    return { over: sw - W, minT: Math.min(...t), minF: Math.min(...f), icons, tfs: [...root.querySelectorAll('[data-role="pc-tfs"] .pc-tf')].filter(e => e.offsetParent).length };
+  });
+  say(m.over <= 1 && m.minT >= 32 && m.minF >= 9.5 && m.icons, `${label}: لا فيضَ أفقيّ، وأزرارُ الرسم ≥ 32px، وخطٌّ ≥ 9.5px، وللرسم والمؤشّرات والنوع وملء الشاشة أيقونات`,
+      `${m.over}px · ${Math.round(m.minT)}px · ${m.minF}px`);
+  if (!desk) say(m.tfs === 1, `${label}: الإطارُ الجاري وحده في الشريط وبقيّتُها في قائمته — كتطبيق تريدنق فيو`, `${m.tfs}`);
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, `pro_${vp.width}_${theme}.png`) });
+
+  // ١٨ مختبرُ الأبحاث تبويبٌ هنا، وروابطُه القديمة تصله
+  await page.locator('[data-role="room-tab"]', { hasText: "مختبر الأبحاث" }).click();
+  await page.waitForTimeout(1200);
+  const labHere = await page.evaluate(() => ({ url: location.pathname + location.search, chart: !!document.querySelector('[data-role="pro-chart"]'), lab: document.body.textContent.includes("شركات المحفظة تلقائياً") || !!document.querySelector('input[placeholder*="أضف شركة"]') }));
+  let olds = 0;
+  for (const old of ["/stars", "/ai?tab=lab"]) {
+    await page.goto(`http://localhost:${PORT}${old}`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+    await page.waitForTimeout(1800);
+    if ((await page.evaluate(() => location.pathname + location.search)) === "/watchlist?tab=lab") olds++;
+  }
+  say(labHere.url === "/watchlist?tab=lab" && labHere.lab && !labHere.chart && olds === 2, `${label}: «مختبر الأبحاث» تبويبٌ في الغرفة، ورابطاه القديمان يفتحانه`, `${labHere.url} · ${olds}/2`);
+  say(errs.length === 0, `${label}: لا خطأ`, errs[0] || "");
+  await ctx.close();
+}
+await browser.close();
+done();

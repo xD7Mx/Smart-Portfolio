@@ -1,14 +1,13 @@
-import React, { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import StockSheet from "../components/market/StockSheet";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { aiApi } from "../services/api";
-import { Brain, AlertTriangle, TrendingUp, Sparkles, Zap, FlaskConical, Briefcase } from "lucide-react";
+import { Brain, AlertTriangle, TrendingUp, Sparkles, Zap, Briefcase } from "lucide-react";
 import { PortfolioHealthW } from "../widgets/Widgets";
 import CompanyLogo from "../components/common/CompanyLogo";
 import { FairValueBar, fairValueTier, safeColor } from "../components/common/ValueBars";
 import AutopilotCard from "../components/governance/AutopilotCard";
-import StarsPage from "./StarsPage";
 
 
 // ── Portfolio insight — fair value + safety per holding ──
@@ -141,12 +140,15 @@ function PortfolioInsight() {
 /* ‏D694 (بأمر المالك): «مختبر الأبحاث» تبويبٌ داخل تحليل الذكاء — كان في المحفظة، و«الحوكمة» مكانه هناك. تبويبان بلغة تبويبات
    المحفظة وغرفة التداول، والتنقّلُ بينهما بحركة؛ ورابطاه القديمان (/stars · /portfolio?tab=lab) يفتحانه هنا. */
 // ‏D697 (بأمر المالك): «المستشار» تبويبٌ ثالثٌ بجانب المختبر — كان بطاقةً في آخر «التحليل»؛ وأيقونتُه حقيبتُه نفسُها
-const AI_TABS = [["analysis", "التحليل", Brain], ["lab", "المختبر", FlaskConical], ["advisor", "المستشار", Briefcase]] as const;
+// ‏D736 (المالك 2026-11-15): «مختبر الأبحاث» انتقل إلى غرفة التداول تبويباً بجانب «الرسم البياني» — ورابطُه القديم هنا يفتحه هناك
+const AI_TABS = [["analysis", "التحليل", Brain], ["advisor", "المستشار", Briefcase]] as const;
 
 export default function AIPage() {
   const [params, setParams] = useSearchParams();
   const _t = params.get("tab");
-  const tab = _t === "lab" || _t === "advisor" ? _t : "analysis";
+  const tab = _t === "advisor" ? _t : "analysis";
+  const navigate = useNavigate();
+  useEffect(() => { if (_t === "lab") navigate("/watchlist?tab=lab", { replace: true }); }, [_t]);   // eslint-disable-line react-hooks/exhaustive-deps
   const setTab = (t: string) => setParams(t === "analysis" ? {} : { tab: t }, { replace: true });
   const qc = useQueryClient();
   // بطاقة الشركة تُفتح فوق صفحة الذكاء نفسها — يبقى المستخدم في سياقه.
@@ -225,8 +227,7 @@ export default function AIPage() {
         ))}
       </nav>
 
-      {tab === "lab" ? <div key="lab" className="fade-in"><StarsPage embedded /></div>
-        : tab === "advisor" ? (
+      {tab === "advisor" ? (
           /* ‏D679 (بأمر المالك): المستشارُ الآليّ مكانَ «التقرير الشامل» — يقرأ التطبيقَ كلَّه: التحليلَ والسعرَ العادل وثقتَه، ومستوياتِ
              D7M، وآراءَ بيوت الخبرة، والأحداثَ الجوهرية، والمفكرةَ والإفصاحات، والخطوطَ الحمراء، والأهدافَ والسيولة، ونبضَ السوق
              وانتباهَ الحوكمة، ومبادئَ المكتبة — ‏D697: في تبويبه */

@@ -69,8 +69,9 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
   });
   await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe"); sessionStorage.setItem("sp:market:tab", "screener"); } catch { } });
 
-  // ═══ ١ · «الشاشة» ═══
-  await page.goto(`http://localhost:${PORT}/watchlist?tab=board`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+  // ═══ ١ · «غرفة التداول» ═══ (‏D736 · المالك 2026-11-15: «ألغِ الشركات، ما أشوف لها داعي» — فشبكةُ البطاقات وترتيبُها بالضغط
+  //     المطوّل (‏D683 · D684 · D685) أُلغيا معها بأمره، وبقي هنا اسمُ القسم وسلامةُ عرضه)
+  await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2500);
   const g = await page.evaluate(() => {
     const W = document.documentElement.clientWidth;
@@ -103,67 +104,8 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
              btns: cards.some(c => [...c.querySelectorAll("button")].some(b => /تحريك|نقل|أعلى|أسفل/.test(b.getAttribute("aria-label") || ""))) };
   });
   say(g.h1 && !g.old && g.nav === "ok", `${label}: «غرفة التداول» اسمُ القسم (‏D687) — لا «المراقبة» في عنوانٍ ولا قائمةٍ ولا نصّ`);
-  say(g.n === 8 && g.perRow === (mob ? 3 : 4), `${label}: ${mob ? "ثلاثُ" : "أربعُ"} بطاقاتٍ في الصفّ (‏D685)`, `${g.n} بطاقات · ${g.perRow} في الصفّ`);
-  say(g.off.length === 0, `${label}: القرارُ تحت منتصف نسبة التغيّر في كلّ بطاقة (فرقُ المركزين ≤ 1.5px)`, g.off.join(" ") || "8/8");
-  say(g.clip.length === 0 && g.tall.length === 0, `${label}: السعرُ كاملٌ لا مقصوص، والاسمُ سطران على الأكثر`, [...g.clip, ...g.tall].join(" "));
-  say(g.rowMis.length === 0, `${label}: الخاناتُ تصطفّ بين بطاقات الصفّ الواحد (السعرُ على خطٍّ واحد)`);
-  say(g.sw <= g.W + 1 && !g.btns, `${label}: لا فيضَ أفقيّ، ولا زرَّ تحريكٍ ظاهر`, `محتوى ${g.sw} · شاشة ${g.W}`);
+  say(g.n === 0 && g.sw <= g.W + 1, `${label}: لا شبكةَ بطاقاتٍ في الغرفة (‏D736)، ولا فيضَ أفقيّ`, `${g.n} بطاقة · محتوى ${g.sw} · شاشة ${g.W}`);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `screen_${vp.width}.png`), fullPage: true });
-
-  const keys = () => page.evaluate(() => [...document.querySelectorAll("[data-sort-key]")].map(c => c.dataset.sortKey));
-  const center = (i) => page.evaluate((i) => { const r = document.querySelectorAll("[data-sort-key]")[i].getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, i);
-  const sheetOpen = () => page.evaluate(() => !!document.querySelector(".stock-sheet-overlay"));
-
-  // ═══ ٢ · الترتيبُ بالضغط المطوّل ثمّ السحب ═══
-  const k0 = await keys();
-  if (!mob) {
-    const a = await center(0), b = await center(2);
-    await page.mouse.move(a.x, a.y); await page.mouse.down(); await sleep(650);
-    for (let s = 1; s <= 10; s++) await page.mouse.move(a.x + (b.x - a.x) * s / 10, a.y + (b.y - a.y) * s / 10);
-    await sleep(250);
-    // ‏D687: البطاقةُ المرفوعة تحت الإصبع نفسِه (لا تقفز بين الخانات) — مركزُها عند المؤشّر، ثمّ تهبط بانزلاق
-    const mid = await page.evaluate(({ x, y }) => {
-      const el = [...document.querySelectorAll("[data-sort-key]")].find(e => (e.style.transform || "").includes("translate"));
-      if (!el) return null;
-      const r = el.getBoundingClientRect();
-      return { d: Math.hypot(r.left + r.width / 2 - x, r.top + r.height / 2 - y), tr: el.style.transform };
-    }, b);
-    say(!!mid && mid.d < 14, `${label}: البطاقةُ المرفوعة تتبع الإصبع — مركزُها عند المؤشّر (‏D687)`, mid ? `${mid.d.toFixed(1)}px` : "لا إزاحة");
-    await page.mouse.up(); await sleep(500);
-    const landed = await page.evaluate(() => [...document.querySelectorAll("[data-sort-key]")].every(e => !(e.style.transform || "").includes("translate")));
-    say(landed, `${label}: وتهبط في موضعها بعد الإفلات — لا إزاحةَ عالقة`);
-  } else {
-    const cdp = await ctx.newCDPSession(page);
-    const a = await center(0), b = await center(2);
-    const sc0 = await page.evaluate(() => (document.querySelector(".app-main") || document.scrollingElement).scrollTop);
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: a.x, y: a.y }] });
-    await sleep(650);
-    for (let s = 1; s <= 10; s++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: a.x + (b.x - a.x) * s / 10, y: a.y + (b.y - a.y) * s / 10 }] });
-    await sleep(250);
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await sleep(500);
-    const sc1 = await page.evaluate(() => (document.querySelector(".app-main") || document.scrollingElement).scrollTop);
-    say(sc1 === sc0, `${label}: السحبُ باللمس لا يمرّر الصفحة`, `${sc0} → ${sc1}`);
-  }
-  const k1 = await keys();
-  const want = [k0[1], k0[2], k0[0], ...k0.slice(3)];
-  say(JSON.stringify(k1) === JSON.stringify(want), `${label}: ضغطٌ مطوّلٌ ثمّ سحبٌ ينقل البطاقةَ إلى موضع ما تُفلَت عليه`, k1.slice(0, 4).join(" "));
-  say(orders.length === 1 && JSON.stringify(orders[0]) === JSON.stringify(k1), `${label}: والترتيبُ يُحفظ على الخادم بنداءٍ واحد بالترتيب الظاهر نفسِه`, `${orders.length} نداء`);
-  say(!(await sheetOpen()), `${label}: والضغطةُ المطوّلة لا تفتح ورقةَ السهم`);
-
-  // حركةٌ قاصدةٌ قبل المهلة (تمرير) لا ترفع شيئاً
-  if (!mob) {
-    const a = await center(3), b = await center(5);
-    await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(a.x, a.y + 30); await sleep(650);
-    await page.mouse.move(b.x, b.y); await page.mouse.up(); await sleep(400);
-    say(JSON.stringify(await keys()) === JSON.stringify(k1) && orders.length === 1, `${label}: حركةٌ قبل المهلة تمريرٌ لا سحب — لا يتغيّر ترتيبٌ ولا يُحفظ`);
-  }
-  // والنقرةُ العاديّة تفتح الورقة كما كانت
-  const c = await center(0);
-  if (mob) await page.touchscreen.tap(c.x, c.y); else await page.mouse.click(c.x, c.y);
-  await sleep(700);
-  say(await sheetOpen(), `${label}: والنقرةُ العاديّة تفتح ورقةَ السهم كما كانت`);
-  await page.keyboard.press("Escape").catch(() => {});
 
   // ═══ ٣ · بطاقاتُ فرز السوق (الجوال) ═══
   if (mob) {
@@ -244,10 +186,9 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
       await sleep(450);
     };
     const drawerOn = () => page.evaluate(() => !!document.querySelector(".mobile-drawer"));
-    await page.goto(`http://localhost:${PORT}/watchlist?tab=board`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+    // الإيماءةُ تُفحص على «مختبر الأبحاث»: صفحةٌ بلا رسم — والرسمُ نفسُه لا تبدأ منه (سحبُه يحرّك الشموع · ‏pro_chart_d736)
+    await page.goto(`http://localhost:${PORT}/watchlist?tab=lab`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
     await page.waitForTimeout(2200);
-    const rise = await page.evaluate(() => document.querySelectorAll("[data-sort-key] > .card-rise").length);
-    say(rise === 8, `${label}: البطاقاتُ تطلع متتابعةً عند الظهور (حركةٌ لا قفزة)`, `${rise}/8`);
     await swipe(200, 640, 190, 300);
     const v = await drawerOn();
     await swipe(330, 640, 120, 650);
@@ -260,5 +201,5 @@ for (const [label, vp] of [["الجوال", { width: 390, height: 844, isMobile:
   await ctx.close();
 }
 await browser.close();
-console.log((fail ? "FAIL" : "PASS") + " D683 · D684 · D687 — «غرفة التداول» بثلاثة أعمدة على الجوال وأربعة على الحاسوب وترتيبٌ بالضغط المطوّل · بطاقاتُ الفرز بهويّة التطبيق");
+console.log((fail ? "FAIL" : "PASS") + " D683 · D687 · D736 — «غرفة التداول» باسمها وتبويبَيها · بطاقاتُ الفرز بهويّة التطبيق · إيماءةُ القائمة");
 process.exit(fail);

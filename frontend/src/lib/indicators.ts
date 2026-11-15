@@ -126,3 +126,51 @@ export function paneLayout(n: number) {
   };
 }
 
+/* ── المتوسّطاتُ وRSI وMACD — كما كانت في الرسم القديم، هنا ليقرأها الرسمُ الاحترافيّ (‏D736) ويفحصها الحارس ── */
+export function sma(data: number[], p: number): (number | null)[] {
+  const out: (number | null)[] = [];
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) {
+    sum += data[i];
+    if (i >= p) sum -= data[i - p];
+    out.push(i >= p - 1 ? sum / p : null);
+  }
+  return out;
+}
+export function ema(data: number[], p: number): (number | null)[] {
+  const out: (number | null)[] = Array(data.length).fill(null);
+  const k = 2 / (p + 1);
+  let prev: number | null = null;
+  for (let i = 0; i < data.length; i++) {
+    if (prev == null) {
+      if (i >= p - 1) { prev = data.slice(i - p + 1, i + 1).reduce((a, b) => a + b, 0) / p; out[i] = prev; }
+    } else { prev = data[i] * k + prev * (1 - k); out[i] = prev; }
+  }
+  return out;
+}
+export function rsi(data: number[], p = 14): (number | null)[] {
+  const out: (number | null)[] = Array(data.length).fill(null);
+  if (data.length < p + 1) return out;
+  let g = 0, l = 0;
+  for (let i = 1; i <= p; i++) { const d = data[i] - data[i - 1]; g += Math.max(d, 0); l += Math.max(-d, 0); }
+  g /= p; l /= p;
+  out[p] = l === 0 ? 100 : 100 - 100 / (1 + g / l);
+  for (let i = p + 1; i < data.length; i++) {
+    const d = data[i] - data[i - 1];
+    g = (g * (p - 1) + Math.max(d, 0)) / p;
+    l = (l * (p - 1) + Math.max(-d, 0)) / p;
+    out[i] = l === 0 ? 100 : 100 - 100 / (1 + g / l);
+  }
+  return out;
+}
+export function macd(data: number[], fast = 12, slow = 26, sig = 9) {
+  const ef = ema(data, fast), es = ema(data, slow);
+  const line = data.map((_, i) => (ef[i] == null || es[i] == null ? null : (ef[i] as number) - (es[i] as number)));
+  const vals = line.filter((v): v is number => v != null);
+  const sv = ema(vals, sig);
+  const signal: (number | null)[] = Array(data.length).fill(null);
+  let j = 0;
+  for (let i = 0; i < line.length; i++) if (line[i] != null) { signal[i] = sv[j] ?? null; j++; }
+  const hist = line.map((v, i) => (v == null || signal[i] == null ? null : v - (signal[i] as number)));
+  return { line, signal, hist };
+}

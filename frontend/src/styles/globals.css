@@ -3205,9 +3205,9 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
   background: color-mix(in srgb, var(--bg) 80%, transparent); transition: top .28s ease; }
 @media (prefers-reduced-motion: reduce) { .chart-pane-tag { transition: none; } }
 
-/* ══ ‏D732: غرفة التداول — الرسمُ في الصدر وقوائمُ المراقبة بجانبه (تحته على الجوال) ══ */
+/* ══ ‏D732: غرفة التداول — الرسمُ وقوائمُ المراقبة بجانبه (تحته على الجوال) · ‏D736: القوائمُ يمينَ الشاشة والرسمُ يسارَها ══ */
 .troom { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); align-items: start; }
-@media (min-width: 1024px) { .troom { grid-template-columns: minmax(0, 1fr) 300px; } .troom-list { position: sticky; top: 12px; } }
+@media (min-width: 1024px) { .troom { grid-template-columns: 300px minmax(0, 1fr); } .troom-list { position: sticky; top: 12px; } }
 .troom-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .troom-tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .troom-tabs::-webkit-scrollbar { display: none; }
@@ -3236,3 +3236,112 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 .cvd-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px;
            font-size: 12px; font-weight: 700; color: var(--ink); width: 100%; }
 .cvd-tog { text-align: start; }
+
+/* ══ ‏D736: الرسمُ البيانيُّ الاحترافيّ — شريطٌ علويٌّ بأيقوناتٍ كتريدنق فيو، وسكّةُ أدوات الرسم على يساره، ووسيلةُ إيضاحٍ فوق الشموع ══
+   المالك 2026-11-15: «الرسم خلِّ له أيقونة فرشة، والمؤشّرات أيقونة، والإطار مثل تريدنق فيو… شيءٌ فاخرٌ احترافيّ». */
+.pc { display: flex; flex-direction: column; min-width: 0; }
+.pc-top { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: 6px 8px;
+  border-bottom: 1px solid var(--hairline); }
+.pc-ident { display: flex; align-items: center; min-width: 0; padding-inline-end: 8px; margin-inline-end: 4px;
+  border-inline-end: 1px solid var(--hairline); min-height: 32px; }
+.pc-group { display: flex; align-items: center; gap: 1px; }
+.pc-sep { width: 1px; height: 20px; background: var(--hairline); margin-inline: 4px; flex: none; }
+.pc-grow { flex: 1 1 0; }
+.pc-btn, .pc-tf { min-width: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 0 7px; border-radius: 8px; color: var(--ink-muted); font-size: 12px; font-weight: 700; white-space: nowrap;
+  transition: background-color .16s ease, color .16s ease; }
+.pc-tf { padding: 0 8px; font-variant-numeric: tabular-nums; }
+.pc-btn:hover, .pc-tf:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.pc-btn.on, .pc-tf.on { color: var(--brand-ink); background: color-mix(in srgb, var(--brand) 13%, transparent); }
+.pc-btn:disabled { opacity: .38; pointer-events: none; }
+.pc-danger:hover { color: var(--neg-ink); }
+.pc-btn-txt { font-size: 12px; }
+.pc-menu-wrap { position: relative; display: inline-flex; }
+.pc-menu { position: absolute; top: calc(100% + 6px); inset-inline-start: 0; z-index: 40; min-width: 190px; padding: 5px;
+  border-radius: 12px; box-shadow: 0 14px 34px color-mix(in srgb, var(--ink) 16%, transparent);
+  transform-origin: top; animation: menuIn .18s ease-out both; }
+.pc-menu-wide { width: min(320px, 92vw); }
+.pc-item { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 36px; padding: 6px 10px; border-radius: 8px;
+  font-size: 12.5px; font-weight: 700; color: var(--ink); text-align: start; transition: background-color .15s ease; }
+.pc-item:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.pc-item.on { color: var(--brand-ink); }
+.pc-check { margin-inline-start: auto; }
+.pc-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.pc-tfmenu { display: flex; flex-direction: column; gap: 8px; padding: 5px; }
+.pc-tfgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.pc-tfgrid .pc-tf { min-height: 34px; }
+.pc-custom { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--hairline); }
+.pc-cap { font-size: 11px; font-weight: 700; color: var(--ink-muted); }
+.pc-custom-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pc-custom-row .input { width: 62px; min-height: 34px; padding: 4px 8px; text-align: center; font-weight: 800; }
+.pc-custom-row .seg-btn { min-height: 32px; padding-inline: 9px; }
+.pc-apply { min-height: 34px; font-size: 12.5px; }
+
+.pc-body { display: flex; direction: ltr; min-width: 0; }
+.pc-main { position: relative; flex: 1 1 0; min-width: 0; }
+.pc-rail { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; flex: none;
+  border-right: 1px solid var(--hairline); animation: pcRailIn .2s ease-out both; }
+.pc-rail-sep { width: 20px; height: 1px; background: var(--hairline); margin: 4px 0; }
+@keyframes pcRailIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+.pc-stage { position: relative; overflow: hidden; transition: height .26s ease; }
+.pc-box { position: absolute; inset: 0; }
+
+/* وسيلةُ الإيضاح: فوق الشموع يسارَ الرسم، ولا تلتقط اللمس فلا تعترض السحبَ والتكبير */
+.pc-legend { position: absolute; top: 6px; left: 8px; right: 70px; z-index: 3; pointer-events: none; display: flex; flex-direction: column;
+  align-items: flex-start; gap: 3px; font-size: 11px; line-height: 1.5; font-variant-numeric: tabular-nums; color: var(--ink); }
+.pc-pane-legend { transition: top .26s ease; }
+.pc-ohlc, .pc-chips { display: flex; flex-wrap: wrap; align-items: center; column-gap: 4px; row-gap: 2px; }
+.pc-ohlc { padding: 1px 6px; border-radius: 6px; background: color-mix(in srgb, var(--card) 78%, transparent); }
+.pc-ohlc b, .pc-chip b { font-weight: 700; margin-right: 5px; }
+.pc-k { color: var(--ink-muted); font-weight: 700; }
+.pc-chg { margin-right: 0 !important; }
+.pc-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 6px;
+  background: color-mix(in srgb, var(--card) 78%, transparent); }
+.pc-chip b:last-child { margin-right: 0; }
+.pc-dim { color: var(--ink-muted); }
+
+.pc-draw-layer { position: absolute; top: 0; left: 0; z-index: 4; cursor: crosshair; touch-action: none; }
+.pc-live { position: absolute; z-index: 4; width: 34px; height: 34px; border-radius: 999px; display: inline-flex; align-items: center;
+  justify-content: center; background: var(--card); border: 1px solid var(--hairline); color: var(--ink);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--ink) 14%, transparent); animation: menuIn .2s ease-out both;
+  transition: color .16s ease, border-color .16s ease; }
+.pc-live:hover { color: var(--brand-ink); border-color: var(--brand-ink); }
+.pc-cover { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 16px;
+  text-align: center; font-size: 12.5px; font-weight: 700; color: var(--ink-muted); background: var(--card); animation: overlayIn .2s ease-out both; }
+.pc-cover.pc-loading { background: color-mix(in srgb, var(--card) 45%, transparent); align-items: flex-start; padding: 0; }
+.pc-progress { display: block; width: 100%; height: 2px; overflow: hidden; position: relative; }
+.pc-progress::after { content: ""; position: absolute; inset: 0; width: 38%; border-radius: 2px; background: var(--brand-ink);
+  animation: pcProgress 1s ease-in-out infinite; }
+@keyframes pcProgress { from { transform: translateX(-110%); } to { transform: translateX(290%); } }
+
+/* لوحاتُ D7M داخل الرسم الجديد: لا تغطّي وسيلةَ الإيضاح، والسفليّةُ فوق لوحات المؤشّرات */
+.pc .d7m-at-tl { top: 54px; }
+.pc .d7m-at-br, .pc .d7m-at-bl { bottom: var(--d7m-bottom, 34px); }
+
+/* ملءُ الشاشة */
+.pc-full { position: fixed; inset: 0; z-index: 90; background: var(--card); overflow-y: auto; animation: overlayIn .18s ease-out both;
+  padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+
+@media (max-width: 767px) {
+  /* الجوال كتطبيق تريدنق فيو: الإطارُ الجاري وحده وسهمُ القائمة، والقوائمُ بعرض الشريط */
+  .pc-top { padding: 5px 6px; }
+  .pc-ident { flex: 1 1 100%; border-inline-end: 0; padding-inline-end: 0; margin-inline-end: 0; }
+  .pc-group > .pc-tf:not(.on) { display: none; }
+  .pc-btn-txt { display: none; }
+  .pc-menu-wrap { position: static; }
+  .pc-menu, .pc-menu-wide { inset-inline: 6px; width: auto; }
+  .pc-body { flex-direction: column; }
+  .pc-rail { flex-direction: row; justify-content: flex-start; border-right: 0; border-bottom: 1px solid var(--hairline); padding: 4px 6px; }
+  .pc-rail-sep { width: 1px; height: 20px; margin: 0 4px; }
+  @keyframes pcRailIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  .pc-legend { font-size: 10px; right: 62px; left: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pc-btn, .pc-tf, .pc-item, .pc-stage, .pc-pane-legend, .pc-live { transition: none; }
+  .pc-menu, .pc-rail, .pc-live, .pc-cover, .pc-full { animation: none; }
+  .pc-progress::after { animation: none; width: 100%; opacity: .5; }
+}
+
+/* ‏D736: غرفةُ التداول عربيّة — القوائمُ يمينَ الشاشة والرسمُ يسارَها؛ وعلى الجوال الرسمُ أوّلاً والقوائمُ تحته */
+.troom-chart { padding: 0; overflow: visible; }
+@media (max-width: 1023px) { .troom-chart { order: -1; } }

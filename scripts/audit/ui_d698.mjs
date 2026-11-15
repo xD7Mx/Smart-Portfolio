@@ -64,10 +64,9 @@ for (const withCandles of [true, false]) {
     return r.fulfill(body([]));
   });
   await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe"); } catch { } });
-  await page.goto(`http://localhost:${PORT}/watchlist?tab=board`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
-  await page.waitForTimeout(2200);
-  await page.locator('[data-sort-key="2222"]').first().click({ timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(1500);
+  // ‏D736: ورقةُ السهم كانت تُفتح من تبويب «الشركات» — وقد أُلغي بأمر المالك — فتُفتح من «السوق» برابط السهم
+  await page.goto(`http://localhost:${PORT}/market?symbol=2222`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(3500);
   await page.locator('[role="tab"]', { hasText: "التقارير" }).first().click({ timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(1200);
   // زرُّ «عرض» في قائمة تقارير الشركة نفسِها (في الورقة أزرارُ «عرض» أخرى)

@@ -5,7 +5,7 @@
 //   · وآخرُ سعرٍ وسمٌ مؤطَّرٌ بقيمته، ومستوياتُ فيبوناتشي أرقامُها يساراً.
 //   · والشمعةُ الجاريةُ تتحرّك في موضعها حين يتحرّك السعر — بلا إعادة بناءٍ تُضيّع التكبير.
 // ─────────────────────────────────────────────────────────────────────────
-import { existsSync, readFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync, mkdtempSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -50,19 +50,11 @@ process.on("exit", () => { try { vite.kill("SIGKILL"); } catch { } });
 let up = false;
 for (let i = 0; i < 60 && !up; i++) { await sleep(500); try { up = (await fetch(`http://localhost:${PORT}/`)).ok; } catch { } }
 if (!up) { console.log("… لم يقلع خادمُ التطوير — لا حكم."); process.exit(fail); }
-// مكتبةُ الرسم يجلبها التطبيقُ من unpkg — والمتصفّحُ هنا بلا شبكة: نسخةٌ محلّيةٌ بالإصدار نفسِه (4.1.3) أو تُنزَّل مرّةً بـcurl
-const LW_URL = "https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js";
-const LW_CACHE = join(tmpdir(), "sp-audit-lw-4.1.3.js");
-let LW = [process.env.LW_PATH, "/tmp/claude-0/lw/package/dist/lightweight-charts.standalone.production.js",
-  join(FRONT, "node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js"), LW_CACHE].find(p => p && existsSync(p));
-if (!LW) { mkdirSync(tmpdir(), { recursive: true }); if (spawnSync("curl", ["-fsSL", "-o", LW_CACHE, LW_URL]).status === 0 && existsSync(LW_CACHE)) LW = LW_CACHE; }
-if (!LW) { console.log("… تعذّر فحصُ المتصفّح: مكتبةُ الرسم غيرُ متاحة محلّياً ولا تُنزَّل — لا حكم."); process.exit(fail); }
 const browser = await chromium.launch({ executablePath: CHROME });
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
 const page = await ctx.newPage();
 const errs = [];
 page.on("pageerror", e => errs.push(String(e.message || e)));
-await page.route("https://unpkg.com/**", r => r.fulfill({ path: LW, contentType: "application/javascript" }));
 await page.route("**/api/v1/**", r => {
   const u = r.request().url();
   if (/\/market\/history\//.test(u) && /tf=/.test(u)) return r.fulfill(body(served()));
@@ -72,41 +64,55 @@ await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe")
 if (!process.env.NOCLOCK) await page.clock.install();
 await page.goto(`http://localhost:${PORT}/watchlist?tab=chart`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
 await page.waitForTimeout(3000);
+// ‏D736: غرفةُ التداول على الرسم الاحترافيّ (‏chart/ProChart) — الوسومُ والمستوياتُ تُرسم على اللوحة نفسِها (‏lib/chartOverlay) لا عناصرَ
+// صفحة؛ فيُقاس الرسمُ من طبقته: تُستدعى دالّةُ الرسم بلوحةٍ تسجّل ما يُرسم، ويُقرأ من الرسم الحيّ ما وُسم (سماتُ التشخيص).
+const { build } = await import(pathToFileURL(join(FRONT, "node_modules/esbuild/lib/main.js")).href);
+const ovOut = join(mkdtempSync(join(tmpdir(), "sp-d713-")), "overlay.mjs");
+await build({ entryPoints: [join(FRONT, "src/lib/chartOverlay.ts")], outfile: ovOut, format: "esm", bundle: true, logLevel: "silent" });
+const { ChartOverlay } = await import(pathToFileURL(ovOut).href);
+const rec = [];
+const fake = new Proxy({}, { get: (t, k) => (k in t ? t[k] : (...args) => { rec.push([k, args, { fill: t.fillStyle, stroke: t.strokeStyle, align: t.textAlign }]); }), set: (t, k, v) => { t[k] = v; return true; } });
+const target = { useMediaCoordinateSpace: (cb) => cb({ context: fake, mediaSize: { width: 70, height: 400 } }) };
+const ov = new ChartOverlay();
+ov.attached({ chart: { timeScale: () => ({ logicalToCoordinate: (k) => (Number.isInteger(k) ? 100 + 10 * k : 0), options: () => ({ barSpacing: 10 }) }) },
+              series: { priceToCoordinate: (p) => 400 - p }, requestUpdate() { } });
+ov.set({ bg: "BG", levels: [{ price: 200, color: "RED", tag: true, bold: true, rank: 0 }, { price: 120, color: "GOLD", tag: true, text: "0.618 · اتجاه", rank: 2 },
+                              { price: 60, color: "INK", tag: true, text: "1.618", rank: 3 }] });
+ov.priceAxisPaneViews()[0].renderer().draw(target);
+const fills = rec.filter(r => r[0] === "fill"), strokes = rec.filter(r => r[0] === "stroke"), texts = rec.filter(r => r[0] === "fillText");
+say(fills.length === 3 && fills.every(f => f[2].fill === "BG") && JSON.stringify(strokes.map(x => x[2].stroke)) === JSON.stringify(["RED", "GOLD", "INK"])
+    && JSON.stringify(texts.map(x => x[2].fill)) === JSON.stringify(["RED", "GOLD", "INK"]) && texts[0][1][0] === "200.00",
+    "١ أسعارُ المحور وسومٌ مؤطَّرة بلون خطّها — إطارُها ونصُّها بلونه وأرضيّتُها أرضيةُ الرسم، لا كتلةٌ مملوءة",
+    `${fills.length} وسماً · أرضية ${[...new Set(fills.map(f => f[2].fill))].join(",")}`);
+rec.length = 0; fake.textAlign = "";
+ov.paneViews()[0].renderer().draw(target);
+const lv = rec.filter(r => r[0] === "fillText");
+say(lv.length === 2 && lv.every(t => t[2].align === "left" && t[1][1] === 8) && /^0\.618/.test(lv[0][1][0]),
+    "٣ ومستوياتُ فيبوناتشي أرقامُها على يسار الرسم كتريدنق فيو", lv.map(t => `${t[1][0]}@${t[1][1]}`).join(" | "));
+
 // تفعيلُ D7M من قائمة المؤشّرات
-await page.locator("button", { hasText: "SMA20" }).first().click({ timeout: 6000 }).catch(() => {});
+await page.locator('[data-role="pc-ind"]').click({ timeout: 6000 }).catch(() => {});
 await page.waitForTimeout(400);
-// ‏D734: «CVD D7M» زرٌّ آخرُ في القائمة نفسِها — فيُختار «D7M» بنصّه كاملاً
-await page.locator('button[aria-pressed]', { hasText: /^D7M$/ }).first().click({ timeout: 6000 }).catch(() => {});
+await page.locator('[data-role="pc-ind-menu"] [data-ind="d7m"]').click({ timeout: 6000 }).catch(() => {});
 await page.waitForTimeout(2500);
 const read = () => page.evaluate(() => {
-  const surf = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim();
-  const tags = [...document.querySelectorAll('[data-role="axis-tag"]')].map(t => {
-    const cs = getComputedStyle(t);
-    return { text: t.textContent.trim(), color: cs.color, border: cs.borderTopColor, bg: cs.backgroundColor, last: t.classList.contains("axis-tag-last") };
-  });
-  const levels = [...document.querySelectorAll(".axis-level")].map(x => x.textContent.trim());
-  return { tags, levels, surf };
+  const r = document.querySelector('[data-role="pro-chart"]');
+  return r ? { last: r.dataset.last, lv: Number(r.dataset.lv), tags: Number(r.dataset.tags), vis: r.dataset.vis, c: document.querySelector('[data-k="c"]')?.textContent } : {};
 });
 const a = await read();
 if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + "/d713.png" });
-if (process.env.DBG) console.log(await page.evaluate(() => ({ canvas: document.querySelectorAll(".chart-frame canvas").length,
-  frame: !!document.querySelector(".chart-frame"), btns: [...document.querySelectorAll("button")].map(b => b.textContent.trim()).filter(t => /SMA|D7M|MACD|المؤشرات/.test(t)) })));
-const outlined = a.tags.filter(t => t.color === t.border && t.bg !== t.border);
-say(a.tags.length >= 3 && outlined.length === a.tags.length, "١ أسعارُ المحور وسومٌ مؤطَّرة بلون خطّها — لا كتلةٌ مملوءة",
-    `${a.tags.length} وسماً · مؤطَّرٌ ${outlined.length}`);
-const lastTag = a.tags.find(t => t.last);
-say(!!lastTag && lastTag.text === state.lastClose.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    "٢ وآخرُ سعرٍ وسمٌ مؤطَّرٌ بقيمته", lastTag?.text);
-say(a.levels.some(s => /^0\.618/.test(s)) && a.levels.length >= 2, "٣ ومستوياتُ فيبوناتشي أرقامُها على يسار الرسم كتريدنق فيو", a.levels.slice(0, 4).join(" | "));
-// ٤ الشمعةُ الجاريةُ تتحرّك: يتغيّر الإغلاقُ عند المصدر، ويمضي التحديثُ الدوريّ (دقيقة)
-const before = await page.evaluate(() => document.querySelector(".chart-frame canvas") ? 1 : 0);
+const fmt = (v) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+say(a.last === fmt(state.lastClose) && a.tags >= 3, "٢ وآخرُ سعرٍ وسمٌ مؤطَّرٌ بقيمته — ومعه وسومُ مستويات D7M", `${a.last} · ${a.tags} وسماً`);
+say(a.lv >= 2, "٣ب ومستوياتُ D7M مسمّاةٌ على الرسم الحيّ", `${a.lv} مستوى`);
+// ٤ الشمعةُ الجاريةُ تتحرّك: يتغيّر الإغلاقُ عند المصدر، ويمضي التحديثُ الدوريّ (دقيقة) — واللوحةُ نفسُها والتكبيرُ نفسُه
+await page.evaluate(() => { document.querySelector('[data-role="pc-stage"] canvas').__same = 1; });
 state.lastClose = state.lastClose + 137;
 await page.clock.fastForward(61000);
 await page.waitForTimeout(1800);
 const b = await read();
-const lastB = b.tags.find(t => t.last);
-say(before && lastB && lastB.text === state.lastClose.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    "٤ والشمعةُ الجاريةُ تتحرّك مع السعر في موضعها (تحديثٌ كلَّ دقيقة) — ووسمُ آخر سعرٍ معها", `${lastTag?.text} ← ${lastB?.text}`);
+const same = await page.evaluate(() => document.querySelector('[data-role="pc-stage"] canvas')?.__same === 1);
+say(same && b.last === fmt(state.lastClose) && b.c === fmt(state.lastClose) && b.vis === a.vis,
+    "٤ والشمعةُ الجاريةُ تتحرّك مع السعر في موضعها (تحديثٌ كلَّ دقيقة) — ووسمُ آخر سعرٍ معها، بلا إعادة بناءٍ تُضيّع التكبير", `${a.last} ← ${b.last} · المعروض ${a.vis} ← ${b.vis}`);
 say(errs.length === 0, "٥ بلا خطأٍ في الصفحة", errs[0] || "");
 await browser.close();
 console.log(fail ? "\nالنتيجة: عطب ✖" : "\nالنتيجة: نظيف ✔");

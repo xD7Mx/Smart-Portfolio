@@ -2,11 +2,13 @@
    «أضيف شركات في القائمة المفضّلة، وأضع قوائم — للسوق الأمريكي وللسوق السعودي… وإذا ضغطتُ على الشركة يظهر الشارت
    بخصائصه: ستوكاستيك، RSI، الماكد، CVD… والمؤشّر حقّي». فالرسمُ في الصدر والقوائمُ بجانبه (تحته على الجوال):
    «محفظتي» و«المؤشرات» قائمتان ثابتتان، وقوائمُ المالك تُنشأ وتُحذف ويُضاف إليها من السوقين بحقل بحثٍ واحد،
-   والضغطُ على سطرٍ يفتح رسمَه. والقوائمُ من خادم «المراقبة» نفسِه — فما يُضاف هنا يراه في «الشركات» والعكس. */
+   والضغطُ على سطرٍ يفتح رسمَه. والقوائمُ من خادم «المراقبة» نفسِه.
+   ‏D736 (المالك 2026-11-15): «المستخدم عربيّ — الشركاتُ في اليمين والرسمُ البيانيُّ على اليسار»، والرسمُ هو الاحترافيُّ الجديد
+   (‏chart/ProChart) يبقى قائماً حين يتبدّل الرمز — لا يُهدم ويُبنى. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Pencil, Check, Trash2 } from "lucide-react";
-import NativeChart from "../analysis/NativeChart";
+import ProChart from "../chart/ProChart";
 import CompanyLogo from "../common/CompanyLogo";
 import InlineStockSearch from "./InlineStockSearch";
 import { holdingsApi, marketApi } from "../../services/api";
@@ -94,16 +96,6 @@ export default function TradeRoom() {
 
   return (
     <div className="troom" data-role="troom">
-      <section ref={chartRef} className="troom-chart card chart-lock" data-role="troom-chart">
-        <NativeChart key={symbol} symbol={symbol} theme={theme === "light" ? "light" : "dark"}
-          identity={<span className="flex items-center gap-1.5 shrink-0">
-            {!label && <CompanyLogo symbol={symbol} size={26} />}
-            <span className="text-[14px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{label || symbol.replace(".SR", "")}</span>
-            {!label && <span className="text-[12px] text-[var(--ink-muted)] truncate max-w-[40vw]">
-              {rows.find(r => r.symbol === symbol)?.name || ""}</span>}
-          </span>} />
-      </section>
-
       <aside className="troom-list card" data-role="troom-list">
         <div className="troom-tabs" role="tablist" aria-label="القوائم">
           {tabs.map(([id, name]) => (
@@ -186,6 +178,16 @@ export default function TradeRoom() {
           )}
         </div>
       </aside>
+
+      <section ref={chartRef} className="troom-chart card" data-role="troom-chart">
+        <ProChart symbol={symbol} theme={theme === "light" ? "light" : "dark"}
+          identity={<span className="flex items-center gap-1.5 min-w-0">
+            {!label && <CompanyLogo symbol={symbol} size={26} />}
+            <span className="text-[14px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{label || symbol.replace(".SR", "")}</span>
+            {!label && <span className="text-[12px] text-[var(--ink-muted)] truncate max-w-[40vw] lg:max-w-[180px]">
+              {rows.find(r => r.symbol === symbol)?.name || ""}</span>}
+          </span>} />
+      </section>
     </div>
   );
 }

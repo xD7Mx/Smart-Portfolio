@@ -9,10 +9,12 @@ SRC = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "src"
 rd = lambda *p: (SRC.joinpath(*p)).read_text(encoding="utf-8")
 page, app, nav, store = rd("pages", "StarsPage.tsx"), rd("App.tsx"), rd("components", "common", "MainLayout.tsx"), rd("store", "appStore.ts")
 checks = [
-    # ‏D677 ← D694 (بأمر المالك): المختبرُ تبويبٌ في تحليل الذكاء (كان في المحفظة، والحوكمةُ مكانه هناك) — ورابطُه القديم يصله
-    ('["lab", "المختبر", FlaskConical]' in rd("pages", "AIPage.tsx") and "<StarsPage embedded />" in rd("pages", "AIPage.tsx")
-     and 'path="/stars"' in app and 'Navigate to="/ai?tab=lab"' in app,
-     "١ المختبرُ تبويبٌ في تحليل الذكاء (‏D694)، ورابطُه القديم /stars يصل تبويبَه"),
+    # ‏D677 ← D694 ← D736 (بأمر المالك 2026-11-15): المختبرُ تبويبٌ في غرفة التداول بجانب «الرسم البياني» (كان في تحليل الذكاء،
+    # وقبله في المحفظة) — ورابطاه القديمان يصلانه، ولا نسخةَ ثانيةً منه في تحليل الذكاء
+    ('["lab", "مختبر الأبحاث", FlaskConical]' in rd("pages", "WatchlistPage.tsx") and "<StarsPage embedded />" in rd("pages", "WatchlistPage.tsx")
+     and "StarsPage" not in rd("pages", "AIPage.tsx") and 'navigate("/watchlist?tab=lab"' in rd("pages", "AIPage.tsx")
+     and 'path="/stars"' in app and 'Navigate to="/watchlist?tab=lab"' in app,
+     "١ المختبرُ تبويبٌ في غرفة التداول (‏D736)، ورابطاه القديمان /stars و/ai?tab=lab يصلان تبويبَه"),
     ('watchlist:     { to: "/watchlist"' in nav and 'path="/watchlist"' in app
      and store.count('(p === "stars" ? "watchlist" : p)') >= 3,
      "٢ والمراقبةُ قسمٌ مكانه في الترتيب المحلّيّ والمحفوظ على الخادم معاً — وصفحةُ البداية والمخفيّةُ تتبعانه"),
@@ -25,5 +27,5 @@ fail = 0
 for ok, label in checks:
     print(("PASS" if ok else "FAIL"), label)
     fail |= not ok
-print(("FAIL" if fail else "PASS") + " D536 · D677 — مختبرُ الأبحاث تبويبٌ في المحفظة، والمراقبةُ قسمٌ مكانه")
+print(("FAIL" if fail else "PASS") + " D536 · D677 · D736 — مختبرُ الأبحاث تبويبٌ في غرفة التداول، والغرفةُ قسمٌ في القائمة")
 sys.exit(fail)

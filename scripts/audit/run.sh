@@ -478,6 +478,8 @@ _node scripts/audit/alloc_totals.mjs || _note "$LINENO"
 _node scripts/audit/alloc_price_d729.mjs || _note "$LINENO"   # ‏D729: سعرٌ يكتبه المالك في التوزيع النسبي
 _node scripts/audit/liquidity_orders_d731.mjs || _note "$LINENO"   # ‏D731: إدارة السيولة أوامرُ آليّة
 _node scripts/audit/trade_room_d732.mjs || _note "$LINENO"   # ‏D732: غرفة التداول — رسمٌ وقوائمُ مراقبة، وستوكاستيك وCVD
+python3 scripts/audit/chart_bars_d735.py || _note "$LINENO"   # ‏D735: شموعُ الرسم نظيفة — لا تكرارَ ولا شمعةَ عطلة، وأيُّ إطارٍ مخصَّص
+_node scripts/audit/pro_chart_d736.mjs || _note "$LINENO"   # ‏D736: الرسمُ الاحترافيّ — شموعٌ مقروءة ولوحاتٌ حقيقية وأدواتُ رسم، والقوائمُ يمينَ الشاشة
 
 # D198: درجةُ الحوكمة تُقرأ من المحرّك، والعمودُ المخزَّن يملأ الفراغَ ولا
 # يغلبه. كان المخزَّنُ أوّلاً فيُعرض رقمٌ قديمٌ في الفرز وخريطة القطاعات

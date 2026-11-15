@@ -60,10 +60,10 @@ const mk = await switchMoves("/market", "مفكرة السوق", "div.flex.gap-1
 say(mk > 0, "٢ وتبويباتُ السوق كذلك", `${mk} حركة`);
 
 // ورقةُ السهم: تصعد عند الفتح، وتبقى لحظةَ الإغلاق بحركة خروجها ثمّ تزول
-await page.goto(`http://localhost:${PORT}/watchlist?tab=board`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+// ‏D736: كانت تُفتح من بطاقةٍ في تبويب «الشركات» — وقد أُلغي بأمر المالك — فتُفتح من «السوق» برابط السهم داخل التطبيق نفسِه
+await page.goto(`http://localhost:${PORT}/market`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
 await page.waitForTimeout(2200);
-const card = page.locator("[data-sort-key] button").first();
-await card.click({ timeout: 5000 }).catch(() => {});
+await page.evaluate(() => { history.pushState({}, "", "/market?symbol=2222"); window.dispatchEvent(new PopStateEvent("popstate")); });
 await sleep(80);
 const opening = await page.evaluate(() => {
   // والغطاءُ خلفها يبهت داخلاً (كان يظهر دفعةً)، والورقةُ تصعد مسافةً لا ترتجف ستّ نقاط
