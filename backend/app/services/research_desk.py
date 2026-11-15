@@ -48,8 +48,9 @@ READ_PROMPT = """أنت محلّلٌ في قسم أبحاث مدير محفظة.
   "session": {{"date": "تاريخُ الجلسة التي يصفها التقرير YYYY-MM-DD أو null", "close": null, "value_bn": null, "volume_mn": null, "trades": null, "up": null, "down": null}},
   "regional": [{{"market": "دبي", "close": null, "d1": null, "mtd": null, "ytd": null}}],
   "rates": [{{"name": "سايبور 3 أشهر", "value": null, "d1_bp": null, "mtd_bp": null, "ytd_bp": null}}]}}
-والحقولُ الثلاثةُ الأخيرة أرقامٌ مجرّدةٌ كما في جداول التقرير (النسبُ بلا علامة %، والقيمةُ بالمليار والكمّيةُ بالمليون)، و"regional" جدولُ الأسواق
-الإقليمية و"rates" جدولُ أسعار الفائدة بين البنوك إن وُجدا — وإلا فارغة."""
+والحقولُ الثلاثةُ الأخيرة أرقامٌ مجرّدةٌ كما في جداول التقرير (النسبُ بلا علامة %، والقيمةُ بالمليار والكمّيةُ بالمليون). و"regional" **كلُّ صفوف**
+جدول «الأسواق الإقليمية» (السعودية ودبي وأبو ظبي والكويت وقطر وعمان والبحرين ومصر — ما ورد منها)، و"rates" **كلُّ صفوف** جدول «أسعار الفائدة بين
+البنوك» (سايبور لآجاله وسوفر وإيبور) — وإن لم يرد الجدولُ فقائمةٌ فارغة."""
 
 COMPOSE_PROMPT = """أنت رئيسُ قسم الأبحاث في مدير محفظةٍ سعوديٍّ مخضرم — انتقائيٌّ دقيق، يربط الحدثَ بالمحفظة ولا يقول ما لا دليلَ عليه.
 اكتب الأقسامَ النصّية في «التقرير اليوميّ» لمحفظة «{pname}» عن جلسة {today} بعد إغلاق السوق. أرقامُ الجلسة والجداولُ والنظرةُ الفنية
@@ -405,8 +406,10 @@ def latest_tables(notes: list[dict], today: date) -> tuple[dict, list[dict]]:
     """أحدثُ جدولٍ للأسواق الإقليمية ولأسعار الفائدة بين البنوك من تقارير الأيام السبعة الأخيرة — بتاريخ جلسته."""
     floor = (today - timedelta(days=7)).isoformat()
     rows = sorted([n for n in notes if str(n.get("date") or "") >= floor], key=lambda n: str(n.get("date") or ""), reverse=True)
-    reg = next(({"date": (n.get("session") or {}).get("date") or n.get("date"), "rows": n["regional"]} for n in rows if n.get("regional")), {})
-    sai = next((n["rates"] for n in rows if n.get("rates")), [])
+    # الجدولُ الكامل لا صفٌّ منه: أحدثُ مذكّرةٍ فيها ثلاثةُ أسواقٍ فأكثر غيرُ السعودية، وأحدثُ جدولِ فائدةٍ بآجالٍ ثلاثةٍ فأكثر
+    full = lambda n: len([x for x in n.get("regional") or [] if "سعود" not in x["market"]]) >= 3   # noqa: E731
+    reg = next(({"date": (n.get("session") or {}).get("date") or n.get("date"), "rows": n["regional"]} for n in rows if full(n)), {})
+    sai = next((n["rates"] for n in rows if len(n.get("rates") or []) >= 3), next((n["rates"] for n in rows if n.get("rates")), []))
     return reg, [r for r in sai if "سايبور" in r["name"] or "سوفر" in r["name"] or "إيبور" in r["name"]]
 
 
