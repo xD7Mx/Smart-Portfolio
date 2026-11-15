@@ -1,11 +1,11 @@
 import { useSearchParams } from "react-router-dom";
 import { CandlestickChart, FlaskConical } from "lucide-react";
 import TradeRoom from "../components/market/TradeRoom";
-import StarsPage from "./StarsPage";
+import ResearchLab from "./ResearchLab";
 
 /* ══ غرفة التداول ══ (بأمر المالك · D687 — كانت «الشاشة» · D683، وقبلها «المراقبة» · D677)
    ‏D736 (المالك 2026-11-15): «خلّها الرسم البياني الآن ومختبر الأبحاث… وألغِ الشركات، ما أشوف لها داعي». فالتبويبان:
-   «الرسم البياني» (الرسمُ الاحترافيُّ وقوائمُ المراقبة) و«مختبر الأبحاث» (كان في «تحليل الذكاء» — وروابطُه القديمة
+   «الرسم البياني» (الرسمُ الاحترافيُّ وقوائمُ المراقبة) و«مختبر الأبحاث» — قسمُ الأبحاث (‏D745: تقريرٌ يوميٌّ وتوصياتٌ ومكتبة؛ كان في «تحليل الذكاء» — وروابطُه القديمة
    /stars · /ai?tab=lab · /portfolio?tab=lab تفتحه هنا). والتنقّلُ بينهما بحركةٍ لا قفزة. */
 const TABS = [["chart", "الرسم البياني", CandlestickChart], ["lab", "مختبر الأبحاث", FlaskConical]] as const;
 
@@ -31,7 +31,7 @@ export default function WatchlistPage() {
         ))}
       </nav>
       <div key={tab} className="fade-in">
-        {tab === "chart" ? <TradeRoom /> : <StarsPage embedded />}
+        {tab === "chart" ? <TradeRoom /> : <ResearchLab />}
       </div>
     </div>
   );

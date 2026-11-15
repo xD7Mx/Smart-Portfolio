@@ -81,7 +81,7 @@ for (const [label, vp, mobile] of [["الجوال", { width: 390, height: 844 },
     return n;
   });
   await page.waitForTimeout(1500);
-  const lab = await page.evaluate(() => ({ url: location.pathname + location.search, title: !!document.querySelector('input[placeholder*="أضف شركة"]') || document.body.textContent.includes("أضف شركاتك") }));
+  const lab = await page.evaluate(() => ({ url: location.pathname + location.search, title: !!document.querySelector('[data-role="research-lab"]') }));
   say(lab.url === "/watchlist?tab=lab" && lab.title && moving > 0, `${label}: «مختبر الأبحاث» يفتح المختبرَ بحركةٍ ويحمل رابطَه`, `${lab.url} · ${moving} حركة`);
   say((await overflow()) <= 1, `${label}: المختبرُ في غرفة التداول بلا فيضٍ أفقيّ`);
   await go("/ai");

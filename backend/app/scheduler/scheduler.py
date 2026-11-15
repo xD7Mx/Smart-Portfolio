@@ -348,6 +348,36 @@ async def job_advisor_watch():
         logger.error(f"متابعة المستشار: {e}")
 
 
+async def job_research_ingest(night: bool = False):
+    """قسمُ الأبحاث (D745): قراءةُ تقارير الجهات بالقارئ البصريّ — في عمليةٍ منفصلةٍ كالقارئ البصريّ (ذاكرةُ الخادم)."""
+    import asyncio, sys
+    try:
+        p = await asyncio.create_subprocess_exec(
+            sys.executable, "-c",
+            "import asyncio, sys; sys.path.insert(0, '/app'); from app.services.research_desk import ingest_cli; asyncio.run(ingest_cli())",
+            *(["night"] if night else []))
+        try:
+            await asyncio.wait_for(p.wait(), timeout=(3 if night else 1) * 60 * 60)
+        except asyncio.TimeoutError:
+            p.kill()
+            logger.warning("قسم الأبحاث: القراءةُ جاوزت مهلتَها فأُوقفت")
+    except Exception as e:
+        logger.error(f"قسم الأبحاث: القراءة {e}")
+
+
+async def job_research_night():
+    await job_research_ingest(night=True)
+
+
+async def job_research_report():
+    """قسمُ الأبحاث (D745): التقريرُ اليوميّ لكلّ محفظة قبل الافتتاح — يُحفظ ويُرسَل في التطبيق وتلغرام."""
+    try:
+        from app.services.research_desk import compose_all
+        await compose_all(send=True)
+    except Exception as e:
+        logger.error(f"قسم الأبحاث: التقرير {e}")
+
+
 async def job_advisor_weekly():
     """المراجعةُ الأسبوعية (D571): كلَّ خميسٍ مساءً، ورقةٌ لكلّ محفظة في التطبيق وتلغرام."""
     try:
@@ -806,6 +836,12 @@ def start_scheduler():
     # ‏D571: المراجعةُ الأسبوعية — الخميسَ بعد آخر جلسة، وقبل مؤتمرات المساء
     _scheduler.add_job(job_advisor_weekly, CronTrigger(day_of_week="thu", hour=19, minute=15),
                        id="advisor_weekly_thu", replace_existing=True)
+    # ‏D745: قسمُ الأبحاث — يقرأ صباحاً وعصراً، ويبني السياقَ ليلاً، ويكتب التقريرَ قبل الافتتاح أيامَ التداول
+    _scheduler.add_job(job_research_ingest, CronTrigger(hour=8, minute=50), id="research_ingest_morning", replace_existing=True)
+    _scheduler.add_job(job_research_ingest, CronTrigger(hour=16, minute=40), id="research_ingest_afternoon", replace_existing=True)
+    _scheduler.add_job(job_research_night, CronTrigger(hour=2, minute=30), id="research_ingest_night", replace_existing=True)
+    _scheduler.add_job(job_research_report, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=9, minute=40),
+                       id="research_report_morning", replace_existing=True)
     # ‏D581: قبل الافتتاح وبعد الإغلاق — والمخزَّنُ يعيش يوماً فيبقى جاهزاً بينهما
     _scheduler.add_job(job_stock_warm, CronTrigger(hour=8, minute=40), id="stock_warm_morning", replace_existing=True)
     _scheduler.add_job(job_stock_warm, CronTrigger(hour=16, minute=10), id="stock_warm_close", replace_existing=True)

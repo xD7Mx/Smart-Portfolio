@@ -2163,6 +2163,50 @@ async def get_special_deals(symbol: str | None = None, days: int = 30):
         message="الصفقاتُ الخاصة.")
 
 # ══ بثُّ الأسعار المباشر — دفعٌ لا سؤال ══ (D290)
+# ══ ‏D745: قسمُ الأبحاث — «مختبرُ الأبحاث» الجديد ══
+_RD_RUN = {"on": False, "at": None, "msg": ""}
+
+
+@router.get("/research-desk")
+async def research_desk_view(day: str | None = None):
+    """تقريرُ المحفظة النشطة اليوميّ (أو يومٍ بعينه)، وأيامُ الأرشيف، وحالُ المعرفة المقروءة."""
+    from app.core.portfolio_scope import active_pid
+    from app.services import research_desk as RD
+    pid = active_pid() or 0
+    return success_response({"report": RD.load_report(pid, day), "dates": RD.report_dates(pid), "stats": RD.stats(), "running": dict(_RD_RUN)})
+
+
+@router.get("/research-desk/library")
+async def research_desk_library():
+    """ما قرأه القسمُ من تقارير الجهات — الأحدثُ أوّلاً، بخلاصته ورابط ملفّه الأصليّ."""
+    from app.services import research_desk as RD
+    return success_response(RD.library())
+
+
+@router.post("/research-desk/run", dependencies=[Depends(require_owner)])
+async def research_desk_run():
+    """يقرأ الجديدَ الآن ثمّ يكتب التقرير — في الخلفية، والصفحةُ تتابع حالَه."""
+    from datetime import datetime as _dtm
+    from app.services import research_desk as RD
+    if _RD_RUN["on"]:
+        return success_response(dict(_RD_RUN))
+
+    async def _go():
+        _RD_RUN.update(on=True, at=_dtm.now().isoformat(timespec="minutes"), msg="يقرأ التقارير الجديدة")
+        try:
+            got = await RD.ingest(budget=4, days=10)
+            _RD_RUN["msg"] = f"قُرئ {got['read']} — يكتب التقرير"
+            rep = await RD.compose_all(send=False)
+            _RD_RUN["msg"] = "اكتمل" if rep else "لا مصادرَ مقروءةً حديثة"
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning("قسم الأبحاث: التشغيل {}", type(e).__name__)
+            _RD_RUN["msg"] = "تعذّر"
+        finally:
+            _RD_RUN["on"] = False
+    asyncio.create_task(_go())
+    return success_response({"on": True, "msg": "بدأ"})
+
+
 @public_router.get("/logo/{symbol}")
 async def symbol_logo(symbol: str):
     """شعارُ الرمز غير السعوديّ بهويّته الرسمية (‏D743) — عامٌّ بلا رمز جلسة: وسمُ الصورة لا يحمل الترويسة، والشعارُ معلومةٌ عامّة."""

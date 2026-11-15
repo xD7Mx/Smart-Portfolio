@@ -7,20 +7,21 @@ import sys
 
 SRC = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "src"
 rd = lambda *p: (SRC.joinpath(*p)).read_text(encoding="utf-8")
-page, app, nav, store = rd("pages", "StarsPage.tsx"), rd("App.tsx"), rd("components", "common", "MainLayout.tsx"), rd("store", "appStore.ts")
+page, app, nav, store = rd("pages", "ResearchLab.tsx"), rd("App.tsx"), rd("components", "common", "MainLayout.tsx"), rd("store", "appStore.ts")
 checks = [
     # ‏D677 ← D694 ← D736 (بأمر المالك 2026-11-15): المختبرُ تبويبٌ في غرفة التداول بجانب «الرسم البياني» (كان في تحليل الذكاء،
     # وقبله في المحفظة) — ورابطاه القديمان يصلانه، ولا نسخةَ ثانيةً منه في تحليل الذكاء
-    ('["lab", "مختبر الأبحاث", FlaskConical]' in rd("pages", "WatchlistPage.tsx") and "<StarsPage embedded />" in rd("pages", "WatchlistPage.tsx")
+    ('["lab", "مختبر الأبحاث", FlaskConical]' in rd("pages", "WatchlistPage.tsx") and "<ResearchLab />" in rd("pages", "WatchlistPage.tsx")
      and "StarsPage" not in rd("pages", "AIPage.tsx") and 'navigate("/watchlist?tab=lab"' in rd("pages", "AIPage.tsx")
      and 'path="/stars"' in app and 'Navigate to="/watchlist?tab=lab"' in app,
      "١ المختبرُ تبويبٌ في غرفة التداول (‏D736)، ورابطاه القديمان /stars و/ai?tab=lab يصلان تبويبَه"),
     ('watchlist:     { to: "/watchlist"' in nav and 'path="/watchlist"' in app
      and store.count('(p === "stars" ? "watchlist" : p)') >= 3,
      "٢ والمراقبةُ قسمٌ مكانه في الترتيب المحلّيّ والمحفوظ على الخادم معاً — وصفحةُ البداية والمخفيّةُ تتبعانه"),
-    # D612 بأمر المالك: «مختبرُ الأبحاث» — شركاتُه وحدها، وأُلغيت سلّةُ المحرّك ومعاييرُها
-    (all(t in page for t in ('>الأداء<', '>شركاتك<', 'مختبر الأبحاث')) and '>النجوم<' not in page and '>المعايير<' not in page
-     and "tasiStars(" not in page, "٣ D612 مختبرُ الأبحاث: الأداءُ وشركاتُك وحدها — لا سلّةَ محرّكٍ ولا معايير"),
+    # ‏D612 ← D745 (المالك 2026-11-15: «نغيّر الفكرةَ كلياً»): مختبرُ الأبحاث قسمُ أبحاث — تقريرٌ يوميٌّ وتوصياتٌ ومكتبةُ ما قُرئ،
+    # كلُّ سطرٍ برقم مصدره؛ وأُلغيت سلّةُ الشركات القديمة (StarsPage)
+    (all(t in page for t in ('"التقرير اليومي"', '"التوصيات"', '"المكتبة"', "<Cite src=", "researchDesk(")) and "starsLab(" not in page
+     and not (SRC / "pages" / "StarsPage.tsx").exists(), "٣ D745 مختبرُ الأبحاث قسمُ أبحاث: التقريرُ اليوميّ والتوصياتُ والمكتبة، وكلُّ سطرٍ بمصدره"),
     ("stars" not in rd("pages", "ChartPage.tsx"), "٤ لا درجَ لها في الرسم البياني"),
 ]
 fail = 0

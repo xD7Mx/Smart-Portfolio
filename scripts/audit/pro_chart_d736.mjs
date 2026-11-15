@@ -163,6 +163,15 @@ const weekly = (n = 420, seed = 3) => {
 const hourly = () => { const out = []; for (let d = 0; d < 50; d++) for (const h of [10, 11, 12, 13]) {
   const day = new Date(Date.UTC(2026, 8, 1) + d * 864e5).toISOString().slice(0, 10), b = 60 + Math.sin(d + h) * 2;
   out.push({ date: `${day} ${h}:00`, open: b, high: b + 0.5, low: b - 0.5, close: b + 0.2, volume: 1e5 }); } return out; };
+// تقريرُ قسم الأبحاث كما يكتبه الخادم (‏services/research_desk) — كلُّ سطرٍ بأرقام مصادره
+const RD_REPORT = { date: "2026-11-15", portfolio_id: 1, portfolio_name: "محفظتي", market_now: "تاسي 10258.22 (-0.66%)", tasi: { price: 10258.22, pct: -0.66 }, headline: "تراجعٌ بقيادة البنوك",
+  market: { summary: "السوقُ تراجع.", points: [{ text: "قيمةُ التداول 5.2 مليار", src: [1] }] },
+  local: [{ text: "خبرٌ محليّ", src: [1] }], global: [{ text: "خبرٌ عالميّ", src: [2] }],
+  sectors: [{ name: "البنوك", view: "سلبي", text: "ضغطُ الأرباح", src: [1] }],
+  portfolio: [{ symbol: "1120", name: "مصرف الراجحي", stance: "انتباه", text: "يتأثّر بالبنوك", src: [0, 1] }],
+  watch: [{ text: "بياناتُ التضخّم", src: [2] }], recommendations: [{ symbol: "1120", name: "مصرف الراجحي", action: "انتظار", why: "قربُ العادل", condition: "", src: [0, 1] }],
+  no_rec_reason: "", sources: [{ n: 1, source: "الجزيرة كابيتال", title: "التقرير اليومي", date: "2026-11-15", kind: "تقرير يوميّ", url: "https://x/a.pdf" },
+                               { n: 2, source: "الراجحي المالية", title: "Daily", date: "2026-11-15", kind: "تقرير يوميّ", url: "https://x/b.pdf" }] };
 const HOLD = [{ company: { symbol: "1120", name_ar: "مصرف الراجحي" }, last_price: 64.2, change_pct: 1.25 },
               { company: { symbol: "2222", name_ar: "أرامكو السعودية" }, last_price: 25.1, change_pct: -0.4 }];
 const vite = spawn("npx", ["vite", "--port", String(PORT), "--strictPort"], { cwd: FRONT, stdio: "ignore" });
@@ -190,6 +199,8 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
     }
     if (/^\/market\/drawings\//.test(p)) { if (m !== "GET") saves.push([decodeURIComponent(p.split("/").pop()), JSON.parse(r.request().postData() || "{}")]); return r.fulfill(body(m === "GET" ? [] : null)); }
     if (p === "/holdings") return r.fulfill(body(HOLD));
+    if (p === "/market/research-desk") return r.fulfill(body({ report: RD_REPORT, dates: ["2026-11-15", "2026-11-12"], stats: { notes: 42, first: "2026-08-17" }, running: { on: false } }));
+    if (p === "/market/research-desk/library") return r.fulfill(body([{ date: "2026-11-15", source: "الجزيرة كابيتال", title: "التقرير اليومي", kind: "تقرير يوميّ", url: "https://x/a.pdf", headline: "خلاصة" }]));
     if (p === "/market/watchlist/groups") return r.fulfill(body([{ id: 1, name: "الرئيسية", is_default: true }]));
     return r.fulfill(body([]));
   });
@@ -424,7 +435,19 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   // ١٨ مختبرُ الأبحاث تبويبٌ هنا، وروابطُه القديمة تصله
   await page.locator('[data-role="room-tab"]', { hasText: "مختبر الأبحاث" }).click();
   await page.waitForTimeout(1200);
-  const labHere = await page.evaluate(() => ({ url: location.pathname + location.search, chart: !!document.querySelector('[data-role="pro-chart"]'), lab: document.body.textContent.includes("شركات المحفظة تلقائياً") || !!document.querySelector('input[placeholder*="أضف شركة"]') }));
+  const labHere = await page.evaluate(() => ({ url: location.pathname + location.search, chart: !!document.querySelector('[data-role="pro-chart"]'), lab: !!document.querySelector('[data-role="research-lab"]') }));
+  // ‏D745: قسمُ الأبحاث — التقريرُ بتصميم بيوت الأبحاث بمصادره المرقّمة، ثمّ التوصيات، ثمّ المكتبة
+  const doc = await page.evaluate(() => { const d = document.querySelector('[data-role="rl-doc"]');
+    const W = document.documentElement.clientWidth, main = document.querySelector(".app-main");
+    return { band: d?.querySelector(".rl-band h2")?.textContent, cites: d ? d.querySelectorAll(".rl-cite").length : 0, rows: d ? d.querySelectorAll(".rl-tr").length : 0,
+             srcs: d ? d.querySelectorAll(".rl-srcs li").length : 0, logos: d ? d.querySelectorAll(".rl-co img, .rl-co svg, .rl-co [role=img], .rl-co > *").length : 0,
+             over: Math.max(document.documentElement.scrollWidth, main ? main.scrollWidth : 0) - W }; });
+  await page.locator('[data-role="rl-tab"]', { hasText: "التوصيات" }).click(); await page.waitForTimeout(400);
+  const recs = await page.locator('[data-role="rl-recs"] .rl-rec').count();
+  await page.locator('[data-role="rl-tab"]', { hasText: "المكتبة" }).click(); await page.waitForTimeout(600);
+  const libN = await page.locator('[data-role="rl-lib"] .rl-libitem').count();
+  say(doc.band === "التقرير اليومي" && doc.cites === 6 && doc.rows === 2 && doc.srcs === 3 && recs === 1 && libN === 1 && doc.over <= 1,
+      `${label}: مختبرُ الأبحاث قسمُ أبحاث — التقريرُ اليوميّ بمصادره المرقّمة (${doc.cites} إحالة) والقطاعاتُ ومحفظتُنا، والتوصياتُ والمكتبة`, JSON.stringify(doc));
   let olds = 0;
   for (const old of ["/stars", "/ai?tab=lab"]) {
     await page.goto(`http://localhost:${PORT}${old}`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
