@@ -54,26 +54,36 @@ if (await sw.count()) {
   const tr = await sw.evaluate(e => getComputedStyle(e, "::after").transitionTimingFunction);
   say(/cubic-bezier\(0\.34/.test(tr), "٥ مقبضُ مفتاح التفعيل ينزلق بمنحنى نابض", tr);
 } else say(false, "٥ لا مفتاحَ تفعيلٍ في الصفحة");
-// D617: قائمةُ المحفظة في مختبر الأبحاث — مرسومةٌ لا <select> أصليّ، تنفتح بحركة وتختار وتُغلق بتلاشٍ
-await page.route("**/api/v1/portfolios**", r => r.fulfill({ status: 200, contentType: "application/json",
-  body: JSON.stringify({ success: true, data: [{ id: 1, name: "الرئيسية", is_default: true }, { id: 2, name: "الأخرى" }] }) }));
-await page.goto(`http://localhost:${PORT}/stars`, { waitUntil: "load", timeout: 30000 });
-await page.waitForTimeout(1500);
-say(await page.locator("select").count() === 0, "٧ لا قائمةَ أصليّةً في مختبر الأبحاث");
-const pick = page.locator('button[aria-label="محفظةُ الشاشة"]');
-say(await pick.count() === 1, "٨ قائمةُ المحفظة مرسومة");
+// D617 ← D745: القائمةُ المرسومة (‏Select) تنفتح بحركة وتختار وتُغلق بتلاشٍ — كانت تُقاس على قائمة المحفظة في مختبر الأبحاث القديم،
+// وقد صار المختبرُ قسمَ أبحاثٍ بلا قوائم؛ فتُقاس على قائمة «مرساة VWAP» في نافذة إعدادات D7M (الرسمُ في غرفة التداول)
+await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 });
+await page.waitForTimeout(2500);
+await page.locator('[data-role="pc-cfg"]').click().catch(() => {});
+await page.locator('[data-role="pc-cfg-menu"] [data-cfg="d7m"]').click().catch(() => {});
+await page.waitForTimeout(500);
+say(await page.locator("select").count() === 0, "٧ لا قائمةَ أصليّةً في نافذة إعدادات D7M");
+const pick = page.locator('.d7m-sheet button[aria-haspopup="listbox"]').first();
+say(await pick.count() === 1, "٨ القائمةُ مرسومة");
 if (await pick.count()) {
+  const before = (await pick.textContent()) || "";
   await pick.click(); await page.waitForTimeout(220);
   const lb = page.locator('[role="listbox"]');
   const an = await lb.evaluate(e => getComputedStyle(e).animationName).catch(() => "");
   say(an === "menuIn", "٩ وتنفتح من حافّتها بحركة", an);
-  await page.locator('[role="option"]', { hasText: "الأخرى" }).click();
+  const opts = page.locator('[role="option"]');
+  const n = await opts.count();
+  let target = null;
+  for (let i = n - 1; i >= 0 && target == null; i--) {
+    const o = opts.nth(i), t = ((await o.textContent()) || "").trim();
+    if (t && !before.includes(t) && (await o.getAttribute("aria-disabled")) !== "true") target = i;
+  }
+  if (target != null) await opts.nth(target).click();
   await page.waitForTimeout(60);
   const g = await page.locator(".exit-anim").count();
   await page.waitForTimeout(400);
   const txt = (await pick.textContent()) || "";
-  say(g >= 1 && txt.includes("الأخرى") && await page.locator('[role="listbox"]').count() === 0,
-      "١٠ والاختيارُ يُطبَّق وتُغلق بتلاشٍ", `نسخ ${g} · ${txt}`);
+  say(target != null && g >= 1 && txt !== before && await page.locator('[role="listbox"]').count() === 0,
+      "١٠ والاختيارُ يُطبَّق وتُغلق بتلاشٍ", `نسخ ${g} · ${before} ← ${txt}`);
 }
 say(errs.length === 0, "٦ بلا خطأٍ في الصفحة", errs.join(" ‖ "));
 await browser.close(); stop();

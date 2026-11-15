@@ -49,21 +49,30 @@ await page.route("**/api/v1/**", r => {
   const k = Object.keys(R).find(p => u.pathname.includes(p));
   r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: k ? R[k] : [] }) });
 });
-await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe"); localStorage.removeItem("stars:lab"); } catch { /* */ } });
-await page.goto(`http://localhost:${PORT}/stars`, { waitUntil: "load", timeout: 30000 });
+// ‏D613 ← D745: مختبرُ الأبحاث صار قسمَ أبحاث — يُرسَم بلا خطأٍ بلا تقريرٍ بعد، ثمّ بتقريرٍ كامل، ولا شاشةَ سوداء في الحالين
+await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe"); } catch { /* */ } });
+let withReport = false;
+await page.unroute("**/api/v1/**");
+await page.route("**/api/v1/**", r => {
+  const u = new URL(r.request().url());
+  if (u.pathname.endsWith("/market/research-desk")) return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: withReport
+    ? { report: { date: "2026-11-15", portfolio_id: 1, portfolio_name: "محفظتي", tasi: { price: 10258.22, pct: -0.66 }, headline: "عنوان", market: { summary: "س", points: [] },
+        local: [{ text: "محليّ", src: [1] }], global: [], sectors: [], portfolio: [], watch: [], recommendations: [], no_rec_reason: "لا ما يستحقّ",
+        sources: [{ n: 1, source: "الجزيرة كابيتال", title: "اليومي", date: "2026-11-15", kind: "تقرير يوميّ" }] }, dates: ["2026-11-15"], stats: { notes: 3 }, running: { on: false } }
+    : { report: null, dates: [], stats: { notes: 0 }, running: { on: false } } }) });
+  return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: [] }) });
+});
+await page.goto(`http://localhost:${PORT}/watchlist?tab=lab`, { waitUntil: "load", timeout: 30000 });
 await page.waitForTimeout(1500);
-say(errs.length === 0, "١ الصفحةُ تُفتح بلا خطأ", errs.join(" ‖ "));
-const t1 = (await page.textContent("body").catch(() => "") || "");
-say(t1.includes("محفظتي") && t1.includes("الأداء"), "١ب الشاشةُ الأولى تعرض شركاتِ المحفظة تلقائياً", `نصّ ${t1.length}`);
-await page.click("text=شاشة 2");
-await page.waitForTimeout(800);
-await page.fill("input", "أرام");
-await page.waitForTimeout(500);
-await page.click("text=أرامكو السعودية");
-await page.waitForTimeout(2000);
-const text = (await page.textContent("body").catch(() => "") || "");
-say(errs.length === 0, "٢ إضافةُ شركةٍ لا تُسقط الصفحة (لا شاشةَ سوداء)", errs.join(" ‖ "));
-say(text.includes("الأداء") && text.includes("شركاتك"), "٣ وتظهر الإحصاءاتُ وقائمةُ الشركات", `نصّ ${text.length}`);
+say(errs.length === 0 && await page.locator('[data-role="rl-empty"]').count() === 1, "١ المختبرُ يُفتح بلا خطأ — وبلا تقريرٍ يقول ذلك", errs.join(" ‖ "));
+withReport = true;
+await page.reload({ waitUntil: "load" });
+await page.waitForTimeout(1500);
+const t2 = (await page.textContent('[data-role="rl-doc"]').catch(() => "")) || "";
+say(errs.length === 0 && t2.includes("التقرير اليومي") && t2.includes("محليّ"), "٢ وبتقريرٍ يُرسَم التقريرُ كاملاً (لا شاشةَ سوداء)", `نصّ ${t2.length}`);
+await page.locator('[data-role="rl-tab"]', { hasText: "التوصيات" }).click();
+await page.waitForTimeout(400);
+say(((await page.textContent('[data-role="rl-recs"]').catch(() => "")) || "").includes("لا توصيةَ اليوم: لا ما يستحقّ"), "٣ وغيابُ التوصية يُقال بسببه");
 await browser.close(); stop();
 console.log("\nالنتيجة:", fail ? "عطب ✖" : "نظيف ✔");
 process.exit(fail);
