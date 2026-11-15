@@ -1,4 +1,5 @@
 import asyncio
+import re
 import hashlib as _hashlib
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
@@ -2162,6 +2163,19 @@ async def get_special_deals(symbol: str | None = None, days: int = 30):
         message="الصفقاتُ الخاصة.")
 
 # ══ بثُّ الأسعار المباشر — دفعٌ لا سؤال ══ (D290)
+@public_router.get("/logo/{symbol}")
+async def symbol_logo(symbol: str):
+    """شعارُ الرمز غير السعوديّ بهويّته الرسمية (‏D743) — عامٌّ بلا رمز جلسة: وسمُ الصورة لا يحمل الترويسة، والشعارُ معلومةٌ عامّة."""
+    from fastapi import Response
+    from app.services.symbol_logo import fetch_logo
+    if not re.match(r"^[\^A-Za-z0-9=.\-]{1,20}$", symbol or ""):
+        raise HTTPException(status_code=404, detail="رمزٌ غيرُ مقبول.")
+    got = await fetch_logo(symbol)
+    if not got:
+        raise HTTPException(status_code=404, detail="لا شعار.")
+    return Response(content=got[1], media_type=got[0], headers={"Cache-Control": "public, max-age=604800", "X-Content-Type-Options": "nosniff"})
+
+
 @public_router.get("/stream")
 async def market_stream():
     """مجرى أحداثٍ (SSE) يدفع كلَّ سعرٍ يتغيّر لحظةَ وصوله.

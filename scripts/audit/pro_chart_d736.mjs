@@ -79,9 +79,27 @@ say(D.tfLong("6h") === "6 ساعات" && D.tfLong("2h") === "ساعتان" && D.
                         ...Dd.map((v, i) => (v == null && ours.d[i] == null ? 0 : v == null || ours.d[i] == null ? 1e9 : Math.abs(v - ours.d[i]))));
   const flat = I.stochRsi(Array(60).fill(50));
   say(diff < 1e-9 && ours.k.findIndex(v => v != null) === 29 && ours.d.findIndex(v => v != null) === 31 && flat.k.every(v => v == null)
-      && JSON.stringify(I.STOCHRSI_DEFAULTS) === JSON.stringify({ k: 3, d: 3, rsiLen: 14, stochLen: 14 }),
+      && JSON.stringify(I.STOCHRSI_DEFAULTS) === JSON.stringify({ k: 3, d: 3, rsiLen: 14, stochLen: 14, src: "close", upper: 80, middle: 50, lower: 20 })
+      && JSON.stringify(I.stochRsi(I.source(px.map(c => ({ open: c, high: c + 1, low: c - 1, close: c })), "close"), { ...I.STOCHRSI_DEFAULTS, k: 8, d: 8, rsiLen: 14, stochLen: 3 }).k.slice(-1)) !== JSON.stringify(ours.k.slice(-1)),
       "٤ب Stoch RSI بسكربت تريدنق فيو حرفاً: RSI 14 (وايلدر) ← ستوكاستيك 14 ← K 3 · D 3 — أوّلُ قيمةٍ عند الشمعة 30، ومدًى صفريٌّ فراغٌ لا رقم",
       `أكبرُ فرق ${diff.toExponential(1)} · آخرُ K ${ours.k[159].toFixed(4)} · D ${ours.d[159].toFixed(4)}`);
+}
+
+// ── ٤ج ‏D744: القناةُ السعرية ترتكز على الدعوم والمقاومات الحقيقية وتحوي الشموع — قناةٌ صاعدةٌ مصنوعةٌ بلمساتٍ معروفة ──
+{
+  await build({ entryPoints: [join(FRONT, "src/components/analysis/d7m.ts")], outfile: join(tmp, "d7m.mjs"), format: "esm", bundle: true, logLevel: "silent" });
+  const M = await import(pathToFileURL(join(tmp, "d7m.mjs")).href);
+  const bs = Array.from({ length: 220 }, (_, i) => { const mid = 100 + i * 0.25, w = 6 * Math.sin(i / 9), c = mid + w;
+    return { date: `2026-01-${i}`, open: c - 0.2, high: c + 0.6, low: c - 0.6, close: c, volume: 1000 }; });
+  const ch = M.autoChannel(bs, 2, 10);
+  const lineAt = (seg, x) => seg[0][1] + (seg[1][1] - seg[0][1]) * (x - seg[0][0]) / (seg[1][0] - seg[0][0]);
+  let out = 0;
+  if (ch) for (let x = ch.base[0][0]; x < bs.length; x++) { const a = lineAt(ch.base, x), b = lineAt(ch.parallel, x), hi = Math.max(a, b), lo = Math.min(a, b);
+    if (bs[x].close > hi + 0.8 || bs[x].close < lo - 0.8) out++; }
+  const slope = ch ? (ch.base[1][1] - ch.base[0][1]) / (ch.base[1][0] - ch.base[0][0]) : 0;
+  say(!!ch && (ch.touches ?? 0) >= 3 && out === 0 && slope > 0.15 && slope < 0.35,
+      "٤ج القناةُ السعرية ترتكز على قمّتين أو قاعين حقيقيّين بأكثر اللمسات، وتحوي كلَّ الإغلاقات منذ بدايتها، وميلُها ميلُ السعر",
+      ch ? `لمسات ${ch.touches} · خارجها ${out} · الميل ${slope.toFixed(3)}` : "لا قناة");
 }
 
 // ── ٥ طبقةُ الرسم: موضعٌ كسريٌّ بين شمعتين (المكتبةُ تعيد صفراً لرقم شمعةٍ كسريّ ⇒ خطٌّ على حافّة الرسم) ──
@@ -159,7 +177,8 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   const page = await ctx.newPage();
   const errs = [], reqs = [], saves = [], ext = [];
   page.on("pageerror", e => errs.push(String(e.message || e)));
-  page.on("request", r => { if (/unpkg\.com|jsdelivr|cdnjs/.test(r.url())) ext.push(r.url()); });
+  const logoReq = [];
+  page.on("request", r => { if (/unpkg\.com|jsdelivr|cdnjs/.test(r.url())) ext.push(r.url()); if (/\/market\/logo\//.test(r.url())) logoReq.push(decodeURIComponent(r.url().split("/market/logo/")[1])); });
   await page.route("**/api/v1/**", async r => {
     const u = new URL(r.request().url()), p = u.pathname.replace(/^.*\/api\/v1/, ""), m = r.request().method();
     if (/^\/market\/(bars|history)\//.test(p)) {
@@ -177,7 +196,7 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await page.addInitScript((th) => { try {
     localStorage.setItem("sp_token", "probe");
     for (const k of ["sp_room_symbol", "sp_room_list", "sp_chart_tf", "sp_chart_tf_custom", "sp_chart_type"]) localStorage.removeItem(k);
-    if (!sessionStorage.getItem("sp_d736_seeded")) { localStorage.setItem("sp_chart_ind", JSON.stringify({ vol: true, sma20: true, sma50: false, macd: false })); sessionStorage.setItem("sp_d736_seeded", "1"); }
+    if (!sessionStorage.getItem("sp_d736_seeded")) { localStorage.setItem("sp_chart_ind_v3", JSON.stringify({ vol: true, stochrsi: false, cvd: false, d7m: false })); sessionStorage.setItem("sp_d736_seeded", "1"); }
     const s = JSON.parse(localStorage.getItem("sp-app-store") || "{}");
     localStorage.setItem("sp-app-store", JSON.stringify({ ...s, state: { ...(s.state || {}), theme: th }, version: s.version ?? 0 }));
   } catch { } }, theme);
@@ -211,7 +230,7 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
 
   // ١٢ لوحاتٌ حقيقيةٌ للمؤشّرات بقيمها
   await page.locator('[data-role="pc-ind"]').click();
-  for (const k of ["rsi", "macd", "stochrsi"]) { await page.locator(`[data-role="pc-ind-menu"] [data-ind="${k}"]`).click(); await sleep(150); }
+  for (const k of ["stochrsi", "cvd"]) { await page.locator(`[data-role="pc-ind-menu"] [data-ind="${k}"]`).click(); await sleep(150); }
   await page.mouse.click(5, 5);
   await page.waitForTimeout(1200);
   const panes = await page.evaluate(() => {
@@ -223,10 +242,41 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   });
   const nums = (t) => t.v.filter(x => /^-?\d+\.\d+$/.test(x)).length;
   const srTag = panes.tags.find(t => t.k === "stochrsi");
-  say(panes.n === 4 && panes.tags.length === 3 && [...panes.tags].sort((a, b) => a.y - b.y).every((t, i, arr) => !i || t.y - arr[i - 1].y > 40) && panes.tags.every(t => t.y > panes.stage[0] + 100 && t.y < panes.stage[1])
-      && nums(panes.tags.find(t => t.k === "rsi")) === 1 && nums(panes.tags.find(t => t.k === "macd")) === 3 && !!srTag && nums(srTag) === 2
+  say(panes.n === 3 && panes.tags.length === 2 && [...panes.tags].sort((a, b) => a.y - b.y).every((t, i, arr) => !i || t.y - arr[i - 1].y > 40) && panes.tags.every(t => t.y > panes.stage[0] + 100 && t.y < panes.stage[1])
+      && nums(panes.tags.find(t => t.k === "cvd") || { v: [] }) >= 1 && !!srTag && nums(srTag) === 2
       && /Stoch RSI 3 3 14 14/.test(srTag.t) && panes.tags.every(t => t.f >= 9.5),
-      `${label}: RSI وStoch RSI وMACD لكلٍّ لوحتُه الحقيقيةُ بقيمه — لا رسمٌ فارغ ولا تداخل، والخطُّ ≥ 9.5px`, panes.tags.map(t => `${t.k} ${t.v.join(" ")} @${Math.round(t.y)}`).join(" | "));
+      `${label}: Stoch RSI وCVD D7M لكلٍّ لوحتُه الحقيقيةُ بقيمه — لا رسمٌ فارغ ولا تداخل، والخطُّ ≥ 9.5px`, panes.tags.map(t => `${t.k} ${t.v.join(" ")} @${Math.round(t.y)}`).join(" | "));
+
+  // ١٢ب ‏D744: نافذةُ إعدادات المؤشّر كتريدنق فيو — Stoch RSI يصير 8 8 14 3 ويُحفظ، و«الافتراضي» يعيده
+  await page.locator('[data-role="pc-cfg"]').click();
+  await page.locator('[data-role="pc-cfg-menu"] [data-cfg="stochrsi"]').click();
+  await page.waitForTimeout(250);
+  const setNum = async (label, v) => { const i = page.locator(`[data-role="ind-settings"] input[aria-label="${label}"]`); await i.fill(String(v)); await sleep(120); };
+  await setNum("K", 8); await setNum("D", 8); await setNum("طولُ الستوكاستيك", 3);
+  await page.waitForTimeout(500);
+  const srT = await page.locator('[data-role="pane-tag"][data-ind="stochrsi"]').textContent();
+  const srSaved = await page.evaluate(() => JSON.parse(localStorage.getItem("sp_stochrsi_cfg") || "{}"));
+  await page.locator('[data-role="ind-reset"]').click(); await page.waitForTimeout(400);
+  const srBack = await page.locator('[data-role="pane-tag"][data-ind="stochrsi"]').textContent();
+  await page.keyboard.press("Escape").catch(() => {});
+  await page.locator('[data-role="ind-settings"] button[aria-label="إغلاق"]').click().catch(() => {});
+  await page.waitForTimeout(250);
+  say(/Stoch RSI 8 8 14 3 close/.test(srT || "") && srSaved.k === 8 && srSaved.stochLen === 3 && /Stoch RSI 3 3 14 14 close/.test(srBack || ""),
+      `${label}: إعداداتُ المؤشّر قابلةٌ للتعديل كتريدنق فيو — 8 8 14 3 تُطبَّق فوراً وتُحفظ، و«الافتراضي» يعيد 3 3 14 14`, `${srT} ← ${srBack}`);
+  // ١٢ج ‏D744: شريطُ D7M رفيعٌ فوق الرسم (لا جداول فوق الشموع)، والمستوياتُ «مختصر» ستةٌ و«الكل» أكثر، ولا نصَّ على الرسم إلا أرقامُ المستويات
+  await page.locator('[data-role="pc-ind"]').click();
+  await page.locator('[data-role="pc-ind-menu"] [data-ind="d7m"]').click();
+  await page.mouse.click(5, 5);
+  await page.waitForTimeout(1200);
+  const strip = await page.evaluate(() => { const e = document.querySelector('[data-role="d7m-strip"]'); const r = e?.getBoundingClientRect();
+    return { h: r ? Math.round(r.height) : 0, tiles: e ? e.querySelectorAll(".d7s-tile").length : 0, tables: document.querySelectorAll(".d7m-table").length,
+             minF: e ? Math.min(...[...e.querySelectorAll("*")].filter(x => [...x.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())).map(x => parseFloat(getComputedStyle(x).fontSize))) : 0 }; });
+  const lvCompact = Number((await st()).lv);
+  await page.locator('[data-role="pc-fibmode"] button', { hasText: "الكل" }).click(); await page.waitForTimeout(500);
+  const lvAll = Number((await st()).lv);
+  await page.locator('[data-role="pc-fibmode"] button', { hasText: "مختصر" }).click(); await page.waitForTimeout(300);
+  say(strip.tiles >= 4 && strip.h > 0 && strip.h <= 52 && strip.tables === 0 && strip.minF >= 9.5 && lvCompact === 6 && lvAll > 6,
+      `${label}: شريطُ D7M بحجم الإصبع (${strip.h}px · ${strip.tiles} شاشات) بلا جداول، والمستوياتُ مختصرةٌ ستةً و«الكل» ${lvAll}`, `خطٌّ ≥ ${strip.minF}px`);
 
   // ١٣ الإطارُ المخصَّص: 6 ساعات
   await page.locator('[data-role="pc-tf-more"]').click();
@@ -344,6 +394,7 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await page.waitForTimeout(1500);
   const ix = await st();
   const volTxt = await page.locator('[data-role="pc-legend"] [data-ind="vol"]').textContent().catch(() => "");
+  say(logoReq.includes("^GSPC") && logoReq.some(x => x === "^TASI"), `${label}: شعاراتُ الرموز غير السعودية والمؤشّرات تُطلب من خادمنا (شعاراتُ تريدنق فيو الرسمية)`, [...new Set(logoReq)].slice(0, 5).join(" · "));
   say(ix.symbol === "^GSPC" && ix.bars === "420" && /\d/.test(ix.c) && !ix.cover && /غير متوفّر/.test(volTxt || ""),
       `${label}: والمؤشّراتُ (S&P 500) تُرسم بشموعها — وحجمٌ لا يسلّمه المصدر «غير متوفّر» لا أعمدةٌ صفرية`, `${ix.symbol} · ${ix.bars} شمعة · ${volTxt}`);
 

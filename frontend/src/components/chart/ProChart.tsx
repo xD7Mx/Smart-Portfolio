@@ -26,21 +26,22 @@ import {
   sanitizeBars, CBar, TF_BAR, TF_PRESETS, TF_UNITS, TfUnit, parseTf, tfKey, tfShort, tfLong, tfIntraday, tickLabel, crossLabel, fmtPrice, fmtVol,
   TZ_LIST, exchangeTz, tzOffsetMin, fmtOffset, displayTimes,
 } from "../../lib/chartData";
-import { ChartOverlay, BandFill, Level, Segment, Path, Note } from "../../lib/chartOverlay";
-import { sma, rsi, macd, stochastic, cvdD7M, CVD_DEFAULTS, CvdCfg, stochRsi, STOCHRSI_DEFAULTS, StochRsiCfg } from "../../lib/indicators";
+import { ChartOverlay, BandFill, Level, Segment, Path, Note, Band } from "../../lib/chartOverlay";
+import { cvdD7M, CVD_DEFAULTS, CvdCfg, stochRsi, STOCHRSI_DEFAULTS, StochRsiCfg, source } from "../../lib/indicators";
+import IndSettings from "./IndSettings";
 import {
   autoFib, autoChannel, autoTrend, vwapAnchored, ema as emaD7, dashboard, macdSmart, tradeTool, D7M_DEFAULTS, D7MSettings, D7M_COLORS,
 } from "../analysis/d7m";
 import D7MPanel from "../analysis/D7MPanel";
-import D7MPanels from "./D7MPanels";
+import D7MStrip from "./D7MStrip";
 
-type IndKey = "vol" | "sma20" | "sma50" | "sma200" | "rsi" | "stoch" | "stochrsi" | "macd" | "cvd" | "d7m";
+/* ‏D744 (المالك 2026-11-15): «لا أريد كثرةَ المؤشّرات — أريد CVD ومؤشّرَ الدحم وStoch RSI المدمج». فهي الثلاثة مع الحجم، ولكلٍّ إعداداتُه
+   كتريدنق فيو (ترسٌ واحدٌ يفتح نافذةَ كلّ مؤشّر). كانت معها: SMA 20/50/200 وRSI وStochastic وMACD. */
+type IndKey = "vol" | "stochrsi" | "cvd" | "d7m";
 const IND: [IndKey, string, string][] = [
-  ["vol", "الحجم", "--ink-muted"], ["sma20", "SMA 20", "--chart-1"], ["sma50", "SMA 50", "--warn-ink"], ["sma200", "SMA 200", "--chart-4"],
-  ["rsi", "RSI", "--chart-5"], ["stoch", "Stochastic", "--chart-2"], ["stochrsi", "Stoch RSI", "--info-ink"], ["macd", "MACD", "--chart-1"], ["cvd", "CVD D7M", "--chart-3"],
-  ["d7m", "D7M", "--brand-ink"]];
-const OSC: IndKey[] = ["rsi", "stoch", "stochrsi", "macd", "cvd"];
-const IND_DEF: Record<IndKey, boolean> = { vol: true, sma20: true, sma50: true, sma200: false, rsi: false, stoch: false, stochrsi: false, macd: true, cvd: false, d7m: false };
+  ["vol", "الحجم", "--ink-muted"], ["stochrsi", "Stoch RSI", "--info-ink"], ["cvd", "CVD D7M", "--chart-3"], ["d7m", "D7M", "--brand-ink"]];
+const OSC: IndKey[] = ["stochrsi", "cvd"];
+const IND_DEF: Record<IndKey, boolean> = { vol: true, stochrsi: true, cvd: true, d7m: true };
 type ChartType = "candles" | "hollow" | "bars" | "line" | "area";
 const TYPES: [ChartType, string, any][] = [["candles", "شموع", CandlestickChart], ["hollow", "شموعٌ مفرَّغة", CandlestickChart],
   ["bars", "أعمدة", BarChart3], ["line", "خطّ", LineChart], ["area", "منطقة", AreaChart]];
@@ -88,13 +89,13 @@ function Menu({ label, title, children, role, wide, up }: {
 
 /* ‏preset «stock»: صفحةُ السهم (‏D739 — كانت على الرسم القديم): الرسمُ نفسُه بإطارٍ أسبوعيٍّ وD7M افتراضاً، واختياراتُها محفوظةٌ
    لها وحدها فلا تمسّ غرفةَ التداول، وبلا لوحة القرار فوقه (‏D652). والرسمُ اليدويُّ واحدٌ للرمز في المكانين كتريدنق فيو. */
-const IND_STOCK: Record<IndKey, boolean> = { vol: true, sma20: false, sma50: false, sma200: false, rsi: false, stoch: false, stochrsi: false, macd: false, cvd: false, d7m: true };
+const IND_STOCK: Record<IndKey, boolean> = { vol: true, stochrsi: false, cvd: false, d7m: true };
 
 export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   symbol: string; identity?: React.ReactNode; theme?: "dark" | "light"; preset?: "stock";
 }) {
   /* ── الاختيارات المحفوظة ── */
-  const KT = preset ? "sp_stock_tf" : "sp_chart_tf", KI = preset ? "sp_stock_ind" : "sp_chart_ind";
+  const KT = preset ? "sp_stock_tf" : "sp_chart_tf", KI = preset ? "sp_stock_ind_v3" : "sp_chart_ind_v3";
   const [tf, setTfState] = useState(() => { const v = lsGet(KT); return v && parseTf(v) ? v : "1wk"; });
   const setTf = (v: string) => { if (parseTf(v)) { setTfState(v); lsSet(KT, v); } };
   const [customTfs, setCustomTfs] = useState<string[]>(() => { try { return (JSON.parse(lsGet("sp_chart_tf_custom") || "[]") as string[]).filter(x => parseTf(x)).slice(0, 4); } catch { return []; } });
@@ -105,6 +106,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   const [cvdCfg, setCvdState] = useState<CvdCfg>(() => lsJson("sp_cvd_cfg", CVD_DEFAULTS));
   const setCvd = (p: Partial<CvdCfg>) => setCvdState(c => { const n = { ...c, ...p }; lsSet("sp_cvd_cfg", JSON.stringify(n)); return n; });
   const [srCfg, setSrState] = useState<StochRsiCfg>(() => lsJson("sp_stochrsi_cfg", STOCHRSI_DEFAULTS));
+  const [cfgFor, setCfgFor] = useState<null | "stochrsi" | "cvd">(null);
   const setSr = (p: Partial<StochRsiCfg>) => setSrState(c => { const n = { ...c, ...p }; lsSet("sp_stochrsi_cfg", JSON.stringify(n)); return n; });
   const [cfg, setCfgState] = useState<D7MSettings>(() => {
     try { const sv = JSON.parse(lsGet("sp_d7m_cfg_v2") || "{}");
@@ -177,8 +179,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   /* ── الحساب ── مرّةً لكلّ تغيّرٍ في الشموع أو الإعدادات، ويقرؤه الرسمُ ووسيلةُ الإيضاح معاً */
   const calc = useMemo(() => {
     const closes = bars.map(b => b.close);
-    return { closes, sma20: sma(closes, 20), sma50: sma(closes, 50), sma200: sma(closes, 200), rsi: rsi(closes),
-             stoch: stochastic(bars), stochrsi: stochRsi(closes, srCfg), macd: macd(closes), cvd: cvdD7M(bars, cvdCfg) };
+    return { closes, stochrsi: stochRsi(source(bars, srCfg.src), srCfg), cvd: cvdD7M(bars, cvdCfg) };
   }, [bars, cvdCfg, srCfg]);
   const d7m = useMemo(() => {
     if (!ind.d7m || bars.length < 5) return null;
@@ -228,7 +229,8 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   const oscPx = wide ? 104 : 88;
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   const chromeH = (topRef.current?.offsetHeight ?? 50) + (narrow && (railOpen || tool) ? 42 : 0);
-  const baseH = full ? Math.max(300, winH - chromeH - 2) : preset ? (wide ? 480 : 400) : wide ? clamp(winH - 345, 420, 740) : clamp(winH - 380, 340, 460);
+  const stripH = ind.d7m && !preset ? 47 : 0;                                    // شريطُ D7M فوق الرسم (‏D744)
+  const baseH = full ? Math.max(300, winH - chromeH - 2) : preset ? (wide ? 480 : 400) : wide ? clamp(winH - 345 - stripH, 400, 740) : clamp(winH - 380, 340, 460);
   const mainPx = Math.max(full ? 200 : wide ? 300 : 250, baseH - oscOn.length * oscPx);
   const stageH = mainPx + oscOn.length * oscPx;
 
@@ -264,28 +266,41 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     const st = S.current, b = st.bars;
     const up = tok("--pos-ink", "#16a34a"), down = tok("--neg-ink", "#dc2626");
     const drawC = st.cfg.colors?.draw || tok("--brand-ink", "#5b52d3");
-    const levels: Level[] = [], segments: Segment[] = [], paths: Path[] = [], notes: Note[] = [];
+    const levels: Level[] = [], segments: Segment[] = [], paths: Path[] = [], notes: Note[] = [], bands: Band[] = [];
     const last = b[b.length - 1];
     if (last) levels.push({ price: last.close, color: last.close >= last.open ? up : down, tag: true, bold: true, rank: 0, dash: [2, 3] });
     const D = st.d7m;
     if (D) {
       const C = (k: string) => st.cfg.colors?.[k] || tokv((D7M_COLORS.find(x => x[0] === k) || ["", "", "--ink"])[2]);
-      const ink = st.cfg.colors?.fib || tokA("--ink-muted", "#6b7280", 0.6), inkTag = st.cfg.colors?.fib || tok("--ink-muted", "#6b7280");
+      const ink = st.cfg.colors?.fib || tokA("--ink-muted", "#6b7280", 0.6);
+      /* ‏D744 (المالك): «شِل الكلام — المقاومة والدعم ولا تطمع — الشارتُ نظيف»: لا نصَّ على الرسم إلا رقمُ المستوى، والمناطقُ الثلاث
+         تظليلٌ خفيف (المقاومة · الوسط: الاتجاهُ المعاكس والدعمُ القويّ · الدعم). و«مختصر» ستةُ خطوطها وحدها، و«الكل» كلُّ المستويات */
       if (D.fib) {
+        const SIX = new Set([0, -0.1, 0.5, 0.618, 1, 1.1]), compact = (st.cfg.fibMode || "compact") === "compact";
         for (const l of D.fib.lines) {
-          if (st.cfg.fibLevels[String(l.level)] === false) continue;
+          if (compact ? !SIX.has(l.level) : st.cfg.fibLevels[String(l.level)] === false) continue;
           const gold = l.color === "yellow";
-          levels.push({ price: l.price, color: gold ? C("fibGold") : ink, text: [String(l.level), l.title].filter(Boolean).join(" · "),
-                        tag: true, rank: gold ? 2 : 3, width: 1 });
-          if (!gold) levels[levels.length - 1].color = inkTag === ink ? ink : ink;
+          levels.push({ price: l.price, color: gold ? C("fibGold") : ink, text: String(l.level), tag: true, rank: gold ? 2 : 3, width: 1 });
         }
-        if (st.cfg.fibZones) for (const z of D.fib.zones) notes.push({ x: b.length - 12, y: z.price, text: z.title, color: st.cfg.colors?.zone || tok("--ink-muted", "#6b7280") });
+        if (st.cfg.fibZones) {
+          const at = (lv: number) => D.fib!.lines.find(x => x.level === lv)?.price;
+          const pairs = [[0, -0.1], [1, 1.1]].map(([u, v]) => [at(u), at(v)]).filter(([u, v]) => u != null && v != null) as [number, number][];
+          pairs.sort((x, y) => (y[0] + y[1]) - (x[0] + x[1]));
+          if (pairs[0]) bands.push({ p1: pairs[0][0], p2: pairs[0][1], color: tokA("--neg-ink", "#dc2626", 0.07) });
+          if (pairs[1]) bands.push({ p1: pairs[1][0], p2: pairs[1][1], color: tokA("--pos-ink", "#16a34a", 0.07) });
+          const m1 = at(0.5), m2 = at(0.618);
+          if (m1 != null && m2 != null) bands.push({ p1: m1, p2: m2, color: tokA("--gauge-warn", "#d97706", 0.09) });
+        }
       }
       if (D.trend) for (const l of D.trend.lines) if (l.x2 > l.x1)
         segments.push({ x1: l.x1, y1: l.y1, x2: l.x2, y2: l.y2, color: l.up ? C("trendUp") : C("trendDown"), width: l.major ? 2 : 1, dash: l.major ? [] : [5, 4] });
-      if (D.channel) for (const seg of [D.channel.base, D.channel.parallel]) if (seg.length >= 2)
-        segments.push({ x1: seg[0][0], y1: seg[0][1], x2: seg[seg.length - 1][0], y2: seg[seg.length - 1][1],
-                        color: st.cfg.colors?.channel || tokA("--brand-ink", "#5b52d3", 0.65), width: 1, dash: [5, 4] });
+      if (D.channel) {
+        const chC = st.cfg.colors?.channel || tokA("--brand-ink", "#5b52d3", 0.65);
+        for (const seg of [D.channel.base, D.channel.parallel]) if (seg.length >= 2)
+          segments.push({ x1: seg[0][0], y1: seg[0][1], x2: seg[seg.length - 1][0], y2: seg[seg.length - 1][1], color: chC, width: 1 });
+        const [b0, b1] = [D.channel.base[0], D.channel.base[D.channel.base.length - 1]], [q0, q1] = [D.channel.parallel[0], D.channel.parallel[D.channel.parallel.length - 1]];
+        segments.push({ x1: b0[0], y1: (b0[1] + q0[1]) / 2, x2: b1[0], y2: (b1[1] + q1[1]) / 2, color: chC, width: 1, dash: [3, 4] });   // منتصفُ القناة كتريدنق فيو
+      }
     }
     for (const d of st.draws) {
       const v2 = Number(d.v) || 1;
@@ -300,7 +315,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     }
     if (preview.current) segments.push(preview.current);
     if (stroke.current && stroke.current.length > 1) paths.push({ pts: stroke.current, color: drawC, width: 2 });
-    overlay.current.set({ levels, segments, paths, notes, font: getComputedStyle(document.body).fontFamily || "sans-serif", bg: tok("--card", "#ffffff"), textTop: 50 });
+    overlay.current.set({ levels, segments, paths, notes, bands, font: getComputedStyle(document.body).fontFamily || "sans-serif", bg: tok("--card", "#ffffff"), textTop: 50 });
     // سماتُ تشخيص: ما رُسم على اللوحة (لا يُقرأ من الـDOM) — آخرُ سعرٍ موسوم، وعددُ المستويات المسمّاة والوسوم والرسوم اليدوية
     const root = rootRef.current;
     if (root) {
@@ -328,10 +343,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     // ‏D739: شمعةٌ من الإغلاقات الرسمية وحدها (تاريخُ تاسي القديم) يُقال عنها ذلك — لا يُوهَم أنّ لها أعلى وأدنى رسميّين
     set("basis", (r as any).basis === "close" ? "من الإغلاقات اليومية — الأعلى والأدنى غيرُ متوفّرَين" : "");
     const f = (v: number | null | undefined, dp = 2) => (v == null || !isFinite(v) ? "—" : v.toFixed(dp));
-    set("sma20", fmtPrice(c.sma20[i])); set("sma50", fmtPrice(c.sma50[i])); set("sma200", fmtPrice(c.sma200[i]));
-    set("rsi", f(c.rsi[i])); set("stochK", f(c.stoch.k[i])); set("stochD", f(c.stoch.d[i]));
     set("srK", f(c.stochrsi.k[i])); set("srD", f(c.stochrsi.d[i]));
-    set("macdL", f(c.macd.line[i], 3)); set("macdS", f(c.macd.signal[i], 3)); set("macdH", f(c.macd.hist[i], 3));
     const cv = st.cvdCfg.style === "line" ? c.cvd.line[i] : c.cvd.c[i];
     set("cvd", st.cvdCfg.scale === "volume" ? fmtVol(Math.abs(cv ?? 0)) : f(cv, 1)); set("cvdE", f(c.cvd.ema2[i], 1));
   };
@@ -475,24 +487,13 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
         s.priceScale().applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
         return [s];
       },
-      sma20: () => [ln(0, tok("--chart-1", "#5b52d3"), 2)],
-      sma50: () => [ln(0, tok("--warn-ink", "#92400e"), 2)],
-      sma200: () => [ln(0, tok("--chart-4", "#4a8fbd"), 2)],
-      rsi: p => { const s = ln(p, tok("--chart-5", "#c08a45"), 2, fixed(0, 100)); guide(s, [70, 30]); return [s]; },
-      stoch: p => { const k = ln(p, tok("--chart-2", "#2f8f83"), 2, fixed(0, 100)); guide(k, [80, 20]); return [k, ln(p, tok("--warn-ink", "#92400e"), 1)]; },
       /* ‏Stoch RSI بسكربت تريدنق فيو: ‏K أزرق و‏D برتقاليّ، وحدودُ 80 و50 و20، وخلفيةٌ بين 80 و20 (ألوانُه من رموز التطبيق) */
       stochrsi: p => {
         const k = ln(p, tok("--info-ink", "#2563eb"), 1, fixed(0, 100)), d = ln(p, tok("--gauge-warn", "#d97706"), 1);
         const band = (v: number, a: number) => k.createPriceLine({ price: v, color: tokA("--ink-muted", "#787b86", a), lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
-        band(80, 1); band(50, 0.5); band(20, 1);
-        k.attachPrimitive(new BandFill(80, 20, tokA("--info-ink", "#2196f3", 0.1)));
+        band(srCfg.upper, 1); band(srCfg.middle, 0.5); band(srCfg.lower, 1);
+        k.attachPrimitive(new BandFill(srCfg.upper, srCfg.lower, tokA("--info-ink", "#2196f3", 0.1)));
         return [k, d];
-      },
-      macd: p => {
-        const mp = lastC >= 100 ? 2 : lastC >= 1 ? 3 : 6, fmt = { type: "price" as const, precision: mp, minMove: 1 / 10 ** mp };
-        const h = chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false, priceFormat: fmt }, p);
-        guide(h, [0]);
-        return [h, ln(p, tok("--chart-1", "#5b52d3"), 2, { priceFormat: fmt }), ln(p, tok("--warn-ink", "#92400e"), 1, { priceFormat: fmt })];
       },
       cvd: p => {
         const fmt = cvdCfg.scale === "volume" ? { type: "volume" as const } : { type: "price" as const, precision: 1, minMove: 0.1 };
@@ -520,18 +521,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     const feed: Record<IndKey, (s: ISeriesApi<any>[]) => void> = {
       vol: s => s[0].setData(bars.map((b, i) => ({ time: D[i] as any, value: b.volume || 0,
         color: b.close >= b.open ? tokA("--pos-ink", "#16a34a", 0.42) : tokA("--neg-ink", "#dc2626", 0.42) }))),
-      sma20: s => s[0].setData(pts(c.sma20)), sma50: s => s[0].setData(pts(c.sma50)), sma200: s => s[0].setData(pts(c.sma200)),
-      rsi: s => s[0].setData(pts(c.rsi)),
-      stoch: s => { s[0].setData(pts(c.stoch.k)); s[1].setData(pts(c.stoch.d)); },
       stochrsi: s => { s[0].setData(pts(c.stochrsi.k)); s[1].setData(pts(c.stochrsi.d)); },
-      macd: s => {
-        const h = c.macd.hist;
-        const col = (v: number, p: number | null) => v >= 0 ? tokA("--pos-ink", "#16a34a", p != null && v < p ? 0.4 : 0.85)
-                                                             : tokA("--neg-ink", "#dc2626", p != null && v > p ? 0.4 : 0.85);
-        const rows: any[] = [];
-        for (let i = 0; i < n; i++) { const v = h[i]; if (v != null) rows.push({ time: D[i] as any, value: v, color: col(v, i ? h[i - 1] : null) }); }
-        s[0].setData(rows); s[1].setData(pts(c.macd.line)); s[2].setData(pts(c.macd.signal));
-      },
       cvd: s => {
         const v = c.cvd;
         if (cvdCfg.style === "line") { s[0].setData(pts(v.line)); return; }
@@ -554,7 +544,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
           .forEach(([k, f]) => { if ((cfg as any)[k]) s[j++]?.setData(pts(bars.map((_, i) => f(i)))); });
       },
     };
-    const sigOf = (k: IndKey) => `${theme}|${k === "cvd" ? JSON.stringify(cvdCfg) : k === "d7m" ? JSON.stringify(cfg) : k === "macd" ? (lastC >= 100 ? 2 : lastC >= 1 ? 3 : 6) : ""}`;
+    const sigOf = (k: IndKey) => `${theme}|${k === "cvd" ? JSON.stringify(cvdCfg) : k === "d7m" ? JSON.stringify(cfg) : k === "stochrsi" ? JSON.stringify(srCfg) : ""}`;
     const R = reg.current;
     for (const [k] of IND) {
       const cur = R.get(k);
@@ -784,55 +774,22 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
         </Menu>
         <button type="button" className={"pc-btn" + (railOpen || tool ? " on" : "")} title="أدوات الرسم" aria-label="أدوات الرسم" aria-pressed={railOpen}
           data-role="pc-draw" onClick={() => setRailOpen(o => !o)}><Brush size={17} /></button>
-        {ind.stochrsi && (
-          <Menu label={<><Settings2 size={15} /><span className="pc-btn-txt" dir="ltr">Stoch RSI</span></>} title="إعدادات Stoch RSI" role="pc-sr">
-            {() => (
-              <div className="cvd-cfg" data-role="sr-cfg">
-                {([["k", "K"], ["d", "D"], ["rsiLen", "طولُ RSI"], ["stochLen", "طولُ الستوكاستيك"]] as const).map(([k, lbl]) => (
-                  <label key={k} className="cvd-row"><span>{lbl}</span>
-                    <input className="input tabular-nums" style={{ width: 70, padding: "4px 6px" }} type="text" inputMode="numeric" lang="en" dir="ltr"
-                      defaultValue={String(srCfg[k])} aria-label={lbl} data-sr={k}
-                      onBlur={e => { const v = Math.max(1, Math.min(200, Math.floor(Number(e.target.value) || STOCHRSI_DEFAULTS[k]))); e.target.value = String(v); setSr({ [k]: v } as any); }}
-                      onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /></label>
-                ))}
-              </div>
-            )}
+        {(ind.stochrsi || ind.cvd || ind.d7m) && (
+          <Menu label={<><Settings2 size={16} /><span className="pc-btn-txt">الإعدادات</span></>} title="إعدادات المؤشرات" role="pc-cfg">
+            {close => IND.filter(([k]) => k !== "vol" && ind[k]).map(([k, name]) => (
+              <button key={k} type="button" className="pc-item" data-cfg={k} onClick={() => { close(); if (k === "d7m") setShowCfg(true); else setCfgFor(k as "stochrsi" | "cvd"); }}>
+                <Settings2 size={14} /> <span dir="ltr">{name}</span>
+              </button>
+            ))}
           </Menu>
         )}
-        {ind.cvd && (
-          <Menu label={<><Settings2 size={15} /><span className="pc-btn-txt" dir="ltr">CVD</span></>} title="إعدادات CVD D7M" role="pc-cvd">
-            {() => (
-              <div className="cvd-cfg" data-role="cvd-cfg">
-                {([["style", "النمط", [["candle", "شموع"], ["line", "خطّ"]]],
-                   ["scale", "المقياس", [["levels", "مستويات"], ["pct", "نسبة"], ["volume", "احجام"]]]] as const).map(([k, lbl, opts]) => (
-                  <div key={k} className="cvd-row"><span>{lbl}</span>
-                    <span className="seg inline-flex">
-                      {opts.map(([v, t]) => (
-                        <button key={v} type="button" className={"seg-btn chip" + ((cvdCfg as any)[k] === v ? " on" : "")} onClick={() => setCvd({ [k]: v } as any)}>{t}</button>
-                      ))}
-                    </span>
-                  </div>
-                ))}
-                <label className="cvd-row"><span>الفترة</span>
-                  <input className="input tabular-nums" style={{ width: 70, padding: "4px 6px" }} type="text" inputMode="numeric" lang="en" dir="ltr"
-                    defaultValue={String(cvdCfg.len)} aria-label="فترة المقياس"
-                    onBlur={e => { const v = Math.max(10, Math.floor(Number(e.target.value) || 200)); e.target.value = String(v); setCvd({ len: v }); }}
-                    onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /></label>
-                {([["ha", "شموع هايكن آشي"], ["ema2", `EMA ${cvdCfg.ema2Len}`], ["ema1", `EMA ${cvdCfg.ema1Len}`],
-                   ["sma1", `SMA ${cvdCfg.sma1Len}`], ["sma2", `SMA ${cvdCfg.sma2Len}`]] as const).map(([k, t]) => (
-                  <button key={k} type="button" className="cvd-row cvd-tog" aria-pressed={!!cvdCfg[k]} onClick={() => setCvd({ [k]: !cvdCfg[k] } as any)}>
-                    <span dir={k === "ha" ? undefined : "ltr"}>{t}</span>
-                    <span className="w-3 h-3 rounded-sm border" style={cvdCfg[k] ? { background: "var(--brand-ink)", borderColor: "var(--brand-ink)" } : { borderColor: "var(--hairline)" }} />
-                  </button>
-                ))}
-              </div>
-            )}
-          </Menu>
-        )}
-        {ind.d7m && (
-          <button type="button" className="pc-btn" title="إعدادات مؤشّر D7M" aria-label="إعدادات مؤشّر D7M" data-role="pc-d7m" onClick={() => setShowCfg(true)}>
-            <Settings2 size={15} /><span className="pc-btn-txt" dir="ltr">D7M</span>
-          </button>
+        {ind.d7m && cfg.fib && (
+          <span className="seg inline-flex pc-fibmode" role="group" aria-label="مستويات D7M" data-role="pc-fibmode">
+            {([["compact", "مختصر"], ["all", "الكل"]] as const).map(([v, t]) => (
+              <button key={v} type="button" className={"seg-btn chip" + ((cfg.fibMode || "compact") === v ? " on" : "")} aria-pressed={(cfg.fibMode || "compact") === v}
+                title={v === "compact" ? "ستةُ خطوط: المقاومةُ والوسطُ والدعم" : "كلُّ المستويات"} onClick={() => saveCfg({ ...cfg, fibMode: v })}>{t}</button>
+            ))}
+          </span>
         )}
         <span className="pc-grow" />
         <button type="button" className="pc-btn" title="لقطةٌ للرسم" aria-label="لقطةٌ للرسم" onClick={shot}><Camera size={17} /></button>
@@ -840,7 +797,9 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
           data-role="pc-full" onClick={() => setFull(f => !f)}>{full ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
       </div>
       {showCfg && <D7MPanel cfg={cfg} onChange={saveCfg} onClose={() => setShowCfg(false)} />}
+      {cfgFor && <IndSettings kind={cfgFor} sr={srCfg} cvd={cvdCfg} onSr={setSr} onCvd={setCvd} onClose={() => setCfgFor(null)} />}
 
+      {ind.d7m && !preset && <D7MStrip dash={dash} msmart={msmart} tt={tt} alerts={alerts} />}
       <div className="pc-body">
         {/* ══ سكّةُ أدوات الرسم — على يسار الرسم كتريدنق فيو (وصفٌّ فوقه على الجوال) ══ */}
         {(railOpen || tool) && (
@@ -857,7 +816,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
           </div>
         )}
 
-        <div className="pc-main" style={{ ["--d7m-bottom" as any]: `${stageH - mainPx + 34 + 41}px` }}>
+        <div className="pc-main">
         <div className="pc-stage chart-lock" style={{ height: stageH }} data-role="pc-stage" data-noswipe>
           <div ref={boxRef} className="pc-box" />
 
@@ -873,21 +832,13 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
               {ind.vol && (volOk ? chip("vol", <><span className="pc-k">Vol</span><b ref={lv("vol")}>—</b></>)
                 : chip("vol", <><span className="pc-k">Vol</span><b className="pc-dim">غير متوفّر</b></>))}
               {ind.cvd && !volOk && chip("cvd", <><span className="pc-k" style={{ color: "var(--chart-3)" }}>CVD D7M</span><b className="pc-dim">غير متوفّر — لا حجم</b></>)}
-              {ind.sma20 && chip("sma20", <><span className="pc-k" style={{ color: "var(--chart-1)" }}>SMA 20</span><b ref={lv("sma20")}>—</b></>)}
-              {ind.sma50 && chip("sma50", <><span className="pc-k" style={{ color: "var(--warn-ink)" }}>SMA 50</span><b ref={lv("sma50")}>—</b></>)}
-              {ind.sma200 && chip("sma200", <><span className="pc-k" style={{ color: "var(--chart-4)" }}>SMA 200</span><b ref={lv("sma200")}>—</b></>)}
               {ind.d7m && chip("d7m", <span className="pc-k" style={{ color: "var(--brand-ink)" }}>D7M</span>)}
             </div>
           </div>
           {oscOn.map(k => paneTops[k] != null && (
             <div key={k} className="pc-legend pc-pane-legend" dir="ltr" style={{ top: paneTops[k] + 4 }} data-role="pane-tag" data-ind={k}>
-              {k === "rsi" && chip("rsi", <><span className="pc-k" style={{ color: "var(--chart-5)" }}>RSI 14</span><b ref={lv("rsi")}>—</b></>)}
-              {k === "stochrsi" && chip("stochrsi", <><span className="pc-k" style={{ color: "var(--info-ink)" }}>Stoch RSI {srCfg.k} {srCfg.d} {srCfg.rsiLen} {srCfg.stochLen}</span>
+              {k === "stochrsi" && chip("stochrsi", <><span className="pc-k" style={{ color: "var(--info-ink)" }}>Stoch RSI {srCfg.k} {srCfg.d} {srCfg.rsiLen} {srCfg.stochLen} {srCfg.src}</span>
                 <b ref={lv("srK")} style={{ color: "var(--info-ink)" }}>—</b><b ref={lv("srD")} style={{ color: "var(--gauge-warn)" }}>—</b></>)}
-              {k === "stoch" && chip("stoch", <><span className="pc-k" style={{ color: "var(--chart-2)" }}>Stoch 14 3 3</span><b ref={lv("stochK")}>—</b>
-                <b ref={lv("stochD")} style={{ color: "var(--warn-ink)" }}>—</b></>)}
-              {k === "macd" && chip("macd", <><span className="pc-k" style={{ color: "var(--chart-1)" }}>MACD 12 26 9</span><b ref={lv("macdL")}>—</b>
-                <b ref={lv("macdS")} style={{ color: "var(--warn-ink)" }}>—</b><b ref={lv("macdH")} className="pc-dim">—</b></>)}
               {k === "cvd" && chip("cvd", <><span className="pc-k" style={{ color: "var(--chart-3)" }}>
                 CVD D7M · {cvdCfg.scale === "levels" ? "مستويات" : cvdCfg.scale === "pct" ? "نسبة" : "احجام"} {cvdCfg.len}</span><b ref={lv("cvd")}>—</b>
                 {cvdCfg.ema2 && cvdCfg.style === "candle" && <b ref={lv("cvdE")} className="pc-dim">—</b>}</>)}
@@ -933,7 +884,6 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
           <button type="button" className={"pc-btn" + (!manual ? " on" : "")} aria-pressed={!manual} title="مقياسٌ تلقائيّ" aria-label="مقياسٌ تلقائيّ"
             data-role="pc-auto" onClick={() => { chartRef.current?.priceScale("right").applyOptions({ autoScale: true }); setManual(false); }}>تلقائي</button>
         </div>
-        {ind.d7m && !preset && <D7MPanels dash={dash} msmart={msmart} tt={tt} alerts={alerts} pos={cfg.dashPos} axisW={axisW} />}
         </div>
       </div>
     </div>

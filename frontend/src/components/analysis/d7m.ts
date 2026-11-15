@@ -97,11 +97,10 @@ export function autoFib(bars: Bar[], mult = 3, depth = 7, reverse = false): { li
   return { lines, zones, startIndex: start.index };
 }
 
-export type Channel = { base: [number, number][]; parallel: [number, number][] };
+export type Channel = { base: [number, number][]; parallel: [number, number][]; touches?: number };
 
-/** القناةُ التلقائية: قاعدةٌ بين المحورين المتجانسين الأخيرين، وموازيةٌ من الأوسط. */
-export function autoChannel(bars: Bar[], mult = 3, depth = 20): Channel | null {
-  const p = zigzag(bars, mult, depth);
+/** القناةُ السابقة (احتياط): قاعدةٌ بين المحورين المتجانسين الأخيرين، وموازيةٌ من الأوسط. */
+function channelLegacy(bars: Bar[], p: Pivot[]): Channel | null {
   if (p.length < 3) return null;
   const a = p[p.length - 3], b = p[p.length - 2], c = p[p.length - 1];
   if (a.isHigh !== c.isHigh || a.index === c.index) return null;
@@ -109,10 +108,48 @@ export function autoChannel(bars: Bar[], mult = 3, depth = 20): Channel | null {
   const icBase = a.price - slope * a.index;
   const icPar = b.price - slope * b.index;
   const xEnd = bars.length - 1;
-  return {
-    base: [[a.index, a.price], [xEnd, slope * xEnd + icBase]],
-    parallel: [[b.index, b.price], [xEnd, slope * xEnd + icPar]],
-  };
+  return { base: [[a.index, a.price], [xEnd, slope * xEnd + icBase]], parallel: [[b.index, b.price], [xEnd, slope * xEnd + icPar]] };
+}
+
+/** القناةُ التلقائية (‏D744 · المالك 2026-11-15: «القناةُ السعرية تعرف الدعومَ والمقاومات وترسم لها قناة»).
+    كانت قاعدتُها بين آخر محورين متجانسين وموازيتُها من المحور الأوسط — فتقطعها الشموعُ أحياناً وتُرسم على محورين لا أكثر.
+    الآن: تُجرَّب كلُّ خطوط الدعم (بين قاعين) والمقاومة (بين قمّتين) من آخر خمسة محاور لكلّ نوع، ويُستبعد ما كسرته الإغلاقات،
+    والموازيةُ تمرّ بأبعد طرفٍ مقابل فتحوي القناةُ كلَّ الشموع منذ بدايتها؛ وتُفضَّل الأكثرُ لمساتٍ على الضلعين (‏± ثلث متوسّط المدى)،
+    ثمّ الأطولُ عمراً والأحدثُ مرساةً — بشرط أن يكون السعرُ الحاليُّ داخلها. وإن لم تصحّ قناةٌ فالطريقةُ السابقة. */
+export function autoChannel(bars: Bar[], mult = 3, depth = 20): Channel | null {
+  const p = zigzag(bars, mult, depth), n = bars.length;
+  if (p.length < 3 || n < 30) return null;
+  const at = atr(bars, 14)[n - 1] ?? (bars.slice(-14).reduce((s, b) => s + (b.high - b.low), 0) / 14);
+  if (!at || !isFinite(at)) return channelLegacy(bars, p);
+  const tol = at / 3;
+  const highs = p.filter(x => x.isHigh).slice(-5), lows = p.filter(x => !x.isHigh).slice(-5);
+  let best: { score: number; x0: number; y0: number; slope: number; ext: number; touches: number } | null = null;
+  for (const [set, isHigh] of [[highs, true], [lows, false]] as [Pivot[], boolean][]) {
+    for (let i = 0; i < set.length; i++) for (let j = i + 1; j < set.length; j++) {
+      const P = set[i], Q = set[j];
+      if (Q.index - P.index < 5) continue;
+      const slope = (Q.price - P.price) / (Q.index - P.index);
+      const line = (x: number) => P.price + slope * (x - P.index);
+      let broken = 0, ext = isHigh ? Infinity : -Infinity;
+      for (let x = P.index; x < n; x++) {
+        const L = line(x), b = bars[x];
+        if (isHigh ? b.close > L + tol : b.close < L - tol) broken++;
+        const d = isHigh ? b.low - L : b.high - L;
+        if (isHigh ? d < ext : d > ext) ext = d;
+      }
+      const span = n - P.index;
+      if (broken > Math.max(1, span * 0.02) || !isFinite(ext)) continue;
+      const c = bars[n - 1].close, L1 = line(n - 1), L2 = L1 + ext;
+      if (c > Math.max(L1, L2) + tol || c < Math.min(L1, L2) - tol) continue;
+      const same = set.filter(z => z.index >= P.index && Math.abs(z.price - line(z.index)) <= tol).length;
+      const opp = (isHigh ? lows : highs).filter(z => z.index >= P.index && Math.abs(z.price - (line(z.index) + ext)) <= tol).length;
+      const score = same * 2 + opp * 1.5 + Math.min(span / 60, 2) + (j === set.length - 1 ? 1 : 0) - Math.abs(ext) / at * 0.04;
+      if (!best || score > best.score) best = { score, x0: P.index, y0: P.price, slope, ext, touches: same + opp };
+    }
+  }
+  if (!best || best.touches < 3) return channelLegacy(bars, p);
+  const xEnd = n - 1, yEnd = best.y0 + best.slope * (xEnd - best.x0);
+  return { base: [[best.x0, best.y0], [xEnd, yEnd]], parallel: [[best.x0, best.y0 + best.ext], [xEnd, yEnd + best.ext]], touches: best.touches };
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -572,6 +609,8 @@ export const D7M_DEFAULTS = {
   colors: {} as Record<string, string>,
   dashPos: "tl" as "tr" | "tl" | "br" | "bl",   // أعلى اليسار (بأمر المالك)
   fib: true, fibDev: 3, fibDepth: 7, fibReverse: false, fibZones: true,
+  /* ‏D744 (المالك): «مختصرٌ يجيب ستةَ خطوط — خطّان للمقاومة، وخطّان في الوسط للاتجاه المعاكس والدعم القويّ، وخطّان للدعم — مع خيار إظهار الجميع» */
+  fibMode: "compact" as "compact" | "all",
   fibLevels: Object.fromEntries(FIB_LEVELS.map(([lv]) => [String(lv), true])) as Record<string, boolean>,
   trend: true, trendPP: 15, trendShapes: false,
   channel: true, chDev: 3, chDepth: 20,

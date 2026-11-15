@@ -3224,7 +3224,6 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 .troom-row:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
 .troom-row.on { background: color-mix(in srgb, var(--brand) 11%, transparent); }
 .troom-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 8px; min-height: 44px; text-align: start; }
-.troom-dot { width: 8px; height: 8px; border-radius: 9px; background: var(--brand-ink); flex: none; margin-inline: 8px; }
 @media (prefers-reduced-motion: reduce) { .troom-naming { animation: none; } .troom-row { transition: none; } }
 /* البحثُ في لوحة القوائم بهدف لمسٍ ٣٢px — ويتمدّد إلى عرض اللوحة حين يُفتح */
 .troom-bar .inline-search { height: 34px; width: 34px; }
@@ -3315,9 +3314,6 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
   animation: pcProgress 1s ease-in-out infinite; }
 @keyframes pcProgress { from { transform: translateX(-110%); } to { transform: translateX(290%); } }
 
-/* لوحاتُ D7M داخل الرسم الجديد: لا تغطّي وسيلةَ الإيضاح، والسفليّةُ فوق لوحات المؤشّرات */
-.pc .d7m-at-tl { top: 54px; }
-.pc .d7m-at-br, .pc .d7m-at-bl { bottom: var(--d7m-bottom, 34px); }
 
 /* ‏D739: الشريطُ السفليّ — المدى والساعةُ بمنطقتها الزمنية ومقياسُ السعر */
 .pc-foot { position: relative; display: flex; align-items: center; gap: 2px; padding: 4px 8px; border-top: 1px solid var(--hairline); min-width: 0; }
@@ -3362,3 +3358,30 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 /* ‏D736: غرفةُ التداول عربيّة — القوائمُ يمينَ الشاشة والرسمُ يسارَها؛ وعلى الجوال الرسمُ أوّلاً والقوائمُ تحته */
 .troom-chart { padding: 0; overflow: visible; }
 @media (max-width: 1023px) { .troom-chart { order: -1; } }
+
+/* ══ ‏D744: شريطُ D7M الذكيّ — صفٌّ رفيعٌ فوق الرسم (بحجم الإصبع) بدل الجداول فوق الشموع ══ */
+.d7s { display: flex; align-items: stretch; gap: 6px; padding: 6px 8px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--hairline);
+  animation: fadeUp .22s ease-out both; }
+.d7s::-webkit-scrollbar { display: none; }
+.d7s-tile { flex: none; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 3px 9px; min-height: 34px; border-radius: 8px;
+  border: 1px solid var(--hairline); background: color-mix(in srgb, var(--ink) 3%, transparent); }
+.d7s-k { font-size: 9.5px; font-weight: 700; color: var(--ink-muted); line-height: 1.2; }
+.d7s-v { display: flex; align-items: center; gap: 6px; font-size: 11.5px; line-height: 1.35; white-space: nowrap; color: var(--ink); }
+.d7s-v b { font-weight: 800; }
+.d7s-pos .d7s-v b, .d7s-tf.pos { color: var(--pos-ink); }
+.d7s-neg .d7s-v b, .d7s-tf.neg { color: var(--neg-ink); }
+.d7s-warn .d7s-v b { color: var(--warn-ink); }
+.d7s-tf.muted { color: var(--ink-muted); }
+.d7s-pos { border-color: color-mix(in srgb, var(--pos-ink) 35%, var(--hairline)); }
+.d7s-neg { border-color: color-mix(in srgb, var(--neg-ink) 35%, var(--hairline)); }
+.d7s-tf { font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.d7s-dim { font-size: 10px; font-weight: 700; color: var(--ink-muted); }
+.d7s-meter { display: inline-grid; grid-template-columns: repeat(10, 4px); gap: 1.5px; direction: ltr; }
+.d7s-meter i { display: block; width: 4px; height: 8px; border-radius: 1px; background: color-mix(in srgb, var(--ink) 14%, transparent); }
+.d7s-pos .d7s-meter i.on { background: var(--pos-ink); }
+.d7s-neg .d7s-meter i.on { background: var(--neg-ink); }
+.d7s-warn .d7s-meter i.on { background: var(--warn-ink); }
+.d7s-muted .d7s-meter i.on { background: var(--ink-muted); }
+.pc-fibmode .seg-btn { min-height: 32px; padding-inline: 10px; }
+@media (max-width: 767px) { .pc-fibmode { order: 9; } }
+@media (prefers-reduced-motion: reduce) { .d7s { animation: none; } }

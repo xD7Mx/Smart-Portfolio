@@ -148,7 +148,7 @@ export default function TradeRoom() {
               <div key={r.symbol} className={"troom-row card-rise" + (on ? " on" : "")} style={{ animationDelay: `${Math.min(i, 14) * 18}ms` }}>
                 <button type="button" className="troom-pick" onClick={() => pick(r.symbol)} aria-pressed={on} data-role="troom-row"
                   title={r.name}>
-                  {list !== "idx" ? <CompanyLogo symbol={r.symbol} size={24} /> : <span className="troom-dot" aria-hidden />}
+                  <CompanyLogo symbol={r.symbol} size={24} />
                   <span className="min-w-0 flex-1 text-start">
                     <span className="block text-[12.5px] font-bold text-[var(--ink)] truncate">{list === "idx" ? r.name : (isSaudi(r.symbol) ? r.name : r.symbol)}</span>
                     <span className="block text-[10px] text-[var(--ink-muted)] truncate tabular-nums" dir={isSaudi(r.symbol) ? undefined : "ltr"}
@@ -182,7 +182,7 @@ export default function TradeRoom() {
       <section ref={chartRef} className="troom-chart card" data-role="troom-chart">
         <ProChart symbol={symbol} theme={theme === "light" ? "light" : "dark"}
           identity={<span className="flex items-center gap-1.5 min-w-0">
-            {!label && <CompanyLogo symbol={symbol} size={26} />}
+            <CompanyLogo symbol={symbol} size={26} />
             <span className="text-[14px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{label || symbol.replace(".SR", "")}</span>
             {!label && <span className="text-[12px] text-[var(--ink-muted)] truncate max-w-[40vw] lg:max-w-[180px]">
               {rows.find(r => r.symbol === symbol)?.name || ""}</span>}

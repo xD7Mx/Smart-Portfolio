@@ -92,6 +92,12 @@ rd_ = TH.real_daily([{"date": "2012-05-01", "open": 7000, "high": 7000, "low": 7
 check("fetch(URL_DAILY, referer=REFERER_DAILY)" in ths and ths.count("fetch(URL, referer=REFERER_SESSION)") == 2 and "await fetch(URL)" not in ths
       and "daily[-6000:]" in ths and rd_[0].get("basis") == "close" and B.MAX_BARS >= 5000,
       "٤ط تاريخُ تاسي اليوميُّ كلُّه من مصدره الرسميّ (الطلبُ بصفحته المُحيلة) — لا يسقط صامتاً إلى نسخةٍ قديمة، والإغلاقُ وحده موسوم")
+# ‏D743: شعاراتُ الرموز غير السعودية من خادمنا — نصُّ بحث تريدنق فيو لكلّ رمزٍ من ياهو، والمسارُ عامٌّ (وسمُ الصورة بلا ترويسة)
+from app.services.symbol_logo import tv_text   # noqa: E402
+mk_ = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
+check([tv_text(x) for x in ("QQQ", "^GSPC", "GC=F", "BZ=F", "BTC-USD", "^TASI.SR")] == ["QQQ", "SPX", "GC1!", "BRN1!", "BTCUSD", "TASI"]
+      and '@public_router.get("/logo/{symbol}")' in mk_ and "/market/logo/" in (ROOT / "frontend/src/components/common/CompanyLogo.tsx").read_text(encoding="utf-8"),
+      "٤ي شعارُ كلّ رمزٍ غير سعوديّ (أسهمٌ وصناديقُ ومؤشّراتٌ وذهبٌ ونفطٌ وبتكوين) بهويّته الرسمية من خادمنا — لا حرفَ مشوّه")
 # ‏D739: التثبيتُ كتريدنق فيو — المشفّرةُ من منتصف ليل التوقيت العالميّ، والآجلةُ من أوّل شمعةٍ بعد فاصلها اليوميّ
 btc = [bar(f"2026-11-12 {h:02d}:00", 1, 2, 0.5, 1.5, 5) for h in range(0, 24)]
 u4 = [r["date"][11:] for r in B.bucket_intraday(btc, 240, B.session_mode("BTC-USD"))]

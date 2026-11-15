@@ -73,7 +73,9 @@ const order = ["rsi", "stoch", "macd", "cvd"].filter(k => {
 say(order.length === 0, "٦ب وكلُّ لوحةٍ سفلى تُحدُّ بعد إنشاء سلسلتها — لا مؤشّرَ يُرسم فوق شموع السعر", order.join(","));
 
 const proSrc = (await import("node:fs")).readFileSync(join(FRONT, "src/components/chart/ProChart.tsx"), "utf-8");
-say(/\["stoch", "Stochastic"/.test(proSrc) && /\["cvd", "CVD D7M"/.test(proSrc) && /\["d7m", "D7M"/.test(proSrc) && /sp_chart_ind/.test(proSrc) && /sp_cvd_cfg/.test(proSrc)
+// ‏D744 (المالك 2026-11-15): «لا أريد كثرةَ المؤشّرات — CVD ومؤشّرُ الدحم وStoch RSI» — فلا RSI ولا Stochastic ولا MACD ولا متوسّطات
+say(/\["stochrsi", "Stoch RSI"/.test(proSrc) && /\["cvd", "CVD D7M"/.test(proSrc) && /\["d7m", "D7M"/.test(proSrc) && /sp_chart_ind/.test(proSrc) && /sp_cvd_cfg/.test(proSrc)
+    && !/\["(rsi|stoch|macd|sma20|sma50|sma200)", /.test(proSrc)
     && /cvdD7M\(bars/.test(proSrc) && /import ProChart from "\.\.\/chart\/ProChart"/.test((await import("node:fs")).readFileSync(join(FRONT, "src/components/market/TradeRoom.tsx"), "utf-8")),
     "٦ج والرسمُ الاحترافيّ في الغرفة (‏D736) يحمل المؤشّراتِ نفسَها بإعداداتها المحفوظة");
 
@@ -130,7 +132,7 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   });
   await page.addInitScript((th) => { try {
     localStorage.setItem("sp_token", "probe"); localStorage.removeItem("sp_room_symbol"); localStorage.removeItem("sp_room_list");
-    localStorage.setItem("sp_chart_ind", JSON.stringify({ sma20: false, sma50: false, macd: false }));
+    localStorage.setItem("sp_chart_ind_v3", JSON.stringify({ vol: true, stochrsi: false, cvd: false, d7m: false }));
     const s = JSON.parse(localStorage.getItem("sp-app-store") || "{}");
     localStorage.setItem("sp-app-store", JSON.stringify({ ...s, state: { ...(s.state || {}), theme: th }, version: s.version ?? 0 }));
   } catch { } }, theme);
@@ -149,17 +151,19 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await page.waitForTimeout(1400);
   const ident = await page.evaluate(() => document.querySelector('[data-role="troom-chart"]')?.textContent || "");
   say(/2222/.test(ident) && barsFor.includes("2222"), `${label}: الضغطُ على الشركة يفتح رسمَها`, barsFor.slice(-2).join(","));
-  // المؤشّرات الأربعة معاً
+  // المؤشّرات الثلاثة (‏D744): Stoch RSI وCVD D7M في لوحتيهما، وD7M على الشموع
   await page.locator('[data-role="pc-ind"]').click();
-  for (const k of ["rsi", "stoch", "macd", "cvd"]) { await page.locator(`[data-role="pc-ind-menu"] [data-ind="${k}"]`).click(); await sleep(120); }
+  for (const k of ["stochrsi", "cvd"]) { await page.locator(`[data-role="pc-ind-menu"] [data-ind="${k}"]`).click(); await sleep(120); }
+  const menuItems = await page.locator('[data-role="pc-ind-menu"] [data-ind]').evaluateAll(es => es.map(e => e.getAttribute("data-ind")));
   await page.mouse.click(5, 5);
   await page.waitForTimeout(1500);
   const panes = await page.evaluate(() => [...document.querySelectorAll('[data-role="pane-tag"]')].map(e => ({ t: e.textContent, y: e.getBoundingClientRect().top })));
   const ys = panes.map(p => p.y);
   const nPanes = await page.evaluate(() => Number(document.querySelector('[data-role="pro-chart"]')?.dataset.panes || 0));
-  say(panes.length === 4 && nPanes === 5 && ys.every((y, i) => i === 0 || y - ys[i - 1] > 40) && /CVD D7M · مستويات 200/.test(panes[3]?.t || "")
-      && panes.every(p => /\d/.test(p.t.replace(/14 3 3|12 26 9|RSI 14|200/g, ""))),
-      `${label}: RSI وستوكاستيك وMACD وCVD D7M معاً — أربعُ لوحاتٍ حقيقيةٍ لا تتداخل، ولكلٍّ قيمُه`, panes.map(p => `${p.t}@${Math.round(p.y)}`).join(" | "));
+  say(panes.length === 2 && nPanes === 3 && ys.every((y, i) => i === 0 || y - ys[i - 1] > 40) && /CVD D7M · مستويات 200/.test(panes[1]?.t || "")
+      && /Stoch RSI 3 3 14 14 close/.test(panes[0]?.t || "") && panes.every(p => /\d\.\d/.test(p.t.replace(/3 3 14 14|200/g, "")))
+      && JSON.stringify(menuItems) === JSON.stringify(["vol", "stochrsi", "cvd", "d7m"]),
+      `${label}: المؤشّراتُ ثلاثةٌ والحجم — Stoch RSI وCVD D7M في لوحتين حقيقيتين لا تتداخلان، ولكلٍّ قيمُه`, panes.map(p => `${p.t}@${Math.round(p.y)}`).join(" | ") + " · " + menuItems.join(",")); 
   if (SHOTS) { const el = await page.$('[data-role="troom"]'); if (el) await el.screenshot({ path: join(SHOTS, `room_${vp.width}_${theme}.png`) }); }
   // قائمةٌ للسوق الأمريكي، وAAPL بالبحث، ثمّ إزالتُها
   await page.locator('[data-role="troom-new"]').click();

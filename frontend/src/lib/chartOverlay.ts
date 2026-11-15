@@ -17,6 +17,7 @@ export type Level = {
 export type Segment = { x1: number; y1: number; x2: number; y2: number; color: string; width?: number; dash?: number[]; extend?: boolean };
 export type Path = { pts: { x: number; y: number }[]; color: string; width?: number };
 export type Note = { x: number; y: number; text: string; color: string };
+export type Band = { p1: number; p2: number; color: string };       // تظليلٌ بين سعرين على عرض اللوحة (مناطقُ D7M · D744)
 
 /** خلفيةٌ بين مستويين في لوحة مؤشّر — ‏fill(h0, h1) في سكربت تريدنق فيو (‏Stoch RSI بين 80 و20 · D741). */
 export class BandFill implements ISeriesPrimitive<Time> {
@@ -42,13 +43,14 @@ export class ChartOverlay implements ISeriesPrimitive<Time> {
   segments: Segment[] = [];
   paths: Path[] = [];
   notes: Note[] = [];
+  bands: Band[] = [];
   font = "sans-serif";
   bg = "#ffffff";
   textTop = 12;             // أسماءُ المستويات لا تُكتب فوق هذا الحدّ — مكانُ وسيلة الإيضاح
 
   attached(p: SeriesAttachedParameter<Time>) { this.chart = p.chart as IChartApi; this.series = p.series; this.req = p.requestUpdate; }
   detached() { this.chart = this.series = this.req = null; }
-  set(part: Partial<Pick<ChartOverlay, "levels" | "segments" | "paths" | "notes" | "font" | "bg" | "textTop">>) {
+  set(part: Partial<Pick<ChartOverlay, "levels" | "segments" | "paths" | "notes" | "bands" | "font" | "bg" | "textTop">>) {
     Object.assign(this, part);
     this.req?.();
   }
@@ -77,6 +79,12 @@ export class ChartOverlay implements ISeriesPrimitive<Time> {
       const W = mediaSize.width, H = mediaSize.height;
       ctx.save();
       ctx.lineCap = "round"; ctx.lineJoin = "round";
+      for (const z of this.bands) {
+        const a = this.py(z.p1), b = this.py(z.p2);
+        if (a == null || b == null) continue;
+        ctx.fillStyle = z.color;
+        ctx.fillRect(0, Math.min(a, b), W, Math.max(1, Math.abs(b - a)));
+      }
       // ١ المستويات: خطٌّ على عرض اللوحة
       for (const l of this.levels) {
         if (l.line === false) continue;

@@ -62,7 +62,16 @@ export default function D7MPanel({ cfg, onChange, onClose }: Props) {
           <Num k="fibDev" label="مضاعف الانحراف" step={0.5} />
           <Num k="fibDepth" label="العمق" />
           <Check k="fibReverse" label="عكس الاتجاه" />
-          <Check k="fibZones" label="مناطق الدعم والمقاومة" />
+          <Check k="fibZones" label="تظليلُ المناطق الثلاث" />
+          <div className="d7m-row d7m-col" data-role="fib-mode">
+            <span>المستويات</span>
+            <span className="seg inline-flex">
+              {([["compact", "مختصر — ستةُ خطوط"], ["all", "الكل"]] as const).map(([v, t]) => (
+                <button key={v} type="button" className={"seg-btn chip" + ((cfg.fibMode || "compact") === v ? " on" : "")} aria-pressed={(cfg.fibMode || "compact") === v}
+                  onClick={() => set("fibMode", v)}>{t}</button>
+              ))}
+            </span>
+          </div>
           <div className="d7m-levels">
             {FIB_LEVELS.map(([lv]) => (
               <div key={lv} className="d7m-row">

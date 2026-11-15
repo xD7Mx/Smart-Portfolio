@@ -2,6 +2,8 @@ import Logo from "./Logo";
 import React, { useEffect, useRef, useState } from "react";
 import { TV_LOGOS } from "../../data/tradingviewLogos";
 
+const API_BASE = import.meta.env.VITE_API_URL || "/api/v1";
+
 /* ذاكرةُ نجاحٍ مشتركة لكل الشاشات: أوّل رابطٍ ينجح لرمزٍ ما يُحفظ، فكل
    نسخةٍ أخرى منه تبدأ منه مباشرةً بلا سباقٍ ولا مهلة. وأثرُها عمليّ:
    الشعار الذي ظهر في المفكرة لا يُعاد اختباره في الحيازات ولا في فرز
@@ -39,12 +41,20 @@ export default function CompanyLogo({ symbol, color, size = 40, logoUrl }: { sym
      شعارَها على `tadawulgroup.sa/Resources/SEMOBILELOGOS/{الرمز}.png` —
      المصدرُ الرسميّ لكلّ مدرَجٍ حتى الجديد والموازي، وهو ما غاب عن خريطة
      TradingView (392 من 409). وما لم يُحمَّل ينتقل تلقائياً إلى التالي. */
-  const candidates = [
+  /* ══ ‏D743: الرموزُ غير السعودية (‏QQQ · AAPL · S&P 500 · الذهب · البتكوين) بشعارها الرسميّ ══ كانت تُطلب بلاحقة السوق
+     السعوديّ (‏QQQ.SR) فيفشل كلُّ مصدرٍ ويظهر حرف. صارت من خادمنا (‏/market/logo — شعاراتُ تريدنق فيو بذاكرةٍ ثلاثين يوماً)،
+     ثمّ parqet بالرمز كما هو. */
+  const saudi = /^\d{4}$/.test(base);
+  const candidates = (saudi ? [
     TV_LOGOS[base] || null,
-    /^\d{4}$/.test(base) ? `https://www.tadawulgroup.sa/Resources/SEMOBILELOGOS/${base}.png` : null,
+    `https://www.tadawulgroup.sa/Resources/SEMOBILELOGOS/${base}.png`,
     logoUrl || null,
-    base ? `https://assets.parqet.com/logos/symbol/${base}.SR?format=png&size=${size * 2}` : null,
-  ].filter((u, i, a): u is string => !!u && a.indexOf(u) === i);
+    `https://assets.parqet.com/logos/symbol/${base}.SR?format=png&size=${size * 2}`,
+  ] : [
+    base ? `${API_BASE}/market/logo/${encodeURIComponent(base)}` : null,
+    logoUrl || null,
+    base && !/[\^=]/.test(base) ? `https://assets.parqet.com/logos/symbol/${encodeURIComponent(base)}?format=png&size=${size * 2}` : null,
+  ]).filter((u, i, a): u is string => !!u && a.indexOf(u) === i);
 
   /* البداية من الرابط الذي نجح سابقاً لهذا الرمز إن وُجد. */
   const known = RESOLVED.get(base);

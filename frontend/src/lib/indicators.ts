@@ -179,10 +179,16 @@ export function macd(data: number[], fast = 12, slow = 26, sig = 9) {
    rsi1 = ta.rsi(close, lengthRSI) · k = ta.sma(ta.stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK) · d = ta.sma(k, smoothD).
    ‏ta.rsi بمتوسّط وايلدر (‏RMA) المبذور بمتوسّطٍ بسيط — كدالّة rsi أعلاه؛ و‏ta.stoch = ‏100 × (الحاليّ − الأدنى) ÷ (الأعلى − الأدنى) على
    ‏lengthStoch شمعة، ومدًى صفريٌّ ‏na لا رقمٌ مختلَق؛ و‏ta.sma على نافذةٍ فيها ‏na ‏na. */
-export type StochRsiCfg = { k: number; d: number; rsiLen: number; stochLen: number };
-export const STOCHRSI_DEFAULTS: StochRsiCfg = { k: 3, d: 3, rsiLen: 14, stochLen: 14 };
-export function stochRsi(closes: number[], cfg: StochRsiCfg = STOCHRSI_DEFAULTS) {
-  const r = rsi(closes, cfg.rsiLen), n = r.length, L = cfg.stochLen;
+export type SrcKey = "close" | "open" | "high" | "low" | "hl2" | "hlc3" | "ohlc4";
+export type StochRsiCfg = { k: number; d: number; rsiLen: number; stochLen: number; src: SrcKey; upper: number; middle: number; lower: number };
+/* مدخلاتُ السكربت كلُّها كما في نافذة تريدنق فيو: ‏K · D · طولُ RSI · طولُ الستوكاستيك · مصدرُ RSI — وحدودُ النمط 80 · 50 · 20 */
+export const STOCHRSI_DEFAULTS: StochRsiCfg = { k: 3, d: 3, rsiLen: 14, stochLen: 14, src: "close", upper: 80, middle: 50, lower: 20 };
+export function source(bars: { open: number; high: number; low: number; close: number }[], src: SrcKey = "close"): number[] {
+  return bars.map(b => src === "open" ? b.open : src === "high" ? b.high : src === "low" ? b.low : src === "hl2" ? (b.high + b.low) / 2
+    : src === "hlc3" ? (b.high + b.low + b.close) / 3 : src === "ohlc4" ? (b.open + b.high + b.low + b.close) / 4 : b.close);
+}
+export function stochRsi(series: number[], cfg: StochRsiCfg = STOCHRSI_DEFAULTS) {
+  const r = rsi(series, cfg.rsiLen), n = r.length, L = cfg.stochLen;
   const raw: (number | null)[] = Array(n).fill(null);
   for (let i = L - 1; i < n; i++) {
     let hh = -Infinity, ll = Infinity, ok = true;

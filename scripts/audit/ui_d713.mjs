@@ -93,7 +93,9 @@ say(lv.length === 2 && lv.every(t => t[2].align === "left" && t[1][1] === 8) && 
 // تفعيلُ D7M من قائمة المؤشّرات
 await page.locator('[data-role="pc-ind"]').click({ timeout: 6000 }).catch(() => {});
 await page.waitForTimeout(400);
-await page.locator('[data-role="pc-ind-menu"] [data-ind="d7m"]').click({ timeout: 6000 }).catch(() => {});
+// ‏D744: D7M مفعّلٌ افتراضاً — يُضغط فقط إن كان مطفأً
+if ((await page.locator('[data-role="pc-ind-menu"] [data-ind="d7m"]').getAttribute("aria-pressed").catch(() => "false")) !== "true")
+  await page.locator('[data-role="pc-ind-menu"] [data-ind="d7m"]').click({ timeout: 6000 }).catch(() => {});
 await page.waitForTimeout(2500);
 const read = () => page.evaluate(() => {
   const r = document.querySelector('[data-role="pro-chart"]');
