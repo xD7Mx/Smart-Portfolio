@@ -3,7 +3,11 @@
 
     python3 scripts/audit/stars_lab_d608.py
 """
-import pathlib, sys
+import os, pathlib, sys, tempfile   # noqa: E401
+# مخزنُ حالةٍ مؤقّتٌ قبل استيراد المحرّك — لا يُكتب في حالة الخادم الحقيقية (‏audit_sandbox)
+_SB = tempfile.mkdtemp()
+os.environ["LASTGOOD_PATH"] = os.path.join(_SB, "lastgood.json")
+os.environ["SP_STATE_DIR"] = _SB
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 fail = 0

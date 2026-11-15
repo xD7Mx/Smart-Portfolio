@@ -71,8 +71,12 @@ rd = TH.real_daily(closes, hrs)
 check(rd[-1]["open"] == 101.2 and rd[-1]["high"] == 103 and rd[-1]["low"] == 100.5 and rd[-1]["close"] == 102,
       "١٣ اليومُ الذي له ساعاتٌ: فتحُ أوّلها · أعلاها · أدناها — وإغلاقُه الرسميُّ يحكم", str(rd[-1]))
 check(rd[0] == closes[0], "١٤ وما قبل مدى الساعات يبقى سلسلةَ الإغلاق الرسمية كما هي — لا يُخترع له ذيل")
-check('if tf == "1d" and hours:' in md and '>= first]' in md,
-      "١٥ وإطارُ اليوم يبدأ من أوّل يومٍ له ساعات — لا شمعةَ يومٍ بلا ذيلٍ فيه (قِيس: 24 من 520 قبل القصّ)")
+# ‏D739 (المالك 2026-11-15: «تريدنق فيو… لا ثغرات ولا فراغات»): كان اليوميُّ يُقصّ إلى مدى الساعات (سنتين) فينتهي الرسمُ حين يُسحب
+# إلى الماضي. صار التاريخُ كلُّه منذ 2007، وشمعةُ الإغلاقات وحدها موسومةٌ «basis» فيقولها الرسم — لا تُعرض كأنّ لها أعلى وأدنى
+dc = TH.daily_candles([{"dateTime": "2010-01-03", "indexPrice": 6000}, {"dateTime": "2010-01-04", "indexPrice": 6050}])
+check('_th.history("dall")' in md and 'if tf == "1d" and hours:' not in md and all(r.get("basis") == "close" for r in dc)
+      and 'basis === "close"' in (ROOT / "frontend/src/components/chart/ProChart.tsx").read_text(encoding="utf-8"),
+      "١٥ وإطارُ اليوم تاريخُه كلُّه منذ 2007 — وشمعةُ الإغلاقات وحدها موسومةٌ ويقولها الرسم «الأعلى والأدنى غيرُ متوفّرَين»")
 
 sc = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 check("job_tasi_session" in sc and 'id="tasi_session_close"' in sc and "capture()" in sc,
