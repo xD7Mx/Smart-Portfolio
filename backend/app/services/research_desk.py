@@ -519,14 +519,15 @@ async def deliver(r: dict) -> bool:
     return ok
 
 
-async def compose_all(send: bool = True) -> dict:
-    """بعد إغلاق السوق: أرقامُ الجلسة مرّةً، ثمّ لكلّ محفظةٍ غيرِ مؤرشفة تقريرُها — يُحفظ ويُرسَل ملفّاً مؤرَّخاً."""
+async def compose_all(send: bool = True, day: date | None = None) -> dict:
+    """بعد إغلاق السوق: أرقامُ الجلسة مرّةً، ثمّ لكلّ محفظةٍ غيرِ مؤرشفة تقريرُها — يُحفظ ويُرسَل ملفّاً مؤرَّخاً.
+    و`day` جلسةٌ بعينها (آخرُ جلسةٍ بعد منتصف الليل مثلاً) — ولا تُكتب إلا إن كانت آخرَ جلسةٍ في الشموع."""
     from sqlalchemy import select
     from app.core.database import AsyncSessionLocal
     from app.core.portfolio_scope import reset_scope, set_scope
     from app.models.portfolio import Portfolio
     from app.services import research_paper as RP
-    today = date.today()
+    today = day or date.today()
     market = await RP.gather(today)
     if not market:
         return {}
