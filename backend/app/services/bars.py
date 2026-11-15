@@ -70,8 +70,19 @@ def clean_daily(rows: list) -> list:
     return out
 
 
+def _gap_min(a: str, b: str) -> float | None:
+    """الدقائقُ بين شمعتين دون اليوم («‏YYYY-MM-DD HH:MM») — وما لا يُقرأ لا يُحكم به."""
+    try:
+        f = "%Y-%m-%d %H:%M"
+        return (_dt.datetime.strptime(str(b)[:16], f) - _dt.datetime.strptime(str(a)[:16], f)).total_seconds() / 60
+    except Exception:                                             # noqa: BLE001
+        return None
+
+
 def clean_intraday(rows: list) -> list:
-    """دون اليوم: مرتَّبٌ بلا تكرار، وعلامةُ الإغلاق (آخرُ شمعةٍ مسطّحةٍ بلا حجم) تُدمج في شمعة يومها الأخيرة — سعرٌ لا شمعة."""
+    """دون اليوم: مرتَّبٌ بلا تكرار، وعلامةُ الإغلاق (آخرُ شمعةٍ مسطّحةٍ بلا حجم) تُدمج في آخر شمعةٍ من جلستها — سعرٌ لا شمعة.
+    والجلسةُ تُعرف بالقُرب لا بتاريخ التقويم: إغلاقُ نيويورك منتصفُ ليل الرياض، فعلامتُه «00:00» من اليوم التالي وشمعتُها
+    الأخيرة «23:30» من اليوم السابق (قِيس على الخادم 2026-11-15: شرطةٌ مسطّحةٌ آخرَ ساعيِّ S&P 500 وأبل بعد النشر الأوّل)."""
     out: list = []
     for r in sorted((x for x in rows or [] if _ok(x)), key=lambda x: str(x["date"])):
         r = _fix(r)
@@ -82,7 +93,8 @@ def clean_intraday(rows: list) -> list:
     has_vol = sum(1 for r in out if r.get("volume")) > len(out) / 2
     if has_vol and len(out) >= 2:
         last, prev = out[-1], out[-2]
-        if _is_flat(last) and not last.get("volume") and str(last["date"])[:10] == str(prev["date"])[:10]:
+        gap = _gap_min(prev["date"], last["date"])
+        if _is_flat(last) and not last.get("volume") and gap is not None and 0 < gap <= 180:
             out[-2] = {**prev, "high": max(prev["high"], last["high"]), "low": min(prev["low"], last["low"]), "close": last["close"]}
             out.pop()
     return out
