@@ -65,9 +65,15 @@ def read_chart(path):
     centers = [(a + c) / 2 for a, c in runs]
     if len(centers) < 50:
         return None
+    gaps = sorted(centers[i + 1] - centers[i] for i in range(len(centers) - 1))
+    sp = gaps[len(gaps) // 2]
+    for i in range(len(centers) - 1):
+        if centers[i] > W * 0.6 and centers[i + 1] - centers[i] > 4 * sp:
+            centers = centers[:i + 1]
+            break
     xmax = int(centers[-1]) + 6
     ev = []
-    for k, (p0, p1) in enumerate(panes):
+    for k, (p0, p1) in ((0, panes[0]), (len(panes) - 1, panes[-1])):
         for nm, col in (("g", GREEN), ("r", RED)):
             m = dist(col) <= 18
             ys, xs = np.nonzero(m[p0:p1, :xmax])
@@ -128,67 +134,72 @@ def tv_div(bars, osc, lbL=5, lbR=5, lo=5, hi=60):
     return out, pl, ph
 
 
+def pivot_k(vals, i, hi, upto):
+    """كم شمعةً يساراً ويميناً (حتى `upto`) تبقى فيها الشمعةُ ‏i قمّةً (أو قاعاً)."""
+    kl = 0
+    while i - kl - 1 >= 0 and (vals[i - kl - 1] < vals[i] if hi else vals[i - kl - 1] > vals[i]):
+        kl += 1
+    kr = 0
+    while i + kr + 1 <= upto and (vals[i + kr + 1] <= vals[i] if hi else vals[i + kr + 1] >= vals[i]):
+        kr += 1
+    return kl, kr
+
+
 async def main():
     from app.services.market_data import market_service as M
     bars = [b for b in (await M.get_bars("^TASI.SR", "1d") or []) if b.get("close")]
     dates = [str(b["date"])[:10] for b in bars]
     print("شموعُ تاسي:", len(bars), dates[0], "→", dates[-1])
     fs = sorted(glob.glob(os.path.join(D, "20*.png")))
-    events = {}
-    seen_n = collections.Counter()
+    raw = collections.defaultdict(list)          # (لوحة، لون) ← [(تاريخ التقرير، آخرُ شمعة، الشمعة)]
+    nn = collections.Counter()
     for f in fs:
         day = os.path.basename(f)[:10]
         r = read_chart(f)
         if not r:
             continue
-        last = max(i for i, d in enumerate(dates) if d < day)          # تقريرُ الصباح يرسم الجلسةَ السابقة
-        seen_n[r["n"]] += 1
+        last = max(i for i, d in enumerate(dates) if d < day)
+        nn[r["n"]] += 1
         for e in r["ev"]:
-            if e["kind"] == "blob":
+            if e["kind"] != "arrow":
                 continue
-            i = last - e["back"]
-            if i < 0:
+            raw[("price" if e["pane"] == 0 else "rsi", e["col"])].append((day, last, last - e["back"], e["rel"]))
+    print("شموعُ الرسوم:", nn.most_common(3))
+    H = [b["high"] for b in bars]
+    L = [b["low"] for b in bars]
+    R = rsi([b["close"] for b in bars])
+    out = {}
+    for key, obs in raw.items():
+        # تجميعٌ على ±1 شمعة عبر التقارير: لكلّ سهمٍ تاريخُه الأكثرُ تكراراً وأوّلُ تقريرٍ ظهر فيه
+        cnt = collections.Counter(i for _, _, i, _ in obs)
+        evs = []
+        for i, n in sorted(cnt.items()):
+            if evs and i - evs[-1]["i_max"] <= 1:
+                evs[-1]["i_max"] = i
+                evs[-1]["votes"][i] = n
+            else:
+                evs.append({"i_max": i, "votes": {i: n}})
+        res = []
+        for e in evs:
+            i = max(e["votes"], key=e["votes"].get)
+            n = sum(e["votes"].values())
+            if n < 3:
                 continue
-            key = (e["pane"], e["col"], e["kind"], dates[i] if e["kind"] == "arrow" else (dates[last - e["back_a"]], dates[last - e["back_b"]]))
-            if key not in events:
-                events[key] = {"first": day, "lag": last - i, "count": 0, "rel": e["rel"], "w": e["w"], "h": e["h"], "i": i}
-            events[key]["count"] += 1
-    print("عددُ الشموع في الرسوم:", seen_n.most_common(4))
-    stable = {k: v for k, v in events.items() if v["count"] >= 3}
-    print("أحداثٌ ثابتة (ظهرت في 3 تقارير فأكثر):", len(stable), dict(collections.Counter((k[0], k[1], k[2]) for k in stable)))
-    cl = [b["close"] for b in bars]
-    R = rsi(cl)
-    div, pl, ph = tv_div(bars, R)
-    reg = {(d["i"], d["side"]) for d in div if d["kind"] == "regular"}
-    hid = {(d["i"], d["side"]) for d in div if d["kind"] == "hidden"}
-    piv = {(i, "bull") for i in pl} | {(i, "bear") for i in ph}
-    print("\nالأسهم (لوحة · لون · تاريخ · أوّلُ ظهور · تأخّر · ارتفاعُها في اللوحة · RSI يومَها · أقربُ محورٍ/تباعد):")
-    rows = []
-    for (pane, col, kind, d), v in sorted(stable.items(), key=lambda kv: str(kv[0][3])):
-        if kind != "arrow":
-            continue
-        i = v["i"]
-        side = "bull" if col == "g" else "bear"
-        near_piv = min((abs(j - i) for (j, s) in piv if s == side), default=99)
-        near_reg = min((abs(j - i) for (j, s) in reg if s == side), default=99)
-        near_hid = min((abs(j - i) for (j, s) in hid if s == side), default=99)
-        cr = next((j - i for j in range(i - 3, i + 4) if 0 < j < len(R) and R[j] and R[j - 1] and
-                   ((side == "bull" and R[j - 1] < 30 <= R[j]) or (side == "bear" and R[j - 1] > 70 >= R[j]))), None)
-        rows.append((pane, col, near_piv, near_reg, near_hid))
-        print(f"  {pane} {col} {d} · أوّل {v['first']} · تأخّر {v['lag']} · y {v['rel']} · RSI {R[i]:.1f} · محور ±{near_piv} · منتظم ±{near_reg}"
-              f" · خفيّ ±{near_hid} · عبور30/70 {cr} · {v['count']} تقرير")
-    for pane in sorted({r[0] for r in rows}):
-        rr = [r for r in rows if r[0] == pane]
-        print(f"لوحة {pane}: {len(rr)} سهماً · على محور RSI (±1): {sum(1 for r in rr if r[2] <= 1)} · تباعدٌ منتظم (±1): {sum(1 for r in rr if r[3] <= 1)}"
-              f" · خفيّ (±1): {sum(1 for r in rr if r[4] <= 1)}")
-    print("\nالخطوط (لوحة · لون · من→إلى · تقارير):")
-    for (pane, col, kind, d), v in sorted(stable.items(), key=lambda kv: str(kv[0][3])):
-        if kind == "line":
-            print(f"  {pane} {col} {d[0]}→{d[1]} · {v['w']}x{v['h']} · أوّل {v['first']} · {v['count']}")
-    start = os.path.basename(fs[0])[:10]
-    print("\nتباعدُ تريدنق فيو المنتظم على السنة نفسِها:", [(dates[d["i"]], d["side"]) for d in div if d["kind"] == "regular" and dates[d["i"]] >= start][:60])
-    print("محاورُ RSI (قيعان):", [dates[i] for i in pl if dates[i] >= start][:60])
-    print("محاورُ RSI (قمم):", [dates[i] for i in ph if dates[i] >= start][:60])
-
+            first = min((day, last) for day, last, j, _ in obs if abs(j - i) <= 1)
+            res.append({"i": i, "n": n, "first": first[0], "lag": first[1] - i})
+        out[key] = res
+    for key in sorted(out):
+        hi = key[1] == "r"
+        src = H if hi else L
+        print(f"\n══ {key[0]} · {'أحمر' if hi else 'أخضر'} · {len(out[key])} سهماً ══")
+        lags = collections.Counter()
+        for e in out[key]:
+            i = e["i"]
+            last_at_first = i + e["lag"]
+            pk = pivot_k(src, i, hi, last_at_first)
+            rk = pivot_k([x or 0 for x in R], i, hi, last_at_first)
+            lags[e["lag"]] += 1
+            print(f"  {dates[i]} · ظهر {e['first']} (بعد {e['lag']}) · سعرٌ يسار/يمين {pk} · RSI {R[i]:.1f} يسار/يمين {rk} · {e['n']} تقرير")
+        print("  توزيعُ التأخّر:", sorted(lags.items()))
 
 asyncio.run(main())
