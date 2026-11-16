@@ -21,27 +21,43 @@ KEYS = re.compile(r"(تباعد|الانحراف|انحراف|ديفرجنس|div
                   r"قناة|خط الاتجاه|اتجاه صاعد|اتجاه هابط|سهم|إشارة)", re.I)
 
 
-def biggest(doc):
-    import fitz
-    best = None
-    for pno in range(min(doc.page_count, 4)):
-        for img in doc[pno].get_images(full=True):
-            try:
-                pix = fitz.Pixmap(doc, img[0])
-            except Exception:                                     # noqa: BLE001
-                continue
-            if pix.width < 500 or pix.height < 250:
-                continue
-            a = pix.width * pix.height
-            if not best or a > best[0]:
-                if pix.n - pix.alpha >= 4:
-                    pix = fitz.Pixmap(fitz.csRGB, pix)
-                best = (a, pno + 1, pix)
-    return best
+CHILD = r"""
+import asyncio, json, os, re, sys
+sys.path.insert(0, "/app")
+import fitz
+from app.services import research_desk as RD
+it, out_png, out_txt = json.loads(sys.argv[1]), sys.argv[2], sys.argv[3]
+path = asyncio.run(RD._download(it))
+if not path:
+    sys.exit(3)
+doc = fitz.open(path)
+txt = "\n".join(doc[p].get_text() for p in range(min(doc.page_count, 4)))
+best = None
+for pno in range(min(doc.page_count, 4)):
+    for img in doc[pno].get_images(full=True):
+        try:
+            info = doc.extract_image(img[0])
+        except Exception:
+            continue
+        w, h = info.get("width", 0), info.get("height", 0)
+        if w < 500 or h < 250:
+            continue
+        if not best or w * h > best[0]:
+            best = (w * h, pno + 1, info)
+meta = {}
+if best:
+    info = best[2]
+    pix = fitz.Pixmap(info["image"])
+    if pix.alpha or pix.n - pix.alpha >= 4:
+        pix = fitz.Pixmap(fitz.csRGB, pix, 0) if pix.n - pix.alpha >= 4 else fitz.Pixmap(pix, 0)
+    pix.save(out_png)
+    meta = {"page": best[1], "w": pix.width, "h": pix.height}
+json.dump({"text": txt, "meta": meta}, open(out_txt, "w"), ensure_ascii=False)
+os.remove(path)
+"""
 
 
 async def main():
-    import fitz
     from app.services import research_desk as RD
     from app.services.research_reports import _ajc
     os.makedirs(OUT, exist_ok=True)
@@ -52,37 +68,36 @@ async def main():
     print("اليومية:", len(items), "من", items[-1]["date"] if items else "-", "إلى", items[0]["date"] if items else "-")
     for i in items[:3] + items[-2:]:
         print("  ", i["date"], i.get("title"), re.sub(r"^https?://[^/]+", "", str(i.get("url")))[:110])
-    sem = asyncio.Semaphore(1)                  # التنزيلُ المتوازي أسقط العمليةَ (‏malloc) — واحدٌ واحد
     phrases = collections.Counter()
     meta = {}
 
     async def one(it):
+        """قِيس: التنزيلُ أو مكتبةُ ‏PDF أسقطا العمليةَ كلَّها (‏malloc · free) مرّتين — فكلُّ تقريرٍ في عمليته، ويُخبَّأ ناتجُه فيُستأنف."""
+        import subprocess
         d = it["date"]
-        async with sem:
-            path = await RD._download(it)
-        if not path:
+        png, js = os.path.join(OUT, f"{d}.png"), os.path.join(OUT, f"{d}.json")
+        if not os.path.exists(js):
+            # التنزيلُ والاستخراجُ معاً في عمليةٍ منفصلة: إن سقطت سقطت وحدَها
+            r = subprocess.run([sys.executable, "-c", CHILD, json.dumps({k: it[k] for k in ("url", "source", "title") if k in it}), png, js],
+                               capture_output=True, text=True, timeout=180)
+            if r.returncode:
+                print(f"  {d}: تعذّر ({r.returncode}) {(r.stderr or '').strip()[-120:]}")
+        if not os.path.exists(js):
             return
-        try:
-            doc = fitz.open(path)
-            txt = "\n".join(doc[p].get_text() for p in range(min(doc.page_count, 4)))
-            for line in re.split(r"[\n.،]", txt):
-                if KEYS.search(line) and re.search(r"\d", line):
-                    phrases[re.sub(r"[\d,.]+", "#", line.strip())[:90]] += 1
-            b = biggest(doc)
-            if b:
-                fn = os.path.join(OUT, f"{d}.png")
-                if not os.path.exists(fn):
-                    b[2].save(fn)
-                meta[d] = {"page": b[1], "w": b[2].width, "h": b[2].height}
-        finally:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
+        o = json.load(open(js))
+        for line in re.split(r"[\n.،]", o.get("text") or ""):
+            if KEYS.search(line) and re.search(r"\d", line):
+                phrases[re.sub(r"[\d,.]+", "#", line.strip())[:90]] += 1
+        if o.get("meta"):
+            meta[d] = o["meta"]
+    from datetime import date, timedelta
+    floor = (date.today() - timedelta(days=372)).isoformat()
+    items = [i for i in items if (i.get("date") or "") >= floor]
+    print("سنةٌ كاملة:", len(items), "تقريراً منذ", floor)
     t0 = time.time()
     for i in items:
-        if time.time() - t0 > 2400:
-            print('… توقّف التنزيلُ عند حدّ الزمن')
+        if time.time() - t0 > 2600:
+            print("… توقّف التنزيلُ عند حدّ الزمن — يُكمل التشغيلُ التالي من حيث وقف")
             break
         await one(i)
     json.dump(meta, open(os.path.join(OUT, "meta.json"), "w"))
