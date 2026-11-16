@@ -75,9 +75,10 @@ say(order.length === 0, "٦ب وكلُّ لوحةٍ سفلى تُحدُّ بعد
 const proSrc = (await import("node:fs")).readFileSync(join(FRONT, "src/components/chart/ProChart.tsx"), "utf-8");
 // ‏D744 (المالك 2026-11-15): «لا أريد كثرةَ المؤشّرات — CVD ومؤشّرُ الدحم وStoch RSI» — فلا RSI ولا Stochastic ولا MACD ولا متوسّطات
 say(/\["stochrsi", "Stoch RSI"/.test(proSrc) && /\["cvd", "CVD D7M"/.test(proSrc) && /\["d7m", "D7M"/.test(proSrc) && /sp_chart_ind/.test(proSrc) && /sp_cvd_cfg/.test(proSrc)
-    && !/\["(rsi|stoch|macd|sma20|sma50|sma200)", /.test(proSrc)
+    // ‏D756 (المالك 2026-11-16): «لم أجد مؤشّر الماكد — لازم يكون موجوداً» — فـMACD مسموحٌ ومطلوب، وما سواه باقٍ على المنع
+    && /\["macd", "MACD"/.test(proSrc) && !/\["(rsi|stoch|sma20|sma50|sma200)", /.test(proSrc)
     && /cvdD7M\(bars/.test(proSrc) && /import ProChart from "\.\.\/chart\/ProChart"/.test((await import("node:fs")).readFileSync(join(FRONT, "src/components/market/TradeRoom.tsx"), "utf-8")),
-    "٦ج والرسمُ الاحترافيّ في الغرفة (‏D736) يحمل المؤشّراتِ نفسَها بإعداداتها المحفوظة");
+    "٦ج والرسمُ الاحترافيّ في الغرفة (‏D736) يحمل المؤشّراتِ نفسَها بإعداداتها المحفوظة، ومعها MACD (‏D756)");
 
 // ── المتصفّح ──
 const PORT = 5255;
