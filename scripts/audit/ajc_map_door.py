@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 D = os.path.join(os.environ.get("SP_STATE_DIR", "/app/storage"), "ajc_charts")
 fs = sorted(glob.glob(os.path.join(D, "20*.png")))
-for f in [fs[-1], [x for x in fs if "2026-10-1" in x][0]]:
+for f in [[x for x in fs if "2026-08-1" in x][0], [x for x in fs if "2026-06-3" in x or "2026-07-0" in x][0]]:
     im = Image.open(f).convert("RGB")
     A = np.asarray(im, dtype=np.int16)
     H, W, _ = A.shape
@@ -16,8 +16,8 @@ for f in [fs[-1], [x for x in fs if "2026-10-1" in x][0]]:
              ("B", d((70, 102, 176)) <= 40), ("u", d((33, 171, 148)) <= 30), ("d", d((239, 84, 81)) <= 30),
              ("L", d((165, 214, 167)) <= 45), ("P", d((245, 148, 146)) <= 40)]
     print("\n══", os.path.basename(f), W, H, "══")
-    x0, cw = 440, 5
-    for y0, y1, rh in ((0, 415, 7), (512, 605, 6)):
+    x0, cw = 640, 5
+    for y0, y1, rh in ((90, 400, 7), (512, 605, 6)):
         for yy in range(y0, y1, rh):
             row = []
             for xx in range(x0, min(W, 1240), cw):
