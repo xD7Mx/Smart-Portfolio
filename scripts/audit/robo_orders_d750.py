@@ -87,6 +87,9 @@ check(sf == (46.55, "تحت الدعم الأسبوعيّ 48.00") and sfar[0] ==
 check(R.target_for(buy("1"))[0] == 65.0 and R.target_for(buy("1", fair_value_conf="منخفضة"))[0] == 60.0
       and R.target_for(buy("1", fair_value=50.5, monthly={"resistance": [50.6, 51]}))[0] is None,
       "١٨ الهدفُ القيمةُ العادلة الموثوقة، وإلا المقاومةُ الشهرية، وإلا لا هدف — ولا يُخترع")
+near = R.target_for(buy("1", fair_value_conf="منخفضة", weekly={"support": [48.0, 50.5], "resistance": [54.0, 55.0]},
+                        monthly={"state": "صاعد", "resistance": [110.0, 120.0]}))
+check(near == (54.0, "المقاومة الأسبوعية"), "١٨ب وحين لا قيمةَ موثوقة فأقربُ مقاومةٍ فوق السعر — لا مقاومةٌ شهريةٌ على ضعف السعر", str(near))
 o, h = R.plan([buy("1", fair_value=55.0, monthly={"state": "صاعد", "resistance": [53.0, 54.0]})], cap, 200_000, {"1": 4e6})
 check(not o and h and "العائدُ" in h[0]["why"], "١٩ لا شراءَ ما لم يبلغ العائدُ ضعفَي المخاطرة", h and h[0]["why"])
 o, h = R.plan([buy("1", weekly={}, need=900_000)], cap, 900_000, {"1": 1e9}, atr={})
