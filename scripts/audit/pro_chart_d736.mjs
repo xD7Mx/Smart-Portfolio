@@ -168,7 +168,8 @@ const RD_HEAD = { date: "2026-11-15", label: "الأحد 15 نوفمبر 2026", 
 const RD_DATES = [{ date: "2026-11-15", label: "الأحد 15 نوفمبر 2026" }, { date: "2026-11-12", label: "الخميس 12 نوفمبر 2026" },
   { date: "2026-10-29", label: "الخميس 29 أكتوبر 2026" }];
 const RD_PAPER = part => `<!doctype html><html lang="ar" dir="rtl"><body style="margin:0"><section class="page" style="min-height:1100px">
-  <h1>${part === "portfolio" ? "محفظتنا واختياراتنا" : "التقرير اليومي"}</h1><table><tr><td>تاسي</td><td>10,258.22</td></tr></table></section></body></html>`;
+  <h1>التقرير اليومي</h1><table><tr><td>تاسي</td><td>10,258.22</td></tr></table></section>${part === "all"
+  ? `<section class="page"><h1>محفظتنا واختياراتنا</h1></section>` : ""}</body></html>`;
 const HOLD = [{ company: { symbol: "1120", name_ar: "مصرف الراجحي" }, last_price: 64.2, change_pct: 1.25 },
               { company: { symbol: "2222", name_ar: "أرامكو السعودية" }, last_price: 25.1, change_pct: -0.4 }];
 const vite = spawn("npx", ["vite", "--port", String(PORT), "--strictPort"], { cwd: FRONT, stdio: "ignore" });
@@ -285,6 +286,33 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await page.locator('[data-role="pc-fibmode"] button', { hasText: "مختصر" }).click(); await page.waitForTimeout(300);
   say(strip.tiles >= 4 && strip.h > 0 && strip.h <= 52 && strip.tables === 0 && strip.minF >= 9.5 && lvCompact === 6 && lvAll > 6,
       `${label}: شريطُ D7M بحجم الإصبع (${strip.h}px · ${strip.tiles} شاشات) بلا جداول، والمستوياتُ مختصرةٌ ستةً و«الكل» ${lvAll}`, `خطٌّ ≥ ${strip.minF}px`);
+
+  // ١٢د ‏D753 (المالك 2026-11-16): «مؤشّرُ الأبحاث» مؤشّرٌ مستقلٌّ في القائمة باسمه — كرسم الجزيرة كابيتال: ثلاثةٌ فوق (متوسّطا 20 و50 وفيبوناتشي
+  //     بخطَّي الاتجاه وأسهم الإشارة) واثنان تحت (الكمّيةُ وRSI 14) — لوحتان جديدتان بقيمهما، وخمسةُ مستويات فيبوناتشي مسمّاةٌ على الرسم
+  const riName = ((await page.locator('[data-role="pc-ind-menu"] [data-ind="research"]').textContent().catch(() => "")) || "").trim();
+  const before = await st();
+  await page.locator('[data-role="pc-ind"]').click();
+  const riName2 = ((await page.locator('[data-role="pc-ind-menu"] [data-ind="research"]').textContent()) || "").trim();
+  await page.locator('[data-role="pc-ind-menu"] [data-ind="research"]').click();
+  await page.mouse.click(5, 5);
+  await page.waitForTimeout(1300);
+  const ri = await st();
+  const riTags = await page.evaluate(() => [...document.querySelectorAll('[data-role="pane-tag"]')].filter(e => /research/.test(e.dataset.ind || ""))
+    .map(e => ({ k: e.dataset.ind, t: e.textContent, v: [...e.querySelectorAll("b")].map(b => b.textContent.trim()), y: e.getBoundingClientRect().top })));
+  const riTop = await page.evaluate(() => [...document.querySelectorAll('[data-role="pc-legend"] b, .pc-legend b')].map(b => b.textContent.trim()));
+  const [fibN] = (ri.ri || "0").split("·").map(Number);
+  say(/مؤشر الأبحاث/.test(riName || riName2) && Number(ri.panes) === Number(before.panes) + 2 && fibN === 5 && Number(ri.lv) >= Number(before.lv) + 5
+      && riTags.length === 2 && riTags.every(t => t.v.some(x => /\d/.test(x))) && /RSI 14/.test(riTags.find(t => t.k === "researchRsi")?.t || "")
+      && riTop.filter(x => /^\d[\d,]*\.\d+$/.test(x)).length >= 2,
+      `${label}: «مؤشر الأبحاث» في القائمة باسمه، يضيف لوحتَي الكمّية وRSI 14 بقيمهما، وفيبوناتشي بمستوياته الخمسة على الرسم مع المتوسّطين`,
+      `لوحات ${before.panes}→${ri.panes} · مؤشّر ${ri.ri} · مستويات ${before.lv}→${ri.lv} · ${riTags.map(t => `${t.k} ${t.v.join(" ")}`).join(" | ")}`);
+  await page.locator('[data-role="pc-ind"]').click();
+  await page.locator('[data-role="pc-ind-menu"] [data-ind="research"]').click();
+  await page.mouse.click(5, 5);
+  await page.waitForTimeout(900);
+  const riOff = await st();
+  say(Number(riOff.panes) === Number(before.panes) && !riOff.ri && Number(riOff.lv) === Number(before.lv),
+      `${label}: وإطفاؤه يعيد الرسم كما كان — لا لوحةَ ولا مستوى باقٍ`, `لوحات ${riOff.panes} · مستويات ${riOff.lv}`);
 
   // ١٣ الإطارُ المخصَّص: 6 ساعات
   await page.locator('[data-role="pc-tf-more"]').click();
@@ -445,12 +473,11 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
              srcs: (document.querySelector('[data-role="research-lab"]')?.textContent || "").includes("المصادر"),
              over: Math.max(document.documentElement.scrollWidth, main ? main.scrollWidth : 0) - W }; });
   const p1 = await paperOf();
-  await page.locator('[data-role="rl-tab"]', { hasText: "التوصيات" }).click(); await page.waitForTimeout(900);
-  const p2 = await paperOf();
-  say(JSON.stringify(doc.tabs) === JSON.stringify(["التقرير اليومي", "التوصيات"]) && JSON.stringify(doc.days) === JSON.stringify(["15", "12", "29"])
+  const all = await page.evaluate(() => [...(document.querySelector('[data-role="rl-doc"] iframe')?.contentDocument?.querySelectorAll("h1") || [])].map(h => h.textContent));
+  say(doc.tabs.length === 0 && JSON.stringify(doc.days) === JSON.stringify(["15", "12", "29"])
       && JSON.stringify(doc.months) === JSON.stringify(["نوفمبر 2026", "أكتوبر 2026"]) && doc.pdf && !doc.lib && !doc.srcs
-      && p1.h1 === "التقرير اليومي" && p1.h >= 1000 && p2.h1 === "محفظتنا واختياراتنا" && doc.over <= 1,
-      `${label}: مختبرُ الأبحاث ورقةُ التقرير بتاريخها — التقريرُ اليوميّ ثمّ التوصيات، وملفّ PDF، ولا مكتبةَ ولا مصادر`, JSON.stringify({ ...doc, p1, p2 }));
+      && p1.h1 === "التقرير اليومي" && p1.h >= 1000 && JSON.stringify(all) === JSON.stringify(["التقرير اليومي", "محفظتنا واختياراتنا"]) && doc.over <= 1,
+      `${label}: مختبرُ الأبحاث تقريرٌ واحدٌ بتاريخه — السوقُ ثمّ محفظتُنا واختياراتُنا في الورقة نفسِها، وملفّ PDF، ولا مكتبةَ ولا مصادر`, JSON.stringify({ ...doc, p1, all }));
   let olds = 0;
   for (const old of ["/stars", "/ai?tab=lab"]) {
     await page.goto(`http://localhost:${PORT}${old}`, { waitUntil: "load", timeout: 30000 }).catch(() => {});

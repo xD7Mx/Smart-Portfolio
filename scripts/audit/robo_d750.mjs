@@ -26,14 +26,26 @@ if (!up) { console.log("… تعذّر إقلاعُ خادم التطوير — 
 let fail = 0;
 const say = (ok, l, d = "") => { if (!ok) fail = 1; console.log(`${ok ? "PASS" : "FAIL"} ${l}${d ? " — " + d : ""}`); };
 const body = data => ({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data }) });
-const LIM = { stock_max: 15, sector_max: 35, min_adv: 3000000, adv_share: 5 };
-const ORD = (status = "pending") => ({ id: "2026-11-16-1120-b", symbol: "1120", name: "مصرف الراجحي", side: "شراء", shares: 120, price: 63.35, amount: 7602,
-  confidence: 88, why: "القناعة مكتملة", status, created: "2026-11-16T16:50",
-  checks: [{ k: "القناعة مكتملة", ok: true, d: "الحكم · الشهري" }, { k: "سيولة السهم كافية", ok: true, d: "متوسّط التداول اليوميّ 310.2 مليون ريال" },
+const LIM = { stock_max: 15, sector_max: 35, min_adv: 3000000, adv_share: 5, risk_pct: 1, min_rr: 2, heat_max: 6 };
+// ‏D754: الأمرُ خطّةُ صفقةٍ كاملة — دخولٌ محدَّدٌ ووقفٌ وهدفٌ وعائدٌ بأضعاف المخاطرة وحجمٌ من مخاطرة 1٪، وحمايةُ المراكز ولوحةُ المخاطر
+const ORD = (status = "pending") => ({ id: "2026-11-16-1120-b", symbol: "1120", name: "مصرف الراجحي", side: "شراء", kind: "buy", type: "محدَّد",
+  shares: 120, price: 63.35, amount: 7602, confidence: 88, stop: 59.8, stop_basis: "تحت الدعم الأسبوعيّ 61.65", target: 73.4, target_basis: "القيمة العادلة",
+  rr: 2.83, risk: 426, risk_pct: 0.04, reward: 1206, sizing: "حاجةُ الهدف", after: { weight: 9.8, cash: 42398 },
+  why: "القناعة مكتملة", status, created: "2026-11-16T16:50",
+  checks: [{ k: "القناعة مكتملة", ok: true, d: "الحكم · الشهري" }, { k: "العائد ≥ 2 أضعاف المخاطرة", ok: true, d: "الهدف 73.40 · الوقف 59.80 · 1 : 2.8" },
+           { k: "مخاطرة الأمر ≤ 1٪ من المحفظة", ok: true, d: "إن ضُرب الوقف: −426 ريال (0.04٪)" },
+           { k: "سيولة السهم كافية", ok: true, d: "متوسّط التداول اليوميّ 310.2 مليون ريال" },
            { k: "حجم الأمر ≤ 5٪ من تداول السهم", ok: true, d: "" }, { k: "ضمن حدّ السهم 15٪", ok: true, d: "وزنه 9.0٪ ← 9.8٪" },
            { k: "ضمن حدّ القطاع 35٪", ok: true, d: "البنوك 22.0٪" }] });
+const PROT = [
+  { symbol: "2222", name: "أرامكو", price: 24.1, stop: 25.2, stop_basis: "تحت الدعم الأسبوعيّ 26.00", target: 28, target_basis: "المقاومة الشهرية", d_stop: -4.56, d_target: 16.2, risk: 0, state: "كُسر الوقف", trail: false, breakeven: false },
+  { symbol: "1120", name: "مصرف الراجحي", price: 63.35, stop: 61.8, stop_basis: "ثلاثةُ أضعاف المدى اليوميّ", target: 73.4, target_basis: "القيمة العادلة", d_stop: 2.45, d_target: 15.9, risk: 1860, state: "قريب من الوقف", trail: true, breakeven: false },
+  { symbol: "7010", name: "إس تي سي", price: 42.5, stop: 39.1, stop_basis: "على سعر التكلفة — الربحُ محميّ", target: null, target_basis: "لا هدفَ فوق السعر", d_stop: 8, d_target: null, risk: 3400, state: "محميّ", trail: true, breakeven: true }];
+const RISK = { heat: 5260, heat_pct: 1.05, heat_max: 6, cash: 50000, cash_pct: 10, top_stock: { name: "مصرف الراجحي", w: 9, max: 15 },
+  top_sector: { name: "البنوك", w: 22, max: 35 }, no_stop: 0, broken: 1, near: 1, n: 3 };
 const VIEW = (status, paused = false) => ({ paused, limits: LIM, orders: paused ? [] : [ORD(status)], history: [], asof: "2026-11-16T16:50",
-  held: [{ symbol: "2222", name: "أرامكو", why: "قطاعُه بلغ حدَّه 35٪" }], record: { n: 0, measure_days: 30 } });
+  held: [{ symbol: "2222", name: "أرامكو", why: "قطاعُه بلغ حدَّه 35٪" }], protect: PROT, risk: RISK,
+  record: { n: 0, measure_days: 30, plans: { n: 4, target: 2, stop: 1, open: 1, avg_r: 1.2 } } });
 const browser = await chromium.launch({ executablePath: CHROME });
 for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
   const label = vp.width < 600 ? "الجوال" : "سطح المكتب";
@@ -54,13 +66,30 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
   });
   await page.goto(`http://localhost:${PORT}/ai?tab=advisor`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2500);
+  if (process.env.SHOTS) await page.locator('[data-role="robo"]').screenshot({ path: `${process.env.SHOTS}/robo-${vp.width}.png` }).catch(() => {});
   const card = await page.locator('[data-role="robo-order"]').first().textContent().catch(() => "");
   const checks = await page.locator('[data-role="robo-order"] .robo-checks li').count();
-  say(/120/.test(card) && /63\.35/.test(card) && /7,602/.test(card) && /ثقة 88٪/.test(card) && checks === 5,
-      `${label}: ١ الأمرُ بأرقامه — 120 سهماً × 63.35 = 7,602 ريال، وثقتُه، وبوّاباتُه الخمس`, (card || "").slice(0, 90));
+  const gates = await page.locator('[data-role="robo-gates"]').first().textContent().catch(() => "");
+  say(/120/.test(card) && /63\.35/.test(card) && /7,602/.test(card) && /88٪/.test(card) && checks === 7 && /اجتاز 7 من 7/.test(gates || ""),
+      `${label}: ١ الأمرُ بأرقامه — 120 سهماً عند 63.35 = 7,602 ريال، وثقتُه، وبوّاباتُه السبع مطويّةً بعددها`, (card || "").slice(0, 90));
+  const lad = await page.locator('[data-role="robo-ladder"]').first().textContent().catch(() => "");
+  const met = await page.locator('[data-role="robo-metrics"]').first().textContent().catch(() => "");
+  const siz = await page.locator('[data-role="robo-sizing"]').first().textContent().catch(() => "");
+  say(/وقف 59\.80/.test(lad || "") && /دخول 63\.35/.test(lad || "") && /هدف 73\.40/.test(lad || "") && /1 : 2\.8/.test(met || "") && /−426/.test(met || "")
+      && /\+1,206/.test(met || "") && /حاجةُ الهدف/.test(siz || ""),
+      `${label}: ١ب ‏D754 تذكرةُ الصفقة: سلّمُ الوقف والدخول والهدف، والعائدُ بأضعاف المخاطرة، وما يُخسر لو ضُرب الوقف، والقيدُ الذي حكم الحجم`, `${lad} | ${met}`);
+  const risk = await page.locator('[data-role="robo-risk"] .robo-tile').allTextContents().catch(() => []);
+  say(risk.length === 4 && /−5,260/.test(risk[0]) && /1\.05٪/.test(risk[0]) && /مصرف الراجحي/.test(risk[2]) && /البنوك/.test(risk[3]),
+      `${label}: ١ج ‏D754 لوحةُ المخاطر: ما تخسره المحفظةُ لو ضُربت الوقوفُ كلُّها، والنقد، وأكبرُ سهمٍ وقطاعٍ بحدّيهما`, risk.join(" | ").slice(0, 120));
+  const rows = await page.locator('[data-role="robo-prot-row"]').evaluateAll(es => es.map(e => e.dataset.state));
+  const ptxt = await page.locator('[data-role="robo-protect"]').textContent().catch(() => "");
+  say(rows.length === 3 && rows[0] === "كُسر الوقف" && /على التكلفة/.test(ptxt || "") && /25\.20/.test(ptxt || "") && /1 كُسر وقفُه/.test(ptxt || ""),
+      `${label}: ١د ‏D754 حمايةُ كلّ مركز: وقفُه وهدفُه ومسافتاهما وحالُه — والمكسورُ أوّلاً`, rows.join(" · "));
   const lims = await page.locator('[data-role="robo-limits"]').textContent().catch(() => "");
-  say(/حدّ السهم 15٪/.test(lims) && /حدّ القطاع 35٪/.test(lims) && /3 مليون/.test(lims) && /5٪ من تداول السهم/.test(lims) && /دقّة المستشار/.test(lims),
-      `${label}: ٢ الحدودُ وسجلُّ الدقّة ظاهرة`);
+  const rec = await page.locator('[data-role="robo-record"]').textContent().catch(() => "");
+  say(/حدّ السهم 15٪/.test(lims) && /حدّ القطاع 35٪/.test(lims) && /3 مليون/.test(lims) && /مخاطرة الأمر ≤ 1٪/.test(lims) && /العائد ≥ 2/.test(lims)
+      && /2 بلغت هدفها/.test(rec || "") && /1 ضُرب وقفها/.test(rec || "") && /\+1\.2R/.test(rec || ""),
+      `${label}: ٢ الحدودُ وسجلُّ الخطط (بلغ هدفَه · ضُرب وقفُه · متوسّطُ الناتج) ظاهرة`, rec || "");
   const st0 = await page.locator('[data-role="robo-status"]').first().textContent().catch(() => "");
   await page.locator('[data-role="robo-approve"]').first().click().catch(() => {}); await page.waitForTimeout(600);
   const st1 = await page.locator('[data-role="robo-status"]').first().textContent().catch(() => "");
@@ -72,7 +101,7 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
   say(posts.includes("pause:true") && paused === "موقوف" && /موقوف/.test(empty || ""), `${label}: ٤ الإيقافُ يُسكت الأوامر ويقول ذلك`);
   await page.locator('[data-role="robo-held"] summary').click().catch(() => {}); await page.waitForTimeout(300);
   const held = await page.locator('[data-role="robo-held"]').textContent().catch(() => "");
-  say(/أرامكو/.test(held || "") && /حدَّه 35٪/.test(held || ""), `${label}: ٥ والمؤجّلُ بالبوّابات يُذكر بسببه`);
+  say(/أرامكو/.test(held || "") && /حدَّه 35٪/.test(held || ""), `${label}: ٥ والمؤجّلُ بشروطه يُذكر بسببه`);
   const m = await page.evaluate(() => {
     const r = document.querySelector('[data-role="robo"]'); const W = document.documentElement.clientWidth;
     let minT = 99, minF = 99;

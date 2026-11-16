@@ -266,7 +266,7 @@ export const marketApi = {
   tasiStars: (off?: string) => api.get<APIResponse>("/market/tasi-stars", { params: off ? { off } : {} }),
   // ‏D745: قسمُ الأبحاث
   researchDesk: (day?: string | null) => api.get<APIResponse>("/market/research-desk", { params: day ? { day } : {} }),
-  researchPaper: (day: string | null, part: "market" | "portfolio") =>
+  researchPaper: (day: string | null, part: "market" | "portfolio" | "all") =>
     api.get<APIResponse>("/market/research-desk/paper", { params: { ...(day ? { day } : {}), part } }),
   researchPdf: (day: string | null) =>
     api.get<Blob>("/market/research-desk/pdf", { params: day ? { day } : {}, responseType: "blob", timeout: 120000 }),

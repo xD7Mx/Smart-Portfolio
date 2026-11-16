@@ -3357,6 +3357,11 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 
 /* ‏D736: غرفةُ التداول عربيّة — القوائمُ يمينَ الشاشة والرسمُ يسارَها؛ وعلى الجوال الرسمُ أوّلاً والقوائمُ تحته */
 .troom-chart { padding: 0; overflow: visible; }
+/* ══ ‏D753: مؤشّرُ الأبحاث — ألوانُ رسم التقرير المرجعيّ (تريدنق فيو) بمظهرَي التطبيق ══ */
+:root { --ri-sma20: #ef9a9a; --ri-sma50: #a5d6a7; --ri-fib: #5b8cff; --ri-rsi: #5b8cff; --ri-band: rgba(91,140,255,0.10); --ri-trend: #d1d4dc;
+        --ri-buy: #22c3a6; --ri-sell: #ff5d6c; }
+html.light { --ri-sma20: #ef9a9a; --ri-sma50: #a5d6a7; --ri-fib: #2962ff; --ri-rsi: #2962ff; --ri-band: rgba(41,98,255,0.08); --ri-trend: #131722;
+             --ri-buy: #089981; --ri-sell: #f23645; }
 /* ══ ‏D750: أوامرُ المستشار الآليّ ══ */
 .robo-chip { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 8px; white-space: nowrap; }
 .robo-lim { color: var(--ink-muted); background: var(--field); font-weight: 600; white-space: normal; }
@@ -3369,7 +3374,47 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 .robo-checks li.no { color: var(--neg-ink); } .robo-checks small { color: var(--ink-muted); font-size: 10.5px; }
 .robo-held summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--ink-muted); min-height: 32px; display: flex; align-items: center; }
 .robo-held ul { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink); padding-inline-start: 4px; animation: fadeUp .25s ease-out both; }
-@media (prefers-reduced-motion: reduce) { .robo-held ul { animation: none; } .robo-btn { transition: none; } }
+/* ‏D754: تذكرةُ الصفقة — سلّمُ الوقف والدخول والهدف، ولوحةُ المخاطر، وجدولُ حماية المراكز */
+.robo-line { margin-top: 8px; font-size: 13px; color: var(--ink); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.robo-type { font-size: 10.5px; font-weight: 800; color: var(--brand-ink); background: color-mix(in srgb, var(--brand-ink) 11%, transparent); border-radius: 6px; padding: 1px 6px; }
+.robo-ladder { margin-top: 10px; }
+.robo-rail { position: relative; height: 6px; border-radius: 999px; display: flex; overflow: visible; }
+.robo-seg { height: 100%; transition: width .45s cubic-bezier(.2,.8,.2,1); }
+.robo-seg-risk { background: color-mix(in srgb, var(--neg-ink) 55%, transparent); border-start-start-radius: 999px; border-end-start-radius: 999px; }
+.robo-seg-gain { background: color-mix(in srgb, var(--pos-ink) 55%, transparent); border-start-end-radius: 999px; border-end-end-radius: 999px; }
+.robo-pin { position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%; background: var(--card); border: 2.5px solid var(--ink);
+  transform: translate(50%, -50%); transition: inset-inline-start .45s cubic-bezier(.2,.8,.2,1); }
+[dir="ltr"] .robo-pin { transform: translate(-50%, -50%); }
+.robo-marks { display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; font-size: 11px; font-weight: 700; }
+.robo-mk small { font-size: 10px; font-weight: 600; opacity: .85; }
+.robo-mk-mid { color: var(--ink); }
+.robo-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 6px; margin-top: 10px; }
+.robo-m { display: flex; flex-direction: column; gap: 1px; background: var(--field); border-radius: 9px; padding: 6px 8px; min-width: 0; }
+.robo-m small { font-size: 10px; color: var(--ink-muted); font-weight: 600; }
+.robo-m b { font-size: 13.5px; font-weight: 800; color: var(--ink); }
+.robo-note { font-size: 11.5px; color: var(--ink-muted); margin-top: 6px; line-height: 1.6; }
+.robo-note b { color: var(--ink); }
+.robo-why { font-size: 11.5px; color: var(--ink-muted); line-height: 1.6; margin-top: 4px; }
+.robo-gates summary { cursor: pointer; font-size: 11.5px; font-weight: 700; color: var(--pos-ink); min-height: 32px; display: flex; align-items: center; }
+.robo-gates[open] .robo-checks { animation: fadeUp .25s ease-out both; }
+.robo-risk { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+@media (max-width: 640px) { .robo-risk { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.robo-tile { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 11px; background: var(--field); min-width: 0; }
+.robo-tile small { font-size: 10.5px; color: var(--ink-muted); font-weight: 600; }
+.robo-tile b { font-size: 16px; font-weight: 800; color: var(--ink); }
+.robo-tile span { font-size: 10.5px; color: var(--ink-muted); }
+.robo-sub { font-size: 12.5px; font-weight: 800; color: var(--ink); margin-bottom: 6px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.robo-tbl-wrap { overflow-x: auto; border: 1px solid var(--hairline); border-radius: 11px; }
+.robo-tbl { width: 100%; border-collapse: collapse; font-size: 12px; text-align: right; }
+.robo-tbl th { font-size: 10.5px; font-weight: 700; color: var(--ink-muted); padding: 7px 8px; background: var(--field); white-space: nowrap; }
+.robo-tbl td { padding: 7px 8px; border-top: 1px solid var(--hairline); color: var(--ink); white-space: nowrap; transition: background-color .2s ease; }
+.robo-tbl td small { font-size: 10px; font-weight: 700; }
+.robo-tbl tr:hover td { background: color-mix(in srgb, var(--ink) 3%, transparent); }
+.robo-nm { font-weight: 700; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.robo-tr { display: inline-flex; color: var(--pos-ink); vertical-align: -1px; }
+.robo-st-m { display: none; font-size: 10px; font-weight: 700; }
+@media (max-width: 640px) { .robo-st { display: none; } .robo-st-m { display: block; } .robo-tbl td, .robo-tbl th { padding: 7px 6px; } .robo-nm { max-width: 96px; } .robo-tbl td small { display: block; } }
+@media (prefers-reduced-motion: reduce) { .robo-held ul, .robo-gates[open] .robo-checks { animation: none; } .robo-btn, .robo-seg, .robo-pin, .robo-tbl td { transition: none; } }
 /* ══ ‏D747: سلسلةُ عقود الخيارات ══ */
 .oc-modal { transition: background-color .22s ease; }
 .oc-modal[data-shown="0"] { background: transparent; }
@@ -3436,6 +3481,8 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 /* ══ ‏D745: مختبرُ الأبحاث — قسمُ الأبحاث: تقريرٌ بتصميم بيوت الأبحاث ══ */
 .rl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .rl-bar .seg-btn { min-height: 34px; }
+.rl-title { font-size: 15px; font-weight: 800; color: var(--fg-strong); display: inline-flex; align-items: center; flex-wrap: wrap; }
+.rl-date { font-size: 12.5px; font-weight: 700; color: var(--ink-muted); }
 .rl-acts { display: inline-flex; align-items: center; gap: 6px; margin-inline-start: auto; }
 .rl-btn { min-height: 34px; min-width: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 12.5px;
   font-weight: 700; color: var(--brand-ink); transition: opacity .2s ease, background-color .2s ease; }

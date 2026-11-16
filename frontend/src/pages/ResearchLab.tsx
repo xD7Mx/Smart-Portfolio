@@ -2,14 +2,14 @@
    «أبغى شيئاً طبقَ الأصل من الجزيرة كابيتال… التقاريرُ مؤرّخة… لا تذكر المصادر، اعتمدها ولا تذكرها… والمكتبةُ لا تظهر، الشغلُ كلُّه في
    الخفاء». فالصفحةُ ورقةُ التقرير نفسُها — الوثيقةُ التي تصل ملفّاً إلى تلغرام بعد إغلاق السوق — في صفحتين: «التقرير اليومي» (السوقُ
    والأسواقُ والنظرةُ الفنية) و«التوصيات» (نظرتُنا لمراكز المحفظة وأفضلُ اختياراتنا)، وأيامُ الأرشيف بتواريخها، وتنزيلُ الملفّ.
+   ‏D753 (المالك 2026-11-16): «التوصياتُ داخل التقرير — لا تقريرٌ يوميٌّ وتقريرُ توصيات؛ كلُّها في التقريرِ الواحد مرتّبة» — فصفحةٌ واحدة.
    والورقةُ تُكتب في الخادم (‏services/research_paper) فلا تختلف الشاشةُ عن الملفّ. */
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { FileText, Lightbulb, RefreshCw, Download } from "lucide-react";
+import { FileText, RefreshCw, Download } from "lucide-react";
 import { marketApi } from "../services/api";
 import { useAuthStore } from "../store/authStore";
 
-type Part = "market" | "portfolio";
 type Day = { date: string; label: string };
 /** «الأحد 15 نوفمبر 2026» ← الشهرُ «نوفمبر 2026» واليومُ «15» — والأيامُ بترتيبها تحت شهرها */
 const months = (ds: Day[]): [string, Day[]][] => {
@@ -26,7 +26,6 @@ const months = (ds: Day[]): [string, Day[]][] => {
 export default function ResearchLab() {
   const owner = useAuthStore((s: any) => s.isOwner);
   const [day, setDay] = useState<string | null>(null);
-  const [part, setPart] = useState<Part>("market");
   const [ready, setReady] = useState(false);
   const [height, setHeight] = useState(900);
   const frame = useRef<HTMLIFrameElement | null>(null);
@@ -39,8 +38,8 @@ export default function ResearchLab() {
   const rep = head.data?.report;
   const running = head.data?.running?.on;
   const paper = useQuery({
-    queryKey: ["research-paper", rep?.date, part],
-    queryFn: () => marketApi.researchPaper(rep.date, part).then(r => r.data.data?.html as string | null),
+    queryKey: ["research-paper", rep?.date, "all"],
+    queryFn: () => marketApi.researchPaper(rep.date, "all").then(r => r.data.data?.html as string | null),
     enabled: !!rep?.date,
     staleTime: 5 * 60 * 1000,
   });
@@ -72,14 +71,8 @@ export default function ResearchLab() {
   return (
     <div className="space-y-3" data-role="research-lab">
       <div className="rl-bar">
-        <div className="seg inline-flex" role="tablist" aria-label="أقسام مختبر الأبحاث">
-          {([["market", "التقرير اليومي", FileText], ["portfolio", "التوصيات", Lightbulb]] as const).map(([k, t, Ic]) => (
-            <button key={k} type="button" role="tab" aria-selected={part === k} className={"seg-btn chip" + (part === k ? " on" : "")}
-              onClick={() => setPart(k)} data-role="rl-tab">
-              <Ic size={14} className="inline-block align-[-2px] me-1" />{t}
-            </button>
-          ))}
-        </div>
+        <h2 className="rl-title" data-role="rl-title"><FileText size={15} className="inline-block align-[-2px] me-1" />
+          التقرير اليومي{rep?.label ? <span className="rl-date"> · {rep.label}</span> : null}</h2>
         <span className="rl-acts">
           {rep && (
             <button type="button" className="btn-ghost rl-btn" onClick={() => pdf.mutate()} disabled={pdf.isPending} data-role="rl-pdf"

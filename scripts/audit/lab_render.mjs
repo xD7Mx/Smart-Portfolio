@@ -63,8 +63,9 @@ await page.route("**/api/v1/**", r => {
     : { report: null, dates: [], running: { on: false } });
   if (u.pathname.endsWith("/market/research-desk/paper")) {
     const part = u.searchParams.get("part"); parts.push(part);
-    return ok({ html: `<!doctype html><html dir="rtl"><body><section class="page"><h1>${part === "portfolio" ? "محفظتنا واختياراتنا" : "التقرير اليومي"}</h1>`
-      + `<p>${part === "portfolio" ? "لا اختياراتِ اليوم: لم تجتمع الشروط." : "خبرٌ محليّ"}</p></section></body></html>`, date: "2026-11-15" });
+    return ok({ html: `<!doctype html><html dir="rtl"><body><section class="page"><h1>التقرير اليومي</h1><p>خبرٌ محليّ</p></section>`
+      + (part === "all" ? `<section class="page"><h1>محفظتنا واختياراتنا</h1><p>لا اختياراتِ اليوم: لم تجتمع الشروط.</p></section>` : "")
+      + `</body></html>`, date: "2026-11-15" });
   }
   return ok([]);
 });
@@ -78,10 +79,9 @@ await page.waitForTimeout(1800);
 const inFrame = () => page.evaluate(() => document.querySelector('[data-role="rl-doc"] iframe')?.contentDocument?.body?.textContent || "");
 const t2 = await inFrame();
 say(errs.length === 0 && t2.includes("التقرير اليومي") && t2.includes("خبرٌ محليّ"), "٢ وبتقريرٍ تُرسَم ورقتُه كاملةً (لا شاشةَ سوداء)", `نصّ ${t2.length}`);
-await page.locator('[data-role="rl-tab"]', { hasText: "التوصيات" }).click();
-await page.waitForTimeout(900);
 const t3 = await inFrame();
-say(parts.includes("portfolio") && t3.includes("لا اختياراتِ اليوم: لم تجتمع الشروط."), "٣ والتوصياتُ صفحةُ المحفظة — وغيابُ الاختيار يُقال بسببه", t3.slice(0, 80));
+say(parts.length > 0 && parts.every(x => x === "all") && t3.includes("لا اختياراتِ اليوم: لم تجتمع الشروط.") && await page.locator('[data-role="rl-tab"]').count() === 0,
+    "٣ والتوصياتُ داخل التقرير الواحد — لا تبويبَ مستقلّاً، وغيابُ الاختيار يُقال بسببه", t3.slice(0, 80));
 await browser.close(); stop();
 console.log("\nالنتيجة:", fail ? "عطب ✖" : "نظيف ✔");
 process.exit(fail);
