@@ -6,6 +6,7 @@
 import asyncio, base64, collections, json, os, re, sys, time   # noqa: E401
 os.environ["TZ"] = "Asia/Riyadh"; time.tzset()
 sys.path.insert(0, "/app")
+sys.stdout.reconfigure(line_buffering=True)
 OUT = os.path.join(os.environ.get("SP_STATE_DIR", "/app/storage"), "ajc_charts")
 
 LEGEND = """This is a TradingView chart from a Saudi broker's daily report. Transcribe EVERY legend/label text exactly as printed, character by character
@@ -51,7 +52,7 @@ async def main():
     print("اليومية:", len(items), "من", items[-1]["date"] if items else "-", "إلى", items[0]["date"] if items else "-")
     for i in items[:3] + items[-2:]:
         print("  ", i["date"], i.get("title"), re.sub(r"^https?://[^/]+", "", str(i.get("url")))[:110])
-    sem = asyncio.Semaphore(4)
+    sem = asyncio.Semaphore(1)                  # التنزيلُ المتوازي أسقط العمليةَ (‏malloc) — واحدٌ واحد
     phrases = collections.Counter()
     meta = {}
 
@@ -79,7 +80,11 @@ async def main():
             except OSError:
                 pass
     t0 = time.time()
-    await asyncio.gather(*(one(i) for i in items))
+    for i in items:
+        if time.time() - t0 > 2400:
+            print('… توقّف التنزيلُ عند حدّ الزمن')
+            break
+        await one(i)
     json.dump(meta, open(os.path.join(OUT, "meta.json"), "w"))
     print(f"\nحُفظت رسومٌ: {len(meta)} في {time.time() - t0:.0f}ث · الأبعاد: {collections.Counter((m['w'], m['h'], m['page']) for m in meta.values()).most_common(5)}")
     print("\nأكثرُ العبارات الفنية تكراراً (الأرقام #):")
