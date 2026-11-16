@@ -77,7 +77,7 @@ async def main():
     gaps = [centers[i + 1] - centers[i] for i in range(len(centers) - 1)]
     print("شموع:", len(centers), "· أوّل/آخر x:", centers[:2], centers[-2:], "· تباعد وسيط:", sorted(gaps)[len(gaps) // 2] if gaps else None)
     bars = [b for b in (await M.get_bars("^TASI.SR", "1d") or []) if b.get("close")]
-    bars = [b for b in bars if str(b["date"])[:10] <= day]
+    bars = [b for b in bars if str(b["date"])[:10] < day]          # تقريرُ الصباح يرسم إغلاقَ الجلسة السابقة
     print("آخر جلسات تاسي:", [(str(b["date"])[:10], round(b["close"], 2)) for b in bars[-3:]])
 
     def date_at(xc):
@@ -86,16 +86,31 @@ async def main():
         k = min(range(len(centers)), key=lambda i: abs(centers[i] - xc))
         back = len(centers) - 1 - k
         return str(bars[-1 - back]["date"])[:10] if back < len(bars) else "?"
-    # مكوّناتُ الألوان غيرِ الشموع
+    # مكوّناتُ الألوان المميّزة (أخضرُ وأحمرُ وأزرقُ الرسم) بشكلها: سهمٌ مدمج أم خطٌّ رفيع
+    KEY = {"أخضر": (74, 175, 79), "أحمر": (239, 56, 70), "أزرق": (70, 102, 176)}
     for k, (y0, y1) in enumerate(panes):
-        cnt = collections.Counter(px[x, y] for y in range(y0, y1) for x in range(W) if sat(px[x, y]) > 110)
-        for col, n in cnt.most_common(8):
-            if near(col, up, 20) or near(col, dn, 20) or n < 15:
+        for nm, col in KEY.items():
+            mask = [(x, y) for y in range(y0, y1) for x in range(int(centers[-1]) + 4 if centers else W) if near(px[x, y], col, 40)]
+            cs = sorted(comps(mask, W, H, 5), key=lambda c: c["x0"])
+            if not cs:
                 continue
-            mask = [(x, y) for y in range(y0, y1) for x in range(W) if near(px[x, y], col, 24)]
-            cs = sorted(comps(mask, W, H), key=lambda c: -c["n"])[:10]
-            print(f"  لوحة {k} لون #{col[0]:02x}{col[1]:02x}{col[2]:02x} ({n}):",
-                  [f"{c['n']}px [{c['x0']}-{c['x1']}]x[{c['y0']}-{c['y1']}] {date_at(c['x0'])}→{date_at(c['x1'])}" for c in cs])
-
+            desc = []
+            for c in cs:
+                w, h = c["x1"] - c["x0"] + 1, c["y1"] - c["y0"] + 1
+                fill = c["n"] / (w * h)
+                kind = "سهم" if 6 <= w <= 20 and 6 <= h <= 22 and fill > 0.3 else "خط" if max(w, h) > 25 and fill < 0.3 else "?"
+                desc.append(f"{kind} {c['n']}px {w}x{h} y{c['y0']}-{c['y1']} {date_at(c['x0'])}→{date_at(c['x1'])}")
+            print(f"  لوحة {k} {nm} ({len(cs)}):", desc[:24])
+    from PIL import Image as _I
+    import base64, io
+    from app.services import research_desk as RD
+    c = im.crop((0, 0, int(W * 0.45), int(H * 0.22)))
+    c = c.resize((c.width * 3, c.height * 3), _I.LANCZOS)
+    b = io.BytesIO(); c.save(b, "PNG")
+    obj = await RD._gemini([{"inline_data": {"mime_type": "image/png", "data": base64.b64encode(b.getvalue()).decode()}},
+                            {"text": "Transcribe EXACTLY every line of legend text in this crop, top to bottom, character by character, with the color of each "
+                                     "line's main text. Include indicator names, their parameters and current values. JSON only: "
+                                     '{"lines": [{"text": "...", "color": "#hex"}]}'}], max_tokens=1200, temperature=0.0)
+    print("وسيلةُ الإيضاح:", json.dumps(obj, ensure_ascii=False)[:1200])
 
 asyncio.run(main())
