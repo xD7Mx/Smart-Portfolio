@@ -60,10 +60,10 @@ const lsJson = <T,>(k: string, def: T): T => { try { return { ...def, ...(JSON.p
 const tok = (name: string, fb: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb;
 /** لونُ الرمز بصيغة ‏#rrggbb لمنتقي اللون (‏D756) */
 const hexTok = (name: string) => {
-  const v = tok(name, "#888888");
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   if (/^#[0-9a-f]{6}$/i.test(v)) return v;
   const m = v.match(/\d+(\.\d+)?/g);
-  return m && m.length >= 3 ? "#" + m.slice(0, 3).map(x => Math.round(+x).toString(16).padStart(2, "0")).join("") : "#888888";
+  return m && m.length >= 3 ? "#" + m.slice(0, 3).map(x => Math.round(+x).toString(16).padStart(2, "0")).join("") : "#000000";
 };
 /** رمزٌ يُعرف اسمُه وقتَ التشغيل (ألوانُ D7M من جدولها) — واحتياطُه حبرُ النصّ الثانويّ. */
 const tokv = (name: string) => tok(name, "") || tok("--ink-muted", "#6b7280");

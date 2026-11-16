@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import html as _html
 import json
+import hashlib
 import math
 import re
 from datetime import date, datetime, timedelta
@@ -1058,7 +1059,7 @@ def svg_d7m(bars: list[dict], w: int = 470, h: int = 330, title: str = "", d: di
     y = _scale(lo, hi, PT, PB)
     bw = (X1 - X0) / m
     x = lambda i: X0 + (i - s0 + 0.5) * bw   # noqa: E731
-    cid = f"pc{abs(hash((title, n, w))) % 99999}"
+    cid = "pc" + hashlib.md5(f"{title}|{n}|{w}|{s0}".encode()).hexdigest()[:8]   # مُعرِّفٌ ثابتٌ بين التشغيلات
     out = [f'<defs><clipPath id="{cid}"><rect x="{X0}" y="{PT}" width="{X1 - X0}" height="{PB - PT}"/></clipPath></defs>',
            f'<rect x="0.5" y="0.5" width="{w - 1}" height="{h - 1}" fill="#fff" stroke="{TV_BORDER}"/>']
     for v in _ticks(lo, hi, 5):

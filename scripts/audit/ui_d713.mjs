@@ -104,7 +104,8 @@ const read = () => page.evaluate(() => {
 const a = await read();
 if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + "/d713.png" });
 const fmt = (v) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-say(a.last === fmt(state.lastClose) && a.tags >= 3, "٢ وآخرُ سعرٍ وسمٌ مؤطَّرٌ بقيمته — ومعه وسومُ مستويات D7M", `${a.last} · ${a.tags} وسماً`);
+say(a.last === fmt(state.lastClose) && a.tags === 1 && a.lv >= 3,
+    "٢ وآخرُ سعرٍ وسمٌ مؤطَّرٌ بقيمته على المحور — ومستوياتُ D7M أرقامٌ أمام آخر شمعة لا وسومٌ على المحور (‏D756 · المالك: «لا في الصفّ الأيمن»)", `${a.last} · ${a.tags} وسماً · ${a.lv} مستوى`);
 say(a.lv >= 2, "٣ب ومستوياتُ D7M مسمّاةٌ على الرسم الحيّ", `${a.lv} مستوى`);
 // ٤ الشمعةُ الجاريةُ تتحرّك: يتغيّر الإغلاقُ عند المصدر، ويمضي التحديثُ الدوريّ (دقيقة) — واللوحةُ نفسُها والتكبيرُ نفسُه
 await page.evaluate(() => { document.querySelector('[data-role="pc-stage"] canvas').__same = 1; });

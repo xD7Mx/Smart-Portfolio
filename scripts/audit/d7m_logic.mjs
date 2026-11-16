@@ -67,7 +67,7 @@ say(M.D7M_DEFAULTS.bull === 6 && M.D7M_DEFAULTS.bear === -6 && mix.summary === "
 const keys = Object.keys(M.D7M_DEFAULTS);
 const { readFileSync } = await import("node:fs");
 const panel = readFileSync(join(ROOT, "frontend/src/components/analysis/D7MPanel.tsx"), "utf8");
-const miss = keys.filter(k => !new RegExp(`["']${k}["']`).test(panel));
+const miss = keys.filter(k => k !== "fibV" && !new RegExp(`["']${k}["']`).test(panel));   // ‏fibV رقمُ ترحيل الإعدادات لا مدخل (‏D756)
 say(miss.length === 0, "١٠ لوحةُ الإعدادات تتحكّم في كلّ مدخلٍ للمؤشّر", miss.join(","));
 const nc = readFileSync(join(ROOT, "frontend/src/components/analysis/NativeChart.tsx"), "utf8");
 const usedColors = M.D7M_COLORS.map(c => c[0]).filter(k => !new RegExp(`C\\("${k}"\\)|colors\\?\\.${k}\\b|colors\\?\\.\\[k\\]`).test(nc));
