@@ -19,33 +19,31 @@ import {
 } from "lightweight-charts";
 import {
   CandlestickChart, LineChart, AreaChart, BarChart3, Activity, Brush, TrendingUp, Minus, Trash2, Undo2, Camera, Maximize2, Minimize2,
-  Settings2, ChevronDown, Check, MousePointer2, ChevronsRight,
+  Settings2, ChevronDown, Check, MousePointer2, ChevronsRight, Eye, EyeOff,
 } from "lucide-react";
 import { marketApi } from "../../services/api";
 import {
   sanitizeBars, CBar, TF_BAR, TF_PRESETS, TF_UNITS, TfUnit, parseTf, tfKey, tfShort, tfLong, tfIntraday, tickLabel, crossLabel, fmtPrice, fmtVol,
   TZ_LIST, exchangeTz, tzOffsetMin, fmtOffset, displayTimes,
 } from "../../lib/chartData";
-import { researchInd } from "../../lib/researchIndicator";
 import { ChartOverlay, BandFill, Level, Segment, Path, Note, Band } from "../../lib/chartOverlay";
-import { cvdD7M, CVD_DEFAULTS, CvdCfg, stochRsi, STOCHRSI_DEFAULTS, StochRsiCfg, source } from "../../lib/indicators";
+import { cvdD7M, CVD_DEFAULTS, CvdCfg, stochRsi, STOCHRSI_DEFAULTS, StochRsiCfg, source, macd as macdCalc } from "../../lib/indicators";
 import IndSettings from "./IndSettings";
 import {
-  autoFib, autoChannel, autoTrend, vwapAnchored, ema as emaD7, dashboard, macdSmart, tradeTool, D7M_DEFAULTS, D7MSettings, D7M_COLORS,
+  autoFib, autoChannel, autoTrend, vwapAnchored, ema as emaD7, dashboard, macdSmart, tradeTool, D7M_DEFAULTS, D7MSettings, D7M_COLORS, FIB_HIDDEN,
 } from "../analysis/d7m";
 import D7MPanel from "../analysis/D7MPanel";
 import D7MStrip from "./D7MStrip";
 
 /* ‏D744 (المالك 2026-11-15): «لا أريد كثرةَ المؤشّرات — أريد CVD ومؤشّرَ الدحم وStoch RSI المدمج». فهي الثلاثة مع الحجم، ولكلٍّ إعداداتُه
    كتريدنق فيو (ترسٌ واحدٌ يفتح نافذةَ كلّ مؤشّر). كانت معها: SMA 20/50/200 وRSI وStochastic وMACD. */
-/* ‏D753 (المالك 2026-11-16): «مؤشّرُ الأبحاث — مطابقٌ لمؤشّر الجزيرة كابيتال»: متوسّطا 20 و50 وفيبوناتشي وخطّا الاتجاه وأسهمُ الإشارة فوق،
-   ولوحتا الكمّية وRSI 14 تحت — بشيفرة ورقة التقرير اليوميّ نفسِها (‏lib/researchIndicator). */
-type IndKey = "vol" | "stochrsi" | "cvd" | "d7m" | "research";
+/* ‏D756 (المالك 2026-11-16): «لم أجد مؤشّر الماكد — لازم يكون موجوداً» — ‏MACD 12 26 9 بلوحته كتريدنق فيو */
+type IndKey = "vol" | "stochrsi" | "cvd" | "macd" | "d7m";
 const IND: [IndKey, string, string][] = [
-  ["vol", "الحجم", "--ink-muted"], ["stochrsi", "Stoch RSI", "--info-ink"], ["cvd", "CVD D7M", "--chart-3"], ["d7m", "D7M", "--brand-ink"],
-  ["research", "مؤشر الأبحاث", "--ri-fib"]];
-const OSC: IndKey[] = ["stochrsi", "cvd", "research"];
-const IND_DEF: Record<IndKey, boolean> = { vol: true, stochrsi: true, cvd: true, d7m: true, research: false };
+  ["vol", "الحجم", "--ink-muted"], ["stochrsi", "Stoch RSI", "--info-ink"], ["cvd", "CVD D7M", "--chart-3"], ["macd", "MACD", "--info-ink"],
+  ["d7m", "D7M", "--brand-ink"]];
+const OSC: IndKey[] = ["stochrsi", "cvd", "macd"];
+const IND_DEF: Record<IndKey, boolean> = { vol: true, stochrsi: true, cvd: true, macd: false, d7m: true };
 type ChartType = "candles" | "hollow" | "bars" | "line" | "area";
 const TYPES: [ChartType, string, any][] = [["candles", "شموع", CandlestickChart], ["hollow", "شموعٌ مفرَّغة", CandlestickChart],
   ["bars", "أعمدة", BarChart3], ["line", "خطّ", LineChart], ["area", "منطقة", AreaChart]];
@@ -60,6 +58,13 @@ const lsJson = <T,>(k: string, def: T): T => { try { return { ...def, ...(JSON.p
 
 /* الرموزُ لا تصل لوحةَ الرسم (‏canvas لا تفهم var) — تُقرأ قيمُها المحسوبة عند الرسم، والرمزُ يبقى مصدرَ الحقيقة */
 const tok = (name: string, fb: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb;
+/** لونُ الرمز بصيغة ‏#rrggbb لمنتقي اللون (‏D756) */
+const hexTok = (name: string) => {
+  const v = tok(name, "#888888");
+  if (/^#[0-9a-f]{6}$/i.test(v)) return v;
+  const m = v.match(/\d+(\.\d+)?/g);
+  return m && m.length >= 3 ? "#" + m.slice(0, 3).map(x => Math.round(+x).toString(16).padStart(2, "0")).join("") : "#888888";
+};
 /** رمزٌ يُعرف اسمُه وقتَ التشغيل (ألوانُ D7M من جدولها) — واحتياطُه حبرُ النصّ الثانويّ. */
 const tokv = (name: string) => tok(name, "") || tok("--ink-muted", "#6b7280");
 const tokA = (name: string, fb: string, a: number) => {
@@ -93,7 +98,7 @@ function Menu({ label, title, children, role, wide, up }: {
 
 /* ‏preset «stock»: صفحةُ السهم (‏D739 — كانت على الرسم القديم): الرسمُ نفسُه بإطارٍ أسبوعيٍّ وD7M افتراضاً، واختياراتُها محفوظةٌ
    لها وحدها فلا تمسّ غرفةَ التداول، وبلا لوحة القرار فوقه (‏D652). والرسمُ اليدويُّ واحدٌ للرمز في المكانين كتريدنق فيو. */
-const IND_STOCK: Record<IndKey, boolean> = { vol: true, stochrsi: false, cvd: false, d7m: true, research: false };
+const IND_STOCK: Record<IndKey, boolean> = { vol: true, stochrsi: false, cvd: false, macd: false, d7m: true };
 
 export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   symbol: string; identity?: React.ReactNode; theme?: "dark" | "light"; preset?: "stock";
@@ -111,10 +116,19 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   const setCvd = (p: Partial<CvdCfg>) => setCvdState(c => { const n = { ...c, ...p }; lsSet("sp_cvd_cfg", JSON.stringify(n)); return n; });
   const [srCfg, setSrState] = useState<StochRsiCfg>(() => lsJson("sp_stochrsi_cfg", STOCHRSI_DEFAULTS));
   const [cfgFor, setCfgFor] = useState<null | "stochrsi" | "cvd">(null);
+  /* ‏D756: عينُ الإخفاء لكلّ مؤشّرٍ ولها كلِّها، وألوانُ الشموع — تُحفظ في المتصفّح */
+  const [hid, setHidState] = useState<Record<string, boolean>>(() => lsJson("sp_chart_hid", {}));
+  const toggleHid = (k: string) => setHidState(s => { const nx = { ...s, [k]: !s[k] }; lsSet("sp_chart_hid", JSON.stringify(nx)); return nx; });
+  const [hideAll, setHideAll] = useState(() => lsGet("sp_chart_hideall") === "1");
+  const [cc, setCcState] = useState<{ up?: string; down?: string }>(() => lsJson("sp_chart_candle", {}));
+  const setCc = (v: { up?: string; down?: string }) => { setCcState(v); lsSet("sp_chart_candle", JSON.stringify(v)); };
   const setSr = (p: Partial<StochRsiCfg>) => setSrState(c => { const n = { ...c, ...p }; lsSet("sp_stochrsi_cfg", JSON.stringify(n)); return n; });
   const [cfg, setCfgState] = useState<D7MSettings>(() => {
     try { const sv = JSON.parse(lsGet("sp_d7m_cfg_v2") || "{}");
-      return { ...D7M_DEFAULTS, ...sv, colors: { ...D7M_DEFAULTS.colors, ...(sv.colors || {}) } }; } catch { return D7M_DEFAULTS; }
+      const m = { ...D7M_DEFAULTS, ...sv, colors: { ...D7M_DEFAULTS.colors, ...(sv.colors || {}) } };
+      /* ‏D756: إعداداتٌ محفوظةٌ قبل الأمر — تُخفى فيها 1.1 و0.618 و0.5 مرّةً واحدة، وما غيّره المالكُ بعدها يبقى */
+      if ((Number(sv.fibV) || 1) < 2) m.fibLevels = { ...m.fibLevels, ...Object.fromEntries([...FIB_HIDDEN].map(lv => [String(lv), false])) };
+      return { ...m, fibV: 2 }; } catch { return D7M_DEFAULTS; }
   });
   const saveCfg = (c: D7MSettings) => { setCfgState(c); lsSet("sp_d7m_cfg_v2", JSON.stringify(c)); };
   const [showCfg, setShowCfg] = useState(false);
@@ -154,7 +168,8 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   /* الحجمُ مرسومٌ حين يكون للمصدر حجمٌ فعلاً (‏≥80% من الشموع) — وإلّا فهو «غير متوفّر» لا أعمدةٌ صفرية (يوميُّ تاسي · ساعاتُ البتكوين) */
   const volRef = useRef(true);
   const volOk = useMemo(() => {
-    if (raw !== undefined) volRef.current = bars.length > 0 && bars.filter(b => b.volume > 0).length >= bars.length * 0.8;
+    /* ‏D756 (المالك: «CVD لا يعمل — يقول لا أحجام»): الحكمُ على آخر ثلاثمئة شمعة — يوميُّ تاسي منذ 2007 بلا كمّيةٍ قبل مدى ساعاته */
+    if (raw !== undefined) { const tl = bars.slice(-300); volRef.current = tl.length > 0 && tl.filter(b => b.volume > 0).length >= tl.length * 0.8; }
     return volRef.current;
   }, [raw, bars]);
   const eff = useMemo(() => ({ ...ind, vol: ind.vol && volOk, cvd: ind.cvd && volOk }), [ind, volOk]);
@@ -183,9 +198,8 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   /* ── الحساب ── مرّةً لكلّ تغيّرٍ في الشموع أو الإعدادات، ويقرؤه الرسمُ ووسيلةُ الإيضاح معاً */
   const calc = useMemo(() => {
     const closes = bars.map(b => b.close);
-    return { closes, stochrsi: stochRsi(source(bars, srCfg.src), srCfg), cvd: cvdD7M(bars, cvdCfg),
-             research: ind.research ? researchInd(bars.map(b => ({ o: b.open, h: b.high, l: b.low, c: b.close, v: b.volume }))) : null };
-  }, [bars, cvdCfg, srCfg, ind.research]);
+    return { closes, stochrsi: stochRsi(source(bars, srCfg.src), srCfg), cvd: cvdD7M(bars, cvdCfg), macd: macdCalc(closes, 12, 26, 9) };
+  }, [bars, cvdCfg, srCfg]);
   const d7m = useMemo(() => {
     if (!ind.d7m || bars.length < 5) return null;
     const b: any = bars;
@@ -226,8 +240,8 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   const pend = useRef<any>(null);                 // أوّلُ نقطتَي خطّ الاتجاه
   const preview = useRef<Segment | null>(null);
   const stroke = useRef<{ x: number; y: number }[] | null>(null);
-  const S = useRef({ bars, calc, tool, d7m, cfg, draws, ind, ctype, theme, cvdCfg, disp });
-  S.current = { bars, calc, tool, d7m, cfg, draws, ind, ctype, theme, cvdCfg, disp };
+  const S = useRef({ bars, calc, tool, d7m, cfg, draws, ind, ctype, theme, cvdCfg, disp, hid, hideAll, cc });
+  S.current = { bars, calc, tool, d7m, cfg, draws, ind, ctype, theme, cvdCfg, disp, hid, hideAll, cc };
 
   /* الارتفاع: الرسمُ كلُّه داخل الشاشة كتريدنق فيو — اللوحاتُ السفلى تقتسم ارتفاعَه ولا تدفعه تحت الطيّ، إلّا إن ضاقت الرئيسةُ عن حدّها */
   const oscOn = OSC.filter(k => eff[k]);
@@ -236,9 +250,8 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   const chromeH = (topRef.current?.offsetHeight ?? 50) + (narrow && (railOpen || tool) ? 42 : 0);
   const stripH = ind.d7m && !preset ? 47 : 0;                                    // شريطُ D7M فوق الرسم (‏D744)
   const baseH = full ? Math.max(300, winH - chromeH - 2) : preset ? (wide ? 480 : 400) : wide ? clamp(winH - 345 - stripH, 400, 740) : clamp(winH - 380, 340, 460);
-  const oscN = oscOn.length + (eff.research ? 1 : 0);                            // مؤشّرُ الأبحاث لوحتان: الكمّيةُ وRSI
-  const mainPx = Math.max(full ? 200 : wide ? 300 : 250, baseH - oscN * oscPx);
-  const stageH = mainPx + oscN * oscPx;
+  const mainPx = Math.max(full ? 200 : wide ? 300 : 250, baseH - oscOn.length * oscPx);
+  const stageH = mainPx + oscOn.length * oscPx;
 
   /* ── نقطةُ رسمٍ محفوظة ← موضعٌ منطقيّ: بزمن شمعتها وكسرها، فتتبع الرسمَ في أيّ إطار ── */
   const secs = useMemo(() => bars.map(b => (typeof b.time === "number" ? b.time : Date.parse(b.time + "T00:00:00Z") / 1000)), [bars]);
@@ -270,26 +283,30 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   /* ── طبقةُ الرسم: المستوياتُ والخطوطُ والفرشاة — خفيفةٌ تُستدعى مباشرةً من الإيماءات بلا إعادة رسم الصفحة ── */
   const paint = () => {
     const st = S.current, b = st.bars;
-    const up = tok("--pos-ink", "#16a34a"), down = tok("--neg-ink", "#dc2626");
+    const up = st.cc.up || tok("--pos-ink", "#16a34a"), down = st.cc.down || tok("--neg-ink", "#dc2626");
     const drawC = st.cfg.colors?.draw || tok("--brand-ink", "#5b52d3");
     const levels: Level[] = [], segments: Segment[] = [], paths: Path[] = [], notes: Note[] = [], bands: Band[] = [];
     const last = b[b.length - 1];
     if (last) levels.push({ price: last.close, color: last.close >= last.open ? up : down, tag: true, bold: true, rank: 0, dash: [2, 3] });
-    const D = st.d7m;
+    const D = st.hideAll || st.hid.d7m ? null : st.d7m;           // ‏D756: عينُ الإخفاء
     if (D) {
       const C = (k: string) => st.cfg.colors?.[k] || tokv((D7M_COLORS.find(x => x[0] === k) || ["", "", "--ink"])[2]);
       const ink = st.cfg.colors?.fib || tokA("--ink-muted", "#6b7280", 0.6);
       /* ‏D744 (المالك): «شِل الكلام — المقاومة والدعم ولا تطمع — الشارتُ نظيف»: لا نصَّ على الرسم إلا رقمُ المستوى، والمناطقُ الثلاث
          تظليلٌ خفيف (المقاومة · الوسط: الاتجاهُ المعاكس والدعمُ القويّ · الدعم). و«مختصر» ستةُ خطوطها وحدها، و«الكل» كلُّ المستويات */
       if (D.fib) {
+        /* ‏D756: «مختصر» خطوطُه الستّة إلا ما أُخفي منها في الإعدادات (1.1 و0.618 و0.5 افتراضاً)، و«الكل» ما لم يُخفَ — وأرقامُها أمام آخر شمعة */
         const SIX = new Set([0, -0.1, 0.5, 0.618, 1, 1.1]), compact = (st.cfg.fibMode || "compact") === "compact";
+        const shown = (lv: number) => st.cfg.fibLevels[String(lv)] !== false && (!compact || SIX.has(lv));
+        const lx = b.length - 1 + 3, lpos = st.cfg.fibLabelPos || "on", txt = tok("--ink", "#111111");
         for (const l of D.fib.lines) {
-          if (compact ? !SIX.has(l.level) : st.cfg.fibLevels[String(l.level)] === false) continue;
+          if (!shown(l.level)) continue;
           const gold = l.color === "yellow";
-          levels.push({ price: l.price, color: gold ? C("fibGold") : ink, text: String(l.level), tag: true, rank: gold ? 2 : 3, width: 1 });
+          levels.push({ price: l.price, color: gold ? C("fibGold") : ink, label: `${l.level} (${fmtPrice(l.price)})`, lx, lpos, lcolor: txt,
+                        rank: gold ? 2 : 3, width: 1 });
         }
         if (st.cfg.fibZones) {
-          const at = (lv: number) => D.fib!.lines.find(x => x.level === lv)?.price;
+          const at = (lv: number) => (shown(lv) ? D.fib!.lines.find(x => x.level === lv)?.price : undefined);
           const pairs = [[0, -0.1], [1, 1.1]].map(([u, v]) => [at(u), at(v)]).filter(([u, v]) => u != null && v != null) as [number, number][];
           pairs.sort((x, y) => (y[0] + y[1]) - (x[0] + x[1]));
           if (pairs[0]) bands.push({ p1: pairs[0][0], p2: pairs[0][1], color: tokA("--neg-ink", "#dc2626", 0.07) });
@@ -298,23 +315,15 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
           if (m1 != null && m2 != null) bands.push({ p1: m1, p2: m2, color: tokA("--gauge-warn", "#d97706", 0.09) });
         }
       }
-      if (D.trend) for (const l of D.trend.lines) if (l.x2 > l.x1)
+      if (D.trend) for (const l of D.trend.lines) if (l.x2 > l.x1 && (l.major ? st.cfg.trendMajor !== false : st.cfg.trendMinor !== false))
         segments.push({ x1: l.x1, y1: l.y1, x2: l.x2, y2: l.y2, color: l.up ? C("trendUp") : C("trendDown"), width: l.major ? 2 : 1, dash: l.major ? [] : [5, 4] });
       if (D.channel) {
         const chC = st.cfg.colors?.channel || tokA("--brand-ink", "#5b52d3", 0.65);
         for (const seg of [D.channel.base, D.channel.parallel]) if (seg.length >= 2)
           segments.push({ x1: seg[0][0], y1: seg[0][1], x2: seg[seg.length - 1][0], y2: seg[seg.length - 1][1], color: chC, width: 1 });
         const [b0, b1] = [D.channel.base[0], D.channel.base[D.channel.base.length - 1]], [q0, q1] = [D.channel.parallel[0], D.channel.parallel[D.channel.parallel.length - 1]];
-        segments.push({ x1: b0[0], y1: (b0[1] + q0[1]) / 2, x2: b1[0], y2: (b1[1] + q1[1]) / 2, color: chC, width: 1, dash: [3, 4] });   // منتصفُ القناة كتريدنق فيو
+        if (st.cfg.chMid) segments.push({ x1: b0[0], y1: (b0[1] + q0[1]) / 2, x2: b1[0], y2: (b1[1] + q1[1]) / 2, color: chC, width: 1, dash: [3, 4] });   // ‏D756: خيارٌ لا افتراض
       }
-    }
-    /* ‏D753 مؤشّرُ الأبحاث: فيبوناتشي بتسمياته كأداة تريدنق فيو («1.618 (10,490.82)»)، وخطّا الاتجاه */
-    const RI = st.ind.research ? st.calc.research : null;
-    if (RI) {
-      const fc = tok("--ri-fib", "#2962ff");
-      if (RI.fib) for (const l of RI.fib.levels)
-        levels.push({ price: l.p, color: fc, text: `${l.k} (${l.p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`, rank: 4, width: 1 });
-      for (const t of [RI.trend.res, RI.trend.sup]) if (t) segments.push({ x1: t.x1, y1: t.y1, x2: t.x2, y2: t.y2, color: tok("--ri-trend", "#131722"), width: 1 });
     }
     for (const d of st.draws) {
       const v2 = Number(d.v) || 1;
@@ -333,10 +342,9 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     // سماتُ تشخيص: ما رُسم على اللوحة (لا يُقرأ من الـDOM) — آخرُ سعرٍ موسوم، وعددُ المستويات المسمّاة والوسوم والرسوم اليدوية
     const root = rootRef.current;
     if (root) {
-      root.dataset.last = last ? fmtPrice(last.close) : ""; root.dataset.lv = String(levels.filter(l => l.text).length);
+      root.dataset.last = last ? fmtPrice(last.close) : ""; root.dataset.lv = String(levels.filter(l => l.text || l.label).length);
       root.dataset.tags = String(levels.filter(l => l.tag).length); root.dataset.draws = String(st.draws.length);
       root.dataset.segs = String(segments.length);
-      root.dataset.ri = RI ? `${RI.fib?.levels.length || 0}·${[RI.trend.res, RI.trend.sup].filter(Boolean).length}·${RI.signals.length}` : "";
     }
   };
 
@@ -359,7 +367,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     set("basis", (r as any).basis === "close" ? "من الإغلاقات اليومية — الأعلى والأدنى غيرُ متوفّرَين" : "");
     const f = (v: number | null | undefined, dp = 2) => (v == null || !isFinite(v) ? "—" : v.toFixed(dp));
     set("srK", f(c.stochrsi.k[i])); set("srD", f(c.stochrsi.d[i]));
-    if (c.research) { set("ri20", f(c.research.sma20[i])); set("ri50", f(c.research.sma50[i])); set("riRsi", f(c.research.rsi[i])); set("riV", fmtVol(r.volume)); }
+    set("mH", f(c.macd.hist[i])); set("mM", f(c.macd.line[i])); set("mS", f(c.macd.signal[i]));
     const cv = st.cvdCfg.style === "line" ? c.cvd.line[i] : c.cvd.c[i];
     set("cvd", st.cvdCfg.scale === "volume" ? fmtVol(Math.abs(cv ?? 0)) : f(cv, 1)); set("cvdE", f(c.cvd.ema2[i], 1));
   };
@@ -372,10 +380,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
       const tops: Record<string, number> = {};
       let y = 0;
       const idx = new Map<number, string>();
-      reg.current.forEach((e, k) => {
-        if (OSC.includes(k as IndKey) && e.series[0]) idx.set(e.series[0].getPane().paneIndex(), k);
-        if (k === "research" && e.series[1]) idx.set(e.series[1].getPane().paneIndex(), "researchRsi");
-      });
+      reg.current.forEach((e, k) => { if (OSC.includes(k as IndKey) && e.series[0]) idx.set(e.series[0].getPane().paneIndex(), k); });
       chart.panes().forEach((_, i) => { if (idx.has(i)) tops[idx.get(i)!] = y; y += chart.paneSize(i).height + 1; });
       setPaneTops(o => (JSON.stringify(o) === JSON.stringify(tops) ? o : tops));
       const h0 = chart.paneSize(0).height; if (h0) setMainH(o => (o === h0 ? o : h0));
@@ -445,16 +450,17 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     });
 
     /* ١ السلسلةُ الرئيسة — تُبنى حين يتغيّر نوعُ الرسم أو المظهر وحدهما */
-    const mainSig = `${ctype}|${theme}`;
+    const cu = cc.up || up, cd = cc.down || down;                    // ‏D756: «خيارُ تغيير لون الشموع»
+    const mainSig = `${ctype}|${theme}|${cu}|${cd}`;
     if (sigRef.current.main !== mainSig || !mainRef.current) {
       if (mainRef.current) { try { mainRef.current.detachPrimitive(overlay.current); } catch { /* لم تُلحق */ } chart.removeSeries(mainRef.current); }
       const common = { priceLineVisible: false, lastValueVisible: false };
       const m = ctype === "line" ? chart.addSeries(LineSeries, { ...common, color: brand, lineWidth: 2, crosshairMarkerRadius: 4 }, 0)
         : ctype === "area" ? chart.addSeries(AreaSeries, { ...common, lineColor: brand, lineWidth: 2, topColor: tokA("--brand-ink", "#5b52d3", 0.28),
                                                            bottomColor: tokA("--brand-ink", "#5b52d3", 0.02) }, 0)
-        : ctype === "bars" ? chart.addSeries(BarSeries, { ...common, upColor: up, downColor: down, thinBars: false }, 0)
-        : chart.addSeries(CandlestickSeries, { ...common, upColor: ctype === "hollow" ? "rgba(0,0,0,0)" : up, downColor: down,
-                                               borderVisible: true, borderUpColor: up, borderDownColor: down, wickUpColor: up, wickDownColor: down }, 0);
+        : ctype === "bars" ? chart.addSeries(BarSeries, { ...common, upColor: cu, downColor: cd, thinBars: false }, 0)
+        : chart.addSeries(CandlestickSeries, { ...common, upColor: ctype === "hollow" ? "rgba(0,0,0,0)" : cu, downColor: cd,
+                                               borderVisible: true, borderUpColor: cu, borderDownColor: cd, wickUpColor: cu, wickDownColor: cd }, 0);
       m.attachPrimitive(overlay.current);
       markRef.current = createSeriesMarkers(m, []);
       mainRef.current = m;
@@ -525,13 +531,11 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
         (["sma1", "sma2", "ema1", "ema2"] as const).forEach(k => { if (cvdCfg[k]) out.push(ln(p, k === "sma2" ? down : ink, 1, { priceFormat: fmt })); });
         return out;
       },
-      /* ‏D753 مؤشّرُ الأبحاث: الكمّيةُ في لوحتها ثمّ RSI 14 بحدَّي 30 و70 ونطاقِه، والمتوسّطان على الأسعار — ألوانُ رسم التقرير من رموزها */
-      research: p => {
-        const v = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceLineVisible: false, lastValueVisible: false }, p);
-        const r = ln(p + 1, tok("--ri-rsi", "#2962ff"), 1, fixed(0, 100));
-        guide(r, [30, 70]);
-        r.attachPrimitive(new BandFill(70, 30, tok("--ri-band", "rgba(41,98,255,0.08)")));
-        return [v, r, ln(0, tok("--ri-sma20", "#ef9a9a"), 2), ln(0, tok("--ri-sma50", "#a5d6a7"), 2)];
+      /* ‏D756 ‏MACD كتريدنق فيو: الخطُّ والإشارةُ والمدرّجُ بلونيه (الأقوى حين يتّسع) وخطُّ الصفر */
+      macd: p => {
+        const h = chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false, priceFormat: { type: "price", precision: 2, minMove: 0.01 } }, p);
+        guide(h, [0]);
+        return [h, ln(p, tok("--info-ink", "#2962ff"), 1), ln(p, tok("--gauge-warn", "#ff6d00"), 1)];
       },
       d7m: () => {
         const out: ISeriesApi<any>[] = [];
@@ -549,12 +553,15 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
       vol: s => s[0].setData(bars.map((b, i) => ({ time: D[i] as any, value: b.volume || 0,
         color: b.close >= b.open ? tokA("--pos-ink", "#16a34a", 0.42) : tokA("--neg-ink", "#dc2626", 0.42) }))),
       stochrsi: s => { s[0].setData(pts(c.stochrsi.k)); s[1].setData(pts(c.stochrsi.d)); },
-      research: s => {
-        const R = c.research;
-        if (!R) { s.forEach(x => x.setData([])); return; }
-        s[0].setData(bars.map((b, i) => ({ time: D[i] as any, value: b.volume || 0,
-          color: b.close >= b.open ? tokA("--pos-ink", "#16a34a", 0.5) : tokA("--neg-ink", "#dc2626", 0.5) })));
-        s[1].setData(pts(R.rsi)); s[2].setData(pts(R.sma20)); s[3].setData(pts(R.sma50));
+      macd: s => {
+        const M = c.macd, rows: any[] = [];
+        for (let i = 0; i < n; i++) {
+          const v = M.hist[i];
+          if (v == null) continue;
+          const pv = M.hist[i - 1] ?? v;
+          rows.push({ time: D[i] as any, value: v, color: v >= 0 ? tokA("--pos-ink", "#26a69a", v >= pv ? 0.85 : 0.4) : tokA("--neg-ink", "#ff5252", v <= pv ? 0.85 : 0.4) });
+        }
+        s[0].setData(rows); s[1].setData(pts(M.line)); s[2].setData(pts(M.signal));
       },
       cvd: s => {
         const v = c.cvd;
@@ -593,6 +600,8 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
       }
       feed[k](R.get(k)!.series);
     }
+    /* ‏D756 (المالك: «علامةُ العين لإخفاء المؤشّرات أو إظهارها»): المخفيُّ يبقى بإعداداته ولوحته، ولا يُرسم */
+    R.forEach((e, k) => e.series.forEach(x => x.applyOptions({ visible: !(hideAll || hid[k]) })));
     main.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: eff.vol ? 0.2 : 0.06 } });
     /* المشهدُ الأوّل لإطارٍ أو رمزٍ جديد: آخرُ الشموع بعرضٍ مقروء (لا الكلُّ محشوراً) — بعد أن تستقرّ السلاسلُ كلُّها على الزمن الجديد */
     if (pendRange.current != null && n) { const pr = pendRange.current; pendRange.current = null; rangeTo(pr); }
@@ -603,16 +612,11 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     }
 
     /* ٤ علاماتُ D7M (كسرُ الترند وارتدادُه) */
-    const sigs = d7m?.trend && cfg.trendShapes ? d7m.trend.signals : [];
-    const marks: { i: number; m: any }[] = sigs.filter(sg => bars[sg.index]).map(sg => {
+    const sigs = d7m?.trend && cfg.trendShapes && !(hideAll || hid.d7m) ? d7m.trend.signals : [];
+    markRef.current?.setMarkers(sigs.filter(sg => bars[sg.index]).sort((a, b) => a.index - b.index).map(sg => {
       const dn = sg.kind === "breakDown" || sg.kind === "reactDown";
-      return { i: sg.index, m: { time: D[sg.index] as any, position: dn ? "aboveBar" : "belowBar", shape: dn ? "arrowDown" : "arrowUp", color: muted } };
-    });
-    /* ‏D753 أسهمُ مؤشّر الأبحاث: عبورُ RSI حدَّ 30 صعوداً شراءٌ، وحدَّ 70 هبوطاً بيع */
-    if (eff.research && c.research) for (const sg of c.research.signals) if (bars[sg.i]) marks.push({ i: sg.i, m: { time: D[sg.i] as any,
-      position: sg.side === "sell" ? "aboveBar" : "belowBar", shape: sg.side === "sell" ? "arrowDown" : "arrowUp",
-      color: tok(sg.side === "sell" ? "--ri-sell" : "--ri-buy", sg.side === "sell" ? "#f23645" : "#089981") } });
-    markRef.current?.setMarkers(marks.sort((a, b) => a.i - b.i).map(x => x.m));
+      return { time: D[sg.index] as any, position: dn ? "aboveBar" : "belowBar", shape: dn ? "arrowDown" : "arrowUp", color: muted };
+    }));
 
     /* ٥ اللوحات: الرئيسةُ بارتفاعها والسفلى بارتفاعٍ واحد — تُضبط حين يتغيّر عددُها أو ارتفاعُ الرسم وحدهما، فما سحبه المالكُ
        من فواصلها يبقى ولا يرتدّ مع كلّ تحديثٍ للسعر */
@@ -622,7 +626,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     fill(n - 1);
     requestAnimationFrame(readLayout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [raw, bars, disp, tzName, eff, scaleMode, calc, d7m, ind, ctype, cvdCfg, cfg, theme, tf, symbol, mainPx, oscPx, wide]);
+  }, [raw, bars, disp, tzName, eff, scaleMode, calc, d7m, ind, ctype, cvdCfg, cfg, theme, tf, symbol, mainPx, oscPx, wide, hid, hideAll, cc]);
 
   /* لوحةٌ سفلى ظهرت للتوّ: وسيلةُ إيضاحها تُركَّب بعد أن يُعرف موضعُها — فتُملأ قيمُها حينها، لا عند أوّل حركةٍ للمؤشّر (كانت «———») */
   useEffect(() => { fill(S.current.bars.length - 1); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [paneTops]);
@@ -754,7 +758,15 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   const barTfs = [...TF_BAR, ...customTfs.filter(x => !TF_BAR.includes(x))];
   const TypeIcon = (TYPES.find(t => t[0] === ctype) || TYPES[0])[2];
   const lv = (k: string) => (e: HTMLElement | null) => { legend.current[k] = e; };
-  const chip = (k: IndKey, body: React.ReactNode) => <span className="pc-chip" data-ind={k}>{body}</span>;
+  const chip = (k: IndKey, body: React.ReactNode) => {
+    const off = hideAll || !!hid[k];
+    return (
+      <span className={"pc-chip" + (off ? " pc-off" : "")} data-ind={k}>{body}
+        <button type="button" className="pc-eye" data-role="pc-eye" data-eye={k} aria-pressed={off} onClick={() => toggleHid(k)}
+          title={off ? "إظهار المؤشّر" : "إخفاء المؤشّر"} aria-label={off ? "إظهار المؤشّر" : "إخفاء المؤشّر"}>{off ? <EyeOff size={13} /> : <Eye size={13} />}</button>
+      </span>
+    );
+  };
   const empty = raw !== undefined && !bars.length;
 
   return (
@@ -797,11 +809,22 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
         </div>
         <span className="pc-sep" aria-hidden />
         <Menu label={<TypeIcon size={17} />} title="نوع الرسم" role="pc-type">
-          {close => TYPES.map(([k, name, Ic]) => (
-            <button key={k} type="button" className={"pc-item" + (ctype === k ? " on" : "")} onClick={() => { setCtype(k); close(); }}>
-              <Ic size={15} /> <span>{name}</span>{ctype === k && <Check size={14} className="pc-check" />}
-            </button>
-          ))}
+          {close => <>
+            {TYPES.map(([k, name, Ic]) => (
+              <button key={k} type="button" className={"pc-item" + (ctype === k ? " on" : "")} onClick={() => { setCtype(k); close(); }}>
+                <Ic size={15} /> <span>{name}</span>{ctype === k && <Check size={14} className="pc-check" />}
+              </button>
+            ))}
+            {/* ‏D756 (المالك: «خيارٌ لتغيير لون الشموع») */}
+            <div className="pc-cc" data-role="pc-candle-colors">
+              <span className="pc-cc-t">ألوان الشموع</span>
+              <label className="pc-cc-row"><span>صعود</span>
+                <input type="color" value={cc.up || hexTok("--pos-ink")} onChange={e => setCc({ ...cc, up: e.target.value })} aria-label="لون شمعة الصعود" data-role="pc-cc-up" /></label>
+              <label className="pc-cc-row"><span>هبوط</span>
+                <input type="color" value={cc.down || hexTok("--neg-ink")} onChange={e => setCc({ ...cc, down: e.target.value })} aria-label="لون شمعة الهبوط" data-role="pc-cc-down" /></label>
+              {(cc.up || cc.down) && <button type="button" className="pc-item" onClick={() => setCc({})} data-role="pc-cc-reset">ألوانُ المظهر</button>}
+            </div>
+          </>}
         </Menu>
         <Menu label={<><Activity size={17} /><span className="pc-btn-txt">المؤشرات</span></>} title="المؤشرات" role="pc-ind">
           {() => IND.map(([k, name, t]) => (
@@ -811,11 +834,14 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
             </button>
           ))}
         </Menu>
+        <button type="button" className={"pc-btn" + (hideAll ? " on" : "")} aria-pressed={hideAll} data-role="pc-eye-all"
+          title={hideAll ? "إظهار المؤشرات" : "إخفاء المؤشرات"} aria-label={hideAll ? "إظهار المؤشرات" : "إخفاء المؤشرات"}
+          onClick={() => { const v = !hideAll; setHideAll(v); lsSet("sp_chart_hideall", v ? "1" : "0"); }}>{hideAll ? <EyeOff size={17} /> : <Eye size={17} />}</button>
         <button type="button" className={"pc-btn" + (railOpen || tool ? " on" : "")} title="أدوات الرسم" aria-label="أدوات الرسم" aria-pressed={railOpen}
           data-role="pc-draw" onClick={() => setRailOpen(o => !o)}><Brush size={17} /></button>
         {(ind.stochrsi || ind.cvd || ind.d7m) && (
           <Menu label={<><Settings2 size={16} /><span className="pc-btn-txt">الإعدادات</span></>} title="إعدادات المؤشرات" role="pc-cfg">
-            {close => IND.filter(([k]) => k !== "vol" && k !== "research" && ind[k]).map(([k, name]) => (
+            {close => IND.filter(([k]) => k !== "vol" && k !== "macd" && ind[k]).map(([k, name]) => (
               <button key={k} type="button" className="pc-item" data-cfg={k} onClick={() => { close(); if (k === "d7m") setShowCfg(true); else setCfgFor(k as "stochrsi" | "cvd"); }}>
                 <Settings2 size={14} /> <span dir="ltr">{name}</span>
               </button>
@@ -826,7 +852,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
           <span className="seg inline-flex pc-fibmode" role="group" aria-label="مستويات D7M" data-role="pc-fibmode">
             {([["compact", "مختصر"], ["all", "الكل"]] as const).map(([v, t]) => (
               <button key={v} type="button" className={"seg-btn chip" + ((cfg.fibMode || "compact") === v ? " on" : "")} aria-pressed={(cfg.fibMode || "compact") === v}
-                title={v === "compact" ? "ستةُ خطوط: المقاومةُ والوسطُ والدعم" : "كلُّ المستويات"} onClick={() => saveCfg({ ...cfg, fibMode: v })}>{t}</button>
+                title={v === "compact" ? "المستوياتُ المختصرة" : "كلُّ المستويات"} onClick={() => saveCfg({ ...cfg, fibMode: v })}>{t}</button>
             ))}
           </span>
         )}
@@ -872,19 +898,12 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
                 : chip("vol", <><span className="pc-k">Vol</span><b className="pc-dim">غير متوفّر</b></>))}
               {ind.cvd && !volOk && chip("cvd", <><span className="pc-k" style={{ color: "var(--chart-3)" }}>CVD D7M</span><b className="pc-dim">غير متوفّر — لا حجم</b></>)}
               {ind.d7m && chip("d7m", <span className="pc-k" style={{ color: "var(--brand-ink)" }}>D7M</span>)}
-              {ind.research && chip("research", <><span className="pc-k" style={{ color: "var(--ri-fib)" }}>مؤشر الأبحاث</span>
-                <span className="pc-k" style={{ color: "var(--ri-sma20)" }}>20 SMA</span><b ref={lv("ri20")} style={{ color: "var(--ri-sma20)" }}>—</b>
-                <span className="pc-k" style={{ color: "var(--ri-sma50)" }}>50 SMA</span><b ref={lv("ri50")} style={{ color: "var(--ri-sma50)" }}>—</b></>)}
             </div>
           </div>
-          {eff.research && paneTops.researchRsi != null && (
-            <div className="pc-legend pc-pane-legend" dir="ltr" style={{ top: paneTops.researchRsi + 4 }} data-role="pane-tag" data-ind="researchRsi">
-              {chip("research", <><span className="pc-k" style={{ color: "var(--ri-rsi)" }}>RSI 14 close</span><b ref={lv("riRsi")} style={{ color: "var(--ri-rsi)" }}>—</b></>)}
-            </div>
-          )}
           {oscOn.map(k => paneTops[k] != null && (
             <div key={k} className="pc-legend pc-pane-legend" dir="ltr" style={{ top: paneTops[k] + 4 }} data-role="pane-tag" data-ind={k}>
-              {k === "research" && chip("research", <><span className="pc-k" style={{ color: "var(--ri-fib)" }}>مؤشر الأبحاث · Volume</span><b ref={lv("riV")}>—</b></>)}
+              {k === "macd" && chip("macd", <><span className="pc-k" style={{ color: "var(--info-ink)" }}>MACD 12 26 close 9</span>
+                <b ref={lv("mH")}>—</b><b ref={lv("mM")} style={{ color: "var(--info-ink)" }}>—</b><b ref={lv("mS")} style={{ color: "var(--gauge-warn)" }}>—</b></>)}
               {k === "stochrsi" && chip("stochrsi", <><span className="pc-k" style={{ color: "var(--info-ink)" }}>Stoch RSI {srCfg.k} {srCfg.d} {srCfg.rsiLen} {srCfg.stochLen} {srCfg.src}</span>
                 <b ref={lv("srK")} style={{ color: "var(--info-ink)" }}>—</b><b ref={lv("srD")} style={{ color: "var(--gauge-warn)" }}>—</b></>)}
               {k === "cvd" && chip("cvd", <><span className="pc-k" style={{ color: "var(--chart-3)" }}>

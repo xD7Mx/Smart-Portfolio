@@ -66,9 +66,18 @@ export default function D7MPanel({ cfg, onChange, onClose }: Props) {
           <div className="d7m-row d7m-col" data-role="fib-mode">
             <span>المستويات</span>
             <span className="seg inline-flex">
-              {([["compact", "مختصر — ستةُ خطوط"], ["all", "الكل"]] as const).map(([v, t]) => (
+              {([["compact", "مختصر"], ["all", "الكل"]] as const).map(([v, t]) => (
                 <button key={v} type="button" className={"seg-btn chip" + ((cfg.fibMode || "compact") === v ? " on" : "")} aria-pressed={(cfg.fibMode || "compact") === v}
                   onClick={() => set("fibMode", v)}>{t}</button>
+              ))}
+            </span>
+          </div>
+          <div className="d7m-row d7m-col" data-role="fib-label-pos">
+            <span>موضعُ أرقام المستويات</span>
+            <span className="seg inline-flex">
+              {([["above", "فوق الخطّ"], ["on", "على الخطّ"], ["below", "تحت الخطّ"]] as const).map(([v, t]) => (
+                <button key={v} type="button" className={"seg-btn chip" + ((cfg.fibLabelPos || "on") === v ? " on" : "")} aria-pressed={(cfg.fibLabelPos || "on") === v}
+                  onClick={() => set("fibLabelPos", v)} data-pos={v}>{t}</button>
               ))}
             </span>
           </div>
@@ -85,12 +94,15 @@ export default function D7MPanel({ cfg, onChange, onClose }: Props) {
 
         <fieldset><legend>الاتجاه التلقائي</legend>
           <Check k="trend" label="إظهار" />
+          <Check k="trendMajor" label="الاتجاه الرئيسي" />
+          <Check k="trendMinor" label="الاتجاه الفرعي" />
           <Num k="trendPP" label="فترة المحور" />
           <Check k="trendShapes" label="علامات الاختراق" />
         </fieldset>
 
         <fieldset><legend>القناة التلقائية</legend>
           <Check k="channel" label="إظهار" />
+          <Check k="chMid" label="خطُّ المنتصف" />
           <Num k="chDev" label="مضاعف الانحراف" step={0.5} />
           <Num k="chDepth" label="العمق" />
         </fieldset>

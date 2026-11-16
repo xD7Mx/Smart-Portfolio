@@ -600,17 +600,28 @@ async def compose_all(send: bool = True, day: date | None = None) -> dict:
     _save("sessions.json", st)
     rep = {}
     async with AsyncSessionLocal() as db:
-        ps = (await db.execute(select(Portfolio.id, Portfolio.name).where(Portfolio.is_archived.is_(False)).order_by(Portfolio.id))).all()
+        ps = (await db.execute(select(Portfolio.id, Portfolio.name, Portfolio.is_default)
+                               .where(Portfolio.is_archived.is_(False)).order_by(Portfolio.id))).all()
+        # ‏D756 (المالك 2026-11-16): «بعد الإغلاق يصلني تقريران لا واحد، وأحجامُهما مختلفة» — كان يُرسَل تقريرُ كلِّ محفظة.
+        # فيُكتب لكلّ محفظةٍ تقريرُها (يُقرأ في مختبرها)، ويُرسَل واحدٌ فقط: تقريرُ المحفظة الافتراضية، مرّةً واحدةً في اليوم.
+        main = next((pid for pid, _, d in ps if d), ps[0][0] if ps else None)
+        sent = _load("sent.json", {})
         try:
-            for pid, pname in ps:
+            for pid, pname, _ in ps:
                 set_scope(pid, False)
                 r = await compose_for(db, pid, pname, market, today)
                 if not r:
                     continue
                 save_report(r)
                 rep[pid] = {"local": len(r["local"]), "global": len(r["global"]), "picks": len(r["picks"]), "positions": len(r["positions"])}
-                if send:
-                    rep[pid]["sent"] = await deliver(r)
+                if send and pid == main:
+                    if sent.get(today.isoformat()):
+                        rep[pid]["sent"] = "أُرسل سابقاً"
+                    else:
+                        rep[pid]["sent"] = await deliver(r)
+                        if rep[pid]["sent"]:
+                            sent[today.isoformat()] = pid
+                            _save("sent.json", dict(sorted(sent.items())[-60:]))
         finally:
             reset_scope()
     logger.info("قسم الأبحاث: التقارير {}", rep)

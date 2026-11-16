@@ -284,35 +284,27 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await page.locator('[data-role="pc-fibmode"] button', { hasText: "الكل" }).click(); await page.waitForTimeout(500);
   const lvAll = Number((await st()).lv);
   await page.locator('[data-role="pc-fibmode"] button', { hasText: "مختصر" }).click(); await page.waitForTimeout(300);
-  say(strip.tiles >= 4 && strip.h > 0 && strip.h <= 52 && strip.tables === 0 && strip.minF >= 9.5 && lvCompact === 6 && lvAll > 6,
-      `${label}: شريطُ D7M بحجم الإصبع (${strip.h}px · ${strip.tiles} شاشات) بلا جداول، والمستوياتُ مختصرةٌ ستةً و«الكل» ${lvAll}`, `خطٌّ ≥ ${strip.minF}px`);
+  say(strip.tiles >= 4 && strip.h > 0 && strip.h <= 52 && strip.tables === 0 && strip.minF >= 9.5 && lvCompact === 3 && lvAll > 6,
+      `${label}: شريطُ D7M بحجم الإصبع (${strip.h}px · ${strip.tiles} شاشات) بلا جداول، والمستوياتُ مختصرةٌ ثلاثةً (‏D756: 1.1 و0.618 و0.5 مخفيّة) و«الكل» ${lvAll}`, `خطٌّ ≥ ${strip.minF}px`);
 
-  // ١٢د ‏D753 (المالك 2026-11-16): «مؤشّرُ الأبحاث» مؤشّرٌ مستقلٌّ في القائمة باسمه — كرسم الجزيرة كابيتال: ثلاثةٌ فوق (متوسّطا 20 و50 وفيبوناتشي
-  //     بخطَّي الاتجاه وأسهم الإشارة) واثنان تحت (الكمّيةُ وRSI 14) — لوحتان جديدتان بقيمهما، وخمسةُ مستويات فيبوناتشي مسمّاةٌ على الرسم
-  const riName = ((await page.locator('[data-role="pc-ind-menu"] [data-ind="research"]').textContent().catch(() => "")) || "").trim();
-  const before = await st();
+  // ١٢د ‏D756 (المالك 2026-11-16): عينُ الإخفاء تُخفي مستويات D7M وتعيدها، و‏MACD مؤشّرٌ بلوحته وقيمه، وأرقامُ فيبوناتشي حبّاتٌ أمام آخر شمعة
+  const lvOn = Number((await st()).lv);
+  await page.locator('[data-role="pc-eye"][data-eye="d7m"]').click(); await page.waitForTimeout(500);
+  const lvOff = Number((await st()).lv);
+  await page.locator('[data-role="pc-eye"][data-eye="d7m"]').click(); await page.waitForTimeout(500);
+  const lvBack = Number((await st()).lv);
+  const pz0 = Number((await st()).panes);
   await page.locator('[data-role="pc-ind"]').click();
-  const riName2 = ((await page.locator('[data-role="pc-ind-menu"] [data-ind="research"]').textContent()) || "").trim();
-  await page.locator('[data-role="pc-ind-menu"] [data-ind="research"]').click();
-  await page.mouse.click(5, 5);
-  await page.waitForTimeout(1300);
-  const ri = await st();
-  const riTags = await page.evaluate(() => [...document.querySelectorAll('[data-role="pane-tag"]')].filter(e => /research/.test(e.dataset.ind || ""))
-    .map(e => ({ k: e.dataset.ind, t: e.textContent, v: [...e.querySelectorAll("b")].map(b => b.textContent.trim()), y: e.getBoundingClientRect().top })));
-  const riTop = await page.evaluate(() => [...document.querySelectorAll('[data-role="pc-legend"] b, .pc-legend b')].map(b => b.textContent.trim()));
-  const [fibN] = (ri.ri || "0").split("·").map(Number);
-  say(/مؤشر الأبحاث/.test(riName || riName2) && Number(ri.panes) === Number(before.panes) + 2 && fibN === 5 && Number(ri.lv) >= Number(before.lv) + 5
-      && riTags.length === 2 && riTags.every(t => t.v.some(x => /\d/.test(x))) && /RSI 14/.test(riTags.find(t => t.k === "researchRsi")?.t || "")
-      && riTop.filter(x => /^\d[\d,]*\.\d+$/.test(x)).length >= 2,
-      `${label}: «مؤشر الأبحاث» في القائمة باسمه، يضيف لوحتَي الكمّية وRSI 14 بقيمهما، وفيبوناتشي بمستوياته الخمسة على الرسم مع المتوسّطين`,
-      `لوحات ${before.panes}→${ri.panes} · مؤشّر ${ri.ri} · مستويات ${before.lv}→${ri.lv} · ${riTags.map(t => `${t.k} ${t.v.join(" ")}`).join(" | ")}`);
+  await page.locator('[data-role="pc-ind-menu"] [data-ind="macd"]').click();
+  await page.mouse.click(5, 5); await page.waitForTimeout(1200);
+  const mTag = await page.locator('[data-role="pane-tag"][data-ind="macd"]').textContent().catch(() => "");
+  const mVals = (await page.locator('[data-role="pane-tag"][data-ind="macd"] b').allTextContents().catch(() => [])).filter(x => /\d/.test(x));
+  const pz1 = Number((await st()).panes);
+  say(lvOn >= 3 && lvOff === 0 && lvBack === lvOn && pz1 === pz0 + 1 && /MACD 12 26 close 9/.test(mTag || "") && mVals.length === 3,
+      `${label}: ‏D756 العينُ تُخفي مؤشّرَ D7M وتعيده، و‏MACD لوحةٌ بقيمه الثلاث`, `مستويات ${lvOn}→${lvOff}→${lvBack} · لوحات ${pz0}→${pz1} · ${mVals.join(" · ")}`);
   await page.locator('[data-role="pc-ind"]').click();
-  await page.locator('[data-role="pc-ind-menu"] [data-ind="research"]').click();
-  await page.mouse.click(5, 5);
-  await page.waitForTimeout(900);
-  const riOff = await st();
-  say(Number(riOff.panes) === Number(before.panes) && !riOff.ri && Number(riOff.lv) === Number(before.lv),
-      `${label}: وإطفاؤه يعيد الرسم كما كان — لا لوحةَ ولا مستوى باقٍ`, `لوحات ${riOff.panes} · مستويات ${riOff.lv}`);
+  await page.locator('[data-role="pc-ind-menu"] [data-ind="macd"]').click();
+  await page.mouse.click(5, 5); await page.waitForTimeout(700);
 
   // ١٣ الإطارُ المخصَّص: 6 ساعات
   await page.locator('[data-role="pc-tf-more"]').click();

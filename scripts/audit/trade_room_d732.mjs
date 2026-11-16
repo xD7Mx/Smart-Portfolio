@@ -162,8 +162,8 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   const nPanes = await page.evaluate(() => Number(document.querySelector('[data-role="pro-chart"]')?.dataset.panes || 0));
   say(panes.length === 2 && nPanes === 3 && ys.every((y, i) => i === 0 || y - ys[i - 1] > 40) && /CVD D7M · مستويات 200/.test(panes[1]?.t || "")
       && /Stoch RSI 3 3 14 14 close/.test(panes[0]?.t || "") && panes.every(p => /\d\.\d/.test(p.t.replace(/3 3 14 14|200/g, "")))
-      && JSON.stringify(menuItems) === JSON.stringify(["vol", "stochrsi", "cvd", "d7m", "research"]),
-      `${label}: المؤشّراتُ ثلاثةٌ والحجم و«مؤشر الأبحاث» (‏D753) — Stoch RSI وCVD D7M في لوحتين حقيقيتين لا تتداخلان، ولكلٍّ قيمُه`, panes.map(p => `${p.t}@${Math.round(p.y)}`).join(" | ") + " · " + menuItems.join(",")); 
+      && JSON.stringify(menuItems) === JSON.stringify(["vol", "stochrsi", "cvd", "macd", "d7m"]),
+      `${label}: المؤشّراتُ والحجم و‏MACD (‏D756) — Stoch RSI وCVD D7M في لوحتين حقيقيتين لا تتداخلان، ولكلٍّ قيمُه`, panes.map(p => `${p.t}@${Math.round(p.y)}`).join(" | ") + " · " + menuItems.join(",")); 
   if (SHOTS) { const el = await page.$('[data-role="troom"]'); if (el) await el.screenshot({ path: join(SHOTS, `room_${vp.width}_${theme}.png`) }); }
   // قائمةٌ للسوق الأمريكي، وAAPL بالبحث، ثمّ إزالتُها
   await page.locator('[data-role="troom-new"]').click();

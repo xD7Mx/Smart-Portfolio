@@ -1858,7 +1858,7 @@ class MarketDataService:
         سلسلةُ الإغلاق الرسمية كما هي. والأسبوعُ (الأحد–الخميس) والشهرُ منها."""
         from app.services import cache
         from app.services import tasi_history as _th
-        ck = f"bars:tasi:{tf}:v3"
+        ck = f"bars:tasi:{tf}:v4"   # ‏D756: اليوميُّ يحمل كمّيته من ساعاته
         hit = cache.get(ck)
         if hit is not None:
             return hit

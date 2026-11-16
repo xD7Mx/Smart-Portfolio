@@ -146,11 +146,13 @@ def real_daily(closes: list, hours: list) -> list:
     for h in hours or []:
         d = str(h["date"])[:10]
         b = real.get(d)
+        v = float(h.get("volume") or 0)
         if b is None:
             real[d] = {"date": d, "time": 0, "open": h["open"], "high": h["high"], "low": h["low"],
-                       "close": h["close"], "volume": 0}
+                       "close": h["close"], "volume": v}
         else:
             b["high"], b["low"], b["close"] = max(b["high"], h["high"]), min(b["low"], h["low"]), h["close"]
+            b["volume"] = (b.get("volume") or 0) + v   # ‏D756 (المالك: «CVD لا يعمل — يقول لا أحجام»): كمّيةُ اليوم مجموعُ ساعاته
     out, have = [], set()
     for c in closes or []:
         d = str(c["date"])[:10]

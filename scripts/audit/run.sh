@@ -483,7 +483,7 @@ python3 scripts/audit/chart_bars_d735.py || _note "$LINENO"   # ‏D735: شمو�
 _node scripts/audit/pro_chart_d736.mjs || _note "$LINENO"   # ‏D736: الرسمُ الاحترافيّ — شموعٌ مقروءة ولوحاتٌ حقيقية وأدواتُ رسم، والقوائمُ يمينَ الشاشة
 python3 scripts/audit/research_desk_d745.py || _note "$LINENO"   # ‏D745: قسمُ الأبحاث — مصادرُ موثّقة وتوصياتٌ بدليلين وتقريرٌ يوميٌّ إلى تلغرام
 python3 scripts/audit/research_paper_d746.py || _note "$LINENO"   # ‏D746: ورقةُ التقرير اليوميّ على هيئة بيوت الأبحاث — مؤرّخةٌ وبلا مصادر
-python3 scripts/audit/research_ind_d753.py || _note "$LINENO"   # ‏D753: «مؤشّرُ الأبحاث» واحدٌ في التقرير اليوميّ والرسم البيانيّ — مطابقٌ للرسم المرجعيّ
+python3 scripts/audit/d7m_report_d756.py || _note "$LINENO"   # ‏D756: مؤشّرُ دحم في التقرير مطابقٌ للرسم، وتقريرٌ واحدٌ يُرسَل، وصفحاتُ A4 لا تفيض، وأدواتُ الرسم
 python3 scripts/audit/research_archive_d749.py || _note "$LINENO"   # ‏D749: أرشيفُ التقارير لجميع الجلسات — كلُّ جلسةٍ بأرقامها هي
 python3 scripts/audit/robo_orders_d750.py || _note "$LINENO"   # ‏D750: أوامرُ المستشار الآليّ — بأرقامها وبوّاباتها واعتماد المالك
 _node scripts/audit/robo_d750.mjs || _note "$LINENO"   # ‏D750: أوامرُ المستشار في بطاقته — الاعتمادُ والإيقافُ والحدود

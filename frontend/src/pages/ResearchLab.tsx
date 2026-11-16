@@ -57,9 +57,23 @@ export default function ResearchLab() {
   });
 
   /* الإطارُ بطول ورقته — يُقاس عند التحميل وكلّما تغيّر عرضُ النافذة (الورقةُ تلتفّ عموداً واحداً على الهاتف) */
+  /* ‏D756: كلُّ صفحةٍ ورقةُ A4 بقياسها — وما زاد من محتواها يُصغَّر بنسبته (دالّةُ الورقة نفسُها، فالإطارُ لا يشغّل نصوصاً) */
+  const fitPages = (d: Document) => {
+    if ((d.defaultView?.innerWidth || 0) < 820) return;
+    d.querySelectorAll<HTMLElement>(".page").forEach(pg => {
+      const pb = pg.querySelector<HTMLElement>(".pb"), pf = pg.querySelector<HTMLElement>(".pf");
+      if (!pb || !pf) return;
+      (pb.style as any).zoom = "";
+      const t = pb.getBoundingClientRect().top, lim = pf.getBoundingClientRect().top - 10, pad = parseFloat(getComputedStyle(pb).paddingTop) || 0;
+      let b = t;
+      Array.from(pb.children).forEach(c => { const r = c.getBoundingClientRect(); if (r.height) b = Math.max(b, r.bottom); });
+      if (b > lim) { (pb.style as any).zoom = String(Math.max(0.72, (lim - t - pad) / (b - t - pad))); pg.setAttribute("data-fit", (pb.style as any).zoom); }
+      else pg.removeAttribute("data-fit");
+    });
+  };
   const measure = () => {
     const d = frame.current?.contentDocument;
-    if (d?.body) setHeight(Math.max(400, d.documentElement.scrollHeight));
+    if (d?.body) { fitPages(d); setHeight(Math.max(400, d.documentElement.scrollHeight)); }
   };
   useEffect(() => {
     setReady(false);

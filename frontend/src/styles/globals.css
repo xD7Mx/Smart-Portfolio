@@ -3357,11 +3357,17 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 
 /* ‏D736: غرفةُ التداول عربيّة — القوائمُ يمينَ الشاشة والرسمُ يسارَها؛ وعلى الجوال الرسمُ أوّلاً والقوائمُ تحته */
 .troom-chart { padding: 0; overflow: visible; }
-/* ══ ‏D753: مؤشّرُ الأبحاث — ألوانُ رسم التقرير المرجعيّ (تريدنق فيو) بمظهرَي التطبيق ══ */
-:root { --ri-sma20: #ef9a9a; --ri-sma50: #a5d6a7; --ri-fib: #5b8cff; --ri-rsi: #5b8cff; --ri-band: rgba(91,140,255,0.10); --ri-trend: #d1d4dc;
-        --ri-buy: #22c3a6; --ri-sell: #ff5d6c; }
-html.light { --ri-sma20: #ef9a9a; --ri-sma50: #a5d6a7; --ri-fib: #2962ff; --ri-rsi: #2962ff; --ri-band: rgba(41,98,255,0.08); --ri-trend: #131722;
-             --ri-buy: #089981; --ri-sell: #f23645; }
+/* ══ ‏D756: عينُ إخفاء المؤشّر وألوانُ الشموع ══ */
+.pc-eye { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; margin: -8px -6px -8px 0;
+  border-radius: 6px; color: var(--ink-muted); opacity: .55; transition: opacity .2s ease, background-color .2s ease; }
+.pc-eye:hover, .pc-eye:focus-visible, .pc-chip.pc-off .pc-eye { opacity: 1; background: var(--field); }
+.pc-chip { transition: opacity .2s ease; }
+.pc-chip.pc-off > :not(.pc-eye) { opacity: .4; }
+.pc-cc { border-top: 1px solid var(--hairline); margin-top: 4px; padding: 8px 10px 4px; display: flex; flex-direction: column; gap: 6px; }
+.pc-cc-t { font-size: 11px; font-weight: 700; color: var(--ink-muted); }
+.pc-cc-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--ink); min-height: 32px; }
+.pc-cc-row input { width: 40px; height: 28px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--card); padding: 1px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .pc-eye, .pc-chip { transition: none; } }
 /* ══ ‏D750: أوامرُ المستشار الآليّ ══ */
 .robo-chip { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 8px; white-space: nowrap; }
 .robo-lim { color: var(--ink-muted); background: var(--field); font-weight: 600; white-space: normal; }

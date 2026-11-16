@@ -13,6 +13,8 @@ export type Level = {
   rank?: number;            // الأصغرُ أَولى بالوسم حين تتزاحم
   tag?: boolean;            // وسمٌ مؤطَّر على محور الأسعار
   bold?: boolean; line?: boolean;
+  /* ‏D756 (المالك 2026-11-16): «أرقامُ المستويات أمام آخر شمعة كتريدنق فيو — لا في عمود الأسعار — فوق الخطّ أو عليه أو تحته، وبحوافّ واضحة» */
+  label?: string; lx?: number; lpos?: "above" | "on" | "below"; lcolor?: string;
 };
 export type Segment = { x1: number; y1: number; x2: number; y2: number; color: string; width?: number; dash?: number[]; extend?: boolean };
 export type Path = { pts: { x: number; y: number }[]; color: string; width?: number };
@@ -131,6 +133,33 @@ export class ChartOverlay implements ISeriesPrimitive<Time> {
         ctx.fillStyle = l.color;
         ctx.fillText(l.text as string, 8, y - 4);
       }
+      // ٤ب أرقامُ المستويات أمام آخر شمعة: حبّةٌ بخلفية اللوحة وإطارٍ بلون الخطّ — ولا تتراكب حبّتان
+      ctx.font = `700 10.5px ${this.font}`;
+      ctx.textBaseline = "middle";
+      const boxes: [number, number][] = [];
+      for (const l of [...this.levels].filter(x => x.label).sort((a, b) => (a.rank ?? 9) - (b.rank ?? 9))) {
+        const y = this.py(l.price), x = l.lx != null ? this.px(l.lx) : null;
+        if (y == null || x == null || y < this.textTop || y > H - 4) continue;
+        const h = 17, w = ctx.measureText(l.label as string).width + 14;
+        const cy = l.lpos === "above" ? y - h / 2 - 2 : l.lpos === "below" ? y + h / 2 + 2 : y;
+        let top = Math.round(cy - h / 2) + 0.5;
+        // مستويان متقاربان: تُزاح الحبّةُ الثانية عن الأولى (لا تُحذف)، في اتّجاه موضعها
+        for (let k = 0; k < 4 && boxes.some(([a, b]) => top < b + 2 && top + h > a - 2); k++) {
+          const hit = boxes.find(([a, b]) => top < b + 2 && top + h > a - 2)!;
+          top = l.lpos === "above" ? hit[0] - h - 2 : hit[1] + 2;
+        }
+        if (boxes.some(([a, b]) => top < b && top + h > a) || top < this.textTop || top + h > H) continue;
+        boxes.push([top, top + h]);
+        const xx = Math.round(Math.min(Math.max(x, 4), W - w - 4)) + 0.5;
+        ctx.beginPath();
+        if (typeof (ctx as any).roundRect === "function") (ctx as any).roundRect(xx, top, w, h, 8); else ctx.rect(xx, top, w, h);
+        ctx.fillStyle = this.bg; ctx.fill();
+        ctx.strokeStyle = l.color; ctx.lineWidth = 1.2; ctx.stroke();
+        ctx.fillStyle = l.lcolor || l.color;
+        ctx.textAlign = "left";
+        ctx.fillText(l.label as string, xx + 7, top + h / 2 + 0.5);
+      }
+      ctx.textBaseline = "alphabetic";
       const placedN: { x: number; y: number }[] = [];
       ctx.font = `700 10.5px ${this.font}`;
       ctx.textAlign = "center";

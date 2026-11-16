@@ -185,182 +185,6 @@ def view_of(t: dict) -> str:
     return "اتجاه هابط"
 
 
-# ── مؤشّرُ الأبحاث (‏D753 · بأمر المالك 2026-11-16) ─────────────────────────────────────────────────────────────
-# «الرسمُ مثلُ الذي في تقرير الجزيرة كابيتال — تريدنق فيو بخمسة مؤشّرات، ثلاثةٌ أعلى واثنان أسفل… وضعه في الرسم عندي مؤشّراً مستقلّاً
-# باسم مؤشّر الأبحاث، مطابقاً». قرأه القارئُ البصريّ من رسم التقرير نفسِه (‏ajc_chart_door): متوسّطُ 20 (‏#ef9a9a) ومتوسّطُ 50 (‏#a5d6a7)
-# وفيبوناتشي من قاع السنة إلى أوّل قمّة ارتداد (0 · 1 · 1.272 · 1.618 · 2 بالأزرق ‏#2962ff) فوق؛ والكمّيةُ وRSI 14 (أزرق، 30 و70) تحت؛
-# وخطوطُ اتجاهٍ تصل القمم، وأسهمُ شراءٍ وبيع. والدعمُ والمقاومةُ في جدوله تلاقي مستوياتٍ: فيبوناتشي والمتوسّطان والقممُ والقيعانُ السابقة
-# والأرقامُ النفسية (10,000 · 10,060 = فيبوناتشي 1 · 10,250 = 127.2٪ المحور · 10,490 = 161.8٪). والشيفرةُ نفسُها في الرسم التفاعليّ
-# (‏frontend/src/lib/researchIndicator.ts) — والحارسُ يطابق بينهما.
-RI_FIB = (0.0, 1.0, 1.272, 1.618, 2.0)
-RI_COLORS = {"sma20": "#ef9a9a", "sma50": "#a5d6a7", "fib": "#2962ff", "rsi": "#2962ff", "rsi_band": "#f0f3fa", "trend": "#131722",
-             "buy": "#089981", "sell": "#f23645"}
-
-
-def _pivots(vals: list[float], k: int = 3, high: bool = True) -> list[int]:
-    out = []
-    for j in range(k, len(vals) - k):
-        w = vals[j - k:j + k + 1]
-        if vals[j] == (max(w) if high else min(w)) and w.count(vals[j]) == 1:
-            out.append(j)
-    return out
-
-
-def _rsi_series(cl: list[float], n: int = 14) -> list[float | None]:
-    out: list[float | None] = [None] * len(cl)
-    if len(cl) <= n:
-        return out
-    g = [max(0.0, cl[i] - cl[i - 1]) for i in range(1, len(cl))]
-    l = [max(0.0, cl[i - 1] - cl[i]) for i in range(1, len(cl))]
-    ag, al = sum(g[:n]) / n, sum(l[:n]) / n
-    out[n] = 100.0 if al == 0 else 100 - 100 / (1 + ag / al)
-    for i in range(n, len(g)):
-        ag, al = (ag * (n - 1) + g[i]) / n, (al * (n - 1) + l[i]) / n
-        out[i + 1] = 100.0 if al == 0 else 100 - 100 / (1 + ag / al)
-    return out
-
-
-def fib_anchor(H: list[float], L: list[float], C: list[float], w0: int) -> dict | None:
-    """مرساةُ فيبوناتشي كما يرسمها المحلّل: من أدنى قاعٍ في السنة (0) إلى أوّل قمّة ارتدادٍ ذات شأن (1) — صعودٌ 5٪ فأكثر يتبعه تراجعٌ
-    38.2٪ منه فأكثر — والامتداداتُ 1.272 و1.618 و2 أهدافٌ فوقها. وإن تجاوز السعرُ امتدادَ 2 فقد استُنفدت الموجة: تُعاد المرساةُ على ما بعدها."""
-    n, start, fib = len(C), w0, None
-    ph = _pivots(H)
-    for _ in range(4):
-        if start >= n - 5:
-            break
-        i0 = min(range(start, n), key=lambda i: L[i])
-        p0 = L[i0]
-        pick = None
-        for j in (j for j in ph if j > i0):
-            nxt = next((m for m in range(j + 1, n) if H[m] > H[j]), n)
-            low = min(L[j + 1:nxt]) if nxt > j + 1 else H[j]
-            if (H[j] - p0) / p0 >= 0.05 and (H[j] - low) / (H[j] - p0) >= 0.382:
-                pick = j
-                break
-        if pick is None:
-            break
-        p1 = H[pick]
-        fib = {"i0": i0, "i1": pick, "p0": p0, "p1": p1, "levels": [{"k": k, "p": p0 + k * (p1 - p0)} for k in RI_FIB]}
-        if C[-1] <= p0 + 2 * (p1 - p0):
-            break
-        start = pick + 1
-    if fib is None:
-        # لا موجةَ بتراجعٍ صريح (اتجاهٌ متّصل): من قاع السنة إلى أعلى قمّةٍ بعده إن بلغ الصعودُ 3٪
-        i0 = min(range(w0, n), key=lambda i: L[i])
-        if i0 < n - 5:
-            i1 = max(range(i0 + 1, n), key=lambda i: H[i])
-            if (H[i1] - L[i0]) / L[i0] >= 0.03:
-                fib = {"i0": i0, "i1": i1, "p0": L[i0], "p1": H[i1], "levels": [{"k": k, "p": L[i0] + k * (H[i1] - L[i0])} for k in RI_FIB]}
-    return fib
-
-
-def psych_step(c: float) -> float:
-    """خطوةُ الأرقام النفسية: أقربُ رقمٍ «مستدير» (1 · 2 · 2.5 · 5 · 10 × عشرة) إلى 4٪ من السعر — 10,214 ← 500، و63 ← 2.5."""
-    raw = c * 0.04
-    mag = 10 ** math.floor(math.log10(raw)) if raw > 0 else 1
-    return min((m * mag for m in (1, 2, 2.5, 5, 10)), key=lambda x: abs(x - raw))
-
-
-def research_ind(bars: list[dict]) -> dict | None:
-    """مؤشّرُ الأبحاث من شموعٍ يومية ({o,h,l,c,v}): المتوسّطان، وRSI، وفيبوناتشي، وخطّا الاتجاه، والإشارات، والدعومُ والمقاوماتُ بالتلاقي."""
-    n = len(bars)
-    if n < 30:
-        return None
-    H, L, C = [b["h"] for b in bars], [b["l"] for b in bars], [b["c"] for b in bars]
-    sma = lambda k: [sum(C[i - k + 1:i + 1]) / k if i >= k - 1 else None for i in range(n)]   # noqa: E731
-    s20, s50 = sma(20), sma(50)
-    rsi = _rsi_series(C)
-    w0 = max(0, n - 250)
-    fib = fib_anchor(H, L, C, w0)
-    pH, pL = _pivots(H), _pivots(L, high=False)
-    trend = {"res": None, "sup": None}
-    hs = [j for j in pH if j >= w0]
-    for a, b in zip(hs[::-1][1:], hs[::-1]):
-        if H[a] > H[b]:
-            slope = (H[b] - H[a]) / (b - a)
-            trend["res"] = {"x1": a, "y1": H[a], "x2": n - 1, "y2": H[a] + slope * (n - 1 - a)}
-            break
-    ls = [j for j in pL if j >= w0]
-    for a, b in zip(ls[::-1][1:], ls[::-1]):
-        if L[a] < L[b]:
-            slope = (L[b] - L[a]) / (b - a)
-            trend["sup"] = {"x1": a, "y1": L[a], "x2": n - 1, "y2": L[a] + slope * (n - 1 - a)}
-            break
-    for k2 in ("res", "sup"):
-        t = trend[k2]
-        if t and not (0.85 * C[-1] <= t["y2"] <= 1.15 * C[-1]):
-            trend[k2] = None
-    sig = []
-    for i in range(1, n):
-        a, b = rsi[i - 1], rsi[i]
-        if a is not None and b is not None:
-            if a < 30 <= b:
-                sig.append({"i": i, "side": "buy"})
-            elif a > 70 >= b:
-                sig.append({"i": i, "side": "sell"})
-    return {"sma20": s20, "sma50": s50, "rsi": rsi, "fib": fib, "trend": trend, "signals": sig,
-            "levels": research_levels(bars, s20[-1], s50[-1], fib, pH, pL)}
-
-
-def research_levels(bars: list[dict], s20, s50, fib: dict | None, pH: list[int], pL: list[int]) -> dict:
-    """الدعومُ الثلاثة والمحورُ والمقاوماتُ الثلاث بالتلاقي — كجدول «المقاومة والدعم» في التقرير المرجعيّ: فيبوناتشي والمتوسّطان والقممُ
-    والقيعانُ السابقة (مئةٌ وعشرون جلسة) والأرقامُ النفسية، ولكلّ مستوًى اسمُه. والمحورُ مستوى فيبوناتشي على 1.5٪ من الإغلاق (الكسرُ الأخير)
-    وإلا المحورُ الكلاسيكيّ؛ وما نقص من الطرفين يُكمَل بالكلاسيكيّ."""
-    c, h, l = bars[-1]["c"], bars[-1]["h"], bars[-1]["l"]
-    n = len(bars)
-    cands: list[tuple[float, str]] = []
-    if fib:
-        cands += [(x["p"], f"فيبوناتشي {x['k'] * 100:g}٪" if x["k"] not in (0.0, 1.0) else ("قاع الموجة" if x["k"] == 0 else "قمة الموجة"))
-                  for x in fib["levels"]]
-    if s20:
-        cands.append((s20, "متوسط 20"))
-    if s50:
-        cands.append((s50, "متوسط 50"))
-    cands += [(bars[j]["h"], "قمة سابقة") for j in pH if j >= n - 120]
-    cands += [(bars[j]["l"], "قاع سابق") for j in pL if j >= n - 120]
-    step = psych_step(c)
-    base = math.floor(c / step) * step
-    real = list(cands)
-    # الرقمُ النفسيُّ يُترك إن قاربه (0.6٪) مستوًى حقيقيّ — فالفيبوناتشي والمتوسّطُ والقمّةُ أَولى منه
-    cands += [(v, "مستوى نفسي") for v in [base - k * step for k in range(0, 4)] + [base + k * step for k in range(1, 5)]
-              if v > 0 and not any(abs(v - r[0]) / c < 0.006 for r in real)]
-    cl = pivots(h, l, c)
-    piv = None
-    if fib:
-        near = [x for x in fib["levels"] if abs(x["p"] - c) / c <= 0.015 and x["k"] not in (0.0,)]
-        if near:
-            x = min(near, key=lambda x: abs(x["p"] - c))
-            piv = (x["p"], f"فيبوناتشي {x['k'] * 100:g}٪" if x["k"] != 1.0 else "قمة الموجة")
-    if piv is None:
-        piv = (cl["p"], "المحور الكلاسيكي")
-    gap = 0.004 * c
-
-    def side(vals, below):
-        vals = sorted(vals, key=lambda v: -v[0] if below else v[0])
-        out: list[tuple[float, str]] = []
-        for v, nm in vals:
-            if abs(v - piv[0]) < gap or any(abs(v - o[0]) < gap for o in out):
-                continue
-            out.append((v, nm))
-            if len(out) == 3:
-                break
-        return out
-    sup = side([x for x in cands if x[0] < min(c, piv[0]) - gap / 2], True)
-    res = side([x for x in cands if x[0] > max(c, piv[0]) + gap / 2], False)
-    for k in ("s1", "s2", "s3"):
-        if len(sup) < 3 and cl[k] < min([s[0] for s in sup] + [piv[0], c]) - gap:
-            sup.append((cl[k], "المحور الكلاسيكي"))
-    for k in ("r1", "r2", "r3"):
-        if len(res) < 3 and cl[k] > max([r[0] for r in res] + [piv[0], c]) + gap:
-            res.append((cl[k], "المحور الكلاسيكي"))
-    out = {"p": piv[0], "p_name": piv[1]}
-    for i, (v, nm) in enumerate(sup[:3]):
-        out[f"s{i + 1}"], out[f"s{i + 1}_name"] = v, nm
-    for i, (v, nm) in enumerate(res[:3]):
-        out[f"r{i + 1}"], out[f"r{i + 1}_name"] = v, nm
-    return out
-
-
 # ── جمعُ جلسة اليوم ────────────────────────────────────────────────────────
 async def _index_raw() -> dict:
     from app.services import tadawul_market as TM
@@ -789,9 +613,8 @@ def pick_levels(bars: list[dict]) -> dict | None:
     if not t or not t.get("atr"):
         return None
     rb = [{"d": b["date"][:10], "o": b["open"], "h": b["high"], "l": b["low"], "c": b["close"], "v": b["volume"]} for b in _bars_ok(bars)[-260:]]
-    ri = research_ind(rb)
     c, a = t["close"], t["atr"]
-    p = {**t["piv"], **{k: v for k, v in ((ri or {}).get("levels") or {}).items() if isinstance(v, (int, float))}}
+    p = {**t["piv"], **{k: v for k, v in d7m_levels(d7m_ind(rb), c, t["piv"]).items() if isinstance(v, (int, float))}}
     lo = max(p["s1"], c - 0.5 * a)
     tgt_lo, tgt_hi = max(p["r1"], c + 0.5 * a), max(p["r2"], c + a)
     stop = min(p["s2"], c - 1.5 * a)
@@ -884,23 +707,29 @@ def tech_commentary(m: dict) -> tuple[str, str, str]:
     at = {"low": "، وأغلق قرب أدنى مستوياته في الجلسة", "high": "، وأغلق قرب أعلى مستوياته في الجلسة", "mid": ""}[t["close_at"]]
     o = [f"شكّل المؤشر {cand}{at}."]
     sm = []
-    ri = ri_of(m)
-    s20, s50 = (ri["sma20"][-1], ri["sma50"][-1]) if ri else (t.get("sma20"), t.get("sma50"))
-    for v, lbl in ((s20, "لعشرين يوماً"), (s50, "لخمسين يوماً"), (t.get("sma200"), "لمئتي يوم")):
+    dz = d7m_of(m)
+    for v, lbl in ((t.get("sma20"), "لعشرين يوماً"), (t.get("sma50"), "لخمسين يوماً"), (t.get("sma200"), "لمئتي يوم")):
         if v:
             sm.append(f"{'فوق' if t['close'] > v else 'دون'} المتوسّط المتحرّك البسيط {lbl} ({n0(v)})")
     if sm:
         o.append("ويتداول المؤشر " + "، و".join(sm) + ".")
-    fib = (ri or {}).get("fib")
-    if fib:
-        ext = [x for x in fib["levels"] if x["k"] > 1]
-        under = [x for x in ext if x["p"] <= t["close"]]
-        above = [x for x in ext if x["p"] > t["close"]]
-        if under:
-            o.append(f"ويتداول فوق امتداد {under[-1]['k'] * 100:g}٪ فيبوناتشي حول {n0(under[-1]['p'])} نقطة"
-                     + (f"، والامتدادُ التالي {above[0]['k'] * 100:g}٪ حول {n0(above[0]['p'])} نقطة." if above else "."))
-        elif above:
-            o.append(f"وأوّلُ امتدادات فيبوناتشي {above[0]['k'] * 100:g}٪ حول {n0(above[0]['p'])} نقطة.")
+    z = (dz or {}).get("zones") or {}
+    if z:
+        c = t["close"]
+        inside = next((k for k, (lo, hi) in z.items() if lo <= c <= hi), None)
+        if inside:
+            o.append(f"ويتداول داخل {ZONE_NAME[inside]} بين {n0(z[inside][0])} و{n0(z[inside][1])} نقطة.")
+        else:
+            below = [k for k, (lo, hi) in z.items() if hi < c]
+            above = [k for k, (lo, hi) in z.items() if lo > c]
+            near_b = max(below, key=lambda k: z[k][1]) if below else None
+            near_a = min(above, key=lambda k: z[k][0]) if above else None
+            if near_b and near_a:
+                o.append(f"ويتداول بين {ZONE_NAME[near_b]} ({n0(z[near_b][1])}) و{ZONE_NAME[near_a]} ({n0(z[near_a][0])}).")
+            elif near_b:
+                o.append(f"ويتداول فوق {ZONE_NAME[near_b]} ({n0(z[near_b][1])} نقطة).")
+            elif near_a:
+                o.append(f"ويتداول دون {ZONE_NAME[near_a]} ({n0(z[near_a][0])} نقطة).")
     if t.get("rsi") is not None:
         r = t["rsi"]
         zone = ("في منطقة التشبّع الشرائي" if r >= 70 else "في منطقة التشبّع البيعي" if r <= 30 else "فوق مستوى 50" if r >= 50 else "دون مستوى 50")
@@ -929,19 +758,93 @@ def tech_commentary(m: dict) -> tuple[str, str, str]:
     return c1, " ".join(o), adv
 
 
-def ri_of(m: dict) -> dict | None:
-    """مؤشّرُ الأبحاث لشموع الورقة (سنةٌ يومية) — يُحسب مرّةً لكلّ ورقة."""
-    if "_ri" not in m:
-        m["_ri"] = research_ind(m.get("daily") or [])
-    return m["_ri"]
+def _d7m_bars(bars: list[dict]) -> list[dict]:
+    """شموعُ الورقة ({d,o,h,l,c,v}) بصيغة مؤشّر دحم ({date,open,high,low,close,volume})."""
+    out = []
+    for x in bars or []:
+        if all(isinstance(x.get(k), (int, float)) for k in ("o", "h", "l", "c")):
+            out.append({"date": x.get("d"), "open": x["o"], "high": max(x["h"], x["o"], x["c"]), "low": min(x["l"], x["o"], x["c"]),
+                        "close": x["c"], "volume": x.get("v") or 0})
+    return out
+
+
+def d7m_ind(bars: list[dict]) -> dict | None:
+    """‏D756 (المالك 2026-11-16): «ضع مؤشّر دحم في التقرير» — على اليوميّ بإعداداته الافتراضية (الفيبوناتشي 3/7 · القناة 3/20 · الاتجاه 15):
+    المناطقُ الثلاث (المقاومة 1–1.1 · المحايدة 0.5–0.618 · الدعم 0–−0.1 بموضعها لا برقمها)، والمتوسّطاتُ 20 و50 و200، والاتجاهُ التلقائيّ
+    الرئيسيّ والفرعيّ، والقناةُ الرئيسية، وستوكاستيك RSI ‏3 3 14 14 — الشيفرةُ نفسُها التي ترسم الرسمَ التفاعليّ (‏services/d7m)."""
+    from app.services import d7m as D
+    b = _d7m_bars(bars)
+    if len(b) < 30:
+        return None
+    cl = [x["close"] for x in b]
+    fib = D.auto_fib(b, 3, 7)
+    zones = {}
+    if fib:
+        lv = fib["levels"]
+        pairs = sorted([(min(lv[0], lv[-0.1]), max(lv[0], lv[-0.1])), (min(lv[1], lv[1.1]), max(lv[1], lv[1.1]))], key=lambda z: z[0])
+        zones = {"sup": pairs[0], "res": pairs[1], "mid": (min(lv[0.5], lv[0.618]), max(lv[0.5], lv[0.618]))}
+    sma = lambda k: [sum(cl[i - k + 1:i + 1]) / k if i >= k - 1 else None for i in range(len(cl))]   # noqa: E731
+    return {"bars": b, "fib": fib, "zones": zones, "trend": D.auto_trend(b, 15), "channel": D.auto_channel(b, 3, 20),
+            "stoch": D.stoch_rsi(cl), "sma20": sma(20), "sma50": sma(50), "sma200": sma(200)}
+
+
+def d7m_of(m: dict) -> dict | None:
+    """مؤشّرُ دحم لشموع الورقة اليومية — يُحسب مرّةً لكلّ ورقة."""
+    if "_d7m" not in m:
+        m["_d7m"] = d7m_ind(m.get("daily") or [])
+    return m["_d7m"]
+
+
+ZONE_NAME = {"sup": "منطقة الدعم", "mid": "المنطقة المحايدة", "res": "منطقة المقاومة"}
+
+
+def d7m_levels(d: dict | None, close: float, piv: dict | None = None) -> dict:
+    """الدعومُ الثلاثة والمقاوماتُ الثلاث من مؤشّر دحم: حدودُ مناطقه الثلاث ومستوياتُ فيبوناتشي والمتوسّطاتُ 20 و50 و200 — أقربُها إلى الإغلاق
+    من كلّ جهة، ولكلٍّ اسمُه؛ والمحورُ الكلاسيكيّ وسطَها، وما نقص من جهةٍ يُكمَل بالكلاسيكيّ."""
+    piv = dict(piv or {})
+    out = {"p": piv.get("p"), "p_name": "المحور الكلاسيكي"}
+    if not d or not close:
+        return {**piv, **out}
+    cand = []
+    for k, (lo, hi) in (d.get("zones") or {}).items():
+        cand += [(lo, ZONE_NAME[k]), (hi, ZONE_NAME[k])]
+    for lv, v in ((d.get("fib") or {}).get("levels") or {}).items():
+        if lv not in (0, -0.1, 0.5, 0.618, 1, 1.1):
+            cand.append((v, f"فيبوناتشي {lv:g}"))
+    for k, nm in (("sma20", "متوسط 20"), ("sma50", "متوسط 50"), ("sma200", "متوسط 200")):
+        v = (d.get(k) or [None])[-1]
+        if v:
+            cand.append((v, nm))
+    gap = close * 0.003
+
+    def side(vals, below):
+        res = []
+        for v, nm in sorted(vals, key=lambda x: -x[0] if below else x[0]):
+            if any(abs(v - r[0]) < gap for r in res):
+                continue
+            res.append((v, nm))
+            if len(res) == 3:
+                break
+        return res
+    sup = side([c for c in cand if c[0] < close - gap / 2], True)
+    res = side([c for c in cand if c[0] > close + gap / 2], False)
+    for k in ("s1", "s2", "s3"):
+        if len(sup) < 3 and piv.get(k) and piv[k] < min([s[0] for s in sup] + [close]) - gap:
+            sup.append((piv[k], "المحور الكلاسيكي"))
+    for k in ("r1", "r2", "r3"):
+        if len(res) < 3 and piv.get(k) and piv[k] > max([r[0] for r in res] + [close]) + gap:
+            res.append((piv[k], "المحور الكلاسيكي"))
+    for i, (v, nm) in enumerate(sup[:3]):
+        out[f"s{i + 1}"], out[f"s{i + 1}_name"] = v, nm
+    for i, (v, nm) in enumerate(res[:3]):
+        out[f"r{i + 1}"], out[f"r{i + 1}_name"] = v, nm
+    return out
 
 
 def levels_of(m: dict) -> dict:
-    """الدعومُ والمحورُ والمقاوماتُ بتلاقي مؤشّر الأبحاث — وإن قصرت الشموعُ فالمحورُ الكلاسيكيّ."""
-    ri = ri_of(m)
-    if ri:
-        return ri["levels"]
-    return dict((m.get("tech") or {}).get("piv") or {})
+    """الدعومُ والمحورُ والمقاوماتُ من مؤشّر دحم على يوميّ الورقة — وإن قصرت الشموعُ فالمحورُ الكلاسيكيّ."""
+    tech = m.get("tech") or {}
+    return d7m_levels(d7m_of(m), tech.get("close"), tech.get("piv"))
 
 
 def pick_note(k: dict) -> str:
@@ -1127,118 +1030,136 @@ def svg_candles(bars: list[dict], w: int = 470, h: int = 270, sma=(10, 50), leve
     return f'<svg direction="ltr" viewBox="0 0 {w} {h}" width="100%" role="img" aria-label="الرسم البياني اليومي">{"".join(out)}</svg>'
 
 
-def svg_research(bars: list[dict], w: int = 470, h: int = 330, title: str = "", ri: dict | None = None, extra: dict | None = None) -> str:
-    """رسمُ مؤشّر الأبحاث بهيئة رسم التقرير المرجعيّ (تريدنق فيو): لوحةُ السعر بشموعها ومتوسّطَي 20 و50 وفيبوناتشي بتسمياته وخطَّي الاتجاه
-    وأسهمِ الشراء والبيع، ثمّ لوحةُ الكمّية، ثمّ لوحةُ RSI 14 بحدَّيها ونطاقها. و`extra` مستوياتٌ إضافية (نطاقُ الشراء والهدفُ والوقف للاختيارات)."""
-    if len(bars) < 30:
+def svg_d7m(bars: list[dict], w: int = 470, h: int = 330, title: str = "", d: dict | None = None, extra: dict | None = None, win: int = 120) -> str:
+    """‏D756 (المالك 2026-11-16): «الرسمُ مربكٌ وزحمة — ضع مؤشّر دحم: المناطقُ الثلاث، و20 و50 و200 على اليوميّ، وستوكاستيك RSI تحته،
+    والترندُ التلقائيّ، والقناةُ الرئيسية بلا خطّ المنتصف — مرتّباً واضحَ المعالم». فلوحتان فقط: السعرُ بآخر 120 جلسةً (يُحسب المؤشّرُ
+    على السنة كلّها) بمناطقه المظلَّلة المسمّاة ومتوسّطاته واتجاهه وقناته، ثمّ ستوكاستيك RSI بنطاقه. و`extra` نطاقُ الشراء والهدفُ والوقف
+    للاختيارات."""
+    d = d or d7m_ind(bars)
+    if not d:
         return ""
-    ri = ri or research_ind(bars)
-    if not ri:
-        return ""
-    n = len(bars)
-    PT, PB = 34, h - 132                                       # لوحةُ السعر — تحت سطرَي العنوان والمتوسّطين
-    VT, VB = PB + 6, PB + 46                                   # لوحةُ الكمّية
-    RT, RB = VB + 8, h - 16                                    # لوحةُ RSI
-    X0, X1 = 4, w - 52
-    fl = [x["p"] for x in (ri["fib"] or {}).get("levels", []) if x["k"] <= 2]
-    ex = [v for v in (extra or {}).values() if v]
-    vals = [b["h"] for b in bars] + [b["l"] for b in bars]
-    lo, hi = min(vals + ex), max(vals + ex)
-    lo2 = min([lo] + [v for v in fl if v >= lo - (hi - lo) * 0.25])
-    hi2 = max([hi] + [v for v in fl if v <= hi + (hi - lo) * 0.25])
-    pad = (hi2 - lo2) * 0.04 or 1
-    lo, hi = lo2 - pad, hi2 + pad
+    B = d["bars"]
+    n = len(B)
+    s0 = max(0, n - win)
+    V = B[s0:]
+    m = len(V)
+    PT, PB = 32, h - 86                                        # لوحةُ السعر — تحت سطرَي العنوان والمتوسّطات
+    ST, SB = PB + 12, h - 12                                   # لوحةُ ستوكاستيك RSI
+    X0, X1 = 4, w - 54
+    lo, hi = min(x["low"] for x in V), max(x["high"] for x in V)
+    span = (hi - lo) or 1
+    zones = {k: z for k, z in (d.get("zones") or {}).items() if z[1] >= lo - 0.18 * span and z[0] <= hi + 0.18 * span}
+    ex = [v for v in ((extra or {}).get("buy") or []) + [(extra or {}).get("stop"), (extra or {}).get("target")] if v]
+    for z in zones.values():
+        lo, hi = min(lo, z[0]), max(hi, z[1])
+    lo, hi = min([lo] + ex), max([hi] + ex)
+    pad = (hi - lo) * 0.05 or 1
+    lo, hi = lo - pad, hi + pad
     y = _scale(lo, hi, PT, PB)
-    bw = (X1 - X0) / n
-    x = lambda i: X0 + (i + 0.5) * bw   # noqa: E731
-    out = [f'<rect x="0.5" y="0.5" width="{w - 1}" height="{h - 1}" fill="#fff" stroke="{TV_BORDER}"/>']
+    bw = (X1 - X0) / m
+    x = lambda i: X0 + (i - s0 + 0.5) * bw   # noqa: E731
+    cid = f"pc{abs(hash((title, n, w))) % 99999}"
+    out = [f'<defs><clipPath id="{cid}"><rect x="{X0}" y="{PT}" width="{X1 - X0}" height="{PB - PT}"/></clipPath></defs>',
+           f'<rect x="0.5" y="0.5" width="{w - 1}" height="{h - 1}" fill="#fff" stroke="{TV_BORDER}"/>']
     for v in _ticks(lo, hi, 5):
         out.append(f'<line x1="{X0}" x2="{X1}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="{TV_GRID}"/>'
                    f'<text x="{X1 + 4}" y="{y(v) + 3:.1f}" font-size="9.5" fill="{TV_AX}" font-family="Arial,sans-serif">{_fmt(v)}</text>')
-    # فيبوناتشي — خطوطٌ زرقاء بتسميةٍ يسارَها كأداة تريدنق فيو: «1.618 (10,490.82)»
-    if ri["fib"]:
-        x1f = x(ri["fib"]["i0"]) - bw / 2
-        for lv in ri["fib"]["levels"]:
-            if lo <= lv["p"] <= hi:
-                out.append(f'<line x1="{x1f:.1f}" x2="{X1}" y1="{y(lv["p"]):.1f}" y2="{y(lv["p"]):.1f}" stroke="{RI_COLORS["fib"]}" stroke-width=".8" opacity=".85"/>'
-                           f'<text x="{max(X0 + 2, x1f - 2):.1f}" y="{y(lv["p"]) - 2:.1f}" font-size="9.5" fill="{RI_COLORS["fib"]}" font-family="Arial,sans-serif">'
-                           f'{lv["k"]:g} ({lv["p"]:,.2f})</text>')
-    if extra and extra.get("buy_lo") and extra.get("buy_hi"):
-        out.append(f'<rect x="{X0}" y="{y(extra["buy_hi"]):.1f}" width="{X1 - X0}" height="{max(1.0, y(extra["buy_lo"]) - y(extra["buy_hi"])):.1f}" fill="{TV_UP}" opacity=".13"/>')
-    vmax = max((b.get("v") or 0) for b in bars) or 0
-    for i, b in enumerate(bars):
-        col = TV_UP if b["c"] >= b["o"] else TV_DN
-        out.append(f'<line x1="{x(i):.1f}" x2="{x(i):.1f}" y1="{y(b["h"]):.1f}" y2="{y(b["l"]):.1f}" stroke="{col}" stroke-width=".7"/>'
-                   f'<rect x="{x(i) - bw * 0.38:.1f}" y="{y(max(b["o"], b["c"])):.1f}" width="{max(.6, bw * 0.76):.1f}" '
-                   f'height="{max(0.7, abs(y(b["o"]) - y(b["c"]))):.1f}" fill="{col}"/>')
-        if vmax:
-            vh = (b.get("v") or 0) / vmax * (VB - VT)
-            out.append(f'<rect x="{x(i) - bw * 0.38:.1f}" y="{VB - vh:.1f}" width="{max(.6, bw * 0.76):.1f}" height="{vh:.1f}" fill="{col}" opacity=".55"/>')
-    for key in ("sma20", "sma50"):
-        pts = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in enumerate(ri[key]) if v is not None)
+    g = [f'<g clip-path="url(#{cid})">']
+    # ١ المناطقُ الثلاث: تظليلٌ خفيفٌ بحدّين واسمٍ ومدًى — المقاومةُ والمحايدةُ والدعم
+    zc = {"res": RED, "mid": GOLD, "sup": GREEN}
+    for k, (a, b) in zones.items():
+        ya, yb = y(b), y(a)
+        g.append(f'<rect x="{X0}" y="{ya:.1f}" width="{X1 - X0}" height="{max(1.5, yb - ya):.1f}" fill="{zc[k]}" fill-opacity=".11"/>'
+                 f'<line x1="{X0}" x2="{X1}" y1="{ya:.1f}" y2="{ya:.1f}" stroke="{zc[k]}" stroke-opacity=".55" stroke-width=".8"/>'
+                 f'<line x1="{X0}" x2="{X1}" y1="{yb:.1f}" y2="{yb:.1f}" stroke="{zc[k]}" stroke-opacity=".55" stroke-width=".8"/>')
+    # ٢ القناةُ الرئيسية: ضلعاها وحدهما (لا خطَّ منتصف)
+    ch = d.get("channel")
+    if ch:
+        g.append('<g data-k="channel">')
+        for seg in (ch["base"], ch["parallel"]):
+            (xa, ya_), (xb, yb_) = seg[0], seg[-1]
+            if xb <= s0:
+                continue
+            if xa < s0:
+                ya_ = ya_ + (yb_ - ya_) * (s0 - xa) / (xb - xa)
+                xa = s0
+            g.append(f'<line x1="{x(xa):.1f}" y1="{y(ya_):.1f}" x2="{x(xb):.1f}" y2="{y(yb_):.1f}" stroke="{NAVY_2}" stroke-opacity=".75" stroke-width="1.3"/>')
+        g.append("</g>")
+    # ٣ الاتجاهُ التلقائيّ: الرئيسيُّ متّصلٌ عريض والفرعيُّ متقطّع — الصاعدُ أخضرُ والهابطُ أحمر
+    for t in (d.get("trend") or {}).get("lines") or []:
+        if t["x2"] <= s0 or t["x2"] <= t["x1"]:
+            continue
+        xa, ya_, xb, yb_ = t["x1"], t["y1"], t["x2"], t["y2"]
+        if xa < s0:
+            ya_ = ya_ + (yb_ - ya_) * (s0 - xa) / (xb - xa)
+            xa = s0
+        g.append(f'<line x1="{x(xa):.1f}" y1="{y(ya_):.1f}" x2="{x(xb):.1f}" y2="{y(yb_):.1f}" stroke="{GREEN if t["up"] else RED}" '
+                 f'stroke-width="{1.6 if t["major"] else 1}"' + ("" if t["major"] else ' stroke-dasharray="4 3"') + "/>")
+    # ٤ الشموع
+    for i in range(s0, n):
+        b = B[i]
+        col = TV_UP if b["close"] >= b["open"] else TV_DN
+        g.append(f'<line x1="{x(i):.1f}" x2="{x(i):.1f}" y1="{y(b["high"]):.1f}" y2="{y(b["low"]):.1f}" stroke="{col}" stroke-width=".7"/>'
+                 f'<rect x="{x(i) - bw * 0.36:.1f}" y="{y(max(b["open"], b["close"])):.1f}" width="{max(.8, bw * 0.72):.1f}" '
+                 f'height="{max(0.7, abs(y(b["open"]) - y(b["close"]))):.1f}" fill="{col}"/>')
+    # ٥ المتوسّطاتُ 20 و50 و200
+    for key, col in (("sma20", TV_MA[0]), ("sma50", TV_MA[1]), ("sma200", TV_MA[2])):
+        pts = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in enumerate(d.get(key) or []) if i >= s0 and v)
         if pts:
-            out.append(f'<polyline points="{pts}" fill="none" stroke="{RI_COLORS[key]}" stroke-width="1.5"/>')
-    for t in (ri["trend"]["res"], ri["trend"]["sup"]):
-        if t:
-            out.append(f'<line x1="{x(t["x1"]):.1f}" y1="{y(t["y1"]):.1f}" x2="{x(t["x2"]):.1f}" y2="{y(t["y2"]):.1f}" stroke="{RI_COLORS["trend"]}" stroke-width="1"/>')
-    for name, v in (extra or {}).items():
-        if name in ("stop", "target") and v and lo <= v <= hi:
-            col = TV_DN if name == "stop" else TV_UP
-            out.append(f'<line x1="{X0}" x2="{X1}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="{col}" stroke-width=".9" stroke-dasharray="5 4"/>'
-                       f'<text x="{X0 + 3}" y="{y(v) - 2.5:.1f}" font-size="9.5" fill="{col}">{"وقف الخسارة" if name == "stop" else "الهدف"}</text>')
-    # أسهمُ الشراء والبيع (عبورُ RSI حدَّي 30 و70) على الشموع وعلى لوحة RSI
-    ry = _scale(0, 100, RT, RB)
-    for s_ in ri["signals"]:
-        i = s_["i"]
-        if s_["side"] == "buy":
-            yy = y(bars[i]["l"]) + 9
-            out.append(f'<path d="M{x(i):.1f},{yy - 6:.1f} l-4,6 h8 z" fill="{RI_COLORS["buy"]}"/>')
-        else:
-            yy = y(bars[i]["h"]) - 9
-            out.append(f'<path d="M{x(i):.1f},{yy + 6:.1f} l-4,-6 h8 z" fill="{RI_COLORS["sell"]}"/>')
-    last, prev = bars[-1], bars[-2]["c"]
-    chg = last["c"] - prev
-    tags = [(y(last["c"]), _fmt(last["c"]), TV_UP if last["c"] >= last["o"] else TV_DN)]
-    placed: list[float] = []
-    for ty, txt, col in tags:
-        placed.append(ty)
-        out.append(_tag(X1 + 1, ty, txt, col))
-    leg = (f'<tspan fill="{INK}" font-weight="700">{_html.escape(title or "")} · 1D</tspan>'
-           + "".join(f'<tspan fill="{TV_AX}"> {k} </tspan><tspan fill="{TV_UP if last["c"] >= last["o"] else TV_DN}">{_fmt(last[k2])}</tspan>'
-                     for k, k2 in (("O", "o"), ("H", "h"), ("L", "l"), ("C", "c")))
-           + f'<tspan fill="{TV_UP if chg >= 0 else TV_DN}"> {chg:+,.2f} ({chg / prev * 100:+.2f}%)</tspan>')
-    out.append(f'<text x="{X0 + 4}" y="13" font-size="9.5" font-family="Arial,sans-serif" direction="ltr" unicode-bidi="embed">{leg}</text>')
-    s20, s50 = ri["sma20"][-1], ri["sma50"][-1]
-    out.append(f'<text x="{X0 + 4}" y="26" font-size="9.5" font-family="Arial,sans-serif">'
-               f'<tspan fill="{RI_COLORS["sma20"]}">20 SMA {_fmt(s20) if s20 else "—"}</tspan>'
-               f'<tspan fill="{RI_COLORS["sma50"]}">  50 SMA {_fmt(s50) if s50 else "—"}</tspan></text>')
-    # لوحةُ الكمّية
-    out.append(f'<line x1="0" x2="{w}" y1="{PB + 3}" y2="{PB + 3}" stroke="{TV_BORDER}"/>')
-    if vmax:
-        out.append(f'<text x="{X0 + 4}" y="{VT + 9}" font-size="9.5" fill="{TV_AX}" font-family="Arial,sans-serif">Volume '
-                   f'<tspan fill="{INK}">{(last.get("v") or 0) / 1e6:,.2f} M</tspan></text>')
-    # لوحةُ RSI
-    out.append(f'<line x1="0" x2="{w}" y1="{VB + 4}" y2="{VB + 4}" stroke="{TV_BORDER}"/>'
-               f'<rect x="{X0}" y="{ry(70):.1f}" width="{X1 - X0}" height="{ry(30) - ry(70):.1f}" fill="{RI_COLORS["rsi_band"]}"/>')
-    for lv in (30, 70):
-        out.append(f'<line x1="{X0}" x2="{X1}" y1="{ry(lv):.1f}" y2="{ry(lv):.1f}" stroke="{TV_AX}" stroke-width=".6" stroke-dasharray="3 3"/>'
-                   f'<text x="{X1 + 4}" y="{ry(lv) + 3:.1f}" font-size="9.5" fill="{TV_AX}" font-family="Arial,sans-serif">{lv}</text>')
-    pts = " ".join(f"{x(i):.1f},{ry(v):.1f}" for i, v in enumerate(ri["rsi"]) if v is not None)
-    out.append(f'<polyline points="{pts}" fill="none" stroke="{RI_COLORS["rsi"]}" stroke-width="1.1"/>')
-    for s_ in ri["signals"]:
-        v = ri["rsi"][s_["i"]]
-        if v is not None:
-            col = RI_COLORS["buy"] if s_["side"] == "buy" else RI_COLORS["sell"]
-            out.append(f'<circle cx="{x(s_["i"]):.1f}" cy="{ry(v):.1f}" r="2.4" fill="{col}"/>')
-    rv = ri["rsi"][-1]
-    out.append(f'<text x="{X0 + 4}" y="{RT + 10}" font-size="9.5" font-family="Arial,sans-serif"><tspan fill="{INK}">RSI 14 close</tspan>'
-               + (f'<tspan fill="{RI_COLORS["rsi"]}"> {rv:.2f}</tspan>' if rv is not None else "") + '</text>')
-    step = max(1, n // 6)
-    for i in range(step // 2, n, step):
-        d = str(bars[i].get("d") or "")
-        if d:
-            out.append(f'<text x="{x(i):.1f}" y="{h - 4}" font-size="9.5" fill="{TV_AX}" text-anchor="middle" font-family="Arial,sans-serif">{d[8:10]}/{d[5:7]}/{d[2:4]}</text>')
-    return f'<svg direction="ltr" viewBox="0 0 {w} {h}" width="100%" role="img" aria-label="الرسم البياني اليومي — مؤشر الأبحاث">{"".join(out)}</svg>'
+            g.append(f'<polyline points="{pts}" fill="none" stroke="{col}" stroke-width="1.3"/>')
+    # ٦ للاختيارات: نطاقُ الشراء والهدفُ والوقف
+    e = extra or {}
+    if e.get("buy"):
+        a_, b_ = sorted(e["buy"])
+        g.append(f'<rect x="{X0}" y="{y(b_):.1f}" width="{X1 - X0}" height="{max(1.5, y(a_) - y(b_)):.1f}" fill="{GREEN}" fill-opacity=".14"/>')
+    for k2, col in (("target", GREEN), ("stop", RED)):
+        if e.get(k2):
+            g.append(f'<line x1="{X0}" x2="{X1}" y1="{y(e[k2]):.1f}" y2="{y(e[k2]):.1f}" stroke="{col}" stroke-width="1" stroke-dasharray="5 3"/>')
+    g.append("</g>")
+    out += g
+    # أسماءُ المناطق يسارَ اللوحة (حيث لا شموعَ حديثة) — بلا تراكب
+    used = []
+    for k, (a, b) in sorted(zones.items(), key=lambda kv: -kv[1][1]):
+        yy = min(max(y(b) + 10, PT + 10), PB - 4)
+        if any(abs(yy - u) < 12 for u in used):
+            continue
+        used.append(yy)
+        # ‏RTL مع ‏end = طرفُ النصّ الأيسرُ عند ‏x — فيبدأ الاسمُ من يسار اللوحة ويُقرأ صحيحاً
+        out.append(f'<text x="{X0 + 5}" y="{yy:.1f}" font-size="9.5" fill="{zc[k]}" font-weight="700" direction="rtl" text-anchor="end" '
+                   f'font-family="\'Thmanyah Serif Display\',Arial,sans-serif">{ZONE_NAME[k]} <tspan direction="ltr" unicode-bidi="embed">{_fmt(a)}–{_fmt(b)}</tspan></text>')
+    for k2, col, lbl in (("target", GREEN, "الهدف"), ("stop", RED, "الوقف")):
+        if e.get(k2):
+            out.append(_tag(X1 + 1, y(e[k2]), _fmt(e[k2]), col, 50))
+    last = V[-1]
+    out.append(_tag(X1 + 1, y(last["close"]), _fmt(last["close"]), TV_UP if last["close"] >= last["open"] else TV_DN, 50))
+    # وسيلةُ الإيضاح: العنوانُ والشمعةُ الأخيرة، ثمّ المتوسّطاتُ بقيمها
+    prev = V[-2]["close"] if m > 1 else last["open"]
+    chg = last["close"] - prev
+    cc = TV_UP if chg >= 0 else TV_DN
+    out.append(f'<text x="6" y="13" font-size="9.5" font-family="Arial,sans-serif" fill="#131722"><tspan font-weight="700">{_e(title)} · 1D</tspan>'
+               f'<tspan fill="{cc}">  O {_fmt(last["open"])} H {_fmt(last["high"])} L {_fmt(last["low"])} C {_fmt(last["close"])} '
+               f'{chg:+,.2f} ({chg / prev * 100 if prev else 0:+.2f}%)</tspan></text>')
+    sv = [(lbl, (d.get(k3) or [None])[-1], col) for k3, lbl, col in (("sma20", "SMA 20", TV_MA[0]), ("sma50", "SMA 50", TV_MA[1]), ("sma200", "SMA 200", TV_MA[2]))]
+    out.append('<text x="6" y="26" font-size="9.5" font-family="Arial,sans-serif">'
+               + "".join(f'<tspan fill="{col}">{lbl} {_fmt(v) if v else "—"}   </tspan>' for lbl, v, col in sv) + "</text>")
+    # لوحةُ ستوكاستيك RSI ‏3 3 14 14: ‏K أزرق و‏D برتقاليّ، وحدودُ 80 و50 و20 ونطاقٌ بينها
+    sy = _scale(0, 100, ST + 4, SB)
+    st = d.get("stoch") or {}
+    out.append(f'<line x1="0" x2="{w}" y1="{ST - 4}" y2="{ST - 4}" stroke="{TV_BORDER}"/>'
+               f'<rect x="{X0}" y="{sy(80):.1f}" width="{X1 - X0}" height="{sy(20) - sy(80):.1f}" fill="#2962ff" fill-opacity=".07"/>')
+    for lvl in (80, 50, 20):
+        out.append(f'<line x1="{X0}" x2="{X1}" y1="{sy(lvl):.1f}" y2="{sy(lvl):.1f}" stroke="{TV_AX}" stroke-opacity="{.7 if lvl != 50 else .35}" stroke-dasharray="3 3"/>'
+                   + (f'<text x="{X1 + 4}" y="{sy(lvl) + 3:.1f}" font-size="9.5" fill="{TV_AX}" font-family="Arial,sans-serif">{lvl}</text>' if lvl != 50 else ""))
+    for key, col in (("k", "#2962ff"), ("d", "#ff6d00")):
+        pts = " ".join(f"{x(i):.1f},{sy(v):.1f}" for i, v in enumerate(st.get(key) or []) if i >= s0 and v is not None)
+        if pts:
+            out.append(f'<polyline points="{pts}" fill="none" stroke="{col}" stroke-width="1.1"/>')
+    kv, dv = (st.get("k") or [None])[-1], (st.get("d") or [None])[-1]
+    out.append(f'<text x="6" y="{ST + 8}" font-size="9.5" font-family="Arial,sans-serif" fill="#131722">Stoch RSI 3 3 14 14'
+               + (f' <tspan fill="#2962ff">{kv:.2f}</tspan>' if kv is not None else "") + (f' <tspan fill="#ff6d00">{dv:.2f}</tspan>' if dv is not None else "")
+               + "</text>")
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="100%" direction="ltr" role="img" aria-label="{_e(title)} — مؤشر دحم">{"".join(out)}</svg>'
+
 
 
 def svg_gauge(view: str, w: int = 230, h: int = 136) -> str:
@@ -1338,12 +1259,24 @@ def _fonts() -> str:
         return ""
 
 
+# ‏D756: ملاءمةُ الصفحة — إن زاد محتوى صفحةٍ عن مساحتها بين الترويسة والتذييل صُغِّر بنسبته (لا أقلَّ من 72٪) فلا يُقصّ ولا يفيض إلى ما بعدها.
+# تعمل عند الطباعة ملفّاً (المتصفّحُ بلا واجهة يشغّلها)، وتشغّلها صفحةُ «مختبر الأبحاث» على الورقة المعروضة (الإطارُ لا يشغّل نصوصاً).
+FIT = ("(function(){function fit(d){d=d||document;if((d.defaultView||window).innerWidth<820)return;"
+       "d.querySelectorAll('.page').forEach(function(pg){var pb=pg.querySelector('.pb'),pf=pg.querySelector('.pf');if(!pb||!pf)return;"
+       "pb.style.zoom='';var t=pb.getBoundingClientRect().top,lim=pf.getBoundingClientRect().top-10,b=t;"
+       "Array.prototype.forEach.call(pb.children,function(c){var r=c.getBoundingClientRect();if(r.height)b=Math.max(b,r.bottom);});"
+       "var pad=parseFloat(getComputedStyle(pb).paddingTop)||0;if(b>lim){pb.style.zoom=Math.max(.72,(lim-t-pad)/(b-t-pad));pg.setAttribute('data-fit',pb.style.zoom);}"
+       "else pg.removeAttribute('data-fit');});}window.__fit=fit;"
+       "if(document.readyState==='complete')fit();else window.addEventListener('load',function(){fit();});"
+       "if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){fit();});})();")
+
 CSS = f"""
 *{{box-sizing:border-box}}
 html,body{{margin:0;padding:0}}
 body{{background:#ebe5d4;color:{INK};font-family:'Thmanyah Serif Display','Segoe UI',Tahoma,sans-serif;direction:rtl;text-align:right;
       font-size:10.5px;line-height:1.6;font-weight:400;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-.page{{width:794px;min-height:1123px;margin:0 auto 18px;background:{PAPER};position:relative;box-shadow:0 1px 4px rgba(36,31,26,.16)}}
+/* ‏D756 (المالك: «المحتوى لا يُقصّ ولا يدخل صفحةً على صفحة — صفحة 1 وصفحة 2 مرتّبتان للطباعة»): الصفحةُ ورقةُ A4 بقياسها تماماً، وما زاد من محتواها يُصغَّر بنسبته (‏FIT) لا يفيض */
+.page{{width:210mm;height:297mm;overflow:hidden;margin:0 auto 18px;background:{PAPER};position:relative;box-shadow:0 1px 4px rgba(36,31,26,.16)}}
 .ph{{background:linear-gradient(135deg,{NAVY},{NAVY_2});padding:18px 32px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px}}
 .brand{{color:#fff;font-size:20px;font-weight:500;line-height:1.25}}
 .brand small{{display:block;color:{GOLD_L};font-size:11px;font-weight:300}}
@@ -1391,7 +1324,7 @@ ul.bul li::before{{content:'';position:absolute;inset-inline-start:0;top:.55em;w
 @media print{{body{{background:{PAPER}}} .page{{margin:0;box-shadow:none;page-break-after:always;break-after:page}}}}
 @media screen and (max-width:820px){{
   body{{font-size:12px;background:{PAPER}}}
-  .page{{width:auto;min-height:0;margin:0 0 12px;box-shadow:none}}
+  .page{{width:auto;height:auto;min-height:0;overflow:visible;margin:0 0 12px;box-shadow:none}}
   .ph{{flex-wrap:wrap;padding:14px}} .pt{{text-align:right}} .pb{{padding:14px 14px 52px}} .pf{{padding:0 14px}}
   .cols,.cols.w{{grid-template-columns:1fr}} .kpis{{grid-template-columns:repeat(2,1fr)}}
 }}
@@ -1483,8 +1416,8 @@ def render(r: dict, part: str = "all") -> str:
         rgt = (f'<h2>التعليق على مؤشر السوق الرئيسي</h2><ul class="bul"><li>{_e(c1)}</li></ul>'
                f'<h2>التوقعات الفنية</h2><ul class="bul"><li>{_e(c2)} {_e(adv)}</li></ul>'
                f'<h2>المقاومة والدعم للمؤشر</h2>{lv}{kpis}'
-               f'<h2>الرسم البياني اليومي — مؤشر السوق الرئيسي</h2><div class="chart">'
-               f'{svg_research(m.get("daily") or [], title="TASI · Tadawul All Shares Index", ri=ri_of(m))}</div>')
+               f'<h2>الرسم البياني اليومي — مؤشر دحم</h2><div class="chart">'
+               f'{svg_d7m(m.get("daily") or [], title="TASI · Tadawul All Shares Index", d=d7m_of(m))}</div>')
         notes = [("المؤشر", "تاسي"), ("آخر إغلاق", n2(tech.get("close"))), ("نظرة قريبة المدى", tech.get("view")),
                  ("الأعلى – الأدنى خلال 52 أسبوعاً", f"{n0(tech.get('hi52'))} – {n0(tech.get('lo52'))}")]
         mkt = [("قيمة التداول (مليون ريال)", n2((b.get("value") or 0) / 1e6) if b.get("value") else "—"),
@@ -1516,7 +1449,7 @@ def render(r: dict, part: str = "all") -> str:
                 f'<span class="n">{n2(k["buy"][0])} – {n2(k["buy"][1])}</span>', f'<span class="n">{n2(k["target"][0])} – {n2(k["target"][1])}</span>',
                 _num(k["stop"])] for k in pk]
     charts = "".join(f'<div class="box">{_band(k["name"] + " — ملاحظات فنية")}<p>{_e(pick_note(k))}</p>'
-                     f'{svg_research(k.get("bars") or [], w=470, h=300, title=k["symbol"], extra={"buy_lo": k["buy"][0], "buy_hi": k["buy"][1], "stop": k["stop"], "target": k["target"][1]})}</div>'
+                     f'{svg_d7m(k.get("bars") or [], w=470, h=290, title=k["symbol"], extra={"buy": k["buy"], "stop": k["stop"], "target": k["target"][1]})}</div>'
                      for k in pk[:2])
     body4 = ((f'<p class="headline">{_e(r.get("portfolio_headline") or r.get("headline"))}</p>' if (r.get("portfolio_headline") or r.get("headline")) else "")
              + _band("نظرتنا لمراكز المحفظة")
@@ -1537,7 +1470,7 @@ def render(r: dict, part: str = "all") -> str:
     total = len(keep)
     sections = "".join(_page(i + 1, total, title, day, body, pname) for i, (title, body, _k) in enumerate(keep))
     return (f'<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<title>التقرير اليومي — {_e(day_label(day))}</title><style>{_fonts()}{CSS}</style></head><body>{sections}</body></html>')
+            f'<title>التقرير اليومي — {_e(day_label(day))}</title><style>{_fonts()}{CSS}</style></head><body>{sections}<script>{FIT}</script></body></html>')
 
 
 async def pdf(r: dict) -> bytes | None:
