@@ -134,5 +134,19 @@ check('["macd", "MACD"' in pc and 'data-role="pc-eye"' in pc and 'data-role="pc-
       and all(k in panel for k in ('k="trendMajor"', 'k="trendMinor"', 'k="chMid"', 'data-role="fib-label-pos"')),
       "٧ الرسم: ‏MACD، وعينُ الإخفاء لكلّ مؤشّرٍ ولها كلِّها، وأرقامُ فيبوناتشي أمام آخر شمعة (فوق/على/تحت)، وألوانُ الشموع، "
       "و1.1 و0.618 و0.5 مخفيّةٌ افتراضاً، والاتجاهان الرئيسيّ والفرعيّ وخطُّ منتصف القناة خياراتٌ في الإعدادات")
+# ٨ ‏D757: تقريرٌ محفوظٌ يُقرأ ويُرسم — كان مخبّأُ الرسم يُحفظ معه فتصير مفاتيحُ مستوياته نصوصاً ويتعطّل الرسمُ في الخادم
+import json as _json   # noqa: E402
+mk = {"daily": day, "tech": {"close": day[-1]["c"], "piv": {}}, "tasi": {"close": day[-1]["c"]}, "breadth": {}}
+RP.levels_of(mk)
+stored = _json.loads(_json.dumps({**mk}))                    # كما يعود من الملفّ: ‏_d7m بمفاتيحَ نصّية
+ok8 = True
+try:
+    RP.levels_of(stored)
+    RP.svg_d7m(stored["daily"], title="TASI", d=RP.d7m_of(stored))
+except Exception as e:   # noqa: BLE001
+    ok8 = False
+    err8 = repr(e)
+src_desk = (ROOT / "backend/app/services/research_desk.py").read_text(encoding="utf-8")
+check(ok8 and '"_d7m", "_ri"' in src_desk, "٨ ‏D757 التقريرُ المحفوظُ يُقرأ ويُرسم — ومخبّأُ الرسم لا يُحفظ معه", "" if ok8 else err8)
 print("\nالنتيجة:", "عطب ✖" if fail else "نظيف ✔")
 sys.exit(fail)

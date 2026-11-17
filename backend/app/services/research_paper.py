@@ -791,7 +791,9 @@ def d7m_ind(bars: list[dict]) -> dict | None:
 
 def d7m_of(m: dict) -> dict | None:
     """مؤشّرُ دحم لشموع الورقة اليومية — يُحسب مرّةً لكلّ ورقة."""
-    if "_d7m" not in m:
+    d = m.get("_d7m")
+    # ‏D757: مخبّأٌ قُرئ من تقريرٍ محفوظ (مفاتيحُ مستوياته نصوصٌ) لا يُوثق به — يُحسب من الشموع
+    if not d or any(isinstance(k, str) for k in ((d.get("fib") or {}).get("levels") or {})):
         m["_d7m"] = d7m_ind(m.get("daily") or [])
     return m["_d7m"]
 

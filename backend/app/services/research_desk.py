@@ -532,7 +532,11 @@ def caption(r: dict) -> str:
 
 
 def save_report(r: dict) -> None:
-    _save(os.path.join("reports", f"{r['date']}_{r['portfolio_id']}.json"), r)
+    # ‏D757: ما يحسبه الرسمُ ويخبّئه في الورقة (‏_d7m · _ri) لا يُحفظ — مفاتيحُه أرقامٌ يجعلها الحفظُ نصوصاً فيتعطّل الرسمُ عند القراءة
+    m = dict(r.get("market") or {})
+    for k in ("_d7m", "_ri"):
+        m.pop(k, None)
+    _save(os.path.join("reports", f"{r['date']}_{r['portfolio_id']}.json"), {**r, "market": m})
     files = sorted(os.listdir(os.path.join(_dir(), "reports")))
     for f in files[:-KEEP_REPORTS]:
         try:
