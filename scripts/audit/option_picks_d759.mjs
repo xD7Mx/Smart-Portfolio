@@ -34,9 +34,9 @@ const PICK = { symbol: "NVDA", name: "NVIDIA Corporation", price: 180.5, contrac
   reasons: ["المسار صاعد: الإغلاق 180.50 فوق متوسّط 50 (172.10) وفوق متوسّط 200 (150.40)، وتغيّرُ ثلاثة أشهر +18.0٪.",
             "الأخبار (إيجابي): نتائجُ فصليةٌ فوق التوقّعات (2026-11-12)", "العقد ينتهي بعد 213 يوماً فيبطؤ تآكلُه الزمنيّ.",
             "احتمالُ الربح عند الانتهاء نحو 21٪ تقديراً، وأقصى الخسارة كلفةُ العقد 145 دولاراً."] };
-const RES = (b) => ({ budget: b, at: "2026-11-17T14:00:00+00:00", scanned: 78, news_ok: true, limits: { min_dte: 120, max_dte: 430, min_oi: 50, max_spread: 35 },
+const RES = (b) => ({ budget: b, at: "2026-11-17T14:00:00+00:00", scanned: 78, news_ok: true, closed: true, limits: { min_dte: 120, max_dte: 430, min_oi: 50, max_spread: 35 },
   picks: [PICK, { ...PICK, symbol: "INTC", name: "Intel Corporation", contract: "INTC270618P00018000", type: "put", strike: 18, cost: 95, pop: 38.2, delta: -0.31,
-    need_pct: 12.4, trend: { state: "هابط" }, reasons: ["المسار هابط: …", "الأخبار (سلبي): استقالةُ الرئيس التنفيذيّ (2026-11-10)"] }],
+    need_pct: 12.4, px_src: "last", last_trade: "2026-11-16T18:26:41+00:00", spread_pct: null, trend: { state: "هابط" }, reasons: ["المسار هابط: …", "الأخبار (سلبي): استقالةُ الرئيس التنفيذيّ (2026-11-10)"] }],
   skipped: [{ symbol: "AAPL", why: "المسارُ عرضيّ — لا اتجاهَ يُشترى له عقد" }] });
 const browser = await chromium.launch({ executablePath: CHROME });
 for (const vp of [{ width: 1366, height: 900 }, { width: 390, height: 844 }]) {
@@ -76,6 +76,11 @@ for (const vp of [{ width: 1366, height: 900 }, { width: 390, height: 844 }]) {
   const why = await page.locator('[data-role="op-pick"]').nth(1).locator(".op-why li").allTextContents().catch(() => []);
   say(why.some(x => /استقالةُ الرئيس/.test(x)) && /خيار بيع/.test(await page.locator('[data-role="op-pick"]').nth(1).textContent() || ""),
       `${label}: ٣ ولكلّ صفقةٍ مبرّرُها — المسارُ والخبر (استقالةُ رئيسٍ ⇒ خيارُ بيع)`, why.join(" | ").slice(0, 120));
+  const lastChips = await page.locator('[data-role="op-last"]').count();
+  const inLast = await page.locator('[data-role="op-pick"]').nth(1).locator('[data-role="op-last"]').count();
+  const meta0 = await page.locator('[data-role="op-meta"]').textContent().catch(() => "");
+  say(lastChips === 1 && inLast === 1 && /مغلق/.test(meta0 || ""),
+      `${label}: ٣ب والسوقُ مغلق: العقدُ المسعَّرُ بآخر صفقةٍ يُوسَم «آخر صفقة» وحدَه، والسطرُ يقول إن السوق مغلق (‏D760)`, `${lastChips} · ${meta0}`);
   await page.locator('[data-role="op-skipped"] summary').click().catch(() => {}); await page.waitForTimeout(300);
   const sk = await page.locator('[data-role="op-skipped"]').textContent().catch(() => "");
   say(/AAPL/.test(sk || "") && /عرضيّ/.test(sk || ""), `${label}: ٤ والمستبعَدُ يُذكر بسببه`);
