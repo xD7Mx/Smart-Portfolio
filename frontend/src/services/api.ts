@@ -272,6 +272,9 @@ export const marketApi = {
     api.get<Blob>("/market/research-desk/pdf", { params: day ? { day } : {}, responseType: "blob", timeout: 120000 }),
   researchRun: () => api.post<APIResponse>("/market/research-desk/run"),
   symbolSearch: (q: string) => api.get<APIResponse>("/market/symbol-search", { params: { q } }),
+  /* ‏D759 مُنتقي عقود الخيارات طويلة الأجل بميزانية العقد */
+  optionPicks: (budget: number) => api.get<APIResponse>("/market/options-picks", { params: { budget } }),
+  optionPicksRun: (budget: number) => api.post<APIResponse>("/market/options-picks/run", { budget }),
   optionChain: (symbol: string, date?: number | null) =>
     api.get<APIResponse>(`/market/options/${encodeURIComponent(symbol)}`, { params: date ? { date } : {} }),
   officialNames: () => api.get<APIResponse>("/market/official-names"),

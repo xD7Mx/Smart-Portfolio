@@ -2237,6 +2237,44 @@ async def research_desk_run():
     return success_response({"on": True, "msg": "بدأ"})
 
 
+# ══ ‏D759: مُنتقي عقود الخيارات طويلة الأجل بميزانية العقد — المسارُ والأخبارُ والعقد ══
+def _budget(v) -> float | None:
+    try:
+        b = float(v)
+    except (TypeError, ValueError):
+        return None
+    return b if 10 <= b <= 10000 else None
+
+
+@router.get("/options-picks")
+async def options_picks(budget: float):
+    """الصفقاتُ المحسوبةُ لهذه الميزانية (تُخبَّأ نصفَ ساعة) وحالُ البحث الجاري."""
+    from app.services import option_picks as OP
+    b = _budget(budget)
+    if b is None:
+        raise HTTPException(status_code=422, detail="الميزانيةُ بين 10 و10,000 دولار.")
+    return success_response({"result": OP.cached(b), "running": {k: OP._JOB[k] for k in ("on", "budget", "msg", "at")}})
+
+
+@router.post("/options-picks/run", dependencies=[Depends(require_owner)])
+async def options_picks_run(payload: dict):
+    """يبحث الآن في الخلفية — والصفحةُ تتابع حالَه حتى تظهر الصفقات."""
+    from app.services import option_picks as OP
+    b = _budget((payload or {}).get("budget"))
+    if b is None:
+        raise HTTPException(status_code=422, detail="الميزانيةُ بين 10 و10,000 دولار.")
+    if OP._JOB["on"]:
+        return success_response({"on": True, "budget": OP._JOB["budget"], "msg": OP._JOB["msg"]})
+
+    async def _go():
+        try:
+            await OP.run(b)
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning("مُنتقي الخيارات: {}", type(e).__name__)
+    asyncio.create_task(_go())
+    return success_response({"on": True, "budget": b, "msg": "بدأ"})
+
+
 # ══ ‏D747: البحثُ في السوق الأمريكي كلِّه وسلسلةُ عقود الخيارات ══
 @router.get("/symbol-search")
 async def symbol_search(q: str = ""):

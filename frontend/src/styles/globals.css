@@ -3368,6 +3368,39 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 .pc-cc-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--ink); min-height: 32px; }
 .pc-cc-row input { width: 40px; height: 28px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--card); padding: 1px; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .pc-eye, .pc-chip { transition: none; } }
+/* ══ ‏D759: عقودُ الخيارات طويلة الأجل بميزانية العقد ══ */
+.op { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.op-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.op-in { display: flex; flex-direction: column; gap: 4px; }
+.op-lbl { font-size: 11.5px; font-weight: 700; color: var(--ink-muted); }
+.op-field { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 10px;
+  background: var(--field); color: var(--ink-muted); transition: border-color .2s ease, box-shadow .2s ease; }
+.op-field:focus-within { border-color: var(--brand-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-ink) 18%, transparent); }
+.op-field input { width: 96px; min-height: 36px; background: transparent; border: 0; outline: 0; font-size: 15px; font-weight: 700; color: var(--ink); text-align: left; }
+.op-presets { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.op-presets .seg-btn { min-height: 34px; min-width: 52px; }
+.op-go { min-height: 40px; padding: 0 16px; display: inline-flex; align-items: center; gap: 6px; }
+.op-status, .op-empty, .op-meta { font-size: 12px; color: var(--ink-muted); }
+.op-status { animation: fadeUp .25s ease-out both; }
+.op-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 10px; }
+.op-card { border: 1px solid var(--hairline); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+  transition: border-color .2s ease, box-shadow .2s ease; }
+.op-card:hover { border-color: color-mix(in srgb, var(--brand-ink) 40%, var(--hairline)); }
+.op-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.op-sym { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.op-sym b { font-size: 14px; color: var(--ink); }
+.op-sym small { font-size: 11px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.op-side { margin-inline-start: auto; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 8px; white-space: nowrap; }
+.op-line { font-size: 12.5px; color: var(--ink); line-height: 1.7; }
+.op-m { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.op-m span { display: flex; flex-direction: column; gap: 1px; background: var(--field); border-radius: 9px; padding: 6px 8px; min-width: 0; }
+.op-m small { font-size: 10px; color: var(--ink-muted); font-weight: 600; }
+.op-m b { font-size: 13px; font-weight: 800; color: var(--ink); }
+.op-why { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--ink); line-height: 1.7; padding-inline-start: 14px; list-style: disc; }
+.op-why li::marker { color: var(--brand-ink); }
+.op-copy { align-self: flex-start; min-height: 32px; font-size: 11px; display: inline-flex; align-items: center; gap: 6px; color: var(--ink-muted); }
+.rl-views .seg-btn { min-height: 34px; }
+@media (prefers-reduced-motion: reduce) { .op-status { animation: none; } .op-field, .op-card { transition: none; } }
 /* ══ ‏D750: أوامرُ المستشار الآليّ ══ */
 .robo-chip { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 8px; white-space: nowrap; }
 .robo-lim { color: var(--ink-muted); background: var(--field); font-weight: 600; white-space: normal; }

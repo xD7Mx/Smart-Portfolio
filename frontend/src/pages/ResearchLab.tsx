@@ -9,6 +9,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { FileText, RefreshCw, Download } from "lucide-react";
 import { marketApi } from "../services/api";
 import { useAuthStore } from "../store/authStore";
+import OptionPicks from "../components/market/OptionPicks";
 
 type Day = { date: string; label: string };
 /** «الأحد 15 نوفمبر 2026» ← الشهرُ «نوفمبر 2026» واليومُ «15» — والأيامُ بترتيبها تحت شهرها */
@@ -26,6 +27,9 @@ const months = (ds: Day[]): [string, Day[]][] => {
 export default function ResearchLab() {
   const owner = useAuthStore((s: any) => s.isOwner);
   const [day, setDay] = useState<string | null>(null);
+  /* ‏D759: «في مختبر الأبحاث خانةٌ لقيمة العقد» — تبويبٌ ثانٍ لعقود الخيارات طويلة الأجل بجانب التقرير */
+  const [view, setView] = useState<"report" | "options">(() => { try { return localStorage.getItem("sp_lab_view") === "options" ? "options" : "report"; } catch { return "report"; } });
+  const pickView = (v: "report" | "options") => { setView(v); try { localStorage.setItem("sp_lab_view", v); } catch { /* */ } };
   const [ready, setReady] = useState(false);
   const [height, setHeight] = useState(900);
   const frame = useRef<HTMLIFrameElement | null>(null);
@@ -84,6 +88,13 @@ export default function ResearchLab() {
 
   return (
     <div className="space-y-3" data-role="research-lab">
+      <div className="seg inline-flex rl-views" role="tablist" aria-label="مختبر الأبحاث" data-role="rl-views">
+        {([["report", "التقرير اليومي"], ["options", "عقود الخيارات"]] as const).map(([k, t]) => (
+          <button key={k} type="button" role="tab" aria-selected={view === k} className={"seg-btn chip" + (view === k ? " on" : "")}
+            onClick={() => pickView(k)} data-view={k}>{t}</button>
+        ))}
+      </div>
+      {view === "options" ? <OptionPicks /> : <>
       <div className="rl-bar">
         <h2 className="rl-title" data-role="rl-title"><FileText size={15} className="inline-block align-[-2px] me-1" />
           التقرير اليومي{rep?.label ? <span className="rl-date"> · {rep.label}</span> : null}</h2>
@@ -128,6 +139,7 @@ export default function ResearchLab() {
           )}
         </div>
       )}
+      </>}
     </div>
   );
 }
