@@ -70,17 +70,19 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
   const exps = await page.locator('[data-role="oc-exp"]').allTextContents();
   say(exps.length === 3 && exps[0].includes("16 نوفمبر") && exps[0].includes("غداً") && exps[1].includes("بعد يومين") && exps[2].includes("بعد 8 أيام")
       && chains[0]?.[0] === "SPY", `${label}: ٢ الآجالُ بتواريخها وأيامها الباقية — غداً · بعد يومين · بعد 8 أيام`, JSON.stringify(exps));
+  /* ‏D761: الجدولُ بطريقة «إنتراكتف بروكرز» — صفٌّ لكلّ سعر تنفيذٍ بعقدَيه، والسعرُ الحاليُّ خطٌّ بين سعرَي التنفيذ */
   const near = await page.locator('[data-role="oc-row"]').count();
-  const atm = await page.locator(".oc-tr.atm b").first().textContent().catch(() => "");
+  const pxl = await page.locator('[data-role="oc-pxline"]').first().textContent().catch(() => "");
+  const atm = await page.locator('[data-role="oc-pxline"] + [data-role="oc-row"] .ocx-k b').first().textContent().catch(() => "");
   await page.locator('[data-role="oc-range"]').click(); await page.waitForTimeout(250);
   const allN = await page.locator('[data-role="oc-row"]').count();
   await page.locator('[data-role="oc-range"]').click(); await page.waitForTimeout(250);
-  say(near === 21 && allN === 30 && atm === "755.00", `${label}: ٣ ما قربَ السعر أوّلاً (21 عقداً حول سعر التنفيذ الأقرب) والكلُّ بضغطة`, `${near}/${allN} · ${atm}`);
+  say(near === 24 && allN === 30 && pxl === "754.37" && atm === "755.00", `${label}: ٣ ما قربَ السعر أوّلاً (24 سعرَ تنفيذٍ حوله) والسعرُ خطٌّ قبل أقرب تنفيذ، والكلُّ بضغطة`, `${near}/${allN} · ${pxl} · ${atm}`);
   await page.locator('[data-role="oc-exp"]').nth(1).click(); await page.waitForTimeout(600);
-  await page.locator('[data-role="oc-side"]', { hasText: "Put" }).click(); await page.waitForTimeout(300);
-  const putTitle = await page.locator('[data-role="oc-row"]').first().getAttribute("title");
+  await page.locator('[data-role="oc-cell"][data-side="put"]').first().click(); await page.waitForTimeout(300);
+  const putTitle = await page.locator('[data-role="oc-detail"] .ocx-dhead b').first().textContent().catch(() => "");
   say(chains.some(c => c[1] === 1794873600) && /بيع/.test(putTitle || "") && /17 نوفمبر/.test(putTitle || ""),
-      `${label}: ٤ تغييرُ الأجل يطلب سلسلتَه، وعقودُ البيع (Put) بأسمائها`, putTitle || "");
+      `${label}: ٤ تغييرُ الأجل يطلب سلسلتَه، وعقدُ البيع (Put) يُفتح ببطاقته باسمه`, putTitle || "");
   const m = await page.evaluate(() => {
     const sh = document.querySelector(".oc-sheet"); const W = document.documentElement.clientWidth;
     let minT = 99, minF = 99;
@@ -92,11 +94,11 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
   await page.locator('[data-role="oc-add"]').first().click(); await page.waitForTimeout(400);
   const added = posts[0] || {};
   say(/^SPY261117P\d{8}$/.test(added.symbol || "") && /SPY \d+ بيع · 17 نوفمبر/.test(added.name || "") && added.group_id === 2,
-      `${label}: ٦ «+» يضيف العقدَ إلى القائمة المفتوحة باسمه`, JSON.stringify(added));
-  await page.locator('[data-role="oc-row"]').first().click(); await page.waitForTimeout(1200);
+      `${label}: ٦ «أضف للقائمة» في بطاقة العقد يضيفه إلى القائمة المفتوحة باسمه`, JSON.stringify(added));
+  await page.locator('[data-role="oc-open"]').first().click(); await page.waitForTimeout(1200);
   const ident = await page.locator('[data-role="troom-chart"]').first().textContent().catch(() => "");
   say(await page.locator('[data-role="oc"]').count() === 0 && hist.some(h => /^SPY261117P\d{8}$/.test(h)) && /SPY \d+ بيع/.test(ident || ""),
-      `${label}: ٧ الضغطُ على عقدٍ يغلق السلسلة ويفتح رسمَه باسمه العربيّ`, (ident || "").slice(0, 60));
+      `${label}: ٧ «الرسم» في بطاقة العقد يغلق السلسلة ويفتح رسمَه باسمه العربيّ`, (ident || "").slice(0, 60));
   await page.locator('[data-role="troom-options"]').click(); await page.waitForTimeout(600);
   const reopened = chains[chains.length - 1]?.[0];
   await page.keyboard.press("Escape"); await page.waitForTimeout(400);

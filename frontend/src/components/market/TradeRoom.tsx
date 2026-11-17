@@ -12,6 +12,7 @@ import ProChart from "../chart/ProChart";
 import CompanyLogo from "../common/CompanyLogo";
 import InlineStockSearch from "./InlineStockSearch";
 import OptionChain from "./OptionChain";
+import EconEvents from "./EconEvents";
 import { isOption, optionSub, optionTitle, parseOption } from "../../lib/options";
 import { holdingsApi, marketApi } from "../../services/api";
 import { invalidateWatchlist } from "../../services/watchlistCache";
@@ -134,7 +135,8 @@ export default function TradeRoom() {
 
         {gid != null && group && (
           <div className="troom-bar">
-            {owner && <InlineStockSearch onPick={s => add.mutate({ s })} global />}
+            {/* ‏D761: الاختيارُ يُضيف إلى القائمة ويفتح رسمَه — وعقدُ الخيار المنسوخ من المختبر يُفتح عقداً باسمه */}
+            {owner && <InlineStockSearch onPick={s => { add.mutate({ s, name: isOption(s) ? optionTitle(parseOption(s)!) : undefined }); pick(s); }} global />}
             <span className="text-[11px] text-[var(--ink-muted)] tabular-nums ms-auto">{wrows.length}</span>
             {owner && (
               <button type="button" className={"btn-ghost troom-icon" + (editing ? " on" : "")} title={editing ? "تمّ" : "تحرير القائمة"}
@@ -214,9 +216,11 @@ export default function TradeRoom() {
             {chainOf(symbol) && (
               <button type="button" className="btn-ghost troom-oc" onClick={() => setChainFor(chainOf(symbol))} data-role="troom-options"
                 title="عقود الخيارات" aria-label={`عقود خيارات ${chainOf(symbol)}`}>
-                <Layers size={13} className="inline-block align-[-2px] me-1" />الخيارات
+                <Layers size={13} className="inline-block align-[-2px] me-1" />عقود الخيارات
               </button>
             )}
+            {/* ‏D761: الأحداثُ الاقتصاديةُ الأمريكيةُ وأثرُها بجانب السهم الأمريكيّ */}
+            {chainOf(symbol) && <EconEvents compact />}
           </span>} />
         {chainFor && (
           <OptionChain underlying={chainFor} onClose={() => setChainFor(null)}

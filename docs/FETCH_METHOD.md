@@ -297,6 +297,21 @@ POST https://scanner.tradingview.com/{cfd|futures|global|ksa}/scan
 
 ---
 
+### حيويّةُ السوق الأمريكيّ وحالتُه والتقويمُ الاقتصاديّ (D761)
+
+قِيس على الخادم 2026-11-17 والسوقُ مفتوح (‏`scripts/audit/live_sources_door.py`):
+
+| المصدر | ما قِيس |
+|---|---|
+| ياهو ‏`/v7/finance/quote?symbols=…` (بالكعكة) | ‏NVDA ‏154.47 بزمنِ لحظة الطلب — **مباشر** (‏Nasdaq Real Time Price)، و‏`marketState` ‏REGULAR · PRE · POST · POSTPOST · CLOSED، وما قبل الافتتاح وبعده، وموعدُ الأرباح؛ ويقبل رموزَ العقود (‏OCC) |
+| مسحُ TradingView ‏`america/scan` | ‏0.03 ثانية بلا حصّة، و‏`update_mode = delayed_streaming_900` (**مؤجّلٌ ربعَ ساعة**)، و‏`current_session` ‏market · pre_market · post_market · out_of_session، و‏`premarket_close` و‏`postmarket_close` |
+| ‏`ksa/scan` | ‏`current_session = out_of_session` خارج الجلسة — يكشف إغلاقاً لا يعرفه الجدول (عيدٌ يعلنه السوق) |
+| ‏`nfs.faireconomy.media/ff_calendar_thisweek.json` | ‏125 حدثاً للأسبوع: العنوانُ والبلد والوقتُ (بتوقيت نيويورك) والأهميةُ والتوقّعُ والسابق — **بلا الرقم الفعليّ** |
+
+فالسعرُ الحيُّ من ياهو بعدّادٍ مستقلٍّ (‏`yahoo_live`) ومخبّأٌ أربعَ ثوانٍ، وTradingView احتياطُه موسوماً «مؤجّل 15 د»؛ وحالةُ السوق من
+جدول البورصة وعطلِها ثمّ يُقدَّم عليها المصدرُ الحيّ (‏`backend/app/services/market_session.py` · `backend/app/services/live_quote.py`).
+والتقويمُ يُعرض بالتوقّع والسابق وسيناريوهَي الأثر، ولا يُدّعى رقمٌ صدر (‏`backend/app/services/econ_calendar.py`).
+
 ## ٣· الطبقةُ الثالثة: المتصفّحُ آخرَ الوسائل
 
 انتحالُ البصمة يعبر الحمايةَ ولا **ينفّذ سكربتاً**. وقد قِيس أن صفحاتٍ

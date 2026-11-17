@@ -76,23 +76,29 @@ export default function InlineStockSearch(
           tabIndex={open ? 0 : -1}
           onChange={e => { setQ(e.target.value); setHits(searchCompanies(e.target.value, 400)); }}
           onKeyDown={e => {
-            if (e.key === "Enter" && (hits[0] || remote[0] || q)) pick(hits[0]?.symbol || remote[0]?.symbol || q.trim());
+            if (e.key === "Enter" && (hits[0] || remote[0] || q)) {
+              const t = q.trim();
+              pick(isOption(t) ? t : (global && LATIN.test(t) ? remote[0]?.symbol || hits[0]?.symbol : hits[0]?.symbol || remote[0]?.symbol) || t);
+            }
             if (e.key === "Escape") close();
           }} />
       </div>
 
-      {/* ══ السوقان في حقلٍ واحد ══ (بأمر المالك · D521)
-         رمزٌ لاتينيٌّ لا يعرفه الدليلُ السعوديّ يُفتح رمزاً عالمياً (AAPL · BTC-USD). */}
-      {open && global && !hits.length && (remote.length > 0 || isOption(q.trim()) || (!busy && /^[\^A-Za-z][A-Za-z0-9.=^-]{0,14}$/.test(q.trim()))) && (
-        <div className="sp-menu absolute z-30 top-full mt-1.5 end-0 rounded-xl overflow-hidden shadow-2xl" style={{ width: 300, maxHeight: 340, overflowY: "auto" }}
+      {/* ══ السوقان في قائمةٍ واحدة ══ (بأمر المالك · D521 · ‏D761)
+         كانت نتائجُ السوق الأمريكيّ لا تظهر إن وافق الحرفُ اسماً سعودياً («NIO» في «Union»…) — قائمتان في موضعٍ واحدٍ تُخفي إحداهما
+         الأخرى. والآن قائمةٌ واحدة: عقدُ الخيار المنسوخ أوّلاً، ثمّ الأمريكيُّ (والحرفُ لاتينيّ)، ثمّ السعوديّ. */}
+      {open && (hits.length > 0 || (global && (remote.length > 0 || isOption(q.trim()) || (!busy && /^[\^A-Za-z][A-Za-z0-9.=^-]{0,14}$/.test(q.trim()))))) && (
+        <div className="sp-menu absolute z-30 top-full mt-1.5 end-0 rounded-xl overflow-hidden shadow-2xl" style={{ width: 300, maxHeight: 360, overflowY: "auto" }}
           data-role="search-remote">
-          {isOption(q.trim()) ? (
-            <button type="button" onClick={() => pick(q.trim())} className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[36px] text-start hover:panel transition-colors">
+          {global && isOption(q.trim()) && (
+            <button type="button" onClick={() => pick(q.trim())} data-role="search-option"
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[36px] text-start hover:panel transition-colors">
               <CompanyLogo symbol={q.trim()} size={22} />
               <span className="text-[12.5px] font-bold text-[var(--ink)]">{optionTitle(parseOption(q.trim())!)}</span>
               <span className="text-[var(--ink-muted)] text-[11px] ms-auto">عقد خيار</span>
             </button>
-          ) : remote.length ? remote.map(r => (
+          )}
+          {global && !isOption(q.trim()) && remote.map(r => (
             <button key={r.symbol} type="button" onClick={() => pick(r.symbol)} data-role="search-hit"
               className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[36px] text-start hover:panel transition-colors">
               <CompanyLogo symbol={r.symbol} size={22} />
@@ -100,21 +106,17 @@ export default function InlineStockSearch(
               <span className="text-[var(--ink)] text-[12px] truncate min-w-0" dir="ltr" style={{ textAlign: "right" }}>{r.name}</span>
               <span className="text-[var(--ink-muted)] text-[10.5px] ms-auto shrink-0">{r.type}{r.exchange ? ` · ${r.exchange}` : ""}</span>
             </button>
-          )) : (
+          ))}
+          {global && !isOption(q.trim()) && !remote.length && !hits.length && !busy && (
             <button type="button" onClick={() => pick(q.trim())}
               className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[32px] text-start hover:panel transition-colors">
               <span className="tabular-nums text-[12px] font-semibold text-[var(--ink)]" dir="ltr">{q.trim().toUpperCase()}</span>
               <span className="text-[var(--ink-muted)] text-[12px]">سوقٌ عالميّ</span>
             </button>
           )}
-        </div>
-      )}
-      {open && hits.length > 0 && (
-        <div className="sp-menu absolute z-30 top-full mt-1.5 end-0 rounded-xl overflow-hidden shadow-2xl"
-             style={{ width: 280, maxHeight: 300, overflowY: "auto" }}>
           {hits.slice(0, 40).map(c => (
-            <button key={c.symbol} type="button" onClick={() => pick(c.symbol)}
-              className="w-full flex items-center gap-2.5 px-2.5 py-2 text-start hover:panel transition-colors">
+            <button key={c.symbol} type="button" onClick={() => pick(c.symbol)} data-role="search-sa"
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[32px] text-start hover:panel transition-colors">
               <CompanyLogo symbol={c.symbol} size={22} />
               <span className="tabular-nums text-[11px] font-semibold text-[var(--ink-muted)] shrink-0" dir="ltr">
                 {c.symbol}

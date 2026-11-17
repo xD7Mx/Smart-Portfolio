@@ -141,5 +141,5 @@ async def chain(symbol: str, date_t: int | None = None) -> dict | None:
         logger.info("الخيارات: لا سلسلةَ لـ{}", sym)
         return None
     out = shape_chain(res[0])
-    cache.set(ck, out, 60)
+    cache.set(ck, out, 20)          # ‏D761: السلسلةُ «حيّة» قدر الإمكان — تُجدَّد كلَّ عشرين ثانية لمن يشاهدها
     return out

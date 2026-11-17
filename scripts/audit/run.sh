@@ -486,6 +486,8 @@ python3 scripts/audit/research_paper_d746.py || _note "$LINENO"   # ‏D746: و�
 python3 scripts/audit/d7m_report_d756.py || _note "$LINENO"   # ‏D756: مؤشّرُ دحم في التقرير مطابقٌ للرسم، وتقريرٌ واحدٌ يُرسَل، وصفحاتُ A4 لا تفيض، وأدواتُ الرسم
 python3 scripts/audit/option_picks_d759.py || _note "$LINENO"   # ‏D759: مُنتقي عقود الخيارات طويلة الأجل — المسارُ والأخبارُ والعقدُ ضمن الميزانية
 _node scripts/audit/option_picks_d759.mjs || _note "$LINENO"   # ‏D759: تبويبُ «عقود الخيارات» في المختبر — الخانةُ والصفقاتُ بمبرّراتها
+python3 scripts/audit/live_options_d761.py || _note "$LINENO"   # ‏D761: حالةُ السوق والسعرُ الحيّ واليونانياتُ والتحليلُ الذكيّ والأحداثُ الاقتصادية
+_node scripts/audit/live_options_d761.mjs || _note "$LINENO"   # ‏D761: شارةُ السوق والسعرُ المتحرّك وسلسلةُ إنتراكتف بروكرز والتحليلُ الذكيّ والبحث
 python3 scripts/audit/research_archive_d749.py || _note "$LINENO"   # ‏D749: أرشيفُ التقارير لجميع الجلسات — كلُّ جلسةٍ بأرقامها هي
 python3 scripts/audit/robo_orders_d750.py || _note "$LINENO"   # ‏D750: أوامرُ المستشار الآليّ — بأرقامها وبوّاباتها واعتماد المالك
 _node scripts/audit/robo_d750.mjs || _note "$LINENO"   # ‏D750: أوامرُ المستشار في بطاقته — الاعتمادُ والإيقافُ والحدود

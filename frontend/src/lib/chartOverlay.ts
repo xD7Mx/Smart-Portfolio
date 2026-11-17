@@ -133,31 +133,29 @@ export class ChartOverlay implements ISeriesPrimitive<Time> {
         ctx.fillStyle = l.color;
         ctx.fillText(l.text as string, 8, y - 4);
       }
-      // ٤ب أرقامُ المستويات أمام آخر شمعة: حبّةٌ بخلفية اللوحة وإطارٍ بلون الخطّ — ولا تتراكب حبّتان
+      // ٤ب أرقامُ المستويات أمام آخر شمعة (‏D761 · المالك: «الرقمُ سادةً بلا دائرةٍ ولا تعليم، على الخطّ نفسِه، ولونُه لونُ خطّه»):
+      // نصٌّ وحدَه بلون الخطّ — وعلى الخطّ تُفرَج له فُسحةٌ بلون اللوحة كي لا يشطبه الخطّ (لا إطارَ ولا حبّة) — ولا يتراكب رقمان
       ctx.font = `700 10.5px ${this.font}`;
       ctx.textBaseline = "middle";
       const boxes: [number, number][] = [];
       for (const l of [...this.levels].filter(x => x.label).sort((a, b) => (a.rank ?? 9) - (b.rank ?? 9))) {
         const y = this.py(l.price), x = l.lx != null ? this.px(l.lx) : null;
         if (y == null || x == null || y < this.textTop || y > H - 4) continue;
-        const h = 17, w = ctx.measureText(l.label as string).width + 14;
-        const cy = l.lpos === "above" ? y - h / 2 - 2 : l.lpos === "below" ? y + h / 2 + 2 : y;
-        let top = Math.round(cy - h / 2) + 0.5;
-        // مستويان متقاربان: تُزاح الحبّةُ الثانية عن الأولى (لا تُحذف)، في اتّجاه موضعها
-        for (let k = 0; k < 4 && boxes.some(([a, b]) => top < b + 2 && top + h > a - 2); k++) {
-          const hit = boxes.find(([a, b]) => top < b + 2 && top + h > a - 2)!;
-          top = l.lpos === "above" ? hit[0] - h - 2 : hit[1] + 2;
+        const h = 13, w = ctx.measureText(l.label as string).width + 6;
+        const cy = l.lpos === "above" ? y - h / 2 - 1 : l.lpos === "below" ? y + h / 2 + 1 : y;
+        let top = Math.round(cy - h / 2);
+        // مستويان متقاربان: يُزاح الرقمُ الثاني عن الأوّل (لا يُحذف)، في اتّجاه موضعه
+        for (let k = 0; k < 4 && boxes.some(([a, b]) => top < b + 1 && top + h > a - 1); k++) {
+          const hit = boxes.find(([a, b]) => top < b + 1 && top + h > a - 1)!;
+          top = l.lpos === "above" ? hit[0] - h - 1 : hit[1] + 1;
         }
         if (boxes.some(([a, b]) => top < b && top + h > a) || top < this.textTop || top + h > H) continue;
         boxes.push([top, top + h]);
-        const xx = Math.round(Math.min(Math.max(x, 4), W - w - 4)) + 0.5;
-        ctx.beginPath();
-        if (typeof (ctx as any).roundRect === "function") (ctx as any).roundRect(xx, top, w, h, 8); else ctx.rect(xx, top, w, h);
-        ctx.fillStyle = this.bg; ctx.fill();
-        ctx.strokeStyle = l.color; ctx.lineWidth = 1.2; ctx.stroke();
+        const xx = Math.round(Math.min(Math.max(x, 4), W - w - 4));
+        if ((l.lpos || "on") === "on" && Math.abs(top + h / 2 - y) < h) { ctx.fillStyle = this.bg; ctx.fillRect(xx, top, w, h); }
         ctx.fillStyle = l.lcolor || l.color;
         ctx.textAlign = "left";
-        ctx.fillText(l.label as string, xx + 7, top + h / 2 + 0.5);
+        ctx.fillText(l.label as string, xx + 3, top + h / 2 + 0.5);
       }
       ctx.textBaseline = "alphabetic";
       const placedN: { x: number; y: number }[] = [];

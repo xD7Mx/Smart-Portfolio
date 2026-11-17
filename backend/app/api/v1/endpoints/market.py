@@ -2283,12 +2283,54 @@ async def symbol_search(q: str = ""):
     return success_response(await search(q))
 
 
+@router.get("/live/{symbol}")
+async def live_quote(symbol: str):
+    """السعرُ الحيُّ وحالةُ السوق (‏D761): مفتوح · قبل الافتتاح · بعد الإغلاق · مغلق · عطلة — والسعرُ يتحرّك (مخبّأٌ أربعَ ثوانٍ)."""
+    from app.services.live_quote import live
+    if not re.match(r"^[\^A-Za-z0-9=.\-]{1,24}$", symbol or ""):
+        raise HTTPException(status_code=422, detail="رمزٌ غيرُ مقبول.")
+    return success_response(await live(symbol))
+
+
 @router.get("/options/{symbol}")
 async def option_chain(symbol: str, date: int | None = None):
-    """سلسلةُ عقود الخيارات لأجلٍ واحد (أو أقربِ أجل): الآجالُ بأيامها، وعقودُ الشراء والبيع بأسعارها."""
+    """سلسلةُ عقود الخيارات لأجلٍ واحد (أو أقربِ أجل): الآجالُ بأيامها، وعقودُ الشراء والبيع بأسعارها —
+    ومعها (‏D761) لكلّ عقدٍ تذبذبُه من سعره ويونانياتُه، ورأسُ الجدول (تذبذبُ النقود · الحركةُ المتوقّعة · نسبةُ البيع للشراء · ألمُ الحدّ الأقصى)،
+    وحالةُ السوق."""
+    import copy
     from app.services.options_chain import chain
+    from app.services.option_advisor import enrich_rows, stats
+    from app.services.market_session import session_for
     got = await chain(symbol, date)
+    if got:
+        got = copy.deepcopy(got)
+        cur = next((e for e in got.get("expirations") or [] if e["t"] == got.get("expiry")), None)
+        S = float(got.get("price") or 0)
+        if cur and S > 0:
+            enrich_rows(got["calls"], S, cur["dte"], True)
+            enrich_rows(got["puts"], S, cur["dte"], False)
+            got["stats"] = stats(got, S, cur["dte"])
+        got["session"] = session_for(symbol)
     return success_response(got, message="سلسلةُ الخيارات." if got else "لا عقودَ خياراتٍ لهذا الرمز.")
+
+
+@router.get("/options-advice")
+async def options_advice(symbol: str = "", budget: float | None = None, expiry: int | None = None, contract: str | None = None,
+                         side: str | None = None):
+    """التحليلُ الذكيّ (‏D761): الأنسبُ في السلسلة لميزانيتك مع أسبابه وما يُمتنع عنه — أو حكمُ عقدٍ بعينه (مناسب · بحذر · أمتنع)."""
+    from app.services.option_advisor import analyze
+    if budget is not None and not (10 <= budget <= 100000):
+        raise HTTPException(status_code=422, detail="الميزانيةُ بين 10 و100,000 دولار.")
+    if not (symbol or contract) or not re.match(r"^[\^A-Za-z0-9.\-]{1,24}$", contract or symbol):
+        raise HTTPException(status_code=422, detail="رمزٌ غيرُ مقبول.")
+    return success_response(await analyze(symbol, budget=budget, expiry=expiry, contract=contract, side=side))
+
+
+@router.get("/econ-events")
+async def econ_events():
+    """الأحداثُ الاقتصاديةُ الأمريكيةُ المهمّةُ هذا الأسبوع بوقت الرياض، وقراءةُ أثر كلٍّ منها وميلِه (عقودُ شراء · عقودُ بيع) — ‏D761."""
+    from app.services.econ_calendar import week
+    return success_response(await week())
 
 
 @public_router.get("/logo/{symbol}")

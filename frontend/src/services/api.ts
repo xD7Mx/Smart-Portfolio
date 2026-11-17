@@ -272,6 +272,11 @@ export const marketApi = {
     api.get<Blob>("/market/research-desk/pdf", { params: day ? { day } : {}, responseType: "blob", timeout: 120000 }),
   researchRun: () => api.post<APIResponse>("/market/research-desk/run"),
   symbolSearch: (q: string) => api.get<APIResponse>("/market/symbol-search", { params: { q } }),
+  /* ‏D761 السعرُ الحيُّ وحالةُ السوق (مفتوح · قبل الافتتاح · بعد الإغلاق · مغلق · عطلة) */
+  live: (symbol: string) => api.get<APIResponse>(`/market/live/${encodeURIComponent(symbol)}`),
+  optionAdvice: (p: { symbol: string; budget?: number; expiry?: number; contract?: string; side?: string }) =>
+    api.get<APIResponse>("/market/options-advice", { params: p, timeout: 120000 }),
+  econEvents: () => api.get<APIResponse>("/market/econ-events", { timeout: 60000 }),
   /* ‏D759 مُنتقي عقود الخيارات طويلة الأجل بميزانية العقد */
   optionPicks: (budget: number) => api.get<APIResponse>("/market/options-picks", { params: { budget } }),
   optionPicksRun: (budget: number) => api.post<APIResponse>("/market/options-picks/run", { budget }),

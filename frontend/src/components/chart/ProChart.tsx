@@ -34,6 +34,7 @@ import {
 } from "../analysis/d7m";
 import D7MPanel from "../analysis/D7MPanel";
 import D7MStrip from "./D7MStrip";
+import LiveQuote, { useLive } from "./LiveQuote";
 
 /* ‏D744 (المالك 2026-11-15): «لا أريد كثرةَ المؤشّرات — أريد CVD ومؤشّرَ الدحم وStoch RSI المدمج». فهي الثلاثة مع الحجم، ولكلٍّ إعداداتُه
    كتريدنق فيو (ترسٌ واحدٌ يفتح نافذةَ كلّ مؤشّر). كانت معها: SMA 20/50/200 وRSI وStochastic وMACD. */
@@ -174,6 +175,8 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   }, [raw, bars]);
   const eff = useMemo(() => ({ ...ind, vol: ind.vol && volOk, cvd: ind.cvd && volOk }), [ind, volOk]);
   const isUS = !!symbol && !/^\d{4}(\.SR)?$/.test(symbol) && !/TASI/i.test(symbol);
+  /* ‏D761 (المالك): «أريد الأرقام تتحرّك — حيويةً كتريدنق فيو»: السعرُ الحيُّ وحالةُ السوق كلَّ خمس ثوانٍ في الجلسة */
+  const { data: live } = useLive(symbol);
   const { data: frames } = useQuery({
     queryKey: ["frames", symbol],
     queryFn: () => marketApi.frames(symbol).then(r => r.data?.data || null),
@@ -298,11 +301,12 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
         /* ‏D756: «مختصر» خطوطُه الستّة إلا ما أُخفي منها في الإعدادات (1.1 و0.618 و0.5 افتراضاً)، و«الكل» ما لم يُخفَ — وأرقامُها أمام آخر شمعة */
         const SIX = new Set([0, -0.1, 0.5, 0.618, 1, 1.1]), compact = (st.cfg.fibMode || "compact") === "compact";
         const shown = (lv: number) => st.cfg.fibLevels[String(lv)] !== false && (!compact || SIX.has(lv));
-        const lx = b.length - 1 + 3, lpos = st.cfg.fibLabelPos || "on", txt = tok("--ink", "#111111");
+        /* ‏D761 (المالك): «الرقمُ نفسُه سادةً — السعرُ على الخطّ بلا نسبةٍ ولا دائرة، ولونُه لونُ الخطّ» — والنصُّ بلون الخطّ مُصمَتاً ليُقرأ */
+        const lx = b.length - 1 + 3, lpos = st.cfg.fibLabelPos || "on", inkTxt = st.cfg.colors?.fib || tok("--ink-muted", "#6b7280");
         for (const l of D.fib.lines) {
           if (!shown(l.level)) continue;
           const gold = l.color === "yellow";
-          levels.push({ price: l.price, color: gold ? C("fibGold") : ink, label: `${l.level} (${fmtPrice(l.price)})`, lx, lpos, lcolor: txt,
+          levels.push({ price: l.price, color: gold ? C("fibGold") : ink, label: fmtPrice(l.price), lx, lpos, lcolor: gold ? C("fibGold") : inkTxt,
                         rank: gold ? 2 : 3, width: 1 });
         }
         if (st.cfg.fibZones) {
@@ -732,6 +736,22 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     const t = window.setInterval(tick, 1000);
     return () => window.clearInterval(t);
   }, [tzName]);
+  /* ‏D761: الشمعةُ الجاريةُ تتحرّك مع السعر الحيّ في الجلسة الرسمية — في مكانها (‏update) بلا إعادة حسابٍ للمؤشّرات، وما دام زمنُ السعر
+     داخلَ مدّة الشمعة الأخيرة؛ والشمعةُ التالية يكتبها جلبُ الشموع نفسُه */
+  useEffect(() => {
+    const main = mainRef.current, L = live, n = bars.length;
+    if (!main || !L || L.price == null || L.session?.state !== "open" || n < 2 || raw === undefined) return;
+    const b = bars[n - 1];
+    // زمنُ الشمعة ثوانٍ، أو يومُ جلسةٍ نصّاً (‏«2026-11-17») فيُقرأ بدايةَ يومه بالتوقيت العالميّ
+    const ts = (x: string | number) => (typeof x === "number" ? x : Date.parse(`${x}T00:00:00Z`) / 1000);
+    const per = Math.min(...[1, 2, 3].filter(k => n - k - 1 >= 0).map(k => ts(bars[n - k].time) - ts(bars[n - k - 1].time)).filter(x => x > 0), 86400 * 31);
+    const t = L.time ? Date.parse(L.time) / 1000 : Date.now() / 1000, t0 = ts(b.time);
+    if (!(t >= t0 && t < t0 + per)) return;
+    const px = L.price, hi = Math.max(b.high, px), lo = Math.min(b.low, px);
+    try {
+      main.update(ctype === "line" || ctype === "area" ? { time: disp[n - 1] as any, value: px } : { time: disp[n - 1] as any, open: b.open, high: hi, low: lo, close: px });
+    } catch { /* سلسلةٌ تُبنى */ }
+  }, [live, bars, disp, ctype, raw]);
   const nowS = Date.now() / 1000;
   const tzItems: [string, string, number][] = [["exchange", "توقيت البورصة", tzOffsetMin(exchangeTz(symbol), nowS)], ["UTC", "UTC", 0],
     ...TZ_LIST.map(([k, n]) => [k, n, tzOffsetMin(k, nowS)] as [string, string, number]).sort((a, b) => a[2] - b[2])];
@@ -773,7 +793,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     <div ref={rootRef} className={"pc" + (full ? " pc-full" : "")} data-role="pro-chart" data-tf={tf} data-type={ctype} data-symbol={symbol}>
       {/* ══ الشريطُ العلويّ — كتريدنق فيو: الرمزُ · الإطارات · نوعُ الرسم · المؤشّرات · الرسم · لقطة · ملءُ الشاشة ══ */}
       <div ref={topRef} className="pc-top" data-role="pc-top">
-        {identity && <div className="pc-ident">{identity}</div>}
+        {(identity || live?.session) && <div className="pc-ident">{identity}<LiveQuote symbol={symbol} live={live} /></div>}
         <div className="pc-group" role="group" aria-label="الإطار الزمني" data-role="pc-tfs">
           {barTfs.map(k => (
             <button key={k} type="button" className={"pc-tf" + (tf === k ? " on" : "")} aria-pressed={tf === k} title={tfLong(k)} onClick={() => setTf(k)}>{tfShort(k)}</button>

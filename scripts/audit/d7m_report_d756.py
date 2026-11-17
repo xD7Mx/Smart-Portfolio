@@ -128,11 +128,11 @@ check(rd and rd[0]["volume"] == 12e6, "٦ «CVD لا يعمل — لا أحجا�
 pc = (FRONT / "src/components/chart/ProChart.tsx").read_text(encoding="utf-8")
 d7 = (FRONT / "src/components/analysis/d7m.ts").read_text(encoding="utf-8")
 panel = (FRONT / "src/components/analysis/D7MPanel.tsx").read_text(encoding="utf-8")
-check('["macd", "MACD"' in pc and 'data-role="pc-eye"' in pc and 'data-role="pc-eye-all"' in pc and "label: `${l.level} (" in pc
+check('["macd", "MACD"' in pc and 'data-role="pc-eye"' in pc and 'data-role="pc-eye-all"' in pc and "label: fmtPrice(l.price), lx, lpos, lcolor: gold ? C(\"fibGold\") : inkTxt" in pc and "label: `${l.level} (" not in pc
       and 'data-role="pc-candle-colors"' in pc and "st.cfg.chMid" in pc and "trendMajor" in pc and "slice(-300)" in pc
       and "FIB_HIDDEN = new Set([1.1, 0.618, 0.5])" in d7 and "chMid: false" in d7 and 'fibLabelPos: "on"' in d7
       and all(k in panel for k in ('k="trendMajor"', 'k="trendMinor"', 'k="chMid"', 'data-role="fib-label-pos"')),
-      "٧ الرسم: ‏MACD، وعينُ الإخفاء لكلّ مؤشّرٍ ولها كلِّها، وأرقامُ فيبوناتشي أمام آخر شمعة (فوق/على/تحت)، وألوانُ الشموع، "
+      "٧ الرسم: ‏MACD، وعينُ الإخفاء لكلّ مؤشّرٍ ولها كلِّها، وأسعارُ فيبوناتشي سادةً بلون خطّها بلا نسبة (‏D761) أمام آخر شمعة (فوق/على/تحت)، وألوانُ الشموع، "
       "و1.1 و0.618 و0.5 مخفيّةٌ افتراضاً، والاتجاهان الرئيسيّ والفرعيّ وخطُّ منتصف القناة خياراتٌ في الإعدادات")
 # ٨ ‏D757: تقريرٌ محفوظٌ يُقرأ ويُرسم — كان مخبّأُ الرسم يُحفظ معه فتصير مفاتيحُ مستوياته نصوصاً ويتعطّل الرسمُ في الخادم
 import json as _json   # noqa: E402

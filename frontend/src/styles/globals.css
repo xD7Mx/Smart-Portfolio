@@ -3470,25 +3470,10 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 .oc-exp { flex: none; display: inline-flex; flex-direction: column; align-items: center; line-height: 1.2; min-height: 40px; padding-block: 4px !important; }
 .oc-exp b { font-size: 12px; } .oc-exp small { font-size: 10px; color: var(--ink-muted); font-weight: 700; }
 .oc-exp.on small { color: inherit; }
-.oc-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.oc-bar .seg-btn { min-height: 32px; }
 .oc-empty { padding: 24px 8px; text-align: center; color: var(--ink-muted); font-size: 13px; }
-.oc-table { overflow-x: auto; transition: opacity .2s ease; }
-.oc-tr { display: grid; grid-template-columns: minmax(560px, 1fr) 32px; align-items: center; border-bottom: 1px solid var(--hairline); }
-.oc-th { font-size: 10.5px; font-weight: 800; color: var(--ink-muted); border-bottom-width: 2px; position: sticky; top: 0; background: var(--card); z-index: 1; }
-.oc-cols { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); align-items: center; gap: 4px; padding: 0 6px; min-height: 34px;
-  text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
-.oc-th .oc-cols { min-height: 30px; }
-.oc-cols > * { text-align: right; }
-.oc-pick { width: 100%; border-radius: 6px; transition: background-color .16s ease; color: var(--ink); }
-.oc-pick:hover { background: color-mix(in srgb, var(--brand) 9%, transparent); }
-.oc-pick b { font-weight: 800; color: var(--fg-strong); }
-.oc-tr.itm .oc-pick { background: color-mix(in srgb, var(--brand) 5%, transparent); }
-.oc-tr.atm { border-top: 2px solid var(--brand-ink); }
-.oc-pick .pos { color: var(--pos-ink); } .oc-pick .neg { color: var(--neg-ink); }
 .troom-oc { min-height: 32px; padding: 2px 10px; font-size: 12px; font-weight: 700; color: var(--brand-ink); white-space: nowrap; }
 .troom-osub { font-size: 11px; color: var(--ink-muted); font-weight: 700; white-space: nowrap; }
-@media (prefers-reduced-motion: reduce) { .oc-modal, .oc-sheet, .oc-table, .oc-pick { transition: none; } .oc-modal[data-shown="0"] .oc-sheet { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .oc-modal, .oc-sheet, .ocx-side, .ocx-detail, .ee-modal, .ee-sheet { transition: none; } .oc-modal[data-shown="0"] .oc-sheet { transform: none; } }
 @media (max-width: 1023px) { .troom-chart { order: -1; } }
 
 /* ══ ‏D744: شريطُ D7M الذكيّ — صفٌّ رفيعٌ فوق الرسم (بحجم الإصبع) بدل الجداول فوق الشموع ══ */
@@ -3543,3 +3528,141 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 .rl-paper iframe { display: block; width: 100%; border: 0; background: transparent; }
 @media (max-width: 767px) { .rl-acts { margin-inline-start: 0; } }
 @media (prefers-reduced-motion: reduce) { .rl-paper { transition: none; transform: none; } .rl-spin { animation: none; } }
+
+/* ══ ‏D761 السعرُ الحيُّ وحالةُ السوق كتريدنق فيو ══ */
+.lq { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-inline-start: 8px; min-width: 0; }
+.lq-badge { display: inline-flex; align-items: center; gap: 4px; flex: none; height: 20px; padding: 0 7px; border-radius: 10px;
+  font-size: 10.5px; font-weight: 800; white-space: nowrap; transition: color .3s ease, background-color .3s ease; }
+.lq-open { color: var(--pos-ink); background: color-mix(in srgb, var(--pos-ink) 12%, transparent); }
+.lq-pre, .lq-auction, .lq-preopen { color: var(--warn-ink); background: color-mix(in srgb, var(--warn-ink) 13%, transparent); }
+.lq-post { color: var(--info-ink); background: color-mix(in srgb, var(--info-ink) 13%, transparent); }
+.lq-closed, .lq-holiday { color: var(--ink-muted); background: color-mix(in srgb, var(--ink-muted) 12%, transparent); }
+.lq-dot { position: relative; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.lq-open .lq-dot::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 1.5px solid currentColor; opacity: 0;
+  animation: lq-pulse 1.8s ease-out infinite; }
+@keyframes lq-pulse { 0% { transform: scale(.5); opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
+.lq-px-wrap { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.lq-px { font-size: 14px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; padding: 0 3px; border-radius: 5px;
+  transition: background-color .7s ease, color .7s ease; }
+.lq-flash-up { background: color-mix(in srgb, var(--pos-ink) 26%, transparent); transition: none; }
+.lq-flash-dn { background: color-mix(in srgb, var(--neg-ink) 26%, transparent); transition: none; }
+.lq-ch { font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.lq-ch.pos, .lq-ext .pos { color: var(--pos-ink); } .lq-ch.neg, .lq-ext .neg { color: var(--neg-ink); }
+.lq-delay { font-size: 10px; font-weight: 700; color: var(--ink-muted); }
+.lq-ext { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .lq-open .lq-dot::after { animation: none; } .lq-px, .lq-badge { transition: none; } }
+
+/* ══ ‏D761 سلسلةُ الخيارات بطريقة «إنتراكتف بروكرز» — الشراءُ يساراً والتنفيذُ وسطاً والبيعُ يميناً ══ */
+.ocx { width: min(980px, 100%); max-height: 92vh; }
+.ocx-chg { font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ocx-chg.pos { color: var(--pos-ink); } .ocx-chg.neg { color: var(--neg-ink); }
+.ocx-stats { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.ocx-stats::-webkit-scrollbar { display: none; }
+.ocx-stats > span { flex: none; display: flex; flex-direction: column; gap: 1px; padding: 5px 10px; border-radius: 9px; background: var(--raised); border: 1px solid var(--hairline); }
+.ocx-stats small { font-size: 10px; color: var(--ink-muted); font-weight: 700; white-space: nowrap; }
+.ocx-stats b { font-size: 13px; color: var(--fg-strong); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.ocx-smart { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ocx-ai { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; }
+.ocx-budget { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-muted); font-weight: 700; }
+.ocx-budget input { width: 86px; min-height: 34px; border-radius: 8px; border: 1px solid var(--hairline); background: var(--raised); color: var(--ink);
+  padding: 0 8px; font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; }
+.ocx-table { border: 1px solid var(--hairline); border-radius: 10px; overflow: hidden; transition: opacity .2s ease; }
+.ocx-row { display: grid; grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr); align-items: stretch; border-bottom: 1px solid var(--hairline); }
+.ocx-side { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; min-height: 40px; color: var(--ink);
+  transition: background-color .18s ease, box-shadow .18s ease; }
+button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transparent); }
+.ocx-side.itm { background: color-mix(in srgb, var(--warn-ink) 8%, transparent); }
+.ocx-side.on { box-shadow: inset 0 0 0 2px var(--brand-ink); }
+.ocx-v { display: flex; flex-direction: column; align-items: flex-end; padding: 3px 6px; line-height: 1.25; min-width: 0; }
+.ocx-v b { font-size: 12.5px; font-weight: 800; color: var(--fg-strong); font-variant-numeric: tabular-nums; }
+.ocx-v small { font-size: 10px; font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ocx-v small.pos { color: var(--pos-ink); } .ocx-v small.neg { color: var(--neg-ink); }
+.ocx-k { display: flex; align-items: center; justify-content: center; background: var(--raised); border-inline: 1px solid var(--hairline);
+  font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--fg-strong); }
+.ocx-k b { font-weight: 800; }
+.ocx-h1, .ocx-h2 { position: sticky; z-index: 1; background: var(--card); }
+.ocx-h1 { top: 0; } .ocx-h1 .ocx-side { display: flex; justify-content: center; min-height: 28px; }
+.ocx-cap { font-size: 11px; font-weight: 800; letter-spacing: .02em; color: var(--ink); }
+.ocx-h1 .ocx-k { font-size: 10px; font-weight: 800; color: var(--ink-muted); }
+.ocx-h2 .ocx-side { min-height: 24px; } .ocx-h2 .ocx-side span { font-size: 10.5px; font-weight: 800; color: var(--ink-muted); text-align: right; padding: 0 6px; }
+.ocx-h2 .ocx-k { font-size: 10.5px; font-weight: 800; color: var(--ink-muted); }
+.ocx-pxline { position: relative; height: 0; border-top: 2px solid var(--brand-ink); z-index: 1; }
+.ocx-pxline span { position: absolute; left: 50%; top: -11px; transform: translateX(-50%); background: var(--fg-strong); color: var(--card);
+  font-size: 11.5px; font-weight: 800; padding: 1px 8px; border-radius: 6px; font-variant-numeric: tabular-nums; }
+.ocx-range { align-self: center; min-height: 32px; }
+.ocx-detail, .ocx-ai-panel { border: 1px solid var(--hairline); border-radius: 12px; padding: 10px 12px; background: var(--raised); display: flex; flex-direction: column; gap: 8px; }
+.ocx-dhead { display: flex; align-items: center; gap: 8px; } .ocx-dhead b { font-size: 13.5px; color: var(--fg-strong); }
+.ocx-side-chip { font-size: 10.5px; font-weight: 800; padding: 1px 8px; border-radius: 6px; }
+.ocx-side-chip.c { color: var(--pos-ink); background: color-mix(in srgb, var(--pos-ink) 12%, transparent); }
+.ocx-side-chip.p { color: var(--neg-ink); background: color-mix(in srgb, var(--neg-ink) 12%, transparent); }
+.ocx-dgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.ocx-dgrid > span { display: flex; flex-direction: column; gap: 1px; padding: 4px 6px; border-radius: 8px; background: var(--card); }
+.ocx-dgrid small { font-size: 10px; color: var(--ink-muted); font-weight: 700; }
+.ocx-dgrid b { font-size: 12.5px; color: var(--fg-strong); font-variant-numeric: tabular-nums; text-align: right; }
+.ocx-dbtns { display: flex; gap: 6px; flex-wrap: wrap; }
+.ocx-dbtns button { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; }
+.ocx-note { font-size: 12px; color: var(--ink-muted); }
+.ocx-verdict { border-radius: 10px; padding: 8px 10px; border: 1px solid var(--hairline); display: flex; flex-direction: column; gap: 6px; }
+.ocx-verdict.v-ok { border-color: color-mix(in srgb, var(--pos-ink) 45%, transparent); }
+.ocx-verdict.v-warn { border-color: color-mix(in srgb, var(--warn-ink) 50%, transparent); }
+.ocx-verdict.v-no { border-color: color-mix(in srgb, var(--neg-ink) 50%, transparent); }
+.ocx-vchip { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; padding: 2px 10px; border-radius: 8px; }
+.v-ok .ocx-vchip { color: var(--pos-ink); background: color-mix(in srgb, var(--pos-ink) 12%, transparent); }
+.v-warn .ocx-vchip { color: var(--warn-ink); background: color-mix(in srgb, var(--warn-ink) 13%, transparent); }
+.v-no .ocx-vchip { color: var(--neg-ink); background: color-mix(in srgb, var(--neg-ink) 12%, transparent); }
+.ocx-verdict ul { display: flex; flex-direction: column; gap: 3px; padding-inline-start: 16px; list-style: disc; }
+.ocx-verdict li { font-size: 12px; color: var(--ink); line-height: 1.6; }
+.ocx-verdict li.pro::marker { color: var(--pos-ink); } .ocx-verdict li.con::marker { color: var(--neg-ink); }
+.ocx-sum { font-size: 13px; line-height: 1.8; color: var(--fg-strong); }
+.ocx-ctx { display: flex; flex-wrap: wrap; gap: 5px; }
+.ocx-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 7px; background: var(--card); color: var(--ink); border: 1px solid var(--hairline); }
+.ocx-tag.t-up { color: var(--pos-ink); } .ocx-tag.t-dn { color: var(--neg-ink); } .ocx-tag.t-ev { color: var(--warn-ink); }
+.ocx-fit { font-size: 12.5px; line-height: 1.7; padding: 6px 10px; border-radius: 9px; background: color-mix(in srgb, var(--warn-ink) 9%, transparent); color: var(--ink); }
+.ocx-fit.ok { background: color-mix(in srgb, var(--pos-ink) 9%, transparent); }
+.ocx-h { font-size: 12.5px; font-weight: 800; color: var(--fg-strong); }
+.ocx-card { border: 1px solid var(--hairline); border-radius: 10px; padding: 8px 10px; background: var(--card); display: flex; flex-direction: column; gap: 6px; }
+.ocx-cost { margin-inline-start: auto; font-size: 14px; font-weight: 800; color: var(--fg-strong); font-variant-numeric: tabular-nums; }
+.ocx-mini { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--ink-muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+.ocx-mini bdi { color: var(--fg-strong); }
+.ocx-refused summary { cursor: pointer; font-size: 12px; font-weight: 800; color: var(--neg-ink); min-height: 32px; display: flex; align-items: center; }
+.ocx-refused ul { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink); line-height: 1.6; }
+@media (max-width: 640px) {
+  .ocx-row { grid-template-columns: minmax(0, 1fr) 50px minmax(0, 1fr); }
+  .ocx-v { padding: 3px 3px; } .ocx-v b { font-size: 11.5px; } .ocx-k { font-size: 11.5px; }
+  .ocx-dgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ══ ‏D761 الأحداثُ الاقتصادية ══ */
+.ee-btn { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 9px; font-size: 12px; font-weight: 700; }
+.ee-btn.hot { color: var(--warn-ink); }
+.ee-n { min-width: 18px; height: 18px; border-radius: 9px; background: var(--warn-ink); color: var(--card); font-size: 10.5px; font-weight: 800;
+  display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
+.ee-modal { z-index: 70; transition: background-color .22s ease; }
+.ee-modal[data-shown="0"] { background: transparent; }
+.ee-sheet { width: min(640px, 100%); max-height: 86vh; transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .22s ease; }
+.ee-modal[data-shown="0"] .ee-sheet { transform: translateY(24px); opacity: 0; }
+@media (min-width: 768px) { .ee-modal { align-items: center; } .ee-sheet { border-radius: 14px; } }
+.ee-list { display: flex; flex-direction: column; gap: 8px; }
+.ee-item { border: 1px solid var(--hairline); border-radius: 11px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; background: var(--raised); }
+.ee-item.high { border-inline-start: 3px solid var(--warn-ink); }
+.ee-item.past { opacity: .62; }
+.ee-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ee-when { font-size: 12.5px; font-weight: 800; color: var(--fg-strong); font-variant-numeric: tabular-nums; }
+.ee-day { font-size: 11px; font-weight: 700; color: var(--ink-muted); }
+.ee-title { font-size: 13px; color: var(--fg-strong); }
+.ee-imp { margin-inline-start: auto; font-size: 10.5px; font-weight: 800; padding: 1px 8px; border-radius: 7px; }
+.ee-imp.h { color: var(--warn-ink); background: color-mix(in srgb, var(--warn-ink) 13%, transparent); }
+.ee-imp.m { color: var(--ink-muted); background: color-mix(in srgb, var(--ink-muted) 12%, transparent); }
+.ee-sub { font-size: 11px; color: var(--ink-muted); text-align: right; font-variant-numeric: tabular-nums; }
+.ee-what { font-size: 12.5px; color: var(--ink); line-height: 1.7; }
+.ee-sc p { font-size: 12px; color: var(--ink); line-height: 1.7; }
+.ee-lean { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 7px; }
+.ee-lean.l-call { color: var(--pos-ink); background: color-mix(in srgb, var(--pos-ink) 12%, transparent); }
+.ee-lean.l-put { color: var(--neg-ink); background: color-mix(in srgb, var(--neg-ink) 12%, transparent); }
+.ee-lean.l-neutral { color: var(--ink-muted); background: color-mix(in srgb, var(--ink-muted) 12%, transparent); }
+.ocx .d7m-btn, .ocx-range, .ee-sheet .d7m-btn { min-height: 34px; min-width: 34px; }
+/* اللوحةُ عمودٌ مرنٌ بارتفاعٍ أقصى ويمرَّر: لا ينكمش فيها شريطٌ أفقيُّ التمرير فيُقصّ (الرأسُ والآجالُ قُصّتا) */
+.ocx > *, .ee-sheet > * { flex-shrink: 0; }
+/* بطاقةُ العقد تلتصق بأسفل اللوحة فتُرى حيث ضُغط العقد — لا في آخر الجدول */
+.ocx-detail { position: sticky; bottom: -20px; z-index: 3; max-height: 55vh; overflow-y: auto; background: var(--card);
+  box-shadow: 0 -10px 28px color-mix(in srgb, var(--bg) 55%, transparent); }
