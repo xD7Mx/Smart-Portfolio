@@ -1049,10 +1049,13 @@ def svg_d7m(bars: list[dict], w: int = 470, h: int = 330, title: str = "", d: di
     X0, X1 = 4, w - 54
     lo, hi = min(x["low"] for x in V), max(x["high"] for x in V)
     span = (hi - lo) or 1
-    zones = {k: z for k, z in (d.get("zones") or {}).items() if z[1] >= lo - 0.18 * span and z[0] <= hi + 0.18 * span}
+    # ‏D757 (المالك 2026-11-17): «أظهِر جميعَ المستويات بلا أيّ كلامٍ ولا حرف — بالألوان فقط: المقاومةُ حمراء والدعومُ خضراء والمحايدةُ صفراء»
+    # — كلُّ مستويات فيبوناتشي التلقائيّ القريبة من مدى الشموع (البعيدُ يسحق الشموع فلا يُرسم)
+    last_c = V[-1]["close"]
+    lvls = [(lv, p) for lv, p in ((d.get("fib") or {}).get("levels") or {}).items() if lo - 0.12 * span <= p <= hi + 0.12 * span]
     ex = [v for v in ((extra or {}).get("buy") or []) + [(extra or {}).get("stop"), (extra or {}).get("target")] if v]
-    for z in zones.values():
-        lo, hi = min(lo, z[0]), max(hi, z[1])
+    for _, p_ in lvls:
+        lo, hi = min(lo, p_), max(hi, p_)
     lo, hi = min([lo] + ex), max([hi] + ex)
     pad = (hi - lo) * 0.05 or 1
     lo, hi = lo - pad, hi + pad
@@ -1066,13 +1069,14 @@ def svg_d7m(bars: list[dict], w: int = 470, h: int = 330, title: str = "", d: di
         out.append(f'<line x1="{X0}" x2="{X1}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="{TV_GRID}"/>'
                    f'<text x="{X1 + 4}" y="{y(v) + 3:.1f}" font-size="9.5" fill="{TV_AX}" font-family="Arial,sans-serif">{_fmt(v)}</text>')
     g = [f'<g clip-path="url(#{cid})">']
-    # ١ المناطقُ الثلاث: تظليلٌ خفيفٌ بحدّين واسمٍ ومدًى — المقاومةُ والمحايدةُ والدعم
-    zc = {"res": RED, "mid": GOLD, "sup": GREEN}
-    for k, (a, b) in zones.items():
-        ya, yb = y(b), y(a)
-        g.append(f'<rect x="{X0}" y="{ya:.1f}" width="{X1 - X0}" height="{max(1.5, yb - ya):.1f}" fill="{zc[k]}" fill-opacity=".11"/>'
-                 f'<line x1="{X0}" x2="{X1}" y1="{ya:.1f}" y2="{ya:.1f}" stroke="{zc[k]}" stroke-opacity=".55" stroke-width=".8"/>'
-                 f'<line x1="{X0}" x2="{X1}" y1="{yb:.1f}" y2="{yb:.1f}" stroke="{zc[k]}" stroke-opacity=".55" stroke-width=".8"/>')
+    # ١ المستوياتُ ألواناً بلا نصّ: المحايدةُ (0.5–0.618) صفراءُ بنطاقٍ خفيف، وما فوق الإغلاق مقاومةٌ حمراء، وما دونه دعمٌ أخضر
+    mid = [p_ for lv, p_ in lvls if lv in (0.5, 0.618)]
+    if len(mid) == 2:
+        a_, b_ = sorted(mid)
+        g.append(f'<rect x="{X0}" y="{y(b_):.1f}" width="{X1 - X0}" height="{max(1.5, y(a_) - y(b_)):.1f}" fill="{GOLD}" fill-opacity=".16"/>')
+    for lv, p_ in lvls:
+        col = GOLD if lv in (0.5, 0.618) else RED if p_ > last_c else GREEN
+        g.append(f'<line data-lv="{lv:g}" x1="{X0}" x2="{X1}" y1="{y(p_):.1f}" y2="{y(p_):.1f}" stroke="{col}" stroke-opacity=".85" stroke-width="1"/>')
     # ٢ القناةُ الرئيسية: ضلعاها وحدهما (لا خطَّ منتصف)
     ch = d.get("channel")
     if ch:
@@ -1104,7 +1108,7 @@ def svg_d7m(bars: list[dict], w: int = 470, h: int = 330, title: str = "", d: di
                  f'<rect x="{x(i) - bw * 0.36:.1f}" y="{y(max(b["open"], b["close"])):.1f}" width="{max(.8, bw * 0.72):.1f}" '
                  f'height="{max(0.7, abs(y(b["open"]) - y(b["close"]))):.1f}" fill="{col}"/>')
     # ٥ المتوسّطاتُ 20 و50 و200
-    for key, col in (("sma20", TV_MA[0]), ("sma50", TV_MA[1]), ("sma200", TV_MA[2])):
+    for key, col in (("sma50", TV_MA[1]), ("sma200", TV_MA[2])):            # ‏D757: 50 و200 وحدهما
         pts = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in enumerate(d.get(key) or []) if i >= s0 and v)
         if pts:
             g.append(f'<polyline points="{pts}" fill="none" stroke="{col}" stroke-width="1.3"/>')
@@ -1118,16 +1122,6 @@ def svg_d7m(bars: list[dict], w: int = 470, h: int = 330, title: str = "", d: di
             g.append(f'<line x1="{X0}" x2="{X1}" y1="{y(e[k2]):.1f}" y2="{y(e[k2]):.1f}" stroke="{col}" stroke-width="1" stroke-dasharray="5 3"/>')
     g.append("</g>")
     out += g
-    # أسماءُ المناطق يسارَ اللوحة (حيث لا شموعَ حديثة) — بلا تراكب
-    used = []
-    for k, (a, b) in sorted(zones.items(), key=lambda kv: -kv[1][1]):
-        yy = min(max(y(b) + 10, PT + 10), PB - 4)
-        if any(abs(yy - u) < 12 for u in used):
-            continue
-        used.append(yy)
-        # ‏RTL مع ‏end = طرفُ النصّ الأيسرُ عند ‏x — فيبدأ الاسمُ من يسار اللوحة ويُقرأ صحيحاً
-        out.append(f'<text x="{X0 + 5}" y="{yy:.1f}" font-size="9.5" fill="{zc[k]}" font-weight="700" direction="rtl" text-anchor="end" '
-                   f'font-family="\'Thmanyah Serif Display\',Arial,sans-serif">{ZONE_NAME[k]} <tspan direction="ltr" unicode-bidi="embed">{_fmt(a)}–{_fmt(b)}</tspan></text>')
     for k2, col, lbl in (("target", GREEN, "الهدف"), ("stop", RED, "الوقف")):
         if e.get(k2):
             out.append(_tag(X1 + 1, y(e[k2]), _fmt(e[k2]), col, 50))
@@ -1140,7 +1134,7 @@ def svg_d7m(bars: list[dict], w: int = 470, h: int = 330, title: str = "", d: di
     out.append(f'<text x="6" y="13" font-size="9.5" font-family="Arial,sans-serif" fill="#131722"><tspan font-weight="700">{_e(title)} · 1D</tspan>'
                f'<tspan fill="{cc}">  O {_fmt(last["open"])} H {_fmt(last["high"])} L {_fmt(last["low"])} C {_fmt(last["close"])} '
                f'{chg:+,.2f} ({chg / prev * 100 if prev else 0:+.2f}%)</tspan></text>')
-    sv = [(lbl, (d.get(k3) or [None])[-1], col) for k3, lbl, col in (("sma20", "SMA 20", TV_MA[0]), ("sma50", "SMA 50", TV_MA[1]), ("sma200", "SMA 200", TV_MA[2]))]
+    sv = [(lbl, (d.get(k3) or [None])[-1], col) for k3, lbl, col in (("sma50", "SMA 50", TV_MA[1]), ("sma200", "SMA 200", TV_MA[2]))]
     out.append('<text x="6" y="26" font-size="9.5" font-family="Arial,sans-serif">'
                + "".join(f'<tspan fill="{col}">{lbl} {_fmt(v) if v else "—"}   </tspan>' for lbl, v, col in sv) + "</text>")
     # لوحةُ ستوكاستيك RSI ‏3 3 14 14: ‏K أزرق و‏D برتقاليّ، وحدودُ 80 و50 و20 ونطاقٌ بينها
@@ -1159,7 +1153,7 @@ def svg_d7m(bars: list[dict], w: int = 470, h: int = 330, title: str = "", d: di
     out.append(f'<text x="6" y="{ST + 8}" font-size="9.5" font-family="Arial,sans-serif" fill="#131722">Stoch RSI 3 3 14 14'
                + (f' <tspan fill="#2962ff">{kv:.2f}</tspan>' if kv is not None else "") + (f' <tspan fill="#ff6d00">{dv:.2f}</tspan>' if dv is not None else "")
                + "</text>")
-    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="100%" direction="ltr" role="img" aria-label="{_e(title)} — مؤشر دحم">{"".join(out)}</svg>'
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="100%" direction="ltr" role="img" aria-label="{_e(title)} — الرسم البياني اليومي">{"".join(out)}</svg>'
 
 
 
@@ -1417,7 +1411,7 @@ def render(r: dict, part: str = "all") -> str:
         rgt = (f'<h2>التعليق على مؤشر السوق الرئيسي</h2><ul class="bul"><li>{_e(c1)}</li></ul>'
                f'<h2>التوقعات الفنية</h2><ul class="bul"><li>{_e(c2)} {_e(adv)}</li></ul>'
                f'<h2>المقاومة والدعم للمؤشر</h2>{lv}{kpis}'
-               f'<h2>الرسم البياني اليومي — مؤشر دحم</h2><div class="chart">'
+               f'<h2>الرسم البياني اليومي</h2><div class="chart">'
                f'{svg_d7m(m.get("daily") or [], title="TASI · Tadawul All Shares Index", d=d7m_of(m))}</div>')
         notes = [("المؤشر", "تاسي"), ("آخر إغلاق", n2(tech.get("close"))), ("نظرة قريبة المدى", tech.get("view")),
                  ("الأعلى – الأدنى خلال 52 أسبوعاً", f"{n0(tech.get('hi52'))} – {n0(tech.get('lo52'))}")]

@@ -101,10 +101,14 @@ day = [{"d": f"2026-{1 + i // 28:02d}-{1 + i % 28:02d}", "o": b["open"], "h": b[
 sv = RP.svg_d7m(day, title="TASI") if hasattr(RP, "svg_d7m") else ""
 import re   # noqa: E402
 chg = re.search(r'<g data-k="channel">(.*?)</g>', sv or "")
-check(bool(sv) and all(k in sv for k in ("SMA 20", "SMA 50", "SMA 200", "Stoch RSI 3 3 14 14")) and sv.count("<svg") == 1
-      and "منطقة" in sv and (chg is None or chg.group(1).count("<line") <= 2),
-      "٢ رسمُ الورقة مؤشّرُ دحم: الشموعُ والمتوسّطاتُ 20 و50 و200 والمناطقُ بأسمائها والاتجاهُ والقناةُ الرئيسية (ضلعان بلا خطّ منتصف) فوق، وستوكاستيك RSI تحت",
-      f"{len(sv)} حرفاً")
+
+txt = re.sub(r"<text[^>]*>.*?</text>", "", sv or "", flags=re.S)
+lines = re.findall(r'<line data-lv="[^"]+"[^>]*stroke="([^"]+)"', sv or "")
+check(bool(sv) and "SMA 50" in sv and "SMA 200" in sv and "SMA 20 " not in sv and "Stoch RSI 3 3 14 14" in sv and sv.count("<svg") == 1
+      and not re.search(r"[\u0600-\u06FF]", re.sub(r'aria-label="[^"]*"', "", sv)) and len(lines) >= 3
+      and set(lines) <= {RP.RED, RP.GREEN, RP.GOLD} and (chg is None or chg.group(1).count("<line") <= 2),
+      "٢ ‏D757 رسمُ الورقة: كلُّ المستويات ألواناً بلا حرف (المقاومةُ حمراء · الدعمُ أخضر · المحايدةُ صفراء)، و50 و200 وحدهما، والاتجاهُ والقناةُ "
+      "بلا خطّ منتصف، وستوكاستيك RSI تحت", f"{len(lines)} مستوى · ألوانُها {sorted(set(lines))}")
 src = (ROOT / "backend/app/services/research_paper.py").read_text(encoding="utf-8")
 check("def svg_research" not in src and "research_ind(" not in src and not (FRONT / "src/lib/researchIndicator.ts").exists()
       and "research" not in (FRONT / "src/components/chart/ProChart.tsx").read_text(encoding="utf-8"),
