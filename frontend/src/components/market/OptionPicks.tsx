@@ -10,7 +10,8 @@ import CompanyLogo from "../common/CompanyLogo";
 
 type Pick = { symbol: string; name?: string; price?: number; contract: string; type: "call" | "put"; strike: number; ask: number; cost: number;
   dte: number; expiry: string; breakeven: number; need_pct: number; need_sigma: number | null; pop: number; delta: number; iv: number; oi: number;
-  spread_pct: number; trend: { state: string }; news: { impact?: string; strength?: number } | null; reasons: string[] };
+  spread_pct: number | null; px_src?: "ask" | "last"; last_trade?: string | null; trend: { state: string };
+  news: { impact?: string; strength?: number } | null; reasons: string[] };
 
 const PRESETS = [50, 100, 150, 300];
 const n2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -70,6 +71,7 @@ export default function OptionPicks() {
           <p className="op-meta" data-role="op-meta">
             <Num v={`$${res.budget}`} /> للعقد · آجالٌ بين <Num v={`${res.limits?.min_dte}`} /> و<Num v={`${res.limits?.max_dte}`} /> يوماً ·
             قُرئ مسارُ <Num v={`${res.scanned}`} /> رمزاً{res.news_ok ? " وأخبارُها" : " — قراءةُ الأخبار غيرُ متوفّرة الآن"}
+            {res.closed && " · السوقُ الأمريكيّ مغلق: الكلفةُ سعرُ آخر صفقة"}
           </p>
           {picks.length === 0 ? (
             <p className="op-empty" data-role="op-none">لا عقدَ طويلَ الأجل سائلاً بهذه القيمة باحتمالٍ معقول.</p>
@@ -89,6 +91,7 @@ export default function OptionPicks() {
                     </header>
                     <p className="op-line">
                       تنفيذ <b><Num v={n2(p.strike)} /></b> · ينتهي <Num v={p.expiry} /> (<Num v={`${p.dte}`} /> يوماً) · الكلفة <b><Num v={`$${n2(p.cost)}`} /></b>
+                      {p.px_src === "last" && <span className="op-last" data-role="op-last">آخر صفقة</span>}
                     </p>
                     <div className="op-m">
                       <span><small>احتمال الربح</small><b style={{ color: p.pop >= 35 ? "var(--pos-ink)" : "var(--warn-ink)" }}><Num v={`${p.pop.toFixed(0)}٪`} /></b></span>

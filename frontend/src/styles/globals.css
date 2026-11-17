@@ -3392,6 +3392,7 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 .op-sym small { font-size: 11px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .op-side { margin-inline-start: auto; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 8px; white-space: nowrap; }
 .op-line { font-size: 12.5px; color: var(--ink); line-height: 1.7; }
+.op-last { display: inline-block; margin-inline-start: 6px; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 6px; color: var(--warn-ink); background: color-mix(in srgb, var(--warn-ink) 12%, transparent); }
 .op-m { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .op-m span { display: flex; flex-direction: column; gap: 1px; background: var(--field); border-radius: 9px; padding: 6px 8px; min-width: 0; }
 .op-m small { font-size: 10px; color: var(--ink-muted); font-weight: 600; }

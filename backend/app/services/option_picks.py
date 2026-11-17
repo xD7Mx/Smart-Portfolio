@@ -6,12 +6,14 @@
 
 ثلاثُ مراحل، وكلُّ رقمٍ من مصدره في التطبيق (لا اختلاق):
   ١ **المسار** — لكلّ سهمٍ أو صندوقٍ سائلٍ في القائمة: الإغلاقُ ومتوسّطا 50 و200 وميلُ متوسّط 50 وتغيّرُ ثلاثة أشهر من شموعه اليومية:
-     صاعدٌ (الإغلاقُ فوق 50 فوق 200 بفرقٍ فوق 1٪، وميلُ 50 فوق 0.3٪) · هابطٌ (عكسُه) · وإلا عرضيّ لا يُشترى له عقد.
+     صاعدٌ (متوسّطُ 50 فوق 200 بفرقٍ فوق 1٪ صاعداً بميلٍ فوق 0.3٪، والإغلاقُ فوق 200) · هابطٌ (عكسُه) · وإلا عرضيّ لا يُشترى له عقد.
   ٢ **الأخبار** — عناوينُ السهم في عشرة أيامٍ من محرّك ياهو، يقرؤها النموذجُ قراءةَ محلّل: أثرُها (إيجابيّ · سلبيّ · محايد) وقوّتُه (0–3)
      والحدثُ نفسُه بجملة — من العناوين وحدها. والخبرُ القويُّ المعاكسُ للمسار يُسقط السهم، والقويُّ جداً يعطي العرضيَّ اتجاهَه.
   ٣ **العقد** — آجالٌ بين 120 و430 يوماً (التآكلُ الزمنيُّ بطيءٌ فيها)، وكلفتُه (سعرُ الطلب × 100) ضمن الميزانية، وسيولتُه (اهتمامٌ مفتوح
      وفارقٌ معقول)؛ ويُقاس **احتمالُ الربح عند الانتهاء** من التذبذب الضمنيّ (احتمالُ تجاوز نقطة التعادل في توزيعٍ لوغاريتميّ)،
      والدلتا، والحركةُ المطلوبةُ إلى التعادل بوحدة التذبذب المتوقّع — ويُختار لكلّ سهمٍ أفضلُ عقدٍ ثمّ تُرتَّب الصفقات.
+     والسوقُ مغلقٌ يُصفِّر المصدرُ الطلبَ والعرضَ والتذبذب (مقيسٌ 2026-11-17 قبل الافتتاح: صفرٌ في أغلب العقود) — فيُؤخذ سعرُ آخر صفقةٍ
+     إن كانت في خمسة أيام، ويُستخرج التذبذبُ الضمنيُّ منه بمعادلة بلاك-شولز، ويُوسَم العقدُ «آخر صفقة».
 والاحتمالُ تقديرٌ من سعر السوق نفسِه لا وعد؛ وأقصى الخسارة كلفةُ العقد."""
 from __future__ import annotations
 
@@ -28,14 +30,18 @@ UNIVERSE = (
     "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD", "AVGO", "NFLX", "CRM", "ORCL", "INTC", "MU", "QCOM",
     "ADBE", "PLTR", "UBER", "SHOP", "PYPL", "BAC", "JPM", "WFC", "C", "GS", "XOM", "CVX", "OXY", "PFE", "MRK", "JNJ",
     "LLY", "ABBV", "UNH", "KO", "PEP", "WMT", "COST", "HD", "NKE", "DIS", "BA", "CAT", "F", "GM", "T", "VZ", "SOFI",
-    "RIVN", "NIO", "BABA", "COIN", "MARA", "HOOD", "SNAP", "AAL", "CCL", "DAL", "UAL", "SBUX", "CVS", "WBD", "PARA",
+    "RIVN", "NIO", "BABA", "COIN", "MARA", "HOOD", "SNAP", "AAL", "CCL", "DAL", "UAL", "SBUX", "CVS", "WBD",
+    "EEM", "FXI", "EWZ", "GDX", "KWEB", "XLU", "XLV", "XLI", "XLP", "CSCO", "CMCSA", "KMI", "HPE", "VALE", "NOK", "PLUG", "RIOT",
+    "CLF", "LUV", "KHC", "GRAB",
 )
 MIN_DTE, MAX_DTE = 120, 430
 RATE = 0.04
 MIN_OI = 50
 MAX_SPREAD = 0.35
 MIN_POP = 0.12
-CANDIDATES = 16
+MIN_PRICE = 2.0          # رمزٌ دون دولارين في المصدر منتهٍ أو غيرُ صالحٍ لعقدٍ طويل
+STALE_DAYS = 5           # آخرُ صفقةٍ أقدمُ من خمسة أيامٍ لا يُبنى عليها سعر
+CANDIDATES = 40
 SCAN_TTL, NEWS_TTL, RES_TTL = 6 * 3600, 2 * 3600, 30 * 60
 _JOB = {"on": False, "budget": None, "msg": "", "at": None}
 
@@ -49,6 +55,53 @@ def bs_delta(S: float, K: float, T: float, iv: float, call: bool, r: float = RAT
     return _ncdf(d1) if call else _ncdf(d1) - 1
 
 
+def bs_price(S: float, K: float, T: float, iv: float, call: bool, r: float = RATE) -> float:
+    sq = iv * math.sqrt(T)
+    d1 = (math.log(S / K) + (r + iv * iv / 2) * T) / sq
+    d2 = d1 - sq
+    disc = K * math.exp(-r * T)
+    return S * _ncdf(d1) - disc * _ncdf(d2) if call else disc * _ncdf(-d2) - S * _ncdf(-d1)
+
+
+def implied_vol(px: float, S: float, K: float, T: float, call: bool, r: float = RATE) -> float | None:
+    """التذبذبُ الضمنيُّ من سعر العقد (تنصيفٌ بين 1٪ و500٪) — وسعرٌ خارجَ حدود النموذج لا تذبذبَ له."""
+    lo, hi = 0.01, 5.0
+    if not (px > 0 and S > 0 and K > 0 and T > 0) or not (bs_price(S, K, T, lo, call, r) < px < bs_price(S, K, T, hi, call, r)):
+        return None
+    for _ in range(70):
+        mid = (lo + hi) / 2
+        if bs_price(S, K, T, mid, call, r) < px:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def quote(o: dict, S: float, T: float, call: bool, now: float | None = None) -> dict | None:
+    """سعرُ الشراء وتذبذبُه: الطلبُ والعرضُ إن كانا (والسوقُ مفتوح)، وإلا آخرُ صفقةٍ في خمسة أيام. والتذبذبُ من المصدر إن صلح وإلا من السعر."""
+    ask, bid, last, K = o.get("ask") or 0, o.get("bid") or 0, o.get("last") or 0, o.get("strike")
+    if not K:
+        return None
+    if ask > 0 and bid > 0:
+        px, src, spread, ref = ask, "ask", (ask - bid) / ask, (ask + bid) / 2
+    elif last > 0 and o.get("last_trade"):
+        try:
+            age = ((now or time.time()) - datetime.fromisoformat(o["last_trade"]).timestamp()) / 86400
+        except (TypeError, ValueError):
+            return None
+        if age > STALE_DAYS:
+            return None
+        px, src, spread, ref = last, "last", None, last
+    else:
+        return None
+    iv = (o.get("iv") or 0) / 100
+    if not (0.05 <= iv <= 3):
+        iv = implied_vol(ref, S, K, T, call) or 0
+    if not (0.05 <= iv <= 3):
+        return None
+    return {"px": px, "src": src, "spread": spread, "iv": iv}
+
+
 def prob_beyond(S: float, level: float, T: float, iv: float, call: bool, r: float = RATE) -> float:
     """احتمالُ أن يكون السعرُ عند الانتهاء فوق `level` (للشراء) أو دونه (للبيع) في توزيعٍ لوغاريتميّ بتذبذبٍ ضمنيّ `iv`."""
     if level <= 0:
@@ -60,7 +113,7 @@ def prob_beyond(S: float, level: float, T: float, iv: float, call: bool, r: floa
 def trend_of(bars: list[dict]) -> dict | None:
     """المسارُ من الشموع اليومية: الإغلاقُ ومتوسّطا 50 و200 وميلُ 50 (عشرون جلسة) وتغيّرُ ثلاثة أشهر وأعلى السنة وأدناها."""
     cl = [float(b["close"]) for b in bars if isinstance(b.get("close"), (int, float)) and b["close"] > 0]
-    if len(cl) < 210:
+    if len(cl) < 210 or cl[-1] < MIN_PRICE:
         return None
     sma = lambda k, end=None: sum(cl[:end][-k:]) / k   # noqa: E731
     c, s50, s200 = cl[-1], sma(50), sma(200)
@@ -68,10 +121,12 @@ def trend_of(bars: list[dict]) -> dict | None:
     slope = (s50 / s50_prev - 1) * 100
     r3m = (c / cl[-64] - 1) * 100
     hi, lo = max(cl[-252:]), min(cl[-252:])
-    # التذبذبُ حول متوسّطٍ واحدٍ ليس مساراً: يُشترط فرقٌ بين المتوسّطين فوق 1٪ وميلٌ لمتوسّط 50 فوق 0.3٪ في عشرين جلسة
-    if c > s50 > s200 * 1.01 and slope > 0.3:
+    # المسارُ الرئيسيّ: ترتيبُ المتوسّطين بفرقٍ فوق 1٪ وميلُ متوسّط 50 فوق 0.3٪ في عشرين جلسة والإغلاقُ على جهة 200 —
+    # والتذبذبُ حول متوسّطٍ واحدٍ ليس مساراً. (والارتدادُ إلى ما دون متوسّط 50 في مسارٍ قائمٍ لا يلغيه — قيس 2026-11-17: اشتراطُه
+    # جعل 47 من 76 رمزاً «عرضيّاً» منها ما مسارُه بيّن)
+    if s50 > s200 * 1.01 and slope > 0.3 and c > s200:
         state = "صاعد"
-    elif c < s50 < s200 * 0.99 and slope < -0.3:
+    elif s50 < s200 * 0.99 and slope < -0.3 and c < s200:
         state = "هابط"
     else:
         state = "عرضي"
@@ -94,38 +149,39 @@ def direction(tr: dict, news: dict | None) -> tuple[str | None, str]:
     return base, ""
 
 
-def pick_contract(rows: list[dict], S: float, dte: int, call: bool, budget: float) -> dict | None:
-    """أفضلُ عقدٍ في أجلٍ واحد ضمن الميزانية: سائلٌ (اهتمامٌ مفتوحٌ وفارقٌ معقول) بتذبذبٍ ضمنيٍّ صالح، وأعلى احتمالِ ربحٍ عند الانتهاء."""
+def candidates(rows: list[dict], S: float, dte: int, call: bool, now: float | None = None) -> list[dict]:
+    """عقودُ أجلٍ واحدٍ الصالحةُ بلا قيد الميزانية: سائلةٌ (اهتمامٌ مفتوحٌ وفارقٌ معقولٌ إن عُرف) بسعرٍ حديثٍ وتذبذبٍ صالح واحتمالٍ معقول."""
     T = max(dte, 1) / 365
-    best = None
+    out = []
     for o in rows:
-        K, ask, bid, iv = o.get("strike"), o.get("ask"), o.get("bid"), o.get("iv")
-        if not (K and ask and ask > 0 and iv) or ask * 100 > budget:
+        K = o.get("strike")
+        if not K or (o.get("oi") or 0) < MIN_OI:
             continue
-        iv = iv / 100
-        if not (0.05 <= iv <= 3):
+        q = quote(o, S, T, call, now)
+        if not q or (q["spread"] is not None and q["spread"] > MAX_SPREAD):
             continue
-        if (o.get("oi") or 0) < MIN_OI:
-            continue
-        spread = (ask - (bid or 0)) / ask
-        if not bid or spread > MAX_SPREAD:
-            continue
-        be = K + ask if call else K - ask
+        px, iv = q["px"], q["iv"]
+        be = K + px if call else K - px
         pop = prob_beyond(S, be, T, iv, call)
-        delta = bs_delta(S, K, T, iv, call)
-        sigma = iv * math.sqrt(T)
-        need = (be / S - 1) if call else (1 - be / S)
-        score = pop * 100 + min(o.get("oi") or 0, 3000) / 300 - spread * 15 + dte / 365 * 2
         if pop < MIN_POP:
             continue
-        cand = {"contract": o.get("contract"), "type": "call" if call else "put", "strike": K, "ask": ask, "bid": bid,
-                "cost": round(ask * 100, 2), "dte": dte, "breakeven": round(be, 2), "need_pct": round(need * 100, 1),
-                "need_sigma": round(need / sigma, 2) if sigma else None, "pop": round(pop * 100, 1), "delta": round(delta, 2),
-                "iv": round(iv * 100, 1), "oi": o.get("oi"), "volume": o.get("volume"), "spread_pct": round(spread * 100, 1),
-                "score": round(score, 2)}
-        if best is None or cand["score"] > best["score"]:
-            best = cand
-    return best
+        sigma = iv * math.sqrt(T)
+        need = (be / S - 1) if call else (1 - be / S)
+        # الفارقُ المجهول (آخرُ صفقة) يُحسب في الترتيب كفارقٍ متوسّط ولا يُعرض
+        score = pop * 100 + min(o.get("oi") or 0, 3000) / 300 - (q["spread"] if q["spread"] is not None else 0.15) * 15 + dte / 365 * 2
+        out.append({"contract": o.get("contract"), "type": "call" if call else "put", "strike": K, "ask": px, "bid": o.get("bid"),
+                    "px_src": q["src"], "last_trade": o.get("last_trade") if q["src"] == "last" else None,
+                    "cost": round(px * 100, 2), "dte": dte, "breakeven": round(be, 2), "need_pct": round(need * 100, 1),
+                    "need_sigma": round(need / sigma, 2) if sigma else None, "pop": round(pop * 100, 1), "delta": round(bs_delta(S, K, T, iv, call), 2),
+                    "iv": round(iv * 100, 1), "oi": o.get("oi"), "volume": o.get("volume"),
+                    "spread_pct": round(q["spread"] * 100, 1) if q["spread"] is not None else None, "score": round(score, 2)})
+    return out
+
+
+def pick_contract(rows: list[dict], S: float, dte: int, call: bool, budget: float, now: float | None = None) -> dict | None:
+    """أفضلُ عقدٍ في أجلٍ واحد ضمن الميزانية (سعرُه × 100): أعلى درجةٍ في الصالحين — والاحتمالُ أثقلُ ما فيها."""
+    ok = [c for c in candidates(rows, S, dte, call, now) if c["cost"] <= budget]
+    return max(ok, key=lambda c: c["score"]) if ok else None
 
 
 def reasons(sym: str, tr: dict, news: dict | None, k: dict, note: str) -> list[str]:
@@ -143,8 +199,10 @@ def reasons(sym: str, tr: dict, news: dict | None, k: dict, note: str) -> list[s
         out.append(note + ".")
     out.append(f"العقد ينتهي بعد {k['dte']} يوماً فيبطؤ تآكلُه الزمنيّ؛ ونقطةُ التعادل {k['breakeven']:,.2f} تتطلّب حركةً "
                f"{k['need_pct']:+.1f}٪" + (f" ({k['need_sigma']:.1f} من التذبذب المتوقّع حتى الانتهاء)" if k.get("need_sigma") is not None else "") + ".")
+    if k.get("px_src") == "last":
+        out.append(f"السوقُ مغلقٌ الآن: الكلفةُ سعرُ آخر صفقة ({(k.get('last_trade') or '')[:10]})، والسعرُ الفعليُّ يتحدّد عند الافتتاح.")
     out.append(f"احتمالُ الربح عند الانتهاء نحو {k['pop']:.0f}٪ تقديراً من التذبذب الضمنيّ ({k['iv']:.0f}٪)، والدلتا {k['delta']:+.2f}، "
-               f"والاهتمامُ المفتوح {k['oi']:,}، وأقصى الخسارة كلفةُ العقد {k['cost']:,.0f} دولاراً.")
+               f"والاهتمامُ المفتوح {k['oi']:,}، وأقصى الخسارة كلفةُ العقد {k['cost']:,.0f} دولار.")
     return out
 
 
@@ -154,7 +212,7 @@ async def scan() -> dict:
     """المرحلةُ الأولى (تُخبَّأ ستّ ساعات): مسارُ كلّ رمزٍ في القائمة من شموعه اليومية."""
     from app.services import cache
     from app.services.market_data import market_service as M
-    hit = cache.get("optpicks:scan:v1")
+    hit = cache.get("optpicks:scan:v2")
     if hit:
         return hit
     sem = asyncio.Semaphore(6)
@@ -168,7 +226,7 @@ async def scan() -> dict:
         return s, trend_of(bars)
     out = {s: t for s, t in await asyncio.gather(*(one(s) for s in UNIVERSE)) if t}
     if len(out) >= 10:
-        cache.set("optpicks:scan:v1", out, SCAN_TTL)
+        cache.set("optpicks:scan:v2", out, SCAN_TTL)
     return out
 
 
@@ -191,13 +249,14 @@ READ_NEWS = """أنت محلّلُ أسهمٍ أمريكيّ. لكلّ رمزٍ 
 - impact: "إيجابي" أو "سلبي" أو "محايد"
 - strength: 0 (لا حدث) · 1 (أثرٌ طفيف) · 2 (حدثٌ مهمّ: نتائجُ مفاجئة، ترقيةٌ أو تخفيضٌ مؤثّر، صفقةٌ كبيرة) · 3 (حدثٌ جوهريّ: استقالةُ رئيسٍ تنفيذيّ، تحقيقٌ أو دعوى كبرى، خسارةُ عميلٍ رئيسيّ، استحواذ)
 - event: جملةٌ عربيةٌ قصيرةٌ تذكر الحدثَ كما في العنوان وتاريخَه (أو "" إن لا حدث)
-JSON فقط بهذا الشكل: {"SYM": {"impact": "...", "strength": 0, "event": "..."}}
+JSON فقط بهذا الشكل: {"SYM": {"impact": "...", "strength": 0, "event": "..."}} — واذكر الرموزَ ذاتَ الحدث وحدها؛ ومن لم تذكره فلا حدثَ له.
 
 """
 
 
 async def read_news(items: dict[str, dict]) -> dict:
-    """المرحلةُ الثانية: قراءةُ عناوين المرشّحين دفعةً واحدة (تُخبَّأ ساعتين لكلّ رمز). وإن تعذّر النموذجُ فالقراءةُ «غير متوفّرة» (None)."""
+    """المرحلةُ الثانية: عناوينُ كلّ الرموز (فالعرضيُّ قد يأخذ اتجاهَه من حدثٍ جوهريّ) يقرؤها النموذجُ دفعاتٍ من ثلاثين، وتُخبَّأ ساعتين لكلّ رمز.
+    وإن تعذّر النموذجُ لدفعةٍ فقراءةُ رموزها «غير متوفّرة» (None)."""
     from app.services import cache
     from app.services import research_desk as RD
     out, todo = {}, {}
@@ -209,22 +268,39 @@ async def read_news(items: dict[str, dict]) -> dict:
             todo[s] = tr
     if not todo:
         return out
-    heads = dict(zip(todo, await asyncio.gather(*(headlines(s) for s in todo), return_exceptions=True)))
-    lines = []
-    for s, tr in todo.items():
-        h = heads.get(s) if isinstance(heads.get(s), list) else []
-        lines.append(f"{s} — المسار {tr['state']} (تغيّر 3 أشهر {tr['ret3m']:+.1f}٪):\n" + ("\n".join(f"  [{x['at']}] {x['title']} ({x.get('publisher') or ''})" for x in h) or "  لا عناوين"))
-    obj = None
-    try:
-        obj = await RD._gemini([{"text": READ_NEWS + "\n\n".join(lines)}], max_tokens=3000, temperature=0.1)
-    except Exception as e:                                        # noqa: BLE001
-        logger.warning("مُنتقي الخيارات: قراءة الأخبار {}", type(e).__name__)
+    sem = asyncio.Semaphore(8)
+
+    async def head(s):
+        async with sem:
+            try:
+                return await asyncio.wait_for(headlines(s), 20)
+            except Exception:                                     # noqa: BLE001
+                return []
+    heads = dict(zip(todo, await asyncio.gather(*(head(s) for s in todo))))
+
+    async def ask(chunk):
+        lines = []
+        for s in chunk:
+            tr, h = todo[s], heads.get(s) or []
+            lines.append(f"{s} — المسار {tr['state']} (تغيّر 3 أشهر {tr['ret3m']:+.1f}٪):\n"
+                         + ("\n".join(f"  [{x['at']}] {x['title']} ({x.get('publisher') or ''})" for x in h) or "  لا عناوين"))
+        try:
+            return await RD._gemini([{"text": READ_NEWS + "\n\n".join(lines)}], max_tokens=4000, temperature=0.1)
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning("مُنتقي الخيارات: قراءة الأخبار {}", type(e).__name__)
+            return None
+    keys = list(todo)
+    chunks = [keys[i:i + 30] for i in range(0, len(keys), 30)]
+    read = {}          # الرمزُ ← قراءتُه، لمن قُرئت دفعتُه وحدَه؛ ودفعةٌ تعذّرت فرموزُها «غير متوفّرة» ولا تُخبَّأ
+    for chunk, got in zip(chunks, await asyncio.gather(*(ask(c) for c in chunks))):
+        if isinstance(got, dict):
+            read.update({s: got.get(s) for s in chunk})
     for s in todo:
-        h = heads.get(s) if isinstance(heads.get(s), list) else []
-        r = (obj or {}).get(s) if isinstance(obj, dict) else None
-        if obj is None:
+        h = heads.get(s) or []
+        if s not in read:
             out[s] = None
             continue
+        r = read[s]
         r = r if isinstance(r, dict) else {}
         rec = {"impact": r.get("impact") if r.get("impact") in ("إيجابي", "سلبي", "محايد") else "محايد",
                "strength": max(0, min(3, int(r.get("strength") or 0))) if str(r.get("strength") or "0").isdigit() else 0,
@@ -234,25 +310,27 @@ async def read_news(items: dict[str, dict]) -> dict:
     return out
 
 
-async def contracts_for(sym: str, call: bool, budget: float) -> dict | None:
-    """المرحلةُ الثالثة لرمزٍ واحد: آجالُه بين 120 و430 يوماً (أقربُها وأبعدُها)، وأفضلُ عقدٍ ضمن الميزانية فيهما."""
+async def contracts_for(sym: str, call: bool, budget: float) -> tuple[dict | None, float | None]:
+    """المرحلةُ الثالثة لرمزٍ واحد: آجالُه بين 120 و430 يوماً (الأقربُ والأوسطُ والأبعد)، وأفضلُ عقدٍ ضمن الميزانية فيها —
+    ومعه كلفةُ أرخصِ عقدٍ صالحٍ فيها كلِّها ليُقال للمالك بكم يُفتح هذا السهم إن لم يكن ضمن ميزانيته."""
     from app.services.options_chain import chain
     base = await chain(sym)
     if not base or not base.get("price"):
-        return None
+        return None, None
     exps = [e for e in base.get("expirations") or [] if MIN_DTE <= e["dte"] <= MAX_DTE]
-    pick = list({e["t"]: e for e in (exps[:1] + exps[-1:])}.values())
-    best = None
+    pick = list({e["t"]: e for e in (exps[:1] + exps[len(exps) // 2:len(exps) // 2 + 1] + exps[-1:])}.values())
+    best, cheapest = None, None
     for e in pick:
         ch = await chain(sym, e["t"])
         if not ch:
             continue
-        k = pick_contract(ch["calls"] if call else ch["puts"], float(ch["price"] or base["price"]), e["dte"], call, budget)
-        if k and (best is None or k["score"] > best["score"]):
-            best = {**k, "expiry": e["date"]}
+        for k in candidates(ch["calls"] if call else ch["puts"], float(ch["price"] or base["price"]), e["dte"], call):
+            cheapest = k["cost"] if cheapest is None else min(cheapest, k["cost"])
+            if k["cost"] <= budget and (best is None or k["score"] > best["score"]):
+                best = {**k, "expiry": e["date"]}
     if best:
         best.update(symbol=sym, name=base.get("name"), price=base.get("price"))
-    return best
+    return best, cheapest
 
 
 async def run(budget: float) -> dict:
@@ -261,8 +339,7 @@ async def run(budget: float) -> dict:
     _JOB.update(on=True, budget=budget, msg="قراءةُ المسارات", at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
     try:
         sc = await scan()
-        cands = sorted(((s, t) for s, t in sc.items()), key=lambda kv: -kv[1]["strength"])
-        top = dict(cands[:CANDIDATES * 2])
+        top = dict(sorted(sc.items(), key=lambda kv: -kv[1]["strength"]))
         _JOB["msg"] = "قراءةُ الأخبار"
         news = await read_news(top)
         plan, skipped = [], []
@@ -280,17 +357,20 @@ async def run(budget: float) -> dict:
             s, tr, side, note = p
             async with sem:
                 try:
-                    k = await asyncio.wait_for(contracts_for(s, side == "call", budget), 60)
+                    k, low = await asyncio.wait_for(contracts_for(s, side == "call", budget), 60)
                 except Exception:                                 # noqa: BLE001
-                    k = None
+                    k, low = None, None
             if not k:
-                skipped.append({"symbol": s, "why": f"لا عقدَ {'شراء' if side == 'call' else 'بيع'} طويلَ الأجل سائلاً ضمن {budget:,.0f} دولار باحتمالٍ معقول"})
+                kind = "شراء" if side == "call" else "بيع"
+                skipped.append({"symbol": s, "min_cost": low, "why": (f"أرخصُ عقد {kind} طويلِ الأجل سائلٍ باحتمالٍ معقول كلفتُه {low:,.0f} دولار — فوق الميزانية"
+                                                                      if low else f"لا عقدَ {kind} طويلَ الأجل سائلاً باحتمالٍ معقول")})
                 return None
             return {**k, "trend": tr, "news": news.get(s), "reasons": reasons(s, tr, news.get(s), k, note)}
         picks = [x for x in await asyncio.gather(*(one(p) for p in plan)) if x]
         picks.sort(key=lambda x: -x["score"])
+        skipped.sort(key=lambda x: (x.get("min_cost") is None, x.get("min_cost") or 0))
         res = {"budget": budget, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "picks": picks[:8],
-               "skipped": skipped[:20], "scanned": len(sc), "news_ok": any(v is not None for v in news.values()),
+               "closed": any(p.get("px_src") == "last" for p in picks[:8]), "skipped": skipped[:30], "scanned": len(sc), "news_ok": any(v is not None for v in news.values()),
                "limits": {"min_dte": MIN_DTE, "max_dte": MAX_DTE, "min_oi": MIN_OI, "max_spread": int(MAX_SPREAD * 100)}}
         cache.set(f"optpicks:res:{int(budget)}", res, RES_TTL)
         return res

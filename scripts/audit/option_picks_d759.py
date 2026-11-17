@@ -39,9 +39,12 @@ def bars(f):
 
 
 up, dn, flat = OP.trend_of(bars(lambda i: 50 + i * 0.3)), OP.trend_of(bars(lambda i: 200 - i * 0.3)), OP.trend_of(bars(lambda i: 100 + 5 * math.sin(i / 7)))
-check(up["state"] == "صاعد" and dn["state"] == "هابط" and flat["state"] == "عرضي" and OP.trend_of(bars(lambda i: 10)[:100]) is None,
-      "٢ المسارُ من الشموع: صاعدٌ وهابطٌ وعرضيّ بالإغلاق ومتوسّطَي 50 و200 وميلِ 50 — ولا حكمَ بأقلَّ من 210 جلسات",
-      f"{up['state']} · {dn['state']} · {flat['state']}")
+pull = OP.trend_of(bars(lambda i: 50 + i * 0.3 if i < 293 else 137.9 - (i - 292) * 1.2))     # ارتدادٌ دون متوسّط 50 في مسارٍ صاعد
+check(up["state"] == "صاعد" and dn["state"] == "هابط" and flat["state"] == "عرضي" and OP.trend_of(bars(lambda i: 10)[:100]) is None
+      and pull["state"] == "صاعد" and pull["close"] < pull["sma50"] and OP.trend_of(bars(lambda i: 0.1 + i * 1e-4)) is None,
+      "٢ المسارُ من الشموع: صاعدٌ وهابطٌ وعرضيّ بترتيب متوسّطَي 50 و200 وميلِ 50 والإغلاقِ على جهة 200 — والارتدادُ دون 50 لا يلغي المسار، "
+      "ولا حكمَ بأقلَّ من 210 جلسات ولا لرمزٍ دون دولارين (منتهٍ في المصدر)",
+      f"{up['state']} · {dn['state']} · {flat['state']} · ارتداد {pull['state']} {pull['close']}<{pull['sma50']}")
 check(OP.direction(up, None)[0] == "call" and OP.direction(dn, None)[0] == "put"
       and OP.direction(up, {"impact": "سلبي", "strength": 2})[0] is None
       and OP.direction(up, {"impact": "سلبي", "strength": 1})[0] == "call"
@@ -60,6 +63,21 @@ check(k and k["contract"] == "A" and k["cost"] == 90.0 and k["breakeven"] == 110
 kp = OP.pick_contract([{"contract": "P", "strike": 90, "ask": 0.8, "bid": 0.7, "iv": 40, "oi": 300}], 100.0, 250, False, 100)
 check(kp and kp["type"] == "put" and kp["breakeven"] == 89.2 and kp["delta"] < 0 and kp["need_pct"] > 0,
       "٤ب وخيارُ البيع: التعادلُ تحت التنفيذ بسعره، والدلتا سالبة، والحركةُ المطلوبةُ هبوطٌ يُذكر موجباً", str(kp and kp["breakeven"]))
+# ٤ج السوقُ مغلق (مقيسٌ 2026-11-17 قبل الافتتاح: الطلبُ والعرضُ والتذبذبُ صفرٌ في أغلب العقود)
+import time as _t   # noqa: E402
+iv0 = OP.implied_vol(OP.bs_price(14.0, 12.0, 0.5, 0.55, False), 14.0, 12.0, 0.5, False)
+now = _t.time()
+fresh = _t.strftime("%Y-%m-%dT%H:%M:%S+00:00", _t.gmtime(now - 86400))
+stale = _t.strftime("%Y-%m-%dT%H:%M:%S+00:00", _t.gmtime(now - 9 * 86400))
+closed = [{"contract": "Q1", "strike": 12.0, "ask": 0.0, "bid": 0.0, "last": 0.85, "iv": 0.0, "oi": 900, "last_trade": fresh},
+          {"contract": "Q2", "strike": 13.0, "ask": 0.0, "bid": 0.0, "last": 0.95, "iv": 0.0, "oi": 900, "last_trade": stale}]
+kc = OP.pick_contract(closed, 14.0, 180, False, 100, now)
+check(iv0 and abs(iv0 - 0.55) < 1e-4 and kc and kc["contract"] == "Q1" and kc["px_src"] == "last" and kc["cost"] == 85.0 and 5 < kc["iv"] < 300
+      and kc["spread_pct"] is None and OP.quote(closed[1], 14.0, 0.5, False, now) is None
+      and OP.quote({"strike": 12.0, "ask": 0.0, "bid": 0.0, "last": 0.0, "oi": 900}, 14.0, 0.5, False, now) is None,
+      "٤ج السوقُ مغلق: الطلبُ والعرضُ صفرٌ فيُؤخذ سعرُ آخر صفقةٍ حديثة ويُستخرج التذبذبُ منه (بلاك-شولز معكوساً) ويُوسَم «آخر صفقة» — "
+      "والصفقةُ الأقدمُ من خمسة أيامٍ أو بلا سعرٍ لا يُبنى عليها",
+      f"iv {iv0 and round(iv0, 4)} · {kc and {x: kc[x] for x in ('contract', 'px_src', 'cost', 'iv', 'pop')}}")
 rs = OP.reasons("NVDA", up, {"impact": "سلبي", "strength": 1, "event": "تخفيضٌ طفيف"}, k, "")
 check(any("المسار صاعد" in x for x in rs) and any("الأخبار" in x for x in rs) and any("يبطؤ تآكلُه" in x for x in rs)
       and any("أقصى الخسارة" in x for x in rs) and not any("مضمون" in x for x in rs),
@@ -76,16 +94,17 @@ async def fake_news(items):
 
 async def fake_contracts(sym, call, budget):
     if sym == "DN":
-        return None
-    return {**OP.pick_contract(rows, 100.0, 200, call, budget), "expiry": "2027-06-18", "symbol": sym, "name": sym, "price": 100.0} if call else None
+        return None, 240.0
+    return ({**OP.pick_contract(rows, 100.0, 200, call, budget), "expiry": "2027-06-18", "symbol": sym, "name": sym, "price": 100.0}, 90.0) if call else (None, None)
 
 
 OP.scan, OP.read_news, OP.contracts_for = fake_scan, fake_news, fake_contracts
 res = asyncio.run(OP.run(100))
 sk = {x["symbol"]: x["why"] for x in res["skipped"]}
-check([p["symbol"] for p in res["picks"]] == ["UP"] and "BAD" in sk and "تعاكس" in sk["BAD"] and "FL" in sk and "عرضيّ" in sk["FL"] and "DN" in sk
+check([p["symbol"] for p in res["picks"]] == ["UP"] and "BAD" in sk and "تعاكس" in sk["BAD"] and "FL" in sk and "عرضيّ" in sk["FL"]
+      and "DN" in sk and "240" in sk["DN"] and res["skipped"][0]["symbol"] == "DN" and res["closed"] is False
       and OP.cached(100) and OP.cached(100)["picks"][0]["contract"] == "A" and not OP._JOB["on"],
-      "٦ التشغيل: الصاعدُ صفقةُ شراء، والهابطُ بلا عقدٍ مناسبٍ يُذكر سببُه، والعرضيُّ يُستبعد، والصاعدُ بخبرٍ جوهريٍّ سلبيّ يُسقَط — وتُخبَّأ النتيجة",
+      "٦ التشغيل: الصاعدُ صفقةُ شراء، والهابطُ بلا عقدٍ ضمن الميزانية تُذكر كلفةُ أرخصِ عقدٍ صالحٍ له (أوّلَ المستبعَد)، والعرضيُّ يُستبعد، والصاعدُ بخبرٍ جوهريٍّ سلبيّ يُسقَط — وتُخبَّأ النتيجة",
       f"{[p['symbol'] for p in res['picks']]} · {sk}")
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
 check('@router.get("/options-picks")' in mk and '@router.post("/options-picks/run", dependencies=[Depends(require_owner)])' in mk
