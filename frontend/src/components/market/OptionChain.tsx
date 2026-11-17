@@ -127,7 +127,7 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose }: {
 
         <div className="ocx-smart" data-role="oc-smartbar">
           <button type="button" className="btn-primary ocx-ai" onClick={runSmart} data-role="oc-smart" disabled={advice.isFetching}>
-            {advice.isFetching ? <RefreshCw size={14} className="rl-spin" /> : <Sparkles size={14} />} تحليل ذكي
+            {advice.isFetching ? <RefreshCw size={14} className="rl-spin" /> : <Sparkles size={14} className="ai-star" />} تحليل ذكي
           </button>
           <label className="ocx-budget">
             <span>الميزانية $</span>
@@ -219,7 +219,7 @@ function Detail({ row, call, S, underlying, budget, onClose, onOpen, onAdd }: {
       {g?.src === "last" && <p className="ocx-note">السوقُ مغلق: الأرقامُ من سعر آخر صفقة.</p>}
       <div className="ocx-dbtns">
         <button type="button" className="btn-primary" onClick={() => setJudge(true)} disabled={j.isFetching} data-role="oc-judge">
-          {j.isFetching ? <RefreshCw size={14} className="rl-spin" /> : <Sparkles size={14} />} رأي التحليل الذكي
+          {j.isFetching ? <RefreshCw size={14} className="rl-spin" /> : <Sparkles size={14} className="ai-star" />} رأي التحليل الذكي
         </button>
         <button type="button" className="btn-ghost" onClick={onOpen} data-role="oc-open"><LineChart size={14} /> الرسم</button>
         {onAdd && <button type="button" className="btn-ghost" onClick={onAdd} data-role="oc-add"><Plus size={14} /> أضف للقائمة</button>}
@@ -247,7 +247,7 @@ function Smart({ q, onClose, onOpen, onAdd, budget }: { q: any; onClose: () => v
   return (
     <section className="ocx-ai-panel card-rise" data-role="oc-ai">
       <div className="ocx-dhead">
-        <b><Sparkles size={14} className="inline-block align-[-2px] me-1" />رأي التحليل الذكي{budget ? ` · ميزانية $${budget}` : ""}</b>
+        <b><Sparkles size={14} className="ai-star inline-block align-[-2px] me-1" />رأي التحليل الذكي{budget ? ` · ميزانية $${budget}` : ""}</b>
         <button type="button" className="d7m-btn ms-auto" onClick={onClose} aria-label="إغلاق التحليل"><X size={14} /></button>
       </div>
       {q.isFetching && !d ? <p className="ocx-note" role="status">يقرأ السلسلةَ واليونانياتِ والمسارَ والأخبارَ والأحداث…</p>
@@ -261,15 +261,16 @@ function Smart({ q, onClose, onOpen, onAdd, budget }: { q: any; onClose: () => v
             {d.earnings && <span className="ocx-tag">الأرباح {d.earnings.slice(0, 10)}</span>}
             {(d.events || []).slice(0, 2).map((e: any) => <span key={e.id} className="ocx-tag t-ev">{e.day} {e.riyadh.slice(-5)} · {e.title}</span>)}
           </div>
-          {d.lean_note && <p className="ocx-note">{d.lean_note}</p>}
+          {d.abstain ? <p className="ocx-abstain" data-role="oc-abstain">{d.abstain}</p> : d.lean_note && <p className="ocx-note">{d.lean_note}</p>}
           {d.fit && (
             <div className={"ocx-fit" + (d.fit.ok ? " ok" : "")} data-role="oc-fit">
               <p>{d.fit.text}</p>
               {d.fit.alt && <p><b>{d.fit.alt.text}</b></p>}
+              {d.fit.alt_none && <p>{d.fit.alt_none}</p>}
               {d.fit.lab && <p>بدائلُ ضمن ميزانيتك من مختبر الأبحاث: {d.fit.lab.map((x: any) => `${x.symbol} ($${Math.round(x.cost)} · ${Math.round(x.pop)}%)`).join(" · ")}</p>}
             </div>
           )}
-          {(d.best || []).length > 0 && <h4 className="ocx-h">الأنسب</h4>}
+          {(d.best || []).length > 0 && <h4 className="ocx-h">{d.abstain ? "إن أصررت — بحذر" : "الأنسب"}</h4>}
           {(d.best || []).map((c: Card) => {
             const o = parseOption(c.contract);
             return (

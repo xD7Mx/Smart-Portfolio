@@ -134,6 +134,18 @@ check(r2["best"] and all(c["verdict"] != "no" and c["cost"] <= 7500 and c["type"
       "٩ الأنسبُ ضمن الميزانية مع الاتجاه (شراءٌ لمسارٍ صاعد)، أجلٌ مختلفٌ لكلّ توصية، ولا ممتنَعَ عنه بينها",
       str([(c["contract"], c["cost"], c["verdict"]) for c in r2["best"]]))
 
+# ١٢ المسارُ العرضيّ: نصيحةُ الامتناع صريحةً و«إن أصررت» — والتآكلُ الفادحُ (‏>12٪ يومياً) امتناع
+async def flat_ctx(sym):
+    return {**ctx_up, "trend": {**ctx_up["trend"], "state": "عرضي"}, "news": {"impact": "محايد", "strength": 0}}
+A._context = flat_ctx
+r3 = asyncio.run(A.analyze("^SPX", budget=7500))
+burn = {"contract": "B", "strike": 101.0, "ask": 0.42, "bid": 0.4, "last": 0.41, "oi": 900, "volume": 300}
+A.enrich_rows([burn], S, 2, True)
+lv6, _, cons6 = A.judge(burn, True, S, 2, ctx_up, "2026-11-19")
+check(r3["lean"] is None and r3["abstain"] and "لا أنصح" in r3["abstain"] and lv6 == "no" and any("يذوب" in x for x in cons6),
+      "١٢ المسارُ العرضيّ: «لا أنصح بشراء عقدٍ مكشوفٍ الآن» صراحةً وما بقي «إن أصررت»، والتآكلُ اليوميُّ الفادحُ امتناعٌ لا حذر",
+      f"{(r3['abstain'] or '')[:40]} · {lv6} · {cons6[:1]}")
+
 ev = EC.shape([{"title": "FOMC Meeting Minutes", "country": "USD", "date": "2026-11-18T14:00:00-05:00", "impact": "High", "forecast": "", "previous": ""},
                {"title": "CPI m/m", "country": "CAD", "date": "2026-11-16T08:30:00-05:00", "impact": "High"},
                {"title": "Retail Sales m/m", "country": "USD", "date": "2026-11-17T08:30:00-05:00", "impact": "High", "forecast": "0.1%", "previous": "0.8%"},

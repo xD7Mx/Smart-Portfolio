@@ -26,10 +26,11 @@ READ = """أنت اقتصاديٌّ يشرح لمتداولِ خياراتٍ أ�
 والتوقّعُ والسابق (إن وُجدا). لا تذكر رقماً غيرَ المعطى، ولا تدّعِ نتيجةً لم تصدر. لكلّ حدثٍ أعطِ:
 - ar: اسمُه بالعربية (قصير)
 - what: ماذا يقيس ولماذا يهمّ السوق — جملةٌ واحدة
-- above: إن جاء أعلى من التوقّع (أو تشدّد المتحدّث): الأثرُ المرجّح على الأسهم الأمريكية والعوائد، وميلُ الخيارات (عقود شراء Call أو بيع Put) — جملة
-- below: إن جاء أدنى (أو تيسّر المتحدّث): الأثرُ والميل — جملة
-- lean: "call" أو "put" أو "neutral" — الميلُ إن جاء الحدثُ كما يوحي الفرقُ بين التوقّع والسابق (أو "neutral" إن لا فرقَ أو لا توقّع)
-JSON فقط: {"ID": {"ar": "...", "what": "...", "above": "...", "below": "...", "lean": "..."}}
+- above: إن جاء أعلى من التوقّع (أو تشدّد المتحدّث): الأثرُ المرجّح على الأسهم الأمريكية والعوائد — جملة
+- above_lean: ميلُ الخيارات على مؤشّر الأسهم في هذه الحالة: "call" أو "put" أو "neutral" — ويطابق جملةَ above
+- below: إن جاء أدنى من التوقّع (أو تيسّر المتحدّث): الأثرُ المرجّح — جملة
+- below_lean: الميلُ في هذه الحالة: "call" أو "put" أو "neutral" — ويطابق جملةَ below
+JSON فقط: {"ID": {"ar": "...", "what": "...", "above": "...", "above_lean": "...", "below": "...", "below_lean": "..."}}
 
 """
 
@@ -89,7 +90,7 @@ async def analysis(events: list[dict]) -> dict:
     todo = [e for e in events if not e["past"] or e["day"] == "اليوم"][:24]
     if not todo:
         return {}
-    key = "econ:read:" + hashlib.md5("|".join(e["id"] for e in todo).encode()).hexdigest()[:12]
+    key = "econ:read2:" + hashlib.md5("|".join(e["id"] for e in todo).encode()).hexdigest()[:12]
     hit = cache.get(key)
     if hit is not None:
         return hit
@@ -102,7 +103,9 @@ async def analysis(events: list[dict]) -> dict:
         obj = None
     if not isinstance(obj, dict):
         return {}
-    ok = {k: {f: str(v.get(f) or "")[:260] for f in ("ar", "what", "above", "below")} | {"lean": v.get("lean") if v.get("lean") in ("call", "put", "neutral") else "neutral"}
+    L = ("call", "put", "neutral")
+    ok = {k: {f: str(v.get(f) or "")[:260] for f in ("ar", "what", "above", "below")}
+          | {"above_lean": v.get("above_lean") if v.get("above_lean") in L else "neutral", "below_lean": v.get("below_lean") if v.get("below_lean") in L else "neutral"}
           for k, v in obj.items() if isinstance(v, dict)}
     cache.set(key, ok, 6 * 3600)
     return ok

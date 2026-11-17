@@ -9,9 +9,16 @@ import { Zap, X, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { marketApi } from "../../services/api";
 
 type Ev = { id: string; title: string; ar?: string; impact: string; impact_ar: string; at: string; riyadh: string; day: string; past: boolean;
-  forecast: string | null; previous: string | null; what?: string; above?: string; below?: string; lean?: "call" | "put" | "neutral" };
+  forecast: string | null; previous: string | null; what?: string; above?: string; below?: string;
+  above_lean?: "call" | "put" | "neutral"; below_lean?: "call" | "put" | "neutral" };
 
-const LEAN = { call: ["ميلٌ لعقود الشراء", TrendingUp], put: ["ميلٌ لعقود البيع", TrendingDown], neutral: ["بلا ميلٍ واضح", Minus] } as const;
+const LEAN = { call: ["ميلٌ لعقود الشراء Call", TrendingUp], put: ["ميلٌ لعقود البيع Put", TrendingDown], neutral: ["بلا ميلٍ واضح", Minus] } as const;
+/* ‏لكلّ سيناريو ميلُه صريحاً — «أعلى من المتوقّع ⇒ بيع» و«أدنى ⇒ شراء» مثلاً */
+const Lean = ({ v }: { v?: "call" | "put" | "neutral" }) => {
+  if (!v) return null;
+  const [t, Icon] = LEAN[v];
+  return <span className={"ee-lean l-" + v} data-role="ee-lean" data-lean={v}><Icon size={12} /> {t}</span>;
+};
 
 export function useEcon() {
   return useQuery<{ events: Ev[]; read_ok: boolean } | null>({
@@ -51,8 +58,6 @@ export default function EconEvents({ compact = false }: { compact?: boolean }) {
                 {!q.data?.read_ok && <p className="ocx-note">قراءةُ الأثر غيرُ متوفّرة الآن — الأحداثُ بأوقاتها وتوقّعاتها.</p>}
                 <ul className="ee-list">
                   {evs.map((e, i) => {
-                    const L = e.lean ? LEAN[e.lean] : null;
-                    const Icon = L ? L[1] : null;
                     return (
                       <li key={e.id} className={"ee-item card-rise" + (e.past ? " past" : "") + (e.impact === "High" ? " high" : "")}
                         style={{ animationDelay: `${Math.min(i, 12) * 30}ms` }} data-role="ee-item">
@@ -66,11 +71,10 @@ export default function EconEvents({ compact = false }: { compact?: boolean }) {
                         {e.what && <p className="ee-what">{e.what}</p>}
                         {(e.above || e.below) && (
                           <div className="ee-sc">
-                            {e.above && <p><b>أعلى من المتوقّع:</b> {e.above}</p>}
-                            {e.below && <p><b>أدنى من المتوقّع:</b> {e.below}</p>}
+                            {e.above && <div className="ee-s"><p><b>أعلى من المتوقّع:</b> {e.above}</p><Lean v={e.above_lean} /></div>}
+                            {e.below && <div className="ee-s"><p><b>أدنى من المتوقّع:</b> {e.below}</p><Lean v={e.below_lean} /></div>}
                           </div>
                         )}
-                        {L && Icon && <span className={"ee-lean l-" + e.lean}><Icon size={12} /> {L[0]}</span>}
                       </li>
                     );
                   })}

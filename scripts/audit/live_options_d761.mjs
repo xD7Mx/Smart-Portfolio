@@ -44,12 +44,12 @@ const ADVICE = { symbol: "SPY", price: PRICE, trend: { state: "هابط" }, news
   lean: "put", lean_note: "", events: [{ id: "e1", title: "FOMC Meeting Minutes", day: "غداً", riyadh: "2026-11-18 22:00" }],
   best: [CARD(752, "ok"), CARD(748, "warn")], refused: [CARD(720, "no")], budget: 150,
   fit: { ok: false, min_cost: 370, text: "ميزانيةُ 150 دولار لا تكفي لعقدٍ معقولٍ على ^SPX.", alt: { symbol: "SPY", text: "تأخذه على SPY: SPY261120P00752000 بكلفة 140 دولار (مناسب)." } },
-  summary: "الاتجاهُ هابطٌ والأنسبُ عقدُ بيعٍ قريبٌ من السعر؛ والخطرُ الأهمّ محضرُ الفيدرالي غداً." };
+  summary: "الاتجاهُ هابطٌ والأنسبُ عقدُ بيعٍ قريبٌ من السعر؛ والخطرُ الأهمّ محضرُ الفيدرالي غداً.", abstain: null };
 const EVENTS = { read_ok: true, events: [
   { id: "e0", title: "Retail Sales m/m", ar: "مبيعات التجزئة", impact: "High", impact_ar: "عالٍ", at: "2026-11-17T13:30:00+00:00", riyadh: "2026-11-17 16:30", day: "اليوم", past: true, forecast: "0.1%", previous: "0.8%" },
   { id: "e1", title: "FOMC Meeting Minutes", ar: "محضر اجتماع الفيدرالي", impact: "High", impact_ar: "عالٍ", at: "2026-11-18T19:00:00+00:00", riyadh: "2026-11-18 22:00",
     day: "غداً", past: false, forecast: null, previous: null, what: "يكشف نقاشَ أعضاء الفيدرالي حول الفائدة.", above: "نبرةٌ متشدّدة ترفع العوائد وتضغط الأسهم — ميلٌ لعقود البيع.",
-    below: "نبرةٌ متيسّرة تدعم الأسهم — ميلٌ لعقود الشراء.", lean: "neutral" }] };
+    below: "نبرةٌ متيسّرة تدعم الأسهم.", above_lean: "put", below_lean: "call" }] };
 const bars = (n = 120) => Array.from({ length: n }, (_, i) => { const day = new Date(Date.UTC(2026, 6, 1) + i * 864e5).toISOString().slice(0, 10), b = 700 + i * 0.4;
   return { date: day, open: b, high: b + 2, low: b - 2, close: b + 1, volume: 1e6 }; });
 
@@ -100,8 +100,10 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
   await page.locator('[data-role="troom-chart"] [data-role="ee-btn"]').first().click(); await page.waitForTimeout(500);
   const items = await page.locator('[data-role="ee-item"]').allTextContents();
   await shot("events");
-  say(cnt === "1" && items.length === 2 && /محضر اجتماع الفيدرالي/.test(items[1]) && /أعلى من المتوقّع/.test(items[1]) && /عقود البيع/.test(items[1]) && /22:00/.test(items[1]),
-      `${label}: ٢ الأحداثُ الاقتصادية — عددُ العالية القادمة، والحدثُ بوقت الرياض وما يقيسه وسيناريوهاه وميلُ الخيارات`, `${cnt} · ${items.length}`);
+  const leans = await page.locator('[data-role="ee-item"]').nth(1).locator('[data-role="ee-lean"]').evaluateAll(es => es.map(e => e.getAttribute("data-lean")));
+  say(cnt === "1" && items.length === 2 && /محضر اجتماع الفيدرالي/.test(items[1]) && /أعلى من المتوقّع/.test(items[1]) && /22:00/.test(items[1])
+      && JSON.stringify(leans) === JSON.stringify(["put", "call"]) && /عقود البيع Put/.test(items[1]) && /عقود الشراء Call/.test(items[1]),
+      `${label}: ٢ الأحداثُ الاقتصادية — عددُ العالية القادمة، والحدثُ بوقت الرياض وما يقيسه، ولكلّ سيناريو ميلُه (أعلى ⇒ Put · أدنى ⇒ Call)`, `${cnt} · ${items.length} · ${leans}`);
   await page.keyboard.press("Escape"); await page.waitForTimeout(400);
 
   // ٣ السلسلة بطريقة «إنتراكتف بروكرز»: الشراءُ يساراً والتنفيذُ وسطاً والبيعُ يميناً، ورأسُها

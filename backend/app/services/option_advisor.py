@@ -145,8 +145,11 @@ def judge(k: dict, call: bool, S: float, dte: int, ctx: dict, expiry_iso: str) -
         down("no", f"احتمالُ الربح عند الانتهاء نحو {g['pop']:.0f}٪ فقط — أقربُ إلى اليانصيب.")
     if dte <= 2 and abs(g["delta"]) < 0.2:
         down("no", f"ينتهي خلال {max(dte, 0)} يوم والدلتا {g['delta']:+.2f} — عقدٌ بعيدٌ عن السعر يتبخّر غالباً قبل أن يتحرّك السهم.")
-    if px > 0 and g["theta"] < 0 and -g["theta"] / (px * 100) > 0.05:
-        down("warn", f"التآكلُ اليوميّ {-g['theta']:.2f} دولار للعقد = {-g['theta'] / (px * 100) * 100:.0f}٪ من قيمته كلَّ يوم.")
+    burn = -g["theta"] / (px * 100) if px > 0 and g["theta"] < 0 else 0
+    if burn > 0.12:
+        down("no", f"التآكلُ اليوميّ {-g['theta']:.2f} دولار للعقد = {burn * 100:.0f}٪ من قيمته كلَّ يوم — يذوب العقدُ في أيامٍ إن لم يتحرّك السهمُ فوراً.")
+    elif burn > 0.05:
+        down("warn", f"التآكلُ اليوميّ {-g['theta']:.2f} دولار للعقد = {burn * 100:.0f}٪ من قيمته كلَّ يوم.")
     tr, news = ctx.get("trend"), ctx.get("news")
     side, note = OP.direction(tr, news) if tr else (None, "")
     want = "call" if call else "put"
@@ -285,13 +288,21 @@ async def analyze(symbol: str, budget: float | None = None, expiry: int | None =
             if alt_res.get("best"):
                 b = alt_res["best"][0]
                 fit["alt"] = {"symbol": alt, "card": b, "text": f"تأخذه على {alt}: {b['contract']} بكلفة {b['cost']:,.0f} دولار ({b['verdict_ar']})."}
+            else:
+                lo2 = (alt_res.get("fit") or {}).get("min_cost")
+                fit["alt_none"] = f"ولا تكفي على {alt} أيضاً" + (f": أرخصُ عقدٍ مقبولٍ عليه {lo2:,.0f} دولار." if lo2 else ".")
         if "alt" not in fit:
             lab = (OP.cached(budget) or {}).get("picks") or []
             if lab:
                 fit["lab"] = [{"symbol": p["symbol"], "contract": p["contract"], "cost": p["cost"], "pop": p["pop"]} for p in lab[:3]]
     elif budget:
         fit = {"ok": True, "text": f"ميزانيةُ {budget:,.0f} دولار تكفي على {sym.lstrip('^')}."}
-    res = {**head, "best": best, "refused": refused, "fit": fit, "budget": budget, "scanned": len(cards),
+    # المسارُ عرضيٌّ بلا خبرٍ يحسمه: النصيحةُ الامتناعُ عن الشراء المكشوف — وما بقي يُعرض «إن أصررت» لا «الأنسب»
+    abstain = None if lean or not tr else ("المسارُ عرضيٌّ بلا اتجاهٍ ولا خبرٍ يحسمه — لا أنصح بشراء عقدٍ مكشوفٍ الآن؛ "
+                                            "التآكلُ يأكل قيمتَه إن لم يتحرّك السهم. وإن أصررت فهذه أقلُّها سوءاً.")
+    if abstain and not best:
+        abstain = abstain.split(" وإن أصررت")[0]
+    res = {**head, "best": best, "refused": refused, "fit": fit, "budget": budget, "scanned": len(cards), "abstain": abstain,
            "expiries": [e["date"] for e in targets], "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     res["summary"] = await summary(res) if with_summary else None
     return res
@@ -314,7 +325,7 @@ async def summary(res: dict) -> str | None:
              "best": [{k: c[k] for k in ("contract", "cost", "dte", "verdict_ar")} | {"pop": (c["g"] or {}).get("pop"), "delta": (c["g"] or {}).get("delta"),
                       "cons": c["cons"][:2]} for c in res.get("best") or []],
              "refused": [{"contract": c["contract"], "why": c["cons"][:1]} for c in res.get("refused") or []][:2],
-             "fit": (res.get("fit") or {}).get("text")}
+             "fit": (res.get("fit") or {}).get("text"), "abstain": res.get("abstain")}
     import hashlib
     import json as _j
     key = "optadv:sum:" + hashlib.md5(_j.dumps(facts, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:16]

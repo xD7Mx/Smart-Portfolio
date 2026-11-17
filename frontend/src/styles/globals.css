@@ -3666,3 +3666,7 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
 /* بطاقةُ العقد تلتصق بأسفل اللوحة فتُرى حيث ضُغط العقد — لا في آخر الجدول */
 .ocx-detail { position: sticky; bottom: -20px; z-index: 3; max-height: 55vh; overflow-y: auto; background: var(--card);
   box-shadow: 0 -10px 28px color-mix(in srgb, var(--bg) 55%, transparent); }
+.ocx-abstain { font-size: 12.5px; line-height: 1.7; font-weight: 700; color: var(--warn-ink); padding: 6px 10px; border-radius: 9px;
+  background: color-mix(in srgb, var(--warn-ink) 10%, transparent); }
+.ee-s { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.ee-sc { display: flex; flex-direction: column; gap: 6px; }
