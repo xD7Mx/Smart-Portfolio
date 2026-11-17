@@ -68,7 +68,7 @@ import time as _t   # noqa: E402
 iv0 = OP.implied_vol(OP.bs_price(14.0, 12.0, 0.5, 0.55, False), 14.0, 12.0, 0.5, False)
 now = _t.time()
 fresh = _t.strftime("%Y-%m-%dT%H:%M:%S+00:00", _t.gmtime(now - 86400))
-stale = _t.strftime("%Y-%m-%dT%H:%M:%S+00:00", _t.gmtime(now - 9 * 86400))
+stale = _t.strftime("%Y-%m-%dT%H:%M:%S+00:00", _t.gmtime(now - 5 * 86400))
 closed = [{"contract": "Q1", "strike": 12.0, "ask": 0.0, "bid": 0.0, "last": 0.85, "iv": 0.0, "oi": 900, "last_trade": fresh},
           {"contract": "Q2", "strike": 13.0, "ask": 0.0, "bid": 0.0, "last": 0.95, "iv": 0.0, "oi": 900, "last_trade": stale}]
 kc = OP.pick_contract(closed, 14.0, 180, False, 100, now)
@@ -76,8 +76,22 @@ check(iv0 and abs(iv0 - 0.55) < 1e-4 and kc and kc["contract"] == "Q1" and kc["p
       and kc["spread_pct"] is None and OP.quote(closed[1], 14.0, 0.5, False, now) is None
       and OP.quote({"strike": 12.0, "ask": 0.0, "bid": 0.0, "last": 0.0, "oi": 900}, 14.0, 0.5, False, now) is None,
       "٤ج السوقُ مغلق: الطلبُ والعرضُ صفرٌ فيُؤخذ سعرُ آخر صفقةٍ حديثة ويُستخرج التذبذبُ منه (بلاك-شولز معكوساً) ويُوسَم «آخر صفقة» — "
-      "والصفقةُ الأقدمُ من خمسة أيامٍ أو بلا سعرٍ لا يُبنى عليها",
+      "والصفقةُ الأقدمُ من أربعة أيامٍ أو بلا سعرٍ لا يُبنى عليها",
       f"iv {iv0 and round(iv0, 4)} · {kc and {x: kc[x] for x in ('contract', 'px_src', 'cost', 'iv', 'pop')}}")
+# ٤د سعرُ الأطراف الشاذّ (قيس 2026-11-17: بيعُ NFLX بتنفيذ 10 والسهمُ 60 بسعر 0.04 وتذبذبُ المصدر 214٪ ⇒ احتمال 64٪)
+wing = {"contract": "W", "strike": 30.0, "ask": 0.0, "bid": 0.0, "last": 6.0, "iv": 213.8, "oi": 700, "last_trade": fresh}   # سعرٌ قديمٌ في الطرف
+mk = lambda K, call: {"contract": f"{'C' if call else 'P'}{K:g}", "strike": K, "ask": 0.0, "bid": 0.0, "iv": 0.0, "oi": 900,   # noqa: E731
+                      "last": round(OP.bs_price(60.0, K, 1.17, 0.40, call), 2), "last_trade": fresh}
+near = mk(55.0, False)
+ch = {"calls": [mk(K, True) for K in (55.0, 60.0, 65.0)], "puts": [wing] + [mk(K, False) for K in (55.0, 60.0, 65.0)]}
+ref = OP.atm_iv(ch, 60.0, 1.17, now)
+loose = OP.candidates([wing], 60.0, 427, False, now)
+tight = OP.candidates([wing, near], 60.0, 427, False, now, ref_iv=ref)
+tiny = OP.candidates([{**near, "last": 0.03}], 60.0, 427, False, now)
+check(ref and abs(ref - 0.40) < 0.01 and loose and 90 < loose[0]["iv"] < 110 and [c["contract"] for c in tight] == ["P55"] and not tiny,
+      "٤د سعرُ الأطراف الشاذّ: التذبذبُ مستخرجٌ من السعر لا من حقل المصدر (214٪ في الطرف)، ويُقاس بتذبذب النقود في أجله "
+      "(وسيطُ أقرب العقود إلى السعر) ويُستبعد ما خرج عن نطاقه، ولا عقدَ بأقلَّ من خمسة سنتات (حدُّ التسعير)",
+      f"مرجع {ref and round(ref, 3)} · الطرف وحده {loose and loose[0]['iv']}٪/{loose and loose[0]['pop']}٪ · بالمرجع {[c['contract'] for c in tight]}")
 rs = OP.reasons("NVDA", up, {"impact": "سلبي", "strength": 1, "event": "تخفيضٌ طفيف"}, k, "")
 check(any("المسار صاعد" in x for x in rs) and any("الأخبار" in x for x in rs) and any("يبطؤ تآكلُه" in x for x in rs)
       and any("أقصى الخسارة" in x for x in rs) and not any("مضمون" in x for x in rs),

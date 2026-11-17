@@ -13,7 +13,9 @@
      وفارقٌ معقول)؛ ويُقاس **احتمالُ الربح عند الانتهاء** من التذبذب الضمنيّ (احتمالُ تجاوز نقطة التعادل في توزيعٍ لوغاريتميّ)،
      والدلتا، والحركةُ المطلوبةُ إلى التعادل بوحدة التذبذب المتوقّع — ويُختار لكلّ سهمٍ أفضلُ عقدٍ ثمّ تُرتَّب الصفقات.
      والسوقُ مغلقٌ يُصفِّر المصدرُ الطلبَ والعرضَ والتذبذب (مقيسٌ 2026-11-17 قبل الافتتاح: صفرٌ في أغلب العقود) — فيُؤخذ سعرُ آخر صفقةٍ
-     إن كانت في خمسة أيام، ويُستخرج التذبذبُ الضمنيُّ منه بمعادلة بلاك-شولز، ويُوسَم العقدُ «آخر صفقة».
+     إن كانت في أربعة أيام، ويُستخرج التذبذبُ الضمنيُّ منه بمعادلة بلاك-شولز، ويُوسَم العقدُ «آخر صفقة».
+     وسعرُ الأطراف البعيدة قديمٌ أو عند حدّ التسعير فيتضخّم تذبذبُه ويتضخّم معه الاحتمال (قيس: بيعُ NFLX بتنفيذ 10 والسهمُ 60 بتذبذب 214٪
+     واحتمال 64٪) — فيُقاس كلُّ عقدٍ بتذبذب النقود في أجله (وسيطُ أقرب العقود إلى السعر) ويُستبعد ما خرج عن نطاقه.
 والاحتمالُ تقديرٌ من سعر السوق نفسِه لا وعد؛ وأقصى الخسارة كلفةُ العقد."""
 from __future__ import annotations
 
@@ -40,7 +42,9 @@ MIN_OI = 50
 MAX_SPREAD = 0.35
 MIN_POP = 0.12
 MIN_PRICE = 2.0          # رمزٌ دون دولارين في المصدر منتهٍ أو غيرُ صالحٍ لعقدٍ طويل
-STALE_DAYS = 5           # آخرُ صفقةٍ أقدمُ من خمسة أيامٍ لا يُبنى عليها سعر
+STALE_DAYS = 4           # آخرُ صفقةٍ أقدمُ من أربعة أيامٍ لا يُبنى عليها سعر (يغطّي عطلةَ نهاية الأسبوع)
+MIN_PX = 0.05            # عقدٌ بأقلّ من خمسة سنتات سعرُه حدُّ التسعير لا قيمتُه
+IV_BAND = (0.5, 1.6)     # تذبذبُ العقد بين نصف تذبذب النقود وضعفِه إلا قليلاً — وما خرج فسعرُه شاذّ
 CANDIDATES = 40
 SCAN_TTL, NEWS_TTL, RES_TTL = 6 * 3600, 2 * 3600, 30 * 60
 _JOB = {"on": False, "budget": None, "msg": "", "at": None}
@@ -78,7 +82,7 @@ def implied_vol(px: float, S: float, K: float, T: float, call: bool, r: float = 
 
 
 def quote(o: dict, S: float, T: float, call: bool, now: float | None = None) -> dict | None:
-    """سعرُ الشراء وتذبذبُه: الطلبُ والعرضُ إن كانا (والسوقُ مفتوح)، وإلا آخرُ صفقةٍ في خمسة أيام. والتذبذبُ من المصدر إن صلح وإلا من السعر."""
+    """سعرُ الشراء وتذبذبُه: الطلبُ والعرضُ إن كانا (والسوقُ مفتوح)، وإلا آخرُ صفقةٍ في أربعة أيام. والتذبذبُ مستخرجٌ من السعر."""
     ask, bid, last, K = o.get("ask") or 0, o.get("bid") or 0, o.get("last") or 0, o.get("strike")
     if not K:
         return None
@@ -94,12 +98,26 @@ def quote(o: dict, S: float, T: float, call: bool, now: float | None = None) -> 
         px, src, spread, ref = last, "last", None, last
     else:
         return None
-    iv = (o.get("iv") or 0) / 100
-    if not (0.05 <= iv <= 3):
-        iv = implied_vol(ref, S, K, T, call) or 0
+    # التذبذبُ يُستخرج من السعر نفسِه (الوسطُ أو آخرُ صفقة) لا من حقل المصدر: حقلُه في الأطراف قديمٌ شاذّ (قيس: 214٪ لعقدٍ بأربعة سنتات)
+    iv = implied_vol(ref, S, K, T, call) or 0
     if not (0.05 <= iv <= 3):
         return None
     return {"px": px, "src": src, "spread": spread, "iv": iv}
+
+
+def atm_iv(ch: dict, S: float, T: float, now: float | None = None) -> float | None:
+    """تذبذبُ النقود في أجل: وسيطُ تذبذب أقرب أربعة عقودٍ إلى السعر شراءً وبيعاً — مرجعٌ يُستبعد به سعرُ الأطراف الشاذّ."""
+    ivs = []
+    for rows, call in ((ch.get("calls") or [], True), (ch.get("puts") or [], False)):
+        for o in sorted((o for o in rows if o.get("strike")), key=lambda o: abs(o["strike"] - S))[:4]:
+            q = quote(o, S, T, call, now)
+            if q:
+                ivs.append(q["iv"])
+    if len(ivs) < 2:
+        return None
+    ivs.sort()
+    n = len(ivs)
+    return ivs[n // 2] if n % 2 else (ivs[n // 2 - 1] + ivs[n // 2]) / 2
 
 
 def prob_beyond(S: float, level: float, T: float, iv: float, call: bool, r: float = RATE) -> float:
@@ -149,8 +167,9 @@ def direction(tr: dict, news: dict | None) -> tuple[str | None, str]:
     return base, ""
 
 
-def candidates(rows: list[dict], S: float, dte: int, call: bool, now: float | None = None) -> list[dict]:
-    """عقودُ أجلٍ واحدٍ الصالحةُ بلا قيد الميزانية: سائلةٌ (اهتمامٌ مفتوحٌ وفارقٌ معقولٌ إن عُرف) بسعرٍ حديثٍ وتذبذبٍ صالح واحتمالٍ معقول."""
+def candidates(rows: list[dict], S: float, dte: int, call: bool, now: float | None = None, ref_iv: float | None = None) -> list[dict]:
+    """عقودُ أجلٍ واحدٍ الصالحةُ بلا قيد الميزانية: سائلةٌ (اهتمامٌ مفتوحٌ وفارقٌ معقولٌ إن عُرف) بسعرٍ حديثٍ فوق حدّ التسعير،
+    وتذبذبٍ صالحٍ في نطاق تذبذب النقود لأجله (`ref_iv`)، واحتمالٍ معقول."""
     T = max(dte, 1) / 365
     out = []
     for o in rows:
@@ -161,6 +180,8 @@ def candidates(rows: list[dict], S: float, dte: int, call: bool, now: float | No
         if not q or (q["spread"] is not None and q["spread"] > MAX_SPREAD):
             continue
         px, iv = q["px"], q["iv"]
+        if px < MIN_PX or (ref_iv and not (IV_BAND[0] * ref_iv <= iv <= IV_BAND[1] * ref_iv)):
+            continue
         be = K + px if call else K - px
         pop = prob_beyond(S, be, T, iv, call)
         if pop < MIN_POP:
@@ -178,9 +199,10 @@ def candidates(rows: list[dict], S: float, dte: int, call: bool, now: float | No
     return out
 
 
-def pick_contract(rows: list[dict], S: float, dte: int, call: bool, budget: float, now: float | None = None) -> dict | None:
+def pick_contract(rows: list[dict], S: float, dte: int, call: bool, budget: float, now: float | None = None,
+                  ref_iv: float | None = None) -> dict | None:
     """أفضلُ عقدٍ في أجلٍ واحد ضمن الميزانية (سعرُه × 100): أعلى درجةٍ في الصالحين — والاحتمالُ أثقلُ ما فيها."""
-    ok = [c for c in candidates(rows, S, dte, call, now) if c["cost"] <= budget]
+    ok = [c for c in candidates(rows, S, dte, call, now, ref_iv) if c["cost"] <= budget]
     return max(ok, key=lambda c: c["score"]) if ok else None
 
 
@@ -324,7 +346,11 @@ async def contracts_for(sym: str, call: bool, budget: float) -> tuple[dict | Non
         ch = await chain(sym, e["t"])
         if not ch:
             continue
-        for k in candidates(ch["calls"] if call else ch["puts"], float(ch["price"] or base["price"]), e["dte"], call):
+        S = float(ch["price"] or base["price"])
+        ref = atm_iv(ch, S, max(e["dte"], 1) / 365)
+        if ref is None:          # لا مرجعَ لتذبذب النقود في هذا الأجل — فلا يُوثق بسعر أطرافه
+            continue
+        for k in candidates(ch["calls"] if call else ch["puts"], S, e["dte"], call, ref_iv=ref):
             cheapest = k["cost"] if cheapest is None else min(cheapest, k["cost"])
             if k["cost"] <= budget and (best is None or k["score"] > best["score"]):
                 best = {**k, "expiry": e["date"]}
