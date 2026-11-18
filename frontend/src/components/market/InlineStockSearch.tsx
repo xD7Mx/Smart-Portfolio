@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react";
 import { searchCompanies, SaudiCompany } from "../../data/saudiCompanies";
 import CompanyLogo from "../common/CompanyLogo";
@@ -39,6 +40,12 @@ export default function InlineStockSearch(
   }, [q, open, global]);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+  /* ══ القائمةُ فوق الصفحة لا داخلها ══ (‏D765 — المالك 2026-11-18: «نافذةُ نتائج البحث تظهر تحت القائمة الجانبية»)
+     كانت مطلقةً داخل منطقة المحتوى وتمتدّ 300px نحو طرف الحقل البعيد — وفي غرفة التداول الحقلُ ملاصقٌ للقائمة الجانبية، ومنطقةُ المحتوى
+     صندوقُ تمريرٍ يقصّ ما يخرج منه، فانقطعت النتائجُ تحت القائمة. فتُرسم الآن في جذر الصفحة ثابتةً تحت الحقل، تبدأ من طرفه القريب
+     (يمينه في العربية) وتمتدّ نحو المحتوى، ومحصورةً داخل الشاشة، وتتبع الحقلَ عند التمرير وتغيّر الحجم. */
+  const [pos, setPos] = React.useState<{ top: number; left: number; width: number; maxH: number; rtl: boolean } | null>(null);
 
   const close = () => { setOpen(false); setQ(""); setHits([]); setRemote([]); };
 
@@ -46,11 +53,30 @@ export default function InlineStockSearch(
     if (open) inputRef.current?.focus();
   }, [open]);
 
-  /* ضغطةٌ خارج الحقل تُغلقه — كالقوائم المنسدلة في التطبيق. */
+  React.useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    const place = () => {
+      const r = wrapRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+      const width = Math.min(300, vw - 16);
+      const rtl = getComputedStyle(wrapRef.current!).direction === "rtl";
+      const left = Math.max(8, Math.min(rtl ? r.right - width : r.left, vw - width - 8));
+      const top = r.bottom + 6;
+      setPos({ top, left, width, maxH: Math.max(160, Math.min(360, vh - top - 8)), rtl });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
+  }, [open, q]);
+
+  /* ضغطةٌ خارج الحقل وقائمتِه تُغلقه — كالقوائم المنسدلة في التطبيق. */
   React.useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) close();
+      const t = e.target as Node;
+      if (wrapRef.current && !wrapRef.current.contains(t) && !menuRef.current?.contains(t)) close();
     };
     document.addEventListener("mousedown", away);
     return () => document.removeEventListener("mousedown", away);
@@ -87,8 +113,9 @@ export default function InlineStockSearch(
       {/* ══ السوقان في قائمةٍ واحدة ══ (بأمر المالك · D521 · ‏D761)
          كانت نتائجُ السوق الأمريكيّ لا تظهر إن وافق الحرفُ اسماً سعودياً («NIO» في «Union»…) — قائمتان في موضعٍ واحدٍ تُخفي إحداهما
          الأخرى. والآن قائمةٌ واحدة: عقدُ الخيار المنسوخ أوّلاً، ثمّ الأمريكيُّ (والحرفُ لاتينيّ)، ثمّ السعوديّ. */}
-      {open && (hits.length > 0 || (global && (remote.length > 0 || isOption(q.trim()) || (!busy && /^[\^A-Za-z][A-Za-z0-9.=^-]{0,14}$/.test(q.trim()))))) && (
-        <div className="sp-menu absolute z-30 top-full mt-1.5 end-0 rounded-xl overflow-hidden shadow-2xl" style={{ width: 300, maxHeight: 360, overflowY: "auto" }}
+      {open && pos && (hits.length > 0 || (global && (remote.length > 0 || isOption(q.trim()) || (!busy && /^[\^A-Za-z][A-Za-z0-9.=^-]{0,14}$/.test(q.trim()))))) && createPortal(
+        <div ref={menuRef} dir={pos.rtl ? "rtl" : "ltr"} className="sp-menu search-pop rounded-xl overflow-hidden shadow-2xl"
+          style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxH, overflowY: "auto" }}
           data-role="search-remote">
           {global && isOption(q.trim()) && (
             <button type="button" onClick={() => pick(q.trim())} data-role="search-option"
@@ -124,8 +151,7 @@ export default function InlineStockSearch(
               <span className="text-[var(--ink)] text-[13px] truncate">{c.name_ar}</span>
             </button>
           ))}
-        </div>
-      )}
+        </div>, document.body)}
     </div>
   );
 }

@@ -3901,3 +3901,7 @@ html.light {
 @media (prefers-reduced-motion: reduce) { .sqe.live, .sqe.live img { animation: none; } }
 .sp-side[data-side="stock"] { color: var(--info-ink); background: color-mix(in srgb, var(--info-ink) 12%, transparent); }
 .sq-mkt .seg-btn { min-height: 34px; }
+
+/* ══ ‏D765: نتائجُ البحث فوق الصفحة — فوق القائمة الجانبية والشريط العلويّ ودون النوافذ ══ */
+.search-pop { z-index: 65; animation: fadeUp .18s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .search-pop { animation: none; } }

@@ -174,8 +174,20 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   const onUS = await page.locator('[data-role="troom-tab"][aria-selected="true"]').textContent();
   await page.locator('[data-role="troom-list"] button[aria-label="ابحث عن سهم"]').click();
   await page.locator('[data-role="troom-list"] .inline-search-input').fill("AAPL");
-  await page.waitForTimeout(200);
-  await page.locator('[data-role="troom-list"] .sp-menu button').first().click();
+  await page.waitForTimeout(700);
+  /* ‏D765 (المالك): «نافذةُ نتائج البحث تظهر تحت القائمة الجانبية» — القائمةُ كاملةً داخل الشاشة، لا تمسّ القائمةَ الجانبية، وفوق كلّ شيء */
+  const pop = await page.evaluate(() => {
+    const m = document.querySelector('[data-role="search-remote"]'), side = document.querySelector(".app-sidebar");
+    if (!m) return null;
+    const r = m.getBoundingClientRect(), W = document.documentElement.clientWidth;
+    const sr = side && side.offsetParent ? side.getBoundingClientRect() : null;
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(r.height / 2, 18));
+    return { l: Math.round(r.left), r: Math.round(r.right), w: Math.round(r.width), W, inView: r.left >= 0 && r.right <= W && r.width > 200,
+             clearSide: !sr || r.right <= sr.left + 1 || r.left >= sr.right - 1, onTop: !!hit && m.contains(hit), body: m.parentElement === document.body };
+  });
+  say(!!pop && pop.inView && pop.clearSide && pop.onTop && pop.body,
+      `${label}: ‏D765 نتائجُ البحث في غرفة التداول كاملةٌ داخل الشاشة، لا تقع تحت القائمة الجانبية، وفوق كلّ شيءٍ تُضغط`, JSON.stringify(pop));
+  await page.locator('[data-role="search-remote"] button').first().click();   // ‏D765: القائمةُ في جذر الصفحة
   await page.waitForTimeout(900);
   const usRows = await page.locator('[data-role="troom-row"]').allTextContents();
   say(onUS === "السوق الأمريكي" && calls.some(c => c[0] === "create" && c[1] === "السوق الأمريكي")
