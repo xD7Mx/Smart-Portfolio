@@ -3905,3 +3905,24 @@ html.light {
 /* ══ ‏D765: نتائجُ البحث فوق الصفحة — فوق القائمة الجانبية والشريط العلويّ ودون النوافذ ══ */
 .search-pop { z-index: 65; animation: fadeUp .18s ease-out both; }
 @media (prefers-reduced-motion: reduce) { .search-pop { animation: none; } }
+
+/* ══ ‏D767: أوامرُ المالك لصقر، ونبضُ السوق السعوديّ ══ */
+.sq-set { gap: 12px; }
+.sq-set-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.sq-set-row label, .sq-set-grid label { display: flex; flex-direction: column; gap: 4px; }
+.sq-set-row small, .sq-set-grid small { font-size: 11px; font-weight: 700; color: var(--ink-muted); }
+.sq-set-grid { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.sq-set-grid .seg-btn, .sq-set-row .seg-btn { min-height: 34px; }
+.sq-set-act { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.sq-ok { font-size: 11.5px; font-weight: 700; color: var(--pos-ink); animation: fadeUp .22s ease-out both; }
+.sq-pulse { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 8px; }
+.sq-pk { display: flex; flex-direction: column; gap: 4px; padding: 9px 11px; border-radius: 10px; background: var(--field); min-width: 0; font-size: 11.5px; color: var(--ink-muted); line-height: 1.7; }
+.sq-pk small { font-size: 11px; font-weight: 800; color: var(--ink-muted); }
+.sq-pk b { font-size: 14px; font-weight: 800; color: var(--ink); }
+.sq-bar2 { display: flex; height: 6px; border-radius: 6px; overflow: hidden; background: var(--track); }
+.sq-bar2 i { display: block; height: 100%; transition: width .6s cubic-bezier(.2,.8,.2,1); }
+.sq-bar2 .up { background: var(--pos-ink); } .sq-bar2 .dn { background: var(--neg-ink); } .sq-bar2 .fl { background: var(--ink-muted); opacity: .5; }
+.sp-bud { display: inline-flex; align-items: center; gap: 8px; }
+.sp-budf { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; animation: fadeUp .22s ease-out both; }
+.sp-budf .seg-btn { min-height: 34px; }
+@media (prefers-reduced-motion: reduce) { .sq-ok, .sp-budf { animation: none; } .sq-bar2 i { transition: none; } }

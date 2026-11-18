@@ -284,6 +284,7 @@ export const marketApi = {
   /* ‏D763: صقر — وكيلُ التداول الآليّ ومحفظتُه المستقلّة */
   saqr: (market: "us" | "sa" = "us") => api.get<APIResponse>("/market/saqr", { params: { market } }),
   saqrRun: (market: "us" | "sa" = "us") => api.post<APIResponse>("/market/saqr/run", { market }),
+  saqrSettings: (upd: Record<string, any>, market: "us" | "sa" = "us") => api.post<APIResponse>("/market/saqr/settings", { ...upd, market }),
   saqrToggle: (on: boolean, market: "us" | "sa" = "us") => api.post<APIResponse>("/market/saqr/toggle", { on, market }),
   saqrCapital: (amount: number, market: "us" | "sa" = "us") => api.post<APIResponse>("/market/saqr/capital", { amount, confirm: true, market }),
   saqrOpen: (contract: string, qty: number, price?: number | null, market: "us" | "sa" = "us") =>

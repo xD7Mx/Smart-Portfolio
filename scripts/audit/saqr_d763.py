@@ -134,23 +134,28 @@ async def manual_flow():
     async def fake_q(p):
         return 0.15, 0.17, 4.4, 50
     SQ.quote_position, orig = fake_q, SQ.quote_position
+    # ‏D767: صقرُ التداول لا يرسل إلى تلغرام شيئاً — يُرصد مُرسِلُ البوت نفسُه (مفعّلاً) فلا يُنادى
+    from app.services.saqr_bot import bot
     sent = []
 
-    async def fake_n(t):
+    async def fake_send(t, *a, **k):
         sent.append(t)
-    SQ._notify, orig_n = fake_n, SQ._notify
+    orig_n = (bot.send, bot.enabled)
+    bot.send, bot.enabled = fake_send, True
     try:
         st2 = SQ.load()
         out = await SQ._review(st2, datetime.now(timezone.utc), {})
     finally:
-        SQ.quote_position, SQ._notify = orig, orig_n
+        SQ.quote_position = orig
+        bot.send, bot.enabled = orig_n
     SQ.save(st2)
     st3 = await SQ.set_capital(250)
     return out, st2, sent, st3
 out, st2, sent, st3 = asyncio.run(manual_flow())
-check(out == [] and len(st2["positions"]) == 1 and st2["positions"][0].get("alert") == "stop" and sent and "إشارةُ خروج" in sent[0]
-      and st2["log"][0]["kind"] == "alert",
-      "٧ مركزُ المالك اليدويّ لا يبيعه صقر (تعديلاتُ المالك تتقدّم) — يكتب إشارةَ خروجٍ في السجلّ ويُرسلها إلى تلغرام", f"{len(st2['positions'])} · {sent[:1]}")
+check(out == [] and len(st2["positions"]) == 1 and st2["positions"][0].get("alert") == "stop" and not sent
+      and st2["log"][0]["kind"] == "alert" and "إشارةُ خروج" in st2["log"][0]["text"],
+      "٧ مركزُ المالك اليدويّ لا يبيعه صقر (تعديلاتُ المالك تتقدّم) — يكتب إشارةَ خروجٍ في سجلّ التطبيق، ولا يرسل إلى تلغرام شيئاً (‏D767)",
+      f"{len(st2['positions'])} · تلغرام {len(sent)}")
 check(st3["capital"] == 250 and st3["cash"] == 250 and not st3["positions"] and st3["runs"] and st3["runs"][0]["capital"] == 100
       and SQ._path().startswith(_SB) and SQ._path().endswith("saqr/ledger.json"),
       "٧ب تجربةٌ جديدةٌ برأس مالٍ يحدّده المالك تحفظ السابقةَ ملخّصة — والدفترُ ملفٌّ مستقلٌّ لا يمسّ محفظةَ المالك", f"{st3['runs'][:1]}")
@@ -167,8 +172,8 @@ check(not re.search(r"from app\.models|AsyncSessionLocal|portfolio_service|Trans
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
 owner_eps = re.findall(r'@router\.post\("/saqr/[^"]*"(, dependencies=\[Depends\(require_owner\)\])?\)', mk)
-check('add_job(job_saqr_cycle, CronTrigger(day_of_week=US_TRADING_DAYS, hour="16-23", minute="*/5")' in sch and len(owner_eps) == 5 and all(owner_eps),
-      "٨ب دورةُ صقر كلَّ خمس دقائق في نافذة الجلسة الأمريكية، وأوامرُه الخمسة (دورة · تشغيل · رأس مال · فتح · إغلاق) بصلاحية المالك وحده",
+check('add_job(job_saqr_cycle, CronTrigger(day_of_week=US_TRADING_DAYS, hour="16-23", minute="*/5")' in sch and len(owner_eps) == 6 and all(owner_eps) and '"/saqr/settings"' in mk,
+      "٨ب دورةُ صقر كلَّ خمس دقائق في نافذة الجلسة الأمريكية، وأوامرُه الستّة (دورة · تشغيل · رأس مال · إعدادات ‏D767 · فتح · إغلاق) بصلاحية المالك وحده",
       f"{len(owner_eps)} نقطة")
 
 # ٩ الواجهة: التقريرُ اليوميّ في مفكرة السوق بجانب التوقعات، والمختبرُ: عقودُ الخيارات · المحفظة · صقر

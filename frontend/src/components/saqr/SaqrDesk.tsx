@@ -6,8 +6,8 @@
    صراحةً: التنفيذُ بأسعار السوق الحقيقية لحظتَها حتى يُربط ‏IBKR. */
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Radar, ShieldCheck, Unlink, Cpu, ShieldAlert, Target, Newspaper, Sparkles, Play, Pause, RefreshCw,
-  LayoutDashboard, Activity, ScrollText, SlidersHorizontal, ArrowDownRight, ArrowUpRight, Info, BellRing, Hand, Globe, LineChart, FileText } from "lucide-react";
+import { Radar, ShieldCheck, Cpu, ShieldAlert, Target, Newspaper, Sparkles, Play, Pause, RefreshCw,
+  LayoutDashboard, Activity, ScrollText, SlidersHorizontal, ArrowDownRight, ArrowUpRight, Info, BellRing, Hand, LineChart, FileText, Filter, BarChart3, Check } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { useLive, useSessions } from "../chart/LiveQuote";
@@ -17,42 +17,47 @@ import SaqrEmblem from "./SaqrEmblem";
 
 const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="ltr" className={"tabular-nums " + (className || "")}>{v}</bdi>;
 type Tab = "dash" | "signals" | "log" | "rules";
-const TABS: [Tab, string, any][] = [["dash", "لوحة المتابعة", LayoutDashboard], ["signals", "الإشارات", Activity], ["log", "السجل", ScrollText], ["rules", "القواعد", SlidersHorizontal]];
+const TABS: [Tab, string, any][] = [["dash", "لوحة المتابعة", LayoutDashboard], ["signals", "الإشارات", Activity], ["log", "السجل", ScrollText], ["rules", "الإعدادات", SlidersHorizontal]];
 type NState = "ok" | "warn" | "off";
 
 const ago = (iso?: string | null) => (iso ? (Date.now() - new Date(iso).getTime()) / 60000 : Infinity);
 
 function nodes(s: SaqrState, sesOpen: boolean): { k: string; t: string; d: ReactNode; tip: string; st: NState; icon: any }[] {
+  /* ‏D767 (المالك): «أزل IBKR من القائمة التي فوق علامة صقر» — والأمريكيُّ يأخذ مكانَه «الفرزُ الأساسيّ» (قلبُ عمله الآن)، والسعوديُّ نبضُ سوقه */
   const scanAge = ago(s.scan?.at);
-  const frac = Math.round(s.tier.frac * 100), stop = Math.round((1 - s.rules.stop) * 100);
+  const frac = Math.round(s.tier.frac * 100);
+  const optStop = Math.round(s.settings?.opt_stop ?? (1 - (s.rules.stop ?? 0.6)) * 100);
+  const stockStop = Math.round(s.settings?.stock_stop ?? 6);
   const newsTxt = s.health.events === false ? "التقويم متعذّر" : s.health.news === false ? "القراءة متعذّرة" : "تُقرأ";
   const eng = s.on ? (sesOpen ? "يعمل" : "ينتظر الجلسة") : "موقوف";
+  const risk = { k: "risk", t: "إدارة المخاطر", d: <><Num v={`${frac}%`} /> · <Num v={`${s.tier.seats}`} /> مراكز</>, tip: `${frac}% للصفقة · ${s.tier.seats} مراكز`,
+    st: (s.gates.some(x => x.includes("قاطع")) ? "warn" : "ok") as NState, icon: ShieldCheck };
+  const engine = { k: "engine", t: "محرّك الأوامر", d: eng, tip: eng, st: (s.on ? (sesOpen ? "ok" : "warn") : "off") as NState, icon: Cpu };
   if (s.market === "sa") {
-    const r = s.regime, g = s.geo;
+    const r = s.regime, pu = s.pulse;
     const tasi = r ? `${r.verdict}${r.chg != null ? ` · ${r.chg > 0 ? "+" : ""}${r.chg.toFixed(1)}%` : ""}` : "غير متوفّر";
+    const br = pu ? pu.adv / Math.max(1, pu.adv + pu.dec) : null;
     return [
       { k: "signals", t: "الإشارات", d: s.scan ? <><Num v={`${s.scan.universe}`} /> شركة</> : "لم يمسح بعد", tip: s.scan ? `${s.scan.universe} شركة` : "لم يمسح بعد",
         st: s.scan && scanAge < 90 ? "ok" : sesOpen ? "warn" : "off", icon: Radar },
-      { k: "risk", t: "إدارة المخاطر", d: <><Num v={`${frac}%`} /> · <Num v={`${s.tier.seats}`} /> مراكز</>, tip: `${frac}% للصفقة · ${s.tier.seats} مراكز`,
-        st: s.gates.some(x => x.includes("قاطع")) ? "warn" : "ok", icon: ShieldCheck },
-      { k: "broker", t: "الوسيط", d: s.broker.linked ? "مربوط" : "غير مربوط", tip: `${s.broker.name}: ${s.broker.linked ? "مربوط" : "غير مربوط"}`, st: s.broker.linked ? "ok" : "off", icon: Unlink },
-      { k: "engine", t: "محرّك الأوامر", d: eng, tip: eng, st: s.on ? (sesOpen ? "ok" : "warn") : "off", icon: Cpu },
-      { k: "stop", t: "وقف الخسارة", d: <><Num v={`-${Math.round((1 - s.rules.stop) * 100)}%`} /> ومتحرّك</>, tip: "وقفٌ ومتحرّك", st: "ok", icon: ShieldAlert },
-      { k: "results", t: "النتائج الربعية", d: <>نموّ ≥ <Num v={`${s.rules.growth}%`} /></>, tip: `نموُّ صافي الربح ≥ ${s.rules.growth}%`, st: "ok", icon: FileText },
+      { k: "results", t: "النتائج الربعية", d: pu ? <><Num v={`${pu.results.strong}`} /> قوية · <Num v={`${pu.results.weak}`} /> مخيّبة</> : <>نموّ ≥ <Num v={`${s.rules.growth}%`} /></>,
+        tip: `نموُّ صافي الربح ≥ ${s.rules.growth}%`, st: "ok", icon: FileText },
       { k: "tasi", t: "مؤشّر تاسي", d: tasi, tip: tasi, st: !r ? "off" : r.verdict === "هابط" ? "warn" : "ok", icon: LineChart },
-      { k: "geo", t: "الأحداث الجيوسياسية", d: g ? `خطرٌ ${g.level}` : "غير متوفّرة", tip: g ? `${g.level}: ${g.why}` : "غير متوفّرة",
-        st: !g ? "off" : g.level === "منخفض" ? "ok" : "warn", icon: Globe },
+      { k: "breadth", t: "اتّساع السوق", d: pu ? <><Num v={`${pu.adv}`} /> صاعدة · <Num v={`${pu.dec}`} /> هابطة</> : "يُقرأ في الجلسة",
+        tip: pu ? `${pu.adv} صاعدة · ${pu.dec} هابطة · ${pu.unch} ثابتة` : "يُقرأ في الجلسة", st: br == null ? "off" : br >= 0.5 ? "ok" : "warn", icon: BarChart3 },
+      risk, engine,
+      { k: "stop", t: "وقف الخسارة", d: <><Num v={`-${stockStop}%`} /> ومتحرّك</>, tip: "وقفٌ ومتحرّك", st: "ok", icon: ShieldAlert },
     ];
   }
+  const full = s.scan?.full;
   return [
-    { k: "signals", t: "الإشارات", d: s.scan ? <><Num v={`${s.scan.universe}`} /> رمزاً</> : "لم يمسح بعد", tip: s.scan ? `${s.scan.universe} رمزاً` : "لم يمسح بعد",
-      st: s.scan && scanAge < 90 ? "ok" : sesOpen ? "warn" : "off", icon: Radar },
-    { k: "risk", t: "إدارة المخاطر", d: <><Num v={`${frac}%`} /> · <Num v={`${s.tier.seats}`} /> مراكز</>, tip: `${frac}% للصفقة · ${s.tier.seats} مراكز`,
-      st: s.gates.some(g => g.includes("قاطع")) ? "warn" : "ok", icon: ShieldCheck },
-    { k: "broker", t: s.broker.name || "IBKR", d: s.broker.linked ? "مربوط" : "غير مربوط", tip: s.broker.linked ? "مربوط" : "غير مربوط", st: s.broker.linked ? "ok" : "off", icon: Unlink },
-    { k: "engine", t: "محرّك الأوامر", d: eng, tip: eng, st: s.on ? (sesOpen ? "ok" : "warn") : "off", icon: Cpu },
-    { k: "stop", t: "وقف الخسارة", d: <><Num v={`-${stop}%`} /> ومتحرّك</>, tip: `-${stop}% ومتحرّك`, st: "ok", icon: ShieldAlert },
-    { k: "take", t: "جني الأرباح", d: <><Num v={`×${s.rules.take}`} /> أو الهدف</>, tip: `×${s.rules.take} أو الهدف`, st: "ok", icon: Target },
+    { k: "signals", t: "الإشارات", d: full?.optionable ? <><Num v={`${full.optionable}`} /> ورقة</> : s.scan ? <><Num v={`${s.scan.universe}`} /> رمزاً</> : "لم يمسح بعد",
+      tip: full?.optionable ? `${full.optionable} ورقةً لها عقودُ خيارات` : "لم يمسح بعد", st: s.scan && scanAge < 90 ? "ok" : sesOpen ? "warn" : "off", icon: Radar },
+    { k: "fund", t: "الفرز الأساسي", d: full?.passed ? <><Num v={`${full.passed}`} /> متينة</> : "قبل الفنّ", tip: "الأساسُ قبل الفنّ: لا شطبَ ولا ضيقَ ماليّ ولا ضعف",
+      st: full?.passed ? "ok" : sesOpen ? "warn" : "off", icon: Filter },
+    risk, engine,
+    { k: "stop", t: "وقف الخسارة", d: <><Num v={`-${optStop}%`} /> ومتحرّك</>, tip: `-${optStop}% ومتحرّك`, st: "ok", icon: ShieldAlert },
+    { k: "take", t: "جني الأرباح", d: <><Num v={`×${s.settings?.take_x ?? s.rules.take}`} /> أو الهدف</>, tip: "جنيٌ عند المضاعف أو الهدف", st: "ok", icon: Target },
     { k: "news", t: "الأخبار والأحداث", d: newsTxt, tip: newsTxt, st: s.health.events === false || s.health.news === false ? "warn" : "ok", icon: Newspaper },
     { k: "ai", t: "المستشار الذكي", d: "اليونانيات والحكم", tip: "اليونانيات والحكم", st: s.health.news === false ? "warn" : "ok", icon: Sparkles },
   ];
@@ -190,19 +195,102 @@ function TasiCard({ s }: { s: SaqrState }) {
   );
 }
 
-function SaRead({ s }: { s: SaqrState }) {
-  const r = s.regime, g = s.geo;
+function SaPulse({ s }: { s: SaqrState }) {
+  /* ‏D767 (المالك): «في السوق السعوديّ أعد صياغتها كاملةً بشكلٍ احترافيّ — الأحداثُ الجيوسياسية ما لها دخلٌ أن تُكتب هنا»: نبضُ السوق بمقاييسه */
+  const r = s.regime, pu = s.pulse;
+  const n0 = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  const tot = pu ? pu.adv + pu.dec + pu.unch : 0;
   return (
-    <div className="sq-card card card-rise wide" data-role="sq-saread">
-      <h4>قراءةُ السوق السعوديّ</h4>
-      <ul className="sq-gl">
-        <li>تاسي: {r ? <>{r.verdict} — <Num v={r.close.toLocaleString("en-US", { maximumFractionDigits: 0 })} /> و{r.close >= r.sma200 ? "فوق" : "دون"} متوسّط 200
-          (<Num v={r.sma200.toLocaleString("en-US", { maximumFractionDigits: 0 })} />)، وثلاثةُ أشهر <Num v={spct(r.ret3m)} /></> : "غير متوفّر — لا دخولَ بلا قراءته."}</li>
-        <li>الأحداثُ الجيوسياسية: {g ? <><b className={g.level === "منخفض" ? "pos" : g.level === "مرتفع" ? "neg" : ""}>خطرٌ {g.level}</b> — {g.why}</> : "قراءتُها غيرُ متوفّرة الآن (نصفُ الحجم احتياطاً)."}</li>
-        {g?.brent && <li>النفط: {g.brent}</li>}
-        {g?.sectors?.length ? <li>الأشدُّ تأثّراً: {g.sectors.join(" · ")}</li> : null}
-      </ul>
+    <div className="sq-card card card-rise wide" data-role="sq-pulse">
+      <h4>نبضُ السوق السعوديّ {pu?.at && <span className="sq-muted"><Num v={`${dday(pu.at)} ${hhmm(pu.at)}`} /></span>}</h4>
+      <div className="sq-pulse">
+        <div className="sq-pk" data-k="tasi"><small>مؤشّر تاسي</small>
+          {r ? <><b><Num v={n0(r.close)} /> <span className={tone(r.chg)}><Num v={spct(r.chg, 2)} /></span></b>
+            <span>الاتجاه {r.verdict} · متوسّط 50 <Num v={n0(r.sma50)} /> · متوسّط 200 <Num v={n0(r.sma200)} /> · ثلاثة أشهر <Num v={spct(r.ret3m)} /></span></>
+            : <span>غير متوفّر</span>}
+        </div>
+        <div className="sq-pk" data-k="breadth"><small>اتّساعُ السوق</small>
+          {pu ? <><b><Num v={`${pu.adv}`} className="pos" /> صاعدة · <Num v={`${pu.dec}`} className="neg" /> هابطة · <Num v={`${pu.unch}`} /> ثابتة</b>
+            <span className="sq-bar2" aria-hidden><i className="up" style={{ width: `${tot ? (pu.adv / tot) * 100 : 0}%` }} /><i className="fl" style={{ width: `${tot ? (pu.unch / tot) * 100 : 0}%` }} /><i className="dn" style={{ width: `${tot ? (pu.dec / tot) * 100 : 0}%` }} /></span></>
+            : <span>يُقرأ في الجلسة</span>}
+        </div>
+        <div className="sq-pk" data-k="turnover"><small>قيمةُ التداول</small>
+          {pu ? <b><Num v={(pu.turnover / 1e9).toFixed(2)} /> مليار ريال</b> : <span>يُقرأ في الجلسة</span>}
+        </div>
+        <div className="sq-pk" data-k="sectors"><small>القطاعاتُ اليوم</small>
+          {pu?.leaders?.length ? <>
+            <span>القائدة: {pu.leaders.map(([n, v], i) => <span key={n}>{i ? " · " : ""}{n} <Num v={spct(v, 2)} className={tone(v)} /></span>)}</span>
+            <span>المتأخّرة: {pu.laggards.map(([n, v], i) => <span key={n}>{i ? " · " : ""}{n} <Num v={spct(v, 2)} className={tone(v)} /></span>)}</span></>
+            : <span>يُقرأ في الجلسة</span>}
+        </div>
+        <div className="sq-pk" data-k="results"><small>موسمُ النتائج{pu ? <> — الربعُ المنتهي <Num v={pu.quarter} /></> : null}</small>
+          {pu ? <b><Num v={`${pu.results.strong}`} className="pos" /> قوية · <Num v={`${pu.results.neutral}`} /> محايدة · <Num v={`${pu.results.weak}`} className="neg" /> مخيّبة</b>
+            : <span>يُقرأ في الجلسة</span>}
+        </div>
+        <div className="sq-pk" data-k="oil"><small>خامُ برنت</small>
+          {pu?.brent ? <b><Num v={`$${pu.brent.px.toFixed(2)}`} /> <span className={tone(pu.brent.chg)}><Num v={spct(pu.brent.chg, 2)} /></span></b> : <span>غير متوفّر</span>}
+        </div>
+      </div>
     </div>
+  );
+}
+
+function Settings({ s, market, owner }: { s: SaqrState; market: Market; owner: boolean }) {
+  /* ‏D767 (المالك): «أضف خيارَ تحديد الميزانية — 150 أو 100 — وخلّ فيه مرونة، أقدر أغيّر الخيارات؛ هو العقلُ المدبّر وأنا أضع الأوامر» */
+  const qc = useQueryClient();
+  const sa = market === "sa";
+  const st = s.settings || {};
+  const usd = money(s.ccy);
+  const [f, setF] = useState(() => ({ budget: String(s.capital), per_trade: st.per_trade ? String(st.per_trade) : "", max_positions: st.max_positions ? String(st.max_positions) : "",
+    instruments: st.instruments || "both", sides: st.sides || "both", opt_stop: String(st.opt_stop ?? 40), stock_stop: String(st.stock_stop ?? (sa ? 6 : 7)), take_x: String(st.take_x ?? 2) }));
+  const [msg, setMsg] = useState<string | null>(null);
+  const save = useMutation({
+    mutationFn: () => marketApi.saqrSettings({ budget: f.budget, per_trade: f.per_trade || null, max_positions: f.max_positions || null,
+      ...(sa ? {} : { instruments: f.instruments, sides: f.sides, opt_stop: f.opt_stop, take_x: f.take_x }), stock_stop: f.stock_stop }, market),
+    onSuccess: r => { qc.setQueryData(["saqr", market], r.data.data); setMsg("حُفظت الأوامر — تسري على الصفقات الجديدة، والميزانيةُ فوراً."); },
+    onError: (e: any) => setMsg(e?.response?.data?.detail || "تعذّر الحفظ"),
+  });
+  const presets = sa ? [1000, 5000, 10000] : [100, 150, 300, 500];
+  const set = (k: string, v: string) => { setF(x => ({ ...x, [k]: v })); setMsg(null); };
+  const Seg = ({ k, opts }: { k: "instruments" | "sides"; opts: [string, string][] }) => (
+    <span className="seg inline-flex" role="group">
+      {opts.map(([v, t]) => <button key={v} type="button" disabled={!owner} className={"seg-btn chip" + (f[k] === v ? " on" : "")} onClick={() => set(k, v)} data-v={v}>{t}</button>)}
+    </span>
+  );
+  return (
+    <form className="sq-card card card-rise wide sq-set" data-role="sq-settings" onSubmit={e => { e.preventDefault(); if (owner) save.mutate(); }}>
+      <h4>أوامرُك لصقر {sa ? "السعوديّ" : "الأمريكيّ"}</h4>
+      <div className="sq-set-row" data-k="budget">
+        <label><small>الميزانية</small>
+          <span className="op-field"><span aria-hidden>{sa ? "ر.س" : "$"}</span>
+            <input type="number" min={10} step={10} dir="ltr" value={f.budget} disabled={!owner} onChange={e => set("budget", e.target.value)} data-role="sq-budget" aria-label="الميزانية" /></span>
+        </label>
+        <span className="op-presets">{presets.map(v => <button key={v} type="button" disabled={!owner} className={"seg-btn chip" + (Number(f.budget) === v ? " on" : "")}
+          onClick={() => set("budget", String(v))} data-role="sq-budget-preset"><Num v={usd(v, 0)} /></button>)}</span>
+        <small className="sq-muted">رأسُ المال الآن <Num v={usd(s.equity)} /> — والفرقُ يُضاف إلى النقد أو يُسحب منه بلا محوٍ للسجلّ.</small>
+      </div>
+      <div className="sq-set-grid">
+        <label><small>حدُّ الصفقة الواحدة</small><input className="sp-in" type="number" min={5} dir="ltr" placeholder="تلقائيّ" value={f.per_trade} disabled={!owner}
+          onChange={e => set("per_trade", e.target.value)} data-role="sq-per-trade" /></label>
+        <label><small>أقصى المراكز</small><input className="sp-in" type="number" min={1} max={12} dir="ltr" placeholder="تلقائيّ" value={f.max_positions} disabled={!owner}
+          onChange={e => set("max_positions", e.target.value)} data-role="sq-max-pos" /></label>
+        {!sa && <label><small>وقفُ العقد ٪</small><input className="sp-in" type="number" min={20} max={70} dir="ltr" value={f.opt_stop} disabled={!owner} onChange={e => set("opt_stop", e.target.value)} /></label>}
+        <label><small>وقفُ السهم ٪</small><input className="sp-in" type="number" min={2} max={20} dir="ltr" value={f.stock_stop} disabled={!owner} onChange={e => set("stock_stop", e.target.value)} /></label>
+        {!sa && <label><small>جنيُ العقد ×</small><input className="sp-in" type="number" min={1.3} max={5} step={0.1} dir="ltr" value={f.take_x} disabled={!owner} onChange={e => set("take_x", e.target.value)} /></label>}
+      </div>
+      {!sa && (
+        <div className="sq-set-grid">
+          <label><small>الأداة</small><Seg k="instruments" opts={[["both", "عقودٌ وأسهم"], ["options", "عقودٌ فقط"], ["stocks", "أسهمٌ فقط"]]} /></label>
+          <label><small>الاتجاه</small><Seg k="sides" opts={[["both", "شراءٌ وبيع"], ["calls", "شراءٌ فقط"]]} /></label>
+        </div>
+      )}
+      {owner && (
+        <div className="sq-set-act">
+          <button type="submit" className="btn-primary sq-btn" disabled={save.isPending} data-role="sq-save"><Check size={14} /> حفظ الأوامر</button>
+          {msg && <span className={save.isError ? "sp-err" : "sq-ok"} role="status" data-role="sq-save-msg">{msg}</span>}
+        </div>
+      )}
+    </form>
   );
 }
 
@@ -235,7 +323,7 @@ export default function SaqrDesk() {
         <span className="sq-id"><SaqrEmblem size={30} live={s.on && sesOpen} /><b>صقر {sa ? "السعوديّ" : "الأمريكيّ"}</b>
           <span className={"sq-pill " + (s.on ? (sesOpen ? "s-open" : "s-pre") : "s-closed")} data-role="sq-state">{s.on ? (sesOpen ? "يعمل الآن" : "يعمل في الجلسة") : "موقوف"}</span>
         </span>
-        <span className="sq-sub">{sa ? "أسهمُ الشركات" : "عقودُ الخيارات والأسهم"} · التنفيذُ بأسعار السوق الحقيقية · الوسيط {s.broker.linked ? "مربوط" : "غيرُ مربوط"}</span>
+        <span className="sq-sub">{sa ? "أسهمُ الشركات" : "عقودُ الخيارات والأسهم"} · التنفيذُ بأسعار السوق الحقيقية</span>
         {owner && (
           <span className="sq-acts">
             <button type="button" className="btn-ghost sq-btn" onClick={() => run.mutate()} disabled={busy} data-role="sq-run" title={s.running?.msg || "دورةٌ الآن"}>
@@ -272,10 +360,15 @@ export default function SaqrDesk() {
               <ul className="sq-list">
                 <li><span className={"sq-dot " + (sesOpen ? "ok" : "off")} />الجلسة<b>{ses ? (ses.holiday || ses.label) : "…"}</b></li>
                 <li><span className={"sq-dot " + (ago(s.health.quotes) < 60 ? "ok" : "off")} />{sa ? "لقطةُ «تداول» الحيّة" : "الأسعارُ الحيّة"}<b>{s.health.quotes ? hhmm(s.health.quotes) : "—"}</b></li>
-                <li><span className={"sq-dot " + (s.health.news === false ? "warn" : "ok")} />{sa ? "قراءةُ الأحداث" : "قراءةُ الأخبار"}<b>{s.health.news === false ? "غير متوفّرة" : "تعمل"}</b></li>
-                <li><span className={"sq-dot " + (s.health.events === false ? "warn" : "ok")} />{sa ? "مسارُ تاسي" : "التقويمُ الاقتصاديّ"}<b>{s.health.events === false ? "غير متوفّر" : "يعمل"}</b></li>
-                <li><span className={"sq-dot " + (s.health.telegram ? "ok" : "off")} />تلغرام<b>{s.health.telegram ? "مربوط" : "غير مربوط"}</b></li>
-                <li><span className={"sq-dot " + (s.broker.linked ? "ok" : "off")} />الوسيط {s.broker.name}<b>{s.broker.linked ? "مربوط" : "غير مربوط"}</b></li>
+                {sa ? <>
+                  <li><span className={"sq-dot " + (s.health.events === false ? "warn" : "ok")} />مسارُ تاسي<b>{s.health.events === false ? "غير متوفّر" : "يعمل"}</b></li>
+                  <li><span className={"sq-dot " + (s.pulse ? "ok" : "off")} />النتائجُ الربعية<b>{s.pulse ? <><Num v={`${Object.values(s.pulse.results).reduce((a, b) => a + b, 0)}`} /> شركة</> : "—"}</b></li>
+                </> : <>
+                  <li><span className={"sq-dot " + (s.health.news === false ? "warn" : "ok")} />قراءةُ الأخبار<b>{s.health.news === false ? "غير متوفّرة" : "تعمل"}</b></li>
+                  <li><span className={"sq-dot " + (s.health.events === false ? "warn" : "ok")} />التقويمُ الاقتصاديّ<b>{s.health.events === false ? "غير متوفّر" : "يعمل"}</b></li>
+                  <li><span className={"sq-dot " + (s.scan?.full?.passed ? "ok" : "off")} />الفرزُ الأساسيّ<b>{s.scan?.full?.passed ? <><Num v={`${s.scan.full.passed}`} /> متينة</> : "—"}</b></li>
+                </>}
+                <li><span className="sq-dot ok" />التنفيذ<b>بأسعار السوق</b></li>
                 <li><span className={"sq-dot " + (ago(s.last_cycle) < 15 ? "ok" : "off")} />آخرُ دورة<b>{s.last_cycle ? `${dday(s.last_cycle)} ${hhmm(s.last_cycle)}` : "—"}</b></li>
               </ul>
             </div>
@@ -299,7 +392,7 @@ export default function SaqrDesk() {
               <div className="sq-ses"><b><Num v={usd(s.equity)} /></b><span className={tone(s.pl)}><Num v={spct(s.pl_pct)} /></span></div>
               <Spark pts={curve} base={s.capital} label="منحنى رأس مال صقر" role="sq-curve" />
             </div>
-            {sa && <SaRead s={s} />}
+            {sa && <SaPulse s={s} />}
             <div className="sq-card card card-rise wide" data-role="sq-gates">
               <h4>بوّاباتُ الدخول الآن</h4>
               {s.gates.length ? <ul className="sq-gl">{s.gates.map((g, i) => <li key={i}>{g}</li>)}</ul>
@@ -361,25 +454,27 @@ export default function SaqrDesk() {
           </div>
         )}
 
+        {tab === "rules" && <Settings key={market} s={s} market={market} owner={owner} />}
+
         {tab === "rules" && sa && (
           <div className="sq-grid">
             <div className="sq-card card card-rise wide" data-role="sq-rules">
-              <h4>كيف يدخل — السوقُ السعوديّ (أسهمُ الشركات)</h4>
+              <h4>منهجيةُ الاختيار — أسهمُ السوق السعوديّ</h4>
               <ul className="sq-gl">
-                <li>تاسي أوّلاً: هابطٌ ⇐ لا دخول (الشركاتُ تتبعه)، وعرضيٌّ ⇐ نصفُ الحجم، ويومُ هلعٍ (<Num v={`${s.rules.tasi_panic}%`} />) ⇐ لا دخولَ اليوم.</li>
-                <li>الأحداثُ الجيوسياسية والنفط: خطرٌ مرتفع ⇐ لا دخول، ومتوسّطٌ ⇐ نصفُ الحجم.</li>
-                <li>النتائجُ الربعية: نموُّ صافي الربح ≥ <Num v={`${s.rules.growth}%`} /> بإعلانٍ حديث محفّز، والخسارةُ أو التراجعُ مستبعَد، وربعٌ لم تصدر نتائجُه في مهلتها ⇐ لا دخولَ قبل المفاجأة.</li>
-                <li>الشركة: سيولةُ اليوم ≥ <Num v={`${(s.rules.min_turnover / 1e6).toFixed(0)}`} /> ملايين ريال، فارقٌ ≤ <Num v={`${s.rules.max_spread}%`} />، مسارٌ صاعدٌ فوق متوسّط 50، وأقوى من تاسي في ثلاثة أشهر.</li>
-                <li>لا دخولَ في أوّل ربع ساعةٍ ولا آخرِ عشرين دقيقة، ولا بعد خسارة <Num v={`${s.rules.day_loss}%`} /> في اليوم، ولا أكثرَ من <Num v={`${s.rules.max_new_day}`} /> صفقتين يومياً.</li>
+                <li>اتجاهُ المؤشّر العامّ أوّلاً: تاسي دون متوسّطيه ⇐ لا مراكزَ جديدة، وفي نطاقٍ عرضيّ ⇐ نصفُ الحجم، وتراجعُه <Num v={`${s.rules.tasi_panic}%`} /> في الجلسة ⇐ لا دخولَ اليوم.</li>
+                <li>النتائجُ الربعية: نموُّ صافي الربح عن الربع المماثل <Num v={`${s.rules.growth}%`} /> فأكثر بإعلانٍ حديث، وتُستبعد الخاسرةُ والمتراجعة، ولا دخولَ قبل نتائجَ لم تصدر في مهلتها.</li>
+                <li>جودةُ السهم: تداولُ اليوم <Num v={`${(s.rules.min_turnover / 1e6).toFixed(0)}`} /> ملايين ريال فأكثر، وفارقُ العرض والطلب <Num v={`${s.rules.max_spread}%`} /> فأقلّ، والموقوفةُ مستبعَدة.</li>
+                <li>القوّةُ النسبية: مسارٌ صاعدٌ فوق متوسّط 50، وأداءٌ يتفوّق على تاسي في ثلاثة أشهر — ولا مطاردةَ لارتفاعٍ يوميّ فوق 6٪.</li>
+                <li>الانضباط: لا دخولَ في أوّل ربع ساعةٍ ولا قبل المزاد، وحدٌّ يوميّ <Num v={`${s.rules.max_new_day}`} /> صفقتين، وتوقّفٌ عند خسارة <Num v={`${s.rules.day_loss}%`} /> في اليوم.</li>
               </ul>
             </div>
             <div className="sq-card card card-rise" data-role="sq-rules-exit">
-              <h4>كيف يخرج</h4>
+              <h4>إدارةُ المركز</h4>
               <ul className="sq-gl">
-                <li>وقفٌ عند <Num v={`-${Math.round((1 - s.rules.stop) * 100)}%`} />، ومن +8٪ إلى الدخول، ومن +12٪ إلى 94٪ من القمّة.</li>
-                <li>جنيٌ عند الهدف الفنيّ.</li>
-                <li>تاسي انقلب هابطاً والمركزُ خاسر، أو خطرٌ جيوسياسيّ مرتفع والمركزُ خاسر.</li>
-                <li>نتائجُ مخيّبةٌ صدرت بعد الدخول، أو ستّةُ أسابيع بلا تقدّم.</li>
+                <li>وقفُ خسارةٍ عند <Num v={`-${Math.round(s.settings?.stock_stop ?? 6)}%`} />، ويرتفع إلى سعر الدخول من +8٪، وإلى 94٪ من القمّة من +12٪.</li>
+                <li>جنيُ الربح عند الهدف الفنيّ (قمّةُ السنة أو +12٪).</li>
+                <li>خروجٌ إذا انقلب تاسي هابطاً والمركزُ خاسر، أو صدرت نتائجُ مخيّبة بعد الدخول.</li>
+                <li>تحريرُ المال من مركزٍ لم يتقدّم 3٪ في ستّة أسابيع.</li>
               </ul>
             </div>
             <div className="sq-card card card-rise" data-role="sq-rules-size">

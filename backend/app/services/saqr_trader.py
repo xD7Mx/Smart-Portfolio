@@ -5,7 +5,8 @@
 
 فصقرٌ يدير **محفظةَ خياراتٍ مستقلّة** (لا تمسّ محفظةَ المالك السعودية ولا أرقامَها): نقدٌ ومراكزُ وصفقاتٌ مغلقة ومنحنى رأس مال.
 والتنفيذُ بأسعار السوق الحقيقية لحظتَها — الشراءُ بسعر العرض والبيعُ بسعر الطلب وعمولةُ الوسيط على كلّ عقد — حتى يُربط وسيطٌ (‏IBKR)؛
-فالنتيجةُ ما كان سيحدث فعلاً لا ما يُتمنّى. وكلُّ قرارٍ (دخولٌ أو رفضٌ أو خروج) مكتوبٌ بسببه في السجلّ، ويصل تلغرام.
+فالنتيجةُ ما كان سيحدث فعلاً لا ما يُتمنّى. وكلُّ قرارٍ (دخولٌ أو رفضٌ أو خروج) مكتوبٌ بسببه في سجلّ التطبيق — ولا يُرسل صقرُ التداول إلى تلغرام شيئاً (‏D767 بأمر المالك:
+«تلغرامُ للتقارير اليومية ومهامّ صقر الأساسية وحدها»).
 
 الدخولُ (كلّ عشرين دقيقة في الجلسة الرسمية، ومقعدٌ شاغرٌ ونقدٌ يكفي):
   ١ السوقُ كلُّه (‏D766): كلُّ ورقةٍ لها عقودُ خيارات (دليلُ سيبوي) وسائلة، والأساسُ أوّلاً (‏saqr_universe: لا شطبَ ولا ضيقَ ماليّ ولا ضعفَ
@@ -21,7 +22,6 @@
 أو بلوغِ السهم الهدفَ، وخروجٌ قبل 14 يوماً من الانتهاء، وعند انكسار الأطروحة."""
 import asyncio
 import hashlib
-import html
 import json
 import math
 import os
@@ -66,6 +66,14 @@ STOCK_TIME_DAYS, STOCK_TIME_GAIN = 42, 1.03   # سهمٌ لم يتقدّم 3٪ �
 REASON_AR = {"stop": "بلغ الوقف", "trail": "وقفٌ متحرّكٌ يحمي الربح", "take": "تضاعف العقد — جنيُ الربح", "target": "بلغ السهمُ الهدف",
              "time": "اقترب الأجل", "broken": "انكسرت الأطروحة", "manual": "إغلاقٌ يدويّ من المالك", "stale": "لم يتقدّم — يُحرَّر المال",
              "regime": "انقلب السوقُ العامّ", "geo": "خطرٌ جيوسياسيّ", "results": "نتائجُ ربعيةٌ مخيّبة"}
+# ‏D767 (المالك): «أضف خيارَ تحديد الميزانية… خلّ فيه مرونة، أقدر أغيّر الخيارات — هو العقلُ المدبّر وأنا أضع الأوامر»
+DEFAULTS = {"per_trade": None, "max_positions": None, "instruments": "both", "sides": "both",
+            "opt_stop": round((1 - STOP) * 100), "stock_stop": round((1 - STOCK_STOP) * 100), "take_x": TAKE}
+LIMITS = {"per_trade": (5, 1_000_000), "max_positions": (1, 12), "opt_stop": (20, 70), "stock_stop": (2, 20), "take_x": (1.3, 5.0)}
+CHOICES = {"instruments": ("both", "options", "stocks"), "sides": ("both", "calls")}
+LABEL_AR = {"per_trade": "حدُّ الصفقة", "max_positions": "أقصى المراكز", "opt_stop": "وقفُ العقد ٪", "stock_stop": "وقفُ السهم ٪", "take_x": "جنيُ العقد ×",
+            "instruments": "الأداة", "sides": "الاتجاه"}
+VALUE_AR = {"both": "الكلّ", "options": "عقودٌ فقط", "stocks": "أسهمٌ فقط", "calls": "شراءٌ فقط"}
 _LOCK = asyncio.Lock()
 _JOB = {"on": False, "msg": "", "at": None}
 
@@ -96,7 +104,7 @@ def fresh(capital: float | None = None, on: bool = True, market: str = "us") -> 
     return {"market": _mk(market), "ccy": m["ccy"], "capital": cap, "goal": round(cap * GOAL_X, 2), "cash": cap, "started": _iso(), "on": on,
             "positions": [], "closed": [], "equity": [[_iso(), cap]], "log": [], "signals": [],
             "day": {"date": None, "start_eq": cap, "new": 0}, "last_cycle": None, "last_scan": None, "cycles": 0,
-            "health": {}, "runs": [], "broker": {"linked": False, "name": m["broker"]}}
+            "health": {}, "runs": [], "broker": {"linked": False, "name": m["broker"]}, "settings": {}}
 
 
 def load(market: str = "us") -> dict:
@@ -117,6 +125,65 @@ def save(st: dict) -> None:
 
 def log(st: dict, kind: str, text: str, sym: str | None = None) -> None:
     st["log"] = ([{"at": _iso(), "kind": kind, "text": text, "sym": sym}] + st.get("log", []))[:400]
+
+
+def cfg(st: dict) -> dict:
+    """إعداداتُ المالك فوق الافتراضيّ — وما لم يُضبط فصقرٌ يقرّره بطبقته."""
+    base = {**DEFAULTS, "stock_stop": 6 if st.get("market") == "sa" else DEFAULTS["stock_stop"]}   # السعوديّ −6٪ والأمريكيّ −7٪
+    return {**base, **(st.get("settings") or {})}
+
+
+def seats_budget(st: dict, eq: float, frac: float, seats: int) -> tuple[int, float]:
+    """(أقصى المراكز، ميزانيةُ الصفقة الواحدة) بعد أوامر المالك: لا تتجاوز ما حدّده ولا ما في النقد."""
+    c = cfg(st)
+    if c["max_positions"]:
+        seats = int(c["max_positions"])
+    budget = min(st["cash"], eq * frac)
+    if c["per_trade"]:
+        budget = min(budget, float(c["per_trade"]), st["cash"])
+    return seats, budget
+
+
+def apply_settings(st: dict, upd: dict) -> list[str]:
+    """يطبّق أوامرَ المالك ويعيد ما تغيّر بالعربية — والقيمةُ خارج حدودها تُرفض بسببها. والميزانيةُ تُعدَّل بلا محوٍ للسجلّ: الفرقُ يُضاف
+    إلى النقد أو يُسحب منه (فلا يتغيّر الربحُ المحسوب)، والسحبُ لا يتجاوز النقدَ الحرّ."""
+    c, done = cfg(st), []
+    if upd.get("budget") not in (None, ""):
+        nb = round(float(upd["budget"]), 2)
+        if not (10 <= nb <= 1_000_000):
+            raise ValueError("الميزانيةُ بين 10 و1,000,000.")
+        delta = round(nb - st["capital"], 2)
+        if delta < 0 and -delta > st["cash"] + 1e-9:
+            raise ValueError(f"لا يُسحب {-delta:,.2f} والنقدُ الحرّ {st['cash']:,.2f} — أغلق مراكزَ أوّلاً أو اختر ميزانيةً أعلى.")
+        if delta:
+            st["cash"] = round(st["cash"] + delta, 2)
+            st["capital"] = nb
+            st["goal"] = round(nb * GOAL_X, 2)
+            st["day"]["start_eq"] = round((st["day"].get("start_eq") or 0) + delta, 2)
+            st.setdefault("fundings", []).append({"at": _iso(), "delta": delta, "budget": nb})
+            done.append(f"الميزانية {nb - delta:,.2f} ⇐ {nb:,.2f}")
+    for k in ("per_trade", "max_positions", "opt_stop", "stock_stop", "take_x"):
+        if k in upd:
+            v = upd[k]
+            if v in (None, "", 0):
+                if k in ("per_trade", "max_positions"):
+                    c[k] = None
+                    done.append(f"{LABEL_AR[k]}: تلقائيّ")
+                continue
+            v = float(v)
+            lo, hi = LIMITS[k]
+            if not (lo <= v <= hi):
+                raise ValueError(f"القيمةُ {v:g} خارج حدودها ({lo:g}–{hi:g}).")
+            c[k] = int(v) if k == "max_positions" else round(v, 2)
+            done.append(f"{LABEL_AR[k]}: {c[k]:g}")
+    for k, opts in CHOICES.items():
+        if k in upd and upd[k] is not None:
+            if upd[k] not in opts:
+                raise ValueError("خيارٌ غيرُ معروف.")
+            c[k] = upd[k]
+            done.append(f"{LABEL_AR[k]}: {VALUE_AR.get(c[k], c[k])}")
+    st["settings"] = c
+    return done
 
 
 def kind_of(p: dict) -> str:
@@ -170,7 +237,7 @@ def buy(st: dict, k: dict, qty: float, why: list[str], src: str = "saqr", px: fl
     p = {"id": _pid(k["contract"]), "kind": kind, "contract": k["contract"], "symbol": k["symbol"], "name": k.get("name"),
          "type": k.get("type", "stock"), "strike": k.get("strike"), "expiry": k.get("expiry"), "t": k.get("t"),
          "qty": int(qty) if kind == "option" else round(float(qty), 4), "entry_px": round(px, 4), "cost": cost, "fee_in": fee, "opened": _iso(),
-         "stop": round(stop, 4), "stop0": round(stop, 4), "peak": float(k.get("bid") or px), "bid": k.get("bid"), "ask": k.get("ask"), "S": k.get("price"),
+         "stop": round(stop, 4), "stop0": round(stop, 4), "take_x": k.get("take_x"), "peak": float(k.get("bid") or px), "bid": k.get("bid"), "ask": k.get("ask"), "S": k.get("price"),
          "S0": k.get("price"), "target": k.get("target"), "target_label": k.get("target_label"), "delta": k.get("delta"),
          "iv": k.get("iv"), "dte0": k.get("dte"), "why": why, "src": src, "auto": src == "saqr", "marked": _iso()}
     st["positions"].append(p)
@@ -224,7 +291,7 @@ def exit_rule(p: dict, bid: float | None, S: float | None, dte: int, tr: dict | 
             held = (_now() - datetime.fromisoformat(p["opened"])).days
             if held >= STOCK_TIME_DAYS and bid < p["entry_px"] * STOCK_TIME_GAIN:
                 return "stale", f"مضى {held} يوماً ولم يتقدّم السهمُ 3٪ — يُحرَّر المالُ لفرصةٍ أفضل."
-        if not stock and bid >= p["entry_px"] * TAKE:
+        if not stock and bid >= p["entry_px"] * (p.get("take_x") or TAKE):
             return "take", f"تضاعف العقد: {p['entry_px']:.2f} ⇐ {bid:.2f}."
     if S is not None and p.get("target") and ((call and S >= p["target"]) or (not call and S <= p["target"])):
         return "target", f"بلغ السهمُ {S:,.2f} الهدفَ {p['target']:,.2f}."
@@ -502,20 +569,11 @@ def stock_thesis(tr: dict, news: dict | None, chg: float | None, why_not_option:
     out.append(f"لماذا السهمُ لا العقد: {why_not_option}")
     if chg is not None:
         out.append(f"حركةُ اليوم {chg:+.2f}٪ — لا تعاكس الصفقة.")
-    out.append(f"الوقف {k['stop']:.2f} (−7٪) والهدف {k['target']:,.2f} ({k['target_label']}).")
+    out.append(f"الوقف {k['stop']:.2f} والهدف {k['target']:,.2f} ({k['target_label']}).")
     return out
 
 
 # ══ الدورة ══
-
-async def _notify(text: str) -> None:
-    try:
-        from app.services.saqr_bot import bot
-        if bot.enabled:
-            await bot.send(text, keyboard=False)
-    except Exception as e:                                        # noqa: BLE001
-        logger.debug("صقر/تلغرام: {}", type(e).__name__)
-
 
 def _title(p: dict) -> str:
     if kind_of(p) == "stock":
@@ -541,7 +599,7 @@ def _point(st: dict) -> None:
 
 
 async def _review(st: dict, now: datetime, scan_tr: dict | None) -> list[dict]:
-    """مراجعةُ المراكز: سعرُها الحيّ ووقفُها المتحرّك وقاعدةُ خروجها — صقرٌ يبيع مراكزَه، ومراكزُ المالك اليدوية يُنبَّه عليها ولا تُمسّ."""
+    """مراجعةُ المراكز: سعرُها الحيّ ووقفُها المتحرّك وقاعدةُ خروجها — صقرٌ يبيع مراكزَه، ومراكزُ المالك اليدوية يُنبَّه عليها في السجلّ ولا تُمسّ."""
     from app.services import cache
     out = []
     for p in list(st["positions"]):
@@ -563,7 +621,6 @@ async def _review(st: dict, now: datetime, scan_tr: dict | None) -> list[dict]:
             if p.get("alert") != code:
                 p["alert"] = code
                 log(st, "alert", f"إشارةُ خروجٍ لمركزك اليدويّ {_title(p)}: {REASON_AR[code]} — {why}", p["symbol"])
-                await _notify(f"🦅 <b>صقر — إشارةُ خروج</b>\n{html.escape(_title(p))}\n{html.escape(REASON_AR[code])}: {html.escape(why)}")
             continue
         if not bid:
             log(st, "info", f"{_title(p)}: {REASON_AR[code]} لكن لا طلبَ الآن — يُعاد في الدورة التالية.", p["symbol"])
@@ -574,8 +631,6 @@ async def _review(st: dict, now: datetime, scan_tr: dict | None) -> list[dict]:
             unit = "عقد" if kind_of(c) == "option" else "سهم"
             log(st, "sell", f"بيع {c['qty']:g} {unit} × {_title(c)} بسعر {bid:.2f} — {REASON_AR[code]}: {why} · النتيجة {c['pl']:+,.2f} دولار ({c['pl_pct']:+.1f}٪) بعد العمولات.",
                 c["symbol"])
-            await _notify(f"🦅 <b>صقر — بيع</b>\n{html.escape(_title(c))}\n{c['qty']:g} {unit} × {bid:.2f} · {html.escape(REASON_AR[code])}\n"
-                          f"النتيجة {c['pl']:+,.2f}$ ({c['pl_pct']:+.1f}٪) بعد العمولات\nرأس المال الآن {equity(st):,.2f}$")
     return out
 
 
@@ -585,9 +640,10 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
     from app.services.live_quote import yahoo_quotes
     eq = equity(st)
     frac, seats = tier(eq)
+    seats, budget = seats_budget(st, eq, frac, seats)
+    c = cfg(st)
     if len(st["positions"]) >= seats:
         return None
-    budget = min(st["cash"], eq * frac)
     if budget < 10:
         st["signals"] = [{"at": _iso(), "sym": "—", "verdict": "refused", "why": f"النقدُ المتاح {st['cash']:,.2f} دولار لا يكفي عقداً."}]
         return None
@@ -614,6 +670,10 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
     sides = {}
     for s in pool:
         side, note = OP.direction(tr_all[s], news.get(s))
+        if side == "put" and (c["sides"] == "calls" or c["instruments"] == "stocks"):
+            sig.append({"sym": s, "side": side, "verdict": "refused", "why": "اتجاهُه هابط — وإعداداتُك: شراءٌ فقط" if c["sides"] == "calls"
+                        else "اتجاهُه هابط — وإعداداتُك: أسهمٌ فقط (لا بيعَ على المكشوف)"})
+            continue
         if side:
             sides[s] = side
         else:
@@ -636,6 +696,9 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
     stock_alt: list[tuple[str, float | None, str]] = []
     deep.sort(key=lambda d: (0 if affordable(tr_all[d[0]]["close"], budget) else 1, -tr_all[d[0]]["strength"]))
     for s, side, chg in deep[:DEEP]:
+        if c["instruments"] == "stocks":
+            stock_alt.append((s, chg, "إعداداتُك: أسهمٌ فقط"))
+            continue
         try:
             ctx = await AD._context(s)
             k, why = await best_for(s, side == "call", budget, tr_all[s], ctx)
@@ -648,7 +711,7 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
                         "why": f"دلتا {k['delta']:+.2f} · احتمالُ ربح {k['pop']:.0f}٪ · عائدٌ عند الهدف {k['rr']:.1f}× · كلفة {k['cost']:,.0f}$"})
         else:
             sig.append({"sym": s, "side": side, "verdict": "refused", "why": why})
-            if side == "call" and "سلسلة" not in why and "تعذّر" not in why:
+            if side == "call" and "سلسلة" not in why and "تعذّر" not in why and c["instruments"] != "options":
                 stock_alt.append((s, chg, why))
         if len(picks) >= 3:
             break
@@ -657,6 +720,8 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
     pos = None
     if chosen:
         qty = size(budget, chosen["ask"])
+        chosen["stop"] = round(chosen["ask"] * (1 - c["opt_stop"] / 100), 4)
+        chosen["take_x"] = c["take_x"]
         if qty >= 1:
             why = thesis(chosen["symbol"], chosen["type"] == "call", tr_all[chosen["symbol"]], news.get(chosen["symbol"]), chosen, chosen.get("chg"))
             if chosen["symbol"] in fund:
@@ -668,14 +733,13 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
                     x["verdict"] = "chosen"
             log(st, "buy", f"شراء {qty} × {_title(pos)} بسعر {pos['entry_px']:.2f} (الكلفة مع العمولة {pos['cost']:,.2f}$) — "
                            f"الوقف {pos['stop']:.2f} والهدف {pos['target']:,.2f}.", pos["symbol"])
-            await _notify(f"🦅 <b>صقر — شراء</b>\n{html.escape(_title(pos))}\n{qty} عقد × {pos['entry_px']:.2f} = {pos['cost']:,.2f}$ مع العمولة\n"
-                          f"الوقف {pos['stop']:.2f} · الهدف {pos['target']:,.2f}\n" + html.escape(pos["why"][0]))
     elif stock_alt:
         # ‏D764: «السوقُ الأمريكيّ له كاملُ الصلاحية — عقودٌ وأسهم»: مسارٌ صاعدٌ وعقودُه غيرُ مناسبة الآن (تذبذبٌ غالٍ أو فارقٌ واسع أو
         # ميزانيةٌ لا تتّسع) ⇐ السهمُ نفسُه، بالعرض الحيّ وجزءٍ من السهم إن لزم (يدعمه IBKR)، ووقفٍ −7٪ وهدفٍ فنيّ
         s0, chg0, why0 = stock_alt[0]
         k = stock_pick(s0, q.get(s0) or {}, tr_all[s0], budget)
         if k:
+            k["stop"] = round(k["ask"] * (1 - c["stock_stop"] / 100), 4)
             why = stock_thesis(tr_all[s0], news.get(s0), chg0, why0, k)
             if s0 in fund:
                 why.insert(0, f"الأساس: {fund[s0][1]}.")
@@ -685,8 +749,6 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
                         "why": f"السهمُ نفسُه بدل العقد ({why0}) — {pos['qty']:g} سهم × {pos['entry_px']:.2f}"})
             log(st, "buy", f"شراء {pos['qty']:g} سهم من {s0} بسعر {pos['entry_px']:.2f} (الكلفة مع العمولة {pos['cost']:,.2f}$) — "
                            f"الوقف {pos['stop']:.2f} والهدف {pos['target']:,.2f}.", s0)
-            await _notify(f"🦅 <b>صقر — شراء سهم</b>\n{html.escape(_title(pos))}\n{pos['qty']:g} سهم × {pos['entry_px']:.2f} = {pos['cost']:,.2f}$ مع العمولة\n"
-                          f"الوقف {pos['stop']:.2f} · الهدف {pos['target']:,.2f}\n" + html.escape(pos["why"][0]))
     st["signals"] = [{"at": _iso(), **x} for x in sig][:60]
     st["scan_meta"] = {"at": _iso(), "universe": len(tr_all), "movers": n_movers, "pool": len(pool), "deep": min(len(deep), DEEP), "full": umeta,
                        "budget": round(budget, 2), "tier": {"frac": frac, "seats": seats}}
@@ -822,6 +884,18 @@ async def set_capital(amount: float, market: str = "us") -> dict:
         return st
 
 
+async def settings(upd: dict, market: str = "us") -> list[str]:
+    """أوامرُ المالك (‏D767): الميزانيةُ وحدُّ الصفقة وأقصى المراكز والأداةُ والاتجاهُ والوقفان والجني — تُطبَّق على الصفقات الجديدة، والميزانيةُ فوراً."""
+    async with _LOCK:
+        st = load(market)
+        done = apply_settings(st, upd or {})
+        if done:
+            log(st, "manual", "المالك عدّل الإعدادات: " + " · ".join(done) + ".")
+            _point(st)
+        save(st)
+        return done
+
+
 async def toggle(on: bool, market: str = "us") -> dict:
     async with _LOCK:
         st = load(market)
@@ -860,11 +934,7 @@ def view(market: str = "us") -> dict:
         frac, seats = SA.tier(eq)
     else:
         frac, seats = tier(eq)
-    try:
-        from app.services.saqr_bot import bot
-        tg = bool(bot.enabled)
-    except Exception:                                             # noqa: BLE001
-        tg = False
+    seats, _b = seats_budget(st, eq, frac, seats)
     pts = st.get("equity") or []
     return {
         "market": market, "ccy": st.get("ccy", "USD"), "on": st.get("on"), "capital": st["capital"], "goal": st.get("goal", GOAL), "cash": st["cash"], "equity": eq,
@@ -885,7 +955,7 @@ def view(market: str = "us") -> dict:
                      "ret": round((val_open / cost_open - 1) * 100, 1) if cost_open else None},
         "equity_curve": pts[-600:], "signals": st.get("signals") or [], "log": (st.get("log") or [])[:120], "gates": st.get("gates") or [],
         "scan": st.get("scan_meta"), "session": st.get("session"), "last_cycle": st.get("last_cycle"), "last_check": st.get("last_check"),
-        "health": {**(st.get("health") or {}), "telegram": tg}, "broker": st.get("broker") or {"linked": False, "name": "IBKR"},
+        "health": st.get("health") or {}, "settings": cfg(st), "pulse": st.get("pulse"), "broker": st.get("broker") or {"linked": False, "name": "IBKR"},
         "runs": st.get("runs") or [], "running": dict(_JOB if market == "us" else _sa_job()),
         "regime": st.get("regime"), "geo": st.get("geo"),
         "rules": _sa_rules() if market == "sa" else {"fee": FEE, "stop": STOP, "take": TAKE, "dte": [MIN_DTE, MAX_DTE], "max_spread": RULES["max_spread"] * 100,

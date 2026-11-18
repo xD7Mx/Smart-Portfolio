@@ -15,8 +15,12 @@ export type SSignal = { at: string; sym: string; name?: string | null; side?: "c
 export type SLog = { at: string; kind: "buy" | "sell" | "alert" | "manual" | "info" | "error"; text: string; sym?: string | null };
 export type Regime = { verdict: string; state: string; close: number; sma50: number; sma200: number; ret3m: number; chg: number | null };
 export type Geo = { level: "منخفض" | "متوسط" | "مرتفع"; why: string; sectors: string[]; brent: string; n: number; at: string };
+export type Pulse = { at: string; adv: number; dec: number; unch: number; turnover: number; leaders: [string, number][]; laggards: [string, number][];
+  results: { strong: number; neutral: number; weak: number; pending: number; unknown: number }; quarter: string; brent: { px: number; chg: number; chg5: number | null } | null };
+export type SaqrSettings = { per_trade: number | null; max_positions: number | null; instruments: "both" | "options" | "stocks"; sides: "both" | "calls";
+  opt_stop: number; stock_stop: number; take_x: number };
 export type SaqrState = {
-  market: Market; ccy: "USD" | "SAR"; regime?: Regime | null; geo?: Geo | null;
+  market: Market; ccy: "USD" | "SAR"; regime?: Regime | null; geo?: Geo | null; pulse?: Pulse | null; settings?: Partial<SaqrSettings>;
   on: boolean; capital: number; goal: number; cash: number; equity: number; pl: number; pl_pct: number | null; progress: number | null;
   started: string; tier: { frac: number; seats: number }; positions: SPos[]; closed: SClosed[]; n_closed: number; wins: number; losses: number;
   win_rate: number | null; realized: number; fees: number;
@@ -27,7 +31,7 @@ export type SaqrState = {
     full?: { fallback?: boolean; cboe?: number | null; market?: number; optionable?: number; passed?: number; excluded?: Record<string, number>; up?: number; down?: number } } | null;
   session?: { state: string; label: string; detail: string; next: string | null; holiday?: string } | null;
   last_cycle: string | null; last_check: string | null;
-  health: { news?: boolean; events?: boolean; quotes?: string | null; telegram?: boolean };
+  health: { news?: boolean; events?: boolean; quotes?: string | null };
   broker: { linked: boolean; name: string }; runs: { started: string; ended: string; capital: number; equity: number; trades: number }[];
   running: { on: boolean; msg: string; at: string | null };
   rules: any;

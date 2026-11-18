@@ -172,11 +172,13 @@ async def flow():
            "7010": ("neutral", "x", 1.0), "4190": ("pending", "نتائجُ الربع لم تصدر بعد.", None), "2222": ("weak", "صافي الربح −20٪.", -20.0)}
     SA.trend, o_tr = fake_trend, SA.trend
     SA.results_of, o_res = (lambda s, t: res.get(s, ("unknown", "—", None))), SA.results_of
+    from app.services.saqr_bot import bot
     sent = []
 
-    async def fake_n(t):
+    async def fake_send(t, *a, **k):
         sent.append(t)
-    SQ._notify, o_n = fake_n, SQ._notify
+    o_n = (bot.send, bot.enabled)
+    bot.send, bot.enabled = fake_send, True
     try:
         snap = {s: {"price": px, "bid": round(px - .02, 2), "ask": round(px + .02, 2), "turnover": 3e7, "change_pct": 1.2, "name_en": s}
                 for s, px in (("1120", 90.0), ("2010", 70.0), ("7010", 40.0), ("4190", 60.0), ("2222", 25.0))}
@@ -191,7 +193,8 @@ async def flow():
         out = await SA._review(st, now, snap, down, {"level": "منخفض"})
         return pos, verdicts, st, out, sent
     finally:
-        SA.trend, SA.results_of, SQ._notify = o_tr, o_res, o_n
+        SA.trend, SA.results_of = o_tr, o_res
+        bot.send, bot.enabled = o_n
 pos, verdicts, st9, out9, sent9 = asyncio.run(flow())
 check(pos and pos["symbol"] == "1120" and pos["qty"] == SA.shares(min(1000, 1000 * 0.25), 90.02) and pos["stop"] == round(90.02 * SA.STOP, 3)
       and verdicts.get("1120") == "chosen" and verdicts.get("4190") == "refused" and verdicts.get("2222") == "refused" and verdicts.get("7010") == "refused"
@@ -199,8 +202,8 @@ check(pos and pos["symbol"] == "1120" and pos["qty"] == SA.shares(min(1000, 1000
       "٩ الصيد: يختار الشركةَ ذات النتائج القوية والمسار الصاعد والأقوى من تاسي (أسهمٌ صحيحةٌ بربع رأس المال ووقفٍ −6٪)، ويرفض ما لم تصدر نتائجُه "
       "والمخيّبَ والهابطَ والأضعفَ من تاسي — كلٌّ بسببه", f"{pos and (pos['symbol'], pos['qty'])} · {verdicts}")
 manual = next((p for p in st9["positions"] if p["symbol"] == "7010"), None)
-check(any(c["symbol"] == "2010" and c["reason"] == "regime" for c in out9) and manual and manual.get("alert") and any("إشارةُ خروج" in t for t in sent9),
-      "٩ب المراجعة: تاسي ينقلب هابطاً ومركزُ صقر خاسر ⇐ يبيعه؛ ومركزُ المالك اليدويّ يُنبَّه عليه ولا يُمسّ",
+check(any(c["symbol"] == "2010" and c["reason"] == "regime" for c in out9) and manual and manual.get("alert") and not sent9,
+      "٩ب المراجعة: تاسي ينقلب هابطاً ومركزُ صقر خاسر ⇐ يبيعه؛ ومركزُ المالك اليدويّ يُنبَّه عليه في السجلّ ولا يُمسّ — ولا تلغرام (‏D767)",
       f"{[(c['symbol'], c['reason']) for c in out9]} · {manual and manual.get('alert')}")
 
 # ١٠ الجدولةُ والنقاطُ والمصدر

@@ -491,6 +491,7 @@ _node scripts/audit/live_options_d761.mjs || _note "$LINENO"   # ‏D761: شار
 python3 scripts/audit/saqr_d763.py || _note "$LINENO"   # ‏D763: صقر — دفترُه وقواعدُ دخوله وخروجه وبوّاباتُه وأوامرُ المالك، والتقريرُ في مفكرة السوق
 python3 scripts/audit/saqr_d764.py || _note "$LINENO"   # ‏D764: صقر للسوقين — دفترٌ لكلٍّ وعمولاتُه، والسهمُ بدل العقد، والسعوديّ بالنتائج وتاسي والأحداث، والشعار
 python3 scripts/audit/saqr_d766.py || _note "$LINENO"   # ‏D766: صقر يغطّي كلَّ ورقةٍ لها عقودُ خيارات، والأساسُ قبل الفنّ
+python3 scripts/audit/saqr_d767.py || _note "$LINENO"   # ‏D767: صقرُ التداول بلا تلغرام، وأوامرُ المالك، وبلا IBKR، والسعوديُّ بنبض سوقه
 _node scripts/audit/saqr_d763.mjs || _note "$LINENO"   # ‏D763: المفكرةُ بالتقرير، وتبويباتُ المختبر الثلاثة، والمحفظةُ ولوحةُ صقر في المظهرين
 python3 scripts/audit/research_archive_d749.py || _note "$LINENO"   # ‏D749: أرشيفُ التقارير لجميع الجلسات — كلُّ جلسةٍ بأرقامها هي
 python3 scripts/audit/robo_orders_d750.py || _note "$LINENO"   # ‏D750: أوامرُ المستشار الآليّ — بأرقامها وبوّاباتها واعتماد المالك

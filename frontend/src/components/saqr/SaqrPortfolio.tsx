@@ -87,6 +87,12 @@ export default function SaqrPortfolio() {
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({ contract: "", qty: "1", price: "" });
   const [reset, setReset] = useState<string | null>(null);
+  /* ‏D767 (المالك): «أضف خيارَ تحديد الميزانية — 150 أو 100» — تُعدَّل بلا محوٍ للسجلّ: الفرقُ يُضاف إلى النقد أو يُسحب منه */
+  const [bud, setBud] = useState<string | null>(null);
+  const budM = useMutation({
+    mutationFn: (b: number) => marketApi.saqrSettings({ budget: b }, market),
+    onSuccess: r => { qc.setQueryData(["saqr", market], r.data.data); setBud(null); },
+  });
   const open = useMutation({
     mutationFn: () => marketApi.saqrOpen(f.contract.trim().toUpperCase(), Number(f.qty) || 1, f.price ? Number(f.price) : null, market),
     onSuccess: r => { qc.setQueryData(["saqr", market], r.data.data); setAdding(false); setF({ contract: "", qty: "1", price: "" }); },
@@ -108,6 +114,18 @@ export default function SaqrPortfolio() {
         <div className="sp-kpi big"><small>رأسُ المال الآن</small><b><Num v={usd(s.equity)} /></b>
           <span className={tone(s.pl)}><Num v={susd(s.pl)} /> (<Num v={spct(s.pl_pct)} />) منذ البداية</span></div>
         <div className="sp-kpi"><small>النقد</small><b><Num v={usd(s.cash)} /></b><span>للصفقة الواحدة حتى <Num v={`${Math.round(s.tier.frac * 100)}%`} /> · <Num v={`${s.tier.seats}`} /> مراكز</span></div>
+        <div className="sp-kpi" data-role="sp-budget"><small>الميزانية</small>
+          {bud == null
+            ? <b className="sp-bud"><Num v={usd(s.capital)} />{owner && <button type="button" className="btn-ghost sp-btn" onClick={() => setBud(String(s.capital))} data-role="sp-budget-edit">تعديل</button>}</b>
+            : <form className="sp-budf" onSubmit={e => { e.preventDefault(); const b = Number(bud); if (b >= 10) budM.mutate(b); }}>
+                <input className="sp-in" type="number" min={10} step={10} dir="ltr" value={bud} onChange={e => setBud(e.target.value)} aria-label="الميزانية" data-role="sp-budget-in" />
+                {(market === "sa" ? [1000, 5000] : [100, 150, 300]).map(v => <button key={v} type="button" className={"seg-btn chip" + (Number(bud) === v ? " on" : "")} onClick={() => setBud(String(v))}><Num v={usd(v, 0)} /></button>)}
+                <button type="submit" className="btn-primary sp-btn" disabled={budM.isPending} data-role="sp-budget-ok">حفظ</button>
+                <button type="button" className="btn-ghost sp-btn" onClick={() => setBud(null)}>تراجع</button>
+                {budM.isError && <span className="sp-err">{err(budM.error)}</span>}
+              </form>}
+          <span>يُحدّد ما يعمل به صقر — بلا محوٍ للسجلّ</span>
+        </div>
         <div className="sp-kpi"><small>المحقَّق</small><b className={tone(s.realized)}><Num v={susd(s.realized)} /></b><span>العمولات <Num v={usd(s.fees)} /></span></div>
         <div className="sp-goal" data-role="sp-goal">
           <div className="sp-goal-h"><span>من <Num v={usd(s.capital, 0)} /> إلى <Num v={usd(s.goal, 0)} /></span><b><Num v={`×${mult.toFixed(2)}`} /> من <Num v={`×${goalX.toFixed(0)}`} /></b></div>

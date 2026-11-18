@@ -2318,6 +2318,19 @@ async def saqr_toggle(payload: dict):
     return success_response(SQ.view(m))
 
 
+@router.post("/saqr/settings", dependencies=[Depends(require_owner)])
+async def saqr_settings(payload: dict):
+    """أوامرُ المالك (‏D767): الميزانيةُ (تُعدَّل بلا محوٍ للسجلّ) وحدُّ الصفقة وأقصى المراكز والأداةُ والاتجاهُ والوقفان والجني."""
+    from app.services import saqr_trader as SQ
+    p = dict(payload or {})
+    m = _mkt(p.pop("market", None))
+    try:
+        await SQ.settings(p, m)
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=422, detail=str(e) or "مدخلاتٌ غيرُ صالحة.")
+    return success_response(SQ.view(m))
+
+
 @router.post("/saqr/capital", dependencies=[Depends(require_owner)])
 async def saqr_capital(payload: dict):
     """تجربةٌ جديدة برأس مالٍ يحدّده المالك — بتأكيدٍ صريح، والسابقةُ تُحفظ ملخّصة."""

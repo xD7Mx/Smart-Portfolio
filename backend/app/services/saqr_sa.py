@@ -6,7 +6,7 @@
 
 فاستراتيجيتُه من خبرة المالك نفسِها، وكلُّ ركنٍ من مصدرٍ في التطبيق:
   ١ تاسي أوّلاً: مسارُه من شموعه اليومية — هابطٌ ⇐ لا دخول (الشركاتُ تتبعه)، وعرضيٌّ ⇐ نصفُ الحجم، ويومُ هلعٍ (−1.5٪) ⇐ لا دخولَ اليوم.
-  ٢ الأحداثُ الجيوسياسية: النموذجُ يقرأ عناوينَ السوق في 36 ساعة ومعها حركةُ برنت ⇐ خطرٌ (منخفض · متوسّط · مرتفع) بسببه — المرتفعُ
+  ٢ المخاطرُ الكلّية (داخليّةٌ لا تُعرض — ‏D767): النموذجُ يقرأ عناوينَ السوق في 36 ساعة ومعها حركةُ برنت ⇐ خطرٌ (منخفض · متوسّط · مرتفع) — المرتفعُ
      يمنع الدخولَ ويُخرج الخاسر، والمتوسّطُ (أو تعذُّرُ القراءة) نصفُ الحجم.
   ٣ النتائجُ الربعية (أرقام · إعلاناتُ تداول): نموُّ صافي الربح عن الربع المماثل 15٪ فأكثر بإعلانٍ حديث ⇐ محفّز؛ خسارةٌ أو تراجعٌ 15٪ ⇐
      مستبعَد؛ وربعٌ انتهى ونتائجُه لم تصدر في مهلتها ⇐ لا دخولَ قبل المفاجأة.
@@ -17,7 +17,6 @@
 الجيوسياسيّ المرتفع على مركزٍ خاسر، ونتائجُ مخيّبةٌ صدرت بعد الدخول، وستّةُ أسابيع بلا تقدّم. والدفترُ مستقلٌّ (‏saqr/ledger_sa.json) لا يمسّ
 محفظةَ المالك — وقراءةُ الأخبار من قاعدة البيانات قراءةٌ لا كتابة."""
 import asyncio
-import html
 import math
 import re
 from datetime import date, datetime, timedelta, timezone
@@ -272,6 +271,55 @@ def screen(row: dict, tasi_chg: float | None) -> str | None:
     return None
 
 
+async def brent() -> dict | None:
+    """خامُ برنت: آخرُ إغلاقٍ وتغيّرُ اليوم وخمسةِ أيام — مخبّأٌ نصفَ ساعة."""
+    from app.services import cache
+    from app.services.market_data import market_service as M
+    hit = cache.get("saqr:sa:brent")
+    if hit is not None:
+        return hit
+    try:
+        bb = [float(b["close"]) for b in (await asyncio.wait_for(M.get_bars("BZ=F", "1d"), 20) or []) if b.get("close")][-6:]
+    except Exception:                                             # noqa: BLE001
+        return None
+    if len(bb) < 2:
+        return None
+    out = {"px": round(bb[-1], 2), "chg": round((bb[-1] / bb[-2] - 1) * 100, 2), "chg5": round((bb[-1] / bb[0] - 1) * 100, 2) if len(bb) >= 6 else None}
+    cache.set("saqr:sa:brent", out, 1800)
+    return out
+
+
+def pulse(snap: dict, today: date, oil: dict | None = None) -> dict:
+    """نبضُ السوق السعوديّ من لقطة «تداول» الحيّة (‏D767 — المالك: «أعد صياغتها بشكلٍ احترافيّ»): اتّساعُ السوق (صاعدةٌ · هابطةٌ · ثابتة)،
+    وقيمةُ التداول، والقطاعاتُ القائدةُ والمتأخّرة (متوسّطُ تغيّر شركاتها مرجّحاً بقيمة تداولها)، وموسمُ النتائج الربعية، وخامُ برنت."""
+    from collections import Counter
+    from app.data.saudi_directory import SYMBOL_TO_SECTOR_AR as SEC
+    adv = dec = unch = 0
+    turnover = 0.0
+    sect: dict[str, list[float]] = {}
+    for sym, r in snap.items():
+        ch, tv = r.get("change_pct"), r.get("turnover") or 0
+        turnover += tv
+        if not isinstance(ch, (int, float)):
+            continue
+        if ch > 0.05:
+            adv += 1
+        elif ch < -0.05:
+            dec += 1
+        else:
+            unch += 1
+        sec = SEC.get(sym)
+        if sec and tv and sec != "صناديق المؤشرات المتداولة":
+            a = sect.setdefault(sec, [0.0, 0.0])
+            a[0] += ch * tv
+            a[1] += tv
+    ranked = sorted(((k, round(v[0] / v[1], 2)) for k, v in sect.items() if v[1] > 0), key=lambda kv: -kv[1])
+    res = Counter(results_of(sym, today)[0] for sym in snap)
+    return {"at": SQ._iso(), "adv": adv, "dec": dec, "unch": unch, "turnover": round(turnover), "leaders": ranked[:3], "laggards": ranked[::-1][:3],
+            "results": {k: res.get(k, 0) for k in ("strong", "neutral", "weak", "pending", "unknown")}, "quarter": quarter_end(today).isoformat(),
+            "brent": oil}
+
+
 def rules() -> dict:
     return {"market": "sa", "fee_pct": SQ.FEE_SA * 100, "stop": STOP, "trail": list(SQ.STOCK_TRAIL), "time_days": SQ.STOCK_TIME_DAYS,
             "min_turnover": MIN_TURNOVER, "max_spread": MAX_SPREAD * 100, "growth": GROWTH, "tasi_panic": TASI_PANIC, "day_loss": DAY_LOSS * 100,
@@ -317,7 +365,6 @@ async def _review(st: dict, now: datetime, snap: dict, reg: dict | None, g: dict
             if p.get("alert") != code:
                 p["alert"] = code
                 SQ.log(st, "alert", f"إشارةُ خروجٍ لمركزك اليدويّ {SQ._title(p)}: {SQ.REASON_AR[code]} — {why}", p["symbol"])
-                await SQ._notify(f"🦅 <b>صقر السعوديّ — إشارةُ خروج</b>\n{html.escape(SQ._title(p))}\n{html.escape(SQ.REASON_AR[code])}: {html.escape(why)}")
             continue
         if not bid:
             continue
@@ -326,26 +373,27 @@ async def _review(st: dict, now: datetime, snap: dict, reg: dict | None, g: dict
             out.append(c)
             SQ.log(st, "sell", f"بيع {c['qty']:g} سهم من {SQ._title(c)} بسعر {bid:.2f} — {SQ.REASON_AR[code]}: {why} · النتيجة {c['pl']:+,.2f} ريال "
                                f"({c['pl_pct']:+.1f}٪) بعد العمولات.", c["symbol"])
-            await SQ._notify(f"🦅 <b>صقر السعوديّ — بيع</b>\n{html.escape(SQ._title(c))}\n{c['qty']:g} سهم × {bid:.2f} · {html.escape(SQ.REASON_AR[code])}\n"
-                             f"النتيجة {c['pl']:+,.2f} ريال ({c['pl_pct']:+.1f}٪) بعد العمولات\nرأس المال الآن {SQ.equity(st):,.2f} ريال")
     return out
 
 
 async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) -> dict | None:
     eq = SQ.equity(st)
     frac, seats = tier(eq)
+    fac, fac_why = size_factor(reg, g)
+    seats, budget = SQ.seats_budget(st, eq, frac * fac, seats)
+    c = SQ.cfg(st)
     if len(st["positions"]) >= seats:
         return None
-    fac, fac_why = size_factor(reg, g)
-    budget = min(st["cash"], eq * frac * fac)
     today = now.date()
     held = {p["symbol"] for p in st["positions"]}
     tasi_chg = reg.get("chg")
+    from app.data.saudi_directory import SUSPENDED, SYMBOL_TO_NAME
     sig, pool = [], []
     _JOB["msg"] = "قراءةُ الشركات ونتائجها"
     for sym, row in snap.items():
-        if sym in held or SQ.cooling(st, sym, now):
+        if sym in held or sym in SUSPENDED or SQ.cooling(st, sym, now):
             continue
+        row = {**row, "name_en": SYMBOL_TO_NAME.get(sym) or row.get("name_en")}
         why = screen(row, tasi_chg)
         if why:
             continue
@@ -377,7 +425,7 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
         hi = tr.get("hi52") or 0
         tgt, lbl = (min(hi, ask * 1.25), "قمّة السنة") if hi >= ask * 1.10 else (round(ask * 1.12, 2), "+12٪")
         k = {"contract": sym, "symbol": sym, "name": row.get("name_en"), "type": "stock", "ask": ask, "bid": row.get("bid"), "price": row.get("price"),
-             "stop": round(ask * STOP, 3), "target": round(tgt, 2), "target_label": lbl, "score": round(score, 1), "results": txt, "results_state": stt,
+             "stop": round(ask * (1 - c["stock_stop"] / 100), 3), "target": round(tgt, 2), "target_label": lbl, "score": round(score, 1), "results": txt, "results_state": stt,
              "tr": tr, "rs3": rs3, "chg": row.get("change_pct")}
         sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "accepted", "contract": sym, "score": k["score"],
                     "why": f"{txt} · أقوى من تاسي بـ{rs3:+.1f} نقطة في ثلاثة أشهر · فوق متوسّط 50"})
@@ -393,7 +441,7 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
                    f"النتائج: {best['results']}",
                    f"المسارُ صاعد: الإغلاق {tr['close']:,.2f} فوق متوسّط 50 ({tr['sma50']:,.2f})، وأقوى من تاسي بـ{best['rs3']:+.1f} نقطة في ثلاثة أشهر.",
                    f"الأحداث: {g['level']} — {g.get('why') or ''}" if g else "الأحداث: قراءتُها غيرُ متوفّرة الآن.",
-                   f"الوقف {best['stop']:.2f} (−6٪) والهدف {best['target']:,.2f} ({best['target_label']})." + (f" {fac_why}." if fac_why else "")]
+                   f"الوقف {best['stop']:.2f} (−{c['stock_stop']:g}٪) والهدف {best['target']:,.2f} ({best['target_label']})." + (f" {fac_why}." if fac_why else "")]
             pos = SQ.buy(st, best, qty, why, kind="stock")
             pos["results_state"] = best["results_state"]
             st["day"]["new"] = (st["day"].get("new") or 0) + 1
@@ -402,8 +450,6 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
                     x["verdict"] = "chosen"
             SQ.log(st, "buy", f"شراء {qty} سهم من {SQ._title(pos)} بسعر {pos['entry_px']:.2f} (الكلفة مع العمولة {pos['cost']:,.2f} ريال) — "
                               f"الوقف {pos['stop']:.2f} والهدف {pos['target']:,.2f}.", pos["symbol"])
-            await SQ._notify(f"🦅 <b>صقر السعوديّ — شراء</b>\n{html.escape(SQ._title(pos))}\n{qty} سهم × {pos['entry_px']:.2f} = {pos['cost']:,.2f} ريال مع العمولة\n"
-                             f"الوقف {pos['stop']:.2f} · الهدف {pos['target']:,.2f}\n" + html.escape(why[1]))
         else:
             sig.append({"sym": best["symbol"], "verdict": "refused", "why": f"ميزانيةُ الصفقة {budget:,.0f} ريال لا تتّسع لسهمٍ واحد بـ{best['ask']:.2f}"})
     order = {"chosen": 0, "accepted": 1, "refused": 2}
@@ -439,6 +485,7 @@ async def cycle(force: bool = False) -> dict:
             reg, g = await regime(), await geo()
             st["regime"] = {k: reg.get(k) for k in ("verdict", "state", "close", "sma50", "sma200", "ret3m", "chg")} if reg else None
             st["geo"] = g
+            st["pulse"] = pulse(snap, now.date(), await brent())
             st["health"]["news"] = g is not None
             st["health"]["events"] = reg is not None
             _JOB["msg"] = "مراجعةُ المراكز"
