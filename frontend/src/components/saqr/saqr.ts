@@ -18,9 +18,10 @@ export type Geo = { level: "منخفض" | "متوسط" | "مرتفع"; why: stri
 export type Pulse = { at: string; adv: number; dec: number; unch: number; turnover: number; leaders: [string, number][]; laggards: [string, number][];
   results: { strong: number; neutral: number; weak: number; pending: number; unknown: number }; quarter: string; brent: { px: number; chg: number; chg5: number | null } | null };
 export type SaqrSettings = { per_trade: number | null; max_positions: number | null; instruments: "both" | "options" | "stocks"; sides: "both" | "calls";
-  opt_stop: number; stock_stop: number; take_x: number };
+  opt_stop: number; stock_stop: number; take_x: number; mode: "attack" | "balanced"; day_target: number | null };
+export type DayState = { date: string | null; pl: number | null; target: number | null; hit: string | null; new: number; progress: number | null };
 export type SaqrState = {
-  market: Market; ccy: "USD" | "SAR"; regime?: Regime | null; geo?: Geo | null; pulse?: Pulse | null; settings?: Partial<SaqrSettings>;
+  market: Market; ccy: "USD" | "SAR"; day?: DayState | null; regime?: Regime | null; geo?: Geo | null; pulse?: Pulse | null; settings?: Partial<SaqrSettings>;
   on: boolean; capital: number; goal: number; cash: number; equity: number; pl: number; pl_pct: number | null; progress: number | null;
   started: string; tier: { frac: number; seats: number }; positions: SPos[]; closed: SClosed[]; n_closed: number; wins: number; losses: number;
   win_rate: number | null; realized: number; fees: number;
@@ -75,5 +76,15 @@ export const hhmm = (iso?: string | null) => {
 export const dday = (iso?: string | null) => {
   if (!iso) return "—";
   try { return new Date(iso).toLocaleDateString("en-GB", { ...RY, day: "2-digit", month: "2-digit" }); } catch { return "—"; }
+};
+/** «19/11 17:42» بتوقيت الرياض — تاريخُ الصفقة ووقتُها (‏D768: «بعد إيقاف تلغرام ضع تاريخ الصفقة والوقت الذي بدأت فيه») */
+export const stamp = (iso?: string | null) => (iso ? `${dday(iso)} ${hhmm(iso)}` : "—");
+/** المدّة: «45 د» · «3 س 10 د» · «2 ي 4 س» — حتى الآن أو حتى الخروج؛ تُعرض من اليمين (‏<Dur>) لا في حاوية الأرقام اللاتينية */
+export const held = (from?: string | null, to?: string | null) => {
+  if (!from) return "—";
+  const m = Math.round(((to ? new Date(to).getTime() : Date.now()) - new Date(from).getTime()) / 60000);
+  if (!isFinite(m)) return "—";
+  const v = Math.max(0, m), d = Math.floor(v / 1440), h = Math.floor((v % 1440) / 60), mm = v % 60;
+  return d ? (h ? `${d} ي ${h} س` : `${d} ي`) : h ? (mm ? `${h} س ${mm} د` : `${h} س`) : `${mm} د`;
 };
 export const tone = (v: number | null | undefined) => (v == null || v === 0 ? "" : v > 0 ? "pos" : "neg");

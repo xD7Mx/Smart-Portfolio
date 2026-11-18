@@ -79,6 +79,7 @@ d0 = datetime(2026, 11, 18, tzinfo=NY).date()
 op, cl = datetime.combine(d0, datetime.min.time().replace(hour=9, minute=30), NY), datetime.combine(d0, datetime.min.time().replace(hour=16), NY)
 clock = (op, cl)
 st = SQ.fresh()
+st["settings"] = {"mode": "balanced"}   # ‏D768: هذه عتباتُ النمط المتوازن — والهجوميُّ في saqr_d768.py
 mid = op + timedelta(hours=2)
 g_ok = SQ.gates(st, mid, clock, [])
 g_open = SQ.gates(st, op + timedelta(minutes=5), clock, [])
@@ -94,6 +95,7 @@ check(not g_ok and g_open and "ربع ساعة" in g_open[0] and g_close and "ع
       "٥ البوّابات: لا دخولَ في أوّل ربع ساعةٍ ولا آخرِ عشرين دقيقة ولا خارج الجلسة، ولا قبل حدثٍ عالي الأثر بساعتين (والفيدراليُّ بيوم) — "
       "والبعيدُ والمتوسّطُ الأثر لا يمنعان", f"{len(g_ok)} · {g_open[:1]} · {g_cpi[:1]}")
 st = SQ.fresh()
+st["settings"] = {"mode": "balanced"}
 st["day"] = {"date": "2026-11-18", "start_eq": 200.0, "new": 0}
 st["cash"] = 165.0
 g_brk = SQ.gates(st, mid, clock, [])
@@ -104,6 +106,7 @@ g_off = SQ.gates(st, mid, clock, [])
 check(any("قاطعُ اليوم" in x for x in g_brk) and any("حدُّه اليوميّ" in x for x in g_max) and any("موقوف" in x for x in g_off),
       "٥ب قاطعُ اليوم عند خسارة 15٪، والحدُّ ثلاثُ صفقاتٍ يومياً، وصقرٌ الموقوفُ لا يدخل", " | ".join(g_brk + g_max)[:120])
 st = SQ.fresh()
+st["settings"] = {"mode": "balanced"}
 st["closed"] = [{"symbol": "NIO", "reason": "stop", "closed": (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()},
                 {"symbol": "F", "reason": "take", "closed": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()},
                 {"symbol": "AAL", "reason": "stop", "closed": (datetime.now(timezone.utc) - timedelta(days=9)).isoformat()}]

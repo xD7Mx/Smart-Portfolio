@@ -5,15 +5,16 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { LineChart, Plus, X, RotateCcw, Target } from "lucide-react";
+import { LineChart, Plus, X, RotateCcw, Target, Clock } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import CompanyLogo from "../common/CompanyLogo";
 import { optionTitle, parseOption, dayMonth, daysTo } from "../../lib/options";
-import { useSaqr, useSaqrMarket, money, smoney, spct, px, dday, tone, type SPos, type Market } from "./saqr";
+import { useSaqr, useSaqrMarket, money, smoney, spct, px, dday, stamp, held, tone, type SPos, type Market } from "./saqr";
 import MarketSwitch from "./MarketSwitch";
 
 const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="ltr" className={"tabular-nums " + (className || "")}>{v}</bdi>;
+const Dur = ({ v, className }: { v: string; className?: string }) => <bdi dir="rtl" className={"tabular-nums " + (className || "")}>{v}</bdi>;
 const lsSet = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* */ } };
 const title = (c: string) => { const o = parseOption(c); return o ? optionTitle(o) : c; };
 const err = (e: any) => e?.response?.data?.detail || "تعذّر التنفيذ";
@@ -38,11 +39,12 @@ function Position({ p, owner, onChart, i, market, ccy }: { p: SPos; owner: boole
       <header className="sp-pos-h">
         <CompanyLogo symbol={market === "sa" ? `${p.symbol}.SR` : p.symbol} size={26} />
         {stock
-          ? <span className="sp-pos-t"><b><Num v={p.symbol} />{p.name ? ` · ${p.name}` : ""}</b><small>منذ {dday(p.opened)}</small></span>
+          ? <span className="sp-pos-t"><b><Num v={p.symbol} />{p.name ? ` · ${p.name}` : ""}</b><small>سهمٌ بلا أجل</small></span>
           : <span className="sp-pos-t"><b>{title(p.contract)}</b><small>ينتهي {dayMonth(p.expiry || "")} · <Num v={`${dte}`} /> يوماً</small></span>}
         <span className={"sp-chip " + (p.src === "manual" ? "man" : "auto")}>{p.src === "manual" ? "يدويّ" : "صقر"}</span>
         <span className="sp-side" data-side={stock ? "stock" : p.type}>{stock ? "سهم" : call ? "Call" : "Put"}</span>
       </header>
+      <p className="sp-when" data-role="sp-opened"><Clock size={12} aria-hidden /> فُتحت <Num v={stamp(p.opened)} /> <span className="sp-sub">· منذ <Dur v={held(p.opened)} /></span></p>
       <div className="sp-pos-m">
         <span><small>{stock ? "الأسهم" : "العقود"}</small><b><Num v={`${p.qty}`} /></b></span>
         <span><small>سعرُ الشراء</small><b><Num v={px(p.entry_px)} /></b></span>
@@ -113,7 +115,7 @@ export default function SaqrPortfolio() {
       <section key={market} className="sp-sum card card-rise" data-role="sp-sum">
         <div className="sp-kpi big"><small>رأسُ المال الآن</small><b><Num v={usd(s.equity)} /></b>
           <span className={tone(s.pl)}><Num v={susd(s.pl)} /> (<Num v={spct(s.pl_pct)} />) منذ البداية</span></div>
-        <div className="sp-kpi"><small>النقد</small><b><Num v={usd(s.cash)} /></b><span>للصفقة الواحدة حتى <Num v={`${Math.round(s.tier.frac * 100)}%`} /> · <Num v={`${s.tier.seats}`} /> مراكز</span></div>
+        <div className="sp-kpi"><small>النقد</small><b><Num v={usd(s.cash)} /></b><span>للصفقة الواحدة {s.settings?.mode === "attack" && s.settings?.per_trade ? <Num v={usd(s.settings.per_trade, 0)} /> : <>حتى <Num v={`${Math.round(s.tier.frac * 100)}%`} /></>} · <Num v={`${s.tier.seats}`} /> مراكز</span></div>
         <div className="sp-kpi" data-role="sp-budget"><small>الميزانية</small>
           {bud == null
             ? <b className="sp-bud"><Num v={usd(s.capital)} />{owner && <button type="button" className="btn-ghost sp-btn" onClick={() => setBud(String(s.capital))} data-role="sp-budget-edit">تعديل</button>}</b>
@@ -127,6 +129,11 @@ export default function SaqrPortfolio() {
           <span>يُحدّد ما يعمل به صقر — بلا محوٍ للسجلّ</span>
         </div>
         <div className="sp-kpi"><small>المحقَّق</small><b className={tone(s.realized)}><Num v={susd(s.realized)} /></b><span>العمولات <Num v={usd(s.fees)} /></span></div>
+        {s.day?.target ? (
+          <div className="sp-kpi" data-role="sp-day"><small>ربحُ اليوم</small><b className={tone(s.day.pl)}><Num v={susd(s.day.pl)} /></b>
+            <span>الهدف <Num v={usd(s.day.target, 0)} />{s.day.hit ? " — بلغه ✓" : ""}</span>
+            <span className="sp-bar"><i style={{ width: `${s.day.progress ?? 0}%` }} /></span></div>
+        ) : null}
         <div className="sp-goal" data-role="sp-goal">
           <div className="sp-goal-h"><span>من <Num v={usd(s.capital, 0)} /> إلى <Num v={usd(s.goal, 0)} /></span><b><Num v={`×${mult.toFixed(2)}`} /> من <Num v={`×${goalX.toFixed(0)}`} /></b></div>
           <span className="sp-bar gold"><i style={{ width: `${s.progress ?? 0}%` }} /></span>
@@ -169,7 +176,7 @@ export default function SaqrPortfolio() {
             {s.closed.map(c => (
               <div key={c.id + c.closed} className="sp-tr" role="row" data-role="sp-closed-row">
                 <span><b>{c.kind === "stock" ? <><Num v={c.symbol} />{c.name ? ` · ${c.name}` : ""}</> : title(c.contract)}</b> <Num v={`×${c.qty}`} className="sp-sub" /></span>
-                <span><Num v={`${dday(c.opened)} ⇐ ${dday(c.closed)}`} /></span>
+                <span data-role="sp-closed-time"><Num v={`${stamp(c.opened)} ⇐ ${stamp(c.closed)}`} /> <Dur v={held(c.opened, c.closed)} className="sp-sub" /></span>
                 <span><Num v={`${px(c.entry_px)} ⇐ ${px(c.exit_px)}`} /></span>
                 <span className={tone(c.pl)}><Num v={susd(c.pl)} /> <Num v={spct(c.pl_pct)} className="sp-sub" /></span>
                 <span className="sp-reason">{c.reason_ar}</span>

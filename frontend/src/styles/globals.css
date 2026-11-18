@@ -3926,3 +3926,12 @@ html.light {
 .sp-budf { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; animation: fadeUp .22s ease-out both; }
 .sp-budf .seg-btn { min-height: 34px; }
 @media (prefers-reduced-motion: reduce) { .sq-ok, .sp-budf { animation: none; } .sq-bar2 i { transition: none; } }
+
+/* ══ ‏D768: وقتُ كلّ صفقة، وهدفُ اليوم، والنمطُ الهجوميّ ══ */
+.sp-when { display: flex; align-items: center; gap: 5px; margin: 0; font-size: 11.5px; font-weight: 600; color: var(--ink-muted); }
+.sp-when svg { flex: none; }
+[data-role="sp-closed-time"] { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+[data-role="sp-closed-time"] .sp-sub { color: var(--ink-muted); }
+[data-role="sp-day"] .sp-bar, [data-role="sq-day"] .sp-bar { margin-top: 4px; }
+[data-role="sq-day"] h4 svg { color: var(--amber-ink); vertical-align: -2px; }
+.sq-set-note { grid-column: 1 / -1; line-height: 1.7; }

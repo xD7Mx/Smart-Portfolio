@@ -64,11 +64,13 @@ const STATE = {
     { at: iso(now - 99000e3), kind: "info", text: "بدأت تجربةٌ جديدة برأس مال 100.00 دولار — والهدف 10,000." }],
   gates: [], scan: { at: iso(now - 600e3), universe: 131, movers: 41, pool: 24, deep: 8, budget: 68.6, tier: { frac: 0.5, seats: 2 },
     full: { cboe: 5407, market: 3183, optionable: 2791, passed: 812, excluded: { "منطقةُ الضيق المالي": 251, "دينٌ مفرط": 49 } } },
-  settings: { per_trade: null, max_positions: null, instruments: "both", sides: "both", opt_stop: 40, stock_stop: 7, take_x: 2 },
+  settings: { per_trade: 100, max_positions: null, instruments: "both", sides: "both", opt_stop: 40, stock_stop: 7, take_x: 2, mode: "attack", day_target: 100 },
+  day: { date: "2026-11-19", pl: 37.2, target: 100, hit: null, new: 1, progress: 37.2 },
   session: SES.us, last_cycle: iso(now - 120e3), last_check: iso(now - 120e3),
   health: { news: true, events: true, quotes: iso(now - 120e3) }, broker: { linked: false, name: "IBKR" },
   runs: [{ started: iso(now - 30 * 86400e3), ended: iso(now - 9 * 86400e3), capital: 100, equity: 81.4, trades: 6 }], running: { on: false, msg: "", at: null },
-  rules: { fee: 0.65, stop: 0.6, take: 2, dte: [21, 200], max_spread: 8, delta: [0.35, 0.8], burn: 3, exit_dte: 14, day_loss: 15, max_new_day: 3,
+  rules: { fee: 0.65, stop: 0.6, take: 2, dte: [7, 60], max_spread: 8, delta: [0.3, 0.75], burn: 10, exit_dte: 3, day_loss: 20, max_new_day: 10,
+    mode: "attack", scan_min: 5, fight: 2.5, open_wait: 10, close_wait: 15, fed_h: 4, trail: [1.3, 1.5, 0.8], warn_ok: true, cool: 2,
     tiers: [[500, 0.5, 2], [2000, 0.3, 3], [10000, 0.2, 5], [null, 0.1, 8]] },
 };
 // ‏D764: السوقُ السعوديّ — أسهمُ شركاتٍ بالريال، وقراءةُ تاسي والأحداث
@@ -80,7 +82,7 @@ const SA_STATE = { ...STATE, market: "sa", ccy: "SAR", capital: 1000, goal: 1000
   closed: [], n_closed: 0, wins: 0, losses: 0, win_rate: null, realized: 0, fees: 0.28, today: { wins: 0, losses: 0, realized: 0, new: 1 },
   exposure: { contracts: 2, cost: 180.32, value: 182.4, ret: 1.2 },
   regime: { verdict: "صاعد", state: "صاعد", close: 11500, sma50: 11300, sma200: 11000, ret3m: 4.2, chg: 0.35 },
-  settings: { per_trade: null, max_positions: null, instruments: "both", sides: "both", opt_stop: 40, stock_stop: 6, take_x: 2 },
+  settings: { per_trade: null, max_positions: null, instruments: "both", sides: "both", opt_stop: 40, stock_stop: 6, take_x: 2, mode: "balanced", day_target: null }, day: null,
   pulse: { at: iso(now), adv: 141, dec: 102, unch: 29, turnover: 5.24e9, leaders: [["البنوك", 1.16], ["الاتصالات", 0.62], ["التأمين", 0.41]],
     laggards: [["الطاقة", -1.2], ["المواد الأساسية", -0.8], ["النقل", -0.3]], results: { strong: 88, neutral: 71, weak: 111, pending: 0, unknown: 2 },
     quarter: "2026-09-30", brent: { px: 88.55, chg: -4.9, chg5: -4.5 } },
@@ -202,7 +204,7 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   await page.locator('[data-role="sq-nav"] [data-view="rules"]').click(); await page.waitForTimeout(500);
   const rules = await page.locator('[data-role="sq-rules"]').textContent().catch(() => "");
   say(JSON.stringify(sig) === JSON.stringify(["chosen", "accepted", "refused", "refused"]) && /2791/.test(scan) && /812/.test(scan) && /300/.test(fundSum || "")
-      && JSON.stringify(logs) === JSON.stringify(["buy", "sell", "alert", "info"]) && /21–200/.test(rules) && /8%/.test(rules),
+      && JSON.stringify(logs) === JSON.stringify(["buy", "sell", "alert", "info"]) && /7–60/.test(rules) && /8%/.test(rules) && /هجوميّ/.test(rules),
       `${label}: ٥ الإشاراتُ بقبولها ورفضها وأسبابها (وكم ورقةً لها عقودُ خيارات قرأ وكم اجتاز الأساس، وأعدادُ المستبعَد — ‏D766)، والسجلُّ بأنواعه، والقواعدُ بأرقامها`, `${sig.join(",")} · ${logs.join(",")} · ${(scan || "").slice(0, 90)} · ${fundSum} · ${rules.slice(0, 60)}`);
   await page.locator('[data-role="sq-nav"] [data-view="dash"]').click(); await page.waitForTimeout(400);
   await page.locator('[data-role="sq-toggle"]').click(); await page.waitForTimeout(700);
@@ -283,9 +285,26 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
     r?.querySelectorAll("button, input").forEach(b => { const x = b.getBoundingClientRect(); if (x.width && x.height && b.offsetParent) minT = Math.min(minT, x.height); });
     return { minT, over: document.documentElement.scrollWidth - document.documentElement.clientWidth }; });
   say(pBud.length === 1 && pBud[0].market === "sa" && Number(pBud[0].budget) === 1000 && pSet.length === 2 && pSet[1].market === "us" && String(pSet[1].budget) === "150"
-      && String(pSet[1].per_trade) === "40" && pSet[1].sides === "calls" && /حُفظت الأوامر/.test(savedMsg || "") && ms.minT >= 32 && ms.over <= 1,
+      && String(pSet[1].per_trade) === "40" && pSet[1].sides === "calls" && pSet[1].mode === "attack" && String(pSet[1].day_target) === "100"
+      && /حُفظت الأوامر/.test(savedMsg || "") && ms.minT >= 32 && ms.over <= 1,
       `${label}: ١٢ الميزانيةُ تُعدَّل من المحفظة (1,000 ر.س للسعوديّ)، وأوامرُ المالك في «الإعدادات» (150$ · حدُّ صفقةٍ 40 · شراءٌ فقط) تُحفظ لسوقها`,
       JSON.stringify({ pBud, last: pSet[1], ms }).slice(0, 220));
+  /* ١٣ ‏D768: «بعد إيقاف تلغرام ضع تاريخ الصفقة ووقتَ بدئها»، و«صقرٌ متحفّظٌ جداً — يجب أن يكون وحشاً شرساً… 100 دولار للعقد… وأقلُّ شيءٍ 100 دولار ربحاً يومياً» */
+  await page.locator('[data-role="sq-nav"] [data-view="dash"]').click(); await page.waitForTimeout(500);
+  const d13 = await page.evaluate(() => ({ day: document.querySelector('[data-role="sq-day"]')?.textContent || "",
+    risk: document.querySelector('[data-role="sq-hub"] [data-k="risk"]')?.textContent || document.querySelector('[data-k="risk"]')?.textContent || "" }));
+  if (SHOTS) await page.locator('[data-role="sq-day"]').screenshot({ path: `${SHOTS}/sq-day-${vp.width}-${theme}.png` }).catch(() => {});
+  await page.locator('[data-role="rl-views"] [data-view="portfolio"]').click(); await page.waitForTimeout(900);
+  const p13 = await page.evaluate(() => ({ when: [...document.querySelectorAll('[data-role="sp-opened"]')].map(e => e.textContent || ""),
+    ct: [...document.querySelectorAll('[data-role="sp-closed-time"]')].map(e => e.textContent || ""), kday: document.querySelector('[data-role="sp-day"]')?.textContent || "" }));
+  if (SHOTS) await page.locator('[data-role="sp-pos"]').first().screenshot({ path: `${SHOTS}/sp-when-${vp.width}-${theme}.png` }).catch(() => {});
+  const ST = /\d{2}\/\d{2} \d{2}:\d{2}/, DUR = /\d+ ي( \d+ س)?|\d+ س( \d+ د)?|\d+ د/;
+  say(/هدفُ اليوم/.test(d13.day) && /\$100/.test(d13.day) && /\+\$37\.20/.test(d13.day) && /الهجوميّ/.test(d13.day) && /\$100/.test(d13.risk)
+      && p13.when.length >= 1 && p13.when.every(t => /فُتحت/.test(t) && ST.test(t) && /منذ/.test(t) && DUR.test(t))
+      && p13.ct.length === 3 && p13.ct.every(t => (t.match(/\d{2}\/\d{2} \d{2}:\d{2}/g) || []).length === 2 && DUR.test(t))
+      && /ربحُ اليوم/.test(p13.kday) && /\$100/.test(p13.kday),
+      `${label}: ١٣ كلُّ مركزٍ بتاريخ فتحه ووقته ومدّته، وكلُّ مغلقةٍ بوقتَي الدخول والخروج ومدّتها، وهدفُ اليوم (100$) في اللوحة والمحفظة، والنمطُ الهجوميّ بـ100$ للصفقة`,
+      JSON.stringify({ d13: { day: d13.day.slice(0, 60), risk: d13.risk }, w: p13.when[0], c: p13.ct[0], k: p13.kday.slice(0, 40) }).slice(0, 260));
   say(errs.length === 0, `${label}: ٩ لا خطأ`, errs[0] || "");
   await ctx.close();
 }
