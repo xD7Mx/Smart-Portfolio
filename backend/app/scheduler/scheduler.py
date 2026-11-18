@@ -759,6 +759,7 @@ async def job_daily_portfolio_refresh():
 # (والأيامُ تُعدّ ولا تُمدّ: APScheduler ‏mon=0…sun=6، فـ«sun-thu» مدًى
 #  مقلوبٌ يرفع ValueError في الإقلاع — وهو عطبُ D258 الذي أسقط التطبيق.)
 TRADING_DAYS = "sun,mon,tue,wed,thu"
+US_TRADING_DAYS = "mon,tue,wed,thu,fri"   # ‏D762: أسبوعُ السوق الأمريكيّ — لمهامّه وحدها (دفترُ الخيارات وصقر)، لا للسوق السعوديّ
 
 
 def start_scheduler():
@@ -868,7 +869,7 @@ def start_scheduler():
         replace_existing=True,
     )
     # ‏D762: دفترُ توصيات الخيارات — منتصفَ الجلسة الأمريكية من الاثنين إلى الجمعة
-    _scheduler.add_job(job_option_book, CronTrigger(day_of_week="mon-fri", hour=22, minute=20), id="option_book_daily", replace_existing=True)
+    _scheduler.add_job(job_option_book, CronTrigger(day_of_week=US_TRADING_DAYS, hour=22, minute=20), id="option_book_daily", replace_existing=True)
     # ‏D571: المراجعةُ الأسبوعية — الخميسَ بعد آخر جلسة، وقبل مؤتمرات المساء
     _scheduler.add_job(job_advisor_weekly, CronTrigger(day_of_week="thu", hour=19, minute=15),
                        id="advisor_weekly_thu", replace_existing=True)

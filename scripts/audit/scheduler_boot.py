@@ -109,6 +109,11 @@ check(not missing, "٣ والمهامُّ الجديدةُ مسجَّلةٌ فع
 # (والتعليقُ يذكره ليشرح العطب — والعبرةُ بالوسائط لا بالشرح.)
 check('day_of_week="mon-fri"' not in src,
       "٤ ولا أسبوعَ عملٍ غربيٍّ في وسائط جدولة السوق")
+# ‏D762: للسوق الأمريكيّ أسبوعُه — ثابتٌ مسمّى (‏US_TRADING_DAYS) لا يُقرأ إلا في مهامّه: دفترُ الخيارات وصقر
+US_JOBS = {"job_option_book", "job_saqr_cycle"}
+uses = re.findall(r"add_job\(\s*(\w+)[^\n]*day_of_week=US_TRADING_DAYS", src)
+check(src.count('US_TRADING_DAYS = "mon,tue,wed,thu,fri"') == 1 and uses and set(uses) <= US_JOBS,
+      "٤أ وأسبوعُ السوق الأمريكيّ ثابتٌ مسمّى لا تقرؤه إلا مهامُّ السوق الأمريكيّ", str(uses))
 check(src.count('TRADING_DAYS = "sun,mon,tue,wed,thu"') == 1
       and src.count("day_of_week=TRADING_DAYS") >= 10,
       "٤ب وأسبوعُ التداول ثابتٌ واحدٌ يُقرأ — لا نصٌّ مكرَّر",
