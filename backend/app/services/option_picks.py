@@ -616,7 +616,7 @@ async def run(budget: float) -> dict:
                "closed": any(p.get("px_src") == "snap" for p in picks), "skipped": skipped[:30], "scanned": len(sc),
                "news_ok": any(v is not None for v in news.values()),
                "limits": {"min_dte": MIN_DTE, "max_dte": MAX_DTE, "min_oi": MIN_OI, "max_spread": int(MAX_SPREAD * 100)}}
-        cache.set(f"optpicks:res:{int(budget)}", res, RES_TTL)
+        cache.set(f"optpicks:res2:{int(budget)}", res, RES_TTL)
         return res
     finally:
         _JOB.update(on=False, msg="")
@@ -624,4 +624,4 @@ async def run(budget: float) -> dict:
 
 def cached(budget: float) -> dict | None:
     from app.services import cache
-    return cache.get(f"optpicks:res:{int(budget)}")
+    return cache.get(f"optpicks:res2:{int(budget)}")
