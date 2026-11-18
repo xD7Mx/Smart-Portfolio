@@ -3785,14 +3785,15 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
 .sq-wire.ok { stroke: color-mix(in srgb, var(--pos-ink) 55%, transparent); }
 .sq-wire.warn { stroke: color-mix(in srgb, var(--warn-ink) 60%, transparent); }
 .sq-hub.live .sq-wire.ok { animation: sqFlow 1.6s linear infinite; }
-.sq-core { position: absolute; inset: 0; margin: auto; width: 36%; height: 36%; border-radius: 50%;
+.sq-core { position: absolute; inset: 0; margin: auto; width: 37%; height: 37%; border-radius: 50%;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; color: var(--brand-ink);
-  background: radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--sq-glow) 16%, var(--sq-plate)), var(--sq-seam) 78%);
+  background: var(--sq-seam);
   border: 1.5px solid color-mix(in srgb, var(--sq-glow) 55%, var(--sq-plate)); box-shadow: 0 0 0 6px color-mix(in srgb, var(--sq-glow) 9%, transparent),
   0 10px 30px -12px color-mix(in srgb, var(--sq-glow) 45%, transparent);
   animation: cardRise .4s cubic-bezier(.2,.8,.2,1) both; }
-.sq-core .sqe { width: 74%; height: auto; margin-top: 6%; }
-.sq-cstate { position: absolute; left: 50%; top: 69%; transform: translateX(-50%); font-size: 10.5px; font-weight: 800; padding: 1px 9px; border-radius: 999px;
+.sq-core .sqe { width: 100% !important; height: 100% !important; box-shadow: none; }
+.sq-core .sqe.live { animation: none; }
+.sq-cstate { position: absolute; left: 50%; top: 70%; transform: translateX(-50%); font-size: 10.5px; font-weight: 800; padding: 1px 9px; border-radius: 999px;
   color: var(--ink-muted); background: var(--card); border: 1px solid var(--hairline); white-space: nowrap; transition: color .3s ease, border-color .3s ease; }
 .sq-cstate.on { color: var(--pos-ink); border-color: color-mix(in srgb, var(--pos-ink) 45%, var(--hairline)); }
 .sq-halo { position: absolute; inset: -6px; border-radius: 50%; border: 1.5px solid var(--sq-glow); opacity: 0; pointer-events: none; }
@@ -3884,40 +3885,25 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
   .sp-bar i, .sq-ring .val, .sp-addf-wrap, .sp-in, .sp-pos, .sq-node, .sq-ni, .sq-dot, .sq-tiers span { transition: none; }
 }
 
-/* ══ ‏D764: شعارُ صقر — معدنٌ فضّيّ ودوائرُ زرقاء وعينٌ كهرمانية (من تصميم المالك)؛ رموزٌ للمظهرين ══ */
+/* ══ ‏D764: شعارُ صقر — صورةُ المالك في قرصٍ داكنٍ بلون أرضيتها، وتوهّجٌ أزرقُ حين يعمل؛ رموزٌ للمظهرين ══ */
 :root {
-  --sq-steel-hi: #eef3f8;
-  --sq-steel-mid: #9ba8b6;
-  --sq-steel-lo: #3e4854;
   --sq-plate: #232a32;
   --sq-seam: #0d1116;
-  --sq-beak-hi: #d3dae2;
-  --sq-beak-lo: #4a545f;
   --sq-glow: #3cc8ff;
-  --sq-eye: #ffcf33;
-  --sq-eye-deep: #e57a00;
-  --sq-pupil: #050608;
 }
 html.light {
-  --sq-steel-hi: #f5f8fb;
-  --sq-steel-mid: #8f9cab;
-  --sq-steel-lo: #343d48;
   --sq-plate: #1f252c;
   --sq-seam: #0b0f13;
-  --sq-beak-hi: #c9d1da;
-  --sq-beak-lo: #424b55;
   --sq-glow: #0ba5e9;
-  --sq-eye: #ffc21a;
-  --sq-eye-deep: #d96f00;
-  --sq-pupil: #050608;
 }
-.sqe { display: block; overflow: visible; }
-.sqe .sqe-glow { opacity: .85; }
-.sqe.live .sqe-glow { animation: sqeBreath 2.8s ease-in-out infinite; }
-.sqe.live .sqe-core { animation: sqeBreath 1.6s ease-in-out infinite; }
-.sqe.live .sqe-iris { animation: sqeEye 3.6s ease-in-out infinite; }
-@keyframes sqeBreath { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
-@keyframes sqeEye { 0%, 100% { opacity: .9; } 50% { opacity: 1; filter: brightness(1.15); } }
-@media (prefers-reduced-motion: reduce) { .sqe.live .sqe-glow, .sqe.live .sqe-core, .sqe.live .sqe-iris { animation: none; } }
+.sqe { position: relative; display: inline-block; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: var(--sq-seam);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sq-glow) 35%, transparent); }
+.sqe img { position: absolute; inset: 5%; width: 90%; height: 90%; object-fit: contain; user-select: none; transition: filter .4s ease; }
+.sqe.live { animation: sqeHalo 2.8s ease-in-out infinite; }
+.sqe.live img { animation: sqeBreath 2.8s ease-in-out infinite; }
+@keyframes sqeHalo { 0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--sq-glow) 35%, transparent), 0 0 0 0 color-mix(in srgb, var(--sq-glow) 0%, transparent); }
+  50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--sq-glow) 60%, transparent), 0 0 18px 2px color-mix(in srgb, var(--sq-glow) 35%, transparent); } }
+@keyframes sqeBreath { 0%, 100% { filter: brightness(1) saturate(1); } 50% { filter: brightness(1.12) saturate(1.15); } }
+@media (prefers-reduced-motion: reduce) { .sqe.live, .sqe.live img { animation: none; } }
 .sp-side[data-side="stock"] { color: var(--info-ink); background: color-mix(in srgb, var(--info-ink) 12%, transparent); }
 .sq-mkt .seg-btn { min-height: 34px; }

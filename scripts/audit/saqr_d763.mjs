@@ -228,12 +228,16 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   await page.emulateMedia({ reducedMotion: "no-preference" }); await page.waitForTimeout(300);
   const mv = await page.evaluate(() => getComputedStyle(document.querySelector(".sq-orbit")).animationName);
   say(rm.orbit === "none" && rm.halo === "none" && rm.node === "none" && mv !== "none", `${label}: ٨ المدارُ والنبضُ والظهورُ يتحرّكون — ويسكنون مع تفضيل تقليل الحركة`, JSON.stringify({ rm, mv }));
-  // ١٠ ‏D764: الشعارُ رأسُ صقرٍ آليٍّ ينظر إلى الأمام — في المركز وفي الترويسة، يتوهّج حين يعمل
-  const em = await page.evaluate(() => ({ n: document.querySelectorAll('[data-role="sq-emblem"]').length, core: !!document.querySelector('[data-role="sq-core"] [data-role="sq-emblem"].live'),
-    uses: document.querySelector('[data-role="sq-core"] [data-role="sq-emblem"]')?.querySelectorAll("use").length || 0,
-    w: document.querySelector('[data-role="sq-core"] [data-role="sq-emblem"]')?.getBoundingClientRect().width || 0, bird: !!document.querySelector(".lucide-bird") }));
+  // ١٠ ‏D764: الشعارُ صورةُ المالك — الصقرُ الآليّ في المركز وفي الترويسة، يتوهّج حين يعمل
+  await page.waitForFunction(() => [...document.querySelectorAll('[data-role="sq-emblem"] img')].every(i => i.complete && i.naturalWidth > 0), null, { timeout: 8000 }).catch(() => {});
+  const em = await page.evaluate(() => { const core = document.querySelector('[data-role="sq-core"] [data-role="sq-emblem"]'), head = document.querySelector('.sq-id [data-role="sq-emblem"]');
+    const im = core?.querySelector("img");
+    return { n: document.querySelectorAll('[data-role="sq-emblem"]').length, live: !!core?.classList.contains("live"), nat: im?.naturalWidth || 0, alt: im?.alt,
+      w: core?.getBoundingClientRect().width || 0, hw: head?.getBoundingClientRect().width || 0, round: getComputedStyle(core || document.body).borderRadius,
+      bird: !!document.querySelector(".lucide-bird") }; });
   if (SHOTS) await page.locator('[data-role="sq-hub"]').screenshot({ path: `${SHOTS}/emblem-${vp.width}-${theme}.png` }).catch(() => {});
-  say(em.n === 2 && em.core && em.uses === 2 && em.w >= 50 && !em.bird, `${label}: ١٠ شعارُ صقر (رأسٌ آليٌّ متناظرٌ ينظر إلى الأمام) في المركز والترويسة، ويتوهّج حين يعمل — بلا أيقونة طائرٍ عامّة`, JSON.stringify(em));
+  say(em.n === 2 && em.live && em.nat >= 160 && em.alt === "صقر" && em.w >= 100 && em.hw >= 28 && em.round === "50%" && !em.bird,
+      `${label}: ١٠ شعارُ صقر صورةُ المالك (الصقرُ الآليّ) في المركز والترويسة، في قرصٍ مستدير، ويتوهّج حين يعمل — بلا أيقونة طائرٍ عامّة`, JSON.stringify(em));
   // ١١ ‏D764: السوقُ السعوديّ — المحفظةُ بالريال وأسهمُ شركات، ولوحةُ صقر بأنظمتها: النتائجُ الربعية وتاسي والأحداثُ الجيوسياسية
   await page.locator('[data-role="sq-market"] [data-market="sa"]').click(); await page.waitForTimeout(1100);
   const sa = await page.evaluate(() => ({ head: document.querySelector(".sq-id")?.textContent || "", nodes: [...document.querySelectorAll('[data-role="sq-node"]')].map(x => x.dataset.k),

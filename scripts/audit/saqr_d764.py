@@ -191,17 +191,19 @@ check('add_job(job_saqr_sa_cycle, CronTrigger(day_of_week=TRADING_DAYS, hour="10
       and mk.count('m = _mkt(') >= 5 and not re.search(r"\.add\(|\.commit\(|delete\(|\.merge\(|insert\(", sas) and "MarketNews.published_at >= since" in sas,
       "١٠ دورةُ السعوديّ كلَّ خمس دقائق في ساعات تداول (الأحد–الخميس)، والنقاطُ كلُّها بسوقها، وصقرُ السعوديّ يقرأ الأخبارَ من قاعدة البيانات ولا يكتب فيها")
 
-# ١١ الشعار
+# ١١ الشعار — صورةُ المالك نفسُها («هذا المرفقُ أجملُ من شكل صقر الحاليّ»)
 em = (ROOT / "frontend/src/components/saqr/SaqrEmblem.tsx").read_text(encoding="utf-8")
 desk = (ROOT / "frontend/src/components/saqr/SaqrDesk.tsx").read_text(encoding="utf-8")
 css = (ROOT / "frontend/src/styles/globals.css").read_text(encoding="utf-8")
-toks = ["--sq-steel-hi", "--sq-steel-mid", "--sq-steel-lo", "--sq-plate", "--sq-seam", "--sq-beak-hi", "--sq-beak-lo", "--sq-glow", "--sq-eye", "--sq-eye-deep", "--sq-pupil"]
-light = css[css.index("html.light {\n  --sq-steel-hi"):]
-check('transform="translate(240 0) scale(-1 1)"' in em and em.count("<use ") == 2 and not re.search(r"#[0-9a-fA-F]{3,8}\b", re.sub(r"/\*.*?\*/", "", em, flags=re.S))
-      and all(t + ":" in css for t in toks) and all(t + ":" in light[:900] for t in toks) and "Bird" not in desk and desk.count("<SaqrEmblem") == 2
-      and "prefers-reduced-motion: reduce) { .sqe.live" in css,
-      "١١ شعارُ صقر رأسٌ آليٌّ ينظر إلى الأمام: نصفٌ يُرسم ونصفٌ يعكسه فيتطابق الوجه، بألوانٍ من رموزٍ معرّفةٍ للمظهرين، يتوهّج حين يعمل ويسكن "
-      "مع تقليل الحركة — ولا أيقونةَ طائرٍ عامّة")
+A = ROOT / "frontend/src/assets/saqr"
+big, small = A / "saqr-emblem-512.webp", A / "saqr-emblem-160.webp"
+light = css[css.index("html.light {\n  --sq-plate"):]
+check(big.exists() and small.exists() and big.stat().st_size < 80_000 and small.stat().st_size < 15_000
+      and big.read_bytes()[8:12] == b"WEBP" and 'alt="صقر"' in em and "saqr-emblem-512.webp" in em and "saqr-emblem-160.webp" in em
+      and "Bird" not in desk and desk.count("<SaqrEmblem") == 2 and all(t + ":" in light[:300] for t in ("--sq-seam", "--sq-glow"))
+      and "prefers-reduced-motion: reduce) { .sqe.live, .sqe.live img { animation: none; } }" in css,
+      "١١ شعارُ صقر صورةُ المالك نفسُها (الصقرُ الآليّ باسطاً جناحيه) مضغوطةً (webp ‏512 للمركز · 160 للترويسة) في قرصٍ داكنٍ بلون أرضيتها، "
+      "يتوهّج حين يعمل ويسكن مع تقليل الحركة — ولا أيقونةَ طائرٍ عامّة", f"{big.stat().st_size // 1024}KB · {small.stat().st_size // 1024}KB")
 
 print("\nالنتيجة:", "عطب ✖" if fail else "نظيف ✔")
 sys.exit(fail)

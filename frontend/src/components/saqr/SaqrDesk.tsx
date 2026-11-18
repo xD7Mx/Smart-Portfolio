@@ -73,7 +73,7 @@ function Hub({ s, sesOpen }: { s: SaqrState; sesOpen: boolean }) {
       </svg>
       <div className="sq-core" data-role="sq-core">
         <span className="sq-halo" aria-hidden />
-        <SaqrEmblem size={78} live={live} />
+        <SaqrEmblem size={160} live={live} />
       </div>
       <span className={"sq-cstate " + (live ? "on" : "")} data-role="sq-cstate">{s.on ? (sesOpen ? "يصطاد" : "ينتظر الجلسة") : "موقوف"}</span>
       {ns.map((n, i) => {
