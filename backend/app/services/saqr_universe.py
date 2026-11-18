@@ -28,9 +28,11 @@ MIN_PRICE = 5.0                  # دون خمسة دولارات منطقةُ �
 MIN_CAP = 2e9                    # شركاتٌ صغيرةٌ أهشّ — الممتازُ لا يقلّ عن ملياري دولار
 MIN_VOL = 300_000
 Z_DISTRESS = 1.81                # ‏Altman: دون 1.81 منطقةُ الضيق (للشركات غير المالية)
-F_WEAK = 3                       # ‏Piotroski: ثلاثةٌ فأقلّ ضعف
+F_WEAK = 4                       # ‏Piotroski: أربعةٌ فأقلّ ضعفٌ أو وسط — الممتازُ خمسةٌ فأكثر (قيس: 4 مرّ بدرجة 75)
 MAX_DE, MIN_CR = 3.0, 0.8
-MIN_SCORE = 60                   # درجةُ المتانة الدنيا للدخول (من 100)
+MIN_SCORE = 65                   # درجةُ المتانة الدنيا للدخول (من 100)
+ETF_MIN_TRADED = 2e8             # الصندوقُ العميقُ وحده: قيمةُ تداوله اليوميّ ≥ 200 مليون دولار (المؤشّراتُ والقطاعاتُ والسلعُ الكبرى)
+ETF_BAD = re.compile(r"YIELDMAX|OPTION INCOME|COVERED CALL|INCOME STRATEGY|BUYWRITE|SINGLE STOCK|DAILY TARGET|\bOPTION\b", re.I)
 LEVERED = re.compile(r"\b(2X|3X|-1X|-2X|-3X|ULTRA|LEVERAGED|INVERSE|BEAR|BULL|DAILY)\b", re.I)
 FIN_SECTORS = ("Finance",)
 
@@ -117,7 +119,11 @@ def fundamentals(row: dict) -> tuple[bool, int, str]:
             return False, 0, "صندوقٌ مغلقٌ أو وحدة — لا يُتداول بعقوده"
         if LEVERED.search(desc):
             return False, 0, "صندوقٌ مرفوعٌ أو عكسيّ — يتآكل يومياً"
-        return True, 70, "صندوقٌ متداول (مؤشّرٌ أو قطاعٌ أو سلعة)"
+        if ETF_BAD.search(desc):
+            return False, 0, "صندوقُ دخلٍ بالعقود أو سهمٍ واحد — بنيتُه تتآكل"
+        if (_n(row.get("Value.Traded")) or 0) < ETF_MIN_TRADED:
+            return False, 0, "صندوقٌ صغيرُ التداول — لا عمقَ لعقوده"
+        return True, 70, "صندوقٌ متداولٌ عميق (مؤشّرٌ أو قطاعٌ أو سلعة)"
     if sub != "common" or row.get("is_primary") is False:
         return False, 0, "ليس سهماً عادياً أساسياً (ممتازٌ أو إدراجٌ ثانويّ)"
     if cap is None or cap < MIN_CAP:

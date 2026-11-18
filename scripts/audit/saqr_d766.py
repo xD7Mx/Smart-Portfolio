@@ -50,17 +50,22 @@ cases = {
     "دون الممتاز": SU.fundamentals({**STRONG, "piotroski_f_score_ttm": 5, "altman_z_score_ttm": 2.0, "return_on_equity": 4, "free_cash_flow_ttm": -1,
                                     "total_revenue_yoy_growth_ttm": -3}),
     "بنك": SU.fundamentals({**STRONG, "sector": "Finance", "altman_z_score_ttm": 0.2, "debt_to_equity": 9.0, "current_ratio": None, "piotroski_f_score_ttm": 7}),
-    "صندوق": SU.fundamentals({"type": "fund", "subtype": "etf", "close": 590.0, "description": "SPDR S&P 500 ETF Trust"}),
+    "صندوق": SU.fundamentals({"type": "fund", "subtype": "etf", "close": 590.0, "description": "SPDR S&P 500 ETF Trust", "Value.Traded": 3e10}),
+    "صندوق صغير": SU.fundamentals({"type": "fund", "subtype": "etf", "close": 25.0, "description": "Range Nuclear Renaissance", "Value.Traded": 4e7}),
+    "دخل بالعقود": SU.fundamentals({"type": "fund", "subtype": "etf", "close": 18.0, "description": "YieldMax MSTR Option Income Strategy ETF", "Value.Traded": 9e8}),
+    "متوسّط المتانة": SU.fundamentals({**STRONG, "piotroski_f_score_ttm": 4}),
     "مرفوع": SU.fundamentals({"type": "fund", "subtype": "etf", "close": 70.0, "description": "ProShares UltraPro QQQ 3x Shares"}),
     "مغلق": SU.fundamentals({"type": "fund", "subtype": "closedend", "close": 12.0, "description": "Income Fund"}),
 }
 want = {"متين": True, "ضيق": False, "شطب": False, "صغير": False, "ضعيف": False, "محترق": False, "دين": False, "حقوق سالبة": False, "سيولة": False,
-        "ممتاز سهم": False, "ثانويّ": False, "دون الممتاز": False, "بنك": True, "صندوق": True, "مرفوع": False, "مغلق": False}
+        "ممتاز سهم": False, "ثانويّ": False, "دون الممتاز": False, "بنك": True, "صندوق": True, "مرفوع": False, "مغلق": False,
+        "صندوق صغير": False, "دخل بالعقود": False, "متوسّط المتانة": False}
 bad = [k for k, v in want.items() if cases[k][0] is not v]
 check(not bad and cases["متين"][1] == 100 and "Altman" in cases["ضيق"][2] and "الشطب" in cases["شطب"][2] and "Piotroski" in cases["ضعيف"][2],
       "٢ الأساسُ قبل الفنّ: يُقبل المتين (آبل 100/100) والصندوقُ المتداول والبنكُ بمقاييسه، ويُستبعد بسببه: فورد (ضيقٌ ماليّ Altman ‏0.95)، "
       "وما دون 5 دولارات (الشطب)، والصغير، وضعيفُ المتانة، والخاسرُ المحترقُ للنقد، والمثقلُ بالدين، وسالبُ الحقوق، وضعيفُ السيولة، والممتازُ "
-      "والثانويّ، وما دون درجة 60، والصندوقُ المرفوعُ والمغلق", f"خطأ في: {bad}" if bad else " · ".join(f"{k}:{'✓' if v[0] else '✗'}" for k, v in cases.items()))
+      "والثانويّ، وما دون درجة 65، ومتوسّطُ المتانة (Piotroski ‏4 — قيس: مرّ بدرجة 75)، والصندوقُ المرفوعُ والمغلقُ والصغيرُ وصندوقُ الدخل بالعقود "
+      "(قيس: CONY · MSTY · GOOY دخلت القائمةَ القصيرة)", f"خطأ في: {bad}" if bad else " · ".join(f"{k}:{'✓' if v[0] else '✗'}" for k, v in cases.items()))
 
 # ٣ المسارُ من حقول المُصفّي
 ROW = {"close": 353.0, "SMA50": 341.0, "SMA200": 302.0, "EMA20": 348.0, "Perf.3M": 11.3, "price_52_week_high": 360.0, "price_52_week_low": 243.0,
@@ -85,7 +90,7 @@ async def uni(cboe):
     async def fake_tv():
         return [{**STRONG, **ROW, "name": "AAPL", "description": "Apple"}, {**FORD, **ROW, "close": 11.35, "name": "F"},
                 {**STRONG, **ROW, "name": "BRK.B", "description": "Berkshire"}, {**STRONG, **ROW, "name": "NOOPT"},
-                {"type": "fund", "subtype": "etf", "description": "SPDR S&P 500", "name": "SPY", **ROW}]
+                {"type": "fund", "subtype": "etf", "description": "SPDR S&P 500", "name": "SPY", "Value.Traded": 3e10, **ROW}]
     o1, o2 = SU.cboe_symbols, SU.tv_market
     SU.cboe_symbols, SU.tv_market = fake_cboe, fake_tv
     try:
