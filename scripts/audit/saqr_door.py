@@ -79,7 +79,7 @@ async def saudi():
     from app.services import tadawul_market as TM
     rows, live, at = TM.usable_rows()   # ما تقرؤه قراءةُ الإغلاق: لقطةُ آخر جلسةٍ بزمنها
     try:
-        pv = SA.pulse(rows, now.date()) if rows else None
+        pv = SA.pulse(rows, SQ._now().date()) if rows else None
         print(f"قراءةُ الإغلاق تقرأ: {len(rows)} شركة · حيّة={live} · {at} ⇐", {k: pv.get(k) for k in ("adv", "dec", "unch", "turnover", "leaders", "laggards")} if pv else "لا صفوف")
     except Exception as e:   # noqa: BLE001
         import traceback
