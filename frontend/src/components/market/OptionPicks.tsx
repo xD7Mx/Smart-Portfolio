@@ -86,7 +86,11 @@ export default function OptionPicks() {
             {res.closed && " · السوقُ الأمريكيّ مغلق: العرضُ والطلب من آخر جلسة"}
           </p>
           {picks.length === 0 ? (
-            <p className="op-empty" data-role="op-none">لا عقدَ طويلَ الأجل يستوفي الشروط بهذه القيمة الآن.</p>
+            <p className="op-empty" data-role="op-none">
+              {res.us_session && res.us_session.state !== "open"
+                ? `السوقُ الأمريكيّ ${res.us_session.label === "عطلة" ? "في عطلة" : "مغلق"} (${res.us_session.detail}) ولا عرضَ وطلبَ حقيقيّين يُبنى عليهما — تُبنى القائمةُ عند الافتتاح (17:30 بتوقيت الرياض شتاءً) وفي المراجعة اليومية منتصفَ الجلسة.`
+                : "لا عقدَ طويلَ الأجل يستوفي الشروط بهذه القيمة الآن."}
+            </p>
           ) : (
             <div className="op-grid">
               {picks.map((p, i) => {

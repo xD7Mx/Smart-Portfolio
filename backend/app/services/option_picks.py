@@ -612,7 +612,12 @@ async def run(budget: float) -> dict:
                    "status": e["last"]["status"], "status_ar": STATUS_AR[e["last"]["status"]], "why": e["last"]["why"],
                    "pl_pct": e["last"].get("pl_pct")} for e in book["closed"][:8]]
         skipped.sort(key=lambda x: (x.get("min_cost") is None, x.get("min_cost") or 0))
-        res = {"budget": budget, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "picks": picks, "exits": recent,
+        try:                                                      # حالُ السوق الأمريكيّ: مغلقٌ بلا عرضٍ وطلبٍ محفوظين ⇒ القائمةُ تُبنى عند الافتتاح
+            from app.services.live_quote import sessions
+            us = (await sessions())["us"]
+        except Exception:                                         # noqa: BLE001
+            us = None
+        res = {"budget": budget, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "picks": picks, "exits": recent, "us_session": us,
                "closed": any(p.get("px_src") == "snap" for p in picks), "skipped": skipped[:30], "scanned": len(sc),
                "news_ok": any(v is not None for v in news.values()),
                "limits": {"min_dte": MIN_DTE, "max_dte": MAX_DTE, "min_oi": MIN_OI, "max_spread": int(MAX_SPREAD * 100)}}
