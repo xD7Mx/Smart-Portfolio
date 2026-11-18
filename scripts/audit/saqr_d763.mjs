@@ -69,6 +69,22 @@ const STATE = {
   rules: { fee: 0.65, stop: 0.6, take: 2, dte: [21, 200], max_spread: 8, delta: [0.35, 0.8], burn: 3, exit_dte: 14, day_loss: 15, max_new_day: 3,
     tiers: [[500, 0.5, 2], [2000, 0.3, 3], [10000, 0.2, 5], [null, 0.1, 8]] },
 };
+// ‏D764: السوقُ السعوديّ — أسهمُ شركاتٍ بالريال، وقراءةُ تاسي والأحداث
+const SA_STATE = { ...STATE, market: "sa", ccy: "SAR", capital: 1000, goal: 100000, cash: 818.6, equity: 1002.4, pl: 2.4, pl_pct: 0.24, progress: 0.05,
+  tier: { frac: 0.25, seats: 4 }, broker: { linked: false, name: "الوسيط السعوديّ" },
+  positions: [{ ...POS({}), id: "s1", kind: "stock", contract: "1120", symbol: "1120", name: "Al Rajhi Bank", type: "stock", strike: null, expiry: null, qty: 2,
+    entry_px: 90.02, cost: 180.32, bid: 91.2, ask: 91.3, S: 91.25, S0: 90.0, target: 105, stop: 84.62, value: 182.4, pl: 2.08, pl_pct: 1.2,
+    why: ["تاسي صاعد: 11,500 وفوق متوسّط 200.", "النتائج: صافي الربح +28٪ عن الربع المماثل."] }],
+  closed: [], n_closed: 0, wins: 0, losses: 0, win_rate: null, realized: 0, fees: 0.28, today: { wins: 0, losses: 0, realized: 0, new: 1 },
+  exposure: { contracts: 2, cost: 180.32, value: 182.4, ret: 1.2 },
+  regime: { verdict: "صاعد", state: "صاعد", close: 11500, sma50: 11300, sma200: 11000, ret3m: 4.2, chg: 0.35 },
+  geo: { level: "متوسط", why: "توتّرٌ إقليميّ في الممرّات البحرية", sectors: ["البتروكيماويات", "النقل"], brent: "برنت 78.20 دولاراً — اليوم +1.2٪", n: 32, at: iso(now) },
+  signals: [{ at: iso(now), sym: "1120", name: "Al Rajhi Bank", verdict: "chosen", contract: "1120", why: "صافي الربح +28٪ · أقوى من تاسي" },
+            { at: iso(now), sym: "4190", name: "Jarir", verdict: "refused", why: "نتائجُ الربع المنتهي 2026-09-30 لم تصدر بعد" }],
+  log: [{ at: iso(now), kind: "buy", text: "شراء 2 سهم من 1120 بسعر 90.02", sym: "1120" }],
+  scan: { at: iso(now), universe: 271, movers: 0, pool: 38, deep: 15, budget: 250, tier: { frac: 0.25, seats: 4 } },
+  rules: { market: "sa", fee_pct: 0.155, stop: 0.94, trail: [1.08, 1.12, 0.94], time_days: 42, min_turnover: 5e6, max_spread: 0.6, growth: 15, tasi_panic: -1.5,
+    day_loss: 10, max_new_day: 2, tiers: [[10000, 0.25, 4], [50000, 0.2, 5], [null, 0.1, 8]] } };
 const PAPER = `<!doctype html><html dir="rtl"><body><section class="page"><h1>التقرير اليومي</h1><p>خبرٌ محليّ</p></section>
   <section class="page"><h1>محفظتنا واختياراتنا</h1><p>لا اختياراتِ اليوم.</p></section></body></html>`;
 
@@ -85,7 +101,7 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   let st = JSON.parse(JSON.stringify(STATE));
   await page.route("**/api/v1/**", async r => {
     const u = new URL(r.request().url()), p = u.pathname.replace(/^.*\/api\/v1/, ""), m = r.request().method();
-    if (p === "/market/saqr" && m === "GET") return r.fulfill(body(st));
+    if (p === "/market/saqr" && m === "GET") return r.fulfill(body(u.searchParams.get("market") === "sa" ? SA_STATE : st));
     if (p.startsWith("/market/saqr/")) {
       const pl = JSON.parse(r.request().postData() || "{}"); posts.push([p, pl]);
       if (p === "/market/saqr/toggle") st = { ...st, on: !!pl.on };
@@ -212,6 +228,28 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   await page.emulateMedia({ reducedMotion: "no-preference" }); await page.waitForTimeout(300);
   const mv = await page.evaluate(() => getComputedStyle(document.querySelector(".sq-orbit")).animationName);
   say(rm.orbit === "none" && rm.halo === "none" && rm.node === "none" && mv !== "none", `${label}: ٨ المدارُ والنبضُ والظهورُ يتحرّكون — ويسكنون مع تفضيل تقليل الحركة`, JSON.stringify({ rm, mv }));
+  // ١٠ ‏D764: الشعارُ رأسُ صقرٍ آليٍّ ينظر إلى الأمام — في المركز وفي الترويسة، يتوهّج حين يعمل
+  const em = await page.evaluate(() => ({ n: document.querySelectorAll('[data-role="sq-emblem"]').length, core: !!document.querySelector('[data-role="sq-core"] [data-role="sq-emblem"].live'),
+    uses: document.querySelector('[data-role="sq-core"] [data-role="sq-emblem"]')?.querySelectorAll("use").length || 0,
+    w: document.querySelector('[data-role="sq-core"] [data-role="sq-emblem"]')?.getBoundingClientRect().width || 0, bird: !!document.querySelector(".lucide-bird") }));
+  if (SHOTS) await page.locator('[data-role="sq-hub"]').screenshot({ path: `${SHOTS}/emblem-${vp.width}-${theme}.png` }).catch(() => {});
+  say(em.n === 2 && em.core && em.uses === 2 && em.w >= 50 && !em.bird, `${label}: ١٠ شعارُ صقر (رأسٌ آليٌّ متناظرٌ ينظر إلى الأمام) في المركز والترويسة، ويتوهّج حين يعمل — بلا أيقونة طائرٍ عامّة`, JSON.stringify(em));
+  // ١١ ‏D764: السوقُ السعوديّ — المحفظةُ بالريال وأسهمُ شركات، ولوحةُ صقر بأنظمتها: النتائجُ الربعية وتاسي والأحداثُ الجيوسياسية
+  await page.locator('[data-role="sq-market"] [data-market="sa"]').click(); await page.waitForTimeout(1100);
+  const sa = await page.evaluate(() => ({ head: document.querySelector(".sq-id")?.textContent || "", nodes: [...document.querySelectorAll('[data-role="sq-node"]')].map(x => x.dataset.k),
+    tasi: document.querySelector('[data-role="sq-tasi"]')?.textContent || "", read: document.querySelector('[data-role="sq-saread"]')?.textContent || "",
+    spy: !!document.querySelector('[data-role="sq-spy"]'), geo: document.querySelector('[data-k="geo"]')?.dataset.state, mk: document.querySelector('[data-role="sq"]')?.getAttribute("data-market") }));
+  await page.locator('[data-role="sq-nav"] [data-view="rules"]').click(); await page.waitForTimeout(400);
+  const saRules = await page.locator('[data-role="sq-rules"]').textContent().catch(() => "");
+  await page.locator('[data-role="rl-views"] [data-view="portfolio"]').click(); await page.waitForTimeout(900);
+  const saPf = await page.evaluate(() => ({ mk: document.querySelector('[data-role="sp"]')?.getAttribute("data-market"), sum: document.querySelector('[data-role="sp-sum"]')?.textContent || "",
+    card: document.querySelector('[data-role="sp-pos"]')?.textContent || "" }));
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/saqr-sa-pf-${vp.width}-${theme}.png`, fullPage: true }).catch(() => {});
+  say(sa.mk === "sa" && /السعوديّ/.test(sa.head) && ["results", "tasi", "geo"].every(k => sa.nodes.includes(k)) && sa.geo === "warn" && /11,500/.test(sa.tasi) && !sa.spy
+      && /خطرٌ متوسط/.test(sa.read) && /برنت/.test(sa.read) && /تاسي أوّلاً/.test(saRules) && /النتائجُ الربعية/.test(saRules)
+      && saPf.mk === "sa" && /1,002\.40 ر\.س/.test(saPf.sum) && /سهم/.test(saPf.card) && /1120/.test(saPf.card) && /Al Rajhi/.test(saPf.card),
+      `${label}: ١١ السوقُ السعوديّ: محفظةٌ بالريال وأسهمُ شركات، ولوحةُ صقر بأنظمتها (النتائجُ الربعية · تاسي · الأحداثُ الجيوسياسية) وبطاقةُ تاسي وقراءةُ السوق والنفط وقواعدُه`,
+      JSON.stringify({ ...sa, read: sa.read.slice(0, 40), saPf: saPf.sum.slice(0, 40) }));
   say(errs.length === 0, `${label}: ٩ لا خطأ`, errs[0] || "");
   await ctx.close();
 }

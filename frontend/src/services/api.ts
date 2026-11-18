@@ -282,12 +282,14 @@ export const marketApi = {
   optionPicks: (budget: number) => api.get<APIResponse>("/market/options-picks", { params: { budget } }),
   optionPicksRun: (budget: number) => api.post<APIResponse>("/market/options-picks/run", { budget }),
   /* ‏D763: صقر — وكيلُ التداول الآليّ ومحفظتُه المستقلّة */
-  saqr: () => api.get<APIResponse>("/market/saqr"),
-  saqrRun: () => api.post<APIResponse>("/market/saqr/run", {}),
-  saqrToggle: (on: boolean) => api.post<APIResponse>("/market/saqr/toggle", { on }),
-  saqrCapital: (amount: number) => api.post<APIResponse>("/market/saqr/capital", { amount, confirm: true }),
-  saqrOpen: (contract: string, qty: number, price?: number | null) => api.post<APIResponse>("/market/saqr/open", { contract, qty, price: price ?? null }, { timeout: 60000 }),
-  saqrClose: (id: string, price?: number | null) => api.post<APIResponse>(`/market/saqr/close/${encodeURIComponent(id)}`, { price: price ?? null }, { timeout: 60000 }),
+  saqr: (market: "us" | "sa" = "us") => api.get<APIResponse>("/market/saqr", { params: { market } }),
+  saqrRun: (market: "us" | "sa" = "us") => api.post<APIResponse>("/market/saqr/run", { market }),
+  saqrToggle: (on: boolean, market: "us" | "sa" = "us") => api.post<APIResponse>("/market/saqr/toggle", { on, market }),
+  saqrCapital: (amount: number, market: "us" | "sa" = "us") => api.post<APIResponse>("/market/saqr/capital", { amount, confirm: true, market }),
+  saqrOpen: (contract: string, qty: number, price?: number | null, market: "us" | "sa" = "us") =>
+    api.post<APIResponse>("/market/saqr/open", { contract, qty, price: price ?? null, market }, { timeout: 60000 }),
+  saqrClose: (id: string, price?: number | null, market: "us" | "sa" = "us") =>
+    api.post<APIResponse>(`/market/saqr/close/${encodeURIComponent(id)}`, { price: price ?? null, market }, { timeout: 60000 }),
   optionChain: (symbol: string, date?: number | null) =>
     api.get<APIResponse>(`/market/options/${encodeURIComponent(symbol)}`, { params: date ? { date } : {} }),
   officialNames: () => api.get<APIResponse>("/market/official-names"),

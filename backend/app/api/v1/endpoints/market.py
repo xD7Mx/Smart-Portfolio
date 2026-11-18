@@ -2275,26 +2275,33 @@ async def options_picks_run(payload: dict):
     return success_response({"on": True, "budget": b, "msg": "بدأ"})
 
 
-# ══ ‏D763: صقر — وكيلُ التداول الآليّ ومحفظتُه المستقلّة (لا تمسّ محفظةَ المالك) ══
+# ══ ‏D763 · ‏D764: صقر — وكيلُ التداول الآليّ ومحفظتاه المستقلّتان (الأمريكيّ · السعوديّ) — لا تمسّان محفظةَ المالك ══
+def _mkt(v) -> str:
+    return "sa" if str(v or "").lower() == "sa" else "us"
+
+
 @router.get("/saqr")
-async def saqr_state():
-    """حالُ صقر ومحفظتِه: الملخّصُ والمراكزُ والمغلقةُ والمنحنى والإشاراتُ والسجلّ وحالُ الأنظمة."""
+async def saqr_state(market: str = "us"):
+    """حالُ صقر ومحفظتِه في سوقٍ: الملخّصُ والمراكزُ والمغلقةُ والمنحنى والإشاراتُ والسجلّ وحالُ الأنظمة."""
     from app.services import saqr_trader as SQ
-    return success_response(SQ.view())
+    return success_response(SQ.view(_mkt(market)))
 
 
 @router.post("/saqr/run", dependencies=[Depends(require_owner)])
-async def saqr_run():
-    """دورةٌ الآن بأمر المالك (بحثٌ عن جديدٍ وإن لم تحن العشرون دقيقة) — في الخلفية، واللوحةُ تتابع."""
+async def saqr_run(payload: dict | None = None):
+    """دورةٌ الآن بأمر المالك (صيدٌ وإن لم تحن العشرون دقيقة) — في الخلفية، واللوحةُ تتابع."""
+    from app.services import saqr_sa as SA
     from app.services import saqr_trader as SQ
-    if SQ._JOB["on"]:
-        return success_response({"on": True, "msg": SQ._JOB["msg"]})
+    m = _mkt((payload or {}).get("market"))
+    job = SA._JOB if m == "sa" else SQ._JOB
+    if job["on"]:
+        return success_response({"on": True, "msg": job["msg"]})
 
     async def _go():
         try:
-            r = await SQ.cycle(force=True)
+            r = await (SA.cycle(force=True) if m == "sa" else SQ.cycle(force=True))
             if not r.get("ran"):
-                st = SQ.load()
+                st = SQ.load(m)
                 SQ.log(st, "info", r.get("why") or "لم تعمل الدورة.")
                 SQ.save(st)
         except Exception as e:                                    # noqa: BLE001
@@ -2306,36 +2313,39 @@ async def saqr_run():
 @router.post("/saqr/toggle", dependencies=[Depends(require_owner)])
 async def saqr_toggle(payload: dict):
     from app.services import saqr_trader as SQ
-    await SQ.toggle(bool((payload or {}).get("on")))
-    return success_response(SQ.view())
+    m = _mkt((payload or {}).get("market"))
+    await SQ.toggle(bool((payload or {}).get("on")), m)
+    return success_response(SQ.view(m))
 
 
 @router.post("/saqr/capital", dependencies=[Depends(require_owner)])
 async def saqr_capital(payload: dict):
     """تجربةٌ جديدة برأس مالٍ يحدّده المالك — بتأكيدٍ صريح، والسابقةُ تُحفظ ملخّصة."""
     from app.services import saqr_trader as SQ
+    m = _mkt((payload or {}).get("market"))
     try:
         amount = float((payload or {}).get("amount"))
     except (TypeError, ValueError):
         amount = 0
     if not (payload or {}).get("confirm") or not (10 <= amount <= 1_000_000):
-        raise HTTPException(status_code=422, detail="رأسُ المال بين 10 و1,000,000 دولار، وبتأكيدٍ صريح.")
-    await SQ.set_capital(amount)
-    return success_response(SQ.view())
+        raise HTTPException(status_code=422, detail="رأسُ المال بين 10 و1,000,000، وبتأكيدٍ صريح.")
+    await SQ.set_capital(amount, m)
+    return success_response(SQ.view(m))
 
 
 @router.post("/saqr/open", dependencies=[Depends(require_owner)])
 async def saqr_open(payload: dict):
-    """مركزٌ يدخله المالك (نفّذه بنفسه) — بسعره إن كتبه، وإلا بسعر العرض الحيّ."""
+    """مركزٌ يدخله المالك (نفّذه بنفسه): عقدٌ أو سهمٌ أمريكيّ أو سهمٌ سعوديّ — بسعره إن كتبه، وإلا بسعر العرض الحيّ."""
     from app.services import saqr_trader as SQ
     p = payload or {}
+    m = _mkt(p.get("market"))
     try:
-        qty = int(p.get("qty") or 1)
+        qty = float(p.get("qty") or 1)
         price = float(p["price"]) if p.get("price") not in (None, "") else None
-        await SQ.manual_open(str(p.get("contract") or "").strip(), qty, price)
+        await SQ.manual_open(str(p.get("contract") or "").strip(), qty, price, m)
     except (ValueError, TypeError) as e:
         raise HTTPException(status_code=422, detail=str(e) or "مدخلاتٌ غيرُ صالحة.")
-    return success_response(SQ.view())
+    return success_response(SQ.view(m))
 
 
 @router.post("/saqr/close/{pid}", dependencies=[Depends(require_owner)])
@@ -2343,12 +2353,13 @@ async def saqr_close(pid: str, payload: dict | None = None):
     """إغلاقُ مركزٍ بأمر المالك — بسعره إن كتبه، وإلا بسعر الطلب الحيّ."""
     from app.services import saqr_trader as SQ
     p = payload or {}
+    m = _mkt(p.get("market"))
     try:
         price = float(p["price"]) if p.get("price") not in (None, "") else None
-        await SQ.manual_close(pid, price)
+        await SQ.manual_close(pid, price, m)
     except (ValueError, TypeError) as e:
         raise HTTPException(status_code=422, detail=str(e) or "مدخلاتٌ غيرُ صالحة.")
-    return success_response(SQ.view())
+    return success_response(SQ.view(m))
 
 
 # ══ ‏D747: البحثُ في السوق الأمريكي كلِّه وسلسلةُ عقود الخيارات ══

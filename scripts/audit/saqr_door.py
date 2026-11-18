@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""كاشفُ صقر على السوق الحيّ (‏D763): يطبع حالَ الجلسة، والأنشطَ اليوم من مُصفّي TradingView، وحجمَ المجال (الأسيلُ + الأنشط)،
+"""كاشفُ صقر على السوق الحيّ (‏D763 · ‏D764 السعوديّ): يطبع حالَ الجلسة، والأنشطَ اليوم من مُصفّي TradingView، وحجمَ المجال (الأسيلُ + الأنشط)،
 وبوّاباتِ الدخول الآن والأحداثَ العالية الأثر — ثمّ إن كان السوقُ في جلسته دورةً كاملةً **في دفترٍ مؤقّت** (لا يمسّ دفترَ صقر الحقيقيّ
 ولا محفظةَ المالك ولا يرسل تلغرام) بإشاراتها: من قُبل ومن رُفض وبأيّ سبب، وأيُّ عقدٍ اختير وبكم. وآخرُه حالُ الدفتر الحقيقيّ مختصراً.
 
@@ -59,4 +59,53 @@ async def main():
     os.environ["SP_STATE_DIR"] = REAL
 
 
-asyncio.run(main())
+async def saudi():
+    """‏D764: صقر السعوديّ — تاسي والأحداثُ والنتائجُ الربعية على بيانات الخادم، ودورةٌ تجريبيةٌ في دفترٍ مؤقّت إن كانت الجلسةُ مفتوحة."""
+    from datetime import datetime, timezone
+    from app.services import saqr_sa as SA
+    from app.services import saqr_trader as SQ
+    from app.services import tadawul_market as TM
+    from app.services.live_quote import sessions
+    real = SQ.load("sa")
+    print("\n══ السوقُ السعوديّ ══")
+    print("الدفترُ الحقيقيّ:", f"رأس المال {SQ.equity(real):,.2f} ريال · مراكز {len(real['positions'])} · مغلقة {len(real['closed'])} · آخرُ دورة {real.get('last_cycle')}")
+    ses = (await sessions())["sa"]
+    print("الجلسة:", ses.get("label"), "·", ses.get("detail"))
+    t0 = time.time()
+    reg = await SA.regime()
+    print("تاسي:", {k: reg.get(k) for k in ("verdict", "close", "sma50", "sma200", "ret3m", "chg")} if reg else "غير متوفّر", f"{time.time() - t0:.1f}ث")
+    t0 = time.time()
+    g = await SA.geo()
+    print("الأحداث:", g if g else "غير متوفّرة", f"{time.time() - t0:.1f}ث")
+    today = datetime.now(timezone.utc).date()
+    from collections import Counter
+    from app.services import argaam_results as AR
+    q = AR.results("quarter")
+    cnt = Counter(SA.results_of(sym, today)[0] for sym in list(q)[:400])
+    print("النتائجُ الربعية:", len(q), "شركة ·", dict(cnt), "· عيّنة:", [(s_, q[s_].get("date"), q[s_].get("change_pct")) for s_ in list(q)[:4]])
+    snap = TM.snapshot()
+    print("لقطةُ تداول الحيّة:", len(snap), "شركة")
+    if ses.get("state") != "open" or not snap or not reg:
+        print("لا دورةَ تجريبية: الجلسةُ مغلقة أو اللقطةُ غيرُ حيّة.")
+        return
+    tmp = tempfile.mkdtemp()
+    os.environ["SP_STATE_DIR"] = tmp
+
+    async def quiet(_t):
+        return None
+    SQ._notify = quiet
+    st = SQ.fresh(market="sa")
+    pos = await SA._hunt(st, datetime.now(timezone.utc), snap, reg, g)
+    print("دورةٌ تجريبية:", st.get("scan_meta"))
+    for x in st["signals"][:20]:
+        print(f"  [{x['verdict']}] {x['sym']} {x.get('name') or ''} — {x['why']}")
+    print("  ⇐", f"اشترى {pos['qty']} سهم من {pos['symbol']} بـ{pos['entry_px']}" if pos else "لا صفقة")
+    os.environ["SP_STATE_DIR"] = REAL
+
+
+async def both():
+    await main()
+    await saudi()
+
+
+asyncio.run(both())

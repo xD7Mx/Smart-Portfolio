@@ -6,12 +6,14 @@
    صراحةً: التنفيذُ بأسعار السوق الحقيقية لحظتَها حتى يُربط ‏IBKR. */
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bird, Radar, ShieldCheck, Unlink, Cpu, ShieldAlert, Target, Newspaper, Sparkles, Play, Pause, RefreshCw,
-  LayoutDashboard, Activity, ScrollText, SlidersHorizontal, ArrowDownRight, ArrowUpRight, Info, BellRing, Hand } from "lucide-react";
+import { Radar, ShieldCheck, Unlink, Cpu, ShieldAlert, Target, Newspaper, Sparkles, Play, Pause, RefreshCw,
+  LayoutDashboard, Activity, ScrollText, SlidersHorizontal, ArrowDownRight, ArrowUpRight, Info, BellRing, Hand, Globe, LineChart, FileText } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { useLive, useSessions } from "../chart/LiveQuote";
-import { useSaqr, usd, susd, spct, hhmm, dday, tone, type SaqrState } from "./saqr";
+import { useSaqr, useSaqrMarket, money, smoney, spct, hhmm, dday, tone, type SaqrState, type Market } from "./saqr";
+import MarketSwitch from "./MarketSwitch";
+import SaqrEmblem from "./SaqrEmblem";
 
 const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="ltr" className={"tabular-nums " + (className || "")}>{v}</bdi>;
 type Tab = "dash" | "signals" | "log" | "rules";
@@ -25,6 +27,23 @@ function nodes(s: SaqrState, sesOpen: boolean): { k: string; t: string; d: React
   const frac = Math.round(s.tier.frac * 100), stop = Math.round((1 - s.rules.stop) * 100);
   const newsTxt = s.health.events === false ? "التقويم متعذّر" : s.health.news === false ? "القراءة متعذّرة" : "تُقرأ";
   const eng = s.on ? (sesOpen ? "يعمل" : "ينتظر الجلسة") : "موقوف";
+  if (s.market === "sa") {
+    const r = s.regime, g = s.geo;
+    const tasi = r ? `${r.verdict}${r.chg != null ? ` · ${r.chg > 0 ? "+" : ""}${r.chg.toFixed(1)}%` : ""}` : "غير متوفّر";
+    return [
+      { k: "signals", t: "الإشارات", d: s.scan ? <><Num v={`${s.scan.universe}`} /> شركة</> : "لم يمسح بعد", tip: s.scan ? `${s.scan.universe} شركة` : "لم يمسح بعد",
+        st: s.scan && scanAge < 90 ? "ok" : sesOpen ? "warn" : "off", icon: Radar },
+      { k: "risk", t: "إدارة المخاطر", d: <><Num v={`${frac}%`} /> · <Num v={`${s.tier.seats}`} /> مراكز</>, tip: `${frac}% للصفقة · ${s.tier.seats} مراكز`,
+        st: s.gates.some(x => x.includes("قاطع")) ? "warn" : "ok", icon: ShieldCheck },
+      { k: "broker", t: "الوسيط", d: s.broker.linked ? "مربوط" : "غير مربوط", tip: `${s.broker.name}: ${s.broker.linked ? "مربوط" : "غير مربوط"}`, st: s.broker.linked ? "ok" : "off", icon: Unlink },
+      { k: "engine", t: "محرّك الأوامر", d: eng, tip: eng, st: s.on ? (sesOpen ? "ok" : "warn") : "off", icon: Cpu },
+      { k: "stop", t: "وقف الخسارة", d: <><Num v={`-${Math.round((1 - s.rules.stop) * 100)}%`} /> ومتحرّك</>, tip: "وقفٌ ومتحرّك", st: "ok", icon: ShieldAlert },
+      { k: "results", t: "النتائج الربعية", d: <>نموّ ≥ <Num v={`${s.rules.growth}%`} /></>, tip: `نموُّ صافي الربح ≥ ${s.rules.growth}%`, st: "ok", icon: FileText },
+      { k: "tasi", t: "مؤشّر تاسي", d: tasi, tip: tasi, st: !r ? "off" : r.verdict === "هابط" ? "warn" : "ok", icon: LineChart },
+      { k: "geo", t: "الأحداث الجيوسياسية", d: g ? `خطرٌ ${g.level}` : "غير متوفّرة", tip: g ? `${g.level}: ${g.why}` : "غير متوفّرة",
+        st: !g ? "off" : g.level === "منخفض" ? "ok" : "warn", icon: Globe },
+    ];
+  }
   return [
     { k: "signals", t: "الإشارات", d: s.scan ? <><Num v={`${s.scan.universe}`} /> رمزاً</> : "لم يمسح بعد", tip: s.scan ? `${s.scan.universe} رمزاً` : "لم يمسح بعد",
       st: s.scan && scanAge < 90 ? "ok" : sesOpen ? "warn" : "off", icon: Radar },
@@ -54,10 +73,9 @@ function Hub({ s, sesOpen }: { s: SaqrState; sesOpen: boolean }) {
       </svg>
       <div className="sq-core" data-role="sq-core">
         <span className="sq-halo" aria-hidden />
-        <Bird size={34} strokeWidth={1.6} />
-        <b>صقر</b>
-        <small>{s.on ? (sesOpen ? "يعمل" : "ينتظر الجلسة") : "موقوف"}</small>
+        <SaqrEmblem size={78} live={live} />
       </div>
+      <span className={"sq-cstate " + (live ? "on" : "")} data-role="sq-cstate">{s.on ? (sesOpen ? "يصطاد" : "ينتظر الجلسة") : "موقوف"}</span>
       {ns.map((n, i) => {
         const a = (i / ns.length) * 360 - 90;
         const x = 50 + (R / 300) * 100 * Math.cos((a * Math.PI) / 180), y = 50 + (R / 300) * 100 * Math.sin((a * Math.PI) / 180);
@@ -121,18 +139,18 @@ const hms = (ms: number) => {
   return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map(v => String(v).padStart(2, "0")).join(":");
 };
 
-function SessionCard() {
-  const ses = useSessions().data?.us;
+function SessionCard({ market }: { market: Market }) {
+  const ses = useSessions().data?.[market];
   const st = ses?.state;
-  const timed = st === "open" || st === "pre" || st === "post";
+  const timed = st === "open" || st === "pre" || st === "post" || st === "preopen" || st === "auction";
   useClock(timed);
   const left = ses?.next ? new Date(ses.next).getTime() - Date.now() : null;
   const early = /مبكّر/.test(ses?.detail || "");
-  const span = (early ? 3.5 : 6.5) * 3600e3;
+  const span = (market === "sa" ? 5 : early ? 3.5 : 6.5) * 3600e3;
   const prog = st === "open" && left != null ? Math.max(0, Math.min(100, (1 - left / span) * 100)) : st === "post" || st === "closed" || st === "holiday" ? 100 : 0;
   return (
     <div className="sq-card card card-rise" data-role="sq-session" data-state={st || ""}>
-      <h4>جلسة السوق الأمريكيّ</h4>
+      <h4>جلسة السوق {market === "sa" ? "السعوديّ" : "الأمريكيّ"}</h4>
       <div className="sq-ses">
         <span className={"sq-pill s-" + (st || "closed")}>{ses ? (ses.holiday ? `عطلة: ${ses.holiday}` : ses.label) : "…"}</span>
         <b><Num v={timed && left != null ? hms(left) : "—"} /></b>
@@ -158,31 +176,66 @@ function SpyCard() {
   );
 }
 
+function TasiCard({ s }: { s: SaqrState }) {
+  const bars = useQuery({ queryKey: ["bars", "^TASI.SR", "1d"], queryFn: () => marketApi.bars("^TASI.SR", "1d").then(r => r.data?.data || []), staleTime: 15 * 60e3, retry: 0 });
+  const pts = ((bars.data as any[]) || []).map(b => Number(b.close)).filter(v => isFinite(v) && v > 0).slice(-60);
+  const r = s.regime;
+  return (
+    <div className="sq-card card card-rise" data-role="sq-tasi">
+      <h4>تاسي {r && <span className={"sq-pill " + (r.verdict === "هابط" ? "s-closed" : r.verdict === "صاعد" ? "s-open" : "s-pre")}>{r.verdict}</span>}</h4>
+      <div className="sq-ses"><b><Num v={r ? r.close.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—"} /></b>
+        <span className={tone(r?.chg)}><Num v={spct(r?.chg, 2)} /></span></div>
+      <Spark pts={pts} label="مسارُ تاسي في ستين جلسة" role="sq-tasi-line" />
+    </div>
+  );
+}
+
+function SaRead({ s }: { s: SaqrState }) {
+  const r = s.regime, g = s.geo;
+  return (
+    <div className="sq-card card card-rise wide" data-role="sq-saread">
+      <h4>قراءةُ السوق السعوديّ</h4>
+      <ul className="sq-gl">
+        <li>تاسي: {r ? <>{r.verdict} — <Num v={r.close.toLocaleString("en-US", { maximumFractionDigits: 0 })} /> و{r.close >= r.sma200 ? "فوق" : "دون"} متوسّط 200
+          (<Num v={r.sma200.toLocaleString("en-US", { maximumFractionDigits: 0 })} />)، وثلاثةُ أشهر <Num v={spct(r.ret3m)} /></> : "غير متوفّر — لا دخولَ بلا قراءته."}</li>
+        <li>الأحداثُ الجيوسياسية: {g ? <><b className={g.level === "منخفض" ? "pos" : g.level === "مرتفع" ? "neg" : ""}>خطرٌ {g.level}</b> — {g.why}</> : "قراءتُها غيرُ متوفّرة الآن (نصفُ الحجم احتياطاً)."}</li>
+        {g?.brent && <li>النفط: {g.brent}</li>}
+        {g?.sectors?.length ? <li>الأشدُّ تأثّراً: {g.sectors.join(" · ")}</li> : null}
+      </ul>
+    </div>
+  );
+}
+
 const KIND: Record<string, [any, string]> = { buy: [ArrowUpRight, "pos"], sell: [ArrowDownRight, "neg"], alert: [BellRing, "warn"], manual: [Hand, "info"], info: [Info, ""], error: [ShieldAlert, "neg"] };
 
 export default function SaqrDesk() {
   const owner = useAuthStore((st: any) => st.isOwner);
   const qc = useQueryClient();
-  const q = useSaqr();
+  const [market, setMarket] = useSaqrMarket();
+  const sa = market === "sa";
+  const q = useSaqr(market);
   const s = q.data;
-  const ses = useSessions().data?.us;
+  const ses = useSessions().data?.[market];
   const sesOpen = ses?.state === "open";
+  const usd = money(s?.ccy), susd = smoney(s?.ccy);
   const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem("sp_saqr_tab") as Tab) || "dash"; } catch { return "dash"; } });
   const pick = (t: Tab) => { setTab(t); try { localStorage.setItem("sp_saqr_tab", t); } catch { /* */ } };
-  const toggle = useMutation({ mutationFn: (on: boolean) => marketApi.saqrToggle(on), onSuccess: r => qc.setQueryData(["saqr"], r.data.data) });
-  const run = useMutation({ mutationFn: () => marketApi.saqrRun(), onSuccess: () => setTimeout(() => q.refetch(), 700) });
+  const toggle = useMutation({ mutationFn: (on: boolean) => marketApi.saqrToggle(on, market), onSuccess: r => qc.setQueryData(["saqr", market], r.data.data) });
+  const run = useMutation({ mutationFn: () => marketApi.saqrRun(market), onSuccess: () => setTimeout(() => q.refetch(), 700) });
   const curve = useMemo(() => (s?.equity_curve || []).map(p => p[1]), [s?.equity_curve]);
-  if (!s) return <div className="sq" data-role="sq"><div className="h-60 skeleton rounded-xl" /></div>;
+  const sw = <MarketSwitch value={market} onChange={setMarket} />;
+  if (!s) return <div className="sq" data-role="sq">{sw}<div className="h-60 skeleton rounded-xl" /></div>;
   const unreal = s.positions.reduce((a, p) => a + p.pl, 0);
   const busy = s.running?.on || run.isPending;
 
   return (
-    <div className="sq" data-role="sq">
-      <header className="sq-head">
-        <span className="sq-id"><Bird size={20} /><b>صقر</b>
+    <div className="sq" data-role="sq" data-market={market}>
+      {sw}
+      <header key={market} className="sq-head">
+        <span className="sq-id"><SaqrEmblem size={30} live={s.on && sesOpen} /><b>صقر {sa ? "السعوديّ" : "الأمريكيّ"}</b>
           <span className={"sq-pill " + (s.on ? (sesOpen ? "s-open" : "s-pre") : "s-closed")} data-role="sq-state">{s.on ? (sesOpen ? "يعمل الآن" : "يعمل في الجلسة") : "موقوف"}</span>
         </span>
-        <span className="sq-sub">التنفيذُ بأسعار السوق الحقيقية · الوسيط {s.broker.linked ? "مربوط" : "غيرُ مربوط"}</span>
+        <span className="sq-sub">{sa ? "أسهمُ الشركات" : "عقودُ الخيارات والأسهم"} · التنفيذُ بأسعار السوق الحقيقية · الوسيط {s.broker.linked ? "مربوط" : "غيرُ مربوط"}</span>
         {owner && (
           <span className="sq-acts">
             <button type="button" className="btn-ghost sq-btn" onClick={() => run.mutate()} disabled={busy} data-role="sq-run" title={s.running?.msg || "دورةٌ الآن"}>
@@ -218,9 +271,9 @@ export default function SaqrDesk() {
               <h4>حالة الأنظمة</h4>
               <ul className="sq-list">
                 <li><span className={"sq-dot " + (sesOpen ? "ok" : "off")} />الجلسة<b>{ses ? (ses.holiday || ses.label) : "…"}</b></li>
-                <li><span className={"sq-dot " + (ago(s.health.quotes) < 60 ? "ok" : "off")} />الأسعارُ الحيّة<b>{s.health.quotes ? hhmm(s.health.quotes) : "—"}</b></li>
-                <li><span className={"sq-dot " + (s.health.news === false ? "warn" : "ok")} />قراءةُ الأخبار<b>{s.health.news === false ? "غير متوفّرة" : "تعمل"}</b></li>
-                <li><span className={"sq-dot " + (s.health.events === false ? "warn" : "ok")} />التقويمُ الاقتصاديّ<b>{s.health.events === false ? "غير متوفّر" : "يعمل"}</b></li>
+                <li><span className={"sq-dot " + (ago(s.health.quotes) < 60 ? "ok" : "off")} />{sa ? "لقطةُ «تداول» الحيّة" : "الأسعارُ الحيّة"}<b>{s.health.quotes ? hhmm(s.health.quotes) : "—"}</b></li>
+                <li><span className={"sq-dot " + (s.health.news === false ? "warn" : "ok")} />{sa ? "قراءةُ الأحداث" : "قراءةُ الأخبار"}<b>{s.health.news === false ? "غير متوفّرة" : "تعمل"}</b></li>
+                <li><span className={"sq-dot " + (s.health.events === false ? "warn" : "ok")} />{sa ? "مسارُ تاسي" : "التقويمُ الاقتصاديّ"}<b>{s.health.events === false ? "غير متوفّر" : "يعمل"}</b></li>
                 <li><span className={"sq-dot " + (s.health.telegram ? "ok" : "off")} />تلغرام<b>{s.health.telegram ? "مربوط" : "غير مربوط"}</b></li>
                 <li><span className={"sq-dot " + (s.broker.linked ? "ok" : "off")} />الوسيط {s.broker.name}<b>{s.broker.linked ? "مربوط" : "غير مربوط"}</b></li>
                 <li><span className={"sq-dot " + (ago(s.last_cycle) < 15 ? "ok" : "off")} />آخرُ دورة<b>{s.last_cycle ? `${dday(s.last_cycle)} ${hhmm(s.last_cycle)}` : "—"}</b></li>
@@ -229,14 +282,14 @@ export default function SaqrDesk() {
             <div className="sq-card card card-rise" data-role="sq-exposure">
               <h4>التعرّض</h4>
               <div className="sq-kv">
-                <span><small>العقود</small><b><Num v={`${s.exposure.contracts}`} /></b></span>
+                <span><small>{sa ? "الأسهم" : "العقود والأسهم"}</small><b><Num v={`${s.exposure.contracts}`} /></b></span>
                 <span><small>التكلفة</small><b><Num v={usd(s.exposure.cost)} /></b></span>
                 <span><small>القيمة الحالية</small><b><Num v={usd(s.exposure.value)} /></b></span>
                 <span><small>العائد</small><b className={tone(s.exposure.ret)}><Num v={spct(s.exposure.ret)} /></b></span>
               </div>
             </div>
-            <SpyCard />
-            <SessionCard />
+            {sa ? <TasiCard s={s} /> : <SpyCard />}
+            <SessionCard market={market} />
             <div className="sq-card card card-rise" data-role="sq-win">
               <h4>نسبة النجاح</h4>
               <Ring pct={s.win_rate} wins={s.wins} losses={s.losses} />
@@ -246,10 +299,11 @@ export default function SaqrDesk() {
               <div className="sq-ses"><b><Num v={usd(s.equity)} /></b><span className={tone(s.pl)}><Num v={spct(s.pl_pct)} /></span></div>
               <Spark pts={curve} base={s.capital} label="منحنى رأس مال صقر" role="sq-curve" />
             </div>
+            {sa && <SaRead s={s} />}
             <div className="sq-card card card-rise wide" data-role="sq-gates">
               <h4>بوّاباتُ الدخول الآن</h4>
               {s.gates.length ? <ul className="sq-gl">{s.gates.map((g, i) => <li key={i}>{g}</li>)}</ul>
-                : <p className="sq-muted">{s.on && sesOpen ? "مفتوحة — يدخل صقرٌ متى وجد عقداً يستوفي قواعده." : "تُقرأ في أوّل دورةٍ من الجلسة."}</p>}
+                : <p className="sq-muted">{s.on && sesOpen ? `مفتوحة — يدخل صقرٌ متى وجد ${sa ? "شركةً تستوفي" : "عقداً أو سهماً يستوفي"} قواعده.` : "تُقرأ في أوّل دورةٍ من الجلسة."}</p>}
             </div>
           </div>
         )}
@@ -258,15 +312,17 @@ export default function SaqrDesk() {
           <div className="sq-card card card-rise" data-role="sq-signals">
             <h4>إشاراتُ آخر مسح {s.scan?.at && <span className="sq-muted"><Num v={`${dday(s.scan.at)} ${hhmm(s.scan.at)}`} /></span>}</h4>
             {s.scan && (
-              <p className="sq-muted" data-role="sq-scan">قرأ <Num v={`${s.scan.universe}`} /> رمزاً (منها <Num v={`${s.scan.movers}`} /> من الأنشط اليوم) · رشّح <Num v={`${s.scan.pool}`} /> ·
-                فحص عقودَ <Num v={`${s.scan.deep}`} /> · ميزانيةُ الصفقة <Num v={usd(s.scan.budget)} /></p>
+              <p className="sq-muted" data-role="sq-scan">{sa
+                ? <>قرأ <Num v={`${s.scan.universe}`} /> شركة · اجتاز السيولةَ والنتائج <Num v={`${s.scan.pool}`} /> · فحص مسارَ <Num v={`${s.scan.deep}`} /> · ميزانيةُ الصفقة <Num v={usd(s.scan.budget)} /></>
+                : <>قرأ <Num v={`${s.scan.universe}`} /> رمزاً (منها <Num v={`${s.scan.movers}`} /> من الأنشط اليوم) · رشّح <Num v={`${s.scan.pool}`} /> ·
+                  فحص عقودَ <Num v={`${s.scan.deep}`} /> · ميزانيةُ الصفقة <Num v={usd(s.scan.budget)} /></>}</p>
             )}
             {s.signals.length === 0 ? <p className="sq-muted">لم يمسح صقرٌ السوقَ بعد — يمسح في الجلسة الرسمية كلَّ عشرين دقيقة.</p> : (
               <ul className="sq-sig">
                 {s.signals.map((g, i) => (
                   <li key={g.sym + i} data-role="sq-signal" data-verdict={g.verdict} style={{ animationDelay: `${i * 25}ms` }}>
                     <span className={"sq-v v-" + g.verdict}>{g.verdict === "chosen" ? "نُفّذ" : g.verdict === "accepted" ? "مقبول" : "مرفوض"}</span>
-                    <b><Num v={g.sym} /></b>
+                    <b><Num v={g.sym} />{g.name ? <small className="sq-muted"> {g.name}</small> : null}</b>
                     {g.side && <span className="sp-side" data-side={g.side}>{g.side === "call" ? "Call" : "Put"}</span>}
                     <span className="sq-why">{g.why}</span>
                   </li>
@@ -296,7 +352,43 @@ export default function SaqrDesk() {
           </div>
         )}
 
-        {tab === "rules" && (
+        {tab === "rules" && sa && (
+          <div className="sq-grid">
+            <div className="sq-card card card-rise wide" data-role="sq-rules">
+              <h4>كيف يدخل — السوقُ السعوديّ (أسهمُ الشركات)</h4>
+              <ul className="sq-gl">
+                <li>تاسي أوّلاً: هابطٌ ⇐ لا دخول (الشركاتُ تتبعه)، وعرضيٌّ ⇐ نصفُ الحجم، ويومُ هلعٍ (<Num v={`${s.rules.tasi_panic}%`} />) ⇐ لا دخولَ اليوم.</li>
+                <li>الأحداثُ الجيوسياسية والنفط: خطرٌ مرتفع ⇐ لا دخول، ومتوسّطٌ ⇐ نصفُ الحجم.</li>
+                <li>النتائجُ الربعية: نموُّ صافي الربح ≥ <Num v={`${s.rules.growth}%`} /> بإعلانٍ حديث محفّز، والخسارةُ أو التراجعُ مستبعَد، وربعٌ لم تصدر نتائجُه في مهلتها ⇐ لا دخولَ قبل المفاجأة.</li>
+                <li>الشركة: سيولةُ اليوم ≥ <Num v={`${(s.rules.min_turnover / 1e6).toFixed(0)}`} /> ملايين ريال، فارقٌ ≤ <Num v={`${s.rules.max_spread}%`} />، مسارٌ صاعدٌ فوق متوسّط 50، وأقوى من تاسي في ثلاثة أشهر.</li>
+                <li>لا دخولَ في أوّل ربع ساعةٍ ولا آخرِ عشرين دقيقة، ولا بعد خسارة <Num v={`${s.rules.day_loss}%`} /> في اليوم، ولا أكثرَ من <Num v={`${s.rules.max_new_day}`} /> صفقتين يومياً.</li>
+              </ul>
+            </div>
+            <div className="sq-card card card-rise" data-role="sq-rules-exit">
+              <h4>كيف يخرج</h4>
+              <ul className="sq-gl">
+                <li>وقفٌ عند <Num v={`-${Math.round((1 - s.rules.stop) * 100)}%`} />، ومن +8٪ إلى الدخول، ومن +12٪ إلى 94٪ من القمّة.</li>
+                <li>جنيٌ عند الهدف الفنيّ.</li>
+                <li>تاسي انقلب هابطاً والمركزُ خاسر، أو خطرٌ جيوسياسيّ مرتفع والمركزُ خاسر.</li>
+                <li>نتائجُ مخيّبةٌ صدرت بعد الدخول، أو ستّةُ أسابيع بلا تقدّم.</li>
+              </ul>
+            </div>
+            <div className="sq-card card card-rise" data-role="sq-rules-size">
+              <h4>حجمُ الصفقة</h4>
+              <div className="sq-tiers">
+                {s.rules.tiers.map(([lim, f, n]: [number | null, number, number], i: number) => (
+                  <span key={i} className={s.tier.frac === f ? "on" : ""}>
+                    <small>{lim == null ? "فوق 50,000" : <>دون <Num v={usd(lim, 0)} /></>}</small>
+                    <b><Num v={`${Math.round(f * 100)}%`} /> · <Num v={`${n}`} /> مراكز</b>
+                  </span>
+                ))}
+              </div>
+              <small className="sq-muted">العمولة <Num v={`${s.rules.fee_pct.toFixed(3)}%`} /> لكلّ جهة · الشراءُ بالعرض والبيعُ بالطلب من لقطة «تداول».</small>
+            </div>
+          </div>
+        )}
+
+        {tab === "rules" && !sa && (
           <div className="sq-grid">
             <div className="sq-card card card-rise wide" data-role="sq-rules">
               <h4>كيف يدخل</h4>
@@ -319,7 +411,7 @@ export default function SaqrDesk() {
             <div className="sq-card card card-rise" data-role="sq-rules-size">
               <h4>حجمُ الصفقة</h4>
               <div className="sq-tiers">
-                {s.rules.tiers.map(([lim, f, n], i) => (
+                {s.rules.tiers.map(([lim, f, n]: [number | null, number, number], i: number) => (
                   <span key={i} className={s.tier.frac === f ? "on" : ""}>
                     <small>{lim == null ? "فوق 10,000" : <>دون <Num v={usd(lim, 0)} /></>}</small>
                     <b><Num v={`${Math.round(f * 100)}%`} /> · <Num v={`${n}`} /> مراكز</b>

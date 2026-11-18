@@ -52,8 +52,17 @@ FIGHT_PCT = 1.0                               # لا شراءَ والسهمُ �
 SCAN_EVERY = 20 * 60
 SHORTLIST, DEEP = 24, 8
 TIERS = ((500, 0.50, 2), (2000, 0.30, 3), (10_000, 0.20, 5), (math.inf, 0.10, 8))
+# ‏D764: سوقان ودفتران — الأمريكيّ (عقودٌ وأسهم) والسعوديّ (أسهمٌ وحدها)، والهدفُ مئةُ ضعفٍ لكلٍّ منهما
+MARKETS = {"us": {"file": "ledger.json", "ccy": "USD", "start": START, "broker": "IBKR"},
+           "sa": {"file": "ledger_sa.json", "ccy": "SAR", "start": 1_000.0, "broker": "الوسيط السعوديّ"}}
+GOAL_X = 100
+FEE_SA = 0.00155                              # عمولةُ الوسيط السعوديّ مع ضريبتها لكلّ جهة
+STOCK_STOP = 0.93                             # وقفُ السهم: −7٪
+STOCK_TRAIL = (1.08, 1.12, 0.94)              # من +8٪ إلى الدخول، ومن +12٪ إلى 94٪ من القمّة
+STOCK_TIME_DAYS, STOCK_TIME_GAIN = 42, 1.03   # سهمٌ لم يتقدّم 3٪ في ستّة أسابيع يُحرّر مالُه
 REASON_AR = {"stop": "بلغ الوقف", "trail": "وقفٌ متحرّكٌ يحمي الربح", "take": "تضاعف العقد — جنيُ الربح", "target": "بلغ السهمُ الهدف",
-             "time": "اقترب الأجل", "broken": "انكسرت الأطروحة", "manual": "إغلاقٌ يدويّ من المالك"}
+             "time": "اقترب الأجل", "broken": "انكسرت الأطروحة", "manual": "إغلاقٌ يدويّ من المالك", "stale": "لم يتقدّم — يُحرَّر المال",
+             "regime": "انقلب السوقُ العامّ", "geo": "خطرٌ جيوسياسيّ", "results": "نتائجُ ربعيةٌ مخيّبة"}
 _LOCK = asyncio.Lock()
 _JOB = {"on": False, "msg": "", "at": None}
 
@@ -68,41 +77,67 @@ def _iso(t: datetime | None = None) -> str:
 
 # ══ الدفتر ══
 
-def _path() -> str:
+def _mk(market: str) -> str:
+    return market if market in MARKETS else "us"
+
+
+def _path(market: str = "us") -> str:
     d = os.path.join(os.environ.get("SP_STATE_DIR", "/app/storage"), "saqr")
     os.makedirs(d, exist_ok=True)
-    return os.path.join(d, "ledger.json")
+    return os.path.join(d, MARKETS[_mk(market)]["file"])
 
 
-def fresh(capital: float = START, on: bool = True) -> dict:
-    return {"capital": round(float(capital), 2), "goal": GOAL, "cash": round(float(capital), 2), "started": _iso(), "on": on,
-            "positions": [], "closed": [], "equity": [[_iso(), round(float(capital), 2)]], "log": [], "signals": [],
-            "day": {"date": None, "start_eq": float(capital), "new": 0}, "last_cycle": None, "last_scan": None, "cycles": 0,
-            "health": {}, "runs": [], "broker": {"linked": False, "name": "IBKR"}}
+def fresh(capital: float | None = None, on: bool = True, market: str = "us") -> dict:
+    m = MARKETS[_mk(market)]
+    cap = round(float(capital if capital is not None else m["start"]), 2)
+    return {"market": _mk(market), "ccy": m["ccy"], "capital": cap, "goal": round(cap * GOAL_X, 2), "cash": cap, "started": _iso(), "on": on,
+            "positions": [], "closed": [], "equity": [[_iso(), cap]], "log": [], "signals": [],
+            "day": {"date": None, "start_eq": cap, "new": 0}, "last_cycle": None, "last_scan": None, "cycles": 0,
+            "health": {}, "runs": [], "broker": {"linked": False, "name": m["broker"]}}
 
 
-def load() -> dict:
+def load(market: str = "us") -> dict:
     try:
-        st = json.load(open(_path(), encoding="utf-8"))
-        base = fresh(st.get("capital", START), st.get("on", True))
-        return {**base, **st}
+        st = json.load(open(_path(market), encoding="utf-8"))
+        base = fresh(st.get("capital"), st.get("on", True), market)
+        return {**base, **st, "market": _mk(market), "ccy": MARKETS[_mk(market)]["ccy"]}
     except Exception:                                             # noqa: BLE001
-        return fresh()
+        return fresh(market=market)
 
 
 def save(st: dict) -> None:
-    tmp = _path() + ".tmp"
+    path = _path(st.get("market", "us"))
+    tmp = path + ".tmp"
     json.dump(st, open(tmp, "w", encoding="utf-8"), ensure_ascii=False)
-    os.replace(tmp, _path())
+    os.replace(tmp, path)
 
 
 def log(st: dict, kind: str, text: str, sym: str | None = None) -> None:
     st["log"] = ([{"at": _iso(), "kind": kind, "text": text, "sym": sym}] + st.get("log", []))[:400]
 
 
+def kind_of(p: dict) -> str:
+    return p.get("kind") or "option"
+
+
+def mult(p: dict) -> int:
+    """العقدُ مئةُ سهم، والسهمُ سهم."""
+    return 100 if kind_of(p) == "option" else 1
+
+
+def fee_of(market: str, kind: str, qty: float, px: float) -> float:
+    """عمولةُ جهةٍ واحدة: العقدُ الأمريكيّ 0.65 لكلّ عقد، والسهمُ الأمريكيّ عمولةُ IBKR المتدرّجة (0.0035 للسهم، لا تقلّ عن 0.35
+    ولا تزيد على 1٪ من القيمة)، والسهمُ السعوديّ 0.155٪ من القيمة مع ضريبتها."""
+    if _mk(market) == "sa":
+        return round(qty * px * FEE_SA, 2)
+    if kind == "stock":
+        return round(min(max(0.35, 0.0035 * qty), 0.01 * qty * px), 2)
+    return round(FEE * qty, 2)
+
+
 def mark_of(p: dict) -> float:
-    """قيمةُ المركز الآن: سعرُ الطلب (ما يُباع به فعلاً) × 100 × الكمّية — وآخرُ طلبٍ معروفٍ إن غاب."""
-    return round((p.get("bid") or 0) * 100 * p["qty"], 2)
+    """قيمةُ المركز الآن: سعرُ الطلب (ما يُباع به فعلاً) × المضاعف × الكمّية — وآخرُ طلبٍ معروفٍ إن غاب."""
+    return round((p.get("bid") or 0) * mult(p) * p["qty"], 2)
 
 
 def equity(st: dict) -> float:
@@ -121,14 +156,18 @@ def _pid(contract: str) -> str:
     return hashlib.sha1(f"{contract}|{time.time()}".encode()).hexdigest()[:10]
 
 
-def buy(st: dict, k: dict, qty: int, why: list[str], src: str = "saqr", px: float | None = None) -> dict:
-    """شراءٌ بسعر العرض (أو سعرِ المالك اليدويّ) وعمولةٍ لكلّ عقد — يُخصم من النقد."""
+def buy(st: dict, k: dict, qty: float, why: list[str], src: str = "saqr", px: float | None = None, kind: str = "option") -> dict:
+    """شراءٌ بسعر العرض (أو سعرِ المالك اليدويّ) وعمولةِ السوق — يُخصم من النقد. والسهمُ بلا أجلٍ ولا تنفيذ."""
     px = float(px if px is not None else k["ask"])
-    cost = round(px * 100 * qty + FEE * qty, 2)
+    m = 100 if kind == "option" else 1
+    fee = fee_of(st.get("market", "us"), kind, qty, px)
+    cost = round(px * m * qty + fee, 2)
     st["cash"] = round(st["cash"] - cost, 2)
-    p = {"id": _pid(k["contract"]), "contract": k["contract"], "symbol": k["symbol"], "type": k["type"], "strike": k["strike"],
-         "expiry": k["expiry"], "t": k.get("t"), "qty": int(qty), "entry_px": round(px, 4), "cost": cost, "opened": _iso(),
-         "stop": round(px * STOP, 4), "peak": float(k.get("bid") or px), "bid": k.get("bid"), "ask": k.get("ask"), "S": k.get("price"),
+    stop = k.get("stop") or (px * (STOP if kind == "option" else STOCK_STOP))
+    p = {"id": _pid(k["contract"]), "kind": kind, "contract": k["contract"], "symbol": k["symbol"], "name": k.get("name"),
+         "type": k.get("type", "stock"), "strike": k.get("strike"), "expiry": k.get("expiry"), "t": k.get("t"),
+         "qty": int(qty) if kind == "option" else round(float(qty), 4), "entry_px": round(px, 4), "cost": cost, "fee_in": fee, "opened": _iso(),
+         "stop": round(stop, 4), "stop0": round(stop, 4), "peak": float(k.get("bid") or px), "bid": k.get("bid"), "ask": k.get("ask"), "S": k.get("price"),
          "S0": k.get("price"), "target": k.get("target"), "target_label": k.get("target_label"), "delta": k.get("delta"),
          "iv": k.get("iv"), "dte0": k.get("dte"), "why": why, "src": src, "auto": src == "saqr", "marked": _iso()}
     st["positions"].append(p)
@@ -140,11 +179,12 @@ def sell(st: dict, pid: str, px: float, reason: str, note: str = "") -> dict | N
     p = next((x for x in st["positions"] if x["id"] == pid), None)
     if not p:
         return None
-    proceeds = round(px * 100 * p["qty"] - FEE * p["qty"], 2)
+    fee = fee_of(st.get("market", "us"), kind_of(p), p["qty"], px)
+    proceeds = round(px * mult(p) * p["qty"] - fee, 2)
     st["cash"] = round(st["cash"] + proceeds, 2)
     st["positions"] = [x for x in st["positions"] if x["id"] != pid]
     pl = round(proceeds - p["cost"], 2)
-    c = {**p, "exit_px": round(px, 4), "proceeds": proceeds, "pl": pl, "pl_pct": round(pl / p["cost"] * 100, 1) if p["cost"] else None,
+    c = {**p, "exit_px": round(px, 4), "proceeds": proceeds, "fee_out": fee, "pl": pl, "pl_pct": round(pl / p["cost"] * 100, 1) if p["cost"] else None,
          "closed": _iso(), "reason": reason, "reason_ar": REASON_AR.get(reason, reason), "note": note}
     st["closed"] = ([c] + st["closed"])[:500]
     return c
@@ -153,31 +193,41 @@ def sell(st: dict, pid: str, px: float, reason: str, note: str = "") -> dict | N
 # ══ القواعد (دوالُّ صافية — يختبرها الحارس) ══
 
 def trail(p: dict, bid: float) -> None:
-    """الوقفُ المتحرّك: من +50٪ إلى سعر الدخول، ومن +80٪ إلى 75٪ من القمّة — لا ينزل أبداً."""
+    """الوقفُ المتحرّك — لا ينزل أبداً. العقد: من +50٪ إلى سعر الدخول ومن +80٪ إلى 75٪ من القمّة؛ السهم: من +8٪ إلى الدخول ومن +12٪
+    إلى 94٪ من القمّة."""
+    be, on, keep = (TRAIL_BE, TRAIL_ON, TRAIL_KEEP) if kind_of(p) == "option" else STOCK_TRAIL
     p["peak"] = max(float(p.get("peak") or 0), bid)
     e = p["entry_px"]
-    if p["peak"] >= e * TRAIL_BE:
+    if p["peak"] >= e * be:
         p["stop"] = max(p["stop"], e)
-    if p["peak"] >= e * TRAIL_ON:
-        p["stop"] = max(p["stop"], round(p["peak"] * TRAIL_KEEP, 4))
+    if p["peak"] >= e * on:
+        p["stop"] = max(p["stop"], round(p["peak"] * keep, 4))
 
 
 def exit_rule(p: dict, bid: float | None, S: float | None, dte: int, tr: dict | None, news: dict | None) -> tuple[str, str] | None:
     """(السبب، الشرح) إن وجب الخروج — وإلا None. الترتيب: الأجلُ ثمّ الوقفُ ثمّ الجنيُ ثمّ الهدفُ ثمّ الأطروحة."""
-    call = p["type"] == "call"
-    if dte <= EXIT_DTE:
+    stock = kind_of(p) == "stock"
+    call = stock or p["type"] == "call"
+    base = STOCK_STOP if stock else STOP
+    if not stock and dte <= EXIT_DTE:
         return "time", f"بقي {dte} يوماً على الانتهاء — يتسارع التآكل."
     if bid is not None and bid > 0:
         if bid <= p["stop"]:
-            moved = p["stop"] > p["entry_px"] * STOP + 1e-9
+            moved = p["stop"] > (p.get("stop0") or p["entry_px"] * base) + 1e-9
             return ("trail" if moved else "stop"), (f"سعرُ الطلب {bid:.2f} عند الوقف {p['stop']:.2f}"
-                                                   + (f" (رُفع بعد قمّة {p['peak']:.2f})" if moved else f" — 60٪ من سعر الشراء {p['entry_px']:.2f}") + ".")
-        if bid >= p["entry_px"] * TAKE:
+                                                   + (f" (رُفع بعد قمّة {p['peak']:.2f})" if moved else
+                                                      f" — {round((p.get('stop0') or p['entry_px'] * base) / p['entry_px'] * 100)}٪ من سعر الشراء {p['entry_px']:.2f}") + ".")
+        if stock and p.get("opened"):
+            held = (_now() - datetime.fromisoformat(p["opened"])).days
+            if held >= STOCK_TIME_DAYS and bid < p["entry_px"] * STOCK_TIME_GAIN:
+                return "stale", f"مضى {held} يوماً ولم يتقدّم السهمُ 3٪ — يُحرَّر المالُ لفرصةٍ أفضل."
+        if not stock and bid >= p["entry_px"] * TAKE:
             return "take", f"تضاعف العقد: {p['entry_px']:.2f} ⇐ {bid:.2f}."
     if S is not None and p.get("target") and ((call and S >= p["target"]) or (not call and S <= p["target"])):
         return "target", f"بلغ السهمُ {S:,.2f} الهدفَ {p['target']:,.2f}."
     if tr:
-        v, why = OP.verdict({"type": p["type"], "target": p.get("target") or (math.inf if call else 0)}, None, None, 999, tr, news)
+        # السهمُ مركزُ شراءٍ (كعقد الشراء) — لا يُقرأ «stock» بيعاً فيُكسر مع كلّ مسارٍ صاعد
+        v, why = OP.verdict({"type": "call" if call else "put", "target": p.get("target") or (math.inf if call else 0)}, None, None, 999, tr, news)
         if v == "broken":
             return "broken", why
     return None
@@ -319,8 +369,17 @@ async def trends() -> tuple[dict, int]:
 
 
 async def quote_position(p: dict) -> tuple[float | None, float | None, float | None, int]:
-    """(الطلب، العرض، سعرُ السهم، الأيامُ الباقية) لمركزٍ قائم — حيّان من السلسلة."""
+    """(الطلب، العرض، سعرُ السهم، الأيامُ الباقية) لمركزٍ قائم — حيّان من السلسلة، وللسهم الأمريكيّ من ياهو المباشر."""
     from app.services.options_chain import chain
+    if kind_of(p) == "stock":
+        from app.services.live_quote import yahoo_quotes
+        row = (await yahoo_quotes([p["symbol"]])).get(p["symbol"]) or {}
+        last = row.get("regularMarketPrice")
+        bid = row.get("bid") or None
+        ask = row.get("ask") or None
+        if not bid and isinstance(last, (int, float)):
+            bid = round(last * 0.9995, 4)
+        return bid, ask, (float(last) if isinstance(last, (int, float)) else None), 999
     dte = max(0, (datetime.fromisoformat(p["expiry"]).date() - _now().date()).days)
     t = p.get("t")
     if not t:
@@ -395,6 +454,37 @@ def thesis(sym: str, call: bool, tr: dict, news: dict | None, k: dict, chg: floa
     return out
 
 
+def stock_pick(sym: str, row: dict, tr: dict, budget: float) -> dict | None:
+    """السهمُ الأمريكيّ بدلَ عقده: العرضُ الحيّ (أو آخرُ سعرٍ بانزلاقٍ صغير)، وكمّيةٌ تتّسع لها الميزانيةُ مع العمولة (جزءٌ من السهم
+    بأربعة منازل)، ووقفٌ −7٪، والهدفُ قمّةُ السنة إن بعدت 5٪ فأكثر وإلا +15٪."""
+    last = row.get("regularMarketPrice")
+    ask = row.get("ask") or (round(last * 1.0005, 4) if isinstance(last, (int, float)) else None)
+    bid = row.get("bid") or (round(last * 0.9995, 4) if isinstance(last, (int, float)) else None)
+    if not ask or ask <= 0 or budget < 5:
+        return None
+    qty = math.floor((budget - 0.35) / ask * 10_000) / 10_000
+    while qty > 0 and qty * ask + fee_of("us", "stock", qty, ask) > budget:
+        qty = math.floor(qty * 0.995 * 10_000) / 10_000
+    if qty * ask < 5:
+        return None
+    hi = tr.get("hi52") or 0
+    tgt, lbl = (hi, "قمّة السنة") if hi >= ask * 1.05 else (round(ask * 1.15, 2), "+15٪")
+    return {"contract": sym, "symbol": sym, "name": row.get("shortName"), "type": "stock", "ask": ask, "bid": bid, "price": last or ask,
+            "qty": qty, "stop": round(ask * STOCK_STOP, 4), "target": round(tgt, 2), "target_label": lbl}
+
+
+def stock_thesis(tr: dict, news: dict | None, chg: float | None, why_not_option: str, k: dict) -> list[str]:
+    out = [f"المسارُ {tr['state']}: الإغلاق {tr['close']:,.2f} و{'فوق' if tr['close'] >= tr['sma200'] else 'دون'} متوسّط 200 ({tr['sma200']:,.2f})، "
+           f"وتغيّرُ ثلاثة أشهر {tr['ret3m']:+.1f}٪."]
+    if news and news.get("impact") and news.get("impact") != "محايد":
+        out.append(f"الأخبار ({news['impact']}): {news.get('event') or ''}".strip())
+    out.append(f"لماذا السهمُ لا العقد: {why_not_option}")
+    if chg is not None:
+        out.append(f"حركةُ اليوم {chg:+.2f}٪ — لا تعاكس الصفقة.")
+    out.append(f"الوقف {k['stop']:.2f} (−7٪) والهدف {k['target']:,.2f} ({k['target_label']}).")
+    return out
+
+
 # ══ الدورة ══
 
 async def _notify(text: str) -> None:
@@ -407,6 +497,8 @@ async def _notify(text: str) -> None:
 
 
 def _title(p: dict) -> str:
+    if kind_of(p) == "stock":
+        return f"{p['symbol']}{(' ' + p['name']) if p.get('name') else ''} · سهم"
     return f"{p['symbol']} {'Call' if p['type'] == 'call' else 'Put'} {p['strike']:g} · {p['expiry']}"
 
 
@@ -458,9 +550,10 @@ async def _review(st: dict, now: datetime, scan_tr: dict | None) -> list[dict]:
         c = sell(st, p["id"], bid, code, why)
         if c:
             out.append(c)
-            log(st, "sell", f"بيع {c['qty']} × {_title(c)} بسعر {bid:.2f} — {REASON_AR[code]}: {why} · النتيجة {c['pl']:+,.2f} دولار ({c['pl_pct']:+.1f}٪) بعد العمولات.",
+            unit = "عقد" if kind_of(c) == "option" else "سهم"
+            log(st, "sell", f"بيع {c['qty']:g} {unit} × {_title(c)} بسعر {bid:.2f} — {REASON_AR[code]}: {why} · النتيجة {c['pl']:+,.2f} دولار ({c['pl_pct']:+.1f}٪) بعد العمولات.",
                 c["symbol"])
-            await _notify(f"🦅 <b>صقر — بيع</b>\n{html.escape(_title(c))}\n{c['qty']} عقد × {bid:.2f} · {html.escape(REASON_AR[code])}\n"
+            await _notify(f"🦅 <b>صقر — بيع</b>\n{html.escape(_title(c))}\n{c['qty']:g} {unit} × {bid:.2f} · {html.escape(REASON_AR[code])}\n"
                           f"النتيجة {c['pl']:+,.2f}$ ({c['pl_pct']:+.1f}٪) بعد العمولات\nرأس المال الآن {equity(st):,.2f}$")
     return out
 
@@ -511,6 +604,7 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
             continue
         deep.append((s, side, chg if isinstance(chg, (int, float)) else None))
     _JOB["msg"] = "فحصُ العقود ويونانياتها"
+    stock_alt: list[tuple[str, float | None, str]] = []
     for s, side, chg in deep[:DEEP]:
         try:
             ctx = await AD._context(s)
@@ -524,6 +618,8 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
                         "why": f"دلتا {k['delta']:+.2f} · احتمالُ ربح {k['pop']:.0f}٪ · عائدٌ عند الهدف {k['rr']:.1f}× · كلفة {k['cost']:,.0f}$"})
         else:
             sig.append({"sym": s, "side": side, "verdict": "refused", "why": why})
+            if side == "call" and "سلسلة" not in why and "تعذّر" not in why:
+                stock_alt.append((s, chg, why))
         if len(picks) >= 3:
             break
     st["health"]["quotes"] = _iso() if (q or picks) else st["health"].get("quotes")
@@ -541,6 +637,20 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
             log(st, "buy", f"شراء {qty} × {_title(pos)} بسعر {pos['entry_px']:.2f} (الكلفة مع العمولة {pos['cost']:,.2f}$) — "
                            f"الوقف {pos['stop']:.2f} والهدف {pos['target']:,.2f}.", pos["symbol"])
             await _notify(f"🦅 <b>صقر — شراء</b>\n{html.escape(_title(pos))}\n{qty} عقد × {pos['entry_px']:.2f} = {pos['cost']:,.2f}$ مع العمولة\n"
+                          f"الوقف {pos['stop']:.2f} · الهدف {pos['target']:,.2f}\n" + html.escape(pos["why"][0]))
+    elif stock_alt:
+        # ‏D764: «السوقُ الأمريكيّ له كاملُ الصلاحية — عقودٌ وأسهم»: مسارٌ صاعدٌ وعقودُه غيرُ مناسبة الآن (تذبذبٌ غالٍ أو فارقٌ واسع أو
+        # ميزانيةٌ لا تتّسع) ⇐ السهمُ نفسُه، بالعرض الحيّ وجزءٍ من السهم إن لزم (يدعمه IBKR)، ووقفٍ −7٪ وهدفٍ فنيّ
+        s0, chg0, why0 = stock_alt[0]
+        k = stock_pick(s0, q.get(s0) or {}, tr_all[s0], budget)
+        if k:
+            pos = buy(st, k, k["qty"], stock_thesis(tr_all[s0], news.get(s0), chg0, why0, k), kind="stock")
+            st["day"]["new"] = (st["day"].get("new") or 0) + 1
+            sig.append({"sym": s0, "side": "call", "verdict": "chosen", "contract": s0,
+                        "why": f"السهمُ نفسُه بدل العقد ({why0}) — {pos['qty']:g} سهم × {pos['entry_px']:.2f}"})
+            log(st, "buy", f"شراء {pos['qty']:g} سهم من {s0} بسعر {pos['entry_px']:.2f} (الكلفة مع العمولة {pos['cost']:,.2f}$) — "
+                           f"الوقف {pos['stop']:.2f} والهدف {pos['target']:,.2f}.", s0)
+            await _notify(f"🦅 <b>صقر — شراء سهم</b>\n{html.escape(_title(pos))}\n{pos['qty']:g} سهم × {pos['entry_px']:.2f} = {pos['cost']:,.2f}$ مع العمولة\n"
                           f"الوقف {pos['stop']:.2f} · الهدف {pos['target']:,.2f}\n" + html.escape(pos["why"][0]))
     st["signals"] = [{"at": _iso(), **x} for x in sig][:60]
     st["scan_meta"] = {"at": _iso(), "universe": len(tr_all), "movers": n_movers, "pool": len(pool), "deep": min(len(deep), DEEP),
@@ -592,64 +702,94 @@ async def cycle(force: bool = False) -> dict:
 
 # ══ أوامرُ المالك — تعديلاتُه تتقدّم على الحساب الآليّ ══
 
-async def manual_open(contract: str, qty: int, price: float | None = None) -> dict:
+async def _stock_quote(market: str, sym: str) -> tuple[float | None, float | None, str | None]:
+    """(العرض، الطلب، الاسم) لسهمٍ — السعوديُّ من لقطة «تداول» الحيّة، والأمريكيُّ من ياهو المباشر."""
+    if _mk(market) == "sa":
+        from app.services import tadawul_market as TM
+        r = TM.snapshot().get(sym.replace(".SR", "")) or {}
+        return r.get("ask") or r.get("price"), r.get("bid") or r.get("price"), r.get("name_en")
+    from app.services.live_quote import yahoo_quotes
+    r = (await yahoo_quotes([sym])).get(sym) or {}
+    last = r.get("regularMarketPrice")
+    return (r.get("ask") or last), (r.get("bid") or last), r.get("shortName")
+
+
+async def manual_open(contract: str, qty: float, price: float | None = None, market: str = "us") -> dict:
+    """مركزٌ نفّذه المالك بنفسه: عقدٌ أمريكيّ (رمزُ OCC) أو سهمٌ أمريكيّ أو سعوديّ — بسعره إن كتبه وإلا بسعر العرض الحيّ."""
     from app.services.options_chain import chain, parse_option
-    o = parse_option(contract)
-    if not o or qty < 1:
-        raise ValueError("رمزُ عقدٍ غيرُ صالح أو كمّيةٌ أقلُّ من عقد.")
+    market = _mk(market)
+    sym = str(contract or "").strip().upper().replace(".SR", "")
+    o = parse_option(sym) if market == "us" else None
+    if not sym or qty <= 0:
+        raise ValueError("رمزٌ غيرُ صالح أو كمّيةٌ صفر.")
     async with _LOCK:
-        st = load()
-        base = await chain(o["root"])
-        e = next((x for x in (base or {}).get("expirations") or [] if x["date"] == o["expiry"]), None)
-        ch = await chain(o["root"], e["t"]) if e else None
-        row = next((r for r in (ch or {}).get("calls" if o["type"] == "call" else "puts", []) if r.get("contract") == contract.upper()), None)
-        ask = price or (row or {}).get("ask") or (row or {}).get("sask")
-        if not ask:
-            raise ValueError("لا سعرَ عرضٍ لهذا العقد الآن — اكتب سعرَ التنفيذ الذي نفّذتَ به.")
-        k = {"contract": contract.upper(), "symbol": o["root"], "type": o["type"], "strike": o["strike"], "expiry": o["expiry"],
-             "t": e["t"] if e else None, "ask": float(ask), "bid": (row or {}).get("bid"), "price": (ch or {}).get("price"), "target": None}
-        p = buy(st, k, int(qty), ["مركزٌ أدخله المالك يدوياً."], src="manual", px=float(ask))
-        log(st, "manual", f"المالك أدخل {qty} × {_title(p)} بسعر {p['entry_px']:.2f}.", p["symbol"])
+        st = load(market)
+        if o:
+            base = await chain(o["root"])
+            e = next((x for x in (base or {}).get("expirations") or [] if x["date"] == o["expiry"]), None)
+            ch = await chain(o["root"], e["t"]) if e else None
+            row = next((r for r in (ch or {}).get("calls" if o["type"] == "call" else "puts", []) if r.get("contract") == sym), None)
+            ask = price or (row or {}).get("ask") or (row or {}).get("sask")
+            if not ask:
+                raise ValueError("لا سعرَ عرضٍ لهذا العقد الآن — اكتب سعرَ التنفيذ الذي نفّذتَ به.")
+            k = {"contract": sym, "symbol": o["root"], "type": o["type"], "strike": o["strike"], "expiry": o["expiry"],
+                 "t": e["t"] if e else None, "ask": float(ask), "bid": (row or {}).get("bid"), "price": (ch or {}).get("price"), "target": None}
+            p = buy(st, k, int(qty), ["مركزٌ أدخله المالك يدوياً."], src="manual", px=float(ask))
+        else:
+            if market == "sa" and not (sym.isdigit() and len(sym) == 4):
+                raise ValueError("رمزُ الشركة السعودية أربعةُ أرقام (مثل 2222).")
+            ask, bid, name = await _stock_quote(market, sym)
+            ask = price or ask
+            if not ask:
+                raise ValueError("لا سعرَ لهذا السهم الآن — اكتب السعرَ الذي نفّذتَ به.")
+            k = {"contract": sym, "symbol": sym, "name": name, "type": "stock", "ask": float(ask), "bid": bid, "price": ask, "target": None}
+            p = buy(st, k, float(qty), ["مركزٌ أدخله المالك يدوياً."], src="manual", px=float(ask), kind="stock")
+        log(st, "manual", f"المالك أدخل {p['qty']:g} × {_title(p)} بسعر {p['entry_px']:.2f}.", p["symbol"])
         _point(st)
         save(st)
         return p
 
 
-async def manual_close(pid: str, price: float | None = None) -> dict:
+async def manual_close(pid: str, price: float | None = None, market: str = "us") -> dict:
+    market = _mk(market)
     async with _LOCK:
-        st = load()
+        st = load(market)
         p = next((x for x in st["positions"] if x["id"] == pid), None)
         if not p:
             raise ValueError("لا مركزَ بهذا المعرّف.")
         px = price
         if px is None:
-            bid, _, _, _ = await quote_position(p)
+            if market == "sa":
+                _, bid, _ = await _stock_quote("sa", p["symbol"])
+            else:
+                bid, _, _, _ = await quote_position(p)
             px = bid or p.get("bid")
         if not px:
             raise ValueError("لا سعرَ طلبٍ الآن — اكتب السعرَ الذي بعتَ به.")
         c = sell(st, pid, float(px), "manual", "أغلقه المالك.")
-        log(st, "manual", f"المالك أغلق {_title(c)} بسعر {float(px):.2f} — النتيجة {c['pl']:+,.2f}$.", c["symbol"])
+        log(st, "manual", f"المالك أغلق {_title(c)} بسعر {float(px):.2f} — النتيجة {c['pl']:+,.2f}.", c["symbol"])
         _point(st)
         save(st)
         return c
 
 
-async def set_capital(amount: float) -> dict:
-    """بدءُ تجربةٍ جديدة برأس مالٍ يحدّده المالك — والتجربةُ السابقة تُحفظ ملخّصةً في «التجارب»."""
+async def set_capital(amount: float, market: str = "us") -> dict:
+    """بدءُ تجربةٍ جديدة برأس مالٍ يحدّده المالك (والهدفُ مئةُ ضعفه) — والتجربةُ السابقة تُحفظ ملخّصةً في «التجارب»."""
+    market = _mk(market)
     async with _LOCK:
-        old = load()
-        st = fresh(amount, old.get("on", True))
+        old = load(market)
+        st = fresh(amount, old.get("on", True), market)
         if old.get("closed") or old.get("positions"):
             st["runs"] = ([{"started": old["started"], "ended": _iso(), "capital": old["capital"], "equity": equity(old),
                             "trades": len(old["closed"])}] + old.get("runs", []))[:20]
-        log(st, "info", f"بدأت تجربةٌ جديدة برأس مال {amount:,.2f} دولار — والهدف {GOAL:,.0f}.")
+        log(st, "info", f"بدأت تجربةٌ جديدة برأس مال {amount:,.2f} {st['ccy']} — والهدف {st['goal']:,.0f}.")
         save(st)
         return st
 
 
-async def toggle(on: bool) -> dict:
+async def toggle(on: bool, market: str = "us") -> dict:
     async with _LOCK:
-        st = load()
+        st = load(market)
         st["on"] = bool(on)
         log(st, "info", "شغّل المالكُ صقراً." if on else "أوقف المالكُ صقراً — لا دخولَ جديد، والمراكزُ تُراجَع بقواعد خروجها.")
         save(st)
@@ -658,9 +798,20 @@ async def toggle(on: bool) -> dict:
 
 # ══ العرض ══
 
-def view() -> dict:
+def _sa_job() -> dict:
+    from app.services import saqr_sa as SA
+    return dict(SA._JOB)
+
+
+def _sa_rules() -> dict:
+    from app.services import saqr_sa as SA
+    return SA.rules()
+
+
+def view(market: str = "us") -> dict:
     """حالُ صقر للوحة: الملخّصُ والمراكزُ والمغلقةُ والمنحنى والإشاراتُ والسجلُّ وحالُ الأنظمة."""
-    st = load()
+    market = _mk(market)
+    st = load(market)
     eq = equity(st)
     closed = st["closed"]
     wins = [c for c in closed if c["pl"] > 0]
@@ -669,7 +820,11 @@ def view() -> dict:
     tday = [c for c in closed if datetime.fromisoformat(c["closed"]).astimezone(NY).date().isoformat() == today]
     cost_open = sum(p["cost"] for p in st["positions"])
     val_open = sum(mark_of(p) for p in st["positions"])
-    frac, seats = tier(eq)
+    if market == "sa":
+        from app.services import saqr_sa as SA
+        frac, seats = SA.tier(eq)
+    else:
+        frac, seats = tier(eq)
     try:
         from app.services.saqr_bot import bot
         tg = bool(bot.enabled)
@@ -677,7 +832,7 @@ def view() -> dict:
         tg = False
     pts = st.get("equity") or []
     return {
-        "on": st.get("on"), "capital": st["capital"], "goal": st.get("goal", GOAL), "cash": st["cash"], "equity": eq,
+        "market": market, "ccy": st.get("ccy", "USD"), "on": st.get("on"), "capital": st["capital"], "goal": st.get("goal", GOAL), "cash": st["cash"], "equity": eq,
         "pl": round(eq - st["capital"], 2), "pl_pct": round((eq / st["capital"] - 1) * 100, 2) if st["capital"] else None,
         "progress": round(min(1.0, max(0.0, math.log(max(eq, 1) / st["capital"]) / math.log(st.get("goal", GOAL) / st["capital"]))) * 100, 1)
         if st["capital"] and st.get("goal", GOAL) > st["capital"] else None,
@@ -686,7 +841,9 @@ def view() -> dict:
                        "pl_pct": round((mark_of(p) / p["cost"] - 1) * 100, 1) if p["cost"] and p.get("bid") else None} for p in st["positions"]],
         "closed": closed[:60], "n_closed": len(closed), "wins": len(wins), "losses": len(closed) - len(wins),
         "win_rate": round(len(wins) / len(closed) * 100, 1) if closed else None,
-        "realized": round(sum(c["pl"] for c in closed), 2), "fees": round(sum(FEE * c["qty"] * 2 for c in closed) + sum(FEE * p["qty"] for p in st["positions"]), 2),
+        "realized": round(sum(c["pl"] for c in closed), 2),
+        "fees": round(sum((c.get("fee_in") if c.get("fee_in") is not None else FEE * c["qty"]) + (c.get("fee_out") if c.get("fee_out") is not None else FEE * c["qty"])
+                          for c in closed) + sum((p.get("fee_in") if p.get("fee_in") is not None else FEE * p["qty"]) for p in st["positions"]), 2),
         "today": {"wins": sum(1 for c in tday if c["pl"] > 0), "losses": sum(1 for c in tday if c["pl"] <= 0), "realized": round(sum(c["pl"] for c in tday), 2),
                   "new": (st.get("day") or {}).get("new", 0) if (st.get("day") or {}).get("date") == today else 0},
         "exposure": {"contracts": sum(p["qty"] for p in st["positions"]), "cost": round(cost_open, 2), "value": round(val_open, 2),
@@ -694,8 +851,10 @@ def view() -> dict:
         "equity_curve": pts[-600:], "signals": st.get("signals") or [], "log": (st.get("log") or [])[:120], "gates": st.get("gates") or [],
         "scan": st.get("scan_meta"), "session": st.get("session"), "last_cycle": st.get("last_cycle"), "last_check": st.get("last_check"),
         "health": {**(st.get("health") or {}), "telegram": tg}, "broker": st.get("broker") or {"linked": False, "name": "IBKR"},
-        "runs": st.get("runs") or [], "running": dict(_JOB),
-        "rules": {"fee": FEE, "stop": STOP, "take": TAKE, "dte": [MIN_DTE, MAX_DTE], "max_spread": RULES["max_spread"] * 100,
+        "runs": st.get("runs") or [], "running": dict(_JOB if market == "us" else _sa_job()),
+        "regime": st.get("regime"), "geo": st.get("geo"),
+        "rules": _sa_rules() if market == "sa" else {"fee": FEE, "stop": STOP, "take": TAKE, "dte": [MIN_DTE, MAX_DTE], "max_spread": RULES["max_spread"] * 100,
+                  "stock": {"stop": STOCK_STOP, "trail": list(STOCK_TRAIL), "time_days": STOCK_TIME_DAYS},
                   "delta": [RULES["min_delta"], RULES["max_delta"]], "burn": MAX_BURN * 100, "exit_dte": EXIT_DTE, "day_loss": DAY_LOSS * 100,
                   "max_new_day": MAX_NEW_DAY, "tiers": [[(None if math.isinf(a) else a), b, c] for a, b, c in TIERS]},
     }
