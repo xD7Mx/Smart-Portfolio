@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""حارسُ D759 — مُنتقي عقود الخيارات طويلة الأجل بميزانية العقد (بأمر المالك 2026-11-17).
+"""حارسُ D759 · D762 — مُنتقي عقود الخيارات طويلة الأجل ودفترُ توصياته (بأمر المالك 2026-11-17 · 2026-11-18).
 
-«خانةٌ لقيمة العقد — 150 أو 100 أو 50 دولاراً — فيُخرج أفضلَ الخيارات في السوق الأمريكيّ على المسار (صاعد · هابط · عرضيّ) والأخبار
-(استقال رئيسُ الشركة فالسهمُ هابط)، عقوداً طويلةَ المدى لا تتآكل، صفقاتٍ بمبرّراتها». يُفحص على الدوالّ نفسِها: رياضيّاتُ الاحتمال والدلتا،
-والمسار، وقاعدةُ الخبر، وتصفيةُ العقد (الميزانية · الأجل · السيولة · الفارق · التذبذب)، والمبرّر، والتشغيلُ كلُّه ببياناتٍ مصنوعة، والمسارات.
+‏D759: «خانةٌ لقيمة العقد فيُخرج أفضلَ الخيارات على المسار والأخبار، عقوداً طويلةَ المدى، صفقاتٍ بمبرّراتها».
+‏D762: «فارقُ العرض والطلب 30 دولاراً — خسارةٌ مباشرة… والنتائجُ كلَّ يومٍ تختلف وهي طويلةُ المدى — لازم الاختيارُ مقنع حتى السترايك».
+يُفحص على الدوالّ نفسِها بلا شبكة: رياضيّاتُ الخيار، والمسار، وقاعدةُ الخبر، والفارقُ ≤ 10٪ من عرضٍ وطلبٍ حقيقيّين (حيّين أو من آخر
+جلسة — لا آخرُ صفقة)، والهدفُ الفنيّ ولماذا التنفيذ، وحفظُ آخر جلسة، وقواعدُ الخروج، وثباتُ الدفتر يوماً بعد يوم.
 
     python3 scripts/audit/option_picks_d759.py
 """
-import asyncio, math, os, pathlib, sys, tempfile   # noqa: E401
+import asyncio, math, os, pathlib, sys, tempfile, time   # noqa: E401
 _SB = tempfile.mkdtemp()
 os.environ["LASTGOOD_PATH"] = os.path.join(_SB, "lastgood.json")
 os.environ["SP_STATE_DIR"] = _SB
@@ -34,98 +35,133 @@ check(0.55 < d < 0.65 and abs(d - dp - 1) < 1e-9 and abs(p_atm - 0.5) < 0.02 and
       f"دلتا {d:.3f} · {dp:.3f} · {p_atm:.3f} · {p_far:.3f}")
 
 
-def bars(f):
-    return [{"close": f(i)} for i in range(300)]
+def bars(f, n=300):
+    return [{"close": f(i)} for i in range(n)]
 
 
 up, dn, flat = OP.trend_of(bars(lambda i: 50 + i * 0.3)), OP.trend_of(bars(lambda i: 200 - i * 0.3)), OP.trend_of(bars(lambda i: 100 + 5 * math.sin(i / 7)))
-pull = OP.trend_of(bars(lambda i: 50 + i * 0.3 if i < 293 else 137.9 - (i - 292) * 1.2))     # ارتدادٌ دون متوسّط 50 في مسارٍ صاعد
+pull = OP.trend_of(bars(lambda i: 50 + i * 0.3 if i < 293 else 137.9 - (i - 292) * 1.2))
 check(up["state"] == "صاعد" and dn["state"] == "هابط" and flat["state"] == "عرضي" and OP.trend_of(bars(lambda i: 10)[:100]) is None
-      and pull["state"] == "صاعد" and pull["close"] < pull["sma50"] and OP.trend_of(bars(lambda i: 0.1 + i * 1e-4)) is None,
-      "٢ المسارُ من الشموع: صاعدٌ وهابطٌ وعرضيّ بترتيب متوسّطَي 50 و200 وميلِ 50 والإغلاقِ على جهة 200 — والارتدادُ دون 50 لا يلغي المسار، "
-      "ولا حكمَ بأقلَّ من 210 جلسات ولا لرمزٍ دون دولارين (منتهٍ في المصدر)",
-      f"{up['state']} · {dn['state']} · {flat['state']} · ارتداد {pull['state']} {pull['close']}<{pull['sma50']}")
+      and pull["state"] == "صاعد" and pull["close"] < pull["sma50"] and OP.trend_of(bars(lambda i: 0.1 + i * 1e-4)) is None
+      and all(k in up for k in ("hi60", "hi120", "lo60", "lo120")),
+      "٢ المسارُ من الشموع: صاعدٌ وهابطٌ وعرضيّ، والارتدادُ دون 50 لا يلغي المسار، ولا حكمَ بأقلَّ من 210 جلسات ولا لرمزٍ دون دولارين — "
+      "ومعه قممُ 60 و120 جلسةً وقيعانُها للهدف الفنيّ", f"{up['state']} · {dn['state']} · {flat['state']} · ارتداد {pull['state']}")
 check(OP.direction(up, None)[0] == "call" and OP.direction(dn, None)[0] == "put"
       and OP.direction(up, {"impact": "سلبي", "strength": 2})[0] is None
       and OP.direction(up, {"impact": "سلبي", "strength": 1})[0] == "call"
       and OP.direction(flat, {"impact": "سلبي", "strength": 3})[0] == "put"
       and OP.direction(flat, {"impact": "إيجابي", "strength": 2})[0] is None,
-      "٣ الأخبار: الحدثُ القويُّ المعاكسُ للمسار يُسقط الصفقة، والطفيفُ لا يُسقطها، والجوهريُّ (استقالةُ رئيسٍ مثلاً) يعطي العرضيَّ اتجاهَه")
-rows = [{"contract": "A", "strike": 110, "ask": 0.9, "bid": 0.8, "iv": 35, "oi": 500, "volume": 10},     # ضمن 100
-        {"contract": "B", "strike": 105, "ask": 1.4, "bid": 1.3, "iv": 35, "oi": 800, "volume": 10},     # فوق الميزانية
-        {"contract": "C", "strike": 112, "ask": 0.8, "bid": 0.2, "iv": 35, "oi": 900, "volume": 10},     # فارقٌ واسع
-        {"contract": "D", "strike": 108, "ask": 0.95, "bid": 0.9, "iv": 35, "oi": 10, "volume": 1},     # بلا سيولة
-        {"contract": "E", "strike": 140, "ask": 0.3, "bid": 0.25, "iv": 35, "oi": 2000, "volume": 50}]  # بعيدٌ جداً
-k = OP.pick_contract(rows, 100.0, 200, True, 100)
-check(k and k["contract"] == "A" and k["cost"] == 90.0 and k["breakeven"] == 110.9 and 0 < k["pop"] < 50 and k["dte"] == 200,
-      "٤ العقد: ضمن الميزانية (سعرُ الطلب × 100)، سائلٌ (اهتمامٌ مفتوحٌ وفارقٌ معقول)، وأعلى احتمالِ ربحٍ عند الانتهاء — والبعيدُ جداً يُستبعد",
-      str(k and {x: k[x] for x in ("contract", "cost", "breakeven", "pop", "delta")}))
-kp = OP.pick_contract([{"contract": "P", "strike": 90, "ask": 0.8, "bid": 0.7, "iv": 40, "oi": 300}], 100.0, 250, False, 100)
-check(kp and kp["type"] == "put" and kp["breakeven"] == 89.2 and kp["delta"] < 0 and kp["need_pct"] > 0,
-      "٤ب وخيارُ البيع: التعادلُ تحت التنفيذ بسعره، والدلتا سالبة، والحركةُ المطلوبةُ هبوطٌ يُذكر موجباً", str(kp and kp["breakeven"]))
-# ٤ج السوقُ مغلق (مقيسٌ 2026-11-17 قبل الافتتاح: الطلبُ والعرضُ والتذبذبُ صفرٌ في أغلب العقود)
-import time as _t   # noqa: E402
-iv0 = OP.implied_vol(OP.bs_price(14.0, 12.0, 0.5, 0.55, False), 14.0, 12.0, 0.5, False)
-now = _t.time()
-fresh = _t.strftime("%Y-%m-%dT%H:%M:%S+00:00", _t.gmtime(now - 86400))
-stale = _t.strftime("%Y-%m-%dT%H:%M:%S+00:00", _t.gmtime(now - 5 * 86400))
-closed = [{"contract": "Q1", "strike": 12.0, "ask": 0.0, "bid": 0.0, "last": 0.85, "iv": 0.0, "oi": 900, "last_trade": fresh},
-          {"contract": "Q2", "strike": 13.0, "ask": 0.0, "bid": 0.0, "last": 0.95, "iv": 0.0, "oi": 900, "last_trade": stale}]
-kc = OP.pick_contract(closed, 14.0, 180, False, 100, now)
-check(iv0 and abs(iv0 - 0.55) < 1e-4 and kc and kc["contract"] == "Q1" and kc["px_src"] == "last" and kc["cost"] == 85.0 and 5 < kc["iv"] < 300
-      and kc["spread_pct"] is None and OP.quote(closed[1], 14.0, 0.5, False, now) is None
-      and OP.quote({"strike": 12.0, "ask": 0.0, "bid": 0.0, "last": 0.0, "oi": 900}, 14.0, 0.5, False, now) is None,
-      "٤ج السوقُ مغلق: الطلبُ والعرضُ صفرٌ فيُؤخذ سعرُ آخر صفقةٍ حديثة ويُستخرج التذبذبُ منه (بلاك-شولز معكوساً) ويُوسَم «آخر صفقة» — "
-      "والصفقةُ الأقدمُ من أربعة أيامٍ أو بلا سعرٍ لا يُبنى عليها",
-      f"iv {iv0 and round(iv0, 4)} · {kc and {x: kc[x] for x in ('contract', 'px_src', 'cost', 'iv', 'pop')}}")
-# ٤د سعرُ الأطراف الشاذّ (قيس 2026-11-17: بيعُ NFLX بتنفيذ 10 والسهمُ 60 بسعر 0.04 وتذبذبُ المصدر 214٪ ⇒ احتمال 64٪)
-wing = {"contract": "W", "strike": 30.0, "ask": 0.0, "bid": 0.0, "last": 6.0, "iv": 213.8, "oi": 700, "last_trade": fresh}   # سعرٌ قديمٌ في الطرف
-mk = lambda K, call: {"contract": f"{'C' if call else 'P'}{K:g}", "strike": K, "ask": 0.0, "bid": 0.0, "iv": 0.0, "oi": 900,   # noqa: E731
-                      "last": round(OP.bs_price(60.0, K, 1.17, 0.40, call), 2), "last_trade": fresh}
-near = mk(55.0, False)
-ch = {"calls": [mk(K, True) for K in (55.0, 60.0, 65.0)], "puts": [wing] + [mk(K, False) for K in (55.0, 60.0, 65.0)]}
-ref = OP.atm_iv(ch, 60.0, 1.17, now)
-loose = OP.candidates([wing], 60.0, 427, False, now)
-tight = OP.candidates([wing, near], 60.0, 427, False, now, ref_iv=ref)
-tiny = OP.candidates([{**near, "last": 0.03}], 60.0, 427, False, now)
-check(ref and abs(ref - 0.40) < 0.01 and loose and 90 < loose[0]["iv"] < 110 and [c["contract"] for c in tight] == ["P55"] and not tiny,
-      "٤د سعرُ الأطراف الشاذّ: التذبذبُ مستخرجٌ من السعر لا من حقل المصدر (214٪ في الطرف)، ويُقاس بتذبذب النقود في أجله "
-      "(وسيطُ أقرب العقود إلى السعر) ويُستبعد ما خرج عن نطاقه، ولا عقدَ بأقلَّ من خمسة سنتات (حدُّ التسعير)",
-      f"مرجع {ref and round(ref, 3)} · الطرف وحده {loose and loose[0]['iv']}٪/{loose and loose[0]['pop']}٪ · بالمرجع {[c['contract'] for c in tight]}")
-rs = OP.reasons("NVDA", up, {"impact": "سلبي", "strength": 1, "event": "تخفيضٌ طفيف"}, k, "")
-check(any("المسار صاعد" in x for x in rs) and any("الأخبار" in x for x in rs) and any("يبطؤ تآكلُه" in x for x in rs)
-      and any("أقصى الخسارة" in x for x in rs) and not any("مضمون" in x for x in rs),
-      "٥ المبرّرُ بالعربية: المسارُ بأرقامه، والخبرُ، ولماذا العقدُ طويلُ الأجل، واحتمالُ الربح تقديراً، وأقصى الخسارة — لا وعدَ بربح")
+      "٣ الأخبار: الحدثُ القويُّ المعاكسُ للمسار يُسقط الصفقة، والطفيفُ لا يُسقطها، والجوهريُّ يعطي العرضيَّ اتجاهَه")
 
-# ٦ التشغيلُ كلُّه ببياناتٍ مصنوعة
+# ── سلسلةٌ مصنوعةٌ بأسعار بلاك-شولز (تذبذب 45٪، 270 يوماً) وفارقٍ 4٪ ──
+S, DTE, IV = 20.0, 270, 0.45
+T = DTE / 365
+TR = {**up, "close": S, "sma50": 19.0, "sma200": 17.0, "hi60": 22.5, "hi120": 24.0, "hi52": 26.0, "lo60": 17.5, "lo120": 16.0, "lo52": 15.0}
+
+
+def row(K, call, spread=0.04, oi=800, **kw):
+    m = OP.bs_price(S, K, T, IV, call)
+    return {"contract": f"X{K:g}{'C' if call else 'P'}", "strike": float(K), "bid": round(m * (1 - spread / 2), 2), "ask": round(m * (1 + spread / 2), 2),
+            "last": round(m, 2), "oi": oi, "volume": 50, **kw}
+
+
+calls = [row(k, True) for k in (14, 16, 18, 20, 22, 24, 26, 30)]
+ref = OP.atm_iv({"calls": calls, "puts": [row(k, False) for k in (18, 20, 22)]}, S, T)
+k = OP.pick_contract(calls, S, DTE, True, 400, TR, ref_iv=ref)
+allc = OP.candidates(calls, S, DTE, True, TR, ref_iv=ref)
+check(k and k["target"] == 26.0 and k["target_label"] == "قمّة السنة" and k["breakeven"] < k["target"] and k["rr"] >= OP.MIN_RR
+      and OP.MIN_DELTA <= k["delta"] <= OP.MAX_DELTA and k["spread_pct"] <= 10 and k["cost"] <= 400 and k["px_src"] == "ask"
+      and all(c["breakeven"] < c["target"] and c["rr"] >= OP.MIN_RR and abs(c["delta"]) >= OP.MIN_DELTA for c in allc),
+      "٤ التنفيذ على هدفٍ فنيّ على أفق العقد: أبعدُ قمّةٍ ضمن الحركة المتوقّعة (قمّةُ السنة)، والتعادلُ دونه، والعائدُ عنده ≥ 0.75 من الكلفة، والدلتا 0.30–0.85، "
+      "والفارقُ ≤ 10٪ — ولا يبقى في المرشّحين ما يخالفها",
+      str(k and {x: k[x] for x in ("contract", "strike", "cost", "target", "breakeven", "rr", "delta", "pop", "p_touch")}))
+wide = row(20, True, spread=0.30)
+lastonly = {**row(20, True), "bid": 0.0, "ask": 0.0, "last_trade": time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())}
+snap = {**row(20, True), "bid": 0.0, "ask": 0.0, "sbid": row(20, True)["bid"], "sask": row(20, True)["ask"], "sat": "2026-11-17T20:40"}
+ew, why_w = OP.evaluate(wide, S, DTE, True, TR, ref)
+el, why_l = OP.evaluate(lastonly, S, DTE, True, TR, ref)
+es, _ = OP.evaluate(snap, S, DTE, True, TR, ref)
+check(ew is None and "الفارق" in why_w and el is None and "حقيقيّين" in why_l and es and es["px_src"] == "snap" and es["spread_pct"] <= 10
+      and OP.quote(lastonly, S, T, True) and OP.quote(lastonly, S, T, True)["src"] == "last",
+      "٤ب الفارق (‏D762 — عقدُ NIO بفارق 30 دولاراً): فارقُ 30٪ يُرفض، وآخرُ صفقةٍ بفارقٍ مجهولٍ لا تُبنى عليها توصية (وتبقى للعرض وحده)، "
+      "وطلبُ آخر جلسةٍ وعرضُها يُقبلان موسومَين «آخر جلسة»", f"{why_w} · {why_l} · {es and es['px_src']}")
+tp, lp = OP.target_for({**TR, "hi60": 20.5, "hi120": 20.8, "hi52": 20.9}, S, True, 0.45, T)
+tfar, lfar = OP.target_for({**TR, "hi60": 40.0, "hi120": 45.0, "hi52": 50.0}, S, True, 0.45, T)
+tdn, ldn = OP.target_for(TR, S, False, 0.45, T)
+cap = S * math.exp(0.45 * math.sqrt(T))
+check(abs(tp - cap) < 0.02 and "انحرافٍ واحد" in lp and abs(tfar - cap) < 0.02 and tdn == 15.0 and ldn == "قاع السنة",
+      "٤ج الهدفُ على أفق العقد: عند القمم أو إن تجاوزت القممُ الحركةَ المتوقّعة فالهدفُ حدُّ الحركة بانحرافٍ واحد حتى الانتهاء — "
+      "وللبيع أبعدُ قاعٍ ضمنها", f"{tp} {lp} · {tfar} · {tdn} {ldn}")
+import app.services.options_chain as OC   # noqa: E402
+opn = {"expiry": 1800000000, "calls": [row(k, True) for k in (18, 20, 22)], "puts": [row(k, False) for k in (18, 20, 22)]}
+OC.snapshot("ZZ", opn, now=1795000000)
+shut = {"expiry": 1800000000, "calls": [{**r, "bid": 0.0, "ask": 0.0} for r in opn["calls"]], "puts": [{**r, "bid": 0.0, "ask": 0.0} for r in opn["puts"]]}
+OC.snapshot("ZZ", shut)
+r0 = shut["calls"][1]
+check(r0.get("sbid") == opn["calls"][1]["bid"] and r0.get("sask") == opn["calls"][1]["ask"] and r0.get("sat", "").startswith("2026-")
+      and OP.quote(r0, S, T, True, allow_last=False)["src"] == "snap",
+      "٤د السلسلةُ تحفظ طلبَ الجلسة وعرضَها والسوقُ مفتوح، وتُلحقهما بالعقد والسوقُ مغلق (يصفّرهما المصدر) — فيُعرف الفارقُ الحقيقيّ",
+      f"{r0.get('sbid')}/{r0.get('sask')} · {r0.get('sat')}")
+k["expiry"] = "2027-08-20"
+rs = OP.reasons("XYZ", TR, {"impact": "إيجابي", "strength": 1, "event": "ترقيةٌ من بيت خبرة"}, k, "")
+check(any("الهدفُ الفنيّ" in x and "قمّة السنة" in x and "العائدُ إلى المخاطرة" in x for x in rs) and any(x.startswith("لماذا تنفيذ") for x in rs)
+      and any("الفارقُ بين العرض والطلب" in x and "دولار للعقد" in x for x in rs) and any("خطّةُ الخروج" in x and "نصف كلفته" in x for x in rs)
+      and not any("مضمون" in x for x in rs),
+      "٥ المبرّر: الأطروحةُ والهدفُ الفنيّ ولماذا هذا التنفيذ والفارقُ بالدولار والاحتمالاتُ تقديراً وخطّةُ الخروج — لا وعدَ بربح")
+
+E = {"type": "call", "entry_mid": 2.0, "target": 26.0}
+v = {"hold": OP.verdict(E, 20.5, 2.2, 200, TR, None)[0], "stop": OP.verdict(E, 19.0, 0.95, 200, TR, None)[0],
+     "profit_t": OP.verdict(E, 26.1, 3.0, 200, TR, None)[0], "profit_x2": OP.verdict(E, 21.0, 4.1, 200, TR, None)[0],
+     "broken": OP.verdict(E, 16.0, 1.5, 200, {**TR, "state": "هابط", "close": 16.0}, None)[0],
+     "broken_news": OP.verdict(E, 20.0, 1.9, 200, TR, {"impact": "سلبي", "strength": 2, "event": "تحقيق"})[0],
+     "wobble": OP.verdict(E, 19.5, 1.7, 200, {**TR, "state": "عرضي", "close": 19.5}, None)[0], "time": OP.verdict(E, 20.0, 2.0, 55, TR, None)[0]}
+check(v == {"hold": "hold", "stop": "stop", "profit_t": "profit", "profit_x2": "profit", "broken": "broken", "broken_news": "broken", "wobble": "hold", "time": "time"},
+      "٦ قواعدُ الخروج: احتفظ · وقفٌ عند نصف سعر الدخول · جنيٌ عند الهدف أو تضاعف العقد · انكسارُ الأطروحة بانقلاب المسار أو خبرٍ قويٍّ معاكس · "
+      "ستون يوماً قبل الانتهاء — والتذبذبُ إلى «عرضيّ» لا يُخرج (ثبوتٌ مقصود)", str(v))
+
+# ٧ الدفتر: يومٌ بعد يومٍ بالقائمة نفسِها، والخروجُ بقاعدته، والمقعدُ الشاغرُ وحدَه يُملأ
+SC = {"UP": {**TR, "strength": 9}, "UP2": {**TR, "strength": 8}, "FL": {**flat, "strength": 7}}
+MARK = {}
+
+
 async def fake_scan():
-    return {"UP": {**up, "strength": 9}, "DN": {**dn, "strength": 8}, "FL": {**flat, "strength": 7}, "BAD": {**up, "strength": 6}}
+    return SC
 
 
 async def fake_news(items):
-    return {s: ({"impact": "سلبي", "strength": 3, "event": "استقالةُ الرئيس التنفيذيّ"} if s == "BAD" else {"impact": "محايد", "strength": 0, "event": ""}) for s in items}
+    return {s: {"impact": "محايد", "strength": 0, "event": ""} for s in items}
 
 
-async def fake_contracts(sym, call, budget):
-    if sym == "DN":
-        return None, 240.0
-    return ({**OP.pick_contract(rows, 100.0, 200, call, budget), "expiry": "2027-06-18", "symbol": sym, "name": sym, "price": 100.0}, 90.0) if call else (None, None)
+async def fake_contracts(sym, call, budget, tr):
+    c = OP.pick_contract(calls, S, DTE, True, budget, tr, ref_iv=ref)
+    return ({**c, "contract": f"{sym}-{c['contract']}", "expiry": "2027-08-20", "t": 1, "symbol": sym, "name": sym, "price": S}, c["cost"]) if c else (None, None)
 
 
-OP.scan, OP.read_news, OP.contracts_for = fake_scan, fake_news, fake_contracts
-res = asyncio.run(OP.run(100))
-sk = {x["symbol"]: x["why"] for x in res["skipped"]}
-check([p["symbol"] for p in res["picks"]] == ["UP"] and "BAD" in sk and "تعاكس" in sk["BAD"] and "FL" in sk and "عرضيّ" in sk["FL"]
-      and "DN" in sk and "240" in sk["DN"] and res["skipped"][0]["symbol"] == "DN" and res["closed"] is False
-      and OP.cached(100) and OP.cached(100)["picks"][0]["contract"] == "A" and not OP._JOB["on"],
-      "٦ التشغيل: الصاعدُ صفقةُ شراء، والهابطُ بلا عقدٍ ضمن الميزانية تُذكر كلفةُ أرخصِ عقدٍ صالحٍ له (أوّلَ المستبعَد)، والعرضيُّ يُستبعد، والصاعدُ بخبرٍ جوهريٍّ سلبيّ يُسقَط — وتُخبَّأ النتيجة",
-      f"{[p['symbol'] for p in res['picks']]} · {sk}")
+async def fake_mark(e):
+    return MARK.get(e["symbol"], (S, e["entry_mid"], 270))
+
+
+OP.scan, OP.read_news, OP.contracts_for, OP._mark = fake_scan, fake_news, fake_contracts, fake_mark
+r1 = asyncio.run(OP.run(400))
+r2 = asyncio.run(OP.run(400))
+c1, c2 = [p["contract"] for p in r1["picks"]], [p["contract"] for p in r2["picks"]]
+MARK["UP"] = (S, 0.5, 260)                                   # هبط العقدُ دون نصف دخوله
+SC["UP3"] = {**TR, "strength": 7.5}
+r3 = asyncio.run(OP.run(400))
+c3 = [p["contract"] for p in r3["picks"]]
+ex = {x["symbol"]: x["status"] for x in r3["exits"]}
+check(c1 and c1 == c2 and len(set(c1)) == len(c1) and all(p["new"] for p in r1["picks"]) and "FL" not in {p["symbol"] for p in r1["picks"]}
+      and ex.get("UP") == "stop" and "UP" not in {p["symbol"] for p in r3["picks"]} and any(x.startswith("UP2-") for x in c3) and any(x.startswith("UP3-") for x in c3)
+      and OP.book_budgets() == [400] and OP.cached(400)["picks"] == r3["picks"],
+      "٧ الدفتر: البحثُ الثاني يُعيد القائمةَ نفسَها (لا تتبدّل كلَّ يوم)، والتوصيةُ التي بلغت وقفَها تخرج إلى «إشارات خروج» بسببها، "
+      "والمقعدُ الشاغرُ وحدَه يُملأ من مسارٍ قائم ولا يعود السهمُ الخارجُ قبل أسبوع — والعرضيُّ لا يدخل", f"{c1} ⇐ {c3} · {ex}")
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
+sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 check('@router.get("/options-picks")' in mk and '@router.post("/options-picks/run", dependencies=[Depends(require_owner)])' in mk
-      and "10 <= b <= 10000" in mk,
-      "٧ المسارات: الصفقاتُ تُقرأ، والبحثُ للمالك وحده، والميزانيةُ بين 10 و10,000 دولار")
+      and "10 <= b <= 10000" in mk and "job_option_book" in sch and 'id="option_book_daily"' in sch,
+      "٨ المسارات: الصفقاتُ تُقرأ والمراجعةُ للمالك وحده — ومراجعةُ الدفتر يوميّاً منتصفَ الجلسة الأمريكية")
 src = (ROOT / "backend/app/services/option_picks.py").read_text(encoding="utf-8")
-check("MIN_DTE, MAX_DTE = 120, 430" in src and "READ_NEWS" in src and "اقرأ العناوين وحدها" in src,
-      "٨ العقودُ طويلةُ الأجل (120–430 يوماً)، والأخبارُ تُقرأ من عناوينها وحدها — لا يُضاف من خارجها")
+check("MIN_DTE, MAX_DTE = 150, 430" in src and "MAX_SPREAD = 0.10" in src and "اقرأ العناوين وحدها" in src,
+      "٩ العقودُ طويلةُ الأجل (150–430 يوماً) بفارقٍ ≤ 10٪، والأخبارُ تُقرأ من عناوينها وحدها")
 print("\nالنتيجة:", "عطب ✖" if fail else "نظيف ✔")
 sys.exit(fail)

@@ -13,6 +13,7 @@ import CompanyLogo from "../common/CompanyLogo";
 import InlineStockSearch from "./InlineStockSearch";
 import OptionChain from "./OptionChain";
 import EconEvents from "./EconEvents";
+import { SessionDot, useSessions } from "../chart/LiveQuote";
 import { isOption, optionSub, optionTitle, parseOption } from "../../lib/options";
 import { holdingsApi, marketApi } from "../../services/api";
 import { invalidateWatchlist } from "../../services/watchlistCache";
@@ -53,6 +54,10 @@ export default function TradeRoom() {
   const [chainFor, setChainFor] = useState<string | null>(null);
   const [naming, setNaming] = useState<string | null>(null);
 
+  /* ‏D762: أيقونةُ حالة السوق بجانب كلّ شركةٍ في القائمة — السعوديّةُ بحالة «تداول» والأمريكيّةُ بحالة نيويورك */
+  const { data: ses } = useSessions();
+  const dotFor = (s: string) => /-USD$/.test(s) ? <SessionDot always /> : isSaudi(s) || /TASI/i.test(s) ? <SessionDot s={ses?.sa} />
+    : chainOf(s) || /^\^(GSPC|IXIC|DJI|RUT|VIX)$/.test(s) ? <SessionDot s={ses?.us} /> : null;
   const { data: holdings = [] } = useQuery({
     queryKey: ["holdings"],
     queryFn: () => holdingsApi.list().then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
@@ -166,11 +171,11 @@ export default function TradeRoom() {
                     {(() => {
                       const o = parseOption(r.symbol);
                       if (o) return (<>
-                        <span className="block text-[12.5px] font-bold text-[var(--ink)] truncate">{optionTitle(o)}</span>
+                        <span className="troom-nm"><span className="text-[12.5px] font-bold text-[var(--ink)] truncate">{optionTitle(o)}</span>{dotFor(r.symbol)}</span>
                         <span className="block text-[10px] text-[var(--ink-muted)] truncate tabular-nums">{optionSub(o)}</span>
                       </>);
                       return (<>
-                        <span className="block text-[12.5px] font-bold text-[var(--ink)] truncate">{list === "idx" ? r.name : (isSaudi(r.symbol) ? r.name : r.symbol)}</span>
+                        <span className="troom-nm"><span className="text-[12.5px] font-bold text-[var(--ink)] truncate">{list === "idx" ? r.name : (isSaudi(r.symbol) ? r.name : r.symbol)}</span>{dotFor(r.symbol)}</span>
                         <span className="block text-[10px] text-[var(--ink-muted)] truncate tabular-nums" dir={isSaudi(r.symbol) ? undefined : "ltr"}
                           style={{ textAlign: "right" }}>
                           {list === "idx" ? r.symbol : isSaudi(r.symbol) ? r.symbol.replace(".SR", "") : (r.name !== r.symbol ? r.name : "")}

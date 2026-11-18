@@ -3670,3 +3670,22 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
   background: color-mix(in srgb, var(--warn-ink) 10%, transparent); }
 .ee-s { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
 .ee-sc { display: flex; flex-direction: column; gap: 6px; }
+/* ‏D762 أيقونةُ حالة السوق في قوائم المراقبة */
+.troom-nm { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.lq-sdot { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; background: transparent; }
+.lq-sdot .lq-dot { width: 6px; height: 6px; }
+/* ‏D762 دفترُ التوصيات: حالُ التوصية وزرّاها وإشاراتُ الخروج */
+.op-state { font-size: 11.5px; font-weight: 700; color: var(--ink-muted); }
+.op-state.new { color: var(--brand-ink); }
+.op-state .pos, .op-exits .pos { color: var(--pos-ink); } .op-state .neg, .op-exits .neg { color: var(--neg-ink); }
+.op-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.op-act { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; }
+.op-exits { border: 1px solid var(--hairline); border-radius: 12px; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+.op-exits h4 { font-size: 12.5px; font-weight: 800; color: var(--fg-strong); }
+.op-exits ul { display: flex; flex-direction: column; gap: 6px; }
+.op-exits li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12px; color: var(--ink); }
+.op-exits li small { flex-basis: 100%; font-size: 11px; color: var(--ink-muted); line-height: 1.6; }
+.op-xst { font-size: 10.5px; font-weight: 800; padding: 1px 8px; border-radius: 7px; color: var(--warn-ink); background: color-mix(in srgb, var(--warn-ink) 12%, transparent); }
+.op-xst.s-profit { color: var(--pos-ink); background: color-mix(in srgb, var(--pos-ink) 12%, transparent); }
+.op-xst.s-stop, .op-xst.s-broken { color: var(--neg-ink); background: color-mix(in srgb, var(--neg-ink) 12%, transparent); }
+.ocx-v b.snap { color: var(--ink-muted); font-weight: 700; }

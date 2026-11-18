@@ -142,3 +142,19 @@ async def live(symbol: str) -> dict | None:
     out["at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     cache.set(ck, out, TTL)
     return out
+
+
+async def sessions() -> dict:
+    """حالةُ السوقين معاً لقوائم المراقبة (‏D762): الأمريكيُّ والسعوديّ — الجدولُ ويُقدَّم عليه ‏`current_session` من TradingView
+    (‏SPY · تاسي) — مخبّأةٌ ثلاثين ثانية: نداءٌ واحدٌ للقائمة كلِّها لا نداءٌ لكلّ سطر."""
+    from app.services import cache
+    hit = cache.get("live:sessions")
+    if hit is not None:
+        return hit
+    us_row, sa_row = await asyncio.gather(tv_scan("america", ["AMEX:SPY"], ["close", "current_session"]),
+                                          tv_scan("ksa", ["TADAWUL:TASI"], ["close", "current_session"]))
+    st = lambda rows: TV_STATE.get(str((next(iter(rows.values()), None) or {}).get("current_session") or ""))   # noqa: E731
+    out = {"us": session_for("SPY", st(us_row), "TradingView" if st(us_row) else ""),
+           "sa": session_for("2222.SR", st(sa_row), "TradingView" if st(sa_row) else "")}
+    cache.set("live:sessions", out, 30)
+    return out

@@ -401,6 +401,17 @@ async def job_research_report():
         logger.error(f"قسم الأبحاث: التقرير {e}")
 
 
+async def job_option_book():
+    """دفترُ توصيات الخيارات (‏D762): يُراجَع كلَّ يوم تداولٍ أمريكيّ والسوقُ مفتوح (22:20 بتوقيت الرياض = منتصفُ الجلسة صيفاً وشتاءً) —
+    بعرضٍ وطلبٍ حيّين يُحفظان لآخر جلسة، وبقواعد الخروج — لكلّ ميزانيةٍ استعملها المالك (و150 إن لم يستعمل)."""
+    try:
+        from app.services import option_picks as OP
+        for b in OP.book_budgets() or [150]:
+            await OP.run(float(b))
+    except Exception as e:
+        logger.error(f"دفترُ الخيارات: {e}")
+
+
 async def job_advisor_weekly():
     """المراجعةُ الأسبوعية (D571): كلَّ خميسٍ مساءً، ورقةٌ لكلّ محفظة في التطبيق وتلغرام."""
     try:
@@ -856,6 +867,8 @@ def start_scheduler():
         id="xbrl_statements_night",
         replace_existing=True,
     )
+    # ‏D762: دفترُ توصيات الخيارات — منتصفَ الجلسة الأمريكية من الاثنين إلى الجمعة
+    _scheduler.add_job(job_option_book, CronTrigger(day_of_week="mon-fri", hour=22, minute=20), id="option_book_daily", replace_existing=True)
     # ‏D571: المراجعةُ الأسبوعية — الخميسَ بعد آخر جلسة، وقبل مؤتمرات المساء
     _scheduler.add_job(job_advisor_weekly, CronTrigger(day_of_week="thu", hour=19, minute=15),
                        id="advisor_weekly_thu", replace_existing=True)

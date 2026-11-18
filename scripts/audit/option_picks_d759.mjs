@@ -28,15 +28,22 @@ if (!up) { console.log("… تعذّر إقلاعُ خادم التطوير — 
 let fail = 0;
 const say = (ok, l, d = "") => { if (!ok) fail = 1; console.log(`${ok ? "PASS" : "FAIL"} ${l}${d ? " — " + d : ""}`); };
 const body = data => ({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data }) });
-const PICK = { symbol: "NVDA", name: "NVIDIA Corporation", price: 180.5, contract: "NVDA270618C00230000", type: "call", strike: 230, ask: 1.45, cost: 145,
-  dte: 213, expiry: "2027-06-18", breakeven: 231.45, need_pct: 28.2, need_sigma: 0.9, pop: 21.4, delta: 0.27, iv: 48, oi: 4210, spread_pct: 6.9,
-  trend: { state: "صاعد" }, news: { impact: "إيجابي", strength: 2, event: "نتائجُ فصليةٌ فوق التوقّعات (2026-11-12)" },
-  reasons: ["المسار صاعد: الإغلاق 180.50 فوق متوسّط 50 (172.10) وفوق متوسّط 200 (150.40)، وتغيّرُ ثلاثة أشهر +18.0٪.",
-            "الأخبار (إيجابي): نتائجُ فصليةٌ فوق التوقّعات (2026-11-12)", "العقد ينتهي بعد 213 يوماً فيبطؤ تآكلُه الزمنيّ.",
-            "احتمالُ الربح عند الانتهاء نحو 21٪ تقديراً، وأقصى الخسارة كلفةُ العقد 145 دولاراً."] };
-const RES = (b) => ({ budget: b, at: "2026-11-17T14:00:00+00:00", scanned: 78, news_ok: true, closed: true, limits: { min_dte: 120, max_dte: 430, min_oi: 50, max_spread: 35 },
-  picks: [PICK, { ...PICK, symbol: "INTC", name: "Intel Corporation", contract: "INTC270618P00018000", type: "put", strike: 18, cost: 95, pop: 38.2, delta: -0.31,
-    need_pct: 12.4, px_src: "last", last_trade: "2026-11-16T18:26:41+00:00", spread_pct: null, trend: { state: "هابط" }, reasons: ["المسار هابط: …", "الأخبار (سلبي): استقالةُ الرئيس التنفيذيّ (2026-11-10)"] }],
+const PICK = { symbol: "NVDA", name: "NVIDIA Corporation", contract: "NVDA270618C00230000", type: "call", strike: 230, ask: 1.45, bid: 1.37, cost: 145,
+  dte: 213, expiry: "2027-06-18", breakeven: 231.45, need_pct: 28.2, pop: 21.4, p_touch: 38, target: 245, target_label: "قمّة السنة", rr: 0.9,
+  delta: 0.34, iv: 48, oi: 4210, spread_pct: 5.7, spread_usd: 8, px_src: "ask", opened: "2026-11-17", new: false, pl_pct: 12.4, mid_now: 1.58, entry_mid: 1.41,
+  trend: { state: "صاعد" },
+  reasons: ["الأطروحة: المسار صاعد — الإغلاق 180.50 فوق متوسّط 50 (172.10) وفوق متوسّط 200 (150.40)، وتغيّرُ ثلاثة أشهر +18.0٪.",
+            "الأخبار (إيجابي): نتائجُ فصليةٌ فوق التوقّعات (2026-11-12)",
+            "الهدفُ الفنيّ 245.00 (قمّة السنة)، ونقطةُ التعادل 231.45 (+28.2٪ من السعر) دونه — إن بلغه السهمُ عند الانتهاء ربح العقدُ 0.9 ضعفَ كلفته.",
+            "لماذا تنفيذ 230: أعلى درجةٍ بين العقود السائلة ضمن ميزانيتك بدلتا +0.34 — لا بعيدٌ كاليانصيب ولا عميقٌ غالٍ.",
+            "الفارقُ بين العرض والطلب 8 دولار للعقد (6٪) — العرضُ والطلبُ حيّان.",
+            "خطّةُ الخروج: وقفٌ إن هبط العقدُ إلى نصف كلفته، وجنيٌ عند بلوغ السهمِ الهدفَ أو تضاعفِ العقد، وخروجٌ قبل 60 يوماً من الانتهاء (2027-04-19)."] };
+const RES = (b) => ({ budget: b, at: "2026-11-18T14:00:00+00:00", scanned: 90, news_ok: true, closed: true, limits: { min_dte: 150, max_dte: 430, min_oi: 100, max_spread: 10 },
+  picks: [PICK, { ...PICK, symbol: "INTC", name: "Intel Corporation", contract: "INTC270618P00018000", type: "put", strike: 18, cost: 95, pop: 38.2, delta: -0.41,
+    need_pct: 12.4, px_src: "snap", quote_at: "2026-11-17T20:40", spread_pct: 4.2, spread_usd: 4, new: true, opened: "2026-11-18", pl_pct: 0, trend: { state: "هابط" },
+    reasons: ["الأطروحة: المسار هابط — …", "الأخبار (سلبي): استقالةُ الرئيس التنفيذيّ (2026-11-10)"] }],
+  exits: [{ contract: "NIO270319P00004000", symbol: "NIO", type: "put", opened: "2026-11-10", closed: "2026-11-18", status: "stop", status_ar: "بلغ الوقف",
+    why: "هبط العقدُ إلى 0.40 — نصفُ سعر الدخول (0.80) أو دونه: بلغ الوقف.", pl_pct: -50 }],
   skipped: [{ symbol: "AAPL", why: "المسارُ عرضيّ — لا اتجاهَ يُشترى له عقد" }] });
 const browser = await chromium.launch({ executablePath: CHROME });
 for (const vp of [{ width: 1366, height: 900 }, { width: 390, height: 844 }]) {
@@ -50,6 +57,7 @@ for (const vp of [{ width: 1366, height: 900 }, { width: 390, height: 844 }]) {
   await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe"); localStorage.setItem("sp_lab_view", "options"); localStorage.removeItem("sp_optpicks_budget"); } catch { /* */ } });
   await page.route("**/api/v1/**", async r => {
     const u = new URL(r.request().url()), p = u.pathname.replace(/^.*\/api\/v1/, ""), m = r.request().method();
+    if (p.startsWith("/market/options/")) return r.fulfill(body(null));
     if (p === "/market/options-picks" && m === "GET") {
       if (state.running.on && ++polls >= 2) state = { result: RES(Number(u.searchParams.get("budget"))), running: { on: false } };
       return r.fulfill(body(state));
@@ -70,17 +78,36 @@ for (const vp of [{ width: 1366, height: 900 }, { width: 390, height: 844 }]) {
   await page.waitForTimeout(7500);
   const cards = await page.locator('[data-role="op-pick"]').count();
   const c0 = await page.locator('[data-role="op-pick"]').first().textContent().catch(() => "");
-  say(posts[0] === 150 && /قراءةُ الأخبار/.test(st || "") && cards === 2 && /NVDA/.test(c0) && /خيار شراء/.test(c0) && /\$145\.00/.test(c0) && /21٪/.test(c0)
-      && /231\.45/.test(c0) && /2027-06-18/.test(c0) && /213/.test(c0),
-      `${label}: ٢ «$150» يبحث ويعرض حالَه، ثمّ الصفقاتُ بعقدها (النوع · التنفيذ · الأجل · الكلفة) ومقاييسها (احتمالُ الربح · التعادل · …)`, `${st} · ${cards} صفقة`);
-  const why = await page.locator('[data-role="op-pick"]').nth(1).locator(".op-why li").allTextContents().catch(() => []);
-  say(why.some(x => /استقالةُ الرئيس/.test(x)) && /خيار بيع/.test(await page.locator('[data-role="op-pick"]').nth(1).textContent() || ""),
-      `${label}: ٣ ولكلّ صفقةٍ مبرّرُها — المسارُ والخبر (استقالةُ رئيسٍ ⇒ خيارُ بيع)`, why.join(" | ").slice(0, 120));
-  const lastChips = await page.locator('[data-role="op-last"]').count();
-  const inLast = await page.locator('[data-role="op-pick"]').nth(1).locator('[data-role="op-last"]').count();
+  say(posts[0] === 150 && /قراءةُ الأخبار/.test(st || "") && cards === 2 && /NVDA/.test(c0) && /خيار شراء/.test(c0) && /\$145\.00/.test(c0) && /21%/.test(c0)
+      && /245\.00/.test(c0) && /0\.9×/.test(c0) && /الفارق \$8 \(6%\)/.test(c0) && /18 يونيو/.test(c0) && /213/.test(c0),
+      `${label}: ٢ «$150» يراجع ويعرض حالَه، ثمّ التوصياتُ بعقدها (النوع · التنفيذ · الأجل · الكلفة · الفارقُ بالدولار) ومقاييسها (الهدفُ الفنيّ · العائدُ عنده · الاحتمالات)`, `${st} · ${cards} صفقة`);
+  /* ‏D762: الدفترُ يحفظ التوصية — «قائمةٌ منذ» بربحها منذ الدخول، و«جديدةٌ اليوم» */
+  const s0 = await page.locator('[data-role="op-pick"]').nth(0).locator('[data-role="op-state"]').textContent().catch(() => "");
+  const s1 = await page.locator('[data-role="op-pick"]').nth(1).locator('[data-role="op-state"]').textContent().catch(() => "");
+  say(/قائمةٌ منذ 17 نوفمبر/.test(s0 || "") && /\+12\.4%/.test(s0 || "") && /الأطروحةُ سليمة/.test(s0 || "") && /جديدة اليوم/.test(s1 || ""),
+      `${label}: ٢ب التوصيةُ تبقى بتاريخها وربحِها منذ الدخول («قائمةٌ منذ 17 نوفمبر · +12.4%»)، والجديدةُ موسومة`, `${s0} | ${s1}`);
+  const why = await page.locator('[data-role="op-pick"]').nth(0).locator(".op-why li").allTextContents().catch(() => []);
+  say(why.some(x => /الهدفُ الفنيّ/.test(x)) && why.some(x => /^لماذا تنفيذ 230/.test(x)) && why.some(x => /خطّةُ الخروج/.test(x))
+      && /خيار بيع/.test(await page.locator('[data-role="op-pick"]').nth(1).textContent() || ""),
+      `${label}: ٣ ولكلّ توصيةٍ مبرّرُها — الأطروحةُ والهدفُ الفنيّ ولماذا هذا التنفيذ وخطّةُ الخروج`, why.join(" | ").slice(0, 120));
+  const snaps = await page.locator('[data-role="op-snap"]').count();
+  const inSnap = await page.locator('[data-role="op-pick"]').nth(1).locator('[data-role="op-snap"]').count();
   const meta0 = await page.locator('[data-role="op-meta"]').textContent().catch(() => "");
-  say(lastChips === 1 && inLast === 1 && /مغلق/.test(meta0 || ""),
-      `${label}: ٣ب والسوقُ مغلق: العقدُ المسعَّرُ بآخر صفقةٍ يُوسَم «آخر صفقة» وحدَه، والسطرُ يقول إن السوق مغلق (‏D760)`, `${lastChips} · ${meta0}`);
+  const ex = await page.locator('[data-role="op-exit"]').first().textContent().catch(() => "");
+  const copies = await page.locator('[data-role="op-copy"]').count();
+  say(snaps === 1 && inSnap === 1 && /آخر جلسة/.test(meta0 || "") && /فارقٌ ≤ 10%/.test(meta0 || "") && /بلغ الوقف/.test(ex || "") && /-50\.0%/.test(ex || "") && copies === 0,
+      `${label}: ٣ب العرضُ والطلبُ من آخر جلسةٍ يُوسمان والسوقُ مغلق، و«إشاراتُ خروج» بسببها وخسارتها — ولا زرَّ نسخٍ لرمزٍ مبهم`, `${snaps} · ${(ex || "").slice(0, 40)}`);
+  /* «فتح في الرسم» يذهب إلى غرفة التداول بالعقد نفسِه، و«سلسلة العقود» تفتح سلسلةَ السهم */
+  await page.locator('[data-role="op-chain"]').first().click(); await page.waitForTimeout(700);
+  const chainOpen = await page.locator('[data-role="oc"]').count();
+  await page.keyboard.press("Escape"); await page.waitForTimeout(400);
+  await page.locator('[data-role="op-open"]').first().click(); await page.waitForTimeout(1200);
+  const roomSym = await page.evaluate(() => localStorage.getItem("sp_room_symbol"));
+  const url = page.url();
+  say(chainOpen === 1 && roomSym === "NVDA270618C00230000" && !/tab=lab/.test(url) && /\/watchlist/.test(url),
+      `${label}: ٣ج «سلسلة العقود» تفتح سلسلةَ السهم، و«فتح في الرسم» يذهب إلى رسم العقد نفسِه في غرفة التداول`, `${chainOpen} · ${roomSym} · ${url.slice(-20)}`);
+  await page.goto(`http://localhost:${PORT}/watchlist?tab=lab`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(2000);
   await page.locator('[data-role="op-skipped"] summary').click().catch(() => {}); await page.waitForTimeout(300);
   const sk = await page.locator('[data-role="op-skipped"]').textContent().catch(() => "");
   say(/AAPL/.test(sk || "") && /عرضيّ/.test(sk || ""), `${label}: ٤ والمستبعَدُ يُذكر بسببه`);

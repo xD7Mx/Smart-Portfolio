@@ -2283,6 +2283,13 @@ async def symbol_search(q: str = ""):
     return success_response(await search(q))
 
 
+@router.get("/sessions")
+async def market_sessions():
+    """حالةُ السوقين الأمريكيّ والسعوديّ معاً لأيقونات قوائم المراقبة (‏D762)."""
+    from app.services.live_quote import sessions
+    return success_response(await sessions())
+
+
 @router.get("/live/{symbol}")
 async def live_quote(symbol: str):
     """السعرُ الحيُّ وحالةُ السوق (‏D761): مفتوح · قبل الافتتاح · بعد الإغلاق · مغلق · عطلة — والسعرُ يتحرّك (مخبّأٌ أربعَ ثوانٍ)."""

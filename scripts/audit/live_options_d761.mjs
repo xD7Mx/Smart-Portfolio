@@ -73,6 +73,9 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
       return r.fulfill(body(u.searchParams.get("contract") ? { ...ADVICE, contract: CARD(720, "no") } : ADVICE));
     }
     if (p === "/market/econ-events") return r.fulfill(body(EVENTS));
+    if (p === "/market/sessions") return r.fulfill(body({ us: ses, sa: { market: "sa", state: "closed", label: "السوق مغلق", detail: "يفتح بعد 13 س", next: null } }));
+    if (p === "/market/watchlist" && m === "GET") return r.fulfill(body([{ symbol: "SPY", name: "SPDR S&P 500" }, { symbol: "2222.SR", name: "أرامكو السعودية" },
+      { symbol: "BTC-USD", name: "Bitcoin" }]));
     if (p === "/market/symbol-search") return r.fulfill(body((u.searchParams.get("q") || "").toLowerCase().startsWith("nio")
       ? [{ symbol: "NIO", name: "NIO Inc.", type: "سهم", exchange: "نيويورك", us: true, options: true }] : []));
     if (p === "/market/watchlist/groups") return r.fulfill(body([{ id: 1, name: "الرئيسية", is_default: true }, { id: 2, name: "السوق الأمريكي", is_default: false }]));
@@ -171,6 +174,12 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
   const hb = page.locator('[data-role="troom-chart"] [data-role="lq-session"]').first();
   const hs = await hb.getAttribute("data-state").catch(() => null), ht = await hb.textContent().catch(() => "");
   say(hs === "holiday" && /عيد الشكر/.test(ht || ""), `${label}: ٨ والعطلةُ باسمها («عيد الشكر»)`, `${hs} · ${ht}`);
+  /* ‏D762: أيقونةُ حالة السوق بجانب كلّ شركةٍ في القائمة — الأمريكيّةُ بحالة نيويورك والسعوديّةُ بحالة «تداول» والمشفّرةُ على مدار الساعة */
+  const dots = await page.evaluate(() => [...document.querySelectorAll('[data-role="troom-row"]')].map(r => {
+    const d = r.querySelector('[data-role="lq-dot"]'); return [r.textContent.slice(0, 12), d ? d.getAttribute("data-state") : null]; }));
+  const st = Object.fromEntries(dots.map(([t, v]) => [/SPY/.test(t) ? "SPY" : /أرامكو/.test(t) ? "2222" : /BTC/.test(t) ? "BTC" : t, v]));
+  say(st.SPY === "open" && st["2222"] === "closed" && st.BTC === "open",
+      `${label}: ١٠ أيقونةُ حالة السوق بجانب كلّ شركةٍ في القائمة (أمريكيّ: مفتوح · سعوديّ: مغلق · مشفّر: على مدار الساعة)`, JSON.stringify(st));
   say(errs.length === 0, `${label}: ٩ لا خطأ`, errs[0] || "");
   await ctx.close();
 }

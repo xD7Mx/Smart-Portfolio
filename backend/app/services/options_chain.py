@@ -141,5 +141,33 @@ async def chain(symbol: str, date_t: int | None = None) -> dict | None:
         logger.info("الخيارات: لا سلسلةَ لـ{}", sym)
         return None
     out = shape_chain(res[0])
+    snapshot(sym, out)
     cache.set(ck, out, 20)          # ‏D761: السلسلةُ «حيّة» قدر الإمكان — تُجدَّد كلَّ عشرين ثانية لمن يشاهدها
     return out
+
+
+def snapshot(sym: str, out: dict, now: float | None = None) -> None:
+    """طلبُ آخر جلسةٍ وعرضُها (‏D762). والسوقُ مفتوحٌ (لأغلب العقود طلبٌ وعرض) يُحفظان لكلّ عقدٍ خمسةَ أيام؛ والسوقُ مغلقٌ (يُصفِّرهما المصدر —
+    قِيس 2026-11-17) يُلحقان بكلّ عقدٍ صفرٍ باسم ‏`sbid`/`sask` ووقتِهما ‏`sat` — فيُعرف الفارقُ الحقيقيّ ولا يُبنى على آخر صفقة."""
+    from app.services import cache
+    t = out.get("expiry")
+    if not t:
+        return
+    rows = (out.get("calls") or []) + (out.get("puts") or [])
+    if not rows:
+        return
+    key = f"ochain:snap:{sym}:{t}"
+    live = [r for r in rows if (r.get("bid") or 0) > 0 and (r.get("ask") or 0) > 0]
+    if len(live) >= max(3, len(rows) * 0.3):
+        at = datetime.fromtimestamp(now or time.time(), tz=timezone.utc).isoformat(timespec="minutes")
+        snap = dict(cache.get(key) or {})
+        snap.update({r["contract"]: [r["bid"], r["ask"], at] for r in live})
+        cache.set(key, snap, 5 * 86400)
+        return
+    snap = cache.get(key) or {}
+    for r in rows:
+        if (r.get("bid") or 0) > 0 and (r.get("ask") or 0) > 0:
+            continue
+        v = snap.get(r.get("contract"))
+        if v:
+            r["sbid"], r["sask"], r["sat"] = v[0], v[1], v[2]

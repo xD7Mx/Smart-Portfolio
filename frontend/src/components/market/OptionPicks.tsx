@@ -1,29 +1,39 @@
-/* ══ عقودُ الخيارات طويلة الأجل بميزانية العقد ══ (‏D759 · بأمر المالك 2026-11-17)
-   «خانةٌ أضع فيها قيمةَ العقد — 150 أو 100 أو 50 دولاراً — فيُخرج أفضلَ الخيارات في السوق الأمريكيّ على المسار والأخبار، عقوداً طويلةَ المدى
-   لا تتآكل… صفقاتٌ أختار منها ما يناسبني مع المبرّر». المحرّكُ في الخادم (‏services/option_picks)؛ وهنا الخانةُ والصفقاتُ بمبرّراتها. */
-import { useEffect, useState } from "react";
+/* ══ عقودُ الخيارات طويلة الأجل بميزانية العقد — دفترُ توصياتٍ قائمة ══ (‏D759 · ‏D762 بأمر المالك 2026-11-18)
+   «خانةٌ أضع فيها قيمةَ العقد… عقوداً طويلةَ المدى لا تتآكل… صفقاتٌ أختار منها مع المبرّر». ثمّ (‏D762): «فارقُ العرض والطلب 30 دولاراً —
+   خسارةٌ مباشرة… والنتائجُ كلَّ يومٍ تختلف وهي طويلةُ المدى — لازم الاختيارُ مقنع حتى السترايك… وزرُّ النسخ ينسخ رقماً لا أعرف أين أضعه —
+   بدله: فتحٌ في الرسم». فالتوصيةُ تبقى بتاريخها وربحِها أو خسارتِها منذ دخولها حتى تنكسر قاعدةُ خروجٍ مكتوبة، وبطاقتُها تقول الهدفَ الفنيّ
+   ولماذا هذا التنفيذ والفارقَ بالدولار وخطّةَ الخروج، وزرّاها «فتح في الرسم» و«سلسلة العقود». المحرّكُ في الخادم (‏services/option_picks). */
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Search, Copy, Check, RefreshCw } from "lucide-react";
+import { Search, RefreshCw, LineChart, Layers, LogOut } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import CompanyLogo from "../common/CompanyLogo";
+import OptionChain from "./OptionChain";
+import { dayMonth, optionTitle, parseOption } from "../../lib/options";
 
-type Pick = { symbol: string; name?: string; price?: number; contract: string; type: "call" | "put"; strike: number; ask: number; cost: number;
-  dte: number; expiry: string; breakeven: number; need_pct: number; need_sigma: number | null; pop: number; delta: number; iv: number; oi: number;
-  spread_pct: number | null; px_src?: "ask" | "last"; last_trade?: string | null; trend: { state: string };
-  news: { impact?: string; strength?: number } | null; reasons: string[] };
+type Pick = { symbol: string; name?: string; contract: string; type: "call" | "put"; strike: number; ask: number; bid: number | null; cost: number;
+  dte: number; expiry: string; breakeven: number; need_pct: number; pop: number; p_touch: number; target: number; target_label: string; rr: number;
+  delta: number; iv: number; oi: number; spread_pct: number; spread_usd: number; px_src?: "ask" | "snap"; quote_at?: string | null;
+  opened: string; new: boolean; pl_pct: number | null; mid_now: number | null; entry_mid: number; status_why?: string;
+  trend: { state: string }; reasons: string[] };
+type Exit = { contract: string; symbol: string; type: string; opened: string; closed: string; status: string; status_ar: string; why: string; pl_pct: number | null };
 
 const PRESETS = [50, 100, 150, 300];
 const n2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const Num = ({ v }: { v: string }) => <bdi dir="ltr" className="tabular-nums">{v}</bdi>;
 const lsGet = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* */ } };
+const sg = (v: number) => (v >= 0 ? "+" : "") + v.toFixed(1);
+const dm = (iso: string) => { try { return dayMonth(iso); } catch { return iso; } };
 
 export default function OptionPicks() {
   const owner = useAuthStore((s: any) => s.isOwner);
-  const [budget, setBudget] = useState<number>(() => Number(lsGet("sp_optpicks_budget")) || 100);
+  const nav = useNavigate();
+  const [budget, setBudget] = useState<number>(() => Number(lsGet("sp_optpicks_budget")) || 150);
   const [draft, setDraft] = useState(String(budget));
-  const [copied, setCopied] = useState<string | null>(null);
+  const [chainFor, setChainFor] = useState<string | null>(null);
   const q = useQuery({
     queryKey: ["option-picks", budget],
     queryFn: () => marketApi.optionPicks(budget).then(r => r.data.data),
@@ -37,8 +47,10 @@ export default function OptionPicks() {
     setBudget(b); setDraft(String(b)); lsSet("sp_optpicks_budget", String(b));
     if (owner) run.mutate(b);
   };
-  useEffect(() => { if (copied) { const t = setTimeout(() => setCopied(null), 1500); return () => clearTimeout(t); } }, [copied]);
+  /* «فتح في الرسم»: العقدُ نفسُه في غرفة التداول — رسمُه وسعرُه الحيّ وسلسلتُه */
+  const openChart = (sym: string) => { lsSet("sp_room_symbol", sym); nav("/watchlist"); };
   const picks: Pick[] = res?.picks || [];
+  const exits: Exit[] = res?.exits || [];
 
   return (
     <div className="op card" data-role="op">
@@ -57,29 +69,30 @@ export default function OptionPicks() {
         </span>
         {owner && (
           <button type="submit" className="btn-primary op-go" disabled={busy} data-role="op-go">
-            {busy ? <RefreshCw size={15} className="rl-spin" /> : <Search size={15} />} {busy ? "يبحث" : "ابحث"}
+            {busy ? <RefreshCw size={15} className="rl-spin" /> : <Search size={15} />} {busy ? "يراجع" : "راجع"}
           </button>
         )}
       </form>
 
-      {busy && <p className="op-status" data-role="op-status" role="status">{q.data?.running?.msg || "يبحث"}…</p>}
+      {busy && <p className="op-status" data-role="op-status" role="status">{q.data?.running?.msg || "يراجع"}…</p>}
 
-      {!busy && !res && <p className="op-empty" data-role="op-empty">اكتب قيمة العقد ثمّ «ابحث».</p>}
+      {!busy && !res && <p className="op-empty" data-role="op-empty">اكتب قيمة العقد ثمّ «راجع».</p>}
 
       {res && (
         <>
           <p className="op-meta" data-role="op-meta">
             <Num v={`$${res.budget}`} /> للعقد · آجالٌ بين <Num v={`${res.limits?.min_dte}`} /> و<Num v={`${res.limits?.max_dte}`} /> يوماً ·
-            قُرئ مسارُ <Num v={`${res.scanned}`} /> رمزاً{res.news_ok ? " وأخبارُها" : " — قراءةُ الأخبار غيرُ متوفّرة الآن"}
-            {res.closed && " · السوقُ الأمريكيّ مغلق: الكلفةُ سعرُ آخر صفقة"}
+            فارقٌ ≤ <Num v={`${res.limits?.max_spread}%`} /> · قُرئ مسارُ <Num v={`${res.scanned}`} /> رمزاً{res.news_ok ? " وأخبارُها" : " — قراءةُ الأخبار غيرُ متوفّرة الآن"}
+            {res.closed && " · السوقُ الأمريكيّ مغلق: العرضُ والطلب من آخر جلسة"}
           </p>
           {picks.length === 0 ? (
-            <p className="op-empty" data-role="op-none">لا عقدَ طويلَ الأجل سائلاً بهذه القيمة باحتمالٍ معقول.</p>
+            <p className="op-empty" data-role="op-none">لا عقدَ طويلَ الأجل يستوفي الشروط بهذه القيمة الآن.</p>
           ) : (
             <div className="op-grid">
               {picks.map((p, i) => {
                 const call = p.type === "call";
                 const col = call ? "var(--pos-ink)" : "var(--neg-ink)";
+                const o = parseOption(p.contract);
                 return (
                   <article key={p.contract} className="op-card card-rise" style={{ animationDelay: `${i * 45}ms` }} data-role="op-pick">
                     <header className="op-head">
@@ -89,36 +102,63 @@ export default function OptionPicks() {
                         {call ? "خيار شراء · Call" : "خيار بيع · Put"}
                       </span>
                     </header>
+                    <p className={"op-state" + (p.new ? " new" : "")} data-role="op-state">
+                      {p.new ? "توصيةٌ جديدة اليوم" : <>قائمةٌ منذ {dm(p.opened)}{p.pl_pct != null && <> · <b className={p.pl_pct >= 0 ? "pos" : "neg"}><Num v={`${sg(p.pl_pct)}%`} /></b> منذ الدخول</>} · الأطروحةُ سليمة</>}
+                    </p>
                     <p className="op-line">
-                      تنفيذ <b><Num v={n2(p.strike)} /></b> · ينتهي <Num v={p.expiry} /> (<Num v={`${p.dte}`} /> يوماً) · الكلفة <b><Num v={`$${n2(p.cost)}`} /></b>
-                      {p.px_src === "last" && <span className="op-last" data-role="op-last">آخر صفقة</span>}
+                      <b>{o ? optionTitle(o) : p.contract}</b> · ينتهي {dm(p.expiry)} (<Num v={`${p.dte}`} /> يوماً) · الكلفة <b><Num v={`$${n2(p.cost)}`} /></b>
+                      {" "}· الفارق <Num v={`$${Math.round(p.spread_usd)}`} /> (<Num v={`${p.spread_pct.toFixed(0)}%`} />)
+                      {p.px_src === "snap" && <span className="op-last" data-role="op-snap">آخر جلسة</span>}
                     </p>
                     <div className="op-m">
-                      <span><small>احتمال الربح</small><b style={{ color: p.pop >= 35 ? "var(--pos-ink)" : "var(--warn-ink)" }}><Num v={`${p.pop.toFixed(0)}٪`} /></b></span>
+                      <span><small>الهدف الفنيّ</small><b><Num v={n2(p.target)} /></b></span>
+                      <span><small>العائد عند الهدف</small><b style={{ color: "var(--pos-ink)" }}><Num v={`${p.rr.toFixed(1)}×`} /></b></span>
+                      <span><small>احتمال الربح</small><b style={{ color: p.pop >= 35 ? "var(--pos-ink)" : "var(--warn-ink)" }}><Num v={`${p.pop.toFixed(0)}%`} /></b></span>
+                      <span><small>احتمال لمس الهدف</small><b><Num v={`${p.p_touch.toFixed(0)}%`} /></b></span>
                       <span><small>نقطة التعادل</small><b><Num v={n2(p.breakeven)} /></b></span>
-                      <span><small>الحركة المطلوبة</small><b><Num v={`${p.need_pct > 0 ? "+" : ""}${p.need_pct.toFixed(1)}٪`} /></b></span>
                       <span><small>الدلتا</small><b><Num v={p.delta.toFixed(2)} /></b></span>
-                      <span><small>التذبذب الضمني</small><b><Num v={`${p.iv.toFixed(0)}٪`} /></b></span>
-                      <span><small>الاهتمام المفتوح</small><b><Num v={p.oi.toLocaleString("en-US")} /></b></span>
                     </div>
                     <ul className="op-why">{p.reasons.map((r, j) => <li key={j}>{r}</li>)}</ul>
-                    <button type="button" className="btn-ghost op-copy" data-role="op-copy" onClick={() => { navigator.clipboard?.writeText(p.contract); setCopied(p.contract); }}
-                      aria-label={`نسخ رمز العقد ${p.contract}`}>
-                      {copied === p.contract ? <Check size={14} /> : <Copy size={14} />} <Num v={p.contract} />
-                    </button>
+                    <div className="op-btns">
+                      <button type="button" className="btn-primary op-act" onClick={() => openChart(p.contract)} data-role="op-open">
+                        <LineChart size={14} /> فتح في الرسم
+                      </button>
+                      <button type="button" className="btn-ghost op-act" onClick={() => setChainFor(p.symbol)} data-role="op-chain">
+                        <Layers size={14} /> سلسلة العقود
+                      </button>
+                    </div>
                   </article>
                 );
               })}
             </div>
           )}
+          {exits.length > 0 && (
+            <section className="op-exits" data-role="op-exits">
+              <h4><LogOut size={14} className="inline-block align-[-2px] me-1" />إشاراتُ خروج</h4>
+              <ul>
+                {exits.map(x => {
+                  const o = parseOption(x.contract);
+                  return (
+                    <li key={x.contract + x.closed} data-role="op-exit" data-status={x.status}>
+                      <b>{o ? optionTitle(o) : x.contract}</b>
+                      <span className={"op-xst s-" + x.status}>{x.status_ar}</span>
+                      {x.pl_pct != null && <b className={x.pl_pct >= 0 ? "pos" : "neg"}><Num v={`${sg(x.pl_pct)}%`} /></b>}
+                      <small>{x.why} ({dm(x.opened)} ⇐ {dm(x.closed)})</small>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
           {(res.skipped || []).length > 0 && (
             <details className="robo-held" data-role="op-skipped">
-              <summary><span>استُبعد (<Num v={`${res.skipped.length}`} />)</span></summary>
+              <summary><span>لم يدخل (<Num v={`${res.skipped.length}`} />)</span></summary>
               <ul>{res.skipped.map((s: any) => <li key={s.symbol}><b><Num v={s.symbol} /></b> — {s.why}</li>)}</ul>
             </details>
           )}
         </>
       )}
+      {chainFor && <OptionChain underlying={chainFor} onClose={() => setChainFor(null)} onPick={c => { setChainFor(null); openChart(c); }} />}
     </div>
   );
 }

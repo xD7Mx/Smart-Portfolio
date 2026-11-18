@@ -274,6 +274,7 @@ export const marketApi = {
   symbolSearch: (q: string) => api.get<APIResponse>("/market/symbol-search", { params: { q } }),
   /* ‏D761 السعرُ الحيُّ وحالةُ السوق (مفتوح · قبل الافتتاح · بعد الإغلاق · مغلق · عطلة) */
   live: (symbol: string) => api.get<APIResponse>(`/market/live/${encodeURIComponent(symbol)}`),
+  sessions: () => api.get<APIResponse>("/market/sessions"),
   optionAdvice: (p: { symbol: string; budget?: number; expiry?: number; contract?: string; side?: string }) =>
     api.get<APIResponse>("/market/options-advice", { params: p, timeout: 120000 }),
   econEvents: () => api.get<APIResponse>("/market/econ-events", { timeout: 60000 }),

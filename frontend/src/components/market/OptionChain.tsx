@@ -15,7 +15,7 @@ import EconEvents from "./EconEvents";
 
 type G = { iv: number; delta: number; gamma: number; theta: number; vega: number; itm: number; pop: number; px: number; src: string; spread: number | null; be: number };
 type Row = { contract: string; strike: number; last: number | null; bid: number | null; ask: number | null; pct: number | null;
-  volume: number | null; oi: number | null; iv: number | null; itm: boolean; g?: G | null };
+  volume: number | null; oi: number | null; iv: number | null; itm: boolean; g?: G | null; sbid?: number; sask?: number; sat?: string };
 type Stats = { atm_iv: number | null; move: number | null; move_pct: number | null; pcr_vol: number | null; pcr_oi: number | null; max_pain: number | null;
   vol: { call: number; put: number }; oi: { call: number; put: number } };
 type Chain = { symbol: string; name?: string; price?: number; expirations: { t: number; date: string; dte: number }[]; expiry: number | null;
@@ -65,8 +65,8 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose }: {
   const strikes = useMemo(() => {
     if (!c) return [] as { k: number; call?: Row; put?: Row }[];
     const m = new Map<number, { k: number; call?: Row; put?: Row }>();
-    for (const r of c.calls) m.set(r.strike, { ...(m.get(r.strike) || { k: r.strike }), call: r });
-    for (const r of c.puts) m.set(r.strike, { ...(m.get(r.strike) || { k: r.strike }), put: r });
+    for (const r of c.calls || []) m.set(r.strike, { ...(m.get(r.strike) || { k: r.strike }), call: r });
+    for (const r of c.puts || []) m.set(r.strike, { ...(m.get(r.strike) || { k: r.strike }), put: r });
     const list = [...m.values()].sort((a, b) => a.k - b.k);
     if (all || !S || list.length <= 25) return list;
     const i = list.findIndex(r => r.k >= S);
@@ -92,11 +92,14 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose }: {
     if (!r) return <div className={"ocx-side" + (call ? " ocx-c" : " ocx-p")} />;
     const g = r.g;
     const on = sel?.row.contract === r.contract;
+    /* ‏D762: السوقُ مغلقٌ والمصدرُ يصفّر الطلبَ والعرض — فيُعرضان من آخر جلسةٍ بلونٍ خافت */
+    const snap = !(r.bid && r.ask) && !!(r.sbid && r.sask);
+    const bid = snap ? r.sbid! : r.bid, ask = snap ? r.sask! : r.ask;
     return (
       <button type="button" className={"ocx-side" + (call ? " ocx-c" : " ocx-p") + (itm ? " itm" : "") + (on ? " on" : "")}
         onClick={() => setSel({ row: r, call })} data-role="oc-cell" data-side={call ? "call" : "put"} title={nameOf(r)}>
-        <span className="ocx-v"><b>{f2(r.bid)}</b><small>{g ? `Δ${g.delta.toFixed(2)}` : "—"}</small></span>
-        <span className="ocx-v"><b>{f2(r.ask)}</b><small>{g ? `${g.iv.toFixed(0)}%` : r.iv != null ? `${r.iv.toFixed(0)}%` : "—"}</small></span>
+        <span className="ocx-v"><b className={snap ? "snap" : ""}>{f2(bid)}</b><small>{g ? `Δ${g.delta.toFixed(2)}` : "—"}</small></span>
+        <span className="ocx-v"><b className={snap ? "snap" : ""}>{f2(ask)}</b><small>{g ? `${g.iv.toFixed(0)}%` : r.iv != null ? `${r.iv.toFixed(0)}%` : "—"}</small></span>
         <span className="ocx-v"><b>{f2(r.last)}</b><small className={r.pct == null ? "" : r.pct >= 0 ? "pos" : "neg"}>{r.pct == null ? "—" : sg(r.pct)}</small></span>
       </button>
     );
@@ -209,14 +212,15 @@ function Detail({ row, call, S, underlying, budget, onClose, onOpen, onAdd }: {
         <button type="button" className="d7m-btn ms-auto" onClick={onClose} aria-label="إغلاق البطاقة"><X size={14} /></button>
       </div>
       <div className="ocx-dgrid">
-        {([["طلب", f2(row.bid)], ["عرض", f2(row.ask)], ["آخر", f2(row.last)], ["الكمية", fk(row.volume)], ["المفتوحة", fk(row.oi)],
+        {([["طلب", f2(row.bid || row.sbid)], ["عرض", f2(row.ask || row.sask)], ["آخر", f2(row.last)], ["الكمية", fk(row.volume)], ["المفتوحة", fk(row.oi)],
            ["التذبذب الضمني", g ? `${g.iv}%` : "—"], ["الدلتا", g ? g.delta.toFixed(3) : "—"], ["الغاما", g ? g.gamma.toFixed(4) : "—"],
            ["الثيتا/يوم", g ? usd(g.theta) : "—"], ["الفيغا", g ? usd(g.vega) : "—"],
            ["في النقود عند الانتهاء", g ? `${g.itm}%` : "—"], ["احتمال الربح", g ? `${g.pop}%` : "—"], ["التعادل", g ? f2(g.be) : "—"],
            ["الكلفة", g ? `$${(g.px * 100).toFixed(0)}` : "—"], ["الفارق", g?.spread != null ? `${g.spread}%` : "—"],
            ["الحركة للتعادل", g && S ? `${sg(((g.be / S) - 1) * 100 * (call ? 1 : -1))}%` : "—"]] as [string, string][]).map(M)}
       </div>
-      {g?.src === "last" && <p className="ocx-note">السوقُ مغلق: الأرقامُ من سعر آخر صفقة.</p>}
+      {g?.src === "last" && <p className="ocx-note">السوقُ مغلق: الأرقامُ من سعر آخر صفقة — والفارقُ مجهول.</p>}
+      {g?.src === "snap" && <p className="ocx-note">السوقُ مغلق: الطلبُ والعرضُ من آخر جلسة{row.sat ? ` (${row.sat.slice(0, 16).replace("T", " ")})` : ""}.</p>}
       <div className="ocx-dbtns">
         <button type="button" className="btn-primary" onClick={() => setJudge(true)} disabled={j.isFetching} data-role="oc-judge">
           {j.isFetching ? <RefreshCw size={14} className="rl-spin" /> : <Sparkles size={14} className="ai-star" />} رأي التحليل الذكي
