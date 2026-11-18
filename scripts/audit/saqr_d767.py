@@ -85,18 +85,21 @@ check('@router.post("/saqr/settings", dependencies=[Depends(require_owner)])' in
 
 # ٥ نبضُ السوق السعوديّ — مقاييسُ احترافية من لقطة «تداول»
 snap = {"1120": {"change_pct": 1.4, "turnover": 6e8}, "1180": {"change_pct": 0.8, "turnover": 4e8}, "2222": {"change_pct": -0.6, "turnover": 9e8},
-        "2010": {"change_pct": -1.2, "turnover": 3e8}, "7010": {"change_pct": 0.0, "turnover": 1e8}}
+        "2010": {"change_pct": -1.2, "turnover": 3e8}, "7010": {"change_pct": 0.0, "turnover": 1e8},
+        "9510": {"change_pct": 6.0, "turnover": 2e7}, "9405": {"change_pct": -0.4, "turnover": 5e7}}   # «نمو» وصندوقٌ: خارجَ تاسي
 orig = SA.results_of
 SA.results_of = lambda s, t: {"1120": ("strong", "", 30), "2222": ("weak", "", -20)}.get(s, ("neutral", "", 1))
 try:
     pu = SA.pulse(snap, date(2026, 11, 18), {"px": 88.5, "chg": -4.9, "chg5": -4.5})
 finally:
     SA.results_of = orig
-check(pu["adv"] == 2 and pu["dec"] == 2 and pu["unch"] == 1 and pu["turnover"] == 23e8 and pu["leaders"][0][0] == "البنوك" and pu["leaders"][0][1] == 1.16
+hunt_sa = SRC["saqr_sa"][SRC["saqr_sa"].index("async def _hunt("):SRC["saqr_sa"].index("async def cycle(")]
+check(pu["adv"] == 2 and pu["dec"] == 2 and pu["unch"] == 1 and pu["turnover"] == 23e8 and sum(pu["results"].values()) == 5
+      and SA.main_company("1120") and not SA.main_company("9510") and not SA.main_company("9405") and "not main_company(sym)" in hunt_sa and pu["leaders"][0][0] == "البنوك" and pu["leaders"][0][1] == 1.16
       and pu["laggards"][0][0] in ("المواد الأساسية", "الطاقة") and pu["results"]["strong"] == 1 and pu["results"]["weak"] == 1 and pu["quarter"] == "2026-09-30"
       and pu["brent"]["px"] == 88.5,
       "٥ نبضُ السوق السعوديّ: اتّساعُ السوق (صاعدةٌ · هابطةٌ · ثابتة)، وقيمةُ التداول، والقطاعاتُ القائدةُ والمتأخّرةُ بأسمائها العربية مرجّحةً بالتداول، "
-      "وموسمُ النتائج، وخامُ برنت", f"{pu['adv']}/{pu['dec']}/{pu['unch']} · {pu['leaders'][:1]} · {pu['laggards'][:1]}")
+      "وموسمُ النتائج، وخامُ برنت — للسوق الرئيسيّ وحده (لا «نمو» ولا الصناديق)، وصقرٌ لا يصيد إلا شركاتِه", f"{pu['adv']}/{pu['dec']}/{pu['unch']} · {pu['leaders'][:1]} · {pu['laggards'][:1]}")
 check("sym in SUSPENDED" in SRC["saqr_sa"] and "SYMBOL_TO_NAME" in SRC["saqr_sa"] and 'st["pulse"] = pulse(snap' in SRC["saqr_sa"],
       "٥ب الشركاتُ الموقوفةُ مستبعَدةٌ من الصيد، والأسماءُ عربية، والنبضُ يُكتب كلَّ دورة")
 

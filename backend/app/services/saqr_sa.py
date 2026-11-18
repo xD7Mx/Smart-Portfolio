@@ -289,6 +289,13 @@ async def brent() -> dict | None:
     return out
 
 
+def main_company(sym: str) -> bool:
+    """شركةٌ في السوق الرئيسيّ لا في «نمو» ولا صندوقُ مؤشّر (‏D767): مرجعُ صقر السعوديّ ونبضِه مؤشّرُ السوق الرئيسيّ (تاسي)،
+    و«نمو» والصناديقُ لا يتبعانه — قيس: لقطةُ ما بعد الإغلاق 396 رمزاً منها 123 من «نمو»."""
+    from app.data.universe import is_etf, is_main
+    return is_main(sym) and not is_etf(sym)
+
+
 def pulse(snap: dict, today: date, oil: dict | None = None) -> dict:
     """نبضُ السوق السعوديّ من لقطة «تداول» الحيّة (‏D767 — المالك: «أعد صياغتها بشكلٍ احترافيّ»): اتّساعُ السوق (صاعدةٌ · هابطةٌ · ثابتة)،
     وقيمةُ التداول، والقطاعاتُ القائدةُ والمتأخّرة (متوسّطُ تغيّر شركاتها مرجّحاً بقيمة تداولها)، وموسمُ النتائج الربعية، وخامُ برنت."""
@@ -298,6 +305,8 @@ def pulse(snap: dict, today: date, oil: dict | None = None) -> dict:
     turnover = 0.0
     sect: dict[str, list[float]] = {}
     for sym, r in snap.items():
+        if not main_company(sym):
+            continue
         ch, tv = r.get("change_pct"), r.get("turnover") or 0
         turnover += tv
         if not isinstance(ch, (int, float)):
@@ -309,12 +318,12 @@ def pulse(snap: dict, today: date, oil: dict | None = None) -> dict:
         else:
             unch += 1
         sec = SEC.get(sym)
-        if sec and tv and sec != "صناديق المؤشرات المتداولة":
+        if sec and tv:
             a = sect.setdefault(sec, [0.0, 0.0])
             a[0] += ch * tv
             a[1] += tv
     ranked = sorted(((k, round(v[0] / v[1], 2)) for k, v in sect.items() if v[1] > 0), key=lambda kv: -kv[1])
-    res = Counter(results_of(sym, today)[0] for sym in snap)
+    res = Counter(results_of(sym, today)[0] for sym in snap if main_company(sym))
     return {"at": SQ._iso(), "adv": adv, "dec": dec, "unch": unch, "turnover": round(turnover), "leaders": ranked[:3], "laggards": ranked[::-1][:3],
             "results": {k: res.get(k, 0) for k in ("strong", "neutral", "weak", "pending", "unknown")}, "quarter": quarter_end(today).isoformat(),
             "brent": oil}
@@ -391,7 +400,7 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
     sig, pool = [], []
     _JOB["msg"] = "قراءةُ الشركات ونتائجها"
     for sym, row in snap.items():
-        if sym in held or sym in SUSPENDED or SQ.cooling(st, sym, now):
+        if sym in held or sym in SUSPENDED or not main_company(sym) or SQ.cooling(st, sym, now):
             continue
         row = {**row, "name_en": SYMBOL_TO_NAME.get(sym) or row.get("name_en")}
         why = screen(row, tasi_chg)
