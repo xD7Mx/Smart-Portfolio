@@ -288,6 +288,24 @@ def cooling(st: dict, sym: str, now: datetime) -> bool:
     return any(c["symbol"] == sym and c["reason"] in ("stop", "broken") and c["closed"] >= lim for c in st["closed"])
 
 
+AFFORD_X = 3.5        # عقدٌ بدلتا نحو 0.35 وأجلِ شهرٍ أو شهرين يكلّف نحو 3.5 أضعافِ سعر السهم (قيس: أرخصُ صالحٍ لـCAT ‏2,321 ولـSLV ‏154)
+EXTRA_CHEAP = 12      # مقاعدُ إضافيةٌ في القائمة القصيرة للأسهم التي تتّسع الميزانيةُ لعقودها
+
+
+def affordable(close: float, budget: float) -> bool:
+    return close * AFFORD_X <= budget * 1.2
+
+
+def shortlist(tr_all: dict, held: set, cooling_fn, budget: float) -> list[str]:
+    """القائمةُ القصيرة (‏D764 — قيس على السوق الحيّ: كانت مقاعدُها الأربعةُ والعشرون تذهب لمساراتٍ عرضية ولأسهمٍ كبيرةٍ لا تتّسع الميزانيةُ
+    لعقدها فلا يصيد صقرٌ بمئة دولار شيئاً): ذوو الاتجاه وحدهم بقوّة مسارهم، ثمّ مقاعدُ إضافيةٌ لذوي الاتجاه الذين تتّسع الميزانيةُ لعقودهم."""
+    ranked = [s for s, t in sorted(tr_all.items(), key=lambda kv: -kv[1]["strength"])
+              if s not in held and not cooling_fn(s) and t["state"] in ("صاعد", "هابط")]
+    top = ranked[:SHORTLIST]
+    cheap = [s for s in ranked[SHORTLIST:] if affordable(tr_all[s]["close"], budget)][:EXTRA_CHEAP]
+    return top + cheap
+
+
 def size(budget: float, ask: float) -> int:
     """أكبرُ عددِ عقودٍ تتّسع له الميزانيةُ مع العمولة."""
     one = ask * 100 + FEE
@@ -575,8 +593,7 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
     _JOB["msg"] = "قراءةُ مسارات السوق"
     tr_all, n_movers = await trends()
     held = {p["symbol"] for p in st["positions"]}
-    pool = [s for s, t in sorted(tr_all.items(), key=lambda kv: -kv[1]["strength"])
-            if s not in held and not cooling(st, s, now)][:SHORTLIST]
+    pool = shortlist(tr_all, held, lambda x: cooling(st, x, now), budget)
     _JOB["msg"] = "قراءةُ الأخبار"
     try:
         news = await OP.read_news({s: tr_all[s] for s in pool})
@@ -607,6 +624,7 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
         deep.append((s, side, chg if isinstance(chg, (int, float)) else None))
     _JOB["msg"] = "فحصُ العقود ويونانياتها"
     stock_alt: list[tuple[str, float | None, str]] = []
+    deep.sort(key=lambda d: (0 if affordable(tr_all[d[0]]["close"], budget) else 1, -tr_all[d[0]]["strength"]))
     for s, side, chg in deep[:DEEP]:
         try:
             ctx = await AD._context(s)

@@ -103,6 +103,16 @@ check(blk["قرار بعد 20 ساعة"] and blk["فائدة بعد 20 ساعة"
       "٥ج قرارُ الفيدراليّ وبيانُه يحجبان يوماً كاملاً، ومحضرُه وخطاباتُه ساعتين كسائر الأحداث — لا يُحجب يومُ تداولٍ كاملٌ لمحضر",
       " · ".join(f"{k}:{'يحجب' if v else 'لا'}" for k, v in blk.items()))
 
+# ٥د القائمةُ القصيرة: ذوو الاتجاه وحدهم، ومقاعدُ إضافيةٌ لمن تتّسع الميزانيةُ لعقوده (قيس: كانت تذهب للعرضيّ وللكبير الذي لا يُشترى عقدُه)
+TRS = {f"BIG{i}": {"state": "هابط", "close": 300.0 + i, "strength": 50 - i} for i in range(30)}
+TRS.update({"SIDE": {"state": "عرضي", "close": 10.0, "strength": 99}, "F": {"state": "صاعد", "close": 11.5, "strength": 3},
+            "NIO": {"state": "هابط", "close": 4.4, "strength": 2}, "HELD": {"state": "صاعد", "close": 9, "strength": 98}, "COOL": {"state": "صاعد", "close": 8, "strength": 97}})
+sl = SQ.shortlist(TRS, {"HELD"}, lambda x: x == "COOL", 50.0)
+check("SIDE" not in sl and "HELD" not in sl and "COOL" not in sl and len([x for x in sl if x.startswith("BIG")]) == SQ.SHORTLIST and "F" in sl and "NIO" in sl
+      and SQ.affordable(11.5, 50) and not SQ.affordable(300, 50),
+      "٥د القائمةُ القصيرة لذوي الاتجاه وحدهم (لا العرضيّ ولا المملوك ولا المحجور)، ومعها الأسهمُ التي تتّسع الميزانيةُ لعقودها وإن ضعفت قوّتُها "
+      "— ويُفحص الميسورُ أوّلاً", f"{len(sl)} · {sl[-2:]}")
+
 # ٦ النتائجُ الربعية
 T = date(2026, 11, 18)
 cases = {
