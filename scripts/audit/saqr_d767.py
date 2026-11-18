@@ -120,9 +120,10 @@ cr = body[body.index("async def close_read("):body.index("async def cycle(")]
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 check(ok_read and (after.get("pulse") or {}).get("adv") == 2 and after["pulse"]["at"] == "2026-11-18T12:10:00+00:00" and "usable_rows()" in cr and "snapshot()" not in cr and (after.get("regime") or {}).get("close") == 11500 and after["positions"] == st0["positions"]
       and after["cash"] == st0["cash"] and "_hunt(" not in cr and "_review(" not in cr
-      and 'add_job(job_saqr_sa_close, CronTrigger(day_of_week=TRADING_DAYS, hour=15, minute=25)' in sch and 'id="saqr_sa_close_boot"' in sch,
+      and 'add_job(job_saqr_sa_close, CronTrigger(day_of_week=TRADING_DAYS, hour=15, minute=25)' in sch and 'id="saqr_sa_close_boot", replace_existing=True, misfire_grace_time=900' in sch
+      and 'id="saqr_sa_close", replace_existing=True,\n                       misfire_grace_time=900' in sch,
       "٥ج قراءةُ الإغلاق: نبضُ السوق ومؤشّرُه يُكتبان بعد مزاد الإغلاق (15:25 أيامَ التداول) وبعد كلّ إقلاع — فلا تقول اللوحةُ «غير متوفّر» "
-      "خارجَ الجلسة — من لقطة آخر جلسةٍ المحفوظةِ بزمنها (لا الحيّةِ الفارغةِ بعد الإغلاق) — قراءةٌ وحدها لا صيدَ فيها ولا مراجعة، والمراكزُ والنقدُ كما هما")
+      "خارجَ الجلسة (بمهلة تأخّرٍ ربعَ ساعة: الافتراضيةُ ثانيةٌ فتُفوَّت بعد الإقلاع) — من لقطة آخر جلسةٍ المحفوظةِ بزمنها (لا الحيّةِ الفارغةِ بعد الإغلاق) — قراءةٌ وحدها لا صيدَ فيها ولا مراجعة، والمراكزُ والنقدُ كما هما")
 
 # ٦ الواجهة: لا IBKR فوق علامة صقر، ولا «الأحداث الجيوسياسية» في السعوديّ، وأوامرُ المالك في تبويبها وفي المحفظة
 desk = re.sub(r"/\*.*?\*/", "", (ROOT / "frontend/src/components/saqr/SaqrDesk.tsx").read_text(encoding="utf-8"), flags=re.S)   # الشيفرةُ لا التعليق

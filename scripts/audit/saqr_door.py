@@ -76,6 +76,14 @@ async def saudi():
     pu = real.get("pulse") or {}   # ‏D767: نبضُ السوق المحفوظ (قراءةُ الإغلاق أو آخرُ دورة) وأوامرُ المالك
     print("النبضُ المحفوظ:", {k: pu.get(k) for k in ("at", "adv", "dec", "unch", "turnover", "leaders", "laggards", "results", "quarter", "brent")} if pu else "غير متوفّر")
     print("الأوامر:", SQ.cfg(real), "· تاسي المحفوظ:", real.get("regime"))
+    from app.services import tadawul_market as TM
+    rows, live, at = TM.usable_rows()   # ما تقرؤه قراءةُ الإغلاق: لقطةُ آخر جلسةٍ بزمنها
+    try:
+        pv = SA.pulse(rows, now.date()) if rows else None
+        print(f"قراءةُ الإغلاق تقرأ: {len(rows)} شركة · حيّة={live} · {at} ⇐", {k: pv.get(k) for k in ("adv", "dec", "unch", "turnover", "leaders", "laggards")} if pv else "لا صفوف")
+    except Exception as e:   # noqa: BLE001
+        import traceback
+        print("قراءةُ الإغلاق تتعثّر:", repr(e)); traceback.print_exc()
     print("الدفترُ الحقيقيّ:", f"رأس المال {SQ.equity(real):,.2f} ريال · مراكز {len(real['positions'])} · مغلقة {len(real['closed'])} · آخرُ دورة {real.get('last_cycle')}")
     ses = (await sessions())["sa"]
     print("الجلسة:", ses.get("label"), "·", ses.get("detail"))
