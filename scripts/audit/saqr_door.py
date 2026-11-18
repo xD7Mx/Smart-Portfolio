@@ -20,6 +20,18 @@ async def main():
     real = SQ.load()
     print("الدفترُ الحقيقيّ:", f"رأس المال {SQ.equity(real):,.2f} · نقد {real['cash']:,.2f} · مراكز {len(real['positions'])} · مغلقة {len(real['closed'])}"
           f" · يعمل {real.get('on')} · آخرُ دورة {real.get('last_cycle')}")
+    # ما فعله صقرٌ الأمريكيّ حقاً: المراكزُ بأوقاتها، والمغلقةُ بربحها، وأسبابُ الرفض، والبوّابات، وآخرُ السجلّ
+    from collections import Counter
+    for p in real["positions"]:
+        print("  مفتوح:", p["symbol"], p.get("contract"), p.get("kind"), "×", p["qty"], "دخل", p["entry_px"], "كلفة", p["cost"], "فُتح", p.get("opened"))
+    for c in real["closed"][:15]:
+        print("  مغلق:", c["symbol"], c.get("kind"), "ربح", c["pl"], f"{c.get('pl_pct')}٪", c.get("reason"), c.get("opened"), "→", c.get("closed"))
+    print("  أيّامُ العمل:", sorted({(c.get("opened") or "")[:10] for c in real["closed"] + real["positions"]}))
+    print("  الإشارات:", Counter(s["verdict"] for s in real.get("signals") or []))
+    print("  أسبابُ الرفض:", Counter(((s.get("why") or "")[:60]) for s in real.get("signals") or [] if s["verdict"] == "refused").most_common(14))
+    print("  آخرُ مسح:", real.get("scan_meta"), "· البوّابات:", real.get("gates"), "· اليوم:", real.get("day"))
+    for g in (real.get("log") or [])[:25]:
+        print("  سجلّ:", g["at"][5:16], g["kind"], (g["text"] or "")[:150])
     ses = (await sessions())["us"]
     print("الجلسة:", ses.get("label"), "·", ses.get("detail"), "·", ses.get("source"))
     t0 = time.time()
