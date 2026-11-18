@@ -431,6 +431,15 @@ async def job_saqr_sa_cycle():
         logger.error(f"صقر السعوديّ: {e}")
 
 
+async def job_saqr_sa_close():
+    """صقر السعوديّ (‏D767): قراءةُ الإغلاق — نبضُ السوق ومؤشّرُه بعد مزاد الإغلاق، فاللوحةُ تحمل الجلسةَ الأخيرة حتى الافتتاح."""
+    try:
+        from app.services import saqr_sa as SA
+        await SA.close_read()
+    except Exception as e:
+        logger.error(f"صقر السعوديّ/قراءةُ الإغلاق: {e}")
+
+
 async def job_advisor_weekly():
     """المراجعةُ الأسبوعية (D571): كلَّ خميسٍ مساءً، ورقةٌ لكلّ محفظة في التطبيق وتلغرام."""
     try:
@@ -893,6 +902,8 @@ def start_scheduler():
     _scheduler.add_job(job_saqr_cycle, CronTrigger(day_of_week=US_TRADING_DAYS, hour="16-23", minute="*/5"), id="saqr_cycle", replace_existing=True, max_instances=1, coalesce=True)
     # ‏D764: صقر السعوديّ — كلَّ خمس دقائق في جلسة تداول (10:00–15:00) من الأحد إلى الخميس
     _scheduler.add_job(job_saqr_sa_cycle, CronTrigger(day_of_week=TRADING_DAYS, hour="10-14", minute="*/5"), id="saqr_sa_cycle", replace_existing=True, max_instances=1, coalesce=True)
+    # ‏D767: وقراءةُ الإغلاق بعد المزاد — والإقلاعُ يقرؤها بعد خمس دقائق في السطر التالي لتجهيز الخادم
+    _scheduler.add_job(job_saqr_sa_close, CronTrigger(day_of_week=TRADING_DAYS, hour=15, minute=25), id="saqr_sa_close", replace_existing=True)
     # ‏D571: المراجعةُ الأسبوعية — الخميسَ بعد آخر جلسة، وقبل مؤتمرات المساء
     _scheduler.add_job(job_advisor_weekly, CronTrigger(day_of_week="thu", hour=19, minute=15),
                        id="advisor_weekly_thu", replace_existing=True)
@@ -933,6 +944,8 @@ def start_scheduler():
     from apscheduler.triggers.date import DateTrigger
     _scheduler.add_job(job_stock_warm, DateTrigger(run_date=_dt.now(_RIYADH_TZ) + timedelta(minutes=4), timezone=_RIYADH_TZ),
                        id="stock_warm_boot", replace_existing=True)
+    _scheduler.add_job(job_saqr_sa_close, DateTrigger(run_date=_dt.now(_RIYADH_TZ) + timedelta(minutes=5), timezone=_RIYADH_TZ),
+                       id="saqr_sa_close_boot", replace_existing=True)
     # ‏D580: مساءً بعد إغلاق السوق — إعلاناتُ النتائج تنزل نهاراً
     _scheduler.add_job(job_results_announcements, CronTrigger(hour=20, minute=20), id="results_announcements_evening",
                        replace_existing=True)

@@ -459,6 +459,27 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
     return pos
 
 
+def _reg_view(reg: dict | None) -> dict | None:
+    return {k: reg.get(k) for k in ("verdict", "state", "close", "sma50", "sma200", "ret3m", "chg")} if reg else None
+
+
+async def close_read() -> bool:
+    """قراءةُ الإغلاق (‏D767): نبضُ السوق ومؤشّرُه من لقطة «تداول» بعد مزاد الإغلاق — ومرّةً بعد كلّ إقلاع — فلا تخلو اللوحةُ
+    خارجَ الجلسة ولا تنتظر جلسةَ الغد. قراءةٌ وحدها: لا صيدَ ولا مراجعةَ ولا مساسَ بالدفتر."""
+    from app.services import tadawul_market as TM
+    async with SQ._LOCK:
+        st = SQ.load("sa")
+        TM.ensure_fresh()
+        snap = TM.snapshot()
+        if not snap:
+            return False
+        reg = await regime()
+        st["regime"] = _reg_view(reg) or st.get("regime")
+        st["pulse"] = pulse(snap, SQ._now().date(), await brent())
+        SQ.save(st)
+        return True
+
+
 async def cycle(force: bool = False) -> dict:
     """دورةُ صقر السعوديّ: في جلسة تداول وحدها — مراجعةُ المراكز كلَّ دورة، والصيدُ كلَّ عشرين دقيقة (أو بأمر المالك)."""
     from app.services import tadawul_market as TM
@@ -483,7 +504,7 @@ async def cycle(force: bool = False) -> dict:
             st["health"]["quotes"] = SQ._iso()
             _roll_day(st, now)
             reg, g = await regime(), await geo()
-            st["regime"] = {k: reg.get(k) for k in ("verdict", "state", "close", "sma50", "sma200", "ret3m", "chg")} if reg else None
+            st["regime"] = _reg_view(reg)
             st["geo"] = g
             st["pulse"] = pulse(snap, now.date(), await brent())
             st["health"]["news"] = g is not None
