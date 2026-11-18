@@ -93,6 +93,16 @@ src = (ROOT / "backend/app/services/saqr_trader.py").read_text(encoding="utf-8")
 check("stock_alt.append" in src and 'kind="stock"' in src and '"سلسلة" not in why' in src,
       "٥ب الأمريكيّ عقودٌ وأسهم: العقدُ أوّلاً، وإن رُفضت عقودُ سهمٍ صاعد لسببٍ يخصّها (تذبذبٌ غالٍ · فارقٌ · ميزانية) فالسهمُ نفسُه")
 
+# ٥ج قرارُ الفيدراليّ يومٌ كامل، ومحضرُه ساعتان (قيس على الخادم: المحضرُ كان يحجب يومَ التداول كلَّه)
+NOW = datetime(2026, 11, 18, 15, 0, tzinfo=timezone.utc)
+ev = lambda t, h: [{"impact": "High", "title": t, "at": (NOW + timedelta(hours=h)).isoformat()}]   # noqa: E731
+blk = {"قرار بعد 20 ساعة": SQ.event_block(ev("FOMC Statement", 20), NOW), "فائدة بعد 20 ساعة": SQ.event_block(ev("Federal Funds Rate", 20), NOW),
+       "محضر بعد 7 ساعات": SQ.event_block(ev("FOMC Meeting Minutes", 7), NOW), "محضر بعد ساعة": SQ.event_block(ev("FOMC Meeting Minutes", 1), NOW),
+       "خطاب بعد 5 ساعات": SQ.event_block(ev("Fed Chair Powell Speaks", 5), NOW)}
+check(blk["قرار بعد 20 ساعة"] and blk["فائدة بعد 20 ساعة"] and not blk["محضر بعد 7 ساعات"] and blk["محضر بعد ساعة"] and not blk["خطاب بعد 5 ساعات"],
+      "٥ج قرارُ الفيدراليّ وبيانُه يحجبان يوماً كاملاً، ومحضرُه وخطاباتُه ساعتين كسائر الأحداث — لا يُحجب يومُ تداولٍ كاملٌ لمحضر",
+      " · ".join(f"{k}:{'يحجب' if v else 'لا'}" for k, v in blk.items()))
+
 # ٦ النتائجُ الربعية
 T = date(2026, 11, 18)
 cases = {
@@ -191,19 +201,21 @@ check('add_job(job_saqr_sa_cycle, CronTrigger(day_of_week=TRADING_DAYS, hour="10
       and mk.count('m = _mkt(') >= 5 and not re.search(r"\.add\(|\.commit\(|delete\(|\.merge\(|insert\(", sas) and "MarketNews.published_at >= since" in sas,
       "١٠ دورةُ السعوديّ كلَّ خمس دقائق في ساعات تداول (الأحد–الخميس)، والنقاطُ كلُّها بسوقها، وصقرُ السعوديّ يقرأ الأخبارَ من قاعدة البيانات ولا يكتب فيها")
 
-# ١١ الشعار — صورةُ المالك نفسُها («هذا المرفقُ أجملُ من شكل صقر الحاليّ»)
+# ١١ الشعار — صورةُ المالك نفسُها بشفافيتها («هذا المرفقُ أجمل» ثمّ «هكذا أجملُ بدون خلفية»)
 em = (ROOT / "frontend/src/components/saqr/SaqrEmblem.tsx").read_text(encoding="utf-8")
 desk = (ROOT / "frontend/src/components/saqr/SaqrDesk.tsx").read_text(encoding="utf-8")
 css = (ROOT / "frontend/src/styles/globals.css").read_text(encoding="utf-8")
 A = ROOT / "frontend/src/assets/saqr"
 big, small = A / "saqr-emblem-512.webp", A / "saqr-emblem-160.webp"
 light = css[css.index("html.light {\n  --sq-plate"):]
+sqe = css[css.index(".sqe { position: relative;"):css.index("@keyframes sqeGlow")]
 check(big.exists() and small.exists() and big.stat().st_size < 80_000 and small.stat().st_size < 15_000
-      and big.read_bytes()[8:12] == b"WEBP" and 'alt="صقر"' in em and "saqr-emblem-512.webp" in em and "saqr-emblem-160.webp" in em
+      and big.read_bytes()[8:12] == b"WEBP" and b"ALPH" in big.read_bytes()[:400] + big.read_bytes()[:4000] and 'alt="صقر"' in em
+      and "961 / 1014" in em and "background" not in sqe and "border-radius" not in sqe
       and "Bird" not in desk and desk.count("<SaqrEmblem") == 2 and all(t + ":" in light[:300] for t in ("--sq-seam", "--sq-glow"))
       and "prefers-reduced-motion: reduce) { .sqe.live, .sqe.live img { animation: none; } }" in css,
-      "١١ شعارُ صقر صورةُ المالك نفسُها (الصقرُ الآليّ باسطاً جناحيه) مضغوطةً (webp ‏512 للمركز · 160 للترويسة) في قرصٍ داكنٍ بلون أرضيتها، "
-      "يتوهّج حين يعمل ويسكن مع تقليل الحركة — ولا أيقونةَ طائرٍ عامّة", f"{big.stat().st_size // 1024}KB · {small.stat().st_size // 1024}KB")
+      "١١ شعارُ صقر صورةُ المالك نفسُها بشفافيتها — بلا قرصٍ ولا أرضية، بنسبتها، مضغوطةً (webp ‏512 · 160)، يتوهّج حين يعمل ويسكن مع تقليل الحركة — "
+      "ولا أيقونةَ طائرٍ عامّة", f"{big.stat().st_size // 1024}KB · {small.stat().st_size // 1024}KB")
 
 print("\nالنتيجة:", "عطب ✖" if fail else "نظيف ✔")
 sys.exit(fail)

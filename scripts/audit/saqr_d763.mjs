@@ -233,11 +233,11 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   const em = await page.evaluate(() => { const core = document.querySelector('[data-role="sq-core"] [data-role="sq-emblem"]'), head = document.querySelector('.sq-id [data-role="sq-emblem"]');
     const im = core?.querySelector("img");
     return { n: document.querySelectorAll('[data-role="sq-emblem"]').length, live: !!core?.classList.contains("live"), nat: im?.naturalWidth || 0, alt: im?.alt,
-      w: core?.getBoundingClientRect().width || 0, hw: head?.getBoundingClientRect().width || 0, round: getComputedStyle(core || document.body).borderRadius,
+      w: core?.getBoundingClientRect().width || 0, hw: head?.getBoundingClientRect().width || 0, bg: getComputedStyle(core || document.body).backgroundColor,
       bird: !!document.querySelector(".lucide-bird") }; });
   if (SHOTS) await page.locator('[data-role="sq-hub"]').screenshot({ path: `${SHOTS}/emblem-${vp.width}-${theme}.png` }).catch(() => {});
-  say(em.n === 2 && em.live && em.nat >= 160 && em.alt === "صقر" && em.w >= 100 && em.hw >= 28 && em.round === "50%" && !em.bird,
-      `${label}: ١٠ شعارُ صقر صورةُ المالك (الصقرُ الآليّ) في المركز والترويسة، في قرصٍ مستدير، ويتوهّج حين يعمل — بلا أيقونة طائرٍ عامّة`, JSON.stringify(em));
+  say(em.n === 2 && em.live && em.nat >= 160 && em.alt === "صقر" && em.w >= 100 && em.hw >= 28 && /rgba\(0, 0, 0, 0\)|transparent/.test(em.bg) && !em.bird,
+      `${label}: ١٠ شعارُ صقر صورةُ المالك (الصقرُ الآليّ) بشفافيتها بلا أرضية — في المركز والترويسة، ويتوهّج حين يعمل — بلا أيقونة طائرٍ عامّة`, JSON.stringify(em));
   // ١١ ‏D764: السوقُ السعوديّ — المحفظةُ بالريال وأسهمُ شركات، ولوحةُ صقر بأنظمتها: النتائجُ الربعية وتاسي والأحداثُ الجيوسياسية
   await page.locator('[data-role="sq-market"] [data-market="sa"]').click(); await page.waitForTimeout(1100);
   const sa = await page.evaluate(() => ({ head: document.querySelector(".sq-id")?.textContent || "", nodes: [...document.querySelectorAll('[data-role="sq-node"]')].map(x => x.dataset.k),
