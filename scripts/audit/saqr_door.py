@@ -73,6 +73,9 @@ async def saudi():
     from app.services.live_quote import sessions
     real = SQ.load("sa")
     print("\n══ السوقُ السعوديّ ══")
+    pu = real.get("pulse") or {}   # ‏D767: نبضُ السوق المحفوظ (قراءةُ الإغلاق أو آخرُ دورة) وأوامرُ المالك
+    print("النبضُ المحفوظ:", {k: pu.get(k) for k in ("at", "adv", "dec", "unch", "turnover", "leaders", "laggards", "results", "quarter", "brent")} if pu else "غير متوفّر")
+    print("الأوامر:", SQ.cfg(real), "· تاسي المحفوظ:", real.get("regime"))
     print("الدفترُ الحقيقيّ:", f"رأس المال {SQ.equity(real):,.2f} ريال · مراكز {len(real['positions'])} · مغلقة {len(real['closed'])} · آخرُ دورة {real.get('last_cycle')}")
     ses = (await sessions())["sa"]
     print("الجلسة:", ses.get("label"), "·", ses.get("detail"))
