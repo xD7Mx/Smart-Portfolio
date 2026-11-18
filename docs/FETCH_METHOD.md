@@ -312,6 +312,13 @@ POST https://scanner.tradingview.com/{cfd|futures|global|ksa}/scan
 جدول البورصة وعطلِها ثمّ يُقدَّم عليها المصدرُ الحيّ (‏`backend/app/services/market_session.py` · `backend/app/services/live_quote.py`).
 والتقويمُ يُعرض بالتوقّع والسابق وسيناريوهَي الأثر، ولا يُدّعى رقمٌ صدر (‏`backend/app/services/econ_calendar.py`).
 
+### الأنشطُ في السوق الأمريكيّ كلِّه — مُصفّي TradingView (D763)
+
+صقرٌ لا يكتفي بقائمةٍ ثابتة: يسأل ‏`america/scan` **مُصفّياً** لا رموزاً بأعيانها — جسمُ الطلب ‏`filter` (قيمةٌ سوقية > ملياري دولار،
+وسعرٌ > 3، ومتوسّطُ حجم عشرة أيام > مليونين، وسهمٌ أو صندوق، وناسداك · نيويورك · أمكس) و‏`sort` (‏`Value.Traded` ثمّ
+‏`relative_volume_10d_calc`) و‏`range` — ببصمة المتصفّح نفسِها، ومخبّأٌ نصفَ ساعة؛ ثمّ يُحسب مسارُ ما ليس في القائمة من شموعه
+ويُخبَّأ ستّ ساعات (‏`backend/app/services/saqr_trader.py` — ‏`movers` · ‏`trends`). ويُقاس على الخادم بـ‏`scripts/audit/saqr_door.py`.
+
 ## ٣· الطبقةُ الثالثة: المتصفّحُ آخرَ الوسائل
 
 انتحالُ البصمة يعبر الحمايةَ ولا **ينفّذ سكربتاً**. وقد قِيس أن صفحاتٍ

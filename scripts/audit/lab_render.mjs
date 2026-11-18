@@ -50,7 +50,9 @@ await page.route("**/api/v1/**", r => {
   r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: k ? R[k] : [] }) });
 });
 // ‏D613 ← D745: مختبرُ الأبحاث صار قسمَ أبحاث — يُرسَم بلا خطأٍ بلا تقريرٍ بعد، ثمّ بتقريرٍ كامل، ولا شاشةَ سوداء في الحالين
-await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe"); } catch { /* */ } });
+// ‏D763: التقريرُ اليوميّ انتقل إلى مفكرة السوق (بجانب «التوقعات») — يُفتح من تبويبها
+await page.addInitScript(() => { try { localStorage.setItem("sp_token", "probe"); sessionStorage.setItem("sp:market:tab", "calendar"); } catch { /* */ } });
+const openReport = async () => { await page.locator('[data-role="ev-report"]').click({ timeout: 8000 }).catch(() => {}); await page.waitForTimeout(1500); };
 let withReport = false;
 const parts = [];
 await page.unroute("**/api/v1/**");
@@ -69,13 +71,15 @@ await page.route("**/api/v1/**", r => {
   }
   return ok([]);
 });
-await page.goto(`http://localhost:${PORT}/watchlist?tab=lab`, { waitUntil: "load", timeout: 30000 });
+await page.goto(`http://localhost:${PORT}/market`, { waitUntil: "load", timeout: 30000 });
 await page.waitForTimeout(1500);
+await openReport();
 const empty = (await page.textContent('[data-role="rl-empty"]').catch(() => "")) || "";
-say(errs.length === 0 && empty.includes("بعد إغلاق السوق"), "١ المختبرُ يُفتح بلا خطأ — وبلا تقريرٍ يقول متى يصدر", errs.join(" ‖ ") || empty);
+say(errs.length === 0 && empty.includes("بعد إغلاق السوق"), "١ التقريرُ اليوميّ في مفكرة السوق يُفتح بلا خطأ — وبلا تقريرٍ يقول متى يصدر", errs.join(" ‖ ") || empty);
 withReport = true;
 await page.reload({ waitUntil: "load" });
-await page.waitForTimeout(1800);
+await page.waitForTimeout(1200);
+await openReport();
 const inFrame = () => page.evaluate(() => document.querySelector('[data-role="rl-doc"] iframe')?.contentDocument?.body?.textContent || "");
 const t2 = await inFrame();
 say(errs.length === 0 && t2.includes("التقرير اليومي") && t2.includes("خبرٌ محليّ"), "٢ وبتقريرٍ تُرسَم ورقتُه كاملةً (لا شاشةَ سوداء)", `نصّ ${t2.length}`);

@@ -8,6 +8,7 @@ import { ShareButton } from "../common/ShareOpen";
 import EventCard from "../common/EventCard";
 import Logo from "../common/Logo";
 import Select from "../common/Select";
+import DailyReport from "../research/DailyReport";
 
 /**
  * اللغة التصميمية الموحدة للمفكرة — every corporate-action announcement is
@@ -384,7 +385,7 @@ function ForecastsPanel({ data, loading }: { data?: any[]; loading: boolean }) {
 export default function EventsList({ events, symbol }: { events: any[]; symbol?: string }) {
   const now = new Date();
   const [open, setOpen] = useState<any | null>(null);
-  const [view, setView] = useState<"cal" | "disc" | "recs" | "fc">("cal");
+  const [view, setView] = useState<"cal" | "disc" | "recs" | "fc" | "rep">("cal");
 
   /* ══ توصيات المحللين ══ (بأمر المالك)
      تبويبٌ ثالث في المُبدِّل نفسه، ومن «أرقام» كالمفكرة. ولا يُجلب إلا
@@ -451,6 +452,11 @@ export default function EventsList({ events, symbol }: { events: any[]; symbol?:
         <button role="tab" aria-selected={view === "fc"} className={"seg-btn" + (view === "fc" ? " on" : "")}
           onClick={() => setView("fc")}>التوقعات</button>
       )}
+      {/* ‏D763 (المالك): «التقريرُ اليوميّ خلّه في مفكرة السوق — بجانب الجزيرة كابيتال والراجحي كابيتال» (وهما في «التوقعات») */}
+      {!symbol && (
+        <button role="tab" aria-selected={view === "rep"} className={"seg-btn" + (view === "rep" ? " on" : "")}
+          onClick={() => setView("rep")} data-role="ev-report">التقرير اليومي</button>
+      )}
       {symbol && (
         <button role="tab" aria-selected={view === "recs"} className={"seg-btn" + (view === "recs" ? " on" : "")}
           onClick={() => setView("recs")}>توصيات المحللين</button>
@@ -459,6 +465,7 @@ export default function EventsList({ events, symbol }: { events: any[]; symbol?:
   ) : null;
 
   if (view === "fc") return <div>{switcher}<ForecastsPanel data={fc} loading={fcLoading} /></div>;
+  if (view === "rep") return <div>{switcher}<DailyReport /></div>;
   if (view === "recs") return <div>{switcher}<RecsPanel data={recs} loading={recsLoading} /></div>;
 
   if (!ordered.length && !undated.length) {

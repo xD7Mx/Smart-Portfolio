@@ -412,6 +412,16 @@ async def job_option_book():
         logger.error(f"دفترُ الخيارات: {e}")
 
 
+async def job_saqr_cycle():
+    """صقر (‏D763): دورةٌ كلَّ خمس دقائق في نافذة الجلسة الأمريكية بتوقيت الرياض (16–23 تغطّي الصيفَ والشتاء) — والدورةُ نفسُها
+    لا تعمل إلا والسوقُ في جلسته الرسمية: تراجع المراكزَ بقواعد خروجها كلَّ دورة، وتبحث عن جديدٍ كلَّ عشرين دقيقة."""
+    try:
+        from app.services import saqr_trader as SQ
+        await SQ.cycle()
+    except Exception as e:
+        logger.error(f"صقر: {e}")
+
+
 async def job_advisor_weekly():
     """المراجعةُ الأسبوعية (D571): كلَّ خميسٍ مساءً، ورقةٌ لكلّ محفظة في التطبيق وتلغرام."""
     try:
@@ -870,6 +880,8 @@ def start_scheduler():
     )
     # ‏D762: دفترُ توصيات الخيارات — منتصفَ الجلسة الأمريكية من الاثنين إلى الجمعة
     _scheduler.add_job(job_option_book, CronTrigger(day_of_week=US_TRADING_DAYS, hour=22, minute=20), id="option_book_daily", replace_existing=True)
+    # ‏D763: صقر — وكيلُ التداول الآليّ: كلَّ خمس دقائق في نافذة الجلسة الأمريكية من الاثنين إلى الجمعة
+    _scheduler.add_job(job_saqr_cycle, CronTrigger(day_of_week=US_TRADING_DAYS, hour="16-23", minute="*/5"), id="saqr_cycle", replace_existing=True, max_instances=1, coalesce=True)
     # ‏D571: المراجعةُ الأسبوعية — الخميسَ بعد آخر جلسة، وقبل مؤتمرات المساء
     _scheduler.add_job(job_advisor_weekly, CronTrigger(day_of_week="thu", hour=19, minute=15),
                        id="advisor_weekly_thu", replace_existing=True)

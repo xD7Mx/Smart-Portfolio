@@ -281,6 +281,13 @@ export const marketApi = {
   /* ‏D759 مُنتقي عقود الخيارات طويلة الأجل بميزانية العقد */
   optionPicks: (budget: number) => api.get<APIResponse>("/market/options-picks", { params: { budget } }),
   optionPicksRun: (budget: number) => api.post<APIResponse>("/market/options-picks/run", { budget }),
+  /* ‏D763: صقر — وكيلُ التداول الآليّ ومحفظتُه المستقلّة */
+  saqr: () => api.get<APIResponse>("/market/saqr"),
+  saqrRun: () => api.post<APIResponse>("/market/saqr/run", {}),
+  saqrToggle: (on: boolean) => api.post<APIResponse>("/market/saqr/toggle", { on }),
+  saqrCapital: (amount: number) => api.post<APIResponse>("/market/saqr/capital", { amount, confirm: true }),
+  saqrOpen: (contract: string, qty: number, price?: number | null) => api.post<APIResponse>("/market/saqr/open", { contract, qty, price: price ?? null }, { timeout: 60000 }),
+  saqrClose: (id: string, price?: number | null) => api.post<APIResponse>(`/market/saqr/close/${encodeURIComponent(id)}`, { price: price ?? null }, { timeout: 60000 }),
   optionChain: (symbol: string, date?: number | null) =>
     api.get<APIResponse>(`/market/options/${encodeURIComponent(symbol)}`, { params: date ? { date } : {} }),
   officialNames: () => api.get<APIResponse>("/market/official-names"),

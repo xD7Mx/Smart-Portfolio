@@ -210,10 +210,14 @@ def target_for(tr: dict, S: float, call: bool, iv: float, T: float) -> tuple[flo
     return round(cap, 2), "حركةٌ متوقّعةٌ بانحرافٍ واحد"
 
 
-def evaluate(o: dict, S: float, dte: int, call: bool, tr: dict, ref_iv: float | None, now: float | None = None) -> tuple[dict | None, str]:
+def evaluate(o: dict, S: float, dte: int, call: bool, tr: dict, ref_iv: float | None, now: float | None = None,
+             rules: dict | None = None) -> tuple[dict | None, str]:
     """حكمُ عقدٍ واحدٍ للمحفظة الطويلة: (البطاقة، أو None وسببُ الاستبعاد).
     الشروطُ كلُّها صريحة: عرضٌ وطلبٌ حقيقيّان (حيّان أو من آخر جلسة — لا آخرُ صفقة)، وفارقٌ ≤ 10٪ من الوسط، واهتمامٌ مفتوح ≥ 100،
-    ودلتا بين 0.30 و0.85 (لا يانصيب ولا عميقٌ غالٍ)، وتذبذبٌ في نطاق النقود، ونقطةُ تعادلٍ دون الهدف الفنيّ وعائدٌ عنده ≥ 0.75 من الكلفة."""
+    ودلتا بين 0.30 و0.85 (لا يانصيب ولا عميقٌ غالٍ)، وتذبذبٌ في نطاق النقود، ونقطةُ تعادلٍ دون الهدف الفنيّ وعائدٌ عنده ≥ 0.75 من الكلفة.
+    و‏`rules` (‏D763 — صقر) تبدّل العتباتِ لأفقٍ آخر: ‏min_oi · max_spread · min_delta · max_delta · min_rr · min_pop."""
+    R = {"min_oi": MIN_OI, "max_spread": MAX_SPREAD, "min_delta": MIN_DELTA, "max_delta": MAX_DELTA, "min_rr": MIN_RR, "min_pop": MIN_POP,
+         **(rules or {})}
     T = max(dte, 1) / 365
     K = o.get("strike")
     if not K:
@@ -221,15 +225,15 @@ def evaluate(o: dict, S: float, dte: int, call: bool, tr: dict, ref_iv: float | 
     q = quote(o, S, T, call, now, allow_last=False)
     if not q:
         return None, "لا عرضَ ولا طلبَ حقيقيّين"
-    if (o.get("oi") or 0) < MIN_OI:
+    if (o.get("oi") or 0) < R["min_oi"]:
         return None, "اهتمامٌ مفتوحٌ قليل"
-    if q["spread"] is None or q["spread"] > MAX_SPREAD:
+    if q["spread"] is None or q["spread"] > R["max_spread"]:
         return None, "الفارقُ بين العرض والطلب واسع"
     px, iv = q["px"], q["iv"]
     if px < MIN_PX or (ref_iv and not (IV_BAND[0] * ref_iv <= iv <= IV_BAND[1] * ref_iv)):
         return None, "سعرٌ شاذّ"
     delta = bs_delta(S, K, T, iv, call)
-    if not (MIN_DELTA <= abs(delta) <= MAX_DELTA):
+    if not (R["min_delta"] <= abs(delta) <= R["max_delta"]):
         return None, "الدلتا خارج النطاق"
     tgt, tlabel = target_for(tr, S, call, ref_iv or iv, T)
     be = K + px if call else K - px
@@ -237,15 +241,15 @@ def evaluate(o: dict, S: float, dte: int, call: bool, tr: dict, ref_iv: float | 
         return None, "التعادلُ أبعدُ من الهدف"
     pay = ((tgt - K) if call else (K - tgt)) * 100 - px * 100
     rr = pay / (px * 100)
-    if rr < MIN_RR:
+    if rr < R["min_rr"]:
         return None, "العائدُ عند الهدف ضئيل"
     pop = prob_beyond(S, be, T, iv, call)
-    if pop < MIN_POP:
+    if pop < R["min_pop"]:
         return None, "احتمالٌ ضئيل"
     p_touch = min(1.0, 2 * prob_beyond(S, tgt, T, iv, call))
     mid = (q["px"] + (o.get("bid") or o.get("sbid") or 0)) / 2
     oi = o.get("oi") or 0
-    score = 35 * pop + 25 * min(rr, 3) / 3 + 15 * p_touch + 10 * min(oi, 2000) / 2000 + 10 * (1 - q["spread"] / MAX_SPREAD) + 5 * min(dte, 365) / 365
+    score = 35 * pop + 25 * min(rr, 3) / 3 + 15 * p_touch + 10 * min(oi, 2000) / 2000 + 10 * (1 - q["spread"] / R["max_spread"]) + 5 * min(dte, 365) / 365
     bid = o.get("bid") if q["src"] == "ask" else o.get("sbid")
     return {"contract": o.get("contract"), "type": "call" if call else "put", "strike": K, "ask": px, "bid": bid, "mid": round(mid, 3),
             "px_src": q["src"], "quote_at": o.get("sat") if q["src"] == "snap" else None,
@@ -255,9 +259,10 @@ def evaluate(o: dict, S: float, dte: int, call: bool, tr: dict, ref_iv: float | 
             "delta": round(delta, 2), "iv": round(iv * 100, 1), "oi": oi, "volume": o.get("volume"), "score": round(score, 2)}, ""
 
 
-def candidates(rows: list[dict], S: float, dte: int, call: bool, tr: dict, ref_iv: float | None = None, now: float | None = None) -> list[dict]:
+def candidates(rows: list[dict], S: float, dte: int, call: bool, tr: dict, ref_iv: float | None = None, now: float | None = None,
+               rules: dict | None = None) -> list[dict]:
     """بطاقاتُ أجلٍ واحدٍ الصالحةُ بلا قيد الميزانية."""
-    return [c for c in (evaluate(o, S, dte, call, tr, ref_iv, now)[0] for o in rows) if c]
+    return [c for c in (evaluate(o, S, dte, call, tr, ref_iv, now, rules)[0] for o in rows) if c]
 
 
 def pick_contract(rows: list[dict], S: float, dte: int, call: bool, budget: float, tr: dict, ref_iv: float | None = None,

@@ -62,7 +62,7 @@ pf = RP.render(rep, "portfolio")
 check("لا تُعاد كتابتُها لجلسةٍ مضت" in pf and "نظرتنا لمراكز المحفظة" not in pf and "None" not in RP.render(rep, "all"),
       "٦ وصفحةُ المحفظة لا تُعاد لجلسةٍ مضت بمراكز اليوم — تقول ذلك")
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
-lab = (ROOT / "frontend/src/pages/ResearchLab.tsx").read_text(encoding="utf-8")
+lab = (ROOT / "frontend/src/components/research/DailyReport.tsx").read_text(encoding="utf-8")   # ‏D763: التقريرُ في مفكرة السوق
 check("backfill_cli" in sch and 'id="research_backfill"' in sch and "create_subprocess_exec" in sch[sch.index("async def job_research_backfill"):]
       and hasattr(RD, "backfill") and RD.KEEP_REPORTS >= 600,
       "٧ الأرشيفُ يُكتب ليلاً في عمليةٍ منفصلة، ويتّسع لنحو سنةٍ من التقارير")

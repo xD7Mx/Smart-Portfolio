@@ -7,7 +7,8 @@ import sys
 
 SRC = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "src"
 rd = lambda *p: (SRC.joinpath(*p)).read_text(encoding="utf-8")
-page, app, nav, store = rd("pages", "ResearchLab.tsx"), rd("App.tsx"), rd("components", "common", "MainLayout.tsx"), rd("store", "appStore.ts")
+page, app, nav, store = rd("components", "research", "DailyReport.tsx"), rd("App.tsx"), rd("components", "common", "MainLayout.tsx"), rd("store", "appStore.ts")
+# ‏D763: ورقةُ التقرير انتقلت من المختبر إلى مفكرة السوق (مكوّنُ ‏DailyReport) — والمختبرُ عقودُ الخيارات والمحفظةُ وصقر
 checks = [
     # ‏D677 ← D694 ← D736 (بأمر المالك 2026-11-15): المختبرُ تبويبٌ في غرفة التداول بجانب «الرسم البياني» (كان في تحليل الذكاء،
     # وقبله في المحفظة) — ورابطاه القديمان يصلانه، ولا نسخةَ ثانيةً منه في تحليل الذكاء

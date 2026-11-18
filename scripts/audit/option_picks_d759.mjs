@@ -70,8 +70,8 @@ for (const vp of [{ width: 1366, height: 900 }, { width: 390, height: 844 }]) {
   await page.waitForTimeout(2500);
   const tabs = await page.locator('[data-role="rl-views"] [data-view]').allTextContents().catch(() => []);
   const empty = await page.locator('[data-role="op-empty"]').textContent().catch(() => "");
-  say(JSON.stringify(tabs) === JSON.stringify(["التقرير اليومي", "عقود الخيارات"]) && /قيمة العقد/.test(empty || "") && await page.locator('[data-role="op-budget"]').count() === 1,
-      `${label}: ١ «عقود الخيارات» تبويبٌ في مختبر الأبحاث بجانب التقرير، وفيه خانةُ قيمة العقد`, tabs.join(" · "));
+  say(JSON.stringify(tabs) === JSON.stringify(["عقود الخيارات", "المحفظة", "صقر"]) && /قيمة العقد/.test(empty || "") && await page.locator('[data-role="op-budget"]').count() === 1,
+      `${label}: ١ «عقود الخيارات» أوّلُ تبويبات مختبر الأبحاث (‏D763: ثمّ المحفظة وصقر)، وفيه خانةُ قيمة العقد`, tabs.join(" · "));
   await page.locator('[data-role="op-preset"]', { hasText: "$150" }).click();
   await page.waitForTimeout(400);
   const st = await page.locator('[data-role="op-status"]').textContent().catch(() => "");

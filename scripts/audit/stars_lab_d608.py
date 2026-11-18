@@ -29,7 +29,7 @@ check(late["months"] == 2, "٤ والمدرَجُ لاحقاً يدخل حين �
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text()
 seg = mk.split('@router.get("/stars-lab")')[1].split("@router")[0]
 check("lab(" in seg and "Holding" not in seg and "commit" not in seg, "٥ المختبرُ قراءةٌ فقط — لا يكتب في المحفظة")
-sp = (ROOT / "frontend/src/pages/ResearchLab.tsx").read_text()   # ‏D745: المختبرُ صار قسمَ الأبحاث
+sp = (ROOT / "frontend/src/components/research/DailyReport.tsx").read_text()   # ‏D745: قسمُ الأبحاث · ‏D763: ورقتُه في مفكرة السوق
 check("marketApi.researchDesk(" in sp and "الماضي ليس وعداً" not in sp, "٦ المختبرُ هو الصفحة (‏D745: قسمُ الأبحاث) — بلا حاشيةٍ تفسيرية")
 cp = (ROOT / "frontend/src/pages/CompanyPage.tsx").read_text()
 nc = (ROOT / "frontend/src/components/chart/ProChart.tsx").read_text()

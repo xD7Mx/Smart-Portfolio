@@ -449,12 +449,17 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   if (!desk) say(m.tfs === 1, `${label}: الإطارُ الجاري وحده في الشريط وبقيّتُها في قائمته — كتطبيق تريدنق فيو`, `${m.tfs}`);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `pro_${vp.width}_${theme}.png`) });
 
-  // ١٨ مختبرُ الأبحاث تبويبٌ هنا، وروابطُه القديمة تصله
+  // ١٨ مختبرُ الأبحاث تبويبٌ هنا (‏D763: عقودُ الخيارات · المحفظة · صقر)، وروابطُه القديمة تصله — والتقريرُ اليوميّ انتقل إلى مفكرة السوق
   await page.locator('[data-role="room-tab"]', { hasText: "مختبر الأبحاث" }).click();
   await page.waitForTimeout(1200);
-  const labHere = await page.evaluate(() => ({ url: location.pathname + location.search, chart: !!document.querySelector('[data-role="pro-chart"]'), lab: !!document.querySelector('[data-role="research-lab"]') }));
-  // ‏D746: قسمُ الأبحاث ورقةُ التقرير نفسُها — صفحتان (التقرير اليومي · التوصيات)، وأيامٌ مؤرّخة، وملفّ PDF، ولا مكتبةَ ولا مصادر
-  await page.waitForTimeout(600);
+  const labHere = await page.evaluate(() => ({ url: location.pathname + location.search, chart: !!document.querySelector('[data-role="pro-chart"]'), lab: !!document.querySelector('[data-role="research-lab"]'),
+    tabs: [...document.querySelectorAll('[data-role="rl-views"] [role="tab"]')].map(b => b.textContent.trim()), doc: !!document.querySelector('[data-role="rl-doc"]') }));
+  // ‏D746: التقريرُ ورقةٌ واحدة (التقرير اليومي · التوصيات)، وأيامٌ مؤرّخة، وملفّ PDF، ولا مكتبةَ ولا مصادر — في مفكرة السوق بجانب التوقعات (‏D763)
+  await page.evaluate(() => { try { sessionStorage.setItem("sp:market:tab", "calendar"); } catch { /* */ } });
+  await page.goto(`http://localhost:${PORT}/market`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+  await page.locator('[data-role="ev-report"]').click({ timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(1800);
   const paperOf = () => page.evaluate(() => { const f = document.querySelector('[data-role="rl-doc"] iframe');
     return { h1: f?.contentDocument?.querySelector("h1")?.textContent || null, h: f ? f.getBoundingClientRect().height : 0 }; });
   const doc = await page.evaluate(() => { const W = document.documentElement.clientWidth, main = document.querySelector(".app-main");
@@ -462,21 +467,22 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
              days: [...document.querySelectorAll('[data-role="rl-day"]')].map(b => b.textContent.trim()),
              months: [...document.querySelectorAll('[data-role="rl-days"] .rl-mname')].map(b => b.textContent.trim()),
              pdf: !!document.querySelector('[data-role="rl-pdf"]'), lib: !!document.querySelector('[data-role="rl-lib"]'),
-             srcs: (document.querySelector('[data-role="research-lab"]')?.textContent || "").includes("المصادر"),
+             srcs: (document.querySelector('[data-role="daily-report"]')?.textContent || "").includes("المصادر"),
              over: Math.max(document.documentElement.scrollWidth, main ? main.scrollWidth : 0) - W }; });
   const p1 = await paperOf();
   const all = await page.evaluate(() => [...(document.querySelector('[data-role="rl-doc"] iframe')?.contentDocument?.querySelectorAll("h1") || [])].map(h => h.textContent));
   say(doc.tabs.length === 0 && JSON.stringify(doc.days) === JSON.stringify(["15", "12", "29"])
       && JSON.stringify(doc.months) === JSON.stringify(["نوفمبر 2026", "أكتوبر 2026"]) && doc.pdf && !doc.lib && !doc.srcs
       && p1.h1 === "التقرير اليومي" && p1.h >= 1000 && JSON.stringify(all) === JSON.stringify(["التقرير اليومي", "محفظتنا واختياراتنا"]) && doc.over <= 1,
-      `${label}: مختبرُ الأبحاث تقريرٌ واحدٌ بتاريخه — السوقُ ثمّ محفظتُنا واختياراتُنا في الورقة نفسِها، وملفّ PDF، ولا مكتبةَ ولا مصادر`, JSON.stringify({ ...doc, p1, all }));
+      `${label}: التقريرُ اليوميّ (في مفكرة السوق) تقريرٌ واحدٌ بتاريخه — السوقُ ثمّ محفظتُنا واختياراتُنا في الورقة نفسِها، وملفّ PDF، ولا مكتبةَ ولا مصادر`, JSON.stringify({ ...doc, p1, all }));
   let olds = 0;
   for (const old of ["/stars", "/ai?tab=lab"]) {
     await page.goto(`http://localhost:${PORT}${old}`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
     await page.waitForTimeout(1800);
     if ((await page.evaluate(() => location.pathname + location.search)) === "/watchlist?tab=lab") olds++;
   }
-  say(labHere.url === "/watchlist?tab=lab" && labHere.lab && !labHere.chart && olds === 2, `${label}: «مختبر الأبحاث» تبويبٌ في الغرفة، ورابطاه القديمان يفتحانه`, `${labHere.url} · ${olds}/2`);
+  say(labHere.url === "/watchlist?tab=lab" && labHere.lab && !labHere.chart && !labHere.doc && JSON.stringify(labHere.tabs) === JSON.stringify(["عقود الخيارات", "المحفظة", "صقر"]) && olds === 2,
+      `${label}: «مختبر الأبحاث» تبويبٌ في الغرفة (عقودُ الخيارات · المحفظة · صقر — بلا التقرير)، ورابطاه القديمان يفتحانه`, `${labHere.url} · ${labHere.tabs.join("/")} · ${olds}/2`);
   say(errs.length === 0, `${label}: لا خطأ`, errs[0] || "");
   await ctx.close();
 }
