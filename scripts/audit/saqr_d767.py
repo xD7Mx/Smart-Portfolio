@@ -106,23 +106,23 @@ from app.services import tadawul_market as TM   # noqa: E402
 st0 = SQ.fresh(market="sa")
 st0["positions"] = [{"id": "x1", "symbol": "1120", "kind": "stock", "qty": 3}]
 SQ.save(st0)
-saved = (TM.ensure_fresh, TM.snapshot, SA.regime, SA.brent)
-TM.ensure_fresh, TM.snapshot = (lambda *a, **k: True), (lambda: snap)
+saved = (TM.usable_rows, SA.regime, SA.brent)
+TM.usable_rows = lambda: (snap, False, "2026-11-18T12:10:00+00:00")   # خارجَ الجلسة: المحفوظُ بزمنه (قيس: snapshot() فارغةٌ بعد الإغلاق)
 SA.regime = lambda: asyncio.sleep(0, {"verdict": "صاعد", "state": "up", "close": 11500, "sma50": 11300, "sma200": 11000, "ret3m": 4.2, "chg": 0.35})
 SA.brent = lambda: asyncio.sleep(0, {"px": 88.5, "chg": -4.9, "chg5": -4.5})
 try:
     ok_read = asyncio.run(SA.close_read())
 finally:
-    TM.ensure_fresh, TM.snapshot, SA.regime, SA.brent = saved
+    TM.usable_rows, SA.regime, SA.brent = saved
 after = SQ.load("sa")
 body = (ROOT / "backend/app/services/saqr_sa.py").read_text(encoding="utf-8")
 cr = body[body.index("async def close_read("):body.index("async def cycle(")]
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
-check(ok_read and (after.get("pulse") or {}).get("adv") == 2 and (after.get("regime") or {}).get("close") == 11500 and after["positions"] == st0["positions"]
+check(ok_read and (after.get("pulse") or {}).get("adv") == 2 and after["pulse"]["at"] == "2026-11-18T12:10:00+00:00" and "usable_rows()" in cr and "snapshot()" not in cr and (after.get("regime") or {}).get("close") == 11500 and after["positions"] == st0["positions"]
       and after["cash"] == st0["cash"] and "_hunt(" not in cr and "_review(" not in cr
       and 'add_job(job_saqr_sa_close, CronTrigger(day_of_week=TRADING_DAYS, hour=15, minute=25)' in sch and 'id="saqr_sa_close_boot"' in sch,
       "٥ج قراءةُ الإغلاق: نبضُ السوق ومؤشّرُه يُكتبان بعد مزاد الإغلاق (15:25 أيامَ التداول) وبعد كلّ إقلاع — فلا تقول اللوحةُ «غير متوفّر» "
-      "خارجَ الجلسة — قراءةٌ وحدها لا صيدَ فيها ولا مراجعة، والمراكزُ والنقدُ كما هما")
+      "خارجَ الجلسة — من لقطة آخر جلسةٍ المحفوظةِ بزمنها (لا الحيّةِ الفارغةِ بعد الإغلاق) — قراءةٌ وحدها لا صيدَ فيها ولا مراجعة، والمراكزُ والنقدُ كما هما")
 
 # ٦ الواجهة: لا IBKR فوق علامة صقر، ولا «الأحداث الجيوسياسية» في السعوديّ، وأوامرُ المالك في تبويبها وفي المحفظة
 desk = re.sub(r"/\*.*?\*/", "", (ROOT / "frontend/src/components/saqr/SaqrDesk.tsx").read_text(encoding="utf-8"), flags=re.S)   # الشيفرةُ لا التعليق

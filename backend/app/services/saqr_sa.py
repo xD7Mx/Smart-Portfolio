@@ -469,13 +469,14 @@ async def close_read() -> bool:
     from app.services import tadawul_market as TM
     async with SQ._LOCK:
         st = SQ.load("sa")
-        TM.ensure_fresh()
-        snap = TM.snapshot()
+        snap, _live, at = TM.usable_rows()   # خارجَ الجلسة: لقطةُ آخر جلسةٍ المحفوظةُ بزمنها — والحيّةُ فارغةٌ بعد الإغلاق (قيس)
         if not snap:
             return False
         reg = await regime()
         st["regime"] = _reg_view(reg) or st.get("regime")
-        st["pulse"] = pulse(snap, SQ._now().date(), await brent())
+        pu = pulse(snap, SQ._now().date(), await brent())
+        pu["at"] = at or pu["at"]            # الزمنُ زمنُ اللقطة لا زمنُ القراءة
+        st["pulse"] = pu
         SQ.save(st)
         return True
 
