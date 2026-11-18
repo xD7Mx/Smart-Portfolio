@@ -314,8 +314,17 @@ export default function SaqrDesk() {
             {s.scan && (
               <p className="sq-muted" data-role="sq-scan">{sa
                 ? <>قرأ <Num v={`${s.scan.universe}`} /> شركة · اجتاز السيولةَ والنتائج <Num v={`${s.scan.pool}`} /> · فحص مسارَ <Num v={`${s.scan.deep}`} /> · ميزانيةُ الصفقة <Num v={usd(s.scan.budget)} /></>
-                : <>قرأ <Num v={`${s.scan.universe}`} /> رمزاً (منها <Num v={`${s.scan.movers}`} /> من الأنشط اليوم) · رشّح <Num v={`${s.scan.pool}`} /> ·
-                  فحص عقودَ <Num v={`${s.scan.deep}`} /> · ميزانيةُ الصفقة <Num v={usd(s.scan.budget)} /></>}</p>
+                : s.scan.full && !s.scan.full.fallback
+                  ? <>قرأ <Num v={`${s.scan.full.optionable}`} /> ورقةً لها عقودُ خيارات (من دليل سيبوي) · اجتاز الأساسَ <Num v={`${s.scan.full.passed}`} /> ·
+                    رشّح <Num v={`${s.scan.pool}`} /> · فحص عقودَ <Num v={`${s.scan.deep}`} /> · ميزانيةُ الصفقة <Num v={usd(s.scan.budget)} /></>
+                  : <>قرأ <Num v={`${s.scan.universe}`} /> رمزاً (منها <Num v={`${s.scan.movers}`} /> من الأنشط اليوم) · رشّح <Num v={`${s.scan.pool}`} /> ·
+                    فحص عقودَ <Num v={`${s.scan.deep}`} /> · ميزانيةُ الصفقة <Num v={usd(s.scan.budget)} /></>}</p>
+            )}
+            {!sa && s.scan?.full?.excluded && Object.keys(s.scan.full.excluded).length > 0 && (
+              <details className="robo-held" data-role="sq-fund">
+                <summary><span>الفرزُ الأساسيّ قبل الفنّ — استُبعد <Num v={`${Object.values(s.scan.full.excluded as Record<string, number>).reduce((a, b) => a + b, 0)}`} /></span></summary>
+                <ul>{Object.entries(s.scan.full.excluded as Record<string, number>).map(([k, n]) => <li key={k}>{k}: <b><Num v={`${n}`} /></b></li>)}</ul>
+              </details>
             )}
             {s.signals.length === 0 ? <p className="sq-muted">لم يمسح صقرٌ السوقَ بعد — يمسح في الجلسة الرسمية كلَّ عشرين دقيقة.</p> : (
               <ul className="sq-sig">
@@ -393,7 +402,10 @@ export default function SaqrDesk() {
             <div className="sq-card card card-rise wide" data-role="sq-rules">
               <h4>كيف يدخل</h4>
               <ul className="sq-gl">
-                <li>السوقُ الأمريكيّ كلُّه: الأسيلُ خياراتٍ والأنشطُ تداولاً اليوم — مسارُ كلِّ سهمٍ من شموعه، والخبرُ القويُّ المعاكسُ يُسقط الصفقة.</li>
+                <li>السوقُ الأمريكيّ كلُّه: كلُّ ورقةٍ لها عقودُ خيارات (دليلُ سيبوي) وسائلة.</li>
+                <li>الأساسُ قبل الفنّ: لا سعرَ دون 5 دولارات (منطقةُ الشطب)، ولا قيمةَ دون ملياري دولار، ولا ضيقَ ماليّ (Altman دون 1.81)، ولا متانةَ ضعيفة
+                  (Piotroski ‏3 فأقلّ)، ولا خسارةً تحرق النقد، ولا دينَ مفرطاً ولا سيولةً ضعيفة، ولا صندوقَ مرفوعاً — ودرجةُ المتانة 60 فأكثر.</li>
+                <li>ثمّ المسار: صاعدٌ أو هابطٌ واضح، والخبرُ القويُّ المعاكسُ يُسقط الصفقة.</li>
                 <li>لا يعاكس حركةَ اليوم، ولا يدخل قبل أرباح الشركة بثلاثة أيام.</li>
                 <li>العقد: أجلُ <Num v={`${s.rules.dte[0]}–${s.rules.dte[1]}`} /> يوماً، فارقٌ ≤ <Num v={`${s.rules.max_spread}%`} />، دلتا <Num v={`${s.rules.delta[0]}–${s.rules.delta[1]}`} />، تآكلٌ يوميّ ≤ <Num v={`${s.rules.burn}%`} />، وحكمُ المستشار بيونانياته «مناسب».</li>
                 <li>لا دخولَ في أوّل ربع ساعةٍ ولا آخرِ عشرين دقيقة، ولا حول حدثٍ اقتصاديٍّ عالي الأثر (والفيدراليُّ يوماً كاملاً)، ولا بعد خسارة <Num v={`${s.rules.day_loss}%`} /> في اليوم، ولا أكثرَ من <Num v={`${s.rules.max_new_day}`} /> صفقاتٍ يومياً.</li>

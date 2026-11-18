@@ -25,6 +25,11 @@ async def main():
     t0 = time.time()
     mv = await SQ.movers()
     print(f"الأنشطُ اليوم (TradingView): {len(mv)} في {time.time() - t0:.1f}ث — {' '.join(mv[:25])}")
+    from app.services import saqr_universe as SU
+    t0 = time.time()
+    U = await SU.universe()
+    print(f"المجالُ الكامل (‏D766): {U['meta']} · {time.time() - t0:.1f}ث")
+    print("  أقوى المتين:", sorted(((v[0], k) for k, v in U["fund"].items()), reverse=True)[:12])
     t0 = time.time()
     tr, n_mv = await SQ.trends()
     up = sum(1 for t in tr.values() if t["state"] == "صاعد")

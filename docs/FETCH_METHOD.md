@@ -319,6 +319,19 @@ POST https://scanner.tradingview.com/{cfd|futures|global|ksa}/scan
 ‏`relative_volume_10d_calc`) و‏`range` — ببصمة المتصفّح نفسِها، ومخبّأٌ نصفَ ساعة؛ ثمّ يُحسب مسارُ ما ليس في القائمة من شموعه
 ويُخبَّأ ستّ ساعات (‏`backend/app/services/saqr_trader.py` — ‏`movers` · ‏`trends`). ويُقاس على الخادم بـ‏`scripts/audit/saqr_door.py`.
 
+### كلُّ ورقةٍ أمريكيةٍ لها عقودُ خيارات — دليلُ «سيبوي» والأساسُ من المُصفّي (D766)
+
+قِيس على الخادم 2026-11-18 (‏`scripts/audit/us_universe_door.py`):
+
+| المصدر | ما قِيس |
+|---|---|
+| دليلُ «سيبوي» ‏`cboe.com/us/options/symboldir/equity_index_options/?download=csv` | ‏200 · ‏5,408 رمزاً لها عقودُ خيارات (اسمُ الشركة · الرمز · صانعُ السوق) في ثانية — المصدرُ الرسميّ للتغطية |
+| مُصفّي TradingView ‏`america/scan` بمرشّحٍ ومدًى ‏`[0, 6000]` | ‏3,392 سهماً وصندوقاً سائلاً (فوق 5 دولارات وحجمٍ 300 ألف) في 0.6 ثانية؛ والحقولُ الاثنان والسبعون صالحة، منها ‏`altman_z_score_ttm` · ‏`piotroski_f_score_ttm` · ‏`debt_to_equity` · ‏`current_ratio` · ‏`net_income_ttm` · ‏`free_cash_flow_ttm` · ‏`SMA50` · ‏`SMA200` · ‏`EMA20` · ‏`Perf.3M` · ‏`High.3M` · ‏`High.6M` · ‏`earnings_release_next_date` |
+
+فالمجالُ (‏`backend/app/services/saqr_universe.py`) دليلُ سيبوي ∩ السوقُ السائل، والأساسُ يُحكم عليه قبل الفنّ من الحقول نفسِها، والمسارُ
+بقاعدة ‏`option_picks.trend_of` من المتوسّطات — نداءٌ واحدٌ للسوق كلّه. والرمزُ يوحَّد بين المصادر (‏BRK.B · BRK/B ⇐ BRK-B). والدليلُ مخبّأٌ يوماً،
+والمُصفّي عشرَ دقائق.
+
 ## ٣· الطبقةُ الثالثة: المتصفّحُ آخرَ الوسائل
 
 انتحالُ البصمة يعبر الحمايةَ ولا **ينفّذ سكربتاً**. وقد قِيس أن صفحاتٍ

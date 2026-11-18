@@ -8,7 +8,8 @@
 فالنتيجةُ ما كان سيحدث فعلاً لا ما يُتمنّى. وكلُّ قرارٍ (دخولٌ أو رفضٌ أو خروج) مكتوبٌ بسببه في السجلّ، ويصل تلغرام.
 
 الدخولُ (كلّ عشرين دقيقة في الجلسة الرسمية، ومقعدٌ شاغرٌ ونقدٌ يكفي):
-  ١ السوقُ كلُّه: قائمةُ الأسيل خياراتٍ + الأنشطُ تداولاً اليومَ في السوق الأمريكيّ (‏TradingView) — مسارُ كلٍّ من شموعه اليومية.
+  ١ السوقُ كلُّه (‏D766): كلُّ ورقةٍ لها عقودُ خيارات (دليلُ سيبوي) وسائلة، والأساسُ أوّلاً (‏saqr_universe: لا شطبَ ولا ضيقَ ماليّ ولا ضعفَ
+    ولا خسارةً محترقة ولا دينَ مفرط ولا صندوقَ مرفوع)، ثمّ المسارُ من المُصفّي نفسِه.
   ٢ الاتجاهُ من المسار، والخبرُ القويُّ المعاكس يُسقطه (قراءةُ النموذج لعناوين عشرة أيام).
   ٣ لا يعاكس حركةَ اليوم، ولا يدخل قبل أرباح الشركة بثلاثة أيام (ينهار التذبذبُ بعدها).
   ٤ العقد: أجلُ 21–200 يوماً، عرضٌ وطلبٌ حيّان بفارقٍ ≤ 8٪، اهتمامٌ مفتوح ≥ 100، دلتا 0.35–0.80، تعادلٌ دون الهدف الفنيّ وعائدٌ عنده،
@@ -552,7 +553,7 @@ async def _review(st: dict, now: datetime, scan_tr: dict | None) -> list[dict]:
             p["ask"] = ask
         if S:
             p["S"] = S
-        tr = (scan_tr or cache.get("optpicks:scan:v3") or {}).get(p["symbol"]) or cache.get(f"saqr:tr:{p['symbol']}")
+        tr = cache.get(f"saqr:tr:{p['symbol']}") or (scan_tr or cache.get("optpicks:scan:v3") or {}).get(p["symbol"])
         news = cache.get(f"optpicks:news:{p['symbol']}")
         r = exit_rule(p, bid, S, dte, tr, news)
         if not r:
@@ -591,7 +592,16 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
         st["signals"] = [{"at": _iso(), "sym": "—", "verdict": "refused", "why": f"النقدُ المتاح {st['cash']:,.2f} دولار لا يكفي عقداً."}]
         return None
     _JOB["msg"] = "قراءةُ مسارات السوق"
-    tr_all, n_movers = await trends()
+    # ‏D766: المجالُ كاملٌ والأساسُ قبل الفنّ — كلُّ ورقةٍ لها عقودُ خيارات (دليلُ سيبوي) وسائلةٌ واجتازت الفرزَ الأساسيّ، ومسارُها من المُصفّي؛
+    # وإن تعذّر المُصفّي فالقائمةُ الأسيلُ والأنشطُ كما كانت (وتُوسم)
+    from app.services import saqr_universe as SU
+    U = await SU.universe()
+    fund = U["fund"]
+    if U["tr"]:
+        tr_all, n_movers, umeta = U["tr"], 0, U["meta"]
+    else:
+        tr_all, n_movers = await trends()
+        umeta = {"fallback": True}
     held = {p["symbol"] for p in st["positions"]}
     pool = shortlist(tr_all, held, lambda x: cooling(st, x, now), budget)
     _JOB["msg"] = "قراءةُ الأخبار"
@@ -648,8 +658,10 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
     if chosen:
         qty = size(budget, chosen["ask"])
         if qty >= 1:
-            pos = buy(st, chosen, qty, thesis(chosen["symbol"], chosen["type"] == "call", tr_all[chosen["symbol"]],
-                                             news.get(chosen["symbol"]), chosen, chosen.get("chg")))
+            why = thesis(chosen["symbol"], chosen["type"] == "call", tr_all[chosen["symbol"]], news.get(chosen["symbol"]), chosen, chosen.get("chg"))
+            if chosen["symbol"] in fund:
+                why.insert(0, f"الأساس: {fund[chosen['symbol']][1]}.")
+            pos = buy(st, chosen, qty, why)
             st["day"]["new"] = (st["day"].get("new") or 0) + 1
             for x in sig:
                 if x.get("contract") == chosen["contract"]:
@@ -664,7 +676,10 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
         s0, chg0, why0 = stock_alt[0]
         k = stock_pick(s0, q.get(s0) or {}, tr_all[s0], budget)
         if k:
-            pos = buy(st, k, k["qty"], stock_thesis(tr_all[s0], news.get(s0), chg0, why0, k), kind="stock")
+            why = stock_thesis(tr_all[s0], news.get(s0), chg0, why0, k)
+            if s0 in fund:
+                why.insert(0, f"الأساس: {fund[s0][1]}.")
+            pos = buy(st, k, k["qty"], why, kind="stock")
             st["day"]["new"] = (st["day"].get("new") or 0) + 1
             sig.append({"sym": s0, "side": "call", "verdict": "chosen", "contract": s0,
                         "why": f"السهمُ نفسُه بدل العقد ({why0}) — {pos['qty']:g} سهم × {pos['entry_px']:.2f}"})
@@ -673,7 +688,7 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
             await _notify(f"🦅 <b>صقر — شراء سهم</b>\n{html.escape(_title(pos))}\n{pos['qty']:g} سهم × {pos['entry_px']:.2f} = {pos['cost']:,.2f}$ مع العمولة\n"
                           f"الوقف {pos['stop']:.2f} · الهدف {pos['target']:,.2f}\n" + html.escape(pos["why"][0]))
     st["signals"] = [{"at": _iso(), **x} for x in sig][:60]
-    st["scan_meta"] = {"at": _iso(), "universe": len(tr_all), "movers": n_movers, "pool": len(pool), "deep": min(len(deep), DEEP),
+    st["scan_meta"] = {"at": _iso(), "universe": len(tr_all), "movers": n_movers, "pool": len(pool), "deep": min(len(deep), DEEP), "full": umeta,
                        "budget": round(budget, 2), "tier": {"frac": frac, "seats": seats}}
     return pos
 

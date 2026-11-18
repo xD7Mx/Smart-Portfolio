@@ -23,7 +23,8 @@ export type SaqrState = {
   today: { wins: number; losses: number; realized: number; new: number };
   exposure: { contracts: number; cost: number; value: number; ret: number | null };
   equity_curve: [string, number][]; signals: SSignal[]; log: SLog[]; gates: string[];
-  scan?: { at: string; universe: number; movers: number; pool: number; deep: number; budget: number; tier: { frac: number; seats: number } } | null;
+  scan?: { at: string; universe: number; movers: number; pool: number; deep: number; budget: number; tier: { frac: number; seats: number };
+    full?: { fallback?: boolean; cboe?: number | null; market?: number; optionable?: number; passed?: number; excluded?: Record<string, number>; up?: number; down?: number } } | null;
   session?: { state: string; label: string; detail: string; next: string | null; holiday?: string } | null;
   last_cycle: string | null; last_check: string | null;
   health: { news?: boolean; events?: boolean; quotes?: string | null; telegram?: boolean };
