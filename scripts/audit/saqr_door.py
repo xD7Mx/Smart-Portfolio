@@ -20,6 +20,9 @@ async def main():
     real = SQ.load()
     print("الدفترُ الحقيقيّ:", f"رأس المال {SQ.equity(real):,.2f} · نقد {real['cash']:,.2f} · مراكز {len(real['positions'])} · مغلقة {len(real['closed'])}"
           f" · يعمل {real.get('on')} · آخرُ دورة {real.get('last_cycle')}")
+    sb = SQ.seats_budget(real, SQ.equity(real), *SQ.tier(SQ.equity(real)))   # ‏D768: ما يعمل به غداً حقاً — الأوامرُ المحفوظةُ تتقدّم على الافتراضيّ
+    print("  الأوامر:", SQ.cfg(real), "· المحفوظ:", real.get("settings"), "· النمط:", "هجوميّ" if SQ.profile(real) is SQ.PROFILES["attack"] else "متوازن",
+          "· المقاعد والميزانية:", sb, "· اليوم:", SQ.day_status(real))
     # ما فعله صقرٌ الأمريكيّ حقاً: المراكزُ بأوقاتها، والمغلقةُ بربحها، وأسبابُ الرفض، والبوّابات، وآخرُ السجلّ
     from collections import Counter
     for p in real["positions"]:
