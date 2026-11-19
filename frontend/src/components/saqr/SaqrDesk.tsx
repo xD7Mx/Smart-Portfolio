@@ -7,17 +7,20 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Radar, ShieldCheck, Cpu, ShieldAlert, Target, Newspaper, Sparkles, Play, Pause, RefreshCw,
-  LayoutDashboard, Activity, ScrollText, SlidersHorizontal, ArrowDownRight, ArrowUpRight, Info, BellRing, Hand, LineChart, FileText, Filter, BarChart3, Check, Flame } from "lucide-react";
+  LayoutDashboard, Activity, ScrollText, SlidersHorizontal, ArrowDownRight, ArrowUpRight, Info, BellRing, Hand, LineChart, FileText, Filter, BarChart3, Check, Flame, Wallet } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { useLive, useSessions } from "../chart/LiveQuote";
 import { useSaqr, useSaqrMarket, money, smoney, spct, hhmm, dday, tone, type SaqrState, type Market } from "./saqr";
 import MarketSwitch from "./MarketSwitch";
 import SaqrEmblem from "./SaqrEmblem";
+import SaqrPortfolio from "./SaqrPortfolio";
 
 const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="ltr" className={"tabular-nums " + (className || "")}>{v}</bdi>;
-type Tab = "dash" | "signals" | "log" | "rules";
-const TABS: [Tab, string, any][] = [["dash", "لوحة المتابعة", LayoutDashboard], ["signals", "الإشارات", Activity], ["log", "السجل", ScrollText], ["rules", "الإعدادات", SlidersHorizontal]];
+type Tab = "dash" | "portfolio" | "signals" | "log" | "rules";
+/* ‏D769 (المالك): «المحفظةُ داخل صقر — بجانب لوحة المعلومات والسجل» */
+const TABS: [Tab, string, any][] = [["dash", "لوحة المتابعة", LayoutDashboard], ["portfolio", "المحفظة", Wallet], ["signals", "الإشارات", Activity],
+  ["log", "السجل", ScrollText], ["rules", "الإعدادات", SlidersHorizontal]];
 type NState = "ok" | "warn" | "off";
 
 const ago = (iso?: string | null) => (iso ? (Date.now() - new Date(iso).getTime()) / 60000 : Infinity);
@@ -242,18 +245,20 @@ function Settings({ s, market, owner }: { s: SaqrState; market: Market; owner: b
   const sa = market === "sa";
   const st = s.settings || {};
   const usd = money(s.ccy);
-  const [f, setF] = useState(() => ({ budget: String(s.capital), per_trade: st.per_trade ? String(st.per_trade) : "", max_positions: st.max_positions ? String(st.max_positions) : "",
+  /* ‏D769: القيمةُ الآن لا المموَّل — وتُرسَل إن غيّرها المالك وحدها (المحفظةُ تتحرّك بين العرض والحفظ فلا يُموَّل فرقُها خطأً) */
+  const [budDirty, setBudDirty] = useState(false);
+  const [f, setF] = useState(() => ({ budget: String(Math.round(s.equity)), per_trade: st.per_trade ? String(st.per_trade) : "", max_positions: st.max_positions ? String(st.max_positions) : "",
     instruments: st.instruments || "both", sides: st.sides || "both", opt_stop: String(st.opt_stop ?? 40), stock_stop: String(st.stock_stop ?? (sa ? 6 : 7)), take_x: String(st.take_x ?? 2),
     mode: st.mode || "balanced", day_target: st.day_target ? String(st.day_target) : "" }));
   const [msg, setMsg] = useState<string | null>(null);
   const save = useMutation({
-    mutationFn: () => marketApi.saqrSettings({ budget: f.budget, per_trade: f.per_trade || null, max_positions: f.max_positions || null,
+    mutationFn: () => marketApi.saqrSettings({ ...(budDirty ? { equity_to: f.budget } : {}), per_trade: f.per_trade || null, max_positions: f.max_positions || null,
       ...(sa ? {} : { instruments: f.instruments, sides: f.sides, opt_stop: f.opt_stop, take_x: f.take_x, mode: f.mode, day_target: f.day_target || null }), stock_stop: f.stock_stop }, market),
-    onSuccess: r => { qc.setQueryData(["saqr", market], r.data.data); setMsg("حُفظت الأوامر — تسري على الصفقات الجديدة، والميزانيةُ فوراً."); },
+    onSuccess: r => { qc.setQueryData(["saqr", market], r.data.data); setBudDirty(false); setMsg("حُفظت الأوامر — تسري على الصفقات الجديدة، وقيمةُ المحفظة فوراً."); },
     onError: (e: any) => setMsg(e?.response?.data?.detail || "تعذّر الحفظ"),
   });
   const presets = sa ? [1000, 5000, 10000] : [100, 150, 300, 500];
-  const set = (k: string, v: string) => { setF(x => ({ ...x, [k]: v })); setMsg(null); };
+  const set = (k: string, v: string) => { setF(x => ({ ...x, [k]: v })); setMsg(null); if (k === "budget") setBudDirty(true); };
   const Seg = ({ k, opts }: { k: "instruments" | "sides" | "mode"; opts: [string, string][] }) => (
     <span className="seg inline-flex" role="group">
       {opts.map(([v, t]) => <button key={v} type="button" disabled={!owner} className={"seg-btn chip" + (f[k] === v ? " on" : "")} onClick={() => set(k, v)} data-v={v}>{t}</button>)}
@@ -273,13 +278,13 @@ function Settings({ s, market, owner }: { s: SaqrState; market: Market; owner: b
         </div>
       )}
       <div className="sq-set-row" data-k="budget">
-        <label><small>الميزانية</small>
+        <label><small>قيمةُ المحفظة الآن</small>
           <span className="op-field"><span aria-hidden>{sa ? "ر.س" : "$"}</span>
-            <input type="number" min={10} step={10} dir="ltr" value={f.budget} disabled={!owner} onChange={e => set("budget", e.target.value)} data-role="sq-budget" aria-label="الميزانية" /></span>
+            <input type="number" min={10} step={10} dir="ltr" value={f.budget} disabled={!owner} onChange={e => set("budget", e.target.value)} data-role="sq-budget" aria-label="قيمةُ المحفظة الآن" /></span>
         </label>
         <span className="op-presets">{presets.map(v => <button key={v} type="button" disabled={!owner} className={"seg-btn chip" + (Number(f.budget) === v ? " on" : "")}
           onClick={() => set("budget", String(v))} data-role="sq-budget-preset"><Num v={usd(v, 0)} /></button>)}</span>
-        <small className="sq-muted">رأسُ المال الآن <Num v={usd(s.equity)} /> — والفرقُ يُضاف إلى النقد أو يُسحب منه بلا محوٍ للسجلّ.</small>
+        <small className="sq-muted">قيمتُها الآن <Num v={usd(s.equity)} /> — اكتب ما تريد، والفرقُ يُضاف إلى النقد أو يُسحب منه بلا محوٍ للسجلّ.</small>
       </div>
       <div className="sq-set-grid">
         <label><small>حدُّ الصفقة الواحدة</small><input className="sp-in" type="number" min={5} dir="ltr" placeholder="تلقائيّ" value={f.per_trade} disabled={!owner}
@@ -453,6 +458,8 @@ export default function SaqrDesk() {
             )}
           </div>
         )}
+
+        {tab === "portfolio" && <SaqrPortfolio market={market} />}
 
         {tab === "log" && (
           <div className="sq-card card card-rise" data-role="sq-log">

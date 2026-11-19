@@ -9,7 +9,7 @@ export type SPos = { id: string; kind?: "option" | "stock"; name?: string | null
   strike: number | null; expiry: string | null; qty: number;
   entry_px: number; cost: number; opened: string; stop: number; peak: number; bid: number | null; ask: number | null; S: number | null; S0: number | null;
   target: number | null; target_label?: string | null; delta?: number | null; iv?: number | null; why: string[]; src: "saqr" | "manual"; auto: boolean;
-  value: number; pl: number; pl_pct: number | null; alert?: string; marked?: string };
+  value: number; pl: number; pl_pct: number | null; alert?: string; marked?: string; managed?: boolean };
 export type SClosed = SPos & { exit_px: number; proceeds: number; closed: string; reason: string; reason_ar: string; note?: string };
 export type SSignal = { at: string; sym: string; name?: string | null; side?: "call" | "put"; verdict: "chosen" | "accepted" | "refused"; why: string; contract?: string; score?: number };
 export type SLog = { at: string; kind: "buy" | "sell" | "alert" | "manual" | "info" | "error"; text: string; sym?: string | null };

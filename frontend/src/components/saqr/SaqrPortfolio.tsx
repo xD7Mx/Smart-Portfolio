@@ -5,13 +5,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { LineChart, Plus, X, RotateCcw, Target, Clock } from "lucide-react";
+import { LineChart, Plus, X, RotateCcw, Target, Clock, MousePointerClick } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import CompanyLogo from "../common/CompanyLogo";
 import { optionTitle, parseOption, dayMonth, daysTo } from "../../lib/options";
 import { useSaqr, useSaqrMarket, money, smoney, spct, px, dday, stamp, held, tone, type SPos, type Market } from "./saqr";
 import MarketSwitch from "./MarketSwitch";
+import ContractPicker from "./ContractPicker";
 
 const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="ltr" className={"tabular-nums " + (className || "")}>{v}</bdi>;
 const Dur = ({ v, className }: { v: string; className?: string }) => <bdi dir="rtl" className={"tabular-nums " + (className || "")}>{v}</bdi>;
@@ -24,10 +25,9 @@ const ALERT: Record<string, string> = { stop: "بلغ الوقف", trail: "ال�
 function Position({ p, owner, onChart, i, market, ccy }: { p: SPos; owner: boolean; onChart: (c: string) => void; i: number; market: Market; ccy: string }) {
   const qc = useQueryClient();
   const [closing, setClosing] = useState(false);
-  const [price, setPrice] = useState("");
   const usd = money(ccy), susd = smoney(ccy);
   const close = useMutation({
-    mutationFn: () => marketApi.saqrClose(p.id, price ? Number(price) : null, market),
+    mutationFn: () => marketApi.saqrClose(p.id, null, market),
     onSuccess: r => { qc.setQueryData(["saqr", market], r.data.data); setClosing(false); },
   });
   const stock = p.kind === "stock";
@@ -41,7 +41,7 @@ function Position({ p, owner, onChart, i, market, ccy }: { p: SPos; owner: boole
         {stock
           ? <span className="sp-pos-t"><b><Num v={p.symbol} />{p.name ? ` · ${p.name}` : ""}</b><small>سهمٌ بلا أجل</small></span>
           : <span className="sp-pos-t"><b>{title(p.contract)}</b><small>ينتهي {dayMonth(p.expiry || "")} · <Num v={`${dte}`} /> يوماً</small></span>}
-        <span className={"sp-chip " + (p.src === "manual" ? "man" : "auto")}>{p.src === "manual" ? "يدويّ" : "صقر"}</span>
+        <span className={"sp-chip " + (p.src === "manual" ? "man" : "auto")} data-role="sp-src">{p.src === "manual" ? (p.managed ? "اختيارُك · يديره صقر" : "يدويّ") : "صقر"}</span>
         <span className="sp-side" data-side={stock ? "stock" : p.type}>{stock ? "سهم" : call ? "Call" : "Put"}</span>
       </header>
       <p className="sp-when" data-role="sp-opened"><Clock size={12} aria-hidden /> فُتحت <Num v={stamp(p.opened)} /> <span className="sp-sub">· منذ <Dur v={held(p.opened)} /></span></p>
@@ -65,34 +65,38 @@ function Position({ p, owner, onChart, i, market, ccy }: { p: SPos; owner: boole
         <button type="button" className="btn-ghost sp-btn" onClick={() => onChart(p.contract)} data-role="sp-chart"><LineChart size={14} /> فتح في الرسم</button>
         {owner && !closing && <button type="button" className="btn-ghost sp-btn" onClick={() => setClosing(true)} data-role="sp-close"><X size={14} /> إغلاق</button>}
         {owner && closing && (
-          <form className="sp-closef" onSubmit={e => { e.preventDefault(); close.mutate(); }}>
-            <input type="number" step="0.01" min="0" inputMode="decimal" dir="ltr" placeholder={px(p.bid)} value={price} onChange={e => setPrice(e.target.value)}
-              aria-label="سعرُ البيع (فارغٌ = سعرُ الطلب الحيّ)" className="sp-in" />
-            <button type="submit" className="btn-primary sp-btn" disabled={close.isPending} data-role="sp-close-ok">بِع</button>
-            <button type="button" className="btn-ghost sp-btn" onClick={() => setClosing(false)} aria-label="تراجع"><X size={14} /></button>
+          /* ‏D769 (المالك): «لما أضغط إغلاق يقفلها بنفس السعر الذي هي عليه الآن — وإن كانت بالناقص يحفظها بالناقص» */
+          <div className="sp-closef" data-role="sp-closef">
+            <span className="sp-closeq">يُغلق الآن بسعر السوق — نحو <Num v={px(p.bid)} /> والنتيجةُ نحو <b className={tone(p.pl)}><Num v={susd(p.pl)} /></b></span>
+            <button type="button" className="btn-primary sp-btn" onClick={() => close.mutate()} disabled={close.isPending} data-role="sp-close-ok">{close.isPending ? "يُغلق…" : "أغلق الآن"}</button>
+            <button type="button" className="btn-ghost sp-btn" onClick={() => setClosing(false)}>تراجع</button>
             {close.isError && <span className="sp-err">{err(close.error)}</span>}
-          </form>
+          </div>
         )}
       </div>
     </article>
   );
 }
 
-export default function SaqrPortfolio() {
+export default function SaqrPortfolio({ market: fixed }: { market?: Market } = {}) {
+  /* ‏D769 (المالك): «المحفظةُ داخل صقر — بجانب لوحة المعلومات والسجل»: تُعرض في تبويبه وسوقُها من مفتاحه */
   const owner = useAuthStore((s: any) => s.isOwner);
   const nav = useNavigate();
   const qc = useQueryClient();
-  const [market, setMarket] = useSaqrMarket();
+  const [own, setMarket] = useSaqrMarket();
+  const market = fixed ?? own;
+  const [picking, setPicking] = useState(false);
   const q = useSaqr(market);
   const s = q.data;
   const usd = money(s?.ccy), susd = smoney(s?.ccy);
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({ contract: "", qty: "1", price: "" });
   const [reset, setReset] = useState<string | null>(null);
-  /* ‏D767 (المالك): «أضف خيارَ تحديد الميزانية — 150 أو 100» — تُعدَّل بلا محوٍ للسجلّ: الفرقُ يُضاف إلى النقد أو يُسحب منه */
+  /* ‏D767 (المالك): «أضف خيارَ تحديد الميزانية — 150 أو 100» — و‏D769: «المحفظةُ الآن — إذا صارت مثلاً 100 أرجعُ أعدّلها من جديد»: يكتب قيمتَها
+     الآن، والفرقُ تمويلٌ يُضاف إلى النقد أو يُسحب منه — بلا محوٍ للسجلّ ولا تغييرٍ للربح المحسوب */
   const [bud, setBud] = useState<string | null>(null);
   const budM = useMutation({
-    mutationFn: (b: number) => marketApi.saqrSettings({ budget: b }, market),
+    mutationFn: (b: number) => marketApi.saqrSettings({ equity_to: b }, market),
     onSuccess: r => { qc.setQueryData(["saqr", market], r.data.data); setBud(null); },
   });
   const open = useMutation({
@@ -104,7 +108,7 @@ export default function SaqrPortfolio() {
     onSuccess: r => { qc.setQueryData(["saqr", market], r.data.data); setReset(null); },
   });
   const onChart = (c: string) => { lsSet("sp_room_symbol", market === "sa" ? `${c}.SR` : c); nav("/watchlist"); };
-  const head = <MarketSwitch value={market} onChange={m => { setMarket(m); setAdding(false); setReset(null); }} />;
+  const head = fixed ? null : <MarketSwitch value={market} onChange={m => { setMarket(m); setAdding(false); setReset(null); }} />;
 
   if (!s) return <div className="sp" data-role="sp">{head}<div className="h-40 skeleton rounded-xl" /></div>;
   const mult = s.capital ? s.equity / s.capital : 1;
@@ -118,15 +122,16 @@ export default function SaqrPortfolio() {
         <div className="sp-kpi"><small>النقد</small><b><Num v={usd(s.cash)} /></b><span>للصفقة الواحدة {s.settings?.mode === "attack" && s.settings?.per_trade ? <Num v={usd(s.settings.per_trade, 0)} /> : <>حتى <Num v={`${Math.round(s.tier.frac * 100)}%`} /></>} · <Num v={`${s.tier.seats}`} /> مراكز</span></div>
         <div className="sp-kpi" data-role="sp-budget"><small>الميزانية</small>
           {bud == null
-            ? <b className="sp-bud"><Num v={usd(s.capital)} />{owner && <button type="button" className="btn-ghost sp-btn" onClick={() => setBud(String(s.capital))} data-role="sp-budget-edit">تعديل</button>}</b>
+            ? <b className="sp-bud"><Num v={usd(s.capital)} />{owner && <button type="button" className="btn-ghost sp-btn" onClick={() => setBud(String(Math.round(s.equity)))} data-role="sp-budget-edit">تعديل</button>}</b>
             : <form className="sp-budf" onSubmit={e => { e.preventDefault(); const b = Number(bud); if (b >= 10) budM.mutate(b); }}>
-                <input className="sp-in" type="number" min={10} step={10} dir="ltr" value={bud} onChange={e => setBud(e.target.value)} aria-label="الميزانية" data-role="sp-budget-in" />
-                {(market === "sa" ? [1000, 5000] : [100, 150, 300]).map(v => <button key={v} type="button" className={"seg-btn chip" + (Number(bud) === v ? " on" : "")} onClick={() => setBud(String(v))}><Num v={usd(v, 0)} /></button>)}
+                <label><small>قيمةُ المحفظة الآن</small>
+                <input className="sp-in" type="number" min={10} step={10} dir="ltr" value={bud} onChange={e => setBud(e.target.value)} aria-label="قيمةُ المحفظة الآن" data-role="sp-budget-in" /></label>
+                {(market === "sa" ? [1000, 5000, 10000] : [100, 150, 300, 500, 1000]).map(v => <button key={v} type="button" className={"seg-btn chip" + (Number(bud) === v ? " on" : "")} onClick={() => setBud(String(v))}><Num v={usd(v, 0)} /></button>)}
                 <button type="submit" className="btn-primary sp-btn" disabled={budM.isPending} data-role="sp-budget-ok">حفظ</button>
                 <button type="button" className="btn-ghost sp-btn" onClick={() => setBud(null)}>تراجع</button>
                 {budM.isError && <span className="sp-err">{err(budM.error)}</span>}
               </form>}
-          <span>يُحدّد ما يعمل به صقر — بلا محوٍ للسجلّ</span>
+          <span>اكتب قيمتَها الآن — الفرقُ يُضاف إلى النقد أو يُسحب منه، والسجلُّ كما هو</span>
         </div>
         <div className="sp-kpi"><small>المحقَّق</small><b className={tone(s.realized)}><Num v={susd(s.realized)} /></b><span>العمولات <Num v={usd(s.fees)} /></span></div>
         {s.day?.target ? (
@@ -144,11 +149,22 @@ export default function SaqrPortfolio() {
         <header className="sp-sec-h">
           <h3>المراكزُ المفتوحة <Num v={`${s.positions.length}`} className="sp-count" /></h3>
           {owner && (
-            <button type="button" className={"btn-ghost sp-btn" + (adding ? " on" : "")} onClick={() => setAdding(a => !a)} aria-expanded={adding} data-role="sp-add">
-              <Plus size={14} /> مركزٌ نفّذتُه
-            </button>
+            <span className="sp-acts">
+              {market === "us" && (
+                <button type="button" className={"btn-primary sp-btn" + (picking ? " on" : "")} onClick={() => { setPicking(v => !v); setAdding(false); }} aria-expanded={picking}
+                  data-role="sp-pick"><MousePointerClick size={14} /> اختر عقداً بنفسك</button>
+              )}
+              <button type="button" className={"btn-ghost sp-btn" + (adding ? " on" : "")} onClick={() => { setAdding(a => !a); setPicking(false); }} aria-expanded={adding} data-role="sp-add">
+                <Plus size={14} /> مركزٌ نفّذتُه
+              </button>
+            </span>
           )}
         </header>
+        {market === "us" && (
+          <div className={"sp-addf-wrap" + (picking ? " open" : "")} aria-hidden={!picking}>
+            <div>{picking && <ContractPicker budget={s.settings?.per_trade} onDone={() => setPicking(false)} />}</div>
+          </div>
+        )}
         <div className={"sp-addf-wrap" + (adding ? " open" : "")} aria-hidden={!adding}>
           <form className="sp-addf" onSubmit={e => { e.preventDefault(); open.mutate(); }} data-role="sp-addf">
             <label><small>{market === "sa" ? "رمزُ الشركة" : "رمزُ العقد أو السهم"}</small><input className="sp-in wide" dir="ltr"

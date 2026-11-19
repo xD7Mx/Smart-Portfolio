@@ -73,6 +73,14 @@ const STATE = {
     mode: "attack", scan_min: 5, fight: 2.5, open_wait: 10, close_wait: 15, fed_h: 4, trail: [1.3, 1.5, 0.8], warn_ok: true, cool: 2,
     tiers: [[500, 0.5, 2], [2000, 0.3, 3], [10000, 0.2, 5], [null, 0.1, 8]] },
 };
+// ‏D769: «اختر عقداً بنفسك» — سلسلةُ AAPL وتحليلُ السترايك المختار
+const PK_BASE = { symbol: "AAPL", price: 230.5, expiry: 1, expirations: [{ t: 1, date: "2026-12-18", dte: 29 }, { t: 2, date: "2027-01-15", dte: 57 }], calls: [], puts: [] };
+const PK_ROW = (k, call) => ({ contract: `AAPL261218${call ? "C" : "P"}00${k}000`, strike: k, bid: 4.9, ask: Math.max(0.3, (call ? 240 - k : k - 220) / 2 + 0.6),
+  g: { delta: call ? Math.max(0.05, 0.9 - (k - 210) * 0.03) : -Math.max(0.05, 0.9 - (250 - k) * 0.03), pop: 31.5, be: k + 5, theta: -9.8, px: 5.1, iv: 28 } });
+const PK_CHAIN = { ...PK_BASE, calls: Array.from({ length: 15 }, (_, i) => PK_ROW(200 + i * 5, true)), puts: Array.from({ length: 15 }, (_, i) => PK_ROW(200 + i * 5, false)) };
+const PK_ADV = { symbol: "AAPL", price: 230.5, contract: { contract: "AAPL261218C00235000", type: "call", strike: 235, expiry: "2026-12-18", dte: 29, cost: 512,
+  g: { delta: 0.42, pop: 31.5, be: 240.12, theta: -9.8, px: 5.12, iv: 28 }, verdict: "warn", verdict_ar: "بحذر", need_pct: 4.2,
+  pros: ["مع الاتجاه: المسارُ صاعد."], cons: ["العقدُ غالٍ: تذبذبُه الضمنيّ 28٪ فوق التاريخيّ 19٪."] } };
 // ‏D764: السوقُ السعوديّ — أسهمُ شركاتٍ بالريال، وقراءةُ تاسي والأحداث
 const SA_STATE = { ...STATE, market: "sa", ccy: "SAR", capital: 1000, goal: 100000, cash: 818.6, equity: 1002.4, pl: 2.4, pl_pct: 0.24, progress: 0.05,
   tier: { frac: 0.25, seats: 4 }, broker: { linked: false, name: "الوسيط السعوديّ" },
@@ -107,6 +115,11 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   // المظهرُ صنفُ الجذر نفسُه (‏applyTheme) — يُفرض بعد كلّ تحميل
   const paint = () => page.evaluate(th => { const el = document.documentElement; el.classList.toggle("light", th === "light"); el.classList.toggle("dark", th === "dark"); }, theme);
   let st = JSON.parse(JSON.stringify(STATE));
+  // ‏D769: المحفظةُ تبويبٌ داخل صقر — لا تبويبٌ في المختبر
+  const toPf = async () => { await page.locator('[data-role="rl-views"] [data-view="saqr"]').click(); await page.waitForTimeout(500);
+    await page.locator('[data-role="sq-nav"] [data-view="portfolio"]').click(); };
+  const toDash = async () => { await page.locator('[data-role="rl-views"] [data-view="saqr"]').click(); await page.waitForTimeout(400);
+    await page.locator('[data-role="sq-nav"] [data-view="dash"]').click(); };
   await page.route("**/api/v1/**", async r => {
     const u = new URL(r.request().url()), p = u.pathname.replace(/^.*\/api\/v1/, ""), m = r.request().method();
     if (p === "/market/saqr" && m === "GET") return r.fulfill(body(u.searchParams.get("market") === "sa" ? SA_STATE : st));
@@ -123,6 +136,8 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
     if (p === "/market/research-desk") return r.fulfill(body({ report: { date: "2026-11-17", label: "الثلاثاء 17 نوفمبر 2026" },
       dates: [{ date: "2026-11-17", label: "الثلاثاء 17 نوفمبر 2026" }, { date: "2026-11-16", label: "الاثنين 16 نوفمبر 2026" }], running: { on: false } }));
     if (p === "/market/research-desk/paper") return r.fulfill(body({ html: PAPER, date: "2026-11-17" }));
+    if (p === "/market/options/AAPL") return r.fulfill(body(u.searchParams.get("date") ? PK_CHAIN : PK_BASE));
+    if (p === "/market/options-advice") { posts.push([p, Object.fromEntries(u.searchParams)]); return r.fulfill(body(PK_ADV)); }
     if (p.startsWith("/market/options/")) return r.fulfill(body(null));
     return r.fulfill(body([]));
   });
@@ -146,12 +161,12 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   await page.waitForTimeout(2000); await paint();
   const tabs = await page.locator('[data-role="rl-views"] [data-view]').allTextContents().catch(() => []);
   const sel = await page.locator('[data-role="rl-views"] [aria-selected="true"]').textContent().catch(() => "");
-  say(JSON.stringify(tabs) === JSON.stringify(["عقود الخيارات", "المحفظة", "صقر"]) && sel === "عقود الخيارات" && await page.locator('[data-role="op"]').count() === 1
+  say(JSON.stringify(tabs) === JSON.stringify(["عقود الخيارات", "صقر"]) && sel === "عقود الخيارات" && await page.locator('[data-role="op"]').count() === 1
       && await page.locator('[data-role="rl-doc"]').count() === 0,
-      `${label}: ٢ مختبرُ الأبحاث: عقودُ الخيارات · المحفظة · صقر — بلا التقرير، ومن حفظ «التقرير» يفتح على عقود الخيارات`, `${tabs.join(" · ")} · ${sel}`);
+      `${label}: ٢ مختبرُ الأبحاث: عقودُ الخيارات · صقر (والمحفظةُ داخل صقر — ‏D769) — بلا التقرير، ومن حفظ «التقرير» يفتح على عقود الخيارات`, `${tabs.join(" · ")} · ${sel}`);
 
   // ٣ المحفظة
-  await page.locator('[data-role="rl-views"] [data-view="portfolio"]').click();
+  await toPf();
   await page.waitForTimeout(1200);
   const sum = await page.locator('[data-role="sp-sum"]').textContent().catch(() => "");
   const goal = await page.locator('[data-role="sp-goal"]').textContent().catch(() => "");
@@ -163,18 +178,21 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
       `${label}: ٣ المحفظة: رأسُ المال الآن وربحُه منذ البداية، والطريقُ من 100 إلى 10,000 (×1.37 من ×100)، والمراكزُ بمصدرها (صقر · يدويّ) وربحِها، `
       + `وإشارةُ الخروج على مركز المالك، والمغلقةُ بأسبابها`, `${(sum || "").slice(0, 60)} · ${rows}`);
   await page.locator('[data-role="sp-add"]').click(); await page.waitForTimeout(450);
-  const addOpen = await page.evaluate(() => getComputedStyle(document.querySelector(".sp-addf-wrap")).opacity);
+  const addOpen = await page.evaluate(() => getComputedStyle(document.querySelector('[data-role="sp-addf"]').closest(".sp-addf-wrap")).opacity);
   await page.locator('[data-role="sp-addf"] input').first().fill("pltr270115c00030000");
   await page.locator('[data-role="sp-addf"] button[type="submit"]').click(); await page.waitForTimeout(700);
   await cards.nth(1).locator('[data-role="sp-close"]').click(); await page.waitForTimeout(300);
+  const closeQ = await cards.nth(1).locator('[data-role="sp-closef"]').textContent().catch(() => "");
   await cards.nth(1).locator('[data-role="sp-close-ok"]').click(); await page.waitForTimeout(800);
   const opened = posts.find(x => x[0] === "/market/saqr/open"), closed = posts.find(x => x[0].startsWith("/market/saqr/close/"));
-  say(addOpen === "1" && opened && opened[1].contract === "PLTR270115C00030000" && opened[1].qty === 1 && closed && closed[0].endsWith("/p2")
+  say(addOpen === "1" && opened && opened[1].contract === "PLTR270115C00030000" && opened[1].qty === 1 && closed && closed[0].endsWith("/p2") && closed[1].price === null
+      && /يُغلق الآن بسعر السوق/.test(closeQ) && /0\.15/.test(closeQ) && /-\$15\.65/.test(closeQ)
       && await page.locator('[data-role="sp-pos"]').count() === 1,
-      `${label}: ٣ب المالكُ يُدخل مركزاً نفّذه (يتفتّح نموذجُه بانسيابية) ويُغلق مركزاً بسعر الطلب الحيّ — وأمرُه يتقدّم`, JSON.stringify(opened?.[1] || {}));
+      `${label}: ٣ب المالكُ يُدخل مركزاً نفّذه (يتفتّح نموذجُه بانسيابية) ويُغلق مركزاً بسعر السوق الآن (يرى السعرَ والنتيجةَ بالناقص قبل التأكيد — ‏D769) — وأمرُه يتقدّم`,
+      JSON.stringify({ o: opened?.[1] || {}, q: closeQ }).slice(0, 200));
 
   // ٤ صقر
-  await page.locator('[data-role="rl-views"] [data-view="saqr"]').click();
+  await toDash();
   await page.waitForTimeout(1500);
   const hub = await page.evaluate(() => {
     const ns = [...document.querySelectorAll('[data-role="sq-node"]')];
@@ -225,14 +243,14 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   }, sel);
   const mq = await meas('[data-role="sq"]');
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/saqr-${vp.width}-${theme}.png`, fullPage: true }).catch(() => {});
-  await page.locator('[data-role="rl-views"] [data-view="portfolio"]').click(); await page.waitForTimeout(900);
+  await toPf(); await page.waitForTimeout(900);
   const mp = await meas('[data-role="sp"]');
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/saqr-pf-${vp.width}-${theme}.png`, fullPage: true }).catch(() => {});
   say(mq && mp && mq.over <= 1 && mp.over <= 1 && mq.minT >= 32 && mp.minT >= 32 && mq.minF >= 9.5 && mp.minF >= 9.5,
       `${label}: ٧ لا فيضَ أفقيّ، وأهدافُ اللمس ≥ 32px، والخطُّ ≥ 9.5px — في صقر والمحفظة`, JSON.stringify({ mq, mp }));
   // ٨ الحركةُ تسكن مع تفضيل تقليلها
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.locator('[data-role="rl-views"] [data-view="saqr"]').click(); await page.waitForTimeout(700);
+  await toDash(); await page.waitForTimeout(700);
   const rm = await page.evaluate(() => ({ orbit: getComputedStyle(document.querySelector(".sq-orbit")).animationName, halo: getComputedStyle(document.querySelector(".sq-halo")).animationName,
     node: getComputedStyle(document.querySelector(".sq-node")).animationName }));
   await page.emulateMedia({ reducedMotion: "no-preference" }); await page.waitForTimeout(300);
@@ -256,7 +274,7 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
     br: document.querySelector('[data-k="breadth"]')?.textContent || "", mk: document.querySelector('[data-role="sq"]')?.getAttribute("data-market") }));
   await page.locator('[data-role="sq-nav"] [data-view="rules"]').click(); await page.waitForTimeout(400);
   const saRules = await page.locator('[data-role="sq-rules"]').textContent().catch(() => "");
-  await page.locator('[data-role="rl-views"] [data-view="portfolio"]').click(); await page.waitForTimeout(900);
+  await toPf(); await page.waitForTimeout(900);
   const saPf = await page.evaluate(() => ({ mk: document.querySelector('[data-role="sp"]')?.getAttribute("data-market"), sum: document.querySelector('[data-role="sp-sum"]')?.textContent || "",
     card: document.querySelector('[data-role="sp-pos"]')?.textContent || "" }));
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/saqr-sa-pf-${vp.width}-${theme}.png`, fullPage: true }).catch(() => {});
@@ -284,17 +302,18 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   const ms = await page.evaluate(() => { const r = document.querySelector('[data-role="sq-settings"]'); let minT = 99;
     r?.querySelectorAll("button, input").forEach(b => { const x = b.getBoundingClientRect(); if (x.width && x.height && b.offsetParent) minT = Math.min(minT, x.height); });
     return { minT, over: document.documentElement.scrollWidth - document.documentElement.clientWidth }; });
-  say(pBud.length === 1 && pBud[0].market === "sa" && Number(pBud[0].budget) === 1000 && pSet.length === 2 && pSet[1].market === "us" && String(pSet[1].budget) === "150"
+  say(pBud.length === 1 && pBud[0].market === "sa" && Number(pBud[0].equity_to) === 1000 && pBud[0].budget === undefined && pSet.length === 2 && pSet[1].market === "us"
+      && String(pSet[1].equity_to) === "150" && pSet[1].budget === undefined
       && String(pSet[1].per_trade) === "40" && pSet[1].sides === "calls" && pSet[1].mode === "attack" && String(pSet[1].day_target) === "100"
       && /حُفظت الأوامر/.test(savedMsg || "") && ms.minT >= 32 && ms.over <= 1,
-      `${label}: ١٢ الميزانيةُ تُعدَّل من المحفظة (1,000 ر.س للسعوديّ)، وأوامرُ المالك في «الإعدادات» (150$ · حدُّ صفقةٍ 40 · شراءٌ فقط) تُحفظ لسوقها`,
+      `${label}: ١٢ قيمةُ المحفظة الآن تُضبط من المحفظة (1,000 ر.س للسعوديّ — ‏D769)، وأوامرُ المالك في «الإعدادات» (المحفظةُ 150$ · حدُّ صفقةٍ 40 · شراءٌ فقط) تُحفظ لسوقها`,
       JSON.stringify({ pBud, last: pSet[1], ms }).slice(0, 220));
   /* ١٣ ‏D768: «بعد إيقاف تلغرام ضع تاريخ الصفقة ووقتَ بدئها»، و«صقرٌ متحفّظٌ جداً — يجب أن يكون وحشاً شرساً… 100 دولار للعقد… وأقلُّ شيءٍ 100 دولار ربحاً يومياً» */
   await page.locator('[data-role="sq-nav"] [data-view="dash"]').click(); await page.waitForTimeout(500);
   const d13 = await page.evaluate(() => ({ day: document.querySelector('[data-role="sq-day"]')?.textContent || "",
     risk: document.querySelector('[data-role="sq-hub"] [data-k="risk"]')?.textContent || document.querySelector('[data-k="risk"]')?.textContent || "" }));
   if (SHOTS) await page.locator('[data-role="sq-day"]').screenshot({ path: `${SHOTS}/sq-day-${vp.width}-${theme}.png` }).catch(() => {});
-  await page.locator('[data-role="rl-views"] [data-view="portfolio"]').click(); await page.waitForTimeout(900);
+  await toPf(); await page.waitForTimeout(900);
   const p13 = await page.evaluate(() => ({ when: [...document.querySelectorAll('[data-role="sp-opened"]')].map(e => e.textContent || ""),
     ct: [...document.querySelectorAll('[data-role="sp-closed-time"]')].map(e => e.textContent || ""), kday: document.querySelector('[data-role="sp-day"]')?.textContent || "" }));
   if (SHOTS) await page.locator('[data-role="sp-pos"]').first().screenshot({ path: `${SHOTS}/sp-when-${vp.width}-${theme}.png` }).catch(() => {});
@@ -305,6 +324,26 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
       && /ربحُ اليوم/.test(p13.kday) && /\$100/.test(p13.kday),
       `${label}: ١٣ كلُّ مركزٍ بتاريخ فتحه ووقته ومدّته، وكلُّ مغلقةٍ بوقتَي الدخول والخروج ومدّتها، وهدفُ اليوم (100$) في اللوحة والمحفظة، والنمطُ الهجوميّ بـ100$ للصفقة`,
       JSON.stringify({ d13: { day: d13.day.slice(0, 60), risk: d13.risk }, w: p13.when[0], c: p13.ct[0], k: p13.kday.slice(0, 40) }).slice(0, 260));
+  /* ١٤ ‏D769: «خلّ فيه خياراً أنّي أختار عقداً بنفسي، ويكون فيه تحليلُ السترايك الذي أختاره — مبسّطةً واضحة» */
+  await page.locator('[data-role="sp-pick"]').click(); await page.waitForTimeout(450);
+  await page.locator('[data-role="pk-sym"]').fill("aapl");
+  await page.locator('[data-role="pk-go"]').click(); await page.waitForTimeout(900);
+  const nExp = await page.locator('[data-role="pk-exp"]').count();
+  await page.locator('[data-role="pk-exp"]').first().click(); await page.waitForTimeout(900);
+  const ks = await page.locator('[data-role="pk-strike"]').allTextContents();
+  await page.locator('[data-role="pk-strike"]', { hasText: "235" }).first().click(); await page.waitForTimeout(900);
+  const an = await page.locator('[data-role="pk-analysis"]').textContent().catch(() => "");
+  if (SHOTS) await page.locator('[data-role="sp-picker"]').screenshot({ path: `${SHOTS}/picker-${vp.width}-${theme}.png` }).catch(() => {});
+  const pm = await page.evaluate(() => { const r = document.querySelector('[data-role="sp-picker"]'); let minT = 99;
+    r?.querySelectorAll("button, input").forEach(b => { const x = b.getBoundingClientRect(); if (x.width && x.height && b.offsetParent && b.type !== "checkbox") minT = Math.min(minT, x.height); });
+    return { minT, over: document.documentElement.scrollWidth - document.documentElement.clientWidth }; });
+  await page.locator('[data-role="pk-buy"]').click(); await page.waitForTimeout(800);
+  const pkOpen = posts.filter(x => x[0] === "/market/saqr/open").pop(), pkAdv = posts.filter(x => x[0] === "/market/options-advice").pop();
+  say(nExp === 2 && ks.length === 9 && ks.some(t => /235/.test(t)) && /بحذر/.test(an) && /\$512/.test(an) && /240\.12/.test(an) && /\+4\.2%/.test(an) && /32%/.test(an)
+      && /\$9\.80/.test(an) && /يديره صقر/.test(an) && pkAdv && pkAdv[1].contract === "AAPL261218C00235000" && pkAdv[1].budget === "100"
+      && pkOpen && pkOpen[1].contract === "AAPL261218C00235000" && pkOpen[1].qty === 1 && pkOpen[1].managed === true && pkOpen[1].price === null && pm.minT >= 32 && pm.over <= 1,
+      `${label}: ١٤ اختر عقداً بنفسك: السهمُ ⇐ الأجل ⇐ تسعةُ سترايكاتٍ حول السعر ⇐ تحليلٌ مختصر (الحكم · الكلفة · التعادل وما يحتاجه السهم · احتمالُ الربح · التآكل) ⇐ شراءٌ بسعر العرض يديره صقر`,
+      JSON.stringify({ nExp, n: ks.length, an: (an || "").slice(0, 90), o: pkOpen?.[1], pm }).slice(0, 260));
   say(errs.length === 0, `${label}: ٩ لا خطأ`, errs[0] || "");
   await ctx.close();
 }

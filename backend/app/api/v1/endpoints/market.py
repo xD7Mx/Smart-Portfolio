@@ -2355,7 +2355,7 @@ async def saqr_open(payload: dict):
     try:
         qty = float(p.get("qty") or 1)
         price = float(p["price"]) if p.get("price") not in (None, "") else None
-        await SQ.manual_open(str(p.get("contract") or "").strip(), qty, price, m)
+        await SQ.manual_open(str(p.get("contract") or "").strip(), qty, price, m, managed=bool(p.get("managed")))
     except (ValueError, TypeError) as e:
         raise HTTPException(status_code=422, detail=str(e) or "مدخلاتٌ غيرُ صالحة.")
     return success_response(SQ.view(m))

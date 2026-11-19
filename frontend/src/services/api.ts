@@ -287,8 +287,8 @@ export const marketApi = {
   saqrSettings: (upd: Record<string, any>, market: "us" | "sa" = "us") => api.post<APIResponse>("/market/saqr/settings", { ...upd, market }),
   saqrToggle: (on: boolean, market: "us" | "sa" = "us") => api.post<APIResponse>("/market/saqr/toggle", { on, market }),
   saqrCapital: (amount: number, market: "us" | "sa" = "us") => api.post<APIResponse>("/market/saqr/capital", { amount, confirm: true, market }),
-  saqrOpen: (contract: string, qty: number, price?: number | null, market: "us" | "sa" = "us") =>
-    api.post<APIResponse>("/market/saqr/open", { contract, qty, price: price ?? null, market }, { timeout: 60000 }),
+  saqrOpen: (contract: string, qty: number, price?: number | null, market: "us" | "sa" = "us", managed = false) =>
+    api.post<APIResponse>("/market/saqr/open", { contract, qty, price: price ?? null, market, managed }, { timeout: 60000 }),
   saqrClose: (id: string, price?: number | null, market: "us" | "sa" = "us") =>
     api.post<APIResponse>(`/market/saqr/close/${encodeURIComponent(id)}`, { price: price ?? null, market }, { timeout: 60000 }),
   optionChain: (symbol: string, date?: number | null) =>

@@ -1,18 +1,20 @@
 /* ══ مختبرُ الأبحاث ══ (‏D745 · ‏D759 · ‏D763 بأمر المالك 2026-11-18)
    «التقريرُ اليوميّ خلّه في تبويب مفكرة السوق… وفي مختبر الأبحاث يصبح لدينا عقودُ الخيارات، وأضف تبويباً اسمه المحفظة… وتبويباً ثالثاً
    باسم صقر — وكيلُ تداولٍ آليّ… يبدأ من 100 دولار ويحاول أن يوصلها إلى 10,000». فثلاثةُ تبويبات: توصياتُ العقود طويلة الأجل، ومحفظةُ صقر
-   المستقلّة (لا تمسّ محفظةَ المالك)، ولوحةُ صقر نفسُه. والتبويبُ المختار يُحفظ؛ ومن كان على «التقرير» القديم يفتح على عقود الخيارات. */
+   المستقلّة (لا تمسّ محفظةَ المالك)، ولوحةُ صقر نفسُه. والتبويبُ المختار يُحفظ؛ ومن كان على «التقرير» القديم يفتح على عقود الخيارات.
+   ‏D769 (المالك 2026-11-19): «خلّنا نوحّد كلَّ تفاصيل صقر — المحفظةُ داخل صقر بجانب لوحة المعلومات والسجل»: فتبويبان، والمحفظةُ تبويبٌ في صقر،
+   ومن كان على «المحفظة» يفتح صقرَ على محفظته. */
 import { useState } from "react";
 import OptionPicks from "../components/market/OptionPicks";
-import SaqrPortfolio from "../components/saqr/SaqrPortfolio";
 import SaqrDesk from "../components/saqr/SaqrDesk";
 
-type View = "options" | "portfolio" | "saqr";
-const VIEWS: readonly (readonly [View, string])[] = [["options", "عقود الخيارات"], ["portfolio", "المحفظة"], ["saqr", "صقر"]] as const;
+type View = "options" | "saqr";
+const VIEWS: readonly (readonly [View, string])[] = [["options", "عقود الخيارات"], ["saqr", "صقر"]] as const;
 const readView = (): View => {
   try {
     const v = localStorage.getItem("sp_lab_view");
-    return v === "portfolio" || v === "saqr" ? v : "options";
+    if (v === "portfolio") { localStorage.setItem("sp_saqr_tab", "portfolio"); localStorage.setItem("sp_lab_view", "saqr"); return "saqr"; }
+    return v === "saqr" ? v : "options";
   } catch { return "options"; }
 };
 
@@ -28,7 +30,7 @@ export default function ResearchLab() {
         ))}
       </div>
       <div key={view} className="rl-pane">
-        {view === "options" ? <OptionPicks /> : view === "portfolio" ? <SaqrPortfolio /> : <SaqrDesk />}
+        {view === "options" ? <OptionPicks /> : <SaqrDesk />}
       </div>
     </div>
   );

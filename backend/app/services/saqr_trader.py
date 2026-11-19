@@ -201,6 +201,13 @@ def apply_settings(st: dict, upd: dict) -> list[str]:
     """يطبّق أوامرَ المالك ويعيد ما تغيّر بالعربية — والقيمةُ خارج حدودها تُرفض بسببها. والميزانيةُ تُعدَّل بلا محوٍ للسجلّ: الفرقُ يُضاف
     إلى النقد أو يُسحب منه (فلا يتغيّر الربحُ المحسوب)، والسحبُ لا يتجاوز النقدَ الحرّ."""
     c, done = cfg(st), []
+    if upd.get("equity_to") not in (None, ""):
+        # ‏D769 (المالك): «المحفظةُ الآن — إذا صارت مثلاً 100 أرجعُ أعدّلها من جديد»: قيمتُها الآن كما يكتبها، والفرقُ تمويلٌ يُضاف إلى النقد
+        # أو يُسحب منه — فلا يتغيّر الربحُ المحسوب ولا السجلّ
+        tgt = round(float(upd["equity_to"]), 2)
+        if not (10 <= tgt <= 1_000_000):
+            raise ValueError("قيمةُ المحفظة بين 10 و1,000,000.")
+        upd = {**upd, "budget": round(st["capital"] + tgt - equity(st), 2)}
     if upd.get("budget") not in (None, ""):
         nb = round(float(upd["budget"]), 2)
         if not (10 <= nb <= 1_000_000):
@@ -350,7 +357,7 @@ def exit_rule(p: dict, bid: float | None, S: float | None, dte: int, tr: dict | 
             return "take", f"تضاعف العقد: {p['entry_px']:.2f} ⇐ {bid:.2f}."
     if S is not None and p.get("target") and ((call and S >= p["target"]) or (not call and S <= p["target"])):
         return "target", f"بلغ السهمُ {S:,.2f} الهدفَ {p['target']:,.2f}."
-    if tr:
+    if tr and not p.get("managed"):
         # السهمُ مركزُ شراءٍ (كعقد الشراء) — لا يُقرأ «stock» بيعاً فيُكسر مع كلّ مسارٍ صاعد
         v, why = OP.verdict({"type": "call" if call else "put", "target": p.get("target") or (math.inf if call else 0)}, None, None, 999, tr, news)
         if v == "broken":
@@ -876,8 +883,9 @@ async def _stock_quote(market: str, sym: str) -> tuple[float | None, float | Non
     return (r.get("ask") or last), (r.get("bid") or last), r.get("shortName")
 
 
-async def manual_open(contract: str, qty: float, price: float | None = None, market: str = "us") -> dict:
-    """مركزٌ نفّذه المالك بنفسه: عقدٌ أمريكيّ (رمزُ OCC) أو سهمٌ أمريكيّ أو سعوديّ — بسعره إن كتبه وإلا بسعر العرض الحيّ."""
+async def manual_open(contract: str, qty: float, price: float | None = None, market: str = "us", managed: bool = False) -> dict:
+    """مركزٌ يختاره المالك أو نفّذه بنفسه: عقدٌ أمريكيّ (رمزُ OCC) أو سهمٌ أمريكيّ أو سعوديّ — بسعره إن كتبه وإلا بسعر العرض الحيّ.
+    و«يديره صقر» (‏D769 — المالك: «المركزُ يُقفل إلين يحقّق هدفه أو أنا أضغط إغلاق»): وقفٌ وجنيٌ ووقفٌ متحرّكٌ بأوامر المالك، ويبيعه صقر عندها."""
     from app.services.options_chain import chain, parse_option
     market = _mk(market)
     sym = str(contract or "").strip().upper().replace(".SR", "")
@@ -896,7 +904,10 @@ async def manual_open(contract: str, qty: float, price: float | None = None, mar
                 raise ValueError("لا سعرَ عرضٍ لهذا العقد الآن — اكتب سعرَ التنفيذ الذي نفّذتَ به.")
             k = {"contract": sym, "symbol": o["root"], "type": o["type"], "strike": o["strike"], "expiry": o["expiry"],
                  "t": e["t"] if e else None, "ask": float(ask), "bid": (row or {}).get("bid"), "price": (ch or {}).get("price"), "target": None}
-            p = buy(st, k, int(qty), ["مركزٌ أدخله المالك يدوياً."], src="manual", px=float(ask))
+            if managed:
+                c, pf = cfg(st), profile(st)
+                k.update(stop=round(float(ask) * (1 - c["opt_stop"] / 100), 4), take_x=c["take_x"], trail=list(pf["trail"]), exit_dte=pf["exit_dte"])
+            p = buy(st, k, int(qty), [_manual_why(managed, k, float(ask))], src="manual", px=float(ask))
         else:
             if market == "sa" and not (sym.isdigit() and len(sym) == 4):
                 raise ValueError("رمزُ الشركة السعودية أربعةُ أرقام (مثل 2222).")
@@ -905,11 +916,24 @@ async def manual_open(contract: str, qty: float, price: float | None = None, mar
             if not ask:
                 raise ValueError("لا سعرَ لهذا السهم الآن — اكتب السعرَ الذي نفّذتَ به.")
             k = {"contract": sym, "symbol": sym, "name": name, "type": "stock", "ask": float(ask), "bid": bid, "price": ask, "target": None}
-            p = buy(st, k, float(qty), ["مركزٌ أدخله المالك يدوياً."], src="manual", px=float(ask), kind="stock")
-        log(st, "manual", f"المالك أدخل {p['qty']:g} × {_title(p)} بسعر {p['entry_px']:.2f}.", p["symbol"])
+            if managed:
+                k["stop"] = round(float(ask) * (1 - cfg(st)["stock_stop"] / 100), 4)
+            p = buy(st, k, float(qty), [_manual_why(managed, k, float(ask))], src="manual", px=float(ask), kind="stock")
+        if managed:
+            p["auto"], p["managed"] = True, True
+        log(st, "manual", f"المالك {'اختار' if managed else 'أدخل'} {p['qty']:g} × {_title(p)} بسعر {p['entry_px']:.2f}"
+                          + (f" — يديره صقر: الوقف {p['stop']:.2f}." if managed else "."), p["symbol"])
         _point(st)
         save(st)
         return p
+
+
+def _manual_why(managed: bool, k: dict, px: float) -> str:
+    if not managed:
+        return "مركزٌ أدخله المالك يدوياً."
+    tx = k.get("take_x")
+    return (f"اختاره المالك بنفسه — ويديره صقر: وقفٌ عند {k['stop']:.2f}" + (f" وجنيٌ عند {px * tx:.2f} (×{tx:g})" if tx else "")
+            + "، ووقفٌ متحرّكٌ يحمي الربح؛ أو يُغلقه المالك متى شاء.")
 
 
 async def manual_close(pid: str, price: float | None = None, market: str = "us") -> dict:

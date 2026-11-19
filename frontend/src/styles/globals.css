@@ -3935,3 +3935,44 @@ html.light {
 [data-role="sp-day"] .sp-bar, [data-role="sq-day"] .sp-bar { margin-top: 4px; }
 [data-role="sq-day"] h4 svg { color: var(--amber-ink); vertical-align: -2px; }
 .sq-set-note { grid-column: 1 / -1; line-height: 1.7; }
+
+/* ══ ‏D769: المحفظةُ داخل صقر، والإغلاقُ بسعر السوق، واختر عقداً بنفسك ══ */
+.sp-acts { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-inline-start: auto; }
+.sp-closeq { font-size: 12px; font-weight: 600; color: var(--ink-muted); flex-basis: 100%; }
+.sp-closef { align-items: center; }
+.sp-budf label { display: flex; flex-direction: column; gap: 3px; }
+.pk { display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--card); margin-block: 8px; }
+.pk-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.pk-row label, .pk-buy label { display: flex; flex-direction: column; gap: 3px; }
+.pk-row small, .pk-step > small, .pk-buy small, .pk-facts small { font-size: 11px; font-weight: 700; color: var(--ink-muted); }
+.pk-step { display: flex; flex-direction: column; gap: 6px; animation: fadeUp .22s ease-out both; }
+.pk-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pk-strikes { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.pk-k { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-height: 52px; padding: 6px 9px; border-radius: 10px; text-align: start;
+  border: 1px solid var(--hairline); background: var(--card); color: var(--ink); cursor: pointer; transition: border-color .2s ease, background .2s ease, transform .15s ease; }
+.pk-k:hover { border-color: var(--brand-ink); }
+.pk-k:focus-visible { outline: 2px solid var(--brand-ink); outline-offset: 2px; }
+.pk-k.itm { background: color-mix(in srgb, var(--brand-ink) 5%, var(--card)); }
+.pk-k.on { border-color: var(--brand-ink); background: color-mix(in srgb, var(--brand-ink) 13%, var(--card)); }
+.pk-k b { font-size: 14px; font-weight: 800; }
+.pk-k span { font-size: 12px; font-weight: 700; }
+.pk-k small { font-size: 10.5px; color: var(--ink-muted); }
+.pk-an { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid var(--hairline); animation: fadeUp .25s ease-out both; }
+.pk-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.pk-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.pk-facts span { display: flex; flex-direction: column; gap: 2px; }
+.pk-facts b { font-size: 16px; font-weight: 800; color: var(--ink); }
+.pk-facts b.neg { color: var(--neg-ink); }
+.pk-facts em { font-style: normal; font-size: 11px; color: var(--ink-muted); }
+.pk-why { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 1.7; }
+.pk-why li { padding-inline-start: 14px; position: relative; }
+.pk-why li::before { content: ""; position: absolute; inset-inline-start: 0; top: .65em; width: 6px; height: 6px; border-radius: 50%; }
+.pk-why li.pro::before { background: var(--pos-ink); }
+.pk-why li.con::before { background: var(--warn-ink); }
+.pk-buy { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.pk-chk { flex-direction: row !important; align-items: center; gap: 6px !important; font-size: 12px; font-weight: 600; min-height: 32px; cursor: pointer; }
+.pk-chk input { width: 16px; height: 16px; accent-color: var(--brand-ink); }
+@media (prefers-reduced-motion: reduce) {
+  .pk-step, .pk-an, .pk-k { animation: none; transition: none; }
+}
+
