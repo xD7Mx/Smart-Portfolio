@@ -481,8 +481,8 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
     await page.waitForTimeout(1800);
     if ((await page.evaluate(() => location.pathname + location.search)) === "/watchlist?tab=lab") olds++;
   }
-  say(labHere.url === "/watchlist?tab=lab" && labHere.lab && !labHere.chart && !labHere.doc && JSON.stringify(labHere.tabs) === JSON.stringify(["عقود الخيارات", "المحفظة", "صقر"]) && olds === 2,
-      `${label}: «مختبر الأبحاث» تبويبٌ في الغرفة (عقودُ الخيارات · المحفظة · صقر — بلا التقرير)، ورابطاه القديمان يفتحانه`, `${labHere.url} · ${labHere.tabs.join("/")} · ${olds}/2`);
+  say(labHere.url === "/watchlist?tab=lab" && labHere.lab && !labHere.chart && !labHere.doc && JSON.stringify(labHere.tabs) === JSON.stringify(["عقود الخيارات", "صقر"]) && olds === 2,
+      `${label}: «مختبر الأبحاث» تبويبٌ في الغرفة (عقودُ الخيارات · صقر، والمحفظةُ داخل صقر — ‏D769 — بلا التقرير)، ورابطاه القديمان يفتحانه`, `${labHere.url} · ${labHere.tabs.join("/")} · ${olds}/2`);
   say(errs.length === 0, `${label}: لا خطأ`, errs[0] || "");
   await ctx.close();
 }

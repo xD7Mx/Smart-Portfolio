@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, ShoppingCart } from "lucide-react";
 import { marketApi } from "../../services/api";
+import CheckBox from "../common/CheckBox";
 import { dayMonth } from "../../lib/options";
 import { usd, spct, px } from "./saqr";
 
@@ -115,8 +116,7 @@ export default function ContractPicker({ budget, onDone }: { budget?: number | n
               </ul>
               <div className="pk-buy">
                 <label><small>العقود</small><input className="sp-in" type="number" min={1} step={1} dir="ltr" value={qty} onChange={e => setQty(e.target.value)} data-role="pk-qty" /></label>
-                <label className="pk-chk"><input type="checkbox" checked={managed} onChange={e => setManaged(e.target.checked)} data-role="pk-managed" />
-                  <span>يديره صقر — وقفٌ وجنيٌ ووقفٌ متحرّك</span></label>
+                <span data-role="pk-managed"><CheckBox checked={managed} onChange={setManaged} className="pk-chk" label="يديره صقر — وقفٌ وجنيٌ ووقفٌ متحرّك" /></span>
                 <button type="button" className={(c.verdict === "no" ? "btn-ghost" : "btn-primary") + " sp-btn"} onClick={() => buy.mutate()} disabled={buy.isPending || !ask}
                   data-role="pk-buy"><ShoppingCart size={14} /> {buy.isPending ? "يشتري…" : <>اشترِ بسعر العرض <Num v={px(ask)} /></>}{c.verdict === "no" ? " رغم التحفّظ" : ""}</button>
                 {buy.isError && <span className="sp-err">{err(buy.error)}</span>}

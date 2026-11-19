@@ -3970,8 +3970,7 @@ html.light {
 .pk-why li.pro::before { background: var(--pos-ink); }
 .pk-why li.con::before { background: var(--warn-ink); }
 .pk-buy { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
-.pk-chk { flex-direction: row !important; align-items: center; gap: 6px !important; font-size: 12px; font-weight: 600; min-height: 32px; cursor: pointer; }
-.pk-chk input { width: 16px; height: 16px; accent-color: var(--brand-ink); }
+.pk-chk { font-size: 12px; font-weight: 600; color: var(--ink); }
 @media (prefers-reduced-motion: reduce) {
   .pk-step, .pk-an, .pk-k { animation: none; transition: none; }
 }
