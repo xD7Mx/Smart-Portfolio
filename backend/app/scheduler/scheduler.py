@@ -406,7 +406,10 @@ async def job_option_book():
     بعرضٍ وطلبٍ حيّين يُحفظان لآخر جلسة، وبقواعد الخروج — لكلّ ميزانيةٍ استعملها المالك (و150 إن لم يستعمل)."""
     try:
         from app.services import option_picks as OP
-        for b in OP.book_budgets() or [150]:
+        from app.services import saqr_trader as SQ
+        # ‏D779: ودفترُ ميزانية العقد عند صقر — منه يشتري التداولُ الآليّ
+        per = SQ.cfg(SQ.load("us")).get("per_trade")
+        for b in sorted(set(OP.book_budgets() or [150]) | ({int(per)} if per else set())):
             await OP.run(float(b))
     except Exception as e:
         logger.error(f"دفترُ الخيارات: {e}")

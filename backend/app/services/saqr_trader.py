@@ -726,20 +726,28 @@ async def _review(st: dict, now: datetime, scan_tr: dict | None) -> list[dict]:
     return out
 
 
+def book_for(budget: float) -> tuple[int | None, list[dict]]:
+    """دفترُ «عقود الخيارات» الذي يشتري منه التداولُ الآليّ (‏D779): دفترُ ميزانية العقد نفسِها، وإلا أكبرُ دفترٍ دونها — وتوصياتُه القائمةُ
+    الأعلى درجةً أوّلاً."""
+    have = [b for b in OP.book_budgets() if b <= budget + 1e-9]
+    if not have:
+        return None, []
+    b = int(budget) if int(budget) in have else max(have)
+    return b, sorted(OP.book_load(b)["open"], key=lambda e: -((e.get("card") or {}).get("score") or 0))
+
+
 async def _hunt(st: dict, now: datetime) -> dict | None:
-    """التداولُ الآليّ (‏D771 — المالك: «أنت المتعلّم وهو فقط المنفّذ… لا نختار إلا طويلَ المدى»): يشتري من قائمة صقر نفسِها — الأعلى
-    إيجابياتٍ أوّلاً — عقداً طويلَ الأجل بعرضه الحيّ ضمن ميزانية العقد، بوقفه وجنيه من أوامر المالك. لا أسهمَ ولا عقودَ قصيرة."""
-    from app.services import saqr_list as SL
+    """التداولُ الآليّ (‏D779 — المالك: «خلِّ التداولَ الآليَّ يشتري من عقود الخيارات»): يشتري من توصيات «عقود الخيارات» القائمة نفسِها التي يراها
+    المالك — الأعلى درجةً أوّلاً — عقداً طويلَ الأجل بعرضه الحيّ ضمن ميزانية العقد، بوقفه وجنيه من أوامر المالك. لا أسهمَ ولا عقودَ قصيرة."""
     eq = equity(st)
     frac, seats = tier(eq)
     seats, budget = seats_budget(st, eq, frac, seats)
     c = cfg(st)
     if len(st["positions"]) >= seats:
         return None
+    bk, recs = book_for(budget)
     held = {p["symbol"] for p in st["positions"]} | {o["symbol"] for o in st.get("orders") or []}
-    lst = SL.view(SL.load(), budget, c["sides"] == "calls", held, float(c.get("min_win") or 0),
-                  float(c.get("opt_stop") or 40) / 100) or {}     # ‏D775/D776: أفضلُ عقدٍ يقبله الفريقُ ضمن الميزانية ونسبة النجاح
-    for it in lst.get("items") or []:
+    for it in recs:
         if it["symbol"] in held or cooling(st, it["symbol"], now) or (it["type"] == "put" and c["sides"] == "calls"):
             continue
         q = await contract_quote(it["contract"])
@@ -748,14 +756,15 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
         qty = size(budget, q["ask"])
         if qty < 1:
             continue
-        k = {**{x: it[x] for x in ("contract", "symbol", "name", "type", "strike", "expiry", "t", "target", "target_label", "delta", "iv")},
-             "ask": q["ask"], "bid": q["bid"], "price": q["price"], "dte": q["dte"],
+        card = it.get("card") or {}
+        k = {**{x: it.get(x) for x in ("contract", "symbol", "name", "type", "strike", "expiry", "t", "target", "target_label")},
+             "delta": card.get("delta"), "iv": card.get("iv"), "ask": q["ask"], "bid": q["bid"], "price": q["price"], "dte": q["dte"],
              "stop": round(q["ask"] * (1 - c["opt_stop"] / 100), 4), "take_x": c["take_x"]}
-        why = [f"من قائمة صقر ({lst.get('label') or ''}): {it['grade']} — {len(it['pros'])} إيجابيات و{len(it['cons'])} سلبيات."] + it["pros"][:4] \
-            + [f"تحفّظ: {x}" for x in it["cons"][:2]]
+        why = [f"من «عقود الخيارات» (دفترُ {bk}$ · توصيةٌ منذ {it.get('opened')}): درجةُ {card.get('score', 0):.0f} من 100."] \
+            + list(card.get("reasons") or [])[:4]
         pos = buy(st, k, qty, why)
         st["day"]["new"] = (st["day"].get("new") or 0) + 1
-        log(st, "buy", f"شراءٌ آليٌّ من القائمة: {qty} × {_title(pos)} بسعر {pos['entry_px']:.2f} (الكلفة مع العمولة {pos['cost']:,.2f}$) — "
+        log(st, "buy", f"شراءٌ آليٌّ من «عقود الخيارات»: {qty} × {_title(pos)} بسعر {pos['entry_px']:.2f} (الكلفة مع العمولة {pos['cost']:,.2f}$) — "
                        f"الوقف {pos['stop']:.2f} والجني ×{pos['take_x']:g}.", pos["symbol"])
         return pos
     return None
@@ -1031,10 +1040,7 @@ async def cycle(force: bool = False) -> dict:
             day_lock(st)
             _JOB["msg"] = "أوامرُ المالك"
             filled = await _fill_orders(st)
-            # ‏D771: قائمةُ صقر تُبنى في الجلسة (العرضُ والطلبُ حيّان) — كلَّ ساعتين، وآخرُها قبل الإغلاق للجلسة القادمة
-            from app.services import saqr_list as SL
-            SL.kick(cfg(st), {p["symbol"] for p in st["positions"]}, now, us_clock(now))
-            SL.kick_track(now, us_clock(now))                     # ‏D776: سجلُّ الفريق يُتابَع بالطلب الحيّ كلَّ ساعة
+            # ‏D779: لا فحصَ لـ«قائمة صقر» في الخلفية — أُزيلت شاشتُها (‏D778) والتداولُ الآليُّ يشتري من «عقود الخيارات»؛ فلا حِملَ بلا قارئ
             try:
                 events = shape(await raw_week(), impacts=("High",))
                 st["health"]["events"] = True

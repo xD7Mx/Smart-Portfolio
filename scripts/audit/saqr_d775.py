@@ -60,9 +60,9 @@ tr = (ROOT / "backend/app/services/saqr_trader.py").read_text(encoding="utf-8")
 sett = mk[mk.index("async def saqr_settings("):mk.index("async def _saqr_list_bg(")]
 hunt = tr[tr.index("async def _hunt("):tr.index("# ══ أوامرُ المالك (‏D771)")]
 # ‏D778: شاشةُ القائمة أُزيلت بأمر المالك («نكتفي بعقود الخيارات») — والميزانيةُ تُختار في «عقود الخيارات» (‏op-budget)؛ والقائمةُ في الخلفية للتداول الآليّ
-check("_saqr_list_bg" not in sett and mk.count("_saqr_list_view()") >= 2 and "SL.view(SL.load(), budget" in hunt
+check("_saqr_list_bg" not in sett and mk.count("_saqr_list_view()") >= 2 and "book_for(budget)" in hunt   # ‏D779: التداولُ الآليُّ من «عقود الخيارات»
       and not (ROOT / "frontend/src/components/saqr/SaqrList.tsx").exists(),
-      "٤ تغييرُ الميزانية لا يُطلق بحثاً جديداً، ونقطةُ القائمة والتداولُ الآليُّ يقرآنها بميزانية العقد الآن (وشاشتُها أُزيلت — ‏D778)")
+      "٤ تغييرُ الميزانية لا يُطلق بحثاً جديداً، ونقطةُ القائمة تقرؤها بميزانية العقد الآن (وشاشتُها أُزيلت — ‏D778، والتداولُ الآليُّ من «عقود الخيارات» — ‏D779)")
 
 print("\nالنتيجة:", "نظيف ✔" if not fail else "فشل ✘")
 sys.exit(fail)

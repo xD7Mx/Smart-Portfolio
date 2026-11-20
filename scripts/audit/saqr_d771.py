@@ -173,12 +173,18 @@ check(r_tp and r_tp[0] == "tp" and r_sl and r_sl[0] == "sl" and r_mid is None an
 # ٥ التداولُ الآليّ: موقوفٌ افتراضاً؛ وإن شغّله المالك فمن القائمة وحدها (عقودٌ طويلة، الأعلى أوّلاً، شراءٌ فقط يتخطّى البيع) بوقفه وجنيه
 src = (ROOT / "backend/app/services/saqr_trader.py").read_text(encoding="utf-8")
 hunt = src[src.index("async def _hunt("):src.index("# ══ أوامرُ المالك (‏D771)")]
+# ‏D779 (المالك): «خلِّ التداولَ الآليَّ يشتري من عقود الخيارات» — دفترُ التوصيات القائمة بميزانية العقد
+OP.book_save(150, {"open": [{"contract": C, "symbol": "F", "name": "Ford", "type": "call", "strike": 10.0, "expiry": "2027-12-17", "t": 1, "opened": "2026-11-18",
+                             "target": 15.0, "target_label": "قمّة السنة", "card": {"score": 70.0, "delta": 0.62, "iv": 45.0, "reasons": ["المسارُ صاعد"]}},
+                            {"contract": "NIO271217P00006000", "symbol": "NIO", "type": "put", "strike": 6.0, "expiry": "2027-12-17", "t": 1, "opened": "2026-11-18",
+                             "target": 4.0, "card": {"score": 90.0, "reasons": ["المسارُ هابط"]}}], "closed": []})
 st = SQ.fresh(capital=1000)
 SQ.apply_settings(st, {"auto": True, "sides": "calls"})
 pos = asyncio.run(SQ._hunt(st, SQ._now()))
 check(SQ.cfg(SQ.fresh())["auto"] is False and 'due and cfg(st).get("auto")' in src and pos and pos["symbol"] == "F" and pos["type"] == "call"
-      and pos["stop"] == round(0.98 * 0.6, 4) and "من قائمة صقر" in pos["why"][0] and "stock_pick(" not in hunt and SQ.cfg(st)["auto"] is True,
-      "٥ التداولُ الآليُّ موقوفٌ حتى يشغّله المالك، وإن شغّله فمن قائمة صقر وحدها — الأعلى أوّلاً، وشراءٌ فقط يتخطّى البيع، وبوقفه وجنيه — لا أسهمَ ولا قصيرة",
+      and pos["stop"] == round(0.98 * 0.6, 4) and "من «عقود الخيارات»" in pos["why"][0] and "stock_pick(" not in hunt and SQ.cfg(st)["auto"] is True,
+      "٥ التداولُ الآليُّ موقوفٌ حتى يشغّله المالك، وإن شغّله فمن «عقود الخيارات» وحدها (‏D779) — الأعلى درجةً أوّلاً، وشراءٌ فقط يتخطّى البيع، "
+      "وبوقفه وجنيه — لا أسهمَ ولا قصيرة",
       f"{pos and pos['contract']}")
 
 # ٦ التوقيتُ والنقاطُ والواجهة
@@ -188,14 +194,14 @@ desk = (ROOT / "frontend/src/components/saqr/SaqrDesk.tsx").read_text(encoding="
 opk = (ROOT / "frontend/src/components/market/OptionPicks.tsx").read_text(encoding="utf-8")
 of = (ROOT / "frontend/src/components/saqr/OrderForm.tsx").read_text(encoding="utf-8")
 pf = (ROOT / "frontend/src/components/saqr/SaqrPortfolio.tsx").read_text(encoding="utf-8")
-check("SL.kick(cfg(st)" in src and "job_saqr_list" not in sch and '@router.get("/saqr/list")' in mk
+check("SL.kick(" not in src and "job_saqr_list" not in sch   # ‏D779: لا فحصَ للقائمة في الخلفية and '@router.get("/saqr/list")' in mk
       # ‏D778 (المالك): «قائمةُ العقود لا فايدة منها — نكتفي بعقود الخيارات، وفي بطاقتها شراء»: لا تبويبَ للقائمة، والتنفيذُ من بطاقة التوصية
       and "<SaqrList" not in desk and '!(!sa && k === "signals")' in desk and 'data-role="sq-auto"' in desk and "أوقف التداول الآليّ" in desk
       and all(x in opk for x in ('data-role="op-buy"', "<OrderForm contract={p.contract} ask={p.ask} bid={p.bid} />"))
       and all(x in of for x in ('data-role="of-limit"', 'role={`${role}-tp`}', 'role={`${role}-sl`}', '<ExitFields ex={ex} set={setEx} base={ref} role="of" />',
                                 "marketApi.saqrOrder("))   # ‏D777: الجنيُ والوقفُ في «الأمر المرفق» المشترك
       and all(x in pf for x in ('data-role="sp-orders"', 'data-role="sp-order-cancel"', 'data-role="sp-ord"', 'data-role="sp-ord-edit"')),
-      "٦ القائمةُ تُبنى من دورة صقر في الجلسة (يقرؤها التداولُ الآليّ)، والتنفيذُ من بطاقة «عقود الخيارات» (‏D778)، وزرُّ التداول الآليّ، ونموذجُ الأمر "
+      "٦ لا قائمةَ في الخلفية (‏D779 — التداولُ الآليُّ من «عقود الخيارات»)، والتنفيذُ من بطاقة «عقود الخيارات» (‏D778)، وزرُّ التداول الآليّ، ونموذجُ الأمر "
       "(السعر · الجني · الوقف)، والأوامرُ المعلّقةُ وأمرا كلّ مركزٍ في المحفظة")
 
 print("\nالنتيجة:", "عطب ✖" if fail else "نظيف ✔")

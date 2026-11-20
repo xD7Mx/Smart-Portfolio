@@ -93,8 +93,8 @@ src = (ROOT / "backend/app/services/saqr_trader.py").read_text(encoding="utf-8")
 # ‏D771 (المالك 2026-11-20): «دائماً يختار أسهماً لا عقودَ خيارات… لا نختار إلا طويلَ المدى»: البديلُ بالسهم أُلغي من الصيد الآليّ — صقرٌ
 # يشتري من قائمته (عقودٌ طويلةٌ وحدها)، والسهمُ يُدخله المالك بنفسه إن شاء (مركزٌ نفّذتُه)
 hunt = src[src.index("async def _hunt("):src.index("# ══ أوامرُ المالك (‏D771)")]
-check("stock_pick(" not in hunt and 'kind="stock"' not in hunt and "SL.load()" in hunt and 'kind="stock"' in src,
-      "٥ب الصيدُ الآليُّ الأمريكيّ عقودٌ طويلةٌ من قائمة صقر وحدها — لا بديلَ بالسهم (‏D771)، والسهمُ يُدخله المالك بنفسه")
+check("stock_pick(" not in hunt and 'kind="stock"' not in hunt and "book_for(budget)" in hunt and 'kind="stock"' in src,   # ‏D779: من «عقود الخيارات»
+      "٥ب الصيدُ الآليُّ الأمريكيّ عقودٌ طويلةٌ من «عقود الخيارات» وحدها (‏D779) — لا بديلَ بالسهم (‏D771)، والسهمُ يُدخله المالك بنفسه")
 
 # ٥ج قرارُ الفيدراليّ يومٌ كامل، ومحضرُه ساعتان (قيس على الخادم: المحضرُ كان يحجب يومَ التداول كلَّه)
 NOW = datetime(2026, 11, 18, 15, 0, tzinfo=timezone.utc)

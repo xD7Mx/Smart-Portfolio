@@ -128,10 +128,10 @@ tr = (ROOT / "backend/app/services/saqr_trader.py").read_text(encoding="utf-8")
 mkp = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
 hunt = tr[tr.index("async def _hunt("):tr.index("# ══ أوامرُ المالك (‏D771)")]
 row = {"close": 20, "SMA50": 19, "SMA200": 18, "EMA20": 19.5, "Perf.3M": 6, "Value.Traded": 2e8, "earnings_release_next_date": 1795478400}
-check(SQ.cfg(st)["min_win"] == 70 and SQ.cfg(SQ.fresh())["min_win"] == 0 and bad and 'float(c.get("min_win") or 0)' in hunt
-      and "SL.kick_track(now, us_clock(now))" in tr and 'float(c.get("min_win") or 0)' in mkp and SU.tv_trend(row)["earn"] == "2026-11-24",
-      "٥ نسبةُ النجاح الدنيا أمرٌ للمالك (0–95)، والتداولُ الآليُّ ونقطةُ القائمة يقرآنها، والسجلُّ يُتابَع من دورة صقر، وموعدُ الأرباح من المُصفّي "
-      "(وشاشةُ القائمة أُزيلت بأمر المالك — ‏D778)")
+check(SQ.cfg(st)["min_win"] == 70 and SQ.cfg(SQ.fresh())["min_win"] == 0 and bad and "book_for(budget)" in hunt   # ‏D779: من «عقود الخيارات»
+      and "SL.kick_track(" not in tr and 'float(c.get("min_win") or 0)' in mkp and SU.tv_trend(row)["earn"] == "2026-11-24",
+      "٥ نسبةُ النجاح الدنيا أمرٌ للمالك (0–95) تقرؤها نقطةُ القائمة، وموعدُ الأرباح من المُصفّي (وشاشةُ القائمة أُزيلت — ‏D778، والتداولُ الآليُّ "
+      "وفحصُ الخلفية انتقلا إلى «عقود الخيارات» — ‏D779)")
 
 print("\nالنتيجة:", "نظيف ✔" if not fail else "فشل ✘")
 sys.exit(fail)
