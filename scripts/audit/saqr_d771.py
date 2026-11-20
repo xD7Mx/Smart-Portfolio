@@ -63,7 +63,7 @@ async def fake_universe():
     return U
 
 
-async def fake_contracts(sym, call, budget, t):
+async def fake_contracts(sym, call, budget, t, **kw):
     seen.append(sym)
     return (CARDS.get(sym), None) if sym in CARDS else (None, 260.0)
 
@@ -92,16 +92,16 @@ from datetime import datetime, timedelta, timezone   # noqa: E402
 NYZ = __import__("zoneinfo").ZoneInfo("America/New_York")
 op = datetime(2026, 11, 20, 9, 30, tzinfo=NYZ)
 clk = (op, op + timedelta(hours=6, minutes=30))
-fresh_l = {"at": (op + timedelta(hours=1)).astimezone(timezone.utc).isoformat(), "items": [1]}
+fresh_l = {"v": SL.V, "at": (op + timedelta(hours=1)).astimezone(timezone.utc).isoformat(), "items": [1]}   # ‏D774: صيغةُ القائمة
 d_pre = SL.due(op - timedelta(minutes=30), clk, None)
 d_mid = SL.due(op + timedelta(hours=2), clk, fresh_l)
 d_old = SL.due(op + timedelta(hours=3, minutes=5), clk, fresh_l)
 d_fin = SL.due(clk[1] - timedelta(minutes=30), clk, fresh_l)
-d_fin2 = SL.due(clk[1] - timedelta(minutes=10), clk, {"at": (clk[1] - timedelta(minutes=30)).astimezone(timezone.utc).isoformat(), "items": [1]})
+d_fin2 = SL.due(clk[1] - timedelta(minutes=10), clk, {"v": SL.V, "at": (clk[1] - timedelta(minutes=30)).astimezone(timezone.utc).isoformat(), "items": [1]})
 good = SL.load()
 
 
-async def empty_contracts(sym, call, budget, t):
+async def empty_contracts(sym, call, budget, t, **kw):
     return None, None
 OP.contracts_for = empty_contracts
 kept = asyncio.run(SL.build({"per_trade": 150, "sides": "both"}, set()))

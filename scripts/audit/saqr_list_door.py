@@ -19,7 +19,12 @@ if not r:
     print("لا قائمةَ محفوظةً بعد — تُبنى في أوّل دورةٍ من الجلسة.")
     sys.exit(0)
 print(f"══ {r.get('label')} · أُعدّت {r.get('at')} · {len(r.get('items') or [])} عقداً من {r.get('scanned')} ورقة (المجال {r.get('universe')}) · "
-      f"بميزانية {r.get('budget')} · آخرُ جلسة={r.get('snap')} · محاولة={r.get('retry')}")
+      f"بميزانية {r.get('budget')} · آخرُ جلسة={r.get('snap')} · محاولة={r.get('retry')} · صيغة={r.get('v')} · دفعة={r.get('batch')} "
+      f"(جديدٌ {r.get('fresh')}) · يُكمل={r.get('more')}")
+done = r.get("done") or {}
+if done:                                           # ‏D774: سببُ كلّ سهمٍ بعينه — أوّلُ عشرين ممتنعاً
+    print("أسبابُ الممتنعين:", "؛ ".join(f"{s}: {d['why']}" + (f" ({d['low']:.0f}$)" if d.get("low") else "")
+                                       for s, d in list(done.items())[:40] if d.get("why"))[:2500])
 print("استُبعد:", r.get("excluded"), "· أرخصُ صالحٍ فوق الميزانية:", r.get("cheapest"))
 for i in (r.get("items") or [])[:20]:
     print(f"  {i['grade']} {i['symbol']:<6} {i['type']:<4} {i['strike']:>7g} {i['expiry']} ({i['dte']}ي) كلفة {i['cost']:>6.0f} · هدف {i['gain_target']:+d}٪ "

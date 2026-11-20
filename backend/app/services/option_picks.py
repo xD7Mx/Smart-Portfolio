@@ -272,6 +272,12 @@ def pick_contract(rows: list[dict], S: float, dte: int, call: bool, budget: floa
     return max(ok, key=lambda c: c["score"]) if ok else None
 
 
+# ‏D774 — مراحلُ الحكم على العقد بترتيبها في ‏evaluate: أبعدُ مرحلةٍ بلغها عقدٌ من السهم هي سببُ امتناعه الحقيقيّ (قيس على الخادم
+# 2026-11-20: 39 من 45 سهماً «لا عقدَ يستوفي الشروط» بلا سبب — فلا يُعرف أهو الفارقُ أم السيولةُ أم الهدف)
+STAGES = ("لا عرضَ ولا طلبَ حقيقيّين", "اهتمامٌ مفتوحٌ قليل", "الفارقُ بين العرض والطلب واسع", "سعرٌ شاذّ", "الدلتا خارج النطاق",
+          "التعادلُ أبعدُ من الهدف", "العائدُ عند الهدف ضئيل", "احتمالٌ ضئيل")
+
+
 def exit_date(expiry: str) -> str:
     try:
         return (datetime.fromisoformat(expiry) - timedelta(days=EXIT_DTE)).date().isoformat()
@@ -424,23 +430,35 @@ def pick_expiries(exps: list[dict]) -> list[dict]:
     return out
 
 
-async def contracts_for(sym: str, call: bool, budget: float, tr: dict) -> tuple[dict | None, float | None]:
+async def contracts_for(sym: str, call: bool, budget: float, tr: dict, diag: dict | None = None) -> tuple[dict | None, float | None]:
     """المرحلةُ الثالثة لرمزٍ واحد: آجالُه الطويلة، وأفضلُ عقدٍ ضمن الميزانية فيها — ومعه كلفةُ أرخصِ عقدٍ صالحٍ فيها كلِّها
-    ليُقال للمالك بكم يُفتح هذا السهمُ إن لم يكن ضمن ميزانيته."""
+    ليُقال للمالك بكم يُفتح هذا السهمُ إن لم يكن ضمن ميزانيته. و‏`diag` (‏D774) يُكتب فيه سببُ الامتناع: ‏why لغياب السلسلة أو الآجال،
+    و‏stage أبعدُ مرحلةٍ من ‏STAGES بلغها عقد."""
     from app.services.options_chain import chain
+    diag = diag if diag is not None else {}
     base = await chain(sym)
     if not base or not base.get("price"):
+        diag["why"] = "لا سلسلةَ عقودٍ من المصدر"
         return None, None
     best, cheapest = None, None
-    for e in pick_expiries(base.get("expirations") or []):
+    exps = pick_expiries(base.get("expirations") or [])
+    if not exps:
+        diag["why"] = f"لا آجالَ بين {MIN_DTE} و{MAX_DTE} يوماً"
+    for e in exps:
         ch = await chain(sym, e["t"])
         if not ch:
             continue
         S = float(ch["price"] or base["price"])
         ref = atm_iv(ch, S, max(e["dte"], 1) / 365)
         if ref is None:          # لا مرجعَ لتذبذب النقود في هذا الأجل — فلا يُوثق بسعر أطرافه
+            diag.setdefault("why", "لا عرضَ ولا طلبَ حول سعر السهم")
             continue
-        for k in candidates(ch["calls"] if call else ch["puts"], S, e["dte"], call, tr, ref_iv=ref):
+        for o in ch["calls"] if call else ch["puts"]:
+            k, why = evaluate(o, S, e["dte"], call, tr, ref)
+            if not k:
+                if why in STAGES:
+                    diag["stage"] = max(diag.get("stage", -1), STAGES.index(why))
+                continue
             cheapest = k["cost"] if cheapest is None else min(cheapest, k["cost"])
             if k["cost"] <= budget and (best is None or k["score"] > best["score"]):
                 best = {**k, "expiry": e["date"], "t": e["t"]}

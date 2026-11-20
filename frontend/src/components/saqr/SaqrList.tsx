@@ -73,7 +73,7 @@ export default function SaqrList({ s, owner }: { s: SaqrState; owner: boolean })
           <h4>عقودُ {L?.label || "الجلسة القادمة"}</h4>
           <p className="sq-muted">{L
             ? <>أُعدّت <Num v={stamp(L.at)} /> · ميزانيةُ العقد <Num v={usd(L.budget, 0)} /> · <Num v={`${L.items.length}`} /> عقداً طويلَ الأجل من <Num v={`${L.scanned}`} /> ورقةً
-              فحصها (من <Num v={`${L.universe}`} /> اجتازت الأساس)</>
+              فحصها (من <Num v={`${L.universe}`} /> اجتازت الأساس){L.more && L.items.length < 50 ? <span data-role="sl-more"> · يُكمل الفحصَ كلَّ نصف ساعة</span> : null}</>
             : busy ? <>صقرٌ يُعدّ القائمة — {job?.msg || "يبدأ"}…</> : "لم تُعدّ القائمةُ بعد."}</p>
           {L && per && L.budget !== per && <p className="sl-warn" data-role="sl-stale"><AlertTriangle size={13} /> القائمةُ بميزانية <Num v={usd(L.budget, 0)} /> وميزانيتُك الآن <Num v={usd(per, 0)} /> — حدّثها.</p>}
           {L?.snap && <p className="sq-muted">أسعارُ العقود من آخر جلسة — تُراجَع عند الافتتاح قبل التنفيذ.</p>}

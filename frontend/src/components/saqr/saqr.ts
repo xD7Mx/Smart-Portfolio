@@ -19,7 +19,7 @@ export type SListItem = { contract: string; symbol: string; name?: string | null
   pros: string[]; cons: string[]; margin: number; grade: string; fund: number | null; trend: { state: string; strength: number; ret3m: number | null };
   news: { impact: string; event: string } | null; price: number | null };
 export type SList = { at: string; for: string; label: string; budget: number; items: SListItem[]; scanned: number; universe: number;
-  excluded: Record<string, number>; cheapest: number | null; snap: boolean; calls_only: boolean };
+  excluded: Record<string, number>; cheapest: number | null; snap: boolean; calls_only: boolean; more?: boolean };
 export type SClosed = SPos & { exit_px: number; proceeds: number; closed: string; reason: string; reason_ar: string; note?: string };
 export type SSignal = { at: string; sym: string; name?: string | null; side?: "call" | "put"; verdict: "chosen" | "accepted" | "refused"; why: string; contract?: string; score?: number };
 export type SLog = { at: string; kind: "buy" | "sell" | "alert" | "manual" | "info" | "error"; text: string; sym?: string | null };
