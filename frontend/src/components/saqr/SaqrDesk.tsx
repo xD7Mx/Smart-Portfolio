@@ -342,7 +342,7 @@ export default function SaqrDesk() {
   );
   // ‏D777: عقودُ الخيارات لا تنتظر حالَ صقر — تُفتح فوراً
   if (!s || !Array.isArray(s.positions)) return (
-    <div className="sq" data-role="sq">{sw}{tab === "options" ? <>{nav}<div key="options" className="sq-pane"><OptionPicks /></div></> : <div className="h-60 skeleton rounded-xl" />}</div>
+    <div className="sq" data-role="sq">{sw}{nav}{tab === "options" ? <div key="options" className="sq-pane"><OptionPicks /></div> : <div className="h-60 skeleton rounded-xl" />}</div>
   );
   const unreal = s.positions.reduce((a, p) => a + p.pl, 0);
   const busy = s.running?.on || run.isPending;

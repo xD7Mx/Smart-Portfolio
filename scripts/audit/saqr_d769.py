@@ -100,7 +100,7 @@ lab = (ROOT / "frontend/src/pages/ResearchLab.tsx").read_text(encoding="utf-8")
 desk = (ROOT / "frontend/src/components/saqr/SaqrDesk.tsx").read_text(encoding="utf-8")
 pf_src = (ROOT / "frontend/src/components/saqr/SaqrPortfolio.tsx").read_text(encoding="utf-8")
 pk = (ROOT / "frontend/src/components/saqr/ContractPicker.tsx").read_text(encoding="utf-8")
-check('["portfolio", "المحفظة", Wallet]' in desk and "<SaqrPortfolio market={market} />" in desk and '"portfolio"' not in lab.split("const VIEWS")[1].split("\n")[0]
+check('["portfolio", "المحفظة", Wallet]' in desk and "<SaqrPortfolio market={market} />" in desk and "SaqrPortfolio" not in lab and "const VIEWS" not in lab   # ‏D777: لا تبويبَ فوق صقر
       and 'data-role="sp-closef"' in pf_src and "يُغلق الآن بسعر السوق" in pf_src and "marketApi.saqrClose(p.id, null, market)" in pf_src
       and "equity_to: b" in pf_src and "equity_to: f.budget" in desk and "budDirty" in desk and 'data-role="sp-pick"' in pf_src
       and all(x in pk for x in ('data-role="pk-exp"', 'data-role="pk-strike"', 'data-role="pk-analysis"', "التعادل عند الانتهاء", "احتمالُ الربح", "التآكلُ اليوميّ",

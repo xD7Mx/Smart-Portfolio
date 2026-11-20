@@ -187,10 +187,11 @@ ev = (ROOT / "frontend/src/components/market/EventsList.tsx").read_text(encoding
 rep = (ROOT / "frontend/src/components/research/DailyReport.tsx").read_text(encoding="utf-8")
 desk9 = (ROOT / "frontend/src/components/saqr/SaqrDesk.tsx").read_text(encoding="utf-8")
 # ‏D769 (المالك): «خلّنا نوحّد كلَّ تفاصيل صقر — المحفظةُ داخل صقر بجانب لوحة المعلومات والسجل»: تبويبان في المختبر والمحفظةُ تبويبٌ في صقر
-check('["options", "عقود الخيارات"], ["saqr", "صقر"]' in lab and '["portfolio", "المحفظة", Wallet]' in desk9 and "<SaqrPortfolio market={market} />" in desk9
+# ‏D777 (المالك): «خلِّ عقود الخيارات داخل صقر — ويكون التبويبُ السوقَ الأمريكيّ والسعوديّ فقط»: المختبرُ صقرٌ وحده
+check("<SaqrDesk />" in lab and 'data-role="rl-views"' not in lab and '["options", "عقود الخيارات", Layers]' in desk9 and '["portfolio", "المحفظة", Wallet]' in desk9 and "<SaqrPortfolio market={market} />" in desk9
       and "SaqrPortfolio" not in lab and "التقرير اليومي" not in lab and "researchDesk(" not in lab
       and "<DailyReport />" in ev and 'setView("rep")' in ev and "researchDesk(" in rep and 'data-role="rl-doc"' in rep,
-      "٩ التقريرُ اليوميّ انتقل إلى مفكرة السوق (بجانب التوقعات حيث الجزيرة والراجحي)، والمختبرُ: عقودُ الخيارات · صقر — والمحفظةُ تبويبٌ داخل صقر (‏D769)")
+      "٩ التقريرُ اليوميّ انتقل إلى مفكرة السوق (بجانب التوقعات حيث الجزيرة والراجحي)، والمختبرُ صقرٌ وحده — والمحفظةُ و«عقودُ الخيارات» تبويبان داخله (‏D769 · ‏D777)")
 
 print("\nالنتيجة:", "عطب ✖" if fail else "نظيف ✔")
 sys.exit(fail)
