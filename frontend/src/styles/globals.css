@@ -4025,3 +4025,30 @@ html.light {
   .sl-card, .sp-pend-r { animation: none; transition: none; }
 }
 
+/* ══ ‏D772: الرسمُ البيانيّ كتريدنق فيو — لوحةٌ سوداء وألوانٌ مشبعةٌ نظيفة، وألوانُ الشموع بيد المالك ══
+   (المالك 2026-11-20 بصورةٍ من تريدنق فيو: «الألوانُ باهتة… نبغى ألواناً مشبعةً نظيفة، وخلفيةُ الشارت سوداء حتى يعطي عكساً للألوان أجمل»)
+   رموزُ الرسم واحدةٌ في المظهرين عمداً: اللوحةُ سوداءُ في الفاتح والداكن، والنصُّ عليها ‏#b2b5be (تباين 10:1). */
+:root {
+  --pc-bg: #000000; --pc-text: #b2b5be; --pc-cross: #9598a1; --pc-label: #363a45; --pc-sep: #2a2e39;
+  --pc-up: #ffffff; --pc-down: #f23645; --pc-green: #089981; --pc-black: #000000; --pc-black-edge: #b2b5be;
+  --pc-fib: #ffffff; --pc-fib-gold: #ffd600;
+  --pc-ema20: #2962ff; --pc-ema50: #00e676; --pc-ema100: #ff9800; --pc-ema200: #f23645; --pc-ema400: #e040fb;
+  --pc-vwap: #2962ff; --pc-band: #00e676; --pc-trend-up: #00e676; --pc-trend-down: #f23645; --pc-channel: #7e57c2; --pc-draw: #2962ff;
+  --pc-sw-1: #ffffff; --pc-sw-2: #f23645; --pc-sw-3: #089981; --pc-sw-4: #00e676; --pc-sw-5: #2962ff; --pc-sw-6: #ffd600;
+  --pc-sw-7: #ff9800; --pc-sw-8: #e040fb; --pc-sw-9: #000000;
+}
+.pc-cc { display: flex; flex-direction: column; gap: 8px; padding: 6px 4px; min-width: 240px; }
+.pc-cc-pre { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.pc-cc-p { display: flex; align-items: center; gap: 6px; min-height: 32px; }
+.pc-cc-p.on { color: var(--brand-ink); font-weight: 800; }
+.pc-cc-duo { display: inline-flex; gap: 2px; padding: 2px; border-radius: 6px; background: var(--pc-bg); }
+.pc-cc-duo i { width: 9px; height: 14px; border-radius: 2px; box-shadow: inset 0 0 0 1px var(--pc-sep); }
+.pc-cc-row { display: flex; align-items: center; gap: 8px; }
+.pc-cc-row > span:first-child { font-size: 11.5px; font-weight: 700; color: var(--ink-muted); min-width: 34px; }
+.pc-cc-sw { display: flex; flex-wrap: wrap; gap: 4px; }
+.pc-sw { width: 32px; height: 32px; border-radius: 8px; border: 2px solid var(--hairline); cursor: pointer; transition: transform .15s ease, border-color .15s ease; }
+.pc-sw:hover { transform: scale(1.06); }
+.pc-sw.on { border-color: var(--brand-ink); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-ink) 35%, transparent); }
+.pc-sw:focus-visible { outline: 2px solid var(--brand-ink); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .pc-sw { transition: none; } }
+

@@ -130,7 +130,7 @@ d7 = (FRONT / "src/components/analysis/d7m.ts").read_text(encoding="utf-8")
 panel = (FRONT / "src/components/analysis/D7MPanel.tsx").read_text(encoding="utf-8")
 check('["macd", "MACD"' in pc and 'data-role="pc-eye"' in pc and 'data-role="pc-eye-all"' in pc and "label: fmtPrice(l.price), lx, lpos, lcolor: gold ? C(\"fibGold\") : inkTxt" in pc and "label: `${l.level} (" not in pc
       and 'data-role="pc-candle-colors"' in pc and "st.cfg.chMid" in pc and "trendMajor" in pc and "slice(-300)" in pc
-      and "FIB_HIDDEN = new Set([1.1, 0.618, 0.5])" in d7 and "chMid: false" in d7 and 'fibLabelPos: "on"' in d7
+      and "FIB_HIDDEN = new Set([1.1, 0.618, 0.5])" in d7 and "chMid: false" in d7 and 'fibLabelPos: "above"' in d7   # ‏D772: الرقمُ فوق خطّه كتريدنق فيو
       and all(k in panel for k in ('k="trendMajor"', 'k="trendMinor"', 'k="chMid"', 'data-role="fib-label-pos"')),
       "٧ الرسم: ‏MACD، وعينُ الإخفاء لكلّ مؤشّرٍ ولها كلِّها، وأسعارُ فيبوناتشي سادةً بلون خطّها بلا نسبة (‏D761) أمام آخر شمعة (فوق/على/تحت)، وألوانُ الشموع، "
       "و1.1 و0.618 و0.5 مخفيّةٌ افتراضاً، والاتجاهان الرئيسيّ والفرعيّ وخطُّ منتصف القناة خياراتٌ في الإعدادات")

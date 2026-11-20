@@ -19,7 +19,7 @@ import {
 } from "lightweight-charts";
 import {
   CandlestickChart, LineChart, AreaChart, BarChart3, Activity, Brush, TrendingUp, Minus, Trash2, Undo2, Camera, Maximize2, Minimize2,
-  Settings2, ChevronDown, Check, MousePointer2, ChevronsRight, Eye, EyeOff,
+  Settings2, ChevronDown, Check, MousePointer2, ChevronsRight, Eye, EyeOff, Palette,
 } from "lucide-react";
 import { marketApi } from "../../services/api";
 import {
@@ -66,6 +66,19 @@ const hexTok = (name: string) => {
   const m = v.match(/\d+(\.\d+)?/g);
   return m && m.length >= 3 ? "#" + m.slice(0, 3).map(x => Math.round(+x).toString(16).padStart(2, "0")).join("") : "#000000";
 };
+/* ‏D772 (المالك 2026-11-20 بصورةٍ من تريدنق فيو): «الألوانُ باهتة — نبغى ألواناً مشبعةً نظيفة، وخلفيةُ الشارت سوداء حتى يعطي عكساً للألوان»:
+   فللرسم رموزُه (‏--pc-*) واحدةً في المظهرين — لوحةٌ سوداء، وشموعٌ بيضاءُ وحمراءُ افتراضاً، وخطوطٌ مُصمَتةٌ مشبعة — وتبقى رموزُ D7M لغيره */
+const PC: Record<string, string> = {
+  fib: "--pc-fib", fibGold: "--pc-fib-gold", zone: "--pc-text", trendUp: "--pc-trend-up", trendDown: "--pc-trend-down", channel: "--pc-channel",
+  vwap: "--pc-vwap", band: "--pc-band", ema20: "--pc-ema20", ema50: "--pc-ema50", ema100: "--pc-ema100", ema200: "--pc-ema200", ema400: "--pc-ema400",
+  draw: "--pc-draw",
+};
+/* ‏D772: «أقدر أغيّر ألوانَ الشموع — أخضر وأسود، أبيض وأحمر» — قوالبُ جاهزة ولوحتا ألوانٍ مشبعة؛ والأسودُ على اللوحة السوداء بحافّةٍ تُظهره */
+const CANDLE_PRESETS: [string, string, string][] = [["أبيض · أحمر", "--pc-up", "--pc-down"], ["أخضر · أحمر", "--pc-green", "--pc-down"],
+  ["أخضر · أسود", "--pc-green", "--pc-black"], ["أبيض · أسود", "--pc-up", "--pc-black"]];
+const SWATCHES = ["--pc-sw-1", "--pc-sw-2", "--pc-sw-3", "--pc-sw-4", "--pc-sw-5", "--pc-sw-6", "--pc-sw-7", "--pc-sw-8", "--pc-sw-9"];
+const dark = (c: string) => { const m = /^#([0-9a-f]{6})$/i.exec(c); if (!m) return false; const n = parseInt(m[1], 16);
+  return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) < 40; };
 /** رمزٌ يُعرف اسمُه وقتَ التشغيل (ألوانُ D7M من جدولها) — واحتياطُه حبرُ النصّ الثانويّ. */
 const tokv = (name: string) => tok(name, "") || tok("--ink-muted", "#6b7280");
 const tokA = (name: string, fb: string, a: number) => {
@@ -129,7 +142,9 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
       const m = { ...D7M_DEFAULTS, ...sv, colors: { ...D7M_DEFAULTS.colors, ...(sv.colors || {}) } };
       /* ‏D756: إعداداتٌ محفوظةٌ قبل الأمر — تُخفى فيها 1.1 و0.618 و0.5 مرّةً واحدة، وما غيّره المالكُ بعدها يبقى */
       if ((Number(sv.fibV) || 1) < 2) m.fibLevels = { ...m.fibLevels, ...Object.fromEntries([...FIB_HIDDEN].map(lv => [String(lv), false])) };
-      return { ...m, fibV: 2 }; } catch { return D7M_DEFAULTS; }
+      /* ‏D772: الرقمُ فوق خطّه كتريدنق فيو (كان «على الخطّ» بفُسحةٍ تقطعه) — مرّةً واحدة، وما اختاره المالكُ بعدها يبقى */
+      if ((Number(sv.fibV) || 1) < 3) m.fibLabelPos = "above";
+      return { ...m, fibV: 3 }; } catch { return D7M_DEFAULTS; }
   });
   const saveCfg = (c: D7MSettings) => { setCfgState(c); lsSet("sp_d7m_cfg_v2", JSON.stringify(c)); };
   const [showCfg, setShowCfg] = useState(false);
@@ -286,15 +301,16 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   /* ── طبقةُ الرسم: المستوياتُ والخطوطُ والفرشاة — خفيفةٌ تُستدعى مباشرةً من الإيماءات بلا إعادة رسم الصفحة ── */
   const paint = () => {
     const st = S.current, b = st.bars;
-    const up = st.cc.up || tok("--pos-ink", "#16a34a"), down = st.cc.down || tok("--neg-ink", "#dc2626");
+    const up = st.cc.up || tok("--pc-up", "#ffffff"), down = st.cc.down || tok("--pc-down", "#f23645");
     const drawC = st.cfg.colors?.draw || tok("--brand-ink", "#5b52d3");
     const levels: Level[] = [], segments: Segment[] = [], paths: Path[] = [], notes: Note[] = [], bands: Band[] = [];
     const last = b[b.length - 1];
     if (last) levels.push({ price: last.close, color: last.close >= last.open ? up : down, tag: true, bold: true, rank: 0, dash: [2, 3] });
     const D = st.hideAll || st.hid.d7m ? null : st.d7m;           // ‏D756: عينُ الإخفاء
     if (D) {
-      const C = (k: string) => st.cfg.colors?.[k] || tokv((D7M_COLORS.find(x => x[0] === k) || ["", "", "--ink"])[2]);
-      const ink = st.cfg.colors?.fib || tokA("--ink-muted", "#6b7280", 0.6);
+      const C = (k: string) => st.cfg.colors?.[k] || tokv(PC[k] || (D7M_COLORS.find(x => x[0] === k) || ["", "", "--ink"])[2]);
+      /* ‏D772: كان الخطُّ رمادياً بشفافية 0.6 والرقمُ مُصمَتاً — فاختفى الخطُّ على اللوحة الداكنة وبقي رقمُه «بلا خطّ»: الخطُّ والرقمُ لونٌ واحدٌ مُصمَت */
+      const ink = C("fib");
       /* ‏D744 (المالك): «شِل الكلام — المقاومة والدعم ولا تطمع — الشارتُ نظيف»: لا نصَّ على الرسم إلا رقمُ المستوى، والمناطقُ الثلاث
          تظليلٌ خفيف (المقاومة · الوسط: الاتجاهُ المعاكس والدعمُ القويّ · الدعم). و«مختصر» ستةُ خطوطها وحدها، و«الكل» كلُّ المستويات */
       if (D.fib) {
@@ -302,7 +318,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
         const SIX = new Set([0, -0.1, 0.5, 0.618, 1, 1.1]), compact = (st.cfg.fibMode || "compact") === "compact";
         const shown = (lv: number) => st.cfg.fibLevels[String(lv)] !== false && (!compact || SIX.has(lv));
         /* ‏D761 (المالك): «الرقمُ نفسُه سادةً — السعرُ على الخطّ بلا نسبةٍ ولا دائرة، ولونُه لونُ الخطّ» — والنصُّ بلون الخطّ مُصمَتاً ليُقرأ */
-        const lx = b.length - 1 + 3, lpos = st.cfg.fibLabelPos || "on", inkTxt = st.cfg.colors?.fib || tok("--ink-muted", "#6b7280");
+        const lx = b.length - 1 + 3, lpos = st.cfg.fibLabelPos || "above", inkTxt = ink;
         for (const l of D.fib.lines) {
           if (!shown(l.level)) continue;
           const gold = l.color === "yellow";
@@ -342,7 +358,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     }
     if (preview.current) segments.push(preview.current);
     if (stroke.current && stroke.current.length > 1) paths.push({ pts: stroke.current, color: drawC, width: 2 });
-    overlay.current.set({ levels, segments, paths, notes, bands, font: getComputedStyle(document.body).fontFamily || "sans-serif", bg: tok("--card", "#ffffff"), textTop: 50 });
+    overlay.current.set({ levels, segments, paths, notes, bands, font: getComputedStyle(document.body).fontFamily || "sans-serif", bg: tok("--pc-bg", "#000000"), textTop: 50 });
     // سماتُ تشخيص: ما رُسم على اللوحة (لا يُقرأ من الـDOM) — آخرُ سعرٍ موسوم، وعددُ المستويات المسمّاة والوسوم والرسوم اليدوية
     const root = rootRef.current;
     if (root) {
@@ -444,17 +460,19 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     const up = tok("--pos-ink", "#16a34a"), down = tok("--neg-ink", "#dc2626"), hair = tok("--hairline", "#dcdcdc");
     const muted = tok("--ink-muted", "#6b7280"), ink = tok("--ink", "#111111"), brand = tok("--brand-ink", "#5b52d3");
     const font = getComputedStyle(document.body).fontFamily || "sans-serif";
+    const pcText = tok("--pc-text", "#b2b5be"), pcCross = tok("--pc-cross", "#9598a1"), pcLab = tok("--pc-label", "#363a45");
     chart.applyOptions({
-      layout: { textColor: muted, fontFamily: font, fontSize: 11,
-                panes: { separatorColor: hair, separatorHoverColor: tokA("--brand-ink", "#5b52d3", 0.25) } },
-      grid: { vertLines: { color: tokA("--hairline", "#dcdcdc", 0.55) }, horzLines: { color: tokA("--hairline", "#dcdcdc", 0.55) } },
+      layout: { background: { color: tok("--pc-bg", "#000000") }, textColor: pcText, fontFamily: font, fontSize: 11,
+                panes: { separatorColor: tok("--pc-sep", "#2a2e39"), separatorHoverColor: tokA("--brand-ink", "#5b52d3", 0.35) } },
+      grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       timeScale: { timeVisible: tfIntraday(tf) },
-      crosshair: { vertLine: { color: muted, width: 1, style: LineStyle.Dashed, labelBackgroundColor: ink },
-                   horzLine: { color: muted, width: 1, style: LineStyle.Dashed, labelBackgroundColor: ink } },
+      crosshair: { vertLine: { color: pcCross, width: 1, style: LineStyle.Dashed, labelBackgroundColor: pcLab },
+                   horzLine: { color: pcCross, width: 1, style: LineStyle.Dashed, labelBackgroundColor: pcLab } },
     });
 
     /* ١ السلسلةُ الرئيسة — تُبنى حين يتغيّر نوعُ الرسم أو المظهر وحدهما */
-    const cu = cc.up || up, cd = cc.down || down;                    // ‏D756: «خيارُ تغيير لون الشموع»
+    const cu = cc.up || tok("--pc-up", "#ffffff"), cd = cc.down || tok("--pc-down", "#f23645");   // ‏D756 · D772: «خيارُ تغيير لون الشموع»
+    const edge = tok("--pc-black-edge", "#b2b5be"), eu = dark(cu) ? edge : cu, ed = dark(cd) ? edge : cd;
     const mainSig = `${ctype}|${theme}|${cu}|${cd}`;
     if (sigRef.current.main !== mainSig || !mainRef.current) {
       if (mainRef.current) { try { mainRef.current.detachPrimitive(overlay.current); } catch { /* لم تُلحق */ } chart.removeSeries(mainRef.current); }
@@ -462,9 +480,9 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
       const m = ctype === "line" ? chart.addSeries(LineSeries, { ...common, color: brand, lineWidth: 2, crosshairMarkerRadius: 4 }, 0)
         : ctype === "area" ? chart.addSeries(AreaSeries, { ...common, lineColor: brand, lineWidth: 2, topColor: tokA("--brand-ink", "#5b52d3", 0.28),
                                                            bottomColor: tokA("--brand-ink", "#5b52d3", 0.02) }, 0)
-        : ctype === "bars" ? chart.addSeries(BarSeries, { ...common, upColor: cu, downColor: cd, thinBars: false }, 0)
+        : ctype === "bars" ? chart.addSeries(BarSeries, { ...common, upColor: eu, downColor: ed, thinBars: false }, 0)
         : chart.addSeries(CandlestickSeries, { ...common, upColor: ctype === "hollow" ? "rgba(0,0,0,0)" : cu, downColor: cd,
-                                               borderVisible: true, borderUpColor: cu, borderDownColor: cd, wickUpColor: cu, wickDownColor: cd }, 0);
+                                               borderVisible: true, borderUpColor: eu, borderDownColor: ed, wickUpColor: eu, wickDownColor: ed }, 0);
       m.attachPrimitive(overlay.current);
       markRef.current = createSeriesMarkers(m, []);
       mainRef.current = m;
@@ -543,10 +561,10 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
       },
       d7m: () => {
         const out: ISeriesApi<any>[] = [];
-        const C = (k: string) => cfg.colors?.[k] || tokv((D7M_COLORS.find(x => x[0] === k) || ["", "", "--ink"])[2]);
+        const C = (k: string) => cfg.colors?.[k] || tokv(PC[k] || (D7M_COLORS.find(x => x[0] === k) || ["", "", "--ink"])[2]);
         if (cfg.vwap) out.push(ln(0, C("vwap"), 1));
         if (cfg.vwapBand) out.push(ln(0, C("band"), 1), ln(0, C("band"), 1));
-        ([["ema20", "--chart-1"], ["ema50", "--pos-ink"], ["ema100", "--gauge-warn"], ["ema200", "--neg-ink"], ["ema400", "--chart-4"]] as const)
+        ([["ema20", "--pc-ema20"], ["ema50", "--pc-ema50"], ["ema100", "--pc-ema100"], ["ema200", "--pc-ema200"], ["ema400", "--pc-ema400"]] as const)
           .forEach(([k, t]) => { if ((cfg as any)[k]) out.push(ln(0, cfg.colors?.[k] || tokv(t), 2)); });
         ([["pdh", "--neg-ink"], ["pdl", "--pos-ink"], ["pdc", "--ink-muted"], ["dOpen", "--gauge-warn"]] as const)
           .forEach(([k, t]) => { if ((cfg as any)[k]) out.push(ln(0, tokv(t), 1, { lineVisible: false, pointMarkersVisible: true, pointMarkersRadius: 1.5 })); });
@@ -835,16 +853,39 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
                 <Ic size={15} /> <span>{name}</span>{ctype === k && <Check size={14} className="pc-check" />}
               </button>
             ))}
-            {/* ‏D756 (المالك: «خيارٌ لتغيير لون الشموع») */}
+          </>}
+        </Menu>
+        {/* ‏D772 (المالك): «خلّ فيه إمكانيةَ أن أغيّر ألوانَ الشموع — أخضر وأسود، أبيض وأحمر» */}
+        <Menu label={<Palette size={17} />} title="ألوان الشموع" role="pc-colors">
+          {close => (
             <div className="pc-cc" data-role="pc-candle-colors">
               <span className="pc-cc-t">ألوان الشموع</span>
-              <label className="pc-cc-row"><span>صعود</span>
-                <input type="color" value={cc.up || hexTok("--pos-ink")} onChange={e => setCc({ ...cc, up: e.target.value })} aria-label="لون شمعة الصعود" data-role="pc-cc-up" /></label>
-              <label className="pc-cc-row"><span>هبوط</span>
-                <input type="color" value={cc.down || hexTok("--neg-ink")} onChange={e => setCc({ ...cc, down: e.target.value })} aria-label="لون شمعة الهبوط" data-role="pc-cc-down" /></label>
-              {(cc.up || cc.down) && <button type="button" className="pc-item" onClick={() => setCc({})} data-role="pc-cc-reset">ألوانُ المظهر</button>}
+              <div className="pc-cc-pre">
+                {CANDLE_PRESETS.map(([name, u, d]) => {
+                  const on = (cc.up || hexTok("--pc-up")) === hexTok(u) && (cc.down || hexTok("--pc-down")) === hexTok(d);
+                  return (
+                    <button key={name} type="button" className={"pc-item pc-cc-p" + (on ? " on" : "")} aria-pressed={on} onClick={() => { setCc({ up: hexTok(u), down: hexTok(d) }); close(); }}
+                      data-role="pc-cc-preset">
+                      <span className="pc-cc-duo" aria-hidden><i style={{ background: `var(${u})` }} /><i style={{ background: `var(${d})` }} /></span>{name}
+                    </button>
+                  );
+                })}
+              </div>
+              {(["up", "down"] as const).map(side => (
+                <div key={side} className="pc-cc-row" data-role={`pc-cc-${side}`}>
+                  <span>{side === "up" ? "صعود" : "هبوط"}</span>
+                  <span className="pc-cc-sw">
+                    {SWATCHES.map(t => {
+                      const v = hexTok(t), on = (cc[side] || hexTok(side === "up" ? "--pc-up" : "--pc-down")) === v;
+                      return <button key={t} type="button" className={"pc-sw" + (on ? " on" : "")} style={{ background: `var(${t})` }} aria-pressed={on}
+                        aria-label={`${side === "up" ? "لون الصعود" : "لون الهبوط"} ${v}`} onClick={() => setCc({ ...cc, [side]: v })} />;
+                    })}
+                  </span>
+                </div>
+              ))}
+              {(cc.up || cc.down) && <button type="button" className="pc-item" onClick={() => { setCc({}); close(); }} data-role="pc-cc-reset">الافتراضيّ (أبيض · أحمر)</button>}
             </div>
-          </>}
+          )}
         </Menu>
         <Menu label={<><Activity size={17} /><span className="pc-btn-txt">المؤشرات</span></>} title="المؤشرات" role="pc-ind">
           {() => IND.map(([k, name, t]) => (

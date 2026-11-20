@@ -433,7 +433,8 @@ export default function NativeChart({ symbol, theme = "dark", identity, preset, 
             // ‏D717 (المالك): «المستويات جعلتها منقّطة — خلّها خطّاً متّصلاً». فكلُّها متّصلة، والذهبيّةُ تتميّز بلونها
             candle.createPriceLine({ price: l.price, color: gold ? yellow : ink, lineWidth: 1,
               lineStyle: 0, axisLabelVisible: false, title: "" });
-            levelsRef.current.push({ price: l.price, color: gold ? yellow : inkTag, text: [String(l.level), l.title].filter(Boolean).join(" · "),
+            // ‏D772 (المالك): «لا تضع نسبَ المستويات أبداً (0.6 · 0.1 · 1.1) — فقط سعرُ المستوى نفسُه»
+            levelsRef.current.push({ price: l.price, color: gold ? yellow : inkTag, text: l.price.toFixed(l.price < 10 ? 3 : 2),
                                      rank: gold ? 2 : 3 });
           }
         }

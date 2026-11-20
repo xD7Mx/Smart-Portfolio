@@ -37,6 +37,8 @@ export class BandFill implements ISeriesPrimitive<Time> {
   }
 }
 
+const LEGEND_W = 340;      // عرضُ وسيلة الإيضاح أعلى يسار الرسم (‏O H L C · D7M) — الأرقامُ لا تُكتب تحتها
+
 export class ChartOverlay implements ISeriesPrimitive<Time> {
   private chart: IChartApi | null = null;
   private series: ISeriesApi<SeriesType> | null = null;
@@ -133,29 +135,33 @@ export class ChartOverlay implements ISeriesPrimitive<Time> {
         ctx.fillStyle = l.color;
         ctx.fillText(l.text as string, 8, y - 4);
       }
-      // ٤ب أرقامُ المستويات أمام آخر شمعة (‏D761 · المالك: «الرقمُ سادةً بلا دائرةٍ ولا تعليم، على الخطّ نفسِه، ولونُه لونُ خطّه»):
-      // نصٌّ وحدَه بلون الخطّ — وعلى الخطّ تُفرَج له فُسحةٌ بلون اللوحة كي لا يشطبه الخطّ (لا إطارَ ولا حبّة) — ولا يتراكب رقمان
+      // ٤ب أرقامُ المستويات أمام آخر شمعة (‏D761 · D772): السعرُ وحدَه بلون خطّه، على خطّه هو لا غيره — كتريدنق فيو.
+      // ‏D772 (المالك 2026-11-20: «فيها كسرٌ، وأرقامٌ في غير أماكنها، وأرقامٌ بلا خطّ»): كان الرقمُ المزاحمُ يُزاح رأسياً حتى أربعة صفوف فيقع
+      // حيث لا خطّ أو على خطّ مستوىً آخر، وكانت فُسحةٌ بلون البطاقة تُفرَج تحته فتقطع الخطَّ (وخطَّ جاره إن قرب). فالآن: الرقمُ لا يغادر
+      // صفَّ خطّه أبداً — وإن زاحم رقماً قبله أُزيح أفقياً إلى يمينه على الصفّ نفسِه، وإلا تُرك الخطُّ بلا رقم — ولا فُسحةَ تقطع خطّاً.
       ctx.font = `700 10.5px ${this.font}`;
       ctx.textBaseline = "middle";
-      const boxes: [number, number][] = [];
+      const boxes: { x0: number; x1: number; y0: number; y1: number }[] = [];
+      const hits = (b: { x0: number; x1: number; y0: number; y1: number }) => boxes.find(o => b.x0 < o.x1 + 4 && b.x1 > o.x0 - 4 && b.y0 < o.y1 && b.y1 > o.y0);
       for (const l of [...this.levels].filter(x => x.label).sort((a, b) => (a.rank ?? 9) - (b.rank ?? 9))) {
         const y = this.py(l.price), x = l.lx != null ? this.px(l.lx) : null;
-        if (y == null || x == null || y < this.textTop || y > H - 4) continue;
-        const h = 13, w = ctx.measureText(l.label as string).width + 6;
-        const cy = l.lpos === "above" ? y - h / 2 - 1 : l.lpos === "below" ? y + h / 2 + 1 : y;
-        let top = Math.round(cy - h / 2);
-        // مستويان متقاربان: يُزاح الرقمُ الثاني عن الأوّل (لا يُحذف)، في اتّجاه موضعه
-        for (let k = 0; k < 4 && boxes.some(([a, b]) => top < b + 1 && top + h > a - 1); k++) {
-          const hit = boxes.find(([a, b]) => top < b + 1 && top + h > a - 1)!;
-          top = l.lpos === "above" ? hit[0] - h - 1 : hit[1] + 1;
+        if (y == null || x == null || y < 2 || y > H - 4) continue;
+        const h = 12, w = ctx.measureText(l.label as string).width + 4;
+        const pos = l.lpos || "above";
+        const top = Math.round(pos === "above" ? y - h - 1 : pos === "below" ? y + 2 : y - h / 2);
+        let xx = Math.round(Math.min(Math.max(x, 4), W - w - 4)), box = { x0: xx, x1: xx + w, y0: top, y1: top + h }, hit = hits(box);
+        // ‏D772: حدُّ «الحيّز العلويّ» لوسيلة الإيضاح (يساراً) وحدها — كان يُسقط رقمَ أعلى خطٍّ يميناً حيث لا وسيلةَ إيضاح فيبقى الخطُّ بلا رقم
+        if (top < 0 || top + h > H || (top < this.textTop && xx < LEGEND_W)) continue;
+        for (let k = 0; k < 3 && hit; k++) {
+          xx = Math.round(hit.x1 + 6);
+          box = { x0: xx, x1: xx + w, y0: top, y1: top + h };
+          hit = xx + w > W - 4 ? box as any : hits(box);
         }
-        if (boxes.some(([a, b]) => top < b && top + h > a) || top < this.textTop || top + h > H) continue;
-        boxes.push([top, top + h]);
-        const xx = Math.round(Math.min(Math.max(x, 4), W - w - 4));
-        if ((l.lpos || "on") === "on" && Math.abs(top + h / 2 - y) < h) { ctx.fillStyle = this.bg; ctx.fillRect(xx, top, w, h); }
+        if (hit) continue;
+        boxes.push(box);
         ctx.fillStyle = l.lcolor || l.color;
         ctx.textAlign = "left";
-        ctx.fillText(l.label as string, xx + 3, top + h / 2 + 0.5);
+        ctx.fillText(l.label as string, xx + 2, top + h / 2 + 0.5);
       }
       ctx.textBaseline = "alphabetic";
       const placedN: { x: number; y: number }[] = [];

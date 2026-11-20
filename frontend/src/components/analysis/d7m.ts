@@ -617,7 +617,7 @@ export const D7M_DEFAULTS = {
   /* ‏D756 (المالك 2026-11-16): «المستويات 1.1 و0.6 و0.5 ألغِها — تبقى خياراً في الإعدادات إن أردتُ إظهارها» */
   fibLevels: Object.fromEntries(FIB_LEVELS.map(([lv]) => [String(lv), !FIB_HIDDEN.has(lv)])) as Record<string, boolean>,
   /* ‏D756: «الأرقامُ أمام آخر شمعة كتريدنق فيو — لا في عمود الأسعار — وخيارٌ: فوق الخطّ أو عليه أو تحته، والافتراضيُّ عليه» */
-  fibLabelPos: "on" as "above" | "on" | "below",
+  fibLabelPos: "above" as "above" | "on" | "below",   // ‏D772: فوق خطّه كتريدنق فيو
   fibV: 2,
   /* ‏D756: «الاتجاهُ الرئيسيّ والفرعيّ خياران في الإعدادات» */
   trend: true, trendMajor: true, trendMinor: true, trendPP: 15, trendShapes: false,
