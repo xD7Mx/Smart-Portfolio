@@ -63,7 +63,7 @@ FEE_SA = 0.00155                              # عمولةُ الوسيط الس
 STOCK_STOP = 0.93                             # وقفُ السهم: −7٪
 STOCK_TRAIL = (1.08, 1.12, 0.94)              # من +8٪ إلى الدخول، ومن +12٪ إلى 94٪ من القمّة
 STOCK_TIME_DAYS, STOCK_TIME_GAIN = 42, 1.03   # سهمٌ لم يتقدّم 3٪ في ستّة أسابيع يُحرّر مالُه
-REASON_AR = {"stop": "بلغ الوقف", "trail": "وقفٌ متحرّكٌ يحمي الربح", "take": "تضاعف العقد — جنيُ الربح", "target": "بلغ السهمُ الهدف",
+REASON_AR = {"tp": "بلغ أمرُ جني الربح", "sl": "بلغ أمرُ وقف الخسارة", "stop": "بلغ الوقف", "trail": "وقفٌ متحرّكٌ يحمي الربح", "take": "تضاعف العقد — جنيُ الربح", "target": "بلغ السهمُ الهدف",
              "time": "اقترب الأجل", "broken": "انكسرت الأطروحة", "manual": "إغلاقٌ يدويّ من المالك", "stale": "لم يتقدّم — يُحرَّر المال",
              "regime": "انقلب السوقُ العامّ", "geo": "خطرٌ جيوسياسيّ", "results": "نتائجُ ربعيةٌ مخيّبة"}
 # ‏D767 (المالك): «أضف خيارَ تحديد الميزانية… خلّ فيه مرونة، أقدر أغيّر الخيارات — هو العقلُ المدبّر وأنا أضع الأوامر»
@@ -91,7 +91,9 @@ PROFILES = {
                "open_wait": 10, "close_wait": 15, "fed_h": 4, "event_h": 1, "day_loss": 0.20, "exit_dte": 3, "trail": (1.3, 1.5, 0.80),
                "rules": {**RULES, "min_delta": 0.30, "max_delta": 0.75, "min_pop": 0.20}, "warn_ok": True},
 }
-US_DEFAULTS = {"mode": "attack", "per_trade": 100, "day_target": 100}   # أمرُ المالك: 100 دولار للعقد، و100 دولار هدفُ اليوم
+# ‏D771 (المالك 2026-11-20): «لا نختار إلا طويلَ المدى… أبغاه يشتغل مثل السكرتير يطلع لي العقود وأنا أختار… وزرٌ أوقف التداولَ الآليّ… بالميزانية
+# التي نحدّدها 150»: فالأمريكيُّ متوازنٌ طويلُ الأجل، وميزانيةُ العقد 150، والتداولُ الآليُّ موقوفٌ حتى يشغّله المالك (وإن شغّله فمن القائمة وحدها)
+US_DEFAULTS = {"mode": "balanced", "per_trade": 150, "day_target": 100, "auto": False}
 _LOCK = asyncio.Lock()
 _JOB = {"on": False, "msg": "", "at": None}
 
@@ -172,7 +174,7 @@ def day_lock(st: dict) -> int:
         return 0
     n = 0
     for p in st["positions"]:
-        if p.get("auto") and (p.get("bid") or 0) > p["entry_px"] and p["stop"] < p["entry_px"]:
+        if p.get("auto") and not p.get("owner") and (p.get("bid") or 0) > p["entry_px"] and p["stop"] < p["entry_px"]:
             p["stop"] = round(p["entry_px"], 4)
             n += 1
     if not st["day"].get("hit"):
@@ -184,7 +186,7 @@ def day_lock(st: dict) -> int:
 def seats_budget(st: dict, eq: float, frac: float, seats: int) -> tuple[int, float]:
     """(أقصى المراكز، ميزانيةُ الصفقة الواحدة) بعد أوامر المالك: لا تتجاوز ما حدّده ولا ما في النقد."""
     c = cfg(st)
-    if profile(st) is PROFILES["attack"] and c["per_trade"]:
+    if st.get("market", "us") == "us" and c["per_trade"]:
         # ‏D768: ميزانيةُ الصفقة أمرُ المالك لا نصفُ رأس المال، ومقعدٌ لكلّ ميزانيةِ صفقةٍ في رأس المال (1–12)
         unit = float(c["per_trade"])
         seats = int(c["max_positions"]) if c["max_positions"] else max(1, min(12, int(eq // unit)))
@@ -222,6 +224,9 @@ def apply_settings(st: dict, upd: dict) -> list[str]:
             st["day"]["start_eq"] = round((st["day"].get("start_eq") or 0) + delta, 2)
             st.setdefault("fundings", []).append({"at": _iso(), "delta": delta, "budget": nb})
             done.append(f"الميزانية {nb - delta:,.2f} ⇐ {nb:,.2f}")
+    if "auto" in upd and upd["auto"] is not None:
+        c["auto"] = bool(upd["auto"])
+        done.append("التداولُ الآليّ: " + ("يعمل — من قائمة صقر وحدها" if c["auto"] else "موقوف — صقرٌ يُعدّ القائمةَ وينفّذ أوامرك"))
     if st.get("market") == "sa" and upd.get("mode") not in (None, "balanced"):
         raise ValueError("النمطُ الهجوميُّ للسوق الأمريكيّ وحده.")
     for k in ("per_trade", "max_positions", "opt_stop", "stock_stop", "take_x", "day_target"):
@@ -295,7 +300,7 @@ def buy(st: dict, k: dict, qty: float, why: list[str], src: str = "saqr", px: fl
     fee = fee_of(st.get("market", "us"), kind, qty, px)
     cost = round(px * m * qty + fee, 2)
     st["cash"] = round(st["cash"] - cost, 2)
-    stop = k.get("stop") or (px * (STOP if kind == "option" else STOCK_STOP))
+    stop = k["stop"] if k.get("stop") is not None else (px * (STOP if kind == "option" else STOCK_STOP))
     p = {"id": _pid(k["contract"]), "kind": kind, "contract": k["contract"], "symbol": k["symbol"], "name": k.get("name"),
          "type": k.get("type", "stock"), "strike": k.get("strike"), "expiry": k.get("expiry"), "t": k.get("t"),
          "qty": int(qty) if kind == "option" else round(float(qty), 4), "entry_px": round(px, 4), "cost": cost, "fee_in": fee, "opened": _iso(),
@@ -327,6 +332,9 @@ def sell(st: dict, pid: str, px: float, reason: str, note: str = "") -> dict | N
 def trail(p: dict, bid: float) -> None:
     """الوقفُ المتحرّك — لا ينزل أبداً. العقد: من +50٪ إلى سعر الدخول ومن +80٪ إلى 75٪ من القمّة؛ السهم: من +8٪ إلى الدخول ومن +12٪
     إلى 94٪ من القمّة."""
+    if p.get("owner"):                      # ‏D771: مركزٌ بأوامر المالك — أمراه وحدهما (جنيٌ ووقف) لا وقفٌ متحرّك
+        p["peak"] = max(float(p.get("peak") or 0), bid)
+        return
     be, on, keep = (p.get("trail") or (TRAIL_BE, TRAIL_ON, TRAIL_KEEP)) if kind_of(p) == "option" else STOCK_TRAIL
     p["peak"] = max(float(p.get("peak") or 0), bid)
     e = p["entry_px"]
@@ -338,6 +346,16 @@ def trail(p: dict, bid: float) -> None:
 
 def exit_rule(p: dict, bid: float | None, S: float | None, dte: int, tr: dict | None, news: dict | None) -> tuple[str, str] | None:
     """(السبب، الشرح) إن وجب الخروج — وإلا None. الترتيب: الأجلُ ثمّ الوقفُ ثمّ الجنيُ ثمّ الهدفُ ثمّ الأطروحة."""
+    if p.get("owner"):
+        # ‏D771 (المالك): «إمّا يُقفل إلين يحقّق هدفه أو أنا أضغط إغلاق — وأحدّد جميعَ الأوامر»: جنيُ الربح ووقفُ الخسارة كما كتبهما، وخروجٌ قبل الانتهاء
+        if kind_of(p) == "option" and dte <= (p.get("exit_dte") or EXIT_DTE):
+            return "time", f"بقي {dte} يوماً على الانتهاء — يتسارع التآكل."
+        if bid is not None and bid > 0:
+            if p.get("stop") and bid <= p["stop"]:
+                return "sl", f"سعرُ الطلب {bid:.2f} عند أمر الوقف {p['stop']:.2f}" + (f" (−{p['sl_pct']:g}٪)." if p.get("sl_pct") else ".")
+            if p.get("take_x") and bid >= p["entry_px"] * p["take_x"]:
+                return "tp", f"سعرُ الطلب {bid:.2f} بلغ أمرَ جني الربح {p['entry_px'] * p['take_x']:.2f}" + (f" (+{p['tp_pct']:g}٪)." if p.get("tp_pct") else ".")
+        return None
     stock = kind_of(p) == "stock"
     call = stock or p["type"] == "call"
     base = STOCK_STOP if stock else STOP
@@ -705,125 +723,167 @@ async def _review(st: dict, now: datetime, scan_tr: dict | None) -> list[dict]:
 
 
 async def _hunt(st: dict, now: datetime) -> dict | None:
-    """البحثُ عن صفقةٍ جديدة ودخولُها — يُكتب كلُّ مرفوضٍ بسببه في الإشارات."""
-    from app.services import option_advisor as AD
-    from app.services.live_quote import yahoo_quotes
+    """التداولُ الآليّ (‏D771 — المالك: «أنت المتعلّم وهو فقط المنفّذ… لا نختار إلا طويلَ المدى»): يشتري من قائمة صقر نفسِها — الأعلى
+    إيجابياتٍ أوّلاً — عقداً طويلَ الأجل بعرضه الحيّ ضمن ميزانية العقد، بوقفه وجنيه من أوامر المالك. لا أسهمَ ولا عقودَ قصيرة."""
+    from app.services import saqr_list as SL
     eq = equity(st)
     frac, seats = tier(eq)
     seats, budget = seats_budget(st, eq, frac, seats)
-    c, pf = cfg(st), profile(st)
+    c = cfg(st)
     if len(st["positions"]) >= seats:
         return None
-    if budget < 10:
-        st["signals"] = [{"at": _iso(), "sym": "—", "verdict": "refused", "why": f"النقدُ المتاح {st['cash']:,.2f} دولار لا يكفي عقداً."}]
+    lst = SL.load() or {}
+    held = {p["symbol"] for p in st["positions"]} | {o["symbol"] for o in st.get("orders") or []}
+    for it in lst.get("items") or []:
+        if it["symbol"] in held or cooling(st, it["symbol"], now) or (it["type"] == "put" and c["sides"] == "calls"):
+            continue
+        q = await contract_quote(it["contract"])
+        if not q or not q["live"] or not q["ask"]:
+            continue
+        qty = size(budget, q["ask"])
+        if qty < 1:
+            continue
+        k = {**{x: it[x] for x in ("contract", "symbol", "name", "type", "strike", "expiry", "t", "target", "target_label", "delta", "iv")},
+             "ask": q["ask"], "bid": q["bid"], "price": q["price"], "dte": q["dte"],
+             "stop": round(q["ask"] * (1 - c["opt_stop"] / 100), 4), "take_x": c["take_x"]}
+        why = [f"من قائمة صقر ({lst.get('label') or ''}): {it['grade']} — {len(it['pros'])} إيجابيات و{len(it['cons'])} سلبيات."] + it["pros"][:4] \
+            + [f"تحفّظ: {x}" for x in it["cons"][:2]]
+        pos = buy(st, k, qty, why)
+        st["day"]["new"] = (st["day"].get("new") or 0) + 1
+        log(st, "buy", f"شراءٌ آليٌّ من القائمة: {qty} × {_title(pos)} بسعر {pos['entry_px']:.2f} (الكلفة مع العمولة {pos['cost']:,.2f}$) — "
+                       f"الوقف {pos['stop']:.2f} والجني ×{pos['take_x']:g}.", pos["symbol"])
+        return pos
+    return None
+
+
+# ══ أوامرُ المالك (‏D771): شراءٌ بسعره، وأمرا البيع — جنيُ الربح ووقفُ الخسارة — وأوامرٌ معلّقةٌ حتى تُنفَّذ أو تُلغى ══
+
+async def contract_quote(contract: str) -> dict | None:
+    """عرضُ عقدٍ بعينه وطلبُه (حيّان، أو من آخر جلسة إن أُغلق السوق) وسعرُ سهمه وأجلُه — من سلسلته."""
+    from app.services.options_chain import chain, parse_option
+    o = parse_option(contract)
+    if not o:
         return None
-    _JOB["msg"] = "قراءةُ مسارات السوق"
-    # ‏D766: المجالُ كاملٌ والأساسُ قبل الفنّ — كلُّ ورقةٍ لها عقودُ خيارات (دليلُ سيبوي) وسائلةٌ واجتازت الفرزَ الأساسيّ، ومسارُها من المُصفّي؛
-    # وإن تعذّر المُصفّي فالقائمةُ الأسيلُ والأنشطُ كما كانت (وتُوسم)
-    from app.services import saqr_universe as SU
-    U = await SU.universe()
-    fund = U["fund"]
-    if U["tr"]:
-        tr_all, n_movers, umeta = U["tr"], 0, U["meta"]
-    else:
-        tr_all, n_movers = await trends()
-        umeta = {"fallback": True}
-    held = {p["symbol"] for p in st["positions"]}
-    pool = shortlist(tr_all, held, lambda x: cooling(st, x, now), budget)
-    _JOB["msg"] = "قراءةُ الأخبار"
-    try:
-        news = await OP.read_news({s: tr_all[s] for s in pool})
-    except Exception:                                             # noqa: BLE001
-        news = {}
-    st["health"]["news"] = bool(news)
-    sig, picks = [], []
-    sides = {}
-    for s in pool:
-        side, note = OP.direction(tr_all[s], news.get(s))
-        if side == "put" and (c["sides"] == "calls" or c["instruments"] == "stocks"):
-            sig.append({"sym": s, "side": side, "verdict": "refused", "why": "اتجاهُه هابط — وإعداداتُك: شراءٌ فقط" if c["sides"] == "calls"
-                        else "اتجاهُه هابط — وإعداداتُك: أسهمٌ فقط (لا بيعَ على المكشوف)"})
-            continue
-        if side:
-            sides[s] = side
+    base = await chain(o["root"])
+    e = next((x for x in (base or {}).get("expirations") or [] if x["date"] == o["expiry"]), None)
+    ch = await chain(o["root"], e["t"]) if e else None
+    row = next((r for r in (ch or {}).get("calls" if o["type"] == "call" else "puts", []) if r.get("contract") == contract), None)
+    if not row:
+        return None
+    ask, bid = row.get("ask") or None, row.get("bid") or None
+    return {"o": o, "t": e["t"], "dte": e["dte"], "ask": ask or row.get("sask"), "bid": bid or row.get("sbid"), "live": bool(ask),
+            "price": (ch or {}).get("price"), "name": (base or {}).get("name")}
+
+
+def _fill(st: dict, o: dict, ask: float, q: dict) -> dict:
+    k = {"contract": o["contract"], "symbol": o["symbol"], "name": o.get("name"), "type": o["type"], "strike": o["strike"], "expiry": o["expiry"],
+         "t": o.get("t"), "ask": ask, "bid": q.get("bid"), "price": q.get("price"), "target": None,
+         "stop": round(ask * (1 - o["sl_pct"] / 100), 4) if o.get("sl_pct") else 0.0,
+         "take_x": round(1 + o["tp_pct"] / 100, 4) if o.get("tp_pct") else None}
+    tp = f"جنيٌ عند {ask * k['take_x']:.2f} (+{o['tp_pct']:g}٪)" if k["take_x"] else "بلا أمر جني"
+    sl = f"وقفٌ عند {k['stop']:.2f} (−{o['sl_pct']:g}٪)" if k["stop"] else "بلا وقف"
+    p = buy(st, k, o["qty"], [f"أمرُ المالك: شراءٌ بسعر {ask:.2f} — {tp} · {sl} · وخروجٌ قبل الانتهاء بـ{EXIT_DTE} يوماً."], src="manual", px=ask)
+    p.update(auto=True, managed=True, owner=True, tp_pct=o.get("tp_pct"), sl_pct=o.get("sl_pct"))
+    log(st, "buy", f"نُفّذ أمرُ المالك: {o['qty']} × {_title(p)} بسعر {ask:.2f} (الكلفة {p['cost']:,.2f}$) — {tp} · {sl}.", p["symbol"])
+    return p
+
+
+def _check_order(qty, limit, tp_pct, sl_pct) -> tuple[int, float | None, float | None, float | None]:
+    qty = int(qty or 0)
+    if qty < 1:
+        raise ValueError("الكمّيةُ عقدٌ واحدٌ فأكثر.")
+    limit = round(float(limit), 2) if limit not in (None, "", 0) else None
+    tp_pct = float(tp_pct) if tp_pct not in (None, "", 0) else None
+    sl_pct = float(sl_pct) if sl_pct not in (None, "", 0) else None
+    if limit is not None and limit <= 0:
+        raise ValueError("سعرُ الشراء غيرُ صالح.")
+    if tp_pct is not None and not (5 <= tp_pct <= 500):
+        raise ValueError("جنيُ الربح بين 5٪ و500٪.")
+    if sl_pct is not None and not (5 <= sl_pct <= 95):
+        raise ValueError("وقفُ الخسارة بين 5٪ و95٪.")
+    return qty, limit, tp_pct, sl_pct
+
+
+async def place_order(contract: str, qty, limit=None, tp_pct=None, sl_pct=None, market: str = "us") -> dict:
+    """أمرُ شراءٍ من المالك: العرضُ الحيُّ عند سعره أو دونه والسوقُ مفتوح ⇐ يُنفَّذ الآن بالعرض؛ وإلا أمرٌ معلّقٌ يُنفَّذ في الجلسة متى بلغ
+    العرضُ سعرَه (وبلا سعرٍ فعند أوّل عرضٍ حيّ) — حتى يلغيه المالك. ومعه أمرا البيع: جنيُ الربح ووقفُ الخسارة بالنسبة من سعر الشراء."""
+    from app.services.live_quote import sessions
+    if _mk(market) != "us":
+        raise ValueError("الأوامرُ لعقود السوق الأمريكيّ.")
+    sym = str(contract or "").strip().upper()
+    qty, limit, tp_pct, sl_pct = _check_order(qty, limit, tp_pct, sl_pct)
+    q = await contract_quote(sym)
+    if not q:
+        raise ValueError("العقدُ غيرُ موجودٍ في السلسلة الآن.")
+    open_now = ((await sessions()).get("us") or {}).get("state") == "open"
+    async with _LOCK:
+        st = load("us")
+        o = {"id": _pid(sym), "contract": sym, "symbol": q["o"]["root"], "name": q.get("name"), "type": q["o"]["type"], "strike": q["o"]["strike"],
+             "expiry": q["o"]["expiry"], "t": q["t"], "qty": qty, "limit": limit, "tp_pct": tp_pct, "sl_pct": sl_pct, "created": _iso()}
+        ask = q["ask"] if q["live"] else None
+        if open_now and ask and (limit is None or ask <= limit):
+            if ask * 100 * qty + FEE * qty > st["cash"] + 1e-9:
+                raise ValueError(f"الكلفةُ {ask * 100 * qty + FEE * qty:,.2f}$ والنقدُ الحرّ {st['cash']:,.2f}$ — اضبط قيمةَ المحفظة أو قلّل العقود.")
+            _fill(st, o, ask, q)
         else:
-            sig.append({"sym": s, "verdict": "refused", "why": note})
-    q = await yahoo_quotes(list(sides)) if sides else {}
-    deep = []
-    for s, side in sides.items():
-        row = q.get(s) or {}
-        chg = row.get("regularMarketChangePercent")
-        et = row.get("earningsTimestamp")
-        if isinstance(chg, (int, float)) and ((side == "call" and chg < -pf["fight"]) or (side == "put" and chg > pf["fight"])):
-            sig.append({"sym": s, "side": side, "verdict": "refused", "why": f"حركةُ اليوم {chg:+.1f}٪ تعاكس الصفقة — ينتظر."})
+            ref = limit or q["ask"] or 0
+            if ref and ref * 100 * qty + FEE * qty > st["cash"] + 1e-9:
+                raise ValueError(f"الكلفةُ نحو {ref * 100 * qty + FEE * qty:,.2f}$ والنقدُ الحرّ {st['cash']:,.2f}$ — اضبط قيمةَ المحفظة أو قلّل العقود.")
+            st.setdefault("orders", []).append(o)
+            log(st, "manual", f"أمرُ شراءٍ معلّق: {qty} × {_title(o)} " + (f"عند {limit:.2f} أو أقلّ" if limit else "عند أوّل عرضٍ في الجلسة")
+                + (f" — جني +{tp_pct:g}٪" if tp_pct else "") + (f" · وقف −{sl_pct:g}٪" if sl_pct else "") + ".", o["symbol"])
+        _point(st)
+        save(st)
+        return o
+
+
+async def cancel_order(oid: str, market: str = "us") -> None:
+    async with _LOCK:
+        st = load(_mk(market))
+        o = next((x for x in st.get("orders") or [] if x["id"] == oid), None)
+        if not o:
+            raise ValueError("لا أمرَ بهذا المعرّف.")
+        st["orders"] = [x for x in st["orders"] if x["id"] != oid]
+        log(st, "manual", f"ألغى المالك أمرَ الشراء {_title(o)}.", o["symbol"])
+        save(st)
+
+
+async def set_orders(pid: str, tp_pct=None, sl_pct=None, market: str = "us") -> dict:
+    """أمرا البيع لمركزٍ قائم (لصقر أو للمالك): جنيُ الربح ووقفُ الخسارة بالنسبة من سعر الشراء — وفارغٌ = بلا أمر. ومن يومها يُدار بأمري المالك."""
+    _, _, tp_pct, sl_pct = _check_order(1, None, tp_pct, sl_pct)
+    async with _LOCK:
+        st = load(_mk(market))
+        p = next((x for x in st["positions"] if x["id"] == pid), None)
+        if not p:
+            raise ValueError("لا مركزَ بهذا المعرّف.")
+        e = p["entry_px"]
+        p.update(owner=True, auto=True, managed=True, tp_pct=tp_pct, sl_pct=sl_pct, take_x=round(1 + tp_pct / 100, 4) if tp_pct else None,
+                 stop=round(e * (1 - sl_pct / 100), 4) if sl_pct else 0.0)
+        p["stop0"] = p["stop"]
+        log(st, "manual", f"المالك ضبط أمرَي {_title(p)}: " + (f"جنيٌ عند {e * p['take_x']:.2f} (+{tp_pct:g}٪)" if tp_pct else "بلا جني")
+            + " · " + (f"وقفٌ عند {p['stop']:.2f} (−{sl_pct:g}٪)" if sl_pct else "بلا وقف") + ".", p["symbol"])
+        save(st)
+        return p
+
+
+async def _fill_orders(st: dict) -> int:
+    """في الجلسة: كلُّ أمرٍ معلّقٍ بلغ العرضُ الحيُّ سعرَه يُنفَّذ بالعرض — والنقدُ الذي لا يكفي يُبقيه منتظراً بسببه."""
+    n = 0
+    for o in list(st.get("orders") or []):
+        q = await contract_quote(o["contract"])
+        if not q or not q["live"] or not q["ask"]:
             continue
-        if isinstance(et, (int, float)) and 0 <= et - now.timestamp() <= EARN_DAYS * 86400:
-            sig.append({"sym": s, "side": side, "verdict": "refused",
-                        "why": f"أرباحُ الشركة {datetime.fromtimestamp(et, timezone.utc).date().isoformat()} — ينهار التذبذبُ بعدها."})
+        ask = q["ask"]
+        if o.get("limit") is not None and ask > o["limit"]:
+            o["note"] = f"العرضُ الآن {ask:.2f} فوق سعرك {o['limit']:.2f}"
             continue
-        deep.append((s, side, chg if isinstance(chg, (int, float)) else None))
-    _JOB["msg"] = "فحصُ العقود ويونانياتها"
-    stock_alt: list[tuple[str, float | None, str]] = []
-    deep.sort(key=lambda d: (0 if affordable(tr_all[d[0]]["close"], budget) else 1, -tr_all[d[0]]["strength"]))
-    for s, side, chg in deep[:DEEP]:
-        if c["instruments"] == "stocks":
-            stock_alt.append((s, chg, "إعداداتُك: أسهمٌ فقط"))
+        if ask * 100 * o["qty"] + FEE * o["qty"] > st["cash"] + 1e-9:
+            o["note"] = f"النقدُ الحرّ {st['cash']:,.2f}$ لا يكفي — ينتظر"
             continue
-        try:
-            ctx = await AD._context(s)
-            k, why = await best_for(s, side == "call", budget, tr_all[s], ctx, pf)
-        except Exception as e:                                    # noqa: BLE001
-            k, why = None, f"تعذّر الفحص ({type(e).__name__})"
-        if k:
-            k["chg"] = chg
-            picks.append(k)
-            sig.append({"sym": s, "side": side, "verdict": "accepted", "contract": k["contract"], "score": k["score"],
-                        "why": f"دلتا {k['delta']:+.2f} · احتمالُ ربح {k['pop']:.0f}٪ · عائدٌ عند الهدف {k['rr']:.1f}× · كلفة {k['cost']:,.0f}$"})
-        else:
-            sig.append({"sym": s, "side": side, "verdict": "refused", "why": why})
-            if side == "call" and "سلسلة" not in why and "تعذّر" not in why and c["instruments"] != "options":
-                stock_alt.append((s, chg, why))
-        if len(picks) >= 3:
-            break
-    st["health"]["quotes"] = _iso() if (q or picks) else st["health"].get("quotes")
-    chosen = max(picks, key=lambda k: k["score"]) if picks else None
-    pos = None
-    if chosen:
-        qty = size(budget, chosen["ask"])
-        chosen["stop"] = round(chosen["ask"] * (1 - c["opt_stop"] / 100), 4)
-        chosen["take_x"] = c["take_x"]
-        chosen["trail"], chosen["exit_dte"] = list(pf["trail"]), pf["exit_dte"]
-        if qty >= 1:
-            why = thesis(chosen["symbol"], chosen["type"] == "call", tr_all[chosen["symbol"]], news.get(chosen["symbol"]), chosen, chosen.get("chg"))
-            if chosen["symbol"] in fund:
-                why.insert(0, f"الأساس: {fund[chosen['symbol']][1]}.")
-            pos = buy(st, chosen, qty, why)
-            st["day"]["new"] = (st["day"].get("new") or 0) + 1
-            for x in sig:
-                if x.get("contract") == chosen["contract"]:
-                    x["verdict"] = "chosen"
-            log(st, "buy", f"شراء {qty} × {_title(pos)} بسعر {pos['entry_px']:.2f} (الكلفة مع العمولة {pos['cost']:,.2f}$) — "
-                           f"الوقف {pos['stop']:.2f} والهدف {pos['target']:,.2f}.", pos["symbol"])
-    elif stock_alt:
-        # ‏D764: «السوقُ الأمريكيّ له كاملُ الصلاحية — عقودٌ وأسهم»: مسارٌ صاعدٌ وعقودُه غيرُ مناسبة الآن (تذبذبٌ غالٍ أو فارقٌ واسع أو
-        # ميزانيةٌ لا تتّسع) ⇐ السهمُ نفسُه، بالعرض الحيّ وجزءٍ من السهم إن لزم (يدعمه IBKR)، ووقفٍ −7٪ وهدفٍ فنيّ
-        s0, chg0, why0 = stock_alt[0]
-        k = stock_pick(s0, q.get(s0) or {}, tr_all[s0], budget)
-        if k:
-            k["stop"] = round(k["ask"] * (1 - c["stock_stop"] / 100), 4)
-            why = stock_thesis(tr_all[s0], news.get(s0), chg0, why0, k)
-            if s0 in fund:
-                why.insert(0, f"الأساس: {fund[s0][1]}.")
-            pos = buy(st, k, k["qty"], why, kind="stock")
-            st["day"]["new"] = (st["day"].get("new") or 0) + 1
-            sig.append({"sym": s0, "side": "call", "verdict": "chosen", "contract": s0,
-                        "why": f"السهمُ نفسُه بدل العقد ({why0}) — {pos['qty']:g} سهم × {pos['entry_px']:.2f}"})
-            log(st, "buy", f"شراء {pos['qty']:g} سهم من {s0} بسعر {pos['entry_px']:.2f} (الكلفة مع العمولة {pos['cost']:,.2f}$) — "
-                           f"الوقف {pos['stop']:.2f} والهدف {pos['target']:,.2f}.", s0)
-    st["signals"] = [{"at": _iso(), **x} for x in sig][:60]
-    st["scan_meta"] = {"at": _iso(), "universe": len(tr_all), "movers": n_movers, "pool": len(pool), "deep": min(len(deep), DEEP), "full": umeta,
-                       "budget": round(budget, 2), "tier": {"frac": frac, "seats": seats}, "mode": c["mode"]}
-    return pos
+        _fill(st, o, ask, q)
+        st["orders"] = [x for x in st["orders"] if x["id"] != o["id"]]
+        n += 1
+    return n
 
 
 async def cycle(force: bool = False) -> dict:
@@ -845,6 +905,8 @@ async def cycle(force: bool = False) -> dict:
             _JOB["msg"] = "مراجعةُ المراكز"
             exits = await _review(st, now, None)
             day_lock(st)
+            _JOB["msg"] = "أوامرُ المالك"
+            filled = await _fill_orders(st)
             try:
                 events = shape(await raw_week(), impacts=("High",))
                 st["health"]["events"] = True
@@ -854,14 +916,14 @@ async def cycle(force: bool = False) -> dict:
             st["gates"] = g
             pos = None
             due = force or not st.get("last_scan") or (now - datetime.fromisoformat(st["last_scan"])).total_seconds() >= profile(st)["scan"] - 30
-            if not g and due:
+            if not g and due and cfg(st).get("auto"):
                 st["last_scan"] = _iso()
                 pos = await _hunt(st, now)
             st["last_cycle"] = _iso()
             st["cycles"] = (st.get("cycles") or 0) + 1
             _point(st)
             save(st)
-            return {"ran": True, "exits": len(exits), "bought": pos["contract"] if pos else None, "gates": g, "equity": equity(st)}
+            return {"ran": True, "exits": len(exits), "filled": filled, "bought": pos["contract"] if pos else None, "gates": g, "equity": equity(st)}
         except Exception as e:                                    # noqa: BLE001
             logger.warning("صقر: {}", type(e).__name__)
             return {"ran": False, "why": f"تعذّرت الدورة ({type(e).__name__})"}
@@ -1008,9 +1070,10 @@ def _sa_rules() -> dict:
 
 def _us_rules(st: dict) -> dict:
     pf = profile(st)
-    return {"fee": FEE, "stop": STOP, "take": TAKE, "dte": [pf["min_dte"], pf["max_dte"]], "max_spread": pf["rules"]["max_spread"] * 100,
+    # ‏D771: العقودُ من قائمة صقر — محرّكُ «عقود الخيارات» الطويل (150–430 يوماً · فارقٌ ≤ 10٪ · دلتا 0.30–0.85)
+    return {"fee": FEE, "stop": STOP, "take": TAKE, "dte": [OP.MIN_DTE, OP.MAX_DTE], "max_spread": OP.MAX_SPREAD * 100, "list": True,
             "stock": {"stop": STOCK_STOP, "trail": list(STOCK_TRAIL), "time_days": STOCK_TIME_DAYS}, "mode": cfg(st)["mode"],
-            "delta": [pf["rules"]["min_delta"], pf["rules"]["max_delta"]], "burn": pf["burn"] * 100, "exit_dte": pf["exit_dte"], "day_loss": pf["day_loss"] * 100,
+            "delta": [OP.MIN_DELTA, OP.MAX_DELTA], "burn": pf["burn"] * 100, "exit_dte": pf["exit_dte"], "day_loss": pf["day_loss"] * 100,
             "max_new_day": pf["max_new"], "scan_min": pf["scan"] // 60, "fight": pf["fight"], "open_wait": pf["open_wait"], "close_wait": pf["close_wait"],
             "fed_h": pf["fed_h"], "trail": list(pf["trail"]), "warn_ok": pf["warn_ok"], "cool": pf["cool"],
             "tiers": [[(None if math.isinf(a) else a), b, c] for a, b, c in TIERS]}
@@ -1054,7 +1117,7 @@ def view(market: str = "us") -> dict:
                      "ret": round((val_open / cost_open - 1) * 100, 1) if cost_open else None},
         "equity_curve": pts[-600:], "signals": st.get("signals") or [], "log": (st.get("log") or [])[:120], "gates": st.get("gates") or [],
         "scan": st.get("scan_meta"), "session": st.get("session"), "last_cycle": st.get("last_cycle"), "last_check": st.get("last_check"),
-        "health": st.get("health") or {}, "settings": cfg(st), "pulse": st.get("pulse"), "day": day_status(st), "broker": st.get("broker") or {"linked": False, "name": "IBKR"},
+        "health": st.get("health") or {}, "settings": cfg(st), "pulse": st.get("pulse"), "day": day_status(st), "orders": st.get("orders") or [], "broker": st.get("broker") or {"linked": False, "name": "IBKR"},
         "runs": st.get("runs") or [], "running": dict(_JOB if market == "us" else _sa_job()),
         "regime": st.get("regime"), "geo": st.get("geo"),
         "rules": _sa_rules() if market == "sa" else _us_rules(st),

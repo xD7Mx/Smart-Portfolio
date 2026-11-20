@@ -431,6 +431,15 @@ async def job_saqr_sa_cycle():
         logger.error(f"صقر السعوديّ: {e}")
 
 
+async def job_saqr_list():
+    """قائمةُ صقر (‏D771 — المالك: «أشتغل اليوم حتى أدخل اليومَ التالي»): تُبنى بعد إغلاق السوق الأمريكيّ للجلسة القادمة، وتُحدَّث في الجلسة."""
+    try:
+        from app.api.v1.endpoints.market import _saqr_list_bg
+        await _saqr_list_bg()
+    except Exception as e:
+        logger.error(f"قائمةُ صقر: {e}")
+
+
 async def job_saqr_sa_close():
     """صقر السعوديّ (‏D767): قراءةُ الإغلاق — نبضُ السوق ومؤشّرُه بعد مزاد الإغلاق، فاللوحةُ تحمل الجلسةَ الأخيرة حتى الافتتاح."""
     try:
@@ -902,6 +911,11 @@ def start_scheduler():
     _scheduler.add_job(job_saqr_cycle, CronTrigger(day_of_week=US_TRADING_DAYS, hour="16-23", minute="*/5"), id="saqr_cycle", replace_existing=True, max_instances=1, coalesce=True)
     # ‏D764: صقر السعوديّ — كلَّ خمس دقائق في جلسة تداول (10:00–15:00) من الأحد إلى الخميس
     _scheduler.add_job(job_saqr_sa_cycle, CronTrigger(day_of_week=TRADING_DAYS, hour="10-14", minute="*/5"), id="saqr_sa_cycle", replace_existing=True, max_instances=1, coalesce=True)
+    # ‏D771: قائمةُ صقر — بعد الإغلاق للجلسة القادمة (23:35 بتوقيت الرياض)، وتحديثٌ في الجلسة
+    _scheduler.add_job(job_saqr_list, CronTrigger(day_of_week=US_TRADING_DAYS, hour=23, minute=35), id="saqr_list_close", replace_existing=True,
+                       misfire_grace_time=1800, coalesce=True)
+    _scheduler.add_job(job_saqr_list, CronTrigger(day_of_week=US_TRADING_DAYS, hour="18,20", minute=10), id="saqr_list_session", replace_existing=True,
+                       misfire_grace_time=900, coalesce=True)
     # ‏D767: وقراءةُ الإغلاق بعد المزاد (ومهلتُها ربعُ ساعة لا ثانيةٌ: تُشاركها قراءةُ تاسي الدقيقةَ نفسَها) — والإقلاعُ يقرؤها بعد خمس دقائق
     _scheduler.add_job(job_saqr_sa_close, CronTrigger(day_of_week=TRADING_DAYS, hour=15, minute=25), id="saqr_sa_close", replace_existing=True,
                        misfire_grace_time=900, coalesce=True)

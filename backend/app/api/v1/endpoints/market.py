@@ -2328,6 +2328,71 @@ async def saqr_settings(payload: dict):
         await SQ.settings(p, m)
     except (ValueError, TypeError) as e:
         raise HTTPException(status_code=422, detail=str(e) or "مدخلاتٌ غيرُ صالحة.")
+    if m == "us" and ("per_trade" in p or "sides" in p):        # ‏D771: ميزانيةُ العقد أو الاتجاهُ تغيّرا ⇐ تُعاد القائمةُ بهما
+        from app.services import saqr_list as SL
+        if not SL.job()["on"]:
+            asyncio.create_task(_saqr_list_bg())
+    return success_response(SQ.view(m))
+
+
+async def _saqr_list_bg():
+    from app.services import saqr_list as SL
+    from app.services import saqr_trader as SQ
+    st = SQ.load("us")
+    try:
+        await SL.build(SQ.cfg(st), {p["symbol"] for p in st["positions"]})
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("قائمةُ صقر: {}", type(e).__name__)
+
+
+@router.get("/saqr/list")
+async def saqr_list():
+    """قائمةُ صقر (‏D771): عقودٌ طويلةُ الأجل للجلسة القادمة — كلٌّ بإيجابياته وسلبياته وعتبة الثلاثين — وحالُ بنائها."""
+    from app.services import saqr_list as SL
+    return success_response({"list": SL.load(), "job": SL.job()})
+
+
+@router.post("/saqr/list/run", dependencies=[Depends(require_owner)])
+async def saqr_list_run():
+    """تُبنى القائمةُ الآن بأمر المالك (في الخلفية — دقائق)، واللوحةُ تتابع."""
+    from app.services import saqr_list as SL
+    if not SL.job()["on"]:
+        asyncio.create_task(_saqr_list_bg())
+    return success_response({"list": SL.load(), "job": {**SL.job(), "on": True}})
+
+
+@router.post("/saqr/order", dependencies=[Depends(require_owner)])
+async def saqr_order(payload: dict):
+    """أمرُ المالك (‏D771): شراءُ عقدٍ بسعره (أو بالعرض الحيّ) ومعه جنيُ الربح ووقفُ الخسارة — يُنفَّذ الآن أو يُعلَّق حتى يبلغ العرضُ سعرَه."""
+    from app.services import saqr_trader as SQ
+    p = payload or {}
+    try:
+        await SQ.place_order(str(p.get("contract") or ""), p.get("qty") or 1, p.get("limit"), p.get("tp_pct"), p.get("sl_pct"), _mkt(p.get("market")))
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=422, detail=str(e) or "مدخلاتٌ غيرُ صالحة.")
+    return success_response(SQ.view("us"))
+
+
+@router.post("/saqr/order/{oid}/cancel", dependencies=[Depends(require_owner)])
+async def saqr_order_cancel(oid: str, payload: dict | None = None):
+    from app.services import saqr_trader as SQ
+    try:
+        await SQ.cancel_order(oid, _mkt((payload or {}).get("market")))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return success_response(SQ.view("us"))
+
+
+@router.post("/saqr/orders/{pid}", dependencies=[Depends(require_owner)])
+async def saqr_set_orders(pid: str, payload: dict | None = None):
+    """أمرا البيع لمركزٍ قائم: جنيُ الربح ووقفُ الخسارة بالنسبة من سعر الشراء (وفارغٌ = بلا أمر)."""
+    from app.services import saqr_trader as SQ
+    p = payload or {}
+    m = _mkt(p.get("market"))
+    try:
+        await SQ.set_orders(pid, p.get("tp_pct"), p.get("sl_pct"), m)
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=422, detail=str(e) or "مدخلاتٌ غيرُ صالحة.")
     return success_response(SQ.view(m))
 
 
