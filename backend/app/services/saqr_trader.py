@@ -732,8 +732,8 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
     c = cfg(st)
     if len(st["positions"]) >= seats:
         return None
-    lst = SL.load() or {}
     held = {p["symbol"] for p in st["positions"]} | {o["symbol"] for o in st.get("orders") or []}
+    lst = SL.view(SL.load(), budget, c["sides"] == "calls", held) or {}     # ‏D775: أفضلُ عقدٍ لكلّ سهمٍ ضمن ميزانية العقد الآن
     for it in lst.get("items") or []:
         if it["symbol"] in held or cooling(st, it["symbol"], now) or (it["type"] == "put" and c["sides"] == "calls"):
             continue

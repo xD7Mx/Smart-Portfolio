@@ -15,6 +15,43 @@ import OrderForm from "./OrderForm";
 const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="ltr" className={"tabular-nums " + (className || "")}>{v}</bdi>;
 type Side = "all" | "call" | "put";
 
+/* ‏D775 — المالك: «الأفضلُ أن تكون الميزانيةُ كستمايز: 300، 150، 100 — كلَّ يومٍ يجي خيرٌ معه». فالميزانيةُ تُختار هنا وتُعرض بها القائمةُ فوراً
+   (صقر يحفظ لكلّ سهمٍ أفضلَ عقدٍ عند كلّ كلفة)، وبجانب كلّ ميزانيةٍ جاهزةٍ عددُ عقودها. */
+function BudgetBar({ L, owner }: { L: SList; owner: boolean }) {
+  const qc = useQueryClient();
+  const [v, setV] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const cur = Math.round(L.budget);
+  const m = useMutation({
+    mutationFn: (b: number) => marketApi.saqrSettings({ per_trade: b }, "us"),
+    onSuccess: r => { qc.setQueryData(["saqr", "us"], r.data.data); qc.invalidateQueries({ queryKey: ["saqr-list"] }); setV(""); setErr(null); },
+    onError: (e: any) => setErr(e?.response?.data?.detail || "تعذّر الحفظ"),
+  });
+  const levels = Object.entries(L.levels || {}).map(([b, n]) => [Number(b), n] as [number, number]).sort((a, b) => a[0] - b[0]);
+  const custom = Math.round(Number(v));
+  return (
+    <div className="sl-bud" data-role="sl-budget">
+      <small>ميزانيةُ العقد</small>
+      <span className="seg inline-flex sl-bud-seg" role="group" aria-label="ميزانيةُ العقد">
+        {levels.map(([b, n]) => (
+          <button key={b} type="button" className={"seg-btn chip" + (b === cur ? " on" : "")} aria-pressed={b === cur} disabled={!owner || m.isPending}
+            onClick={() => b !== cur && m.mutate(b)} data-v={b} data-role="sl-bud-lv">
+            <Num v={usd(b, 0)} /> <em className="sl-bud-n"><Num v={`${n}`} /></em></button>
+        ))}
+      </span>
+      {owner && (
+        <span className="sl-bud-c">
+          <input className="sp-in" type="number" min={20} step={10} dir="ltr" inputMode="numeric" placeholder="مبلغٌ آخر" value={v} aria-label="ميزانيةٌ أخرى للعقد"
+            onChange={e => { setV(e.target.value); setErr(null); }} onKeyDown={e => { if (e.key === "Enter" && custom >= 20) m.mutate(custom); }} data-role="sl-bud-in" />
+          <button type="button" className="btn-ghost sq-btn" disabled={!(custom >= 20) || custom === cur || m.isPending} onClick={() => m.mutate(custom)}
+            data-role="sl-bud-set">طبّق</button>
+        </span>
+      )}
+      {err && <span className="sl-warn" role="alert"><AlertTriangle size={13} /> {err}</span>}
+    </div>
+  );
+}
+
 function Item({ it, owner, i, onChart }: { it: SListItem; owner: boolean; i: number; onChart: (s: string) => void }) {
   const [open, setOpen] = useState(false);
   const call = it.type === "call";
@@ -64,7 +101,6 @@ export default function SaqrList({ s, owner }: { s: SaqrState; owner: boolean })
   const busy = !!job?.on || run.isPending;
   const items = (L?.items || []).filter(it => side === "all" || it.type === side);
   const nCall = (L?.items || []).filter(it => it.type === "call").length, nPut = (L?.items || []).length - nCall;
-  const per = s.settings?.per_trade;
   const onChart = (sym: string) => { try { localStorage.setItem("sp_room_symbol", sym); } catch { /* */ } nav("/watchlist"); };
   return (
     <div className="sl" data-role="sl">
@@ -75,12 +111,12 @@ export default function SaqrList({ s, owner }: { s: SaqrState; owner: boolean })
             ? <>أُعدّت <Num v={stamp(L.at)} /> · ميزانيةُ العقد <Num v={usd(L.budget, 0)} /> · <Num v={`${L.items.length}`} /> عقداً طويلَ الأجل من <Num v={`${L.scanned}`} /> ورقةً
               فحصها (من <Num v={`${L.universe}`} /> اجتازت الأساس){L.more && L.items.length < 50 ? <span data-role="sl-more"> · يُكمل الفحصَ كلَّ نصف ساعة</span> : null}</>
             : busy ? <>صقرٌ يُعدّ القائمة — {job?.msg || "يبدأ"}…</> : "لم تُعدّ القائمةُ بعد."}</p>
-          {L && per && L.budget !== per && <p className="sl-warn" data-role="sl-stale"><AlertTriangle size={13} /> القائمةُ بميزانية <Num v={usd(L.budget, 0)} /> وميزانيتُك الآن <Num v={usd(per, 0)} /> — حدّثها.</p>}
           {L?.snap && <p className="sq-muted">أسعارُ العقود من آخر جلسة — تُراجَع عند الافتتاح قبل التنفيذ.</p>}
         </div>
         {owner && <button type="button" className="btn-ghost sq-btn" onClick={() => run.mutate()} disabled={busy} data-role="sl-run">
           <RefreshCw size={14} className={busy ? "rl-spin" : ""} /> {busy ? (job?.msg || "يُعدّ") : "حدّث القائمة"}</button>}
       </div>
+      {L && <BudgetBar L={L} owner={owner} />}
       {L && L.items.length > 0 && (
         <span className="seg inline-flex sl-filter" role="group" data-role="sl-filter">
           {([["all", "الكلّ", L.items.length], ["call", "شراء Call", nCall], ["put", "بيع Put", nPut]] as [Side, string, number][]).map(([k, t, n]) => (

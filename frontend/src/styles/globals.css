@@ -4005,6 +4005,15 @@ html.light {
 .sl-why li.pro::before { background: var(--pos-ink); }
 .sl-why li.con::before { background: var(--warn-ink); }
 .sl-filter { align-self: flex-start; }
+/* ‏D775: ميزانيةُ العقد بيد المالك — جاهزةٌ بعدد عقودها، ومبلغٌ آخر */
+.sl-bud { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.sl-bud > small { font-size: 12px; font-weight: 800; color: var(--ink-muted); }
+.sl-bud-seg { flex-wrap: wrap; }
+.sl-bud-seg .seg-btn { min-height: 32px; }
+.sl-bud-n { font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--ink-muted); padding-inline-start: 4px; transition: color .2s ease; }
+.sl-bud-seg .seg-btn.on .sl-bud-n { color: inherit; opacity: .8; }
+.sl-bud-c { display: inline-flex; align-items: center; gap: 6px; }
+.sl-bud-c .sp-in { width: 110px; min-height: 32px; }
 .sl-ex { display: flex; align-items: center; gap: 5px; font-size: 11.5px; }
 .of { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid var(--hairline); }
 .of-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }

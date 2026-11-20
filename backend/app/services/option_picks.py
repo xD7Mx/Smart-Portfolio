@@ -430,17 +430,16 @@ def pick_expiries(exps: list[dict]) -> list[dict]:
     return out
 
 
-async def contracts_for(sym: str, call: bool, budget: float, tr: dict, diag: dict | None = None) -> tuple[dict | None, float | None]:
-    """المرحلةُ الثالثة لرمزٍ واحد: آجالُه الطويلة، وأفضلُ عقدٍ ضمن الميزانية فيها — ومعه كلفةُ أرخصِ عقدٍ صالحٍ فيها كلِّها
-    ليُقال للمالك بكم يُفتح هذا السهمُ إن لم يكن ضمن ميزانيته. و‏`diag` (‏D774) يُكتب فيه سببُ الامتناع: ‏why لغياب السلسلة أو الآجال،
-    و‏stage أبعدُ مرحلةٍ من ‏STAGES بلغها عقد."""
+async def valid_contracts(sym: str, call: bool, tr: dict, diag: dict | None = None) -> tuple[dict | None, list[dict]]:
+    """كلُّ عقدٍ طويلٍ صالحٍ للرمز في آجاله الممثِّلة — بلا قيد ميزانية (‏D775: الميزانيةُ يختارها المالكُ كلَّ يوم فتُصفّى عند العرض).
+    و‏`diag` (‏D774) يُكتب فيه سببُ الامتناع: ‏why لغياب السلسلة أو الآجال، و‏stage أبعدُ مرحلةٍ من ‏STAGES بلغها عقد."""
     from app.services.options_chain import chain
     diag = diag if diag is not None else {}
     base = await chain(sym)
     if not base or not base.get("price"):
         diag["why"] = "لا سلسلةَ عقودٍ من المصدر"
-        return None, None
-    best, cheapest = None, None
+        return None, []
+    out = []
     exps = pick_expiries(base.get("expirations") or [])
     if not exps:
         diag["why"] = f"لا آجالَ بين {MIN_DTE} و{MAX_DTE} يوماً"
@@ -459,9 +458,17 @@ async def contracts_for(sym: str, call: bool, budget: float, tr: dict, diag: dic
                 if why in STAGES:
                     diag["stage"] = max(diag.get("stage", -1), STAGES.index(why))
                 continue
-            cheapest = k["cost"] if cheapest is None else min(cheapest, k["cost"])
-            if k["cost"] <= budget and (best is None or k["score"] > best["score"]):
-                best = {**k, "expiry": e["date"], "t": e["t"]}
+            out.append({**k, "expiry": e["date"], "t": e["t"], "symbol": sym, "name": base.get("name"), "price": base.get("price")})
+    return base, out
+
+
+async def contracts_for(sym: str, call: bool, budget: float, tr: dict, diag: dict | None = None) -> tuple[dict | None, float | None]:
+    """المرحلةُ الثالثة لرمزٍ واحد: آجالُه الطويلة، وأفضلُ عقدٍ ضمن الميزانية فيها — ومعه كلفةُ أرخصِ عقدٍ صالحٍ فيها كلِّها
+    ليُقال للمالك بكم يُفتح هذا السهمُ إن لم يكن ضمن ميزانيته."""
+    base, cards = await valid_contracts(sym, call, tr, diag)
+    ok = [k for k in cards if k["cost"] <= budget]
+    best = max(ok, key=lambda k: k["score"]) if ok else None
+    cheapest = min((k["cost"] for k in cards), default=None)
     if best:
         best.update(symbol=sym, name=base.get("name"), price=base.get("price"))
     return best, cheapest

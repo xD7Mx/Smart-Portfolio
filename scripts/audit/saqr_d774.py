@@ -86,12 +86,12 @@ async def fake_universe():
     return {"tr": SYMS, "fund": {s: (85, "متين") for s in SYMS}, "names": {}, "meta": {}}
 
 
-async def fake_contracts(sym, call, budget, t, diag=None):
+async def fake_contracts(sym, call, t, diag=None):           # ‏D775: كلُّ العقود الصالحة، والميزانيةُ عند العرض
     seen.append(sym)
     if sym in WHY:
         diag["stage"] = OP.STAGES.index(WHY[sym])
-        return None, None
-    return CARD(sym), None
+        return None, []
+    return {}, [CARD(sym)]
 
 
 async def no_news(items):
@@ -100,12 +100,12 @@ async def no_news(items):
 
 async def open_sess():
     return {"us": {"state": "open"}}
-SU.universe, OP.contracts_for, OP.read_news, LQ.sessions = fake_universe, fake_contracts, no_news, open_sess
+SU.universe, OP.valid_contracts, OP.read_news, LQ.sessions = fake_universe, fake_contracts, no_news, open_sess
 SL.CANDIDATES = 3
-r1 = asyncio.run(SL.build({"per_trade": 150, "sides": "both"}, set()))
+r1 = SL.view(asyncio.run(SL.build({"per_trade": 150, "sides": "both"}, set())), 150)
 b1 = list(seen)
 seen.clear()
-r2 = asyncio.run(SL.build({"per_trade": 150, "sides": "both"}, set()))
+r2 = SL.view(asyncio.run(SL.build({"per_trade": 150, "sides": "both"}, set())), 150)
 b2 = list(seen)
 syms2 = sorted(i["symbol"] for i in r2["items"])
 check(b1 == ["S0", "S1", "S2"] and b2 == ["S3", "S4", "S5"] and len(r1["items"]) == 2 and syms2 == ["S0", "S2", "S3", "S5"]
@@ -113,11 +113,11 @@ check(b1 == ["S0", "S1", "S2"] and b2 == ["S3", "S4", "S5"] and len(r1["items"])
       "٣ القائمةُ تنمو دفعةً بعد دفعة: الثانيةُ تفحص ما لم يُفحص وتُضمّ إلى الأولى، ولكلّ سهمٍ ممتنعٍ سببُه بعينه، و«يُكمل» حتى يُفحص المجالُ كلُّه",
       f"{b1} → {b2} · {syms2} · {r2['excluded']}")
 
-# ٣ب ميزانيةٌ أخرى تبدأ من جديد (لا تُضمّ عقودُ ميزانيةٍ إلى أخرى)
+# ٣ب ‏(D775) ميزانيةٌ أخرى لا تبدأ من جديد: العقودُ محفوظةٌ لكلّ كلفة، والعرضُ بالميزانية الجديدة فوراً
 seen.clear()
-r3 = asyncio.run(SL.build({"per_trade": 300, "sides": "both"}, set()))
-check(seen == ["S0", "S1", "S2"] and r3["scanned"] == 3 and r3["budget"] == 300,
-      "٣ب تغييرُ الميزانية يبدأ القائمةَ من جديد — لا تختلط عقودُ ميزانيتين", f"{seen}")
+r3 = SL.view(SL.load(), 100)
+check(seen == [] and r3["scanned"] == 6 and r3["budget"] == 100 and not r3["items"] and r3["excluded"].get("فوق الميزانية") == 4 and r3["cheapest"] == 120.0,
+      "٣ب تغييرُ الميزانية لا يُعيد البحث: القائمةُ نفسُها تُعرض بالميزانية الجديدة فوراً (عند 100 كلُّها فوقها وأرخصُها 120)", f"{r3['excluded']}")
 
 # ٤ التوقيت: نصفُ ساعةٍ ما بقي ما يُفحص والقائمةُ دون الخمسين، وساعتان إن اكتملت أو فُحص كلُّ شيء، وصيغةٌ أقدمُ تُبنى فوراً
 NYZ = __import__("zoneinfo").ZoneInfo("America/New_York")
@@ -130,8 +130,9 @@ d_full = SL.due(now, clk, {"v": SL.V, "at": at, "items": [1] * 50, "more": True}
 d_all = SL.due(now, clk, {"v": SL.V, "at": at, "items": [1] * 4, "more": False})
 d_legacy = SL.due(now, clk, {"at": at, "items": []})
 d_soon = SL.due(op + timedelta(hours=1, minutes=10), clk, {"v": SL.V, "at": at, "items": [], "more": True})
-check(d_more == (True, False) and d_full == (False, False) and d_all == (False, False) and d_legacy == (True, False) and d_soon == (False, False),
-      "٤ دفعةٌ كلَّ نصف ساعةٍ ما بقي ما لم يُفحص والقائمةُ دون الخمسين (لا كلَّ دورة) · ساعتان إن اكتملت · وقائمةٌ بصيغةٍ أقدمَ تُبنى فوراً",
+check(d_more == (True, False) and d_full == (True, False) and d_all == (False, False) and d_legacy == (True, False) and d_soon == (False, False),
+      "٤ دفعةٌ كلَّ نصف ساعةٍ ما بقي ما لم يُفحص (لا كلَّ دورة — ولكلّ ميزانيةٍ عقودُها فلا يقف عند الخمسين) · ساعتان إن فُحص المجالُ كلُّه · "
+      "وقائمةٌ بصيغةٍ أقدمَ تُبنى فوراً",
       f"{d_more} {d_full} {d_all} {d_legacy} {d_soon}")
 
 print("\nالنتيجة:", "نظيف ✔" if not fail else "فشل ✘")

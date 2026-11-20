@@ -83,6 +83,7 @@ const LI = (sym, type, o = {}) => ({ contract: `${sym}271217${type === "call" ? 
   pros: ["المسارُ صاعد مكتمل: الإغلاق 12.00 فوق متوسّطي 50 (11.00) و200 (10.00)", "أساسٌ ماليٌّ متين (85/100): متانةٌ ممتازة", "الربحُ عند الهدف الفنيّ 15.00: +210٪ من الكلفة",
          "احتمالُ الربح عند الانتهاء نحو 41٪", "سيولةٌ عالية: 4,200 عقداً مفتوحاً"], cons: ["تذبذبٌ ضمنيٌّ مرتفع 85٪ — العقدُ غالٍ"], ...o });
 const LIST = { at: iso(now - 7200e3), for: "2026-11-23", label: "جلسة الاثنين 23/11", budget: 150, scanned: 70, universe: 720, cheapest: 260, snap: false, calls_only: false,
+  levels: { "100": 2, "150": 3, "200": 5, "300": 9, "500": 12 }, more: true,
   excluded: { "سلبياتُه أكثر من إيجابياته": 4, "فوق الميزانية": 31 },
   items: [LI("F", "call"), LI("VALE", "call", { grade: "جيّدة", margin: 2, tp30: { price: 13.56, pct: 12.1 } }), LI("NIO", "put", { grade: "جيّدة", margin: 2, strike: 6 })] };
 // ‏D769: «اختر عقداً بنفسك» — سلسلةُ AAPL وتحليلُ السترايك المختار
@@ -237,6 +238,19 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   await page.locator('[data-role="sl-filter"] [data-v="put"]').click(); await page.waitForTimeout(400);
   const nPut = await page.locator('[data-role="sl-item"]').count();
   await page.locator('[data-role="sl-filter"] [data-v="all"]').click(); await page.waitForTimeout(300);
+  // ‏D775: ميزانيةُ العقد بيد المالك — جاهزةٌ بعدد عقودها، ومبلغٌ آخر
+  const bud = await page.evaluate(() => ({ lv: [...document.querySelectorAll('[data-role="sl-bud-lv"]')].map(b => [b.dataset.v, b.getAttribute("aria-pressed"), b.textContent.replace(/\s+/g, " ").trim()]),
+    h: Math.min(...[...document.querySelectorAll('[data-role="sl-bud-lv"], [data-role="sl-bud-set"], [data-role="sl-bud-in"]')].map(b => b.getBoundingClientRect().height)),
+    more: /يُكمل الفحصَ/.test(document.querySelector('[data-role="sl-head"]')?.textContent || "") }));
+  const nPosts = posts.length;
+  await page.locator('[data-role="sl-bud-lv"][data-v="300"]').click(); await page.waitForTimeout(400);
+  await page.locator('[data-role="sl-bud-in"]').fill("250"); await page.locator('[data-role="sl-bud-set"]').click(); await page.waitForTimeout(400);
+  const bPosts = posts.slice(nPosts).filter(([p]) => p === "/market/saqr/settings").map(([, pl]) => pl.per_trade);
+  if (SHOTS) await page.locator('[data-role="sl-budget"]').screenshot({ path: `${SHOTS}/sl-budget-${vp.width}-${theme}.png` }).catch(() => {});
+  say(bud.lv.length === 5 && bud.lv.find(x => x[0] === "150")?.[1] === "true" && /\$300 9/.test(bud.lv.find(x => x[0] === "300")?.[2] || "") && bud.h >= 32 && bud.more
+      && JSON.stringify(bPosts) === "[300,250]",
+      `${label}: ٥ب ميزانيةُ العقد بيد المالك (‏D775): ميزانياتٌ جاهزةٌ بعدد عقودها والحاليّةُ مضغوطة، ومبلغٌ آخرُ يُطبَّق — كلٌّ يُرسل حدَّ الصفقة، و«يُكمل الفحص»`,
+      JSON.stringify({ bud, bPosts }).slice(0, 300));
   await page.locator('[data-role="sq-nav"] [data-view="log"]').click(); await page.waitForTimeout(500);
   const logs = await page.evaluate(() => [...document.querySelectorAll('[data-role="sq-log-row"]')].map(x => x.dataset.kind));
   await page.locator('[data-role="sq-nav"] [data-view="rules"]').click(); await page.waitForTimeout(500);
@@ -313,7 +327,8 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   await page.locator('[data-role="sp-budget-edit"]').click(); await page.waitForTimeout(300);
   await page.locator('[data-role="sp-budget"] .seg-btn').first().click(); await page.waitForTimeout(150);
   await page.locator('[data-role="sp-budget-ok"]').click(); await page.waitForTimeout(700);
-  const pBud = posts.filter(x => x[0] === "/market/saqr/settings" && x[1].auto === undefined).map(x => x[1]);
+  const ownerSet = x => x[0] === "/market/saqr/settings" && x[1].auto === undefined && !Object.keys(x[1]).every(k => k === "per_trade" || k === "market");
+  const pBud = posts.filter(ownerSet).map(x => x[1]);   // ‏D775: بلا طلبات ميزانية العقد من رأس القائمة (البندُ ٥ب)
   await page.locator('[data-role="sq-market"] [data-market="us"]').click(); await page.waitForTimeout(500);
   await page.locator('[data-role="rl-views"] [data-view="saqr"]').click(); await page.waitForTimeout(900);
   await page.locator('[data-role="sq-nav"] [data-view="rules"]').click(); await page.waitForTimeout(500);
@@ -321,7 +336,7 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   await page.locator('[data-role="sq-per-trade"]').fill("40");
   await page.locator('[data-role="sq-settings"] [data-v="calls"]').click();
   await page.locator('[data-role="sq-save"]').click(); await page.waitForTimeout(700);
-  const pSet = posts.filter(x => x[0] === "/market/saqr/settings" && x[1].auto === undefined).map(x => x[1]);
+  const pSet = posts.filter(ownerSet).map(x => x[1]);
   const savedMsg = await page.locator('[data-role="sq-save-msg"]').textContent().catch(() => "");
   const ms = await page.evaluate(() => { const r = document.querySelector('[data-role="sq-settings"]'); let minT = 99;
     r?.querySelectorAll("button, input").forEach(b => { const x = b.getBoundingClientRect(); if (x.width && x.height && b.offsetParent) minT = Math.min(minT, x.height); });

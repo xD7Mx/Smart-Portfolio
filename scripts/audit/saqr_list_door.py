@@ -14,14 +14,15 @@ st = SQ.load("us")
 c = SQ.cfg(st)
 print("الأوامر:", {k: c.get(k) for k in ("per_trade", "sides", "auto")}, "· المراكز:", [p["symbol"] for p in st["positions"]], "· النقد:", st["cash"],
       "· أوامرٌ معلّقة:", len(st.get("orders") or []), "· آخرُ دورة:", st.get("last_cycle"))
-r = SL.load()
+raw = SL.load()
+r = SL.view(raw, SL.budget_of(c), c.get("sides") == "calls", {p["symbol"] for p in st["positions"]}) if raw else None   # ‏D775: بميزانية المالك الآن
 if not r:
     print("لا قائمةَ محفوظةً بعد — تُبنى في أوّل دورةٍ من الجلسة.")
     sys.exit(0)
 print(f"══ {r.get('label')} · أُعدّت {r.get('at')} · {len(r.get('items') or [])} عقداً من {r.get('scanned')} ورقة (المجال {r.get('universe')}) · "
-      f"بميزانية {r.get('budget')} · آخرُ جلسة={r.get('snap')} · محاولة={r.get('retry')} · صيغة={r.get('v')} · دفعة={r.get('batch')} "
-      f"(جديدٌ {r.get('fresh')}) · يُكمل={r.get('more')}")
-done = r.get("done") or {}
+      f"بميزانية {r.get('budget')} · آخرُ جلسة={r.get('snap')} · محاولة={r.get('retry')} · صيغة={r.get('v')} · يُكمل={r.get('more')}")
+print("عقودٌ عند كلّ ميزانية:", r.get("levels"), "· أسهمٌ لها عقود:", len(raw.get("entries") or {}), "· دفعة:", raw.get("batch"), "جديدٌ:", raw.get("fresh"))
+done = raw.get("done") or {}
 if done:                                           # ‏D774: سببُ كلّ سهمٍ بعينه — أوّلُ عشرين ممتنعاً
     print("أسبابُ الممتنعين:", "؛ ".join(f"{s}: {d['why']}" + (f" ({d['low']:.0f}$)" if d.get("low") else "")
                                        for s, d in list(done.items())[:40] if d.get("why"))[:2500])

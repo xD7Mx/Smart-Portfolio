@@ -34,7 +34,11 @@ LIQ_MIN = 100.0          # مليونُ دولارٍ تداولاً يومياً
 EXTEND_MIN = 30          # دفعةُ فحصٍ جديدةٌ كلَّ نصف ساعةٍ ما بقي ما لم يُفحص والقائمةُ دون الخمسين
 RESCAN_H = 6             # لا يُعاد فحصُ سهمٍ قبل ست ساعاتٍ إلا إن لم يبقَ غيرُه
 KEEP_H = 20              # عقدٌ دخل القائمةَ يبقى فيها عشرين ساعةً ما لم يُعَد فحصُ سهمه — فتحمل قائمةُ الغد عملَ اليوم كلِّه
-V = 2
+# ‏D775 — المالك (2026-11-20): «الأفضلُ أن تكون الميزانيةُ كستمايز: أخلّيها 300، أخلّيها 150، أخلّيها 100 — كلَّ يومٍ يجي خيرٌ معه».
+# فلا تُبنى القائمةُ لميزانيةٍ واحدة: يُحفظ لكلّ سهمٍ أفضلُ عقدٍ عند كلّ كلفة (الحدُّ الكفء — كلُّ عقدٍ فيه أعلى درجةً من كلّ أرخصَ منه)،
+# ويُختار عند العرض أفضلُها ضمن ميزانية المالك الآن — فتبديلُها فوريٌّ بلا بحثٍ جديد، في الجلسة وخارجها.
+LEVELS = (100, 150, 200, 300, 500)
+V = 3
 LT_X = 8                 # العقدُ الطويلُ بدلتا 0.3–0.85 يكلّف نحو 8–20 ضعفَ سعر السهم بالدولار (قيس: F ‏VALE ‏NIO)
 TP_REF = 0.30            # المالك: «عقودٌ تطلع 30٪ أقلَّ شيء»
 DEFAULT_BUDGET = 150.0   # المالك: «بالميزانية اللي نحدّدها 150»
@@ -166,9 +170,18 @@ def _age_h(at: str | None, now: datetime) -> float:
         return 1e9
 
 
+def frontier(cards: list[dict]) -> list[dict]:
+    """الحدُّ الكفء: العقودُ بكلفتها صعوداً، ولا يبقى إلا ما درجتُه أعلى من كلّ أرخصَ منه — فأفضلُ عقدٍ ضمن أيّ ميزانيةٍ آخرُ ما لا يتجاوزها منه."""
+    out: list[dict] = []
+    for k in sorted(cards, key=lambda k: (k["cost"], -k["score"])):
+        if not out or k["score"] > out[-1]["score"]:
+            out.append(k)
+    return out
+
+
 async def build(cfg: dict, held: set[str] | None = None, final: bool = False) -> dict:
-    """تُبنى القائمة دفعةً: المجالُ ⇐ العقدُ الطويل ⇐ الخبر ⇐ الإيجابياتُ والسلبيات — وتُضمّ إلى ما بُني قبلها بالميزانية نفسِها (‏D774)
-    فتنمو حتى الخمسين، ولكلّ سهمٍ فُحص سببُ امتناعه؛ وتُحفظ لتُقرأ حتى البناء التالي."""
+    """تُبنى القائمة دفعةً: المجالُ ⇐ العقودُ الطويلةُ الصالحة ⇐ الخبر ⇐ الإيجابياتُ والسلبياتُ لكلّ عقد ⇐ الحدُّ الكفءُ لكلّ سهم — وتُضمّ إلى
+    ما بُني قبلها فتنمو (‏D774)، ولكلّ سهمٍ فُحص سببُ امتناعه؛ والميزانيةُ تُطبَّق عند العرض (‏view — ‏D775)."""
     from app.services import saqr_universe as SU
     from app.services.live_quote import sessions
     from app.services.market_session import NY
@@ -179,14 +192,12 @@ async def build(cfg: dict, held: set[str] | None = None, final: bool = False) ->
         try:
             now = datetime.now(timezone.utc)
             budget = budget_of(cfg)
-            calls_only = cfg.get("sides") == "calls"
             U = await SU.universe()
             tr_all, fund, names = U["tr"], U["fund"], U.get("names") or {}
             held = held or set()
-            ranked = order([(s, t) for s, t in tr_all.items() if t["state"] in ("صاعد", "هابط") and s not in held
-                            and not (calls_only and t["state"] == "هابط")], budget)
+            ranked = order([(s, t) for s, t in tr_all.items() if t["state"] in ("صاعد", "هابط") and s not in held], budget)
             old = load()
-            same = bool(old and old.get("v") == V and old.get("budget") == budget and bool(old.get("calls_only")) == calls_only)
+            same = bool(old and old.get("v") == V)
             done = {s: d for s, d in ((old or {}).get("done") or {}).items() if same and _age_h(d.get("at"), now) < RESCAN_H}
             # ما لم يُفحص أوّلاً بترتيبه، ثمّ الأقدمُ فحصاً (حين يُفحص المجالُ كلُّه)
             plan = sorted(ranked, key=lambda kv: (kv[0] in done, (done.get(kv[0]) or {}).get("at") or ""))[:CANDIDATES]
@@ -199,46 +210,50 @@ async def build(cfg: dict, held: set[str] | None = None, final: bool = False) ->
                 dg: dict = {}
                 async with sem:
                     try:
-                        k, low = await asyncio.wait_for(OP.contracts_for(s, call, budget, tr, diag=dg), 60)
+                        _, cards = await asyncio.wait_for(OP.valid_contracts(s, call, tr, diag=dg), 60)
                     except asyncio.TimeoutError:
-                        k, low, dg = None, None, {"why": "تعذّرت قراءةُ عقوده في دقيقة"}
+                        cards, dg = [], {"why": "تعذّرت قراءةُ عقوده في دقيقة"}
                     except Exception:                             # noqa: BLE001
-                        k, low, dg = None, None, {"why": "تعذّرت قراءةُ عقوده"}
-                if not k:
-                    why = "فوق الميزانية" if low else dg.get("why") or (OP.STAGES[dg["stage"]] if "stage" in dg else "لا عقدَ طويلَ يستوفي الشروط")
-                    done[s] = {"at": stamp, "why": why, "low": low}
-                return s, tr, k
+                        cards, dg = [], {"why": "تعذّرت قراءةُ عقوده"}
+                if not cards:
+                    done[s] = {"at": stamp, "why": dg.get("why") or (OP.STAGES[dg["stage"]] if "stage" in dg else "لا عقدَ طويلَ يستوفي الشروط")}
+                return s, tr, cards
             got = [x for x in await asyncio.gather(*(one(s, t) for s, t in plan)) if x[2]]
             _JOB["msg"] = "قراءةُ الأخبار"
             try:
                 news = await OP.read_news({s: tr for s, tr, _ in got})
             except Exception:                                     # noqa: BLE001
                 news = {}
-            items = []
-            for s, tr, k in got:
+            entries: dict[str, dict] = {}
+            for s, tr, cards in got:
                 n = news.get(s)
                 side, note = OP.direction(tr, n)
-                if side != k["type"]:
+                if side != cards[0]["type"]:
                     done[s] = {"at": stamp, "why": "خبرٌ قويٌّ يعاكس المسار"}
                     continue
-                pros, cons = assess(k, tr, fund.get(s), n)
-                if len(cons) > len(pros):
+                ok = []
+                for k in cards:
+                    pros, cons = assess(k, tr, fund.get(s), n)
+                    if len(cons) > len(pros):
+                        continue
+                    margin = len(pros) - len(cons)
+                    ok.append({**{x: k[x] for x in ("contract", "type", "strike", "expiry", "t", "dte", "ask", "bid", "mid", "cost", "px_src", "quote_at",
+                                                     "spread_pct", "spread_usd", "breakeven", "need_pct", "target", "target_label", "rr", "pop", "p_touch",
+                                                     "delta", "iv", "oi", "score") if x in k},
+                               "gain_target": round(k["rr"] * 100), "tp30": tp30(k), "pros": pros, "cons": cons, "margin": margin,
+                               "grade": "قويّة" if margin >= 4 else "جيّدة"})
+                if not ok:
                     done[s] = {"at": stamp, "why": "سلبياتُه أكثر من إيجابياته"}
                     continue
                 done[s] = {"at": stamp, "why": None}
-                margin = len(pros) - len(cons)
-                items.append({**{x: k[x] for x in ("contract", "type", "strike", "expiry", "t", "dte", "ask", "bid", "mid", "cost", "px_src", "quote_at",
-                                                    "spread_pct", "spread_usd", "breakeven", "need_pct", "target", "target_label", "rr", "pop", "p_touch",
-                                                    "delta", "iv", "oi", "score") if x in k},
-                              "symbol": s, "name": names.get(s) or k.get("name"), "price": k.get("price"), "gain_target": round(k["rr"] * 100),
-                              "tp30": tp30(k), "pros": pros, "cons": cons, "margin": margin, "grade": "قويّة" if margin >= 4 else "جيّدة",
-                              "fund": fund.get(s, (None, None))[0], "trend": {"state": tr["state"], "strength": tr["strength"], "ret3m": tr.get("ret3m")},
-                              "news": {"impact": n.get("impact"), "event": n.get("event")} if n else None, "seen": stamp})
+                entries[s] = {"symbol": s, "name": names.get(s) or cards[0].get("name"), "price": cards[0].get("price"), "fund": fund.get(s, (None, None))[0],
+                              "trend": {"state": tr["state"], "strength": tr["strength"], "ret3m": tr.get("ret3m")},
+                              "news": {"impact": n.get("impact"), "event": n.get("event")} if n else None, "seen": stamp, "cards": frontier(ok)}
             scanned_now = {s for s, _ in plan}
-            kept = [i for i in ((old or {}).get("items") or []) if same and i["symbol"] not in scanned_now and i["symbol"] not in held
-                    and _age_h(i.get("seen") or old.get("at"), now) < KEEP_H]
-            fresh_n = len(items)
-            items = sorted(items + kept, key=lambda x: (-x["margin"], -x["score"]))[:MAX_LIST]
+            fresh_n = len(entries)
+            for s, e in ((old or {}).get("entries") or {}).items():
+                if same and s not in scanned_now and s not in held and s not in entries and _age_h(e.get("seen"), now) < KEEP_H:
+                    entries[s] = e
             try:
                 us = (await sessions())["us"]
             except Exception:                                     # noqa: BLE001
@@ -247,26 +262,53 @@ async def build(cfg: dict, held: set[str] | None = None, final: bool = False) ->
             fs, lab = for_session(us.get("state"), ny, final)
             # ‏D771 — قيس على الخادم (2026-11-20 قبل الافتتاح): المصدرُ يُصفّر العرضَ والطلبَ خارج الجلسة فخرجت القائمةُ فارغةً (0 من 70) —
             # فبناءٌ فارغٌ خارج الجلسة لا يمحو قائمةً صالحة: تبقى ويُكتب أنّ التحديثَ ينتظر الجلسة
-            if not items and old and old.get("items") and us.get("state") != "open":
+            if not entries and old and old.get("entries") and us.get("state") != "open":
                 old["retry"] = {"at": now.isoformat(timespec="seconds"), "why": "خارج الجلسة لا عرضَ ولا طلبَ حيّين — تُحدَّث في الجلسة"}
                 _save(old)
                 return old
-            excl: dict[str, int] = {}
-            for d in done.values():
-                if d.get("why"):
-                    excl[d["why"]] = excl.get(d["why"], 0) + 1
-            lows = [d["low"] for d in done.values() if d.get("low")]
-            res = {"v": V, "at": now.isoformat(timespec="seconds"), "for": fs, "label": lab, "budget": budget, "items": items,
-                   "scanned": len(done), "universe": len(tr_all), "batch": len(plan), "fresh": fresh_n,
-                   "excluded": dict(sorted(excl.items(), key=lambda kv: -kv[1])), "cheapest": min(lows) if lows else None,
-                   "more": any(s not in done for s, _ in ranked), "done": done,
-                   "snap": any(i.get("px_src") == "snap" for i in items), "calls_only": calls_only}
+            res = {"v": V, "at": now.isoformat(timespec="seconds"), "for": fs, "label": lab, "entries": entries, "done": done,
+                   "scanned": len(done), "universe": len(tr_all), "batch": len(plan), "fresh": fresh_n, "more": any(s not in done for s, _ in ranked)}
             _save(res)
-            logger.info("قائمةُ صقر: {} عقداً ({} جديداً من دفعة {}) · فُحص {} من {} ({}) بميزانية {} · امتناع {}", len(items), fresh_n, len(plan),
-                        len(done), len(ranked), lab, budget, res["excluded"])
+            v = view(res, budget, cfg.get("sides") == "calls")
+            logger.info("قائمةُ صقر: {} سهماً بعقود ({} جديداً من دفعة {}) · فُحص {} من {} ({}) · بميزانية {}: {} عقداً · امتناع {}", len(entries), fresh_n,
+                        len(plan), len(done), len(ranked), lab, budget, len(v["items"]), v["excluded"])
             return res
         finally:
             _JOB.update(on=False, msg="")
+
+
+def view(lst: dict | None, budget: float, calls_only: bool = False, held: set[str] | None = None) -> dict | None:
+    """القائمةُ كما يراها المالكُ بميزانيته الآن (‏D775): لكلّ سهمٍ أفضلُ عقدٍ لا تتجاوز كلفتُه الميزانية، الأعلى إيجابياتٍ أوّلاً حتى الخمسين —
+    وما زادت كلفةُ أرخصِ عقوده عليها يُعدّ «فوق الميزانية» بأرخصه، ومعه كم عقداً عند كلّ ميزانيةٍ جاهزة."""
+    if not lst:
+        return None
+    held = held or set()
+    entries = {s: e for s, e in (lst.get("entries") or {}).items() if s not in held}
+
+    def pick(e: dict, b: float) -> dict | None:
+        ok = [k for k in e.get("cards") or [] if k["cost"] <= b and not (calls_only and k["type"] == "put")]
+        return ok[-1] if ok else None             # الحدُّ مرتّبٌ بالكلفة والدرجةُ فيه صاعدة ⇐ الأخيرُ أفضلُها
+    items, over = [], []
+    excl: dict[str, int] = {}
+    for d in (lst.get("done") or {}).values():
+        if d.get("why"):
+            excl[d["why"]] = excl.get(d["why"], 0) + 1
+    for s, e in entries.items():
+        k = pick(e, budget)
+        if k:
+            items.append({**k, **{x: e.get(x) for x in ("symbol", "name", "price", "fund", "trend", "news", "seen")}})
+        elif calls_only and all(c["type"] == "put" for c in e.get("cards") or []):
+            excl["بيعٌ وأنت على الشراء وحده"] = excl.get("بيعٌ وأنت على الشراء وحده", 0) + 1
+        else:
+            over.append(min(c["cost"] for c in e["cards"]))
+    if over:
+        excl["فوق الميزانية"] = len(over)
+    items.sort(key=lambda x: (-x["margin"], -x["score"]))
+    levels = {str(b): sum(1 for e in entries.values() if pick(e, b)) for b in sorted({*LEVELS, int(budget)})}
+    return {"v": lst.get("v"), "at": lst.get("at"), "for": lst.get("for"), "label": lst.get("label"), "budget": budget, "items": items[:MAX_LIST],
+            "scanned": lst.get("scanned"), "universe": lst.get("universe"), "excluded": dict(sorted(excl.items(), key=lambda kv: -kv[1])),
+            "cheapest": min(over) if over else None, "more": lst.get("more"), "levels": levels, "retry": lst.get("retry"),
+            "snap": any(i.get("px_src") == "snap" for i in items), "calls_only": calls_only}
 
 
 def job() -> dict:
@@ -274,8 +316,8 @@ def job() -> dict:
 
 
 def due(now: datetime, clock: tuple[datetime, datetime] | None, lst: dict | None) -> tuple[bool, bool]:
-    """(أتُبنى الآن؟ أهي الأخيرةُ للجلسة القادمة؟) — في الجلسة وحدها: لا قائمة (أو بصيغةٍ أقدم)، أو مضى نصفُ ساعةٍ والقائمةُ دون الخمسين وبقي
-    ما لم يُفحص (‏D774)، أو مضت ساعتان، أو حان آخرُ بناءٍ قبل الإغلاق ولم يُبنَ."""
+    """(أتُبنى الآن؟ أهي الأخيرةُ للجلسة القادمة؟) — في الجلسة وحدها: لا قائمة (أو بصيغةٍ أقدم)، أو مضى نصفُ ساعةٍ وبقي ما لم يُفحص (‏D774)،
+    أو مضت ساعتان، أو حان آخرُ بناءٍ قبل الإغلاق ولم يُبنَ."""
     if not clock or not (clock[0] <= now <= clock[1]):
         return False, False
     final_at = clock[1] - timedelta(minutes=FINAL_MIN)
@@ -288,7 +330,7 @@ def due(now: datetime, clock: tuple[datetime, datetime] | None, lst: dict | None
         return (at is None or at < final_at), True
     if not lst or lst.get("v") != V:
         return True, False
-    gap = EXTEND_MIN if lst.get("more") and len(lst.get("items") or []) < MAX_LIST else REFRESH_MIN
+    gap = EXTEND_MIN if lst.get("more") else REFRESH_MIN     # ‏D775: يُكمل حتى يُفحص المجالُ كلُّه — فلكلّ ميزانيةٍ يختارها المالكُ عقودُها
     return (at is None or (now - at).total_seconds() >= gap * 60), False
 
 

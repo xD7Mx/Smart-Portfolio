@@ -63,9 +63,11 @@ async def fake_universe():
     return U
 
 
-async def fake_contracts(sym, call, budget, t, **kw):
+async def fake_contracts(sym, call, t, diag=None):          # ‏D775: كلُّ العقود الصالحة بلا ميزانية
     seen.append(sym)
-    return (CARDS.get(sym), None) if sym in CARDS else (None, 260.0)
+    if sym in CARDS:
+        return {}, [CARDS[sym]]
+    return ({}, [card(sym, call, cost=260.0)]) if sym in tr else ({}, [])
 
 
 async def fake_news(items):
@@ -74,15 +76,16 @@ async def fake_news(items):
 
 async def fake_sessions():
     return {"us": {"state": "post"}}
-SU.universe, OP.contracts_for, OP.read_news, LQ.sessions = fake_universe, fake_contracts, fake_news, fake_sessions
-res = asyncio.run(SL.build({"per_trade": 150, "sides": "both"}, set()))
+SU.universe, OP.valid_contracts, OP.read_news, LQ.sessions = fake_universe, fake_contracts, fake_news, fake_sessions
+raw = asyncio.run(SL.build({"per_trade": 150, "sides": "both"}, set()))
+res = SL.view(raw, 150)
 items = {i["symbol"]: i for i in res["items"]}
 f = items.get("F") or {}
 check(set(items) == {"F", "NIO"} and "SIDE" not in seen and res["excluded"].get("سلبياتُه أكثر من إيجابياته") == 1
       and res["excluded"].get("خبرٌ قويٌّ يعاكس المسار") == 1 and res["excluded"].get("فوق الميزانية") == 1 and res["cheapest"] == 260.0
       and res["budget"] == 150 and res["label"].startswith("جلسة ") and res["items"][0]["symbol"] == "F" and f.get("gain_target") == 210
       and any("أساسٌ ماليٌّ متين" in x for x in f.get("pros", [])) and any("الخبرُ يدعمها" in x for x in f.get("pros", [])) and f.get("name") == "Ford Motor"
-      and f.get("tp30", {}).get("price") == 11.56 and (SL.load() or {}).get("items") and len(f["pros"]) > len(f["cons"]),
+      and f.get("tp30", {}).get("price") == 11.56 and (SL.load() or {}).get("entries") and len(f["pros"]) > len(f["cons"]),
       "٢ القائمة: العرضيُّ لا يدخل، وما زادت سلبياتُه على إيجابياته يُمتنع عنه، والخبرُ القويُّ المعاكسُ يُسقطه، والميزانيةُ تُعلن أرخصَ صالح، "
       "والأعلى إيجابياتٍ أوّلاً بأسبابه (الأساس · الخبر · الربحُ عند الهدف) — وتُحفظ", f"{sorted(items)} · {res['excluded']}")
 
@@ -101,12 +104,12 @@ d_fin2 = SL.due(clk[1] - timedelta(minutes=10), clk, {"v": SL.V, "at": (clk[1] -
 good = SL.load()
 
 
-async def empty_contracts(sym, call, budget, t, **kw):
-    return None, None
-OP.contracts_for = empty_contracts
+async def empty_contracts(sym, call, t, diag=None):
+    return None, []
+OP.valid_contracts = empty_contracts
 kept = asyncio.run(SL.build({"per_trade": 150, "sides": "both"}, set()))
 check(d_pre == (False, False) and d_mid == (False, False) and d_old == (True, False) and d_fin == (True, True) and d_fin2 == (False, True)
-      and kept.get("items") == good.get("items") and kept.get("retry") and SL.for_session("open", fri, final=True)[1] == "جلسة الاثنين 23/11",
+      and kept.get("entries") == good.get("entries") and kept.get("retry") and SL.for_session("open", fri, final=True)[1] == "جلسة الاثنين 23/11",
       "٢ب القائمةُ تُبنى في الجلسة وحدها: كلَّ ساعتين، وآخرُها قبل الإغلاق بـ45 دقيقة للجلسة القادمة (الجمعة ⇐ الاثنين) — وبناءٌ فارغٌ خارج الجلسة "
       "لا يمحو قائمةً صالحة (قيس: المصدرُ يُصفّر العرضَ والطلبَ قبل الافتتاح)", f"{d_old} · {d_fin} · {d_fin2}")
 

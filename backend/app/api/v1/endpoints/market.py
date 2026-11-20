@@ -2328,10 +2328,7 @@ async def saqr_settings(payload: dict):
         await SQ.settings(p, m)
     except (ValueError, TypeError) as e:
         raise HTTPException(status_code=422, detail=str(e) or "مدخلاتٌ غيرُ صالحة.")
-    if m == "us" and ("per_trade" in p or "sides" in p):        # ‏D771: ميزانيةُ العقد أو الاتجاهُ تغيّرا ⇐ تُعاد القائمةُ بهما
-        from app.services import saqr_list as SL
-        if not SL.job()["on"]:
-            asyncio.create_task(_saqr_list_bg())
+    # ‏D775: ميزانيةُ العقد أو الاتجاهُ تغيّرا ⇐ لا بحثَ جديد — القائمةُ تحفظ لكلّ سهمٍ أفضلَ عقدٍ عند كلّ كلفة وتُعرض بالميزانية الجديدة فوراً
     return success_response(SQ.view(m))
 
 
@@ -2345,11 +2342,20 @@ async def _saqr_list_bg():
         logger.warning("قائمةُ صقر: {}", type(e).__name__)
 
 
+def _saqr_list_view():
+    """القائمةُ بميزانية العقد عند المالك الآن واتجاهه، بلا ما في محفظة صقر (‏D775)."""
+    from app.services import saqr_list as SL
+    from app.services import saqr_trader as SQ
+    st = SQ.load("us")
+    c = SQ.cfg(st)
+    return SL.view(SL.load(), SL.budget_of(c), c.get("sides") == "calls", {p["symbol"] for p in st["positions"]})
+
+
 @router.get("/saqr/list")
 async def saqr_list():
     """قائمةُ صقر (‏D771): عقودٌ طويلةُ الأجل للجلسة القادمة — كلٌّ بإيجابياته وسلبياته وعتبة الثلاثين — وحالُ بنائها."""
     from app.services import saqr_list as SL
-    return success_response({"list": SL.load(), "job": SL.job()})
+    return success_response({"list": _saqr_list_view(), "job": SL.job()})
 
 
 @router.post("/saqr/list/run", dependencies=[Depends(require_owner)])
@@ -2358,7 +2364,7 @@ async def saqr_list_run():
     from app.services import saqr_list as SL
     if not SL.job()["on"]:
         asyncio.create_task(_saqr_list_bg())
-    return success_response({"list": SL.load(), "job": {**SL.job(), "on": True}})
+    return success_response({"list": _saqr_list_view(), "job": {**SL.job(), "on": True}})
 
 
 @router.post("/saqr/order", dependencies=[Depends(require_owner)])
