@@ -109,7 +109,7 @@ src = (ROOT / "backend/app/services/saqr_trader.py").read_text(encoding="utf-8")
 # ‏D771: الصيدُ الآليُّ من قائمة صقر، والقائمةُ تقرأ المجالَ الكاملَ وتكتب الأساسَ في إيجابيات العقد
 lst = (ROOT / "backend/app/services/saqr_list.py").read_text(encoding="utf-8")
 hunt = src[src.index("async def _hunt("):src.index("# ══ أوامرُ المالك (‏D771)")]
-check("await SU.universe()" in lst and 'assess(k, tr, fund.get(s), n)' in lst and "أساسٌ ماليٌّ متين" in lst and "SL.load()" in hunt
+check("await SU.universe()" in lst and 'assess(k, tr, fund.get(s), n)' in lst and "أساسٌ ماليٌّ متين" in lst and "book_for(budget)" in hunt   # ‏D779: الصيدُ من «عقود الخيارات»
       and 'cache.get(f"saqr:tr:{p[\'symbol\']}") or' in src,
       "٥ قائمةُ صقر تقرأ المجالَ الكامل (كلُّ ورقةٍ لها عقودٌ واجتازت الأساس)، والأساسُ المتينُ من إيجابيات العقد، والصيدُ الآليُّ منها — ومراجعةُ "
       "المراكز تقرأ مسارَ المجال")
