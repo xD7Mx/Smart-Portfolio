@@ -57,6 +57,7 @@ function BudgetBar({ L, owner }: { L: SList; owner: boolean }) {
   });
   const levels = Object.entries(L.levels || {}).map(([b, n]) => [Number(b), n] as [number, number]).sort((a, b) => a[0] - b[0]);
   const custom = Math.round(Number(v));
+  const canSet = custom >= 20 && custom !== cur;   // خارجَ الوسم: «>» داخلَه يقطعه عند قارئ اللجنة (‏S-DEADBTN)
   return (
     <div className="sl-bud" data-role="sl-budget">
       <small>ميزانيةُ العقد</small>
@@ -71,7 +72,7 @@ function BudgetBar({ L, owner }: { L: SList; owner: boolean }) {
         <span className="sl-bud-c">
           <input className="sp-in" type="number" min={20} step={10} dir="ltr" inputMode="numeric" placeholder="مبلغٌ آخر" value={v} aria-label="ميزانيةٌ أخرى للعقد"
             onChange={e => { setV(e.target.value); setErr(null); }} onKeyDown={e => { if (e.key === "Enter" && custom >= 20) m.mutate(custom); }} data-role="sl-bud-in" />
-          <button type="button" className="btn-ghost sq-btn" disabled={!(custom >= 20) || custom === cur || m.isPending} onClick={() => m.mutate(custom)}
+          <button type="button" className="btn-ghost sq-btn" disabled={!canSet || m.isPending} onClick={() => m.mutate(custom)}
             data-role="sl-bud-set">طبّق</button>
         </span>
       )}
