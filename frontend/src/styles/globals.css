@@ -4028,6 +4028,19 @@ html.light {
 .of-row label { display: flex; flex-direction: column; gap: 3px; }
 .of-row small { font-size: 11px; font-weight: 700; color: var(--ink-muted); }
 .of-hint { font-size: 11.5px; color: var(--ink-muted); align-self: center; }
+/* ‏D777: تذكرةُ الأمر كالوسيط — حقلٌ بعنوانه وخياراتُه وسطرٌ يشرح المختار، وما لا يخصّ النوعَ المختارَ يُطوى بانسيابية */
+.of-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.of-field > small { font-size: 11px; font-weight: 800; color: var(--ink-muted); }
+.of-field > .of-hint { align-self: flex-start; line-height: 1.6; }
+.of-seg { flex-wrap: wrap; }
+.of-seg .seg-btn, .of-step .sp-btn { min-height: 32px; }
+.of-step { display: inline-flex; align-items: center; gap: 6px; }
+.of-step .sp-in { width: 72px; text-align: center; }
+.of-step .sp-btn { min-width: 32px; padding-inline: 8px; justify-content: center; }
+.of-x { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .25s ease, opacity .2s ease; }
+.of-x > * { overflow: hidden; min-height: 0; }
+.of-x.open { grid-template-rows: 1fr; opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .of-x { transition: none; } }
 .of-sum { margin: 0; font-size: 12.5px; color: var(--ink); }
 .of-sum b.pos { color: var(--pos-ink); }
 .of-sum b.neg { color: var(--neg-ink); }

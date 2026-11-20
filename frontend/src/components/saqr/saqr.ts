@@ -10,9 +10,12 @@ export type SPos = { id: string; kind?: "option" | "stock"; name?: string | null
   entry_px: number; cost: number; opened: string; stop: number; peak: number; bid: number | null; ask: number | null; S: number | null; S0: number | null;
   target: number | null; target_label?: string | null; delta?: number | null; iv?: number | null; why: string[]; src: "saqr" | "manual"; auto: boolean;
   value: number; pl: number; pl_pct: number | null; alert?: string; marked?: string; managed?: boolean;
-  owner?: boolean; tp_pct?: number | null; sl_pct?: number | null; take_x?: number | null };
+  owner?: boolean; tp_pct?: number | null; sl_pct?: number | null; take_x?: number | null;
+  tp_px?: number | null; sl_px?: number | null; trail_pct?: number | null };
 export type SOrder = { id: string; contract: string; symbol: string; name?: string | null; type: "call" | "put"; strike: number; expiry: string; qty: number;
-  limit: number | null; tp_pct: number | null; sl_pct: number | null; created: string; note?: string };
+  limit: number | null; tp_pct: number | null; sl_pct: number | null; created: string; note?: string;
+  otype?: "mkt" | "lmt" | "stp" | "stp_lmt"; stop?: number | null; tif?: "day" | "gtc"; tp_px?: number | null; sl_px?: number | null; trail_pct?: number | null;
+  triggered?: string | null };
 export type SListItem = { contract: string; symbol: string; name?: string | null; type: "call" | "put"; strike: number; expiry: string; dte: number;
   ask: number; bid: number | null; cost: number; px_src: string; spread_pct: number; breakeven: number; need_pct: number; target: number; target_label: string;
   gain_target: number; pop: number; p_touch: number; delta: number; iv: number; oi: number; score: number; tp30: { price: number; pct: number | null };

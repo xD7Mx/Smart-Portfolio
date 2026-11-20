@@ -294,10 +294,13 @@ export const marketApi = {
   /* ‏D771: قائمةُ صقر وأوامرُ المالك (شراءٌ بسعره، وجنيُ الربح ووقفُ الخسارة، وأوامرٌ معلّقة) */
   saqrList: () => api.get<APIResponse>("/market/saqr/list"),
   saqrListRun: () => api.post<APIResponse>("/market/saqr/list/run", {}),
-  saqrOrder: (p: { contract: string; qty: number; limit?: number | null; tp_pct?: number | null; sl_pct?: number | null }) =>
+  /* ‏D777: تذكرةُ الشراء كإنتراكتف بروكرز — النوعُ والمدّةُ والأوامرُ المرفقة */
+  saqrOrder: (p: { contract: string; qty: number; limit?: number | null; tp_pct?: number | null; sl_pct?: number | null; otype?: "mkt" | "lmt" | "stp" | "stp_lmt";
+    stop?: number | null; tif?: "day" | "gtc"; tp_px?: number | null; sl_px?: number | null; trail_pct?: number | null }) =>
     api.post<APIResponse>("/market/saqr/order", { ...p, market: "us" }, { timeout: 60000 }),
   saqrOrderCancel: (id: string) => api.post<APIResponse>(`/market/saqr/order/${encodeURIComponent(id)}/cancel`, { market: "us" }),
-  saqrSetOrders: (pid: string, p: { tp_pct?: number | null; sl_pct?: number | null }, market: "us" | "sa" = "us") =>
+  saqrSetOrders: (pid: string, p: { tp_pct?: number | null; sl_pct?: number | null; tp_px?: number | null; sl_px?: number | null; trail_pct?: number | null },
+    market: "us" | "sa" = "us") =>
     api.post<APIResponse>(`/market/saqr/orders/${encodeURIComponent(pid)}`, { ...p, market }),
   optionChain: (symbol: string, date?: number | null) =>
     api.get<APIResponse>(`/market/options/${encodeURIComponent(symbol)}`, { params: date ? { date } : {} }),

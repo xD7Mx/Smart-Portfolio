@@ -2374,7 +2374,8 @@ async def saqr_order(payload: dict):
     from app.services import saqr_trader as SQ
     p = payload or {}
     try:
-        await SQ.place_order(str(p.get("contract") or ""), p.get("qty") or 1, p.get("limit"), p.get("tp_pct"), p.get("sl_pct"), _mkt(p.get("market")))
+        await SQ.place_order(str(p.get("contract") or ""), p.get("qty") or 1, p.get("limit"), p.get("tp_pct"), p.get("sl_pct"), _mkt(p.get("market")),
+                             **{k: p.get(k) for k in ("otype", "stop", "tif", "tp_px", "sl_px", "trail_pct")})   # ‏D777: التذكرةُ كاملة
     except (ValueError, TypeError) as e:
         raise HTTPException(status_code=422, detail=str(e) or "مدخلاتٌ غيرُ صالحة.")
     return success_response(SQ.view("us"))
@@ -2397,7 +2398,7 @@ async def saqr_set_orders(pid: str, payload: dict | None = None):
     p = payload or {}
     m = _mkt(p.get("market"))
     try:
-        await SQ.set_orders(pid, p.get("tp_pct"), p.get("sl_pct"), m)
+        await SQ.set_orders(pid, p.get("tp_pct"), p.get("sl_pct"), m, p.get("tp_px"), p.get("sl_px"), p.get("trail_pct"))
     except (ValueError, TypeError) as e:
         raise HTTPException(status_code=422, detail=str(e) or "مدخلاتٌ غيرُ صالحة.")
     return success_response(SQ.view(m))

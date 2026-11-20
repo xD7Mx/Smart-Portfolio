@@ -191,7 +191,8 @@ pf = (ROOT / "frontend/src/components/saqr/SaqrPortfolio.tsx").read_text(encodin
 check("SL.kick(cfg(st)" in src and "job_saqr_list" not in sch and '@router.get("/saqr/list")' in mk
       and '{tab === "signals" && !sa && <SaqrList s={s} owner={owner} />}' in desk and 'data-role="sq-auto"' in desk and "أوقف التداول الآليّ" in desk
       and all(x in lst for x in ('data-role="sl-item"', 'data-role="sl-tp30"', 'data-role="sl-team"', 'data-role="sl-mem"', 'data-role="sl-exec"', "<OrderForm"))
-      and all(x in of for x in ('data-role="of-limit"', 'role="of-tp"', 'role="of-sl"', "marketApi.saqrOrder("))
+      and all(x in of for x in ('data-role="of-limit"', 'role={`${role}-tp`}', 'role={`${role}-sl`}', '<ExitFields ex={ex} set={setEx} base={ref} role="of" />',
+                                "marketApi.saqrOrder("))   # ‏D777: الجنيُ والوقفُ في «الأمر المرفق» المشترك
       and all(x in pf for x in ('data-role="sp-orders"', 'data-role="sp-order-cancel"', 'data-role="sp-ord"', 'data-role="sp-ord-edit"')),
       "٦ القائمةُ تُبنى من دورة صقر في الجلسة، و«قائمةُ العقود» مكانَ إشارات المسح المرفوضة، وزرُّ التداول الآليّ، ونموذجُ الأمر "
       "(السعر · الجني · الوقف)، والأوامرُ المعلّقةُ وأمرا كلّ مركزٍ في المحفظة")

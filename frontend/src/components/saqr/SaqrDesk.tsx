@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Radar, ShieldCheck, Cpu, ShieldAlert, Target, Newspaper, Sparkles, Play, Pause, RefreshCw,
-  LayoutDashboard, Activity, ScrollText, SlidersHorizontal, ArrowDownRight, ArrowUpRight, Info, BellRing, Hand, LineChart, FileText, Filter, BarChart3, Check, Flame, Wallet } from "lucide-react";
+  LayoutDashboard, Activity, ScrollText, SlidersHorizontal, ArrowDownRight, ArrowUpRight, Info, BellRing, Hand, LineChart, FileText, Filter, BarChart3, Check, Flame, Wallet, Layers } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { useLive, useSessions } from "../chart/LiveQuote";
@@ -16,12 +16,13 @@ import MarketSwitch from "./MarketSwitch";
 import SaqrEmblem from "./SaqrEmblem";
 import SaqrPortfolio from "./SaqrPortfolio";
 import SaqrList from "./SaqrList";
+import OptionPicks from "../market/OptionPicks";
 
 const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="ltr" className={"tabular-nums " + (className || "")}>{v}</bdi>;
-type Tab = "dash" | "portfolio" | "signals" | "log" | "rules";
-/* ‏D769 (المالك): «المحفظةُ داخل صقر — بجانب لوحة المعلومات والسجل» */
+type Tab = "dash" | "portfolio" | "signals" | "options" | "log" | "rules";
+/* ‏D769 (المالك): «المحفظةُ داخل صقر — بجانب لوحة المعلومات والسجل»؛ و‏D777: «خلِّ عقود الخيارات داخل صقر» — للسوق الأمريكيّ */
 const TABS: [Tab, string, any][] = [["dash", "لوحة المتابعة", LayoutDashboard], ["portfolio", "المحفظة", Wallet], ["signals", "الإشارات", Activity],
-  ["log", "السجل", ScrollText], ["rules", "الإعدادات", SlidersHorizontal]];
+  ["options", "عقود الخيارات", Layers], ["log", "السجل", ScrollText], ["rules", "الإعدادات", SlidersHorizontal]];
 type NState = "ok" | "warn" | "off";
 
 const ago = (iso?: string | null) => (iso ? (Date.now() - new Date(iso).getTime()) / 60000 : Infinity);
@@ -321,7 +322,8 @@ export default function SaqrDesk() {
   const ses = useSessions().data?.[market];
   const sesOpen = ses?.state === "open";
   const usd = money(s?.ccy), susd = smoney(s?.ccy);
-  const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem("sp_saqr_tab") as Tab) || "dash"; } catch { return "dash"; } });
+  const [tab0, setTab] = useState<Tab>(() => { try { return (localStorage.getItem("sp_saqr_tab") as Tab) || "dash"; } catch { return "dash"; } });
+  const tab: Tab = sa && tab0 === "options" ? "dash" : tab0;           // عقودُ الخيارات للسوق الأمريكيّ وحده
   const pick = (t: Tab) => { setTab(t); try { localStorage.setItem("sp_saqr_tab", t); } catch { /* */ } };
   const toggle = useMutation({ mutationFn: (on: boolean) => marketApi.saqrToggle(on, market), onSuccess: r => qc.setQueryData(["saqr", market], r.data.data) });
   /* ‏D771 (المالك): «زرٌّ أوقف التداولَ الآليّ — وهو يطلع العقودَ ويشتغل مثل السكرتير»: الأمريكيُّ ينفّذ أوامرَ المالك، وآلياً من قائمته إن شغّله */
@@ -329,7 +331,19 @@ export default function SaqrDesk() {
   const run = useMutation({ mutationFn: () => marketApi.saqrRun(market), onSuccess: () => setTimeout(() => q.refetch(), 700) });
   const curve = useMemo(() => (s?.equity_curve || []).map(p => p[1]), [s?.equity_curve]);
   const sw = <MarketSwitch value={market} onChange={setMarket} />;
-  if (!s) return <div className="sq" data-role="sq">{sw}<div className="h-60 skeleton rounded-xl" /></div>;
+  const nav = (
+    <nav className="seg inline-flex sq-nav" role="tablist" aria-label="صقر" data-role="sq-nav">
+      {TABS.filter(([k]) => !(sa && k === "options")).map(([k, t, I]) => (
+        <button key={k} type="button" role="tab" aria-selected={tab === k} className={"seg-btn chip" + (tab === k ? " on" : "")} onClick={() => pick(k)} data-view={k}>
+          <I size={14} /> {k === "signals" && !sa ? "قائمةُ العقود" : t}
+        </button>
+      ))}
+    </nav>
+  );
+  // ‏D777: عقودُ الخيارات لا تنتظر حالَ صقر — تُفتح فوراً
+  if (!s || !Array.isArray(s.positions)) return (
+    <div className="sq" data-role="sq">{sw}{tab === "options" ? <>{nav}<div key="options" className="sq-pane"><OptionPicks /></div></> : <div className="h-60 skeleton rounded-xl" />}</div>
+  );
   const unreal = s.positions.reduce((a, p) => a + p.pl, 0);
   const busy = s.running?.on || run.isPending;
 
@@ -369,13 +383,7 @@ export default function SaqrDesk() {
         <Stat label="المحقَّق اليوم بعد العمولات" k="real"><b className={tone(s.today.realized)}><Num v={susd(s.today.realized)} /></b></Stat>
       </section>
 
-      <nav className="seg inline-flex sq-nav" role="tablist" aria-label="صقر" data-role="sq-nav">
-        {TABS.map(([k, t, I]) => (
-          <button key={k} type="button" role="tab" aria-selected={tab === k} className={"seg-btn chip" + (tab === k ? " on" : "")} onClick={() => pick(k)} data-view={k}>
-            <I size={14} /> {k === "signals" && !sa ? "قائمةُ العقود" : t}
-          </button>
-        ))}
-      </nav>
+      {nav}
 
       <div key={tab} className="sq-pane">
         {tab === "dash" && (
@@ -470,6 +478,7 @@ export default function SaqrDesk() {
         )}
 
         {tab === "portfolio" && <SaqrPortfolio market={market} />}
+        {tab === "options" && !sa && <OptionPicks />}
 
         {tab === "log" && (
           <div className="sq-card card card-rise" data-role="sq-log">

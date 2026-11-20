@@ -10,10 +10,10 @@ import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import CompanyLogo from "../common/CompanyLogo";
 import { optionTitle, parseOption, dayMonth, daysTo } from "../../lib/options";
-import { useSaqr, useSaqrMarket, money, smoney, spct, px, dday, stamp, held, tone, type SPos, type Market } from "./saqr";
+import { useSaqr, useSaqrMarket, money, smoney, spct, px, dday, stamp, held, tone, type SPos, type SOrder, type Market } from "./saqr";
 import MarketSwitch from "./MarketSwitch";
 import ContractPicker from "./ContractPicker";
-import { PctChips, TP_CHOICES, SL_CHOICES } from "./OrderForm";
+import { ExitFields, exitInit, exitPayload, type Exit, type Att } from "./OrderForm";
 
 const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="ltr" className={"tabular-nums " + (className || "")}>{v}</bdi>;
 const Dur = ({ v, className }: { v: string; className?: string }) => <bdi dir="rtl" className={"tabular-nums " + (className || "")}>{v}</bdi>;
@@ -23,15 +23,31 @@ const err = (e: any) => e?.response?.data?.detail || "تعذّر التنفيذ"
 const ALERT: Record<string, string> = { stop: "بلغ الوقف", trail: "الوقفُ المتحرّك", take: "تضاعف العقد", target: "بلغ السهمُ الهدف", time: "اقترب الأجل",
   stale: "لم يتقدّم", regime: "انقلب السوقُ العامّ", geo: "خطرٌ جيوسياسيّ", results: "نتائجُ مخيّبة", broken: "انكسرت الأطروحة" };
 
+/* ‏D777: وصفُ أمر الشراء المعلّق بنوعه ومدّته — كما يكتبه الوسيط */
+function ordDesc(o: SOrder) {
+  const ot = o.otype || (o.limit != null ? "lmt" : "mkt");
+  const tif = o.tif === "day" ? "اليوم" : "حتى الإلغاء";
+  const body = ot === "mkt" ? <>بالسوق عند أوّل عرض</>
+    : ot === "lmt" ? <>محدَّدٌ عند <Num v={px(o.limit)} /> أو أقلّ</>
+    : ot === "stp" ? <>إيقاف: يشتري بالسوق متى بلغ العرضُ <Num v={px(o.stop)} /></>
+    : <>إيقافٌ محدَّد: متى بلغ العرضُ <Num v={px(o.stop)} /> يصير محدَّداً عند <Num v={px(o.limit)} />{o.triggered ? " (فُعِّل)" : ""}</>;
+  return <>{body} · {tif}</>;
+}
+
 function Position({ p, owner, onChart, i, market, ccy }: { p: SPos; owner: boolean; onChart: (c: string) => void; i: number; market: Market; ccy: string }) {
   const qc = useQueryClient();
   const [closing, setClosing] = useState(false);
   /* ‏D771 (المالك): «أحدّد جميعَ الأوامر، سواءٌ التي سأضعها أو الموضوعةُ الآن — جنيُ ربحٍ 30٪ 40٪ أو عند أمرٍ محدّدٍ يبيع» */
   const [ordEdit, setOrdEdit] = useState(false);
-  const [tp, setTp] = useState<number | null>(p.tp_pct ?? 40);
-  const [sl, setSl] = useState<number | null>(p.owner ? (p.sl_pct ?? null) : 40);
+  /* ‏D777: أوامرُ البيع كتذكرة الوسيط — بيعٌ محدَّدٌ بسعره (جنيُ الربح) · وقفٌ بسعره · وقفٌ مطارِد · براكت */
+  const [ex, setEx] = useState<Exit>(() => {
+    if (!p.owner) return exitInit(p.entry_px);
+    const tpPx = p.tp_px ?? (p.take_x ? p.entry_px * p.take_x : null), stopPx = p.stop || null;
+    const att: Att = p.trail_pct ? "trail" : tpPx && stopPx ? "bracket" : tpPx ? "tp" : stopPx ? "sl" : "none";
+    return { att, tp: tpPx ? tpPx.toFixed(2) : "", tpPct: p.tp_pct ?? null, sl: stopPx ? stopPx.toFixed(2) : "", slPct: p.sl_pct ?? null, trail: p.trail_pct ?? 15 };
+  });
   const ord = useMutation({
-    mutationFn: () => marketApi.saqrSetOrders(p.id, { tp_pct: tp, sl_pct: sl }, market),
+    mutationFn: () => marketApi.saqrSetOrders(p.id, exitPayload(ex), market),
     onSuccess: r => { qc.setQueryData(["saqr", market], r.data.data); setOrdEdit(false); },
   });
   const usd = money(ccy), susd = smoney(ccy);
@@ -55,8 +71,9 @@ function Position({ p, owner, onChart, i, market, ccy }: { p: SPos; owner: boole
       </header>
       <p className="sp-when" data-role="sp-opened"><Clock size={12} aria-hidden /> فُتحت <Num v={stamp(p.opened)} /> <span className="sp-sub">· منذ <Dur v={held(p.opened)} /></span></p>
       <p className="sp-ord" data-role="sp-ord">{p.owner
-        ? <>أوامرُك: {p.take_x ? <>جنيٌ عند <b className="pos"><Num v={px(p.entry_px * p.take_x)} /></b>{p.tp_pct ? <> (<Num v={`+${p.tp_pct}%`} />)</> : null}</> : "بلا جني"}
-          {" · "}{p.stop ? <>وقفٌ عند <b className="neg"><Num v={px(p.stop)} /></b>{p.sl_pct ? <> (<Num v={`−${p.sl_pct}%`} />)</> : null}</> : "بلا وقف"}</>
+        ? <>أوامرُك: {p.take_x ? <>بيعٌ محدَّدٌ عند <b className="pos"><Num v={px(p.tp_px ?? p.entry_px * p.take_x)} /></b>{p.tp_pct ? <> (<Num v={`+${p.tp_pct}%`} />)</> : null}</> : "بلا جني"}
+          {" · "}{p.trail_pct ? <>وقفٌ مطارِد <Num v={`−${p.trail_pct}%`} /> من القمّة (الآن <b className="neg"><Num v={px(p.stop)} /></b>)</>
+            : p.stop ? <>وقفٌ عند <b className="neg"><Num v={px(p.stop)} /></b>{p.sl_pct ? <> (<Num v={`−${p.sl_pct}%`} />)</> : null}</> : "بلا وقف"}</>
         : <>صقر: وقفٌ عند <b className="neg"><Num v={px(p.stop)} /></b>{!stock && <> · جنيٌ عند <Num v={`×${p.take_x ?? 2}`} /></>}</>}</p>
       <div className="sp-pos-m">
         <span><small>{stock ? "الأسهم" : "العقود"}</small><b><Num v={`${p.qty}`} /></b></span>
@@ -92,12 +109,12 @@ function Position({ p, owner, onChart, i, market, ccy }: { p: SPos; owner: boole
         <div className={"sp-addf-wrap" + (ordEdit ? " open" : "")} aria-hidden={!ordEdit}>
           <div>{ordEdit && (
             <form className="of" onSubmit={e => { e.preventDefault(); ord.mutate(); }} data-role="sp-ord-form">
-              <div className="of-row">
-                <label><small>جنيُ الربح</small><PctChips value={tp} set={setTp} opts={TP_CHOICES} role="sp-ord-tp" /></label>
-                <label><small>وقفُ الخسارة</small><PctChips value={sl} set={setSl} opts={SL_CHOICES} role="sp-ord-sl" /></label>
-              </div>
-              <p className="of-sum">من سعر الشراء <Num v={px(p.entry_px)} />: {tp ? <>يبيع عند <b className="pos"><Num v={px(p.entry_px * (1 + tp / 100))} /></b></> : "بلا جني"}
-                {" · "}{sl ? <>يوقف عند <b className="neg"><Num v={px(p.entry_px * (1 - sl / 100))} /></b></> : "بلا وقف"}</p>
+              <ExitFields ex={ex} set={setEx} base={p.entry_px} role="sp-ord" />
+              <p className="of-sum">من سعر الشراء <Num v={px(p.entry_px)} />{p.bid ? <> والطلبُ الآن <Num v={px(p.bid)} /></> : null}: {(() => {
+                const v = exitPayload(ex);
+                return <>{v.tp_px ? <>يبيع عند <b className="pos"><Num v={px(v.tp_px)} /></b></> : "بلا جني"}{" · "}
+                  {v.sl_px ? <>يوقف عند <b className="neg"><Num v={px(v.sl_px)} /></b></> : v.trail_pct ? <>يطارد القمّةَ بـ<Num v={`${v.trail_pct}%`} /></> : "بلا وقف"}</>;
+              })()}</p>
               <div className="of-row"><button type="submit" className="btn-primary sp-btn" disabled={ord.isPending} data-role="sp-ord-save">احفظ الأوامر</button>
                 {ord.isError && <span className="sp-err">{err(ord.error)}</span>}</div>
             </form>
@@ -216,8 +233,9 @@ export default function SaqrPortfolio({ market: fixed }: { market?: Market } = {
             <h4>أوامرُ شراءٍ معلّقة <Num v={`${(s.orders || []).length}`} className="sp-count" /></h4>
             {(s.orders || []).map(o => (
               <div key={o.id} className="sp-pend-r" data-role="sp-order">
-                <span><b>{title(o.contract)}</b> × <Num v={`${o.qty}`} /> · {o.limit ? <>عند <Num v={px(o.limit)} /> أو أقلّ</> : "عند أوّل عرضٍ في الجلسة"}
-                  {o.tp_pct ? <> · جني <Num v={`+${o.tp_pct}%`} /></> : null}{o.sl_pct ? <> · وقف <Num v={`−${o.sl_pct}%`} /></> : null}
+                <span><b>{title(o.contract)}</b> × <Num v={`${o.qty}`} /> · {ordDesc(o)}
+                  {o.tp_px ? <> · جني <Num v={px(o.tp_px)} /></> : o.tp_pct ? <> · جني <Num v={`+${o.tp_pct}%`} /></> : null}
+                  {o.trail_pct ? <> · وقفٌ مطارِد <Num v={`−${o.trail_pct}%`} /></> : o.sl_px ? <> · وقف <Num v={px(o.sl_px)} /></> : o.sl_pct ? <> · وقف <Num v={`−${o.sl_pct}%`} /></> : null}
                   {o.note ? <small className="sq-muted"> — {o.note}</small> : null}</span>
                 {owner && <button type="button" className="btn-ghost sp-btn" onClick={() => cancel.mutate(o.id)} disabled={cancel.isPending} data-role="sp-order-cancel"><X size={14} /> إلغاء</button>}
               </div>

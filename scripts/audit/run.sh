@@ -498,6 +498,7 @@ python3 scripts/audit/saqr_d771.py || _note "$LINENO"   # ‏D771: صقرٌ سك
 python3 scripts/audit/saqr_d774.py || _note "$LINENO"   # ‏D774: قائمةُ صقر تبدأ بالسائل وتنمو في الجلسة، ولكلّ سهمٍ سببُ امتناعه
 python3 scripts/audit/saqr_d775.py || _note "$LINENO"   # ‏D775: ميزانيةُ العقد بيد المالك كلَّ يوم — والقائمةُ تُعرض بها فوراً
 python3 scripts/audit/saqr_d776.py || _note "$LINENO"   # ‏D776: فريقُ صقر — ستّةُ خبراء ونسبةُ نجاحٍ يختار المالكُ حدَّها وسجلٌّ يقيس الفعليّ
+python3 scripts/audit/saqr_d777.py || _note "$LINENO"   # ‏D777: تذكرةُ الأمر كإنتراكتف بروكرز بالعربية، و«عقودُ الخيارات» داخل صقر
 _node scripts/audit/chart_colors_d772.mjs || _note "$LINENO"   # ‏D772: الرسمُ كتريدنق فيو — لوحةٌ سوداءُ وألوانٌ مشبعة، وألوانُ الشموع بيد المالك، وأرقامُ الفيبو على خطوطها
 _node scripts/audit/saqr_d763.mjs || _note "$LINENO"   # ‏D763: المفكرةُ بالتقرير، وتبويباتُ المختبر الثلاثة، والمحفظةُ ولوحةُ صقر في المظهرين
 python3 scripts/audit/research_archive_d749.py || _note "$LINENO"   # ‏D749: أرشيفُ التقارير لجميع الجلسات — كلُّ جلسةٍ بأرقامها هي

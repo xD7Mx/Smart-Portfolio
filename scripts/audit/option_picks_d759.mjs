@@ -68,10 +68,12 @@ for (const vp of [{ width: 1366, height: 900 }, { width: 390, height: 844 }]) {
   });
   await page.goto(`http://localhost:${PORT}/watchlist?tab=lab`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2500);
-  const tabs = await page.locator('[data-role="rl-views"] [data-view]').allTextContents().catch(() => []);
+  const tabs = (await page.locator('[data-role="sq-nav"] [data-view]').allTextContents().catch(() => [])).map(t => t.trim());
+  const sel = ((await page.locator('[data-role="sq-nav"] [aria-selected="true"]').textContent().catch(() => "")) || "").trim();
   const empty = await page.locator('[data-role="op-empty"]').textContent().catch(() => "");
-  say(JSON.stringify(tabs) === JSON.stringify(["عقود الخيارات", "صقر"]) && /قيمة العقد/.test(empty || "") && await page.locator('[data-role="op-budget"]').count() === 1,
-      `${label}: ١ «عقود الخيارات» أوّلُ تبويبات مختبر الأبحاث (ثمّ صقر، والمحفظةُ داخله — ‏D769)، وفيه خانةُ قيمة العقد`, tabs.join(" · "));
+  say(tabs.includes("عقود الخيارات") && sel === "عقود الخيارات" && await page.locator('[data-role="rl-views"]').count() === 0
+      && /قيمة العقد/.test(empty || "") && await page.locator('[data-role="op-budget"]').count() === 1,
+      `${label}: ١ «عقود الخيارات» تبويبٌ داخل صقر (‏D777 — لا تبويبَ فوق المختبر)، ومن حفظه قديماً يفتح عليه، وفيه خانةُ قيمة العقد`, `${tabs.join(" · ")} · ${sel}`);
   await page.locator('[data-role="op-preset"]', { hasText: "$150" }).click();
   await page.waitForTimeout(400);
   const st = await page.locator('[data-role="op-status"]').textContent().catch(() => "");

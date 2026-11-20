@@ -453,7 +453,8 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await page.locator('[data-role="room-tab"]', { hasText: "مختبر الأبحاث" }).click();
   await page.waitForTimeout(1200);
   const labHere = await page.evaluate(() => ({ url: location.pathname + location.search, chart: !!document.querySelector('[data-role="pro-chart"]'), lab: !!document.querySelector('[data-role="research-lab"]'),
-    tabs: [...document.querySelectorAll('[data-role="rl-views"] [role="tab"]')].map(b => b.textContent.trim()), doc: !!document.querySelector('[data-role="rl-doc"]') }));
+    tabs: [...document.querySelectorAll('[data-role="sq-nav"] [role="tab"]')].map(b => b.textContent.trim()), views: document.querySelectorAll('[data-role="rl-views"]').length,
+    doc: !!document.querySelector('[data-role="rl-doc"]') }));
   // ‏D746: التقريرُ ورقةٌ واحدة (التقرير اليومي · التوصيات)، وأيامٌ مؤرّخة، وملفّ PDF، ولا مكتبةَ ولا مصادر — في مفكرة السوق بجانب التوقعات (‏D763)
   await page.evaluate(() => { try { sessionStorage.setItem("sp:market:tab", "calendar"); } catch { /* */ } });
   await page.goto(`http://localhost:${PORT}/market`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
@@ -481,8 +482,8 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
     await page.waitForTimeout(1800);
     if ((await page.evaluate(() => location.pathname + location.search)) === "/watchlist?tab=lab") olds++;
   }
-  say(labHere.url === "/watchlist?tab=lab" && labHere.lab && !labHere.chart && !labHere.doc && JSON.stringify(labHere.tabs) === JSON.stringify(["عقود الخيارات", "صقر"]) && olds === 2,
-      `${label}: «مختبر الأبحاث» تبويبٌ في الغرفة (عقودُ الخيارات · صقر، والمحفظةُ داخل صقر — ‏D769 — بلا التقرير)، ورابطاه القديمان يفتحانه`, `${labHere.url} · ${labHere.tabs.join("/")} · ${olds}/2`);
+  say(labHere.url === "/watchlist?tab=lab" && labHere.lab && !labHere.chart && !labHere.doc && labHere.views === 0 && labHere.tabs.includes("عقود الخيارات") && olds === 2,
+      `${label}: «مختبر الأبحاث» تبويبٌ في الغرفة (صقرٌ وحده، و«عقودُ الخيارات» داخله — ‏D777 — بلا التقرير)، ورابطاه القديمان يفتحانه`, `${labHere.url} · ${labHere.tabs.join("/")} · ${olds}/2`);
   say(errs.length === 0, `${label}: لا خطأ`, errs[0] || "");
   await ctx.close();
 }

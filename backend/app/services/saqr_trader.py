@@ -332,8 +332,10 @@ def sell(st: dict, pid: str, px: float, reason: str, note: str = "") -> dict | N
 def trail(p: dict, bid: float) -> None:
     """الوقفُ المتحرّك — لا ينزل أبداً. العقد: من +50٪ إلى سعر الدخول ومن +80٪ إلى 75٪ من القمّة؛ السهم: من +8٪ إلى الدخول ومن +12٪
     إلى 94٪ من القمّة."""
-    if p.get("owner"):                      # ‏D771: مركزٌ بأوامر المالك — أمراه وحدهما (جنيٌ ووقف) لا وقفٌ متحرّك
+    if p.get("owner"):                      # ‏D771: مركزٌ بأوامر المالك — أوامرُه وحدها (جنيٌ ووقف) لا وقفُ صقر المتحرّك
         p["peak"] = max(float(p.get("peak") or 0), bid)
+        if p.get("trail_pct"):              # ‏D777: إلا وقفُه المطارِد إن اختاره — يتبع القمّةَ بنسبته ولا ينزل أبداً
+            p["stop"] = max(float(p.get("stop") or 0), round(p["peak"] * (1 - p["trail_pct"] / 100), 4))
         return
     be, on, keep = (p.get("trail") or (TRAIL_BE, TRAIL_ON, TRAIL_KEEP)) if kind_of(p) == "option" else STOCK_TRAIL
     p["peak"] = max(float(p.get("peak") or 0), bid)
@@ -352,6 +354,8 @@ def exit_rule(p: dict, bid: float | None, S: float | None, dte: int, tr: dict | 
             return "time", f"بقي {dte} يوماً على الانتهاء — يتسارع التآكل."
         if bid is not None and bid > 0:
             if p.get("stop") and bid <= p["stop"]:
+                if p.get("trail_pct"):
+                    return "trail", f"سعرُ الطلب {bid:.2f} عند الوقف المطارِد {p['stop']:.2f} (−{p['trail_pct']:g}٪ من القمّة {p['peak']:.2f})."
                 return "sl", f"سعرُ الطلب {bid:.2f} عند أمر الوقف {p['stop']:.2f}" + (f" (−{p['sl_pct']:g}٪)." if p.get("sl_pct") else ".")
             if p.get("take_x") and bid >= p["entry_px"] * p["take_x"]:
                 return "tp", f"سعرُ الطلب {bid:.2f} بلغ أمرَ جني الربح {p['entry_px'] * p['take_x']:.2f}" + (f" (+{p['tp_pct']:g}٪)." if p.get("tp_pct") else ".")
@@ -776,17 +780,108 @@ async def contract_quote(contract: str) -> dict | None:
             "price": (ch or {}).get("price"), "name": (base or {}).get("name")}
 
 
+def _exits(o: dict, px: float) -> tuple[float, float | None, str, str]:
+    """(الوقف، مضاعفُ الجني، وصفُ الجني، وصفُ الوقف) من أوامر المالك المرفقة — بالسعر (‏D777) أو بالنسبة (‏D771)، والمطارِدُ من سعر التنفيذ."""
+    if o.get("trail_pct"):
+        stop = round(px * (1 - o["trail_pct"] / 100), 4)
+        sl = f"وقفٌ مطارِد −{o['trail_pct']:g}٪ من القمّة (يبدأ {stop:.2f})"
+    elif o.get("sl_px"):
+        stop, sl = float(o["sl_px"]), f"وقفٌ عند {o['sl_px']:.2f}"
+    elif o.get("sl_pct"):
+        stop = round(px * (1 - o["sl_pct"] / 100), 4)
+        sl = f"وقفٌ عند {stop:.2f} (−{o['sl_pct']:g}٪)"
+    else:
+        stop, sl = 0.0, "بلا وقف"
+    if o.get("tp_px"):
+        take, tp = round(o["tp_px"] / px, 4), f"جنيٌ عند {o['tp_px']:.2f}"
+    elif o.get("tp_pct"):
+        take, tp = round(1 + o["tp_pct"] / 100, 4), f"جنيٌ عند {px * (1 + o['tp_pct'] / 100):.2f} (+{o['tp_pct']:g}٪)"
+    else:
+        take, tp = None, "بلا أمر جني"
+    return stop, take, tp, sl
+
+
 def _fill(st: dict, o: dict, ask: float, q: dict) -> dict:
+    stop, take, tp, sl = _exits(o, ask)
     k = {"contract": o["contract"], "symbol": o["symbol"], "name": o.get("name"), "type": o["type"], "strike": o["strike"], "expiry": o["expiry"],
-         "t": o.get("t"), "ask": ask, "bid": q.get("bid"), "price": q.get("price"), "target": None,
-         "stop": round(ask * (1 - o["sl_pct"] / 100), 4) if o.get("sl_pct") else 0.0,
-         "take_x": round(1 + o["tp_pct"] / 100, 4) if o.get("tp_pct") else None}
-    tp = f"جنيٌ عند {ask * k['take_x']:.2f} (+{o['tp_pct']:g}٪)" if k["take_x"] else "بلا أمر جني"
-    sl = f"وقفٌ عند {k['stop']:.2f} (−{o['sl_pct']:g}٪)" if k["stop"] else "بلا وقف"
-    p = buy(st, k, o["qty"], [f"أمرُ المالك: شراءٌ بسعر {ask:.2f} — {tp} · {sl} · وخروجٌ قبل الانتهاء بـ{EXIT_DTE} يوماً."], src="manual", px=ask)
-    p.update(auto=True, managed=True, owner=True, tp_pct=o.get("tp_pct"), sl_pct=o.get("sl_pct"))
+         "t": o.get("t"), "ask": ask, "bid": q.get("bid"), "price": q.get("price"), "target": None, "stop": stop, "take_x": take}
+    how = OTYPES.get(o.get("otype") or ("lmt" if o.get("limit") is not None else "mkt"), "")
+    p = buy(st, k, o["qty"], [f"أمرُ المالك ({how}): شراءٌ بسعر {ask:.2f} — {tp} · {sl} · وخروجٌ قبل الانتهاء بـ{EXIT_DTE} يوماً."], src="manual", px=ask)
+    p.update(auto=True, managed=True, owner=True, tp_pct=o.get("tp_pct"), sl_pct=o.get("sl_pct"), tp_px=o.get("tp_px"), sl_px=o.get("sl_px"),
+             trail_pct=o.get("trail_pct"))
     log(st, "buy", f"نُفّذ أمرُ المالك: {o['qty']} × {_title(p)} بسعر {ask:.2f} (الكلفة {p['cost']:,.2f}$) — {tp} · {sl}.", p["symbol"])
     return p
+
+
+# ══ ‏D777 — أمرٌ كتذكرة «إنتراكتف بروكرز» بالعربية (المالك 2026-11-20): «محاكاةُ المحفظة مثل إنتراكتف بروكرز — سعرُ الشراء بأمرٍ محدّد، وسعرُ
+#    البيع بأمرٍ محدّد، والوقفُ المطارِد… بالعربي عشان نتعلّم عليها». أنواعُ الشراء الأربعة، ومدّةُ الأمر، والأوامرُ المرفقة (جنيٌ · وقفٌ · مطارِدٌ · براكت).
+OTYPES = {"mkt": "سوق", "lmt": "محدَّد", "stp": "إيقاف", "stp_lmt": "إيقافٌ محدَّد"}
+TIFS = {"day": "اليوم", "gtc": "حتى الإلغاء"}
+
+
+def _px(v) -> float | None:
+    return round(float(v), 2) if v not in (None, "", 0, "0") else None
+
+
+def ticket(t: dict, ask: float | None = None) -> dict:
+    """تذكرةُ الشراء بعد التحقّق: ‏{qty, otype, limit, stop, tif, tp_px, sl_px, trail_pct, tp_pct, sl_pct} — وكلُّ خطأٍ برسالةٍ عربيةٍ تشرحه."""
+    qty, limit, tp_pct, sl_pct = _check_order(t.get("qty"), t.get("limit"), t.get("tp_pct"), t.get("sl_pct"))
+    ot = t.get("otype") or ("lmt" if limit else "mkt")
+    if ot not in OTYPES:
+        raise ValueError("نوعُ الأمر غيرُ معروف — سوق · محدَّد · إيقاف · إيقافٌ محدَّد.")
+    stop = _px(t.get("stop"))
+    if ot in ("lmt", "stp_lmt") and not limit:
+        raise ValueError(f"أمرُ «{OTYPES[ot]}» يحتاج سعرَ الحدّ: أعلى ما تدفعه.")
+    if ot in ("stp", "stp_lmt") and not stop:
+        raise ValueError(f"أمرُ «{OTYPES[ot]}» يحتاج سعرَ التفعيل: متى بلغه العرضُ صار الأمرُ نافذاً.")
+    if (limit and limit <= 0) or (stop and stop <= 0):
+        raise ValueError("الأسعارُ أكبرُ من صفر.")
+    if ot == "stp_lmt" and limit < stop:
+        raise ValueError(f"في «إيقافٌ محدَّد» سعرُ الحدّ ({limit:.2f}) لا يقلّ عن سعر التفعيل ({stop:.2f}) — وإلا لا يُنفَّذ أبداً.")
+    limit = limit if ot in ("lmt", "stp_lmt") else None
+    stop = stop if ot in ("stp", "stp_lmt") else None
+    tif = t.get("tif") or "gtc"
+    if tif not in TIFS:
+        raise ValueError("مدّةُ الأمر: اليوم أو حتى الإلغاء.")
+    tp_px, sl_px = _px(t.get("tp_px")), _px(t.get("sl_px"))
+    trail = float(t.get("trail_pct")) if t.get("trail_pct") not in (None, "", 0, "0") else None
+    if trail is not None and not (5 <= trail <= 90):
+        raise ValueError("نسبةُ الوقف المطارِد بين 5٪ و90٪.")
+    if trail and (sl_px or sl_pct):
+        raise ValueError("اختر وقفاً واحداً: ثابتاً بسعره أو مطارِداً بنسبته.")
+    ref = limit or stop or ask
+    if ref and tp_px and tp_px <= ref:
+        raise ValueError(f"سعرُ جني الربح ({tp_px:.2f}) يجب أن يعلو سعرَ الشراء ({ref:.2f}).")
+    if ref and sl_px and sl_px >= ref:
+        raise ValueError(f"سعرُ الوقف ({sl_px:.2f}) يجب أن يكون دون سعر الشراء ({ref:.2f}).")
+    return {"qty": qty, "otype": ot, "limit": limit, "stop": stop, "tif": tif, "tp_px": tp_px, "sl_px": sl_px, "trail_pct": trail,
+            "tp_pct": None if tp_px else tp_pct, "sl_pct": None if (sl_px or trail) else sl_pct}
+
+
+def trigger(o: dict, ask: float) -> tuple[bool, str]:
+    """أيُنفَّذ الأمرُ عند هذا العرض؟ (نعم/لا، وسببُ الانتظار) — والإيقافُ يُفعَّل مرّةً متى بلغ العرضُ سعرَه ثمّ يبقى مُفعَّلاً."""
+    ot = o.get("otype") or ("lmt" if o.get("limit") is not None else "mkt")
+    if ot in ("stp", "stp_lmt") and not o.get("triggered"):
+        if ask < o["stop"]:
+            return False, f"العرضُ {ask:.2f} دون سعر التفعيل {o['stop']:.2f} — ينتظر"
+        o["triggered"] = _iso()
+    if ot in ("lmt", "stp_lmt") and ask > o["limit"]:
+        return False, f"العرضُ الآن {ask:.2f} فوق سعرك {o['limit']:.2f}" + (" (فُعِّل)" if o.get("triggered") else "")
+    return True, ""
+
+
+def _desc(o: dict) -> str:
+    ot = o.get("otype") or ("lmt" if o.get("limit") is not None else "mkt")
+    body = {"mkt": "بالسوق", "lmt": f"محدَّدٌ عند {o.get('limit') or 0:.2f} أو أقلّ", "stp": f"إيقافٌ: يشتري بالسوق متى بلغ العرضُ {o.get('stop') or 0:.2f}",
+            "stp_lmt": f"إيقافٌ محدَّد: متى بلغ العرضُ {o.get('stop') or 0:.2f} يصير محدَّداً عند {o.get('limit') or 0:.2f}"}[ot]
+    att = []
+    if o.get("tp_px") or o.get("tp_pct"):
+        att.append(f"جنيٌ {o['tp_px']:.2f}" if o.get("tp_px") else f"جنيٌ +{o['tp_pct']:g}٪")
+    if o.get("trail_pct"):
+        att.append(f"وقفٌ مطارِد −{o['trail_pct']:g}٪")
+    elif o.get("sl_px") or o.get("sl_pct"):
+        att.append(f"وقفٌ {o['sl_px']:.2f}" if o.get("sl_px") else f"وقفٌ −{o['sl_pct']:g}٪")
+    return body + f" · {TIFS.get(o.get('tif') or 'gtc')}" + (" — " + " · ".join(att) if att else "")
 
 
 def _check_order(qty, limit, tp_pct, sl_pct) -> tuple[int, float | None, float | None, float | None]:
@@ -805,34 +900,41 @@ def _check_order(qty, limit, tp_pct, sl_pct) -> tuple[int, float | None, float |
     return qty, limit, tp_pct, sl_pct
 
 
-async def place_order(contract: str, qty, limit=None, tp_pct=None, sl_pct=None, market: str = "us") -> dict:
-    """أمرُ شراءٍ من المالك: العرضُ الحيُّ عند سعره أو دونه والسوقُ مفتوح ⇐ يُنفَّذ الآن بالعرض؛ وإلا أمرٌ معلّقٌ يُنفَّذ في الجلسة متى بلغ
-    العرضُ سعرَه (وبلا سعرٍ فعند أوّل عرضٍ حيّ) — حتى يلغيه المالك. ومعه أمرا البيع: جنيُ الربح ووقفُ الخسارة بالنسبة من سعر الشراء."""
+async def place_order(contract: str, qty, limit=None, tp_pct=None, sl_pct=None, market: str = "us", **more) -> dict:
+    """أمرُ شراءٍ من المالك (تذكرةُ ‏D777): سوق · محدَّد · إيقاف · إيقافٌ محدَّد، بمدّة اليوم أو حتى الإلغاء، ومعه أوامرُ البيع المرفقة (جنيٌ بسعره ·
+    وقفٌ بسعره · وقفٌ مطارِدٌ بنسبته · أو براكت يجمع الجنيَ والوقف). والسوقُ مفتوحٌ والعرضُ يستوفي الأمر ⇐ يُنفَّذ الآن بالعرض؛ وإلا يُعلَّق."""
     from app.services.live_quote import sessions
+    from app.services.market_session import NY
+    from app.services.saqr_list import for_session
     if _mk(market) != "us":
         raise ValueError("الأوامرُ لعقود السوق الأمريكيّ.")
     sym = str(contract or "").strip().upper()
-    qty, limit, tp_pct, sl_pct = _check_order(qty, limit, tp_pct, sl_pct)
     q = await contract_quote(sym)
     if not q:
         raise ValueError("العقدُ غيرُ موجودٍ في السلسلة الآن.")
-    open_now = ((await sessions()).get("us") or {}).get("state") == "open"
+    t = ticket({"qty": qty, "limit": limit, "tp_pct": tp_pct, "sl_pct": sl_pct, **more}, q.get("ask"))
+    us = (await sessions()).get("us") or {}
+    open_now = us.get("state") == "open"
     async with _LOCK:
         st = load("us")
         o = {"id": _pid(sym), "contract": sym, "symbol": q["o"]["root"], "name": q.get("name"), "type": q["o"]["type"], "strike": q["o"]["strike"],
-             "expiry": q["o"]["expiry"], "t": q["t"], "qty": qty, "limit": limit, "tp_pct": tp_pct, "sl_pct": sl_pct, "created": _iso()}
+             "expiry": q["o"]["expiry"], "t": q["t"], **t, "created": _iso(),
+             "for": for_session(us.get("state"), _now().astimezone(NY).date())[0]}     # يومُ أمر «اليوم»: الجلسةُ الجارية أو القادمة
+        qty = t["qty"]
         ask = q["ask"] if q["live"] else None
-        if open_now and ask and (limit is None or ask <= limit):
+        go, why = trigger(o, ask) if (open_now and ask) else (False, "")
+        if go:
             if ask * 100 * qty + FEE * qty > st["cash"] + 1e-9:
                 raise ValueError(f"الكلفةُ {ask * 100 * qty + FEE * qty:,.2f}$ والنقدُ الحرّ {st['cash']:,.2f}$ — اضبط قيمةَ المحفظة أو قلّل العقود.")
             _fill(st, o, ask, q)
         else:
-            ref = limit or q["ask"] or 0
+            ref = t["limit"] or t["stop"] or q["ask"] or 0
             if ref and ref * 100 * qty + FEE * qty > st["cash"] + 1e-9:
                 raise ValueError(f"الكلفةُ نحو {ref * 100 * qty + FEE * qty:,.2f}$ والنقدُ الحرّ {st['cash']:,.2f}$ — اضبط قيمةَ المحفظة أو قلّل العقود.")
+            if why:
+                o["note"] = why
             st.setdefault("orders", []).append(o)
-            log(st, "manual", f"أمرُ شراءٍ معلّق: {qty} × {_title(o)} " + (f"عند {limit:.2f} أو أقلّ" if limit else "عند أوّل عرضٍ في الجلسة")
-                + (f" — جني +{tp_pct:g}٪" if tp_pct else "") + (f" · وقف −{sl_pct:g}٪" if sl_pct else "") + ".", o["symbol"])
+            log(st, "manual", f"أمرُ شراءٍ معلّق: {qty} × {_title(o)} — {_desc(o)}.", o["symbol"])
         _point(st)
         save(st)
         return o
@@ -849,34 +951,55 @@ async def cancel_order(oid: str, market: str = "us") -> None:
         save(st)
 
 
-async def set_orders(pid: str, tp_pct=None, sl_pct=None, market: str = "us") -> dict:
-    """أمرا البيع لمركزٍ قائم (لصقر أو للمالك): جنيُ الربح ووقفُ الخسارة بالنسبة من سعر الشراء — وفارغٌ = بلا أمر. ومن يومها يُدار بأمري المالك."""
+async def set_orders(pid: str, tp_pct=None, sl_pct=None, market: str = "us", tp_px=None, sl_px=None, trail_pct=None) -> dict:
+    """أوامرُ البيع لمركزٍ قائم (لصقر أو للمالك) — كتذكرة إنتراكتف بروكرز (‏D777): بيعٌ محدَّدٌ عند سعرٍ (جنيُ الربح)، ووقفٌ عند سعرٍ أو بنسبة،
+    أو وقفٌ مطارِدٌ يتبع القمّة — وفارغٌ = بلا أمر. ومن يومها يُدار بأوامر المالك."""
     _, _, tp_pct, sl_pct = _check_order(1, None, tp_pct, sl_pct)
+    tp_px, sl_px = _px(tp_px), _px(sl_px)
+    trail = float(trail_pct) if trail_pct not in (None, "", 0, "0") else None
+    if trail is not None and not (5 <= trail <= 90):
+        raise ValueError("نسبةُ الوقف المطارِد بين 5٪ و90٪.")
+    if trail and (sl_px or sl_pct):
+        raise ValueError("اختر وقفاً واحداً: ثابتاً بسعره أو مطارِداً بنسبته.")
     async with _LOCK:
         st = load(_mk(market))
         p = next((x for x in st["positions"] if x["id"] == pid), None)
         if not p:
             raise ValueError("لا مركزَ بهذا المعرّف.")
         e = p["entry_px"]
-        p.update(owner=True, auto=True, managed=True, tp_pct=tp_pct, sl_pct=sl_pct, take_x=round(1 + tp_pct / 100, 4) if tp_pct else None,
-                 stop=round(e * (1 - sl_pct / 100), 4) if sl_pct else 0.0)
+        if tp_px and tp_px <= e:
+            raise ValueError(f"سعرُ البيع المحدَّد ({tp_px:.2f}) يجب أن يعلو سعرَ الشراء ({e:.2f}) — وللبيع الآن «أغلق بسعر السوق».")
+        if sl_px and sl_px >= (p.get("bid") or e) and sl_px >= e:
+            raise ValueError(f"سعرُ الوقف ({sl_px:.2f}) يجب أن يكون دون السعر الآن.")
+        stop, take, tp, sl = _exits({"tp_px": tp_px, "tp_pct": tp_pct, "sl_px": sl_px, "sl_pct": sl_pct, "trail_pct": trail}, e)
+        if trail:                                                  # المطارِدُ يبدأ من أعلى ما بلغه المركز لا من سعر الشراء
+            stop = round(max(float(p.get("peak") or e), e) * (1 - trail / 100), 4)
+            sl = f"وقفٌ مطارِد −{trail:g}٪ من القمّة (الآن {stop:.2f})"
+        p.update(owner=True, auto=True, managed=True, tp_pct=None if tp_px else tp_pct, sl_pct=None if (sl_px or trail) else sl_pct, tp_px=tp_px,
+                 sl_px=sl_px, trail_pct=trail, take_x=take, stop=stop)
         p["stop0"] = p["stop"]
-        log(st, "manual", f"المالك ضبط أمرَي {_title(p)}: " + (f"جنيٌ عند {e * p['take_x']:.2f} (+{tp_pct:g}٪)" if tp_pct else "بلا جني")
-            + " · " + (f"وقفٌ عند {p['stop']:.2f} (−{sl_pct:g}٪)" if sl_pct else "بلا وقف") + ".", p["symbol"])
+        log(st, "manual", f"المالك ضبط أوامرَ {_title(p)}: {tp} · {sl}.", p["symbol"])
         save(st)
         return p
 
 
 async def _fill_orders(st: dict) -> int:
     """في الجلسة: كلُّ أمرٍ معلّقٍ بلغ العرضُ الحيُّ سعرَه يُنفَّذ بالعرض — والنقدُ الذي لا يكفي يُبقيه منتظراً بسببه."""
+    from app.services.market_session import NY
     n = 0
+    today = _now().astimezone(NY).date().isoformat()
     for o in list(st.get("orders") or []):
+        if o.get("tif") == "day" and o.get("for") and o["for"] < today:      # ‏D777: أمرُ «اليوم» ينتهي بانتهاء جلسته
+            st["orders"] = [x for x in st["orders"] if x["id"] != o["id"]]
+            log(st, "manual", f"انتهت مدّةُ أمر الشراء {_title(o)} (اليوم) دون تنفيذ — أُلغي.", o["symbol"])
+            continue
         q = await contract_quote(o["contract"])
         if not q or not q["live"] or not q["ask"]:
             continue
         ask = q["ask"]
-        if o.get("limit") is not None and ask > o["limit"]:
-            o["note"] = f"العرضُ الآن {ask:.2f} فوق سعرك {o['limit']:.2f}"
+        go, why = trigger(o, ask)
+        if not go:
+            o["note"] = why
             continue
         if ask * 100 * o["qty"] + FEE * o["qty"] > st["cash"] + 1e-9:
             o["note"] = f"النقدُ الحرّ {st['cash']:,.2f}$ لا يكفي — ينتظر"
