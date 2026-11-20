@@ -104,9 +104,9 @@ check('["portfolio", "المحفظة", Wallet]' in desk and "<SaqrPortfolio mark
       and 'data-role="sp-closef"' in pf_src and "يُغلق الآن بسعر السوق" in pf_src and "marketApi.saqrClose(p.id, null, market)" in pf_src
       and "equity_to: b" in pf_src and "equity_to: f.budget" in desk and "budDirty" in desk and 'data-role="sp-pick"' in pf_src
       and all(x in pk for x in ('data-role="pk-exp"', 'data-role="pk-strike"', 'data-role="pk-analysis"', "التعادل عند الانتهاء", "احتمالُ الربح", "التآكلُ اليوميّ",
-                                 'data-role="pk-managed"', "marketApi.optionAdvice", "marketApi.optionChain", "saqrOpen(k!, n, null, \"us\", managed)")),
+                                 "marketApi.optionAdvice", "marketApi.optionChain", "<OrderForm contract={k!} ask={ask}")),   # ‏D771: التنفيذُ بأمر المالك
       "٥ الواجهة: المحفظةُ تبويبٌ في صقر (لا في المختبر)، والإغلاقُ بسعر السوق بعد رؤية السعر والنتيجة، وقيمةُ المحفظة الآن تُرسل إن غيّرها المالك وحدها، "
-      "و«اختر عقداً بنفسك»: السهمُ ⇐ الأجل ⇐ السترايك ⇐ تحليلٌ مختصر ⇐ شراءٌ يديره صقر")
+      "و«اختر عقداً بنفسك»: السهمُ ⇐ الأجل ⇐ السترايك ⇐ تحليلٌ مختصر ⇐ تنفيذٌ بأمر المالك (سعرُه وجنيُه ووقفُه — ‏D771)")
 
 print("\nالنتيجة:", "عطب ✖" if fail else "نظيف ✔")
 sys.exit(fail)

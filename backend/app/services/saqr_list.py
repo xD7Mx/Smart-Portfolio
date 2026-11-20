@@ -24,7 +24,9 @@ from loguru import logger
 from app.services import option_picks as OP
 
 MAX_LIST = 50
-CANDIDATES = 70          # أقوى المسارات (والميسورُ عقدُها أوّلاً) — كلٌّ منها خمسةُ نداءاتٍ للسلسلة
+CANDIDATES = 45          # أقوى المسارات (والميسورُ عقدُها أوّلاً) — كلٌّ منها خمسةُ نداءاتٍ للسلسلة (والذاكرةُ على الخادم محدودة)
+REFRESH_MIN = 120        # تُحدَّث في الجلسة كلَّ ساعتين
+FINAL_MIN = 45           # وآخرُ بناءٍ قبل الإغلاق بخمسٍ وأربعين دقيقة: قائمةُ الجلسة القادمة
 LT_X = 8                 # العقدُ الطويلُ بدلتا 0.3–0.85 يكلّف نحو 8–20 ضعفَ سعر السهم بالدولار (قيس: F ‏VALE ‏NIO)
 TP_REF = 0.30            # المالك: «عقودٌ تطلع 30٪ أقلَّ شيء»
 DEFAULT_BUDGET = 150.0   # المالك: «بالميزانية اللي نحدّدها 150»
@@ -60,10 +62,10 @@ def budget_of(cfg: dict) -> float:
 DAYS_AR = ("الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد")
 
 
-def for_session(state: str | None, ny_today: date) -> tuple[str, str]:
-    """(تاريخُ الجلسة التي أُعدّت لها القائمة، وصفُها): في الجلسة أو قبلها ⇐ اليوم، وبعدها أو في العطلة ⇐ يومُ العمل التالي."""
+def for_session(state: str | None, ny_today: date, final: bool = False) -> tuple[str, str]:
+    """(تاريخُ الجلسة التي أُعدّت لها القائمة، وصفُها): في الجلسة أو قبلها ⇐ اليوم، وبعدها أو في العطلة أو آخرَ الجلسة (final) ⇐ يومُ العمل التالي."""
     d = ny_today
-    if state not in ("open", "pre"):
+    if final or state not in ("open", "pre"):
         d = d + timedelta(days=1)
     while d.weekday() >= 5:
         d = d + timedelta(days=1)
@@ -138,7 +140,7 @@ def assess(k: dict, tr: dict, fund: tuple | None, news: dict | None) -> tuple[li
     return pros, cons
 
 
-async def build(cfg: dict, held: set[str] | None = None) -> dict:
+async def build(cfg: dict, held: set[str] | None = None, final: bool = False) -> dict:
     """تُبنى القائمة: المجالُ ⇐ العقدُ الطويل ⇐ الخبر ⇐ الإيجابياتُ والسلبيات — وتُحفظ لتُقرأ حتى البناء التالي."""
     from app.services import saqr_universe as SU
     from app.services.live_quote import sessions
@@ -207,7 +209,14 @@ async def build(cfg: dict, held: set[str] | None = None) -> dict:
             except Exception:                                     # noqa: BLE001
                 us = {}
             ny = datetime.now(timezone.utc).astimezone(NY).date()
-            fs, lab = for_session(us.get("state"), ny)
+            fs, lab = for_session(us.get("state"), ny, final)
+            old = load()
+            # ‏D771 — قيس على الخادم (2026-11-20 قبل الافتتاح): المصدرُ يُصفّر العرضَ والطلبَ خارج الجلسة فخرجت القائمةُ فارغةً (0 من 70) —
+            # فبناءٌ فارغٌ خارج الجلسة لا يمحو قائمةً صالحة: تبقى ويُكتب أنّ التحديثَ ينتظر الجلسة
+            if not items and old and old.get("items") and us.get("state") != "open":
+                old["retry"] = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "why": "خارج الجلسة لا عرضَ ولا طلبَ حيّين — تُحدَّث في الجلسة"}
+                _save(old)
+                return old
             res = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "for": fs, "label": lab, "budget": budget, "items": items,
                    "scanned": len(plan), "universe": len(tr_all), "excluded": excl, "cheapest": min(lows) if lows else None,
                    "snap": any(i.get("px_src") == "snap" for i in items), "calls_only": calls_only}
@@ -220,3 +229,27 @@ async def build(cfg: dict, held: set[str] | None = None) -> dict:
 
 def job() -> dict:
     return dict(_JOB)
+
+
+def due(now: datetime, clock: tuple[datetime, datetime] | None, lst: dict | None) -> tuple[bool, bool]:
+    """(أتُبنى الآن؟ أهي الأخيرةُ للجلسة القادمة؟) — في الجلسة وحدها: لا قائمة، أو مضت ساعتان، أو حان آخرُ بناءٍ قبل الإغلاق ولم يُبنَ."""
+    if not clock or not (clock[0] <= now <= clock[1]):
+        return False, False
+    final_at = clock[1] - timedelta(minutes=FINAL_MIN)
+    at = None
+    try:
+        at = datetime.fromisoformat(lst["at"]) if lst and lst.get("at") else None
+    except ValueError:
+        at = None
+    if now >= final_at:
+        return (at is None or at < final_at), True
+    return (at is None or (now - at).total_seconds() >= REFRESH_MIN * 60 or not (lst or {}).get("items")), False
+
+
+def kick(cfg: dict, held: set[str], now: datetime, clock) -> bool:
+    """من دورة صقر: يُطلق البناءَ في الخلفية إن حان — فلا تحبس الدورةُ دقائقَه."""
+    go, final = due(now, clock, load())
+    if not go or _LOCK.locked():
+        return False
+    asyncio.get_running_loop().create_task(build(cfg, held, final))
+    return True

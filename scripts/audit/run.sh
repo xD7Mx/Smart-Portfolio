@@ -494,6 +494,7 @@ python3 scripts/audit/saqr_d766.py || _note "$LINENO"   # ‏D766: صقر يغط
 python3 scripts/audit/saqr_d767.py || _note "$LINENO"   # ‏D767: صقرُ التداول بلا تلغرام، وأوامرُ المالك، وبلا IBKR، والسعوديُّ بنبض سوقه
 python3 scripts/audit/saqr_d768.py || _note "$LINENO"   # ‏D768: صقرٌ الأمريكيّ وحشٌ شرسٌ بأمر المالك (100$ للصفقة · هدفُ اليوم)، وكلُّ صفقةٍ بوقتها
 python3 scripts/audit/saqr_d769.py || _note "$LINENO"   # ‏D769: صقرٌ موحَّد — المحفظةُ داخله، والإغلاقُ بسعر السوق، وقيمةُ المحفظة الآن، واختر عقداً بنفسك
+python3 scripts/audit/saqr_d771.py || _note "$LINENO"   # ‏D771: صقرٌ سكرتيرٌ ومنفّذ — قائمةُ العقود الطويلة، وأوامرُ المالك، والتداولُ الآليُّ بأمره
 _node scripts/audit/saqr_d763.mjs || _note "$LINENO"   # ‏D763: المفكرةُ بالتقرير، وتبويباتُ المختبر الثلاثة، والمحفظةُ ولوحةُ صقر في المظهرين
 python3 scripts/audit/research_archive_d749.py || _note "$LINENO"   # ‏D749: أرشيفُ التقارير لجميع الجلسات — كلُّ جلسةٍ بأرقامها هي
 python3 scripts/audit/robo_orders_d750.py || _note "$LINENO"   # ‏D750: أوامرُ المستشار الآليّ — بأرقامها وبوّاباتها واعتماد المالك

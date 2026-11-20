@@ -37,10 +37,12 @@ except ValueError:
     sa_attack = False
 b = SQ.fresh()
 SQ.apply_settings(b, {"mode": "balanced", "day_target": None})
-check(cu["mode"] == "attack" and cu["per_trade"] == 100 and cu["day_target"] == 100 and SQ.profile(us) is SQ.PROFILES["attack"]
+# ‏D771 (المالك 2026-11-20): «لا نختار إلا طويلَ المدى… بالميزانية التي نحدّدها 150… وزرٌّ أوقف التداولَ الآليّ»: الافتراضيُّ متوازنٌ طويلٌ
+# بميزانية عقدٍ 150 والتداولُ الآليُّ موقوف — والهجوميُّ باقٍ يختاره المالك بأمرٍ صريح
+check(cu["mode"] == "balanced" and cu["per_trade"] == 150 and cu["day_target"] == 100 and cu["auto"] is False and SQ.profile(us) is SQ.PROFILES["balanced"]
       and cs["mode"] == "balanced" and cs["per_trade"] is None and SQ.profile(sa) is SQ.PROFILES["balanced"] and not sa_attack
       and SQ.profile(b) is SQ.PROFILES["balanced"] and SQ.cfg(b)["day_target"] is None,
-      "١ الأمريكيُّ هجوميٌّ افتراضاً (100$ للصفقة · هدفُ اليوم 100$) والمالكُ يعيده متوازناً ويلغي الهدف، والسعوديُّ متوازنٌ دائماً",
+      "١ الأمريكيُّ طويلُ الأجل متوازنٌ افتراضاً (‏D771: 150$ للعقد · التداولُ الآليُّ موقوف · هدفُ اليوم 100$) والمالكُ يلغي الهدف، والسعوديُّ متوازنٌ دائماً",
       f"{cu['mode']} · {cu['per_trade']} · {cu['day_target']}")
 
 # ٢ الميزانيةُ: أمرُ المالك لا نصفُ رأس المال — والمقاعدُ رأسُ المال على ميزانية الصفقة
@@ -55,8 +57,8 @@ s3, b3 = SQ.seats_budget(st3, 1000, 0.3, 3)
 bal = SQ.fresh()
 SQ.apply_settings(bal, {"mode": "balanced", "per_trade": None})
 s4, b4 = SQ.seats_budget(bal, 100, 0.5, 2)
-check((s1, b1) == (10, 100) and (s2, b2) == (1, 0.26) and (s3, b3) == (3, 150) and (s4, b4) == (2, 50),
-      "٢ الهجوميّ: ميزانيةُ الصفقة أمرُ المالك (100$ لا نصفُ رأس المال)، ومقعدٌ لكلّ 100$ (ألفٌ ⇐ عشرةُ مقاعد)، وأقصى المراكز بأمره يتقدّم، "
+check((s1, b1) == (6, 150) and (s2, b2) == (1, 0.26) and (s3, b3) == (3, 150) and (s4, b4) == (2, 50),
+      "٢ ميزانيةُ العقد أمرُ المالك (150$ لا نصفُ رأس المال — ‏D771)، ومقعدٌ لكلّ ميزانيةِ عقد (ألفٌ ⇐ ستّةُ مقاعد)، وأقصى المراكز بأمره يتقدّم، "
       "والنقدُ يحدّها — والمتوازنُ كما كان (نصفُ المئة ومقعدان)", f"{(s1, b1)} · {(s2, b2)} · {(s3, b3)} · {(s4, b4)}")
 
 # ٣ البوّاباتُ بعتبات النمط: عشرُ دقائق وربعُ ساعة، وعشرُ صفقات، وقاطعُ 20٪، والفيدراليُّ قبله بأربع ساعات، وحجرُ يومين
@@ -65,6 +67,7 @@ d0 = datetime(2026, 11, 19, tzinfo=NY).date()
 op, cl = (datetime.combine(d0, datetime.min.time().replace(hour=9, minute=30), NY), datetime.combine(d0, datetime.min.time().replace(hour=16), NY))
 clock, mid = (op, cl), op + timedelta(hours=2)
 a = SQ.fresh()
+a["settings"] = {"mode": "attack"}       # ‏D771: الهجوميُّ بأمرٍ صريح
 g_open5, g_open12 = SQ.gates(a, op + timedelta(minutes=5), clock, []), SQ.gates(a, op + timedelta(minutes=12), clock, [])
 g_cl10, g_cl17 = SQ.gates(a, cl - timedelta(minutes=10), clock, []), SQ.gates(a, cl - timedelta(minutes=17), clock, [])
 fed = lambda h: [{"impact": "High", "title": "FOMC Statement", "at": (mid + timedelta(hours=h)).astimezone(timezone.utc).isoformat(), "riyadh": "x"}]
@@ -124,14 +127,13 @@ check(below == 0 and n1 == 1 and n2 == 0 and win["stop"] == 1.0 and lose["stop"]
       "٦ هدفُ اليوم: دونه لا يتغيّر شيء، وبلوغُه يحمي رابحاتِ صقر عند دخولها (لا الخاسرةَ ولا مراكزَ المالك) ويُكتب مرّةً — والصيدُ مستمرّ بلا سقف",
       f"{ds}")
 
-# ٧ الدورةُ واللوحة: المسحُ بإيقاع النمط (خمسُ دقائق)، وقفلُ الهدف كلَّ دورة، واللوحةُ تحمل اليومَ والنمطَ وعتباتِه
-cyc = SRC[SRC.index("async def cycle("):SRC.index("# ══ أوامرُ المالك")]
-hunt = SRC[SRC.index("async def _hunt("):SRC.index("async def cycle(")]
+# ٧ الدورةُ واللوحة: المسحُ بإيقاع النمط، وقفلُ الهدف كلَّ دورة، والصيدُ الآليُّ بأمر المالك وحده (‏D771) — واللوحةُ تحمل اليومَ وعتباتِ العقود الطويلة
+cyc = SRC[SRC.index("async def cycle("):SRC.index("# ══ أوامرُ المالك — تعديلاتُه")]
 v = SQ.view("us")
-check('profile(st)["scan"] - 30' in cyc and "day_lock(st)" in cyc and 'pf["fight"]' in hunt and "best_for(s, side == \"call\", budget, tr_all[s], ctx, pf)" in hunt
-      and 'chosen["trail"], chosen["exit_dte"] = list(pf["trail"]), pf["exit_dte"]' in hunt and SQ.PROFILES["attack"]["scan"] == 300
-      and v["day"]["target"] == 100 and v["rules"]["mode"] == "attack" and v["rules"]["dte"] == [7, 60] and v["rules"]["max_new_day"] == 10 and v["settings"]["per_trade"] == 100,
-      "٧ صقرٌ يمسح كلَّ خمس دقائق ويحرس هدفَ اليوم كلَّ دورة، والصيدُ بعتبات النمط — واللوحةُ تعرض اليومَ والنمطَ وعتباتِه الحقيقية",
+check('profile(st)["scan"] - 30' in cyc and "day_lock(st)" in cyc and 'due and cfg(st).get("auto")' in cyc and SQ.PROFILES["attack"]["scan"] == 300
+      and v["day"]["target"] == 100 and v["rules"]["mode"] == "balanced" and v["rules"]["dte"] == [150, 430] and v["settings"]["per_trade"] == 150
+      and v["settings"]["auto"] is False,
+      "٧ صقرٌ يحرس هدفَ اليوم كلَّ دورة، ولا يشتري آلياً إلا بأمر المالك (‏D771) — واللوحةُ تعرض اليومَ وعتباتِ العقود الطويلة (150–430 يوماً)",
       f"{v['day']} · {v['rules']['dte']}")
 
 # ٨ الواجهة: كلُّ مركزٍ بتاريخ فتحه ووقته ومدّته، والمغلقةُ بوقتَي الدخول والخروج، وهدفُ اليوم، والنمطُ في الأوامر

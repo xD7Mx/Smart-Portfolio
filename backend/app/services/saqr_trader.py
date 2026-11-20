@@ -907,6 +907,9 @@ async def cycle(force: bool = False) -> dict:
             day_lock(st)
             _JOB["msg"] = "أوامرُ المالك"
             filled = await _fill_orders(st)
+            # ‏D771: قائمةُ صقر تُبنى في الجلسة (العرضُ والطلبُ حيّان) — كلَّ ساعتين، وآخرُها قبل الإغلاق للجلسة القادمة
+            from app.services import saqr_list as SL
+            SL.kick(cfg(st), {p["symbol"] for p in st["positions"]}, now, us_clock(now))
             try:
                 events = shape(await raw_week(), impacts=("High",))
                 st["health"]["events"] = True

@@ -175,8 +175,10 @@ check(not re.search(r"from app\.models|AsyncSessionLocal|portfolio_service|Trans
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
 owner_eps = re.findall(r'@router\.post\("/saqr/[^"]*"(, dependencies=\[Depends\(require_owner\)\])?\)', mk)
-check('add_job(job_saqr_cycle, CronTrigger(day_of_week=US_TRADING_DAYS, hour="16-23", minute="*/5")' in sch and len(owner_eps) == 6 and all(owner_eps) and '"/saqr/settings"' in mk,
-      "٨ب دورةُ صقر كلَّ خمس دقائق في نافذة الجلسة الأمريكية، وأوامرُه الستّة (دورة · تشغيل · رأس مال · إعدادات ‏D767 · فتح · إغلاق) بصلاحية المالك وحده",
+check('add_job(job_saqr_cycle, CronTrigger(day_of_week=US_TRADING_DAYS, hour="16-23", minute="*/5")' in sch and len(owner_eps) == 10 and all(owner_eps) and '"/saqr/settings"' in mk
+      and all(x in mk for x in ('"/saqr/list/run"', '"/saqr/order"', '"/saqr/order/{oid}/cancel"', '"/saqr/orders/{pid}"')),
+      "٨ب دورةُ صقر كلَّ خمس دقائق في نافذة الجلسة الأمريكية، وأوامرُه العشرة (دورة · تشغيل · رأس مال · إعدادات ‏D767 · فتح · إغلاق · "
+      "وبناءُ القائمة · أمرُ الشراء · إلغاؤه · أمرا البيع ‏D771) بصلاحية المالك وحده",
       f"{len(owner_eps)} نقطة")
 
 # ٩ الواجهة: التقريرُ اليوميّ في مفكرة السوق بجانب التوقعات، والمختبرُ: عقودُ الخيارات · صقر (والمحفظةُ داخل صقر — ‏D769)

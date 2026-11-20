@@ -15,6 +15,7 @@ import { useSaqr, useSaqrMarket, money, smoney, spct, hhmm, dday, tone, type Saq
 import MarketSwitch from "./MarketSwitch";
 import SaqrEmblem from "./SaqrEmblem";
 import SaqrPortfolio from "./SaqrPortfolio";
+import SaqrList from "./SaqrList";
 
 const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="ltr" className={"tabular-nums " + (className || "")}>{v}</bdi>;
 type Tab = "dash" | "portfolio" | "signals" | "log" | "rules";
@@ -33,7 +34,7 @@ function nodes(s: SaqrState, sesOpen: boolean): { k: string; t: string; d: React
   const stockStop = Math.round(s.settings?.stock_stop ?? 6);
   const newsTxt = s.health.events === false ? "التقويم متعذّر" : s.health.news === false ? "القراءة متعذّرة" : "تُقرأ";
   const eng = s.on ? (sesOpen ? "يعمل" : "ينتظر الجلسة") : "موقوف";
-  const unit = s.settings?.mode === "attack" && s.settings?.per_trade ? `$${s.settings.per_trade}` : `${frac}%`;
+  const unit = s.market !== "sa" && s.settings?.per_trade ? `$${s.settings.per_trade}` : `${frac}%`;   // ‏D771: ميزانيةُ العقد أمرُ المالك
   const risk = { k: "risk", t: "إدارة المخاطر", d: <><Num v={unit} /> · <Num v={`${s.tier.seats}`} /> مراكز</>, tip: `${unit} للصفقة · ${s.tier.seats} مراكز`,
     st: (s.gates.some(x => x.includes("قاطع")) ? "warn" : "ok") as NState, icon: ShieldCheck };
   const engine = { k: "engine", t: "محرّك الأوامر", d: eng, tip: eng, st: (s.on ? (sesOpen ? "ok" : "warn") : "off") as NState, icon: Cpu };
@@ -253,7 +254,7 @@ function Settings({ s, market, owner }: { s: SaqrState; market: Market; owner: b
   const [msg, setMsg] = useState<string | null>(null);
   const save = useMutation({
     mutationFn: () => marketApi.saqrSettings({ ...(budDirty ? { equity_to: f.budget } : {}), per_trade: f.per_trade || null, max_positions: f.max_positions || null,
-      ...(sa ? {} : { instruments: f.instruments, sides: f.sides, opt_stop: f.opt_stop, take_x: f.take_x, mode: f.mode, day_target: f.day_target || null }), stock_stop: f.stock_stop }, market),
+      ...(sa ? {} : { instruments: f.instruments, sides: f.sides, opt_stop: f.opt_stop, take_x: f.take_x, day_target: f.day_target || null }), stock_stop: f.stock_stop }, market),
     onSuccess: r => { qc.setQueryData(["saqr", market], r.data.data); setBudDirty(false); setMsg("حُفظت الأوامر — تسري على الصفقات الجديدة، وقيمةُ المحفظة فوراً."); },
     onError: (e: any) => setMsg(e?.response?.data?.detail || "تعذّر الحفظ"),
   });
@@ -269,12 +270,9 @@ function Settings({ s, market, owner }: { s: SaqrState; market: Market; owner: b
       <h4>أوامرُك لصقر {sa ? "السعوديّ" : "الأمريكيّ"}</h4>
       {!sa && (
         <div className="sq-set-grid" data-k="mode">
-          <label><small>النمط</small><Seg k="mode" opts={[["attack", "هجوميّ"], ["balanced", "متوازن"]]} /></label>
           <label><small>هدفُ اليوم $</small><input className="sp-in" type="number" min={1} dir="ltr" placeholder="بلا هدف" value={f.day_target} disabled={!owner}
             onChange={e => set("day_target", e.target.value)} data-role="sq-day-target" /></label>
-          <small className="sq-muted sq-set-note">{f.mode === "attack"
-            ? "الهجوميّ: ميزانيةُ الصفقة كما تحدّدها، ومسحٌ كلَّ خمس دقائق، وحتى عشر صفقاتٍ يومياً، وآجالٌ أقصر أسرعُ حركة — والوقفُ وقاطعُ اليوم باقيان."
-            : "المتوازن: نصفُ رأس المال أو أقلّ للصفقة بحسب حجمه، ومسحٌ كلَّ عشرين دقيقة، وثلاثُ صفقاتٍ يومياً، وآجالٌ أطول."}</small>
+          <small className="sq-muted sq-set-note">العقودُ طويلةُ الأجل وحدها (150–430 يوماً). «حدُّ الصفقة الواحدة» هو ميزانيةُ العقد التي تُبنى بها قائمةُ صقر.</small>
         </div>
       )}
       <div className="sq-set-row" data-k="budget">
@@ -326,6 +324,8 @@ export default function SaqrDesk() {
   const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem("sp_saqr_tab") as Tab) || "dash"; } catch { return "dash"; } });
   const pick = (t: Tab) => { setTab(t); try { localStorage.setItem("sp_saqr_tab", t); } catch { /* */ } };
   const toggle = useMutation({ mutationFn: (on: boolean) => marketApi.saqrToggle(on, market), onSuccess: r => qc.setQueryData(["saqr", market], r.data.data) });
+  /* ‏D771 (المالك): «زرٌّ أوقف التداولَ الآليّ — وهو يطلع العقودَ ويشتغل مثل السكرتير»: الأمريكيُّ ينفّذ أوامرَ المالك، وآلياً من قائمته إن شغّله */
+  const autoM = useMutation({ mutationFn: (on: boolean) => marketApi.saqrSettings({ auto: on }, "us"), onSuccess: r => qc.setQueryData(["saqr", "us"], r.data.data) });
   const run = useMutation({ mutationFn: () => marketApi.saqrRun(market), onSuccess: () => setTimeout(() => q.refetch(), 700) });
   const curve = useMemo(() => (s?.equity_curve || []).map(p => p[1]), [s?.equity_curve]);
   const sw = <MarketSwitch value={market} onChange={setMarket} />;
@@ -338,17 +338,25 @@ export default function SaqrDesk() {
       {sw}
       <header key={market} className="sq-head">
         <span className="sq-id"><SaqrEmblem size={30} live={s.on && sesOpen} /><b>صقر {sa ? "السعوديّ" : "الأمريكيّ"}</b>
-          <span className={"sq-pill " + (s.on ? (sesOpen ? "s-open" : "s-pre") : "s-closed")} data-role="sq-state">{s.on ? (sesOpen ? "يعمل الآن" : "يعمل في الجلسة") : "موقوف"}</span>
+          {sa ? <span className={"sq-pill " + (s.on ? (sesOpen ? "s-open" : "s-pre") : "s-closed")} data-role="sq-state">{s.on ? (sesOpen ? "يعمل الآن" : "يعمل في الجلسة") : "موقوف"}</span>
+            : <span className={"sq-pill " + (s.settings?.auto ? (sesOpen ? "s-open" : "s-pre") : "s-pre")} data-role="sq-state">{s.settings?.auto ? (sesOpen ? "يتداول آلياً" : "آليٌّ في الجلسة") : "ينفّذ أوامرك"}</span>}
         </span>
-        <span className="sq-sub">{sa ? "أسهمُ الشركات" : "عقودُ الخيارات والأسهم"} · التنفيذُ بأسعار السوق الحقيقية</span>
+        <span className="sq-sub">{sa ? "أسهمُ الشركات" : "عقودُ الخيارات الطويلة"} · التنفيذُ بأسعار السوق الحقيقية</span>
         {owner && (
           <span className="sq-acts">
             <button type="button" className="btn-ghost sq-btn" onClick={() => run.mutate()} disabled={busy} data-role="sq-run" title={s.running?.msg || "دورةٌ الآن"}>
               <RefreshCw size={14} className={busy ? "rl-spin" : ""} /> {busy ? (s.running?.msg || "يعمل") : "دورةٌ الآن"}
             </button>
-            <button type="button" className={(s.on ? "btn-ghost" : "btn-primary") + " sq-btn"} onClick={() => toggle.mutate(!s.on)} disabled={toggle.isPending} data-role="sq-toggle">
-              {s.on ? <><Pause size={14} /> إيقاف</> : <><Play size={14} /> تشغيل</>}
-            </button>
+            {sa ? (
+              <button type="button" className={(s.on ? "btn-ghost" : "btn-primary") + " sq-btn"} onClick={() => toggle.mutate(!s.on)} disabled={toggle.isPending} data-role="sq-toggle">
+                {s.on ? <><Pause size={14} /> إيقاف</> : <><Play size={14} /> تشغيل</>}
+              </button>
+            ) : (
+              <button type="button" className={(s.settings?.auto ? "btn-ghost" : "btn-primary") + " sq-btn"} onClick={() => autoM.mutate(!s.settings?.auto)} disabled={autoM.isPending}
+                data-role="sq-auto" aria-pressed={!!s.settings?.auto}>
+                {s.settings?.auto ? <><Pause size={14} /> أوقف التداول الآليّ</> : <><Play size={14} /> شغّل التداول الآليّ</>}
+              </button>
+            )}
           </span>
         )}
       </header>
@@ -364,7 +372,7 @@ export default function SaqrDesk() {
       <nav className="seg inline-flex sq-nav" role="tablist" aria-label="صقر" data-role="sq-nav">
         {TABS.map(([k, t, I]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} className={"seg-btn chip" + (tab === k ? " on" : "")} onClick={() => pick(k)} data-view={k}>
-            <I size={14} /> {t}
+            <I size={14} /> {k === "signals" && !sa ? "قائمةُ العقود" : t}
           </button>
         ))}
       </nav>
@@ -426,7 +434,9 @@ export default function SaqrDesk() {
           </div>
         )}
 
-        {tab === "signals" && (
+        {tab === "signals" && !sa && <SaqrList s={s} owner={owner} />}
+
+        {tab === "signals" && sa && (
           <div className="sq-card card card-rise" data-role="sq-signals">
             <h4>إشاراتُ آخر مسح {s.scan?.at && <span className="sq-muted"><Num v={`${dday(s.scan.at)} ${hhmm(s.scan.at)}`} /></span>}</h4>
             {s.scan && (
@@ -522,24 +532,27 @@ export default function SaqrDesk() {
         {tab === "rules" && !sa && (
           <div className="sq-grid">
             <div className="sq-card card card-rise wide" data-role="sq-rules">
-              <h4>كيف يدخل</h4>
+              <h4>كيف تُبنى قائمةُ العقود</h4>
               <ul className="sq-gl">
                 <li>السوقُ الأمريكيّ كلُّه: كلُّ ورقةٍ لها عقودُ خيارات (دليلُ سيبوي) وسائلة.</li>
                 <li>الأساسُ قبل الفنّ: لا سعرَ دون 5 دولارات (منطقةُ الشطب)، ولا قيمةَ دون ملياري دولار، ولا ضيقَ ماليّ (Altman دون 1.81)، ولا متانةَ دون
                   الممتاز (Piotroski ‏5 من 9 فأكثر)، ولا خسارةً تحرق النقد، ولا دينَ مفرطاً ولا سيولةً ضعيفة — ودرجةُ المتانة 65 فأكثر؛ والصناديقُ العميقةُ
                   وحدها (تداولٌ يوميّ ≥ 200 مليون دولار) بلا المرفوعِ ولا صناديقِ الدخل بالعقود.</li>
                 <li>ثمّ المسار: صاعدٌ أو هابطٌ واضح، والخبرُ القويُّ المعاكسُ يُسقط الصفقة.</li>
-                <li>النمط: <b>{s.rules.mode === "attack" ? "هجوميّ" : "متوازن"}</b> — مسحٌ كلَّ <Num v={`${s.rules.scan_min}`} /> دقائق، وحتى <Num v={`${s.rules.max_new_day}`} /> صفقاتٍ يومياً.</li>
-                <li>لا يعاكس حركةَ اليوم فوق <Num v={`${s.rules.fight}%`} />، ولا يدخل قبل أرباح الشركة بثلاثة أيام.</li>
-                <li>العقد: أجلُ <Num v={`${s.rules.dte[0]}–${s.rules.dte[1]}`} /> يوماً، فارقٌ ≤ <Num v={`${s.rules.max_spread}%`} />، دلتا <Num v={`${s.rules.delta[0]}–${s.rules.delta[1]}`} />، تآكلٌ يوميّ ≤ <Num v={`${Math.round(s.rules.burn)}%`} />،
-                  وحكمُ المستشار بيونانياته {s.rules.warn_ok ? "«مناسب» أو «بحذر» (والتحفّظُ يُكتب في المبرّر)" : "«مناسب»"}.</li>
-                <li>لا دخولَ في أوّل <Num v={`${s.rules.open_wait}`} /> دقيقةً ولا آخرِ <Num v={`${s.rules.close_wait}`} />، ولا حول حدثٍ اقتصاديٍّ عالي الأثر (والفيدراليُّ قبله بـ<Num v={`${s.rules.fed_h}`} /> ساعات)، ولا بعد خسارة <Num v={`${s.rules.day_loss}%`} /> في اليوم.</li>
+                <li>طويلُ الأجل وحده: قائمةُ صقر تُعدّ بعد إغلاق السوق للجلسة القادمة، وأنت تختار منها وتنفّذ بأوامرك — والتداولُ الآليُّ <b>{s.settings?.auto ? "يعمل" : "موقوف"}</b>
+                  {s.settings?.auto ? <>، يشتري من القائمة نفسِها حتى <Num v={`${s.rules.max_new_day}`} /> صفقاتٍ يومياً</> : null}.</li>
+                <li>العقد: أجلُ <Num v={`${s.rules.dte[0]}–${s.rules.dte[1]}`} /> يوماً، وكلفتُه ضمن ميزانية العقد، وعرضٌ وطلبٌ حقيقيّان بفارقٍ ≤ <Num v={`${s.rules.max_spread}%`} />،
+                  ودلتا <Num v={`${s.rules.delta[0]}–${s.rules.delta[1]}`} />، ونقطةُ تعادلٍ دون الهدف الفنيّ، وربحٌ عنده <Num v="75%" /> من الكلفة فأكثر.</li>
+                <li>لكلّ عقدٍ إيجابياتُه وسلبياتُه بأرقامها (المسار · الزخم · الأساس · الخبر · الربح والاحتمال · الفارق · السيولة · الأجل) — وما زادت سلبياتُه على إيجابياته لا يدخل القائمة،
+                  ومعه سعرُ السهم الذي يربح عنده العقدُ <Num v="30%" />.</li>
+                <li>التداولُ الآليُّ إن شغّلته: في الجلسة الرسمية وحدها، لا في أوّل ربع ساعةٍ ولا آخرِ عشرين دقيقة، ولا حول حدثٍ اقتصاديٍّ عالي الأثر، ولا بعد خسارة <Num v={`${s.rules.day_loss}%`} /> في اليوم.</li>
               </ul>
             </div>
             <div className="sq-card card card-rise" data-role="sq-rules-exit">
               <h4>كيف يخرج</h4>
               <ul className="sq-gl">
-                <li>وقفٌ عند <Num v={`${Math.round(s.rules.stop * 100)}%`} /> من سعر الشراء.</li>
+                <li>ما نفّذتَه بأوامرك: يبيعه صقر عند أمر جني الربح أو أمر الوقف كما كتبتهما، أو حين تضغط «إغلاق» بسعر السوق — وقبل الانتهاء بـ<Num v={`${s.rules.exit_dte}`} /> يوماً.</li>
+                <li>وما اشتراه آلياً: وقفٌ عند <Num v={`${Math.round(s.rules.stop * 100)}%`} /> من سعر الشراء.</li>
                 <li>من <Num v={`+${Math.round((s.rules.trail[0] - 1) * 100)}%`} /> يرتفع الوقفُ إلى الدخول، ومن <Num v={`+${Math.round((s.rules.trail[1] - 1) * 100)}%`} /> إلى <Num v={`${Math.round(s.rules.trail[2] * 100)}%`} /> من القمّة.</li>
                 <li>بلوغُ هدف اليوم يحمي كلَّ رابحٍ عند سعر دخوله، والصيدُ مستمرٌّ بلا سقف.</li>
                 <li>جنيٌ عند تضاعف العقد أو بلوغِ السهم الهدف.</li>
@@ -548,7 +561,7 @@ export default function SaqrDesk() {
             </div>
             <div className="sq-card card card-rise" data-role="sq-rules-size">
               <h4>حجمُ الصفقة</h4>
-              {s.rules.mode === "attack" && s.settings?.per_trade ? (
+              {s.settings?.per_trade ? (
                 <p className="sq-gl" data-role="sq-unit">ميزانيةُ الصفقة <b><Num v={usd(s.settings.per_trade, 0)} /></b> بأمرك، ومقعدٌ لكلّ <Num v={usd(s.settings.per_trade, 0)} /> في رأس المال
                   (<Num v={`${s.tier.seats}`} /> {s.tier.seats === 1 ? "مقعد" : "مقاعد"} الآن) — وكلّما كبر رأسُ المال كثرت الصفقاتُ معاً.</p>
               ) : (

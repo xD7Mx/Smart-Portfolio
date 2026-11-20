@@ -291,6 +291,14 @@ export const marketApi = {
     api.post<APIResponse>("/market/saqr/open", { contract, qty, price: price ?? null, market, managed }, { timeout: 60000 }),
   saqrClose: (id: string, price?: number | null, market: "us" | "sa" = "us") =>
     api.post<APIResponse>(`/market/saqr/close/${encodeURIComponent(id)}`, { price: price ?? null, market }, { timeout: 60000 }),
+  /* ‏D771: قائمةُ صقر وأوامرُ المالك (شراءٌ بسعره، وجنيُ الربح ووقفُ الخسارة، وأوامرٌ معلّقة) */
+  saqrList: () => api.get<APIResponse>("/market/saqr/list"),
+  saqrListRun: () => api.post<APIResponse>("/market/saqr/list/run", {}),
+  saqrOrder: (p: { contract: string; qty: number; limit?: number | null; tp_pct?: number | null; sl_pct?: number | null }) =>
+    api.post<APIResponse>("/market/saqr/order", { ...p, market: "us" }, { timeout: 60000 }),
+  saqrOrderCancel: (id: string) => api.post<APIResponse>(`/market/saqr/order/${encodeURIComponent(id)}/cancel`, { market: "us" }),
+  saqrSetOrders: (pid: string, p: { tp_pct?: number | null; sl_pct?: number | null }, market: "us" | "sa" = "us") =>
+    api.post<APIResponse>(`/market/saqr/orders/${encodeURIComponent(pid)}`, { ...p, market }),
   optionChain: (symbol: string, date?: number | null) =>
     api.get<APIResponse>(`/market/options/${encodeURIComponent(symbol)}`, { params: date ? { date } : {} }),
   officialNames: () => api.get<APIResponse>("/market/official-names"),

@@ -71,14 +71,16 @@ check(seats == 3 and budget == 30 and c["instruments"] == "options" and c["sides
       "حدوده يُرفض — والافتراضيُّ لكلّ سوق (وقفُ السهم السعوديّ −6٪ والأمريكيّ −7٪)", f"{seats} · {budget} · مرفوضٌ خطأً: {bad}")
 
 # ٤ الأوامرُ تحكم الصيدَ والخروج
-hunt = SRC["saqr_trader"][SRC["saqr_trader"].index("async def _hunt("):SRC["saqr_trader"].index("async def cycle(")]
+# ‏D771: الصيدُ الآليُّ الأمريكيُّ من قائمة صقر (عقودٌ طويلةٌ وحدها) — والأوامرُ تحكمه: شراءٌ فقط يتخطّى البيع، والوقفُ والجنيُ عند الدخول بأمر المالك
+hunt = SRC["saqr_trader"][SRC["saqr_trader"].index("async def _hunt("):SRC["saqr_trader"].index("# ══ أوامرُ المالك (‏D771)")]
+lst = (ROOT / "backend/app/services/saqr_list.py").read_text(encoding="utf-8")
 P = {"type": "call", "entry_px": 1.0, "stop": 0.6, "peak": 1.0, "target": 999, "take_x": 2.5}
-check('c["sides"] == "calls"' in hunt and 'c["instruments"] == "stocks"' in hunt and 'c["instruments"] != "options"' in hunt
-      and 'chosen["stop"] = round(chosen["ask"] * (1 - c["opt_stop"] / 100), 4)' in hunt and 'c["stock_stop"] / 100' in hunt
+check('it["type"] == "put" and c["sides"] == "calls"' in hunt and 'calls_only = cfg.get("sides") == "calls"' in lst
+      and '"stop": round(q["ask"] * (1 - c["opt_stop"] / 100), 4), "take_x": c["take_x"]' in hunt
       and SQ.exit_rule(dict(P), 2.1, 10, 60, None, None) is None and SQ.exit_rule(dict(P), 2.55, 10, 60, None, None)[0] == "take"
       and "seats_budget(" in SRC["saqr_sa"] and 'c["stock_stop"] / 100' in SRC["saqr_sa"],
-      "٤ الأوامرُ تحكم الصيد (شراءٌ فقط يرفض البيع، وأسهمٌ فقط تتخطّى العقود، وعقودٌ فقط بلا بديلِ السهم) والوقفَ عند الدخول، والجنيُ بمضاعف المالك "
-      "المحفوظ في المركز (×2.5 لا ×2) — في السوقين")
+      "٤ الأوامرُ تحكم الصيد (شراءٌ فقط يتخطّى البيعَ في القائمة والصيد) والوقفَ والجنيَ عند الدخول، والجنيُ بمضاعف المالك المحفوظ في المركز "
+      "(×2.5 لا ×2) — في السوقين")
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
 check('@router.post("/saqr/settings", dependencies=[Depends(require_owner)])' in mk and "await SQ.settings(p, m)" in mk,
       "٤ب أمرُ الإعدادات بصلاحية المالك وحده، ولكلّ سوقٍ إعداداتُه")

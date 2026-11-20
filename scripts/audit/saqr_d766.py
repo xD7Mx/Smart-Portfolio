@@ -106,10 +106,12 @@ check(set(U["tr"]) == {"AAPL", "BRK-B", "SPY"} and U["meta"]["optionable"] == 4 
 
 # ٥ الصيدُ يقرأ المجالَ الكامل ويكتب الأساسَ في المبرّر، والمراجعةُ تقرأ مسارَه
 src = (ROOT / "backend/app/services/saqr_trader.py").read_text(encoding="utf-8")
-hunt = src[src.index("async def _hunt("):src.index("async def cycle(")]
-check("await SU.universe()" in hunt and 'why.insert(0, f"الأساس: {fund[' in hunt and hunt.count("الأساس:") >= 2 and '"full": umeta' in hunt
+# ‏D771: الصيدُ الآليُّ من قائمة صقر، والقائمةُ تقرأ المجالَ الكاملَ وتكتب الأساسَ في إيجابيات العقد
+lst = (ROOT / "backend/app/services/saqr_list.py").read_text(encoding="utf-8")
+hunt = src[src.index("async def _hunt("):src.index("# ══ أوامرُ المالك (‏D771)")]
+check("await SU.universe()" in lst and 'assess(k, tr, fund.get(s), n)' in lst and "أساسٌ ماليٌّ متين" in lst and "SL.load()" in hunt
       and 'cache.get(f"saqr:tr:{p[\'symbol\']}") or' in src,
-      "٥ الصيدُ يقرأ المجالَ الكامل (لا القائمةَ المحدودة إلا احتياطاً موسوماً)، ويكتب سببَ الأساس أوّلَ مبرّر الصفقة — عقداً أو سهماً — ومراجعةُ "
+      "٥ قائمةُ صقر تقرأ المجالَ الكامل (كلُّ ورقةٍ لها عقودٌ واجتازت الأساس)، والأساسُ المتينُ من إيجابيات العقد، والصيدُ الآليُّ منها — ومراجعةُ "
       "المراكز تقرأ مسارَ المجال")
 
 # ٦ المصادرُ مقيسة: الدليلُ والحقول

@@ -9,7 +9,17 @@ export type SPos = { id: string; kind?: "option" | "stock"; name?: string | null
   strike: number | null; expiry: string | null; qty: number;
   entry_px: number; cost: number; opened: string; stop: number; peak: number; bid: number | null; ask: number | null; S: number | null; S0: number | null;
   target: number | null; target_label?: string | null; delta?: number | null; iv?: number | null; why: string[]; src: "saqr" | "manual"; auto: boolean;
-  value: number; pl: number; pl_pct: number | null; alert?: string; marked?: string; managed?: boolean };
+  value: number; pl: number; pl_pct: number | null; alert?: string; marked?: string; managed?: boolean;
+  owner?: boolean; tp_pct?: number | null; sl_pct?: number | null; take_x?: number | null };
+export type SOrder = { id: string; contract: string; symbol: string; name?: string | null; type: "call" | "put"; strike: number; expiry: string; qty: number;
+  limit: number | null; tp_pct: number | null; sl_pct: number | null; created: string; note?: string };
+export type SListItem = { contract: string; symbol: string; name?: string | null; type: "call" | "put"; strike: number; expiry: string; dte: number;
+  ask: number; bid: number | null; cost: number; px_src: string; spread_pct: number; breakeven: number; need_pct: number; target: number; target_label: string;
+  gain_target: number; pop: number; p_touch: number; delta: number; iv: number; oi: number; score: number; tp30: { price: number; pct: number | null };
+  pros: string[]; cons: string[]; margin: number; grade: string; fund: number | null; trend: { state: string; strength: number; ret3m: number | null };
+  news: { impact: string; event: string } | null; price: number | null };
+export type SList = { at: string; for: string; label: string; budget: number; items: SListItem[]; scanned: number; universe: number;
+  excluded: Record<string, number>; cheapest: number | null; snap: boolean; calls_only: boolean };
 export type SClosed = SPos & { exit_px: number; proceeds: number; closed: string; reason: string; reason_ar: string; note?: string };
 export type SSignal = { at: string; sym: string; name?: string | null; side?: "call" | "put"; verdict: "chosen" | "accepted" | "refused"; why: string; contract?: string; score?: number };
 export type SLog = { at: string; kind: "buy" | "sell" | "alert" | "manual" | "info" | "error"; text: string; sym?: string | null };
@@ -18,10 +28,10 @@ export type Geo = { level: "منخفض" | "متوسط" | "مرتفع"; why: stri
 export type Pulse = { at: string; adv: number; dec: number; unch: number; turnover: number; leaders: [string, number][]; laggards: [string, number][];
   results: { strong: number; neutral: number; weak: number; pending: number; unknown: number }; quarter: string; brent: { px: number; chg: number; chg5: number | null } | null };
 export type SaqrSettings = { per_trade: number | null; max_positions: number | null; instruments: "both" | "options" | "stocks"; sides: "both" | "calls";
-  opt_stop: number; stock_stop: number; take_x: number; mode: "attack" | "balanced"; day_target: number | null };
+  opt_stop: number; stock_stop: number; take_x: number; mode: "attack" | "balanced"; day_target: number | null; auto?: boolean };
 export type DayState = { date: string | null; pl: number | null; target: number | null; hit: string | null; new: number; progress: number | null };
 export type SaqrState = {
-  market: Market; ccy: "USD" | "SAR"; day?: DayState | null; regime?: Regime | null; geo?: Geo | null; pulse?: Pulse | null; settings?: Partial<SaqrSettings>;
+  market: Market; ccy: "USD" | "SAR"; day?: DayState | null; orders?: SOrder[]; regime?: Regime | null; geo?: Geo | null; pulse?: Pulse | null; settings?: Partial<SaqrSettings>;
   on: boolean; capital: number; goal: number; cash: number; equity: number; pl: number; pl_pct: number | null; progress: number | null;
   started: string; tier: { frac: number; seats: number }; positions: SPos[]; closed: SClosed[]; n_closed: number; wins: number; losses: number;
   win_rate: number | null; realized: number; fees: number;
