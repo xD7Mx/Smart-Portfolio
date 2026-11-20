@@ -4014,6 +4014,14 @@ html.light {
 .sl-bud-seg .seg-btn.on .sl-bud-n { color: inherit; opacity: .8; }
 .sl-bud-c { display: inline-flex; align-items: center; gap: 6px; }
 .sl-bud-c .sp-in { width: 110px; min-height: 32px; }
+/* ‏D776: فريقُ صقر — سطرٌ لكلّ عضو، وسجلُّه */
+.sl-team { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.sl-team li { display: grid; grid-template-columns: 18px auto 1fr; align-items: baseline; gap: 6px; font-size: 12px; line-height: 1.65; color: var(--ink); }
+.sl-team li b { font-size: 11.5px; font-weight: 800; color: var(--ink-muted); white-space: nowrap; }
+.sl-mem-i { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; align-self: center;
+  color: var(--pos-ink); background: color-mix(in srgb, var(--pos-ink) 14%, transparent); transition: background-color .2s ease, color .2s ease; }
+.sl-team li[data-v="warn"] .sl-mem-i { color: var(--warn-ink); background: color-mix(in srgb, var(--warn-ink) 15%, transparent); }
+.sl-track { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--ink-muted); }
 .sl-ex { display: flex; align-items: center; gap: 5px; font-size: 11.5px; }
 .of { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid var(--hairline); }
 .of-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }

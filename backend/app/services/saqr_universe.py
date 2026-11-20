@@ -174,7 +174,17 @@ def tv_trend(row: dict) -> dict | None:
     return {"close": round(c, 2), "sma50": round(s50, 2), "sma200": round(s200, 2), "slope50": round(slope, 2), "ret3m": round(p3, 1),
             "hi52": round(hi52, 2), "lo52": round(lo52, 2), "hi60": round(_n(row.get("High.3M")) or hi52, 2), "lo60": round(_n(row.get("Low.3M")) or lo52, 2),
             "hi120": round(_n(row.get("High.6M")) or hi52, 2), "lo120": round(_n(row.get("Low.6M")) or lo52, 2), "state": state, "strength": round(strength, 2),
-            "traded": round((_n(row.get("Value.Traded")) or 0) / 1e6, 1)}   # ‏D774: قيمةُ التداول اليوميّ بالمليون — مقياسُ سيولة عقوده
+            "traded": round((_n(row.get("Value.Traded")) or 0) / 1e6, 1),   # ‏D774: قيمةُ التداول اليوميّ بالمليون — مقياسُ سيولة عقوده
+            "earn": _date(row.get("earnings_release_next_date"))}           # ‏D776: موعدُ الأرباح القادم (عضوُ المخاطر)
+
+
+def _date(v) -> str | None:
+    """تاريخٌ من ختم يونكس في المُصفّي — وما لا يُفهم «غيرُ متوفّر» (None)."""
+    try:
+        from datetime import datetime, timezone
+        return datetime.fromtimestamp(float(v), tz=timezone.utc).date().isoformat() if v else None
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
 
 
 async def universe() -> dict:

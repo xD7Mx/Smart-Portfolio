@@ -70,10 +70,10 @@ REASON_AR = {"tp": "بلغ أمرُ جني الربح", "sl": "بلغ أمرُ �
 DEFAULTS = {"per_trade": None, "max_positions": None, "instruments": "both", "sides": "both",
             "opt_stop": round((1 - STOP) * 100), "stock_stop": round((1 - STOCK_STOP) * 100), "take_x": TAKE, "mode": "balanced", "day_target": None}
 LIMITS = {"per_trade": (5, 1_000_000), "max_positions": (1, 12), "opt_stop": (20, 70), "stock_stop": (2, 20), "take_x": (1.3, 5.0),
-          "day_target": (1, 1_000_000)}
+          "day_target": (1, 1_000_000), "min_win": (0, 95)}
 CHOICES = {"instruments": ("both", "options", "stocks"), "sides": ("both", "calls"), "mode": ("attack", "balanced")}
 LABEL_AR = {"per_trade": "حدُّ الصفقة", "max_positions": "أقصى المراكز", "opt_stop": "وقفُ العقد ٪", "stock_stop": "وقفُ السهم ٪", "take_x": "جنيُ العقد ×",
-            "instruments": "الأداة", "sides": "الاتجاه", "mode": "النمط", "day_target": "هدفُ اليوم"}
+            "instruments": "الأداة", "sides": "الاتجاه", "mode": "النمط", "day_target": "هدفُ اليوم", "min_win": "نسبةُ النجاح الدنيا ٪"}
 VALUE_AR = {"both": "الكلّ", "options": "عقودٌ فقط", "stocks": "أسهمٌ فقط", "calls": "شراءٌ فقط", "attack": "هجوميّ", "balanced": "متوازن"}
 # ‏D768 (المالك 2026-11-19): «صقرٌ الأمريكيّ ممتازٌ في الاصطياد لكنّه متحفّظٌ جداً، خجول — يجب أن يكون وحشاً شرساً… ميزانيةُ 100 دولار للعقد
 # الواحد ويختار كما يشاء، والسوقُ الأمريكيّ كلُّه معه… أبغاه كلَّ يوم يشتغل، وأقلُّ شيءٍ 100 دولار ربحاً». وقيس على دفتره (2026-11-18):
@@ -93,7 +93,7 @@ PROFILES = {
 }
 # ‏D771 (المالك 2026-11-20): «لا نختار إلا طويلَ المدى… أبغاه يشتغل مثل السكرتير يطلع لي العقود وأنا أختار… وزرٌ أوقف التداولَ الآليّ… بالميزانية
 # التي نحدّدها 150»: فالأمريكيُّ متوازنٌ طويلُ الأجل، وميزانيةُ العقد 150، والتداولُ الآليُّ موقوفٌ حتى يشغّله المالك (وإن شغّله فمن القائمة وحدها)
-US_DEFAULTS = {"mode": "balanced", "per_trade": 150, "day_target": 100, "auto": False}
+US_DEFAULTS = {"mode": "balanced", "per_trade": 150, "day_target": 100, "auto": False, "min_win": 0}   # ‏D776: نسبةُ النجاح الدنيا بيد المالك
 _LOCK = asyncio.Lock()
 _JOB = {"on": False, "msg": "", "at": None}
 
@@ -229,7 +229,7 @@ def apply_settings(st: dict, upd: dict) -> list[str]:
         done.append("التداولُ الآليّ: " + ("يعمل — من قائمة صقر وحدها" if c["auto"] else "موقوف — صقرٌ يُعدّ القائمةَ وينفّذ أوامرك"))
     if st.get("market") == "sa" and upd.get("mode") not in (None, "balanced"):
         raise ValueError("النمطُ الهجوميُّ للسوق الأمريكيّ وحده.")
-    for k in ("per_trade", "max_positions", "opt_stop", "stock_stop", "take_x", "day_target"):
+    for k in ("per_trade", "max_positions", "opt_stop", "stock_stop", "take_x", "day_target", "min_win"):
         if k in upd:
             v = upd[k]
             if v in (None, "", 0):
@@ -733,7 +733,8 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
     if len(st["positions"]) >= seats:
         return None
     held = {p["symbol"] for p in st["positions"]} | {o["symbol"] for o in st.get("orders") or []}
-    lst = SL.view(SL.load(), budget, c["sides"] == "calls", held) or {}     # ‏D775: أفضلُ عقدٍ لكلّ سهمٍ ضمن ميزانية العقد الآن
+    lst = SL.view(SL.load(), budget, c["sides"] == "calls", held, float(c.get("min_win") or 0),
+                  float(c.get("opt_stop") or 40) / 100) or {}     # ‏D775/D776: أفضلُ عقدٍ يقبله الفريقُ ضمن الميزانية ونسبة النجاح
     for it in lst.get("items") or []:
         if it["symbol"] in held or cooling(st, it["symbol"], now) or (it["type"] == "put" and c["sides"] == "calls"):
             continue
@@ -910,6 +911,7 @@ async def cycle(force: bool = False) -> dict:
             # ‏D771: قائمةُ صقر تُبنى في الجلسة (العرضُ والطلبُ حيّان) — كلَّ ساعتين، وآخرُها قبل الإغلاق للجلسة القادمة
             from app.services import saqr_list as SL
             SL.kick(cfg(st), {p["symbol"] for p in st["positions"]}, now, us_clock(now))
+            SL.kick_track(now, us_clock(now))                     # ‏D776: سجلُّ الفريق يُتابَع بالطلب الحيّ كلَّ ساعة
             try:
                 events = shape(await raw_week(), impacts=("High",))
                 st["health"]["events"] = True

@@ -17,9 +17,15 @@ export type SListItem = { contract: string; symbol: string; name?: string | null
   ask: number; bid: number | null; cost: number; px_src: string; spread_pct: number; breakeven: number; need_pct: number; target: number; target_label: string;
   gain_target: number; pop: number; p_touch: number; delta: number; iv: number; oi: number; score: number; tp30: { price: number; pct: number | null };
   pros: string[]; cons: string[]; margin: number; grade: string; fund: number | null; trend: { state: string; strength: number; ret3m: number | null };
-  news: { impact: string; event: string } | null; price: number | null };
+  news: { impact: string; event: string } | null; price: number | null; team: STeam };
+/* ‏D776: فريقُ صقر — ستّةُ أعضاءٍ بسطرٍ لكلّ، ونسبةُ النجاح (بلوغُ +30٪ قبل الوقف)، وسجلُّه الفعليّ */
+export type SMember = { role: string; v: "ok" | "warn" | "veto"; say: string };
+export type STeam = { members: SMember[]; veto: boolean; warns: number; p30: number | null; verdict: string;
+  odds: { p30: number; up_pct: number; dn_pct: number; decay_wk: number; days: number } | null };
+export type STrack = { open: number; closed: number; wins: number; rate: number | null; marked: string | null; since: string | null };
 export type SList = { at: string; for: string; label: string; budget: number; items: SListItem[]; scanned: number; universe: number;
-  excluded: Record<string, number>; cheapest: number | null; snap: boolean; calls_only: boolean; more?: boolean; levels?: Record<string, number> };
+  excluded: Record<string, number>; cheapest: number | null; snap: boolean; calls_only: boolean; more?: boolean; levels?: Record<string, number>;
+  min_win?: number; wins?: Record<string, number>; stop?: number; tp?: number; track?: STrack };
 export type SClosed = SPos & { exit_px: number; proceeds: number; closed: string; reason: string; reason_ar: string; note?: string };
 export type SSignal = { at: string; sym: string; name?: string | null; side?: "call" | "put"; verdict: "chosen" | "accepted" | "refused"; why: string; contract?: string; score?: number };
 export type SLog = { at: string; kind: "buy" | "sell" | "alert" | "manual" | "info" | "error"; text: string; sym?: string | null };

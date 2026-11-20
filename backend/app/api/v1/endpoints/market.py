@@ -2348,7 +2348,8 @@ def _saqr_list_view():
     from app.services import saqr_trader as SQ
     st = SQ.load("us")
     c = SQ.cfg(st)
-    return SL.view(SL.load(), SL.budget_of(c), c.get("sides") == "calls", {p["symbol"] for p in st["positions"]})
+    return SL.view(SL.load(), SL.budget_of(c), c.get("sides") == "calls", {p["symbol"] for p in st["positions"]},
+                   float(c.get("min_win") or 0), float(c.get("opt_stop") or 40) / 100)   # ‏D776: بنسبة النجاح الدنيا ووقف المالك
 
 
 @router.get("/saqr/list")

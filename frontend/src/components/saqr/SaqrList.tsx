@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw, Play, LineChart, Check, AlertTriangle } from "lucide-react";
+import { RefreshCw, Play, LineChart, Check, AlertTriangle, Users } from "lucide-react";
 import { marketApi } from "../../services/api";
 import CompanyLogo from "../common/CompanyLogo";
 import { dayMonth } from "../../lib/options";
@@ -17,6 +17,34 @@ type Side = "all" | "call" | "put";
 
 /* ‏D775 — المالك: «الأفضلُ أن تكون الميزانيةُ كستمايز: 300، 150، 100 — كلَّ يومٍ يجي خيرٌ معه». فالميزانيةُ تُختار هنا وتُعرض بها القائمةُ فوراً
    (صقر يحفظ لكلّ سهمٍ أفضلَ عقدٍ عند كلّ كلفة)، وبجانب كلّ ميزانيةٍ جاهزةٍ عددُ عقودها. */
+/* ‏D776 — المالك: «لو اخترتُ نسبةَ نجاحٍ لا تقلّ عن 90٪…». فالحدُّ الأدنى بيده، وبجانب كلٍّ عددُ عقوده بميزانيته — والنسبةُ تقديرُ السوق (التذبذبُ
+   الضمنيّ) لبلوغ +30٪ قبل الوقف، وسجلُّ الفريق يقيس الفعليّ. */
+function WinBar({ L, owner }: { L: SList; owner: boolean }) {
+  const qc = useQueryClient();
+  const cur = Math.round(L.min_win || 0);
+  const m = useMutation({
+    mutationFn: (w: number) => marketApi.saqrSettings({ min_win: w }, "us"),
+    onSuccess: r => { qc.setQueryData(["saqr", "us"], r.data.data); qc.invalidateQueries({ queryKey: ["saqr-list"] }); },
+  });
+  const lv = Object.entries(L.wins || {}).map(([w, n]) => [Number(w), n] as [number, number]).sort((a, b) => a[0] - b[0]);
+  const T = L.track;
+  return (
+    <div className="sl-bud" data-role="sl-winbar">
+      <small>نسبةُ النجاح الدنيا</small>
+      <span className="seg inline-flex sl-bud-seg" role="group" aria-label="نسبةُ النجاح الدنيا">
+        {lv.map(([w, n]) => (
+          <button key={w} type="button" className={"seg-btn chip" + (w === cur ? " on" : "")} aria-pressed={w === cur} disabled={!owner || m.isPending}
+            onClick={() => w !== cur && m.mutate(w)} data-v={w} data-role="sl-win-lv">
+            {w === 0 ? "الكلّ" : <Num v={`${w}%`} />} <em className="sl-bud-n"><Num v={`${n}`} /></em></button>
+        ))}
+      </span>
+      <span className="sl-track" data-role="sl-track"><Users size={13} /> سجلُّ الفريق: {T && T.closed > 0
+        ? <>نجح <Num v={`${T.wins}`} /> من <Num v={`${T.closed}`} /> أُغلقت (<Num v={`${Math.round(T.rate ?? 0)}%`} />) · يُتابَع <Num v={`${T.open}`} /></>
+        : T && T.open > 0 ? <>يُتابَع <Num v={`${T.open}`} /> عقداً اختارها الفريق — ولم يُغلق أيٌّ بعد</> : "يبدأ مع أوّل اختيارٍ للفريق"}</span>
+    </div>
+  );
+}
+
 function BudgetBar({ L, owner }: { L: SList; owner: boolean }) {
   const qc = useQueryClient();
   const [v, setV] = useState("");
@@ -61,21 +89,25 @@ function Item({ it, owner, i, onChart }: { it: SListItem; owner: boolean; i: num
         <CompanyLogo symbol={it.symbol} size={26} />
         <span className="sl-t"><b><Num v={it.symbol} />{it.name ? ` · ${it.name}` : ""}</b>
           <small>سترايك <Num v={`${it.strike}`} /> · {dayMonth(it.expiry)} · <Num v={`${it.dte}`} /> يوماً</small></span>
-        <span className={"sl-grade" + (it.grade === "قويّة" ? " strong" : "")} data-role="sl-grade">{it.grade}</span>
+        <span className={"sl-grade" + (it.team.warns === 0 ? " strong" : "")} data-role="sl-grade">الفريقُ {it.team.verdict}</span>
         <span className="sp-side" data-side={it.type}>{call ? "Call" : "Put"}</span>
       </header>
       <div className="sl-m">
         <span><small>الكلفة</small><b><Num v={usd(it.cost, 0)} /></b><em>العرض <Num v={px(it.ask)} />{it.px_src === "snap" ? " · آخرُ جلسة" : ""}</em></span>
+        <span data-role="sl-win"><small>نسبةُ النجاح</small><b className={(it.team.p30 ?? 0) >= 55 ? "pos" : ""}>{it.team.p30 != null ? <Num v={`${Math.round(it.team.p30)}%`} /> : "غير متوفّر"}</b>
+          <em><Num v="+30%" /> قبل الوقف</em></span>
         <span><small>الربحُ عند الهدف</small><b className="pos"><Num v={`+${it.gain_target}%`} /></b><em>الهدف <Num v={px(it.target)} /></em></span>
-        <span><small>احتمالُ الربح</small><b><Num v={`${Math.round(it.pop)}%`} /></b><em>لمسُ الهدف <Num v={`${Math.round(it.p_touch)}%`} /></em></span>
         <span data-role="sl-tp30"><small>ربحُ 30٪ عند السهم</small><b><Num v={px(it.tp30.price)} /></b>
           <em>{it.tp30.pct != null && it.tp30.pct > 0 ? <>يحتاج <Num v={spct(it.tp30.pct)} /></> : call ? "السهمُ فوقه الآن" : "السهمُ دونه الآن"}</em></span>
       </div>
-      <div className="sl-pc">
-        <ul className="sl-why" data-role="sl-pros">{it.pros.slice(0, 4).map((w, j) => <li key={j} className="pro">{w}</li>)}</ul>
-        {it.cons.length > 0 && <ul className="sl-why" data-role="sl-cons">{it.cons.slice(0, 3).map((w, j) => <li key={j} className="con">{w}</li>)}</ul>}
-        <small className="sq-muted">إيجابيات <Num v={`${it.pros.length}`} /> · سلبيات <Num v={`${it.cons.length}`} /></small>
-      </div>
+      <ul className="sl-team" data-role="sl-team" aria-label="حكمُ الفريق">
+        {it.team.members.map(m => (
+          <li key={m.role} data-v={m.v} data-role="sl-mem">
+            <i className="sl-mem-i" aria-hidden>{m.v === "ok" ? <Check size={11} /> : <AlertTriangle size={11} />}</i>
+            <b>{m.role}</b><span>{m.say}</span>
+          </li>
+        ))}
+      </ul>
       <div className="sp-acts">
         {owner && <button type="button" className={(open ? "btn-ghost" : "btn-primary") + " sp-btn"} onClick={() => setOpen(v => !v)} aria-expanded={open} data-role="sl-exec">
           <Play size={14} /> {open ? "إغلاق النموذج" : "تنفيذ"}</button>}
@@ -117,6 +149,7 @@ export default function SaqrList({ s, owner }: { s: SaqrState; owner: boolean })
           <RefreshCw size={14} className={busy ? "rl-spin" : ""} /> {busy ? (job?.msg || "يُعدّ") : "حدّث القائمة"}</button>}
       </div>
       {L && <BudgetBar L={L} owner={owner} />}
+      {L && <WinBar L={L} owner={owner} />}
       {L && L.items.length > 0 && (
         <span className="seg inline-flex sl-filter" role="group" data-role="sl-filter">
           {([["all", "الكلّ", L.items.length], ["call", "شراء Call", nCall], ["put", "بيع Put", nPut]] as [Side, string, number][]).map(([k, t, n]) => (

@@ -15,12 +15,14 @@ c = SQ.cfg(st)
 print("الأوامر:", {k: c.get(k) for k in ("per_trade", "sides", "auto")}, "· المراكز:", [p["symbol"] for p in st["positions"]], "· النقد:", st["cash"],
       "· أوامرٌ معلّقة:", len(st.get("orders") or []), "· آخرُ دورة:", st.get("last_cycle"))
 raw = SL.load()
-r = SL.view(raw, SL.budget_of(c), c.get("sides") == "calls", {p["symbol"] for p in st["positions"]}) if raw else None   # ‏D775: بميزانية المالك الآن
+r = SL.view(raw, SL.budget_of(c), c.get("sides") == "calls", {p["symbol"] for p in st["positions"]}, float(c.get("min_win") or 0),
+            float(c.get("opt_stop") or 40) / 100) if raw else None   # ‏D775/D776: بميزانية المالك ونسبة نجاحه الآن
 if not r:
     print("لا قائمةَ محفوظةً بعد — تُبنى في أوّل دورةٍ من الجلسة.")
     sys.exit(0)
 print(f"══ {r.get('label')} · أُعدّت {r.get('at')} · {len(r.get('items') or [])} عقداً من {r.get('scanned')} ورقة (المجال {r.get('universe')}) · "
       f"بميزانية {r.get('budget')} · آخرُ جلسة={r.get('snap')} · محاولة={r.get('retry')} · صيغة={r.get('v')} · يُكمل={r.get('more')}")
+print("عقودٌ عند كلّ حدٍّ للنجاح:", r.get("wins"), "· سجلُّ الفريق:", r.get("track"))
 print("عقودٌ عند كلّ ميزانية:", r.get("levels"), "· أسهمٌ لها عقود:", len(raw.get("entries") or {}), "· دفعة:", raw.get("batch"), "جديدٌ:", raw.get("fresh"))
 done = raw.get("done") or {}
 if done:                                           # ‏D774: سببُ كلّ سهمٍ بعينه — أوّلُ عشرين ممتنعاً
@@ -29,8 +31,7 @@ if done:                                           # ‏D774: سببُ كلّ س
 print("استُبعد:", r.get("excluded"), "· أرخصُ صالحٍ فوق الميزانية:", r.get("cheapest"))
 for i in (r.get("items") or [])[:20]:
     print(f"  {i['grade']} {i['symbol']:<6} {i['type']:<4} {i['strike']:>7g} {i['expiry']} ({i['dte']}ي) كلفة {i['cost']:>6.0f} · هدف {i['gain_target']:+d}٪ "
-          f"· احتمال {i['pop']:.0f}٪ · 30٪ عند {i['tp30']['price']} ({i['tp30']['pct']}٪) · +{len(i['pros'])}/-{len(i['cons'])}")
+          f"· نجاح {i['team']['p30']}٪ ({i['team']['verdict']}) · 30٪ عند {i['tp30']['price']} ({i['tp30']['pct']}٪) · +{len(i['pros'])}/-{len(i['cons'])}")
 if r.get("items"):
     i = r["items"][0]
-    print("  إيجابياتُ الأوّل:", i["pros"])
-    print("  سلبياتُه:", i["cons"])
+    print("  الفريقُ على الأوّل:", [f"{m['role']}={m['v']}: {m['say']}" for m in i["team"]["members"]])

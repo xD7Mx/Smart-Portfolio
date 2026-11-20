@@ -81,9 +81,16 @@ const LI = (sym, type, o = {}) => ({ contract: `${sym}271217${type === "call" ? 
   gain_target: 210, pop: 41, p_touch: 58, delta: 0.62, iv: 45, oi: 4200, score: 70, tp30: { price: 11.56, pct: -3.7 }, margin: 5, grade: "قويّة", fund: 85,
   trend: { state: "صاعد", strength: 9, ret3m: 12 }, news: null, price: 12,
   pros: ["المسارُ صاعد مكتمل: الإغلاق 12.00 فوق متوسّطي 50 (11.00) و200 (10.00)", "أساسٌ ماليٌّ متين (85/100): متانةٌ ممتازة", "الربحُ عند الهدف الفنيّ 15.00: +210٪ من الكلفة",
-         "احتمالُ الربح عند الانتهاء نحو 41٪", "سيولةٌ عالية: 4,200 عقداً مفتوحاً"], cons: ["تذبذبٌ ضمنيٌّ مرتفع 85٪ — العقدُ غالٍ"], ...o });
+         "احتمالُ الربح عند الانتهاء نحو 41٪", "سيولةٌ عالية: 4,200 عقداً مفتوحاً"], cons: ["تذبذبٌ ضمنيٌّ مرتفع 85٪ — العقدُ غالٍ"],
+  // ‏D776: حكمُ الفريق — ستّةُ أعضاءٍ بسطرٍ لكلّ، ونسبةُ النجاح
+  team: { veto: false, warns: 1, p30: 52, verdict: "يوافق بتحفّظ", odds: { p30: 52, up_pct: 6.1, dn_pct: 9.4, decay_wk: 0.9, days: 332 },
+    members: [{ role: "الأساس", v: "ok", say: "متانةٌ ماليةٌ ممتازة (85/100)" }, { role: "الفنّ", v: "ok", say: "مسارٌ صاعد وزخمُه معه (+12٪ في ثلاثة أشهر)" },
+      { role: "الأخبار", v: "ok", say: "لا خبرَ مؤثّراً للشركة في عشرة أيام" }, { role: "اليونانيات", v: "ok", say: "دلتا 0.62 · يتآكل 0.9٪ أسبوعياً" },
+      { role: "المخاطر", v: "ok", say: "فارقٌ 4.2٪ · اهتمامٌ 4,200 — سيولةٌ تكفي للدخول والخروج" },
+      { role: "الاحتمال", v: "warn", say: "نسبةُ النجاح 52٪: يبلغ +30٪ إن تحرّك السهمُ 6.1٪ قبل أن يهبط 9.4٪ (الوقف) — خلال 332 يوماً" }] }, ...o });
 const LIST = { at: iso(now - 7200e3), for: "2026-11-23", label: "جلسة الاثنين 23/11", budget: 150, scanned: 70, universe: 720, cheapest: 260, snap: false, calls_only: false,
   levels: { "100": 2, "150": 3, "200": 5, "300": 9, "500": 12 }, more: true,
+  min_win: 0, wins: { "0": 3, "50": 3, "60": 1, "70": 0, "80": 0, "90": 0 }, stop: 0.4, tp: 0.3, track: { open: 6, closed: 0, wins: 0, rate: null, marked: null, since: null },
   excluded: { "سلبياتُه أكثر من إيجابياته": 4, "فوق الميزانية": 31 },
   items: [LI("F", "call"), LI("VALE", "call", { grade: "جيّدة", margin: 2, tp30: { price: 13.56, pct: 12.1 } }), LI("NIO", "put", { grade: "جيّدة", margin: 2, strike: 6 })] };
 // ‏D769: «اختر عقداً بنفسك» — سلسلةُ AAPL وتحليلُ السترايك المختار
@@ -231,8 +238,10 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
       `${label}: ٤ب البطاقات: حالُ الأنظمة · التعرّض · SPY حيّاً · جلسةُ السوق بعدٍّ تنازليّ · نسبةُ النجاح (67%) · منحنى رأس المال · بوّاباتُ الدخول`, JSON.stringify(dash).slice(0, 160));
   await page.locator('[data-role="sq-nav"] [data-view="signals"]').click(); await page.waitForTimeout(900);
   const L5 = await page.evaluate(() => ({ head: document.querySelector('[data-role="sl-head"]')?.textContent || "", n: document.querySelectorAll('[data-role="sl-item"]').length,
-    tp: document.querySelector('[data-role="sl-tp30"]')?.textContent || "", pros: document.querySelectorAll('[data-role="sl-pros"] li').length,
-    cons: document.querySelectorAll('[data-role="sl-cons"] li').length, ex: document.querySelector('[data-role="sl-excluded"]')?.textContent || "",
+    tp: document.querySelector('[data-role="sl-tp30"]')?.textContent || "", pros: document.querySelectorAll('[data-role="sl-team"] [data-v="ok"]').length,
+    cons: document.querySelectorAll('[data-role="sl-team"] [data-v="warn"]').length, ex: document.querySelector('[data-role="sl-excluded"]')?.textContent || "",
+    win: document.querySelector('[data-role="sl-win"]')?.textContent || "", wl: document.querySelectorAll('[data-role="sl-win-lv"]').length,
+    track: document.querySelector('[data-role="sl-track"]')?.textContent || "",
     tab: document.querySelector('[data-role="sq-nav"] [data-view="signals"]')?.textContent || "", old: document.querySelectorAll('[data-role="sq-signal"]').length }));
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/saqr-list-${vp.width}-${theme}.png`, fullPage: true }).catch(() => {});
   await page.locator('[data-role="sl-filter"] [data-v="put"]').click(); await page.waitForTimeout(400);
@@ -255,7 +264,8 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   const logs = await page.evaluate(() => [...document.querySelectorAll('[data-role="sq-log-row"]')].map(x => x.dataset.kind));
   await page.locator('[data-role="sq-nav"] [data-view="rules"]').click(); await page.waitForTimeout(500);
   const rules = await page.locator('[data-role="sq-rules"]').textContent().catch(() => "");
-  say(L5.n === 3 && nPut === 1 && /جلسة الاثنين 23\/11/.test(L5.head) && /\$150/.test(L5.head) && /720/.test(L5.head) && /11\.56/.test(L5.tp) && L5.pros >= 9 && L5.cons >= 3
+  say(L5.n === 3 && nPut === 1 && /جلسة الاثنين 23\/11/.test(L5.head) && /\$150/.test(L5.head) && /720/.test(L5.head) && /11\.56/.test(L5.tp) && L5.pros === 15 && L5.cons === 3
+      && /^نسبةُ النجاح\s*52%/.test(L5.win) && L5.wl === 6 && /يُتابَع 6/.test(L5.track)
       && /سلبياتُه أكثر من إيجابياته 4/.test(L5.ex) && /قائمةُ العقود/.test(L5.tab) && L5.old === 0
       && JSON.stringify(logs) === JSON.stringify(["buy", "sell", "alert", "info"]) && /150–430/.test(rules) && /10%/.test(rules) && /كيف تُبنى قائمةُ العقود/.test(rules) && !/هجوميّ/.test(rules),
       `${label}: ٥ «قائمةُ العقود» (‏D771) مكانَ إشارات المسح: عقودٌ طويلةٌ للجلسة القادمة بكلفتها وربحها واحتمالها وعتبة الثلاثين وإيجابياتها وسلبياتها، `
