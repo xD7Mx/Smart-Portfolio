@@ -877,8 +877,9 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
                   <span className="pc-cc-sw">
                     {SWATCHES.map(t => {
                       const v = hexTok(t), on = (cc[side] || hexTok(side === "up" ? "--pc-up" : "--pc-down")) === v;
-                      return <button key={t} type="button" className={"pc-sw" + (on ? " on" : "")} style={{ background: `var(${t})` }} aria-pressed={on}
-                        aria-label={`${side === "up" ? "لون الصعود" : "لون الهبوط"} ${v}`} onClick={() => setCc({ ...cc, [side]: v })} />;
+                      return <button key={t} type="button" className={"pc-sw" + (on ? " on" : "")} aria-pressed={on}
+                        aria-label={`${side === "up" ? "لون الصعود" : "لون الهبوط"} ${v}`} onClick={() => setCc({ ...cc, [side]: v })}>
+                        <i aria-hidden style={{ background: `var(${t})` }} /></button>;
                     })}
                   </span>
                 </div>
