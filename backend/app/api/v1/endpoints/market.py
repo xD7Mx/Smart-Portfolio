@@ -2368,6 +2368,16 @@ async def saqr_list_run():
     return success_response({"list": _saqr_list_view(), "job": {**SL.job(), "on": True}})
 
 
+@router.get("/saqr/quote/{contract}")
+async def saqr_quote(contract: str):
+    """طلبُ العقد وعرضُه الآن (‏D778) — لتذكرة الأمر: حيّان في الجلسة، ومن آخر جلسةٍ خارجها (‏live يقول أيّهما)."""
+    from app.services import saqr_trader as SQ
+    q = await SQ.contract_quote(str(contract or "").strip().upper())
+    if not q:
+        raise HTTPException(status_code=404, detail="العقدُ غيرُ موجودٍ في السلسلة الآن.")
+    return success_response({k: q.get(k) for k in ("bid", "ask", "live", "price", "dte", "name")})
+
+
 @router.post("/saqr/order", dependencies=[Depends(require_owner)])
 async def saqr_order(payload: dict):
     """أمرُ المالك (‏D771): شراءُ عقدٍ بسعره (أو بالعرض الحيّ) ومعه جنيُ الربح ووقفُ الخسارة — يُنفَّذ الآن أو يُعلَّق حتى يبلغ العرضُ سعرَه."""

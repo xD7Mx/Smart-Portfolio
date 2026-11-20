@@ -15,7 +15,6 @@ import { useSaqr, useSaqrMarket, money, smoney, spct, hhmm, dday, tone, type Saq
 import MarketSwitch from "./MarketSwitch";
 import SaqrEmblem from "./SaqrEmblem";
 import SaqrPortfolio from "./SaqrPortfolio";
-import SaqrList from "./SaqrList";
 import OptionPicks from "../market/OptionPicks";
 
 const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="ltr" className={"tabular-nums " + (className || "")}>{v}</bdi>;
@@ -323,7 +322,8 @@ export default function SaqrDesk() {
   const sesOpen = ses?.state === "open";
   const usd = money(s?.ccy), susd = smoney(s?.ccy);
   const [tab0, setTab] = useState<Tab>(() => { try { return (localStorage.getItem("sp_saqr_tab") as Tab) || "dash"; } catch { return "dash"; } });
-  const tab: Tab = sa && tab0 === "options" ? "dash" : tab0;           // عقودُ الخيارات للسوق الأمريكيّ وحده
+  // عقودُ الخيارات للسوق الأمريكيّ وحده؛ و«الإشارات» للسعوديّ وحده (‏D778: «قائمةُ العقود لا فايدة منها — نكتفي بعقود الخيارات»)
+  const tab: Tab = sa && tab0 === "options" ? "dash" : !sa && tab0 === "signals" ? "options" : tab0;
   const pick = (t: Tab) => { setTab(t); try { localStorage.setItem("sp_saqr_tab", t); } catch { /* */ } };
   const toggle = useMutation({ mutationFn: (on: boolean) => marketApi.saqrToggle(on, market), onSuccess: r => qc.setQueryData(["saqr", market], r.data.data) });
   /* ‏D771 (المالك): «زرٌّ أوقف التداولَ الآليّ — وهو يطلع العقودَ ويشتغل مثل السكرتير»: الأمريكيُّ ينفّذ أوامرَ المالك، وآلياً من قائمته إن شغّله */
@@ -333,9 +333,9 @@ export default function SaqrDesk() {
   const sw = <MarketSwitch value={market} onChange={setMarket} />;
   const nav = (
     <nav className="seg inline-flex sq-nav" role="tablist" aria-label="صقر" data-role="sq-nav">
-      {TABS.filter(([k]) => !(sa && k === "options")).map(([k, t, I]) => (
+      {TABS.filter(([k]) => !(sa && k === "options") && !(!sa && k === "signals")).map(([k, t, I]) => (
         <button key={k} type="button" role="tab" aria-selected={tab === k} className={"seg-btn chip" + (tab === k ? " on" : "")} onClick={() => pick(k)} data-view={k}>
-          <I size={14} /> {k === "signals" && !sa ? "قائمةُ العقود" : t}
+          <I size={14} /> {t}
         </button>
       ))}
     </nav>
@@ -442,7 +442,6 @@ export default function SaqrDesk() {
           </div>
         )}
 
-        {tab === "signals" && !sa && <SaqrList s={s} owner={owner} />}
 
         {tab === "signals" && sa && (
           <div className="sq-card card card-rise" data-role="sq-signals">
@@ -548,8 +547,8 @@ export default function SaqrDesk() {
                   الممتاز (Piotroski ‏5 من 9 فأكثر)، ولا خسارةً تحرق النقد، ولا دينَ مفرطاً ولا سيولةً ضعيفة — ودرجةُ المتانة 65 فأكثر؛ والصناديقُ العميقةُ
                   وحدها (تداولٌ يوميّ ≥ 200 مليون دولار) بلا المرفوعِ ولا صناديقِ الدخل بالعقود.</li>
                 <li>ثمّ المسار: صاعدٌ أو هابطٌ واضح، والخبرُ القويُّ المعاكسُ يُسقط الصفقة.</li>
-                <li>طويلُ الأجل وحده: قائمةُ صقر تُعدّ بعد إغلاق السوق للجلسة القادمة، وأنت تختار منها وتنفّذ بأوامرك — والتداولُ الآليُّ <b>{s.settings?.auto ? "يعمل" : "موقوف"}</b>
-                  {s.settings?.auto ? <>، يشتري من القائمة نفسِها حتى <Num v={`${s.rules.max_new_day}`} /> صفقاتٍ يومياً</> : null}.</li>
+                <li>طويلُ الأجل وحده: تختار من «عقود الخيارات» وتنفّذ من بطاقتها بأوامرك (‏D778) — والتداولُ الآليُّ <b>{s.settings?.auto ? "يعمل" : "موقوف"}</b>
+                  {s.settings?.auto ? <>، يشتري ممّا يفحصه صقرٌ في الجلسة حتى <Num v={`${s.rules.max_new_day}`} /> صفقاتٍ يومياً</> : null}.</li>
                 <li>العقد: أجلُ <Num v={`${s.rules.dte[0]}–${s.rules.dte[1]}`} /> يوماً، وكلفتُه ضمن ميزانية العقد، وعرضٌ وطلبٌ حقيقيّان بفارقٍ ≤ <Num v={`${s.rules.max_spread}%`} />،
                   ودلتا <Num v={`${s.rules.delta[0]}–${s.rules.delta[1]}`} />، ونقطةُ تعادلٍ دون الهدف الفنيّ، وربحٌ عنده <Num v="75%" /> من الكلفة فأكثر.</li>
                 <li>لكلّ عقدٍ إيجابياتُه وسلبياتُه بأرقامها (المسار · الزخم · الأساس · الخبر · الربح والاحتمال · الفارق · السيولة · الأجل) — وما زادت سلبياتُه على إيجابياته لا يدخل القائمة،

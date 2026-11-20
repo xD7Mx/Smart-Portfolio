@@ -3,8 +3,8 @@
    ‏D777: «محاكاةُ المحفظة مثل إنتراكتف بروكرز — سعرُ الشراء بأمرٍ محدّد، وسعرُ البيع بأمرٍ محدّد، والوقفُ المطارِد… بالعربي عشان نتعلّم عليها».
    فالتذكرةُ كتذكرة الوسيط: الكمّية · نوعُ الأمر (سوق · محدَّد · إيقاف · إيقافٌ محدَّد) · مدّتُه (اليوم · حتى الإلغاء) · الأمرُ المرفق (لا شيء ·
    جنيُ ربح · وقفُ خسارة · وقفٌ مطارِد · براكت) بأسعارٍ يكتبها المالكُ أو يختارها بنسبةٍ سريعة — ولكلّ خيارٍ سطرٌ يشرحه. */
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Minus, Plus } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { usd, px } from "./saqr";
@@ -115,15 +115,23 @@ export function ExitFields({ ex, set, base, role }: { ex: Exit; set: (e: Exit) =
   );
 }
 
-export default function OrderForm({ contract, ask, onDone }: { contract: string; ask: number | null; onDone?: (msg: string) => void }) {
+export default function OrderForm({ contract, ask: ask0, bid: bid0 = null, onDone }: { contract: string; ask: number | null; bid?: number | null;
+  onDone?: (msg: string) => void }) {
   const qc = useQueryClient();
+  /* ‏D778 (المالك): «أضغط شراء… يطلع لي سعرُ العرض وسعرُ الطلب» — رأسُ التذكرة بطلب العقد وعرضه الآن (حيّين، أو من آخر جلسة) */
+  const qq = useQuery({ queryKey: ["saqr-quote", contract], queryFn: async () => (await marketApi.saqrQuote(contract)).data.data as
+    { bid: number | null; ask: number | null; live: boolean; price: number | null }, refetchInterval: 15000, staleTime: 10000, retry: false });
+  const ask = qq.data?.ask ?? ask0, bid = qq.data?.bid ?? bid0;
   const [qty, setQty] = useState(1);
   const [ot, setOt] = useState<OT>("lmt");                      // كالوسيط: «محدَّد» أوّلاً بسعر العرض
-  const [limit, setLimit] = useState(ask ? ask.toFixed(2) : "");
-  const [stop, setStop] = useState(ask ? f2(ask * 1.05) : "");
+  const [limit, setLimit] = useState(ask0 ? ask0.toFixed(2) : "");
+  const [touched, setTouched] = useState(false);
+  const [stop, setStop] = useState(ask0 ? f2(ask0 * 1.05) : "");
   const [tif, setTif] = useState<TIF>("gtc");
-  const [ex, setEx] = useState<Exit>(() => exitInit(ask));
+  const [ex, setEx] = useState<Exit>(() => exitInit(ask0));
   const [msg, setMsg] = useState<string | null>(null);
+  // العرضُ الحيُّ يصل بعد فتح التذكرة: سعرُ الحدّ يتبعه ما لم يكتب المالكُ سعرَه
+  useEffect(() => { if (!touched && qq.data?.ask) setLimit(qq.data.ask.toFixed(2)); }, [qq.data?.ask, touched]);
   const L = Number(limit) > 0 ? Number(limit) : null, S = Number(stop) > 0 ? Number(stop) : null;
   const ref = (ot === "lmt" || ot === "stp_lmt" ? L : ot === "stp" ? S : ask) ?? ask;
   const now = !!(ask && (ot === "mkt" || (ot === "lmt" && L != null && L >= ask)));
@@ -144,6 +152,12 @@ export default function OrderForm({ contract, ask, onDone }: { contract: string;
   const loss = pay.sl_px && ref ? (ref - pay.sl_px) * 100 * qty : pay.trail_pct && ref ? ref * pay.trail_pct / 100 * 100 * qty : null;
   return (
     <form className="of" onSubmit={e => { e.preventDefault(); send.mutate(); }} data-role="order-form">
+      <div className="of-quote" data-role="of-quote" aria-live="polite">
+        <span><small>الطلب (البيع الآن)</small><b className="neg"><Num v={px(bid)} /></b></span>
+        <span><small>العرض (الشراء الآن)</small><b className="pos"><Num v={px(ask)} /></b></span>
+        <span><small>الفارق</small><b><Num v={ask && bid ? px(ask - bid) : "—"} /></b></span>
+        <em data-live={qq.data ? String(!!qq.data.live) : "na"}>{qq.isLoading ? "يقرأ…" : qq.data?.live ? "حيّ" : qq.data ? "آخرُ جلسة" : "من التوصية"}</em>
+      </div>
       <div className="of-row of-q">
         <span className="of-field"><small>الكمّية (عقود)</small>
           <span className="of-step">
@@ -153,12 +167,11 @@ export default function OrderForm({ contract, ask, onDone }: { contract: string;
             <button type="button" className="btn-ghost sp-btn" onClick={() => setQty(n => n + 1)} aria-label="زد عقداً" data-role="of-plus"><Plus size={14} /></button>
           </span>
         </span>
-        <span className="of-hint">{ask ? <>العرضُ الآن <Num v={px(ask)} /></> : "لا عرضَ حيٌّ الآن — يُعلَّق الأمرُ للجلسة"}</span>
       </div>
       <Choice<OT> value={ot} set={onOt} opts={OT_OPTS} role="of-type" label="نوعُ الأمر" />
       <div className={"of-x" + (ot === "lmt" || ot === "stp_lmt" ? " open" : "")} aria-hidden={!(ot === "lmt" || ot === "stp_lmt")}>
         <div className="of-row"><label><small>سعرُ الحدّ (أعلى ما تدفعه)</small><input className="sp-in" type="number" min={0.01} step={0.01} dir="ltr" value={limit}
-          placeholder={px(ask)} tabIndex={ot === "lmt" || ot === "stp_lmt" ? 0 : -1} onChange={e => setLimit(e.target.value)} data-role="of-limit" /></label></div>
+          placeholder={px(ask)} tabIndex={ot === "lmt" || ot === "stp_lmt" ? 0 : -1} onChange={e => { setLimit(e.target.value); setTouched(true); }} data-role="of-limit" /></label></div>
       </div>
       <div className={"of-x" + (ot === "stp" || ot === "stp_lmt" ? " open" : "")} aria-hidden={!(ot === "stp" || ot === "stp_lmt")}>
         <div className="of-row"><label><small>سعرُ التفعيل</small><input className="sp-in" type="number" min={0.01} step={0.01} dir="ltr" value={stop}

@@ -64,6 +64,9 @@ for (const vp of [{ width: 1366, height: 900 }, { width: 390, height: 844 }]) {
     }
     if (p === "/market/options-picks/run") { const b = JSON.parse(r.request().postData() || "{}").budget; posts.push(b); polls = 0; state = { result: null, running: { on: true, msg: "قراءةُ الأخبار", budget: b } }; return r.fulfill(body({ on: true })); }
     if (p === "/market/research-desk") return r.fulfill(body({ report: null, dates: [], running: { on: false } }));
+    // ‏D778: تذكرةُ الشراء من بطاقة التوصية — طلبُ العقد وعرضُه الآن، والأمر
+    if (p.startsWith("/market/saqr/quote/")) return r.fulfill(body({ bid: 1.40, ask: 1.48, live: true, price: 231.2, dte: 210, name: "NVIDIA" }));
+    if (p === "/market/saqr/order") { posts.push(["order", JSON.parse(r.request().postData() || "{}")]); return r.fulfill(body([])); }   // حالُ صقر الكاملُ ليس موضوعَ هذا الحارس
     return r.fulfill(body([]));
   });
   await page.goto(`http://localhost:${PORT}/watchlist?tab=lab`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
@@ -83,6 +86,34 @@ for (const vp of [{ width: 1366, height: 900 }, { width: 390, height: 844 }]) {
   say(posts[0] === 150 && /قراءةُ الأخبار/.test(st || "") && cards === 2 && /NVDA/.test(c0) && /خيار شراء/.test(c0) && /\$145\.00/.test(c0) && /21%/.test(c0)
       && /245\.00/.test(c0) && /0\.9×/.test(c0) && /الفارق \$8 \(6%\)/.test(c0) && /18 يونيو/.test(c0) && /213/.test(c0),
       `${label}: ٢ «$150» يراجع ويعرض حالَه، ثمّ التوصياتُ بعقدها (النوع · التنفيذ · الأجل · الكلفة · الفارقُ بالدولار) ومقاييسها (الهدفُ الفنيّ · العائدُ عنده · الاحتمالات)`, `${st} · ${cards} صفقة`);
+  /* ٢ج ‏D778 (المالك): «نكتفي بعقود الخيارات، وحُطّ في البطاقة نفسِها تنفيذ — زرٌّ بعبارة شراء… يطلع لي سعرُ العرض وسعرُ الطلب، وأشتري بسعرٍ محدّد
+     وأبيع بسعرٍ محدّد أو بنسبة، جنيُ ربحٍ أو خيارٌ إلحاقيّ» */
+  const c1 = page.locator('[data-role="op-pick"]').first();
+  const buyTxt = ((await c1.locator('[data-role="op-buy"]').textContent().catch(() => "")) || "").trim();
+  await c1.locator('[data-role="op-buy"]').click(); await page.waitForTimeout(1200);
+  const quote = ((await c1.locator('[data-role="of-quote"]').textContent().catch(() => "")) || "").replace(/\s+/g, " ");
+  const lim0 = await c1.locator('[data-role="of-limit"]').inputValue().catch(() => "");
+  await c1.locator('[data-role="of-type"] [data-v="stp_lmt"]').click(); await page.waitForTimeout(300);
+  await c1.locator('[data-role="of-stop"]').fill("1.55"); await c1.locator('[data-role="of-limit"]').fill("1.60");
+  await c1.locator('[data-role="of-tif"] [data-v="day"]').click();
+  await c1.locator('[data-role="of-att"] [data-v="trail"]').click(); await page.waitForTimeout(300);
+  await c1.locator('[data-role="of-trail"] [data-v="20"]').click();
+  await c1.locator('[data-role="of-plus"]').click();
+  const types = (await c1.locator('[data-role="of-type"] [data-v]').allTextContents()).map(t => t.trim());
+  const atts = (await c1.locator('[data-role="of-att"] [data-v]').allTextContents()).map(t => t.trim());
+  const tk = await page.evaluate(() => { const r = document.querySelector('[data-role="op-pick"] [data-role="order-form"]'); let minT = 99;
+    r?.querySelectorAll("button, input").forEach(b => { const x = b.getBoundingClientRect(); if (x.width && x.height > 2) minT = Math.min(minT, x.height); });
+    return { minT, over: document.documentElement.scrollWidth - document.documentElement.clientWidth }; });
+  if (process.env.SHOTS) await c1.screenshot({ path: `${process.env.SHOTS}/op-ticket-${vp.width}.png` }).catch(() => {});
+  await c1.locator('[data-role="of-send"]').click(); await page.waitForTimeout(700);
+  const od = (posts.filter(x => Array.isArray(x) && x[0] === "order").pop() || [])[1];
+  say(buyTxt === "شراء" && /1\.40/.test(quote) && /1\.48/.test(quote) && /0\.08/.test(quote) && /حيّ/.test(quote) && lim0 === "1.48"
+      && JSON.stringify(types) === JSON.stringify(["سوق", "محدَّد", "إيقاف", "إيقافٌ محدَّد"])
+      && JSON.stringify(atts) === JSON.stringify(["لا شيء", "جنيُ ربح", "وقفُ خسارة", "وقفٌ مطارِد", "براكت"])
+      && od && od.contract === "NVDA270618C00230000" && od.otype === "stp_lmt" && od.stop === 1.55 && od.limit === 1.6 && od.tif === "day" && od.trail_pct === 20
+      && od.qty === 2 && tk.minT >= 32 && tk.over <= 1,
+      `${label}: ٢ج «شراء» في بطاقة التوصية (‏D778) يفتح التذكرة: الطلبُ والعرضُ والفارقُ الآن (حيّاً)، وسعرُ الحدّ يتبع العرض — ثمّ النوعُ والمدّةُ `
+      + `والأمرُ المرفق كالوسيط`, JSON.stringify({ quote: quote.slice(0, 80), lim0, od, tk }).slice(0, 280));
   /* ‏D762: الدفترُ يحفظ التوصية — «قائمةٌ منذ» بربحها منذ الدخول، و«جديدةٌ اليوم» */
   const s0 = await page.locator('[data-role="op-pick"]').nth(0).locator('[data-role="op-state"]').textContent().catch(() => "");
   const s1 = await page.locator('[data-role="op-pick"]').nth(1).locator('[data-role="op-state"]').textContent().catch(() => "");

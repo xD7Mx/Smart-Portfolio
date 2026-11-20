@@ -240,40 +240,16 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
     tele: document.querySelector('[data-role="sq-health"]')?.textContent || "" }));
   say(dash.cards === 7 && /67%/.test(dash.ring) && dash.curve && /590\.12/.test(dash.spy) && /\d\d:\d\d:\d\d/.test(dash.ses) && !/تلغرام|IBKR/.test(dash.tele) && /التنفيذ\s*بأسعار السوق/.test(dash.tele) && /الفرزُ الأساسيّ\s*812/.test(dash.tele),
       `${label}: ٤ب البطاقات: حالُ الأنظمة · التعرّض · SPY حيّاً · جلسةُ السوق بعدٍّ تنازليّ · نسبةُ النجاح (67%) · منحنى رأس المال · بوّاباتُ الدخول`, JSON.stringify(dash).slice(0, 160));
-  await page.locator('[data-role="sq-nav"] [data-view="signals"]').click(); await page.waitForTimeout(900);
-  const L5 = await page.evaluate(() => ({ head: document.querySelector('[data-role="sl-head"]')?.textContent || "", n: document.querySelectorAll('[data-role="sl-item"]').length,
-    tp: document.querySelector('[data-role="sl-tp30"]')?.textContent || "", pros: document.querySelectorAll('[data-role="sl-team"] [data-v="ok"]').length,
-    cons: document.querySelectorAll('[data-role="sl-team"] [data-v="warn"]').length, ex: document.querySelector('[data-role="sl-excluded"]')?.textContent || "",
-    win: document.querySelector('[data-role="sl-win"]')?.textContent || "", wl: document.querySelectorAll('[data-role="sl-win-lv"]').length,
-    track: document.querySelector('[data-role="sl-track"]')?.textContent || "",
-    tab: document.querySelector('[data-role="sq-nav"] [data-view="signals"]')?.textContent || "", old: document.querySelectorAll('[data-role="sq-signal"]').length }));
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/saqr-list-${vp.width}-${theme}.png`, fullPage: true }).catch(() => {});
-  await page.locator('[data-role="sl-filter"] [data-v="put"]').click(); await page.waitForTimeout(400);
-  const nPut = await page.locator('[data-role="sl-item"]').count();
-  await page.locator('[data-role="sl-filter"] [data-v="all"]').click(); await page.waitForTimeout(300);
-  // ‏D775: ميزانيةُ العقد بيد المالك — جاهزةٌ بعدد عقودها، ومبلغٌ آخر
-  const bud = await page.evaluate(() => ({ lv: [...document.querySelectorAll('[data-role="sl-bud-lv"]')].map(b => [b.dataset.v, b.getAttribute("aria-pressed"), b.textContent.replace(/\s+/g, " ").trim()]),
-    h: Math.min(...[...document.querySelectorAll('[data-role="sl-bud-lv"], [data-role="sl-bud-set"], [data-role="sl-bud-in"]')].map(b => b.getBoundingClientRect().height)),
-    more: /يُكمل الفحصَ/.test(document.querySelector('[data-role="sl-head"]')?.textContent || "") }));
-  const nPosts = posts.length;
-  await page.locator('[data-role="sl-bud-lv"][data-v="300"]').click(); await page.waitForTimeout(400);
-  await page.locator('[data-role="sl-bud-in"]').fill("250"); await page.locator('[data-role="sl-bud-set"]').click(); await page.waitForTimeout(400);
-  const bPosts = posts.slice(nPosts).filter(([p]) => p === "/market/saqr/settings").map(([, pl]) => pl.per_trade);
-  if (SHOTS) await page.locator('[data-role="sl-budget"]').screenshot({ path: `${SHOTS}/sl-budget-${vp.width}-${theme}.png` }).catch(() => {});
-  say(bud.lv.length === 5 && bud.lv.find(x => x[0] === "150")?.[1] === "true" && /\$300 9/.test(bud.lv.find(x => x[0] === "300")?.[2] || "") && bud.h >= 32 && bud.more
-      && JSON.stringify(bPosts) === "[300,250]",
-      `${label}: ٥ب ميزانيةُ العقد بيد المالك (‏D775): ميزانياتٌ جاهزةٌ بعدد عقودها والحاليّةُ مضغوطة، ومبلغٌ آخرُ يُطبَّق — كلٌّ يُرسل حدَّ الصفقة، و«يُكمل الفحص»`,
-      JSON.stringify({ bud, bPosts }).slice(0, 300));
+  // ٥ ‏D778 (المالك): «قائمةُ العقود اللي في صقر لا فايدة منها — نكتفي بعقود الخيارات»: لا تبويبَ لها في الأمريكيّ
+  const navUs = await page.locator('[data-role="sq-nav"] [data-view]').evaluateAll(bs => bs.map(b => b.getAttribute("data-view")));
   await page.locator('[data-role="sq-nav"] [data-view="log"]').click(); await page.waitForTimeout(500);
   const logs = await page.evaluate(() => [...document.querySelectorAll('[data-role="sq-log-row"]')].map(x => x.dataset.kind));
   await page.locator('[data-role="sq-nav"] [data-view="rules"]').click(); await page.waitForTimeout(500);
   const rules = await page.locator('[data-role="sq-rules"]').textContent().catch(() => "");
-  say(L5.n === 3 && nPut === 1 && /جلسة الاثنين 23\/11/.test(L5.head) && /\$150/.test(L5.head) && /720/.test(L5.head) && /11\.56/.test(L5.tp) && L5.pros === 15 && L5.cons === 3
-      && /^نسبةُ النجاح\s*52%/.test(L5.win) && L5.wl === 6 && /يُتابَع 6/.test(L5.track)
-      && /سلبياتُه أكثر من إيجابياته 4/.test(L5.ex) && /قائمةُ العقود/.test(L5.tab) && L5.old === 0
-      && JSON.stringify(logs) === JSON.stringify(["buy", "sell", "alert", "info"]) && /150–430/.test(rules) && /10%/.test(rules) && /كيف تُبنى قائمةُ العقود/.test(rules) && !/هجوميّ/.test(rules),
-      `${label}: ٥ «قائمةُ العقود» (‏D771) مكانَ إشارات المسح: عقودٌ طويلةٌ للجلسة القادمة بكلفتها وربحها واحتمالها وعتبة الثلاثين وإيجابياتها وسلبياتها، `
-      + `وتصفيةُ شراء/بيع، وما استبعده صقر — والسجلُّ بأنواعه، والقواعدُ بأرقام العقود الطويلة`, JSON.stringify({ ...L5, head: L5.head.slice(0, 70), nPut, rules: rules.slice(0, 50) }).slice(0, 260));
+  say(!navUs.includes("signals") && navUs.includes("options") && navUs.includes("portfolio") && await page.locator('[data-role="sl"]').count() === 0
+      && JSON.stringify(logs) === JSON.stringify(["buy", "sell", "alert", "info"]) && /150–430/.test(rules) && /10%/.test(rules) && !/هجوميّ/.test(rules),
+      `${label}: ٥ لا «قائمةَ عقود» في صقر الأمريكيّ (‏D778 — «نكتفي بعقود الخيارات»)، والسجلُّ بأنواعه، والقواعدُ بأرقام العقود الطويلة`,
+      JSON.stringify({ navUs, rules: (rules || "").slice(0, 50) }).slice(0, 240));
   await page.locator('[data-role="sq-nav"] [data-view="dash"]').click(); await page.waitForTimeout(400);
   const offBtn = await page.locator('[data-role="sq-auto"]').textContent().catch(() => ""), offState = await page.locator('[data-role="sq-state"]').textContent().catch(() => "");
   await page.locator('[data-role="sq-auto"]').click(); await page.waitForTimeout(700);
@@ -410,46 +386,11 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   await page.locator('[data-role="sp-pos"]').first().locator('[data-role="sp-ord-tp"] [data-v="30"]').click();
   await page.locator('[data-role="sp-pos"]').first().locator('[data-role="sp-ord-sl"] [data-v="25"]').click();
   await page.locator('[data-role="sp-pos"]').first().locator('[data-role="sp-ord-save"]').click(); await page.waitForTimeout(700);
-  await page.locator('[data-role="sq-nav"] [data-view="signals"]').click(); await page.waitForTimeout(800);
-  await page.locator('[data-role="sl-exec"]').first().click(); await page.waitForTimeout(500);
-  await page.locator('[data-role="sl-item"]').first().locator('[data-role="of-limit"]').fill("1.00");
-  await page.locator('[data-role="sl-item"]').first().locator('[data-role="of-tp"] [data-v="50"]').click();
-  await page.locator('[data-role="sl-item"]').first().locator('[data-role="of-sl"] [data-v="none"]').click();
-  const slBtn = await page.locator('[data-role="sl-item"]').first().locator('[data-role="of-send"]').textContent().catch(() => "");
-  if (SHOTS) await page.locator('[data-role="sl-item"]').first().screenshot({ path: `${SHOTS}/sl-exec-${vp.width}-${theme}.png` }).catch(() => {});
-  await page.locator('[data-role="sl-item"]').first().locator('[data-role="of-send"]').click(); await page.waitForTimeout(700);
   const pc = posts.find(x => x[0] === "/market/saqr/order/o1/cancel"), po = posts.filter(x => x[0] === "/market/saqr/orders/p1").pop();
-  const pl = posts.filter(x => x[0] === "/market/saqr/order").pop();
   say(/SOFI/.test(pend) && /2\.10 أو أقلّ/.test(pend) && /\+40%/.test(pend) && /فوق سعرك/.test(pend) && !!pc && /صقر: وقفٌ عند/.test(ordTxt)
-      && po && po[1].tp_px === 0.52 && po[1].sl_px === 0.3 && po[1].trail_pct === null && /سجّل الأمر/.test(slBtn)
-      && pl && pl[1].contract === "F271217C00010000" && pl[1].otype === "lmt" && pl[1].limit === 1 && pl[1].tp_px === 1.5 && pl[1].sl_px === null,
-      `${label}: ١٥ الأوامرُ المعلّقةُ في المحفظة بسعرها وسببِ انتظارها وتُلغى، وأمرا كلّ مركزٍ يضبطهما المالك (+30٪ · −25٪)، والتنفيذُ من القائمة بسعرٍ دون العرض ⇐ «سجّل الأمر»`,
-      JSON.stringify({ pend: pend.slice(0, 60), ordTxt: ordTxt.slice(0, 40), po: po?.[1], pl: pl?.[1] }).slice(0, 240));
-  /* ١٦ ‏D777: «محاكاةُ المحفظة مثل إنتراكتف بروكرز — سعرُ الشراء بأمرٍ محدّد، وسعرُ البيع بأمرٍ محدّد، والوقفُ المطارِد… بالعربي» */
-  const it2 = page.locator('[data-role="sl-item"]').nth(1);
-  await it2.locator('[data-role="sl-exec"]').click(); await page.waitForTimeout(500);
-  const types = (await it2.locator('[data-role="of-type"] [data-v]').allTextContents()).map(t => t.trim());
-  const atts = (await it2.locator('[data-role="of-att"] [data-v]').allTextContents()).map(t => t.trim());
-  await it2.locator('[data-role="of-type"] [data-v="stp_lmt"]').click(); await page.waitForTimeout(350);
-  const hint = await it2.locator('[data-role="of-type-hint"]').textContent().catch(() => "");
-  await it2.locator('[data-role="of-stop"]').fill("1.30"); await it2.locator('[data-role="of-limit"]').fill("1.35");
-  await it2.locator('[data-role="of-tif"] [data-v="day"]').click();
-  await it2.locator('[data-role="of-att"] [data-v="trail"]').click(); await page.waitForTimeout(350);
-  await it2.locator('[data-role="of-trail"] [data-v="20"]').click();
-  await it2.locator('[data-role="of-plus"]').click();
-  const sum2 = await it2.locator('[data-role="of-sum"]').textContent().catch(() => "");
-  const tk = await page.evaluate(() => { const r = document.querySelectorAll('[data-role="sl-item"]')[1]; let minT = 99;
-    r?.querySelectorAll('[data-role="order-form"] button, [data-role="order-form"] input').forEach(b => { const x = b.getBoundingClientRect(); if (x.width && x.height > 2) minT = Math.min(minT, x.height); });
-    return { minT, over: document.documentElement.scrollWidth - document.documentElement.clientWidth }; });
-  if (SHOTS) await it2.screenshot({ path: `${SHOTS}/ticket-${vp.width}-${theme}.png` }).catch(() => {});
-  await it2.locator('[data-role="of-send"]').click(); await page.waitForTimeout(700);
-  const p16 = posts.filter(x => x[0] === "/market/saqr/order").pop();
-  say(JSON.stringify(types) === JSON.stringify(["سوق", "محدَّد", "إيقاف", "إيقافٌ محدَّد"])
-      && JSON.stringify(atts) === JSON.stringify(["لا شيء", "جنيُ ربح", "وقفُ خسارة", "وقفٌ مطارِد", "براكت"]) && /صار أمراً محدَّداً/.test(hint || "")
-      && /يطارد القمّةَ/.test(sum2 || "") && p16 && p16[1].otype === "stp_lmt" && p16[1].stop === 1.3 && p16[1].limit === 1.35 && p16[1].tif === "day"
-      && p16[1].trail_pct === 20 && p16[1].tp_px === null && p16[1].sl_px === null && p16[1].qty === 2 && tk.minT >= 32 && tk.over <= 1,
-      `${label}: ١٦ تذكرةُ الأمر كإنتراكتف بروكرز بالعربية (‏D777): سوق · محدَّد · إيقاف · إيقافٌ محدَّد، ومدّةُ اليوم أو حتى الإلغاء، والمرفق `
-      + `(لا شيء · جنيُ ربح · وقفُ خسارة · وقفٌ مطارِد · براكت) — ولكلّ خيارٍ سطرٌ يشرحه`, JSON.stringify({ o: p16?.[1], tk, hint: (hint || "").slice(0, 40) }).slice(0, 260));
+      && po && po[1].tp_px === 0.52 && po[1].sl_px === 0.3 && po[1].trail_pct === null,
+      `${label}: ١٥ الأوامرُ المعلّقةُ في المحفظة بسعرها وسببِ انتظارها وتُلغى، وأمرا كلّ مركزٍ يضبطهما المالك (+30٪ · −25٪) — بالأمر المرفق كالوسيط (‏D777)`,
+      JSON.stringify({ pend: pend.slice(0, 60), ordTxt: ordTxt.slice(0, 40), po: po?.[1] }).slice(0, 240));
   say(errs.length === 0, `${label}: ٩ لا خطأ`, errs[0] || "");
   await ctx.close();
 }

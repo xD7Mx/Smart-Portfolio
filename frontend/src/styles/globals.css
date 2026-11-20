@@ -4041,6 +4041,16 @@ html.light {
 .of-x > * { overflow: hidden; min-height: 0; }
 .of-x.open { grid-template-rows: 1fr; opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .of-x { transition: none; } }
+/* ‏D778: رأسُ التذكرة — الطلبُ والعرضُ والفارقُ الآن */
+.of-quote { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: end; gap: 8px; padding: 8px 10px; border-radius: 10px;
+  background: color-mix(in srgb, var(--brand-ink) 6%, var(--card)); border: 1px solid var(--hairline); }
+.of-quote span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.of-quote small { font-size: 10.5px; font-weight: 700; color: var(--ink-muted); }
+.of-quote b { font-size: 16px; font-weight: 800; color: var(--ink); }
+.of-quote b.pos { color: var(--pos-ink); } .of-quote b.neg { color: var(--neg-ink); }
+.of-quote em { font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--ink-muted); align-self: center; }
+.of-quote em[data-live="true"] { color: var(--pos-ink); }
+@media (max-width: 420px) { .of-quote { grid-template-columns: repeat(3, minmax(0, 1fr)); } .of-quote em { grid-column: 1 / -1; } }
 .of-sum { margin: 0; font-size: 12.5px; color: var(--ink); }
 .of-sum b.pos { color: var(--pos-ink); }
 .of-sum b.neg { color: var(--neg-ink); }

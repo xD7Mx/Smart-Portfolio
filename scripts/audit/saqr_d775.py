@@ -57,16 +57,12 @@ check(pick(vc) == {"X": "C", "Y": "Y1", "H": "H1"} and vc["excluded"].get("بي�
 # ٤ لا بحثَ جديدٌ عند تغيير الميزانية، والنقاطُ والتداولُ الآليُّ يقرؤون العرضَ بالميزانية، والواجهةُ تختارها
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
 tr = (ROOT / "backend/app/services/saqr_trader.py").read_text(encoding="utf-8")
-ui = (ROOT / "frontend/src/components/saqr/SaqrList.tsx").read_text(encoding="utf-8")
 sett = mk[mk.index("async def saqr_settings("):mk.index("async def _saqr_list_bg(")]
 hunt = tr[tr.index("async def _hunt("):tr.index("# ══ أوامرُ المالك (‏D771)")]
-bar = ui[ui.index("function BudgetBar("):ui.index("function Item(")]
+# ‏D778: شاشةُ القائمة أُزيلت بأمر المالك («نكتفي بعقود الخيارات») — والميزانيةُ تُختار في «عقود الخيارات» (‏op-budget)؛ والقائمةُ في الخلفية للتداول الآليّ
 check("_saqr_list_bg" not in sett and mk.count("_saqr_list_view()") >= 2 and "SL.view(SL.load(), budget" in hunt
-      and all(x in bar for x in ('data-role="sl-budget"', 'data-role="sl-bud-lv"', 'data-role="sl-bud-in"', 'data-role="sl-bud-set"', "marketApi.saqrSettings({ per_trade: b }",
-                                 'qc.invalidateQueries({ queryKey: ["saqr-list"] })', "seg-btn chip", "aria-pressed={b === cur}"))
-      and "style={{ background" not in bar and "<BudgetBar L={L} owner={owner} />" in ui and 'data-role="sl-stale"' not in ui,
-      "٤ تغييرُ الميزانية لا يُطلق بحثاً جديداً، ونقطةُ القائمة والتداولُ الآليُّ يقرآنها بميزانية العقد الآن، وفي رأس القائمة ميزانياتٌ جاهزةٌ بعدد عقودها "
-      "ومبلغٌ آخرُ يطبّقه المالك — بنمط أزرار الاختيار")
+      and not (ROOT / "frontend/src/components/saqr/SaqrList.tsx").exists(),
+      "٤ تغييرُ الميزانية لا يُطلق بحثاً جديداً، ونقطةُ القائمة والتداولُ الآليُّ يقرآنها بميزانية العقد الآن (وشاشتُها أُزيلت — ‏D778)")
 
 print("\nالنتيجة:", "نظيف ✔" if not fail else "فشل ✘")
 sys.exit(fail)

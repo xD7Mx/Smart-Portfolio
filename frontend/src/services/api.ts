@@ -294,6 +294,8 @@ export const marketApi = {
   /* ‏D771: قائمةُ صقر وأوامرُ المالك (شراءٌ بسعره، وجنيُ الربح ووقفُ الخسارة، وأوامرٌ معلّقة) */
   saqrList: () => api.get<APIResponse>("/market/saqr/list"),
   saqrListRun: () => api.post<APIResponse>("/market/saqr/list/run", {}),
+  /* ‏D778: طلبُ العقد وعرضُه الآن — رأسُ تذكرة الأمر */
+  saqrQuote: (contract: string) => api.get<APIResponse>(`/market/saqr/quote/${encodeURIComponent(contract)}`),
   /* ‏D777: تذكرةُ الشراء كإنتراكتف بروكرز — النوعُ والمدّةُ والأوامرُ المرفقة */
   saqrOrder: (p: { contract: string; qty: number; limit?: number | null; tp_pct?: number | null; sl_pct?: number | null; otype?: "mkt" | "lmt" | "stp" | "stp_lmt";
     stop?: number | null; tif?: "day" | "gtc"; tp_px?: number | null; sl_px?: number | null; trail_pct?: number | null }) =>

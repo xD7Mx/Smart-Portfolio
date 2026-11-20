@@ -185,16 +185,17 @@ check(SQ.cfg(SQ.fresh())["auto"] is False and 'due and cfg(st).get("auto")' in s
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
 desk = (ROOT / "frontend/src/components/saqr/SaqrDesk.tsx").read_text(encoding="utf-8")
-lst = (ROOT / "frontend/src/components/saqr/SaqrList.tsx").read_text(encoding="utf-8")
+opk = (ROOT / "frontend/src/components/market/OptionPicks.tsx").read_text(encoding="utf-8")
 of = (ROOT / "frontend/src/components/saqr/OrderForm.tsx").read_text(encoding="utf-8")
 pf = (ROOT / "frontend/src/components/saqr/SaqrPortfolio.tsx").read_text(encoding="utf-8")
 check("SL.kick(cfg(st)" in src and "job_saqr_list" not in sch and '@router.get("/saqr/list")' in mk
-      and '{tab === "signals" && !sa && <SaqrList s={s} owner={owner} />}' in desk and 'data-role="sq-auto"' in desk and "أوقف التداول الآليّ" in desk
-      and all(x in lst for x in ('data-role="sl-item"', 'data-role="sl-tp30"', 'data-role="sl-team"', 'data-role="sl-mem"', 'data-role="sl-exec"', "<OrderForm"))
+      # ‏D778 (المالك): «قائمةُ العقود لا فايدة منها — نكتفي بعقود الخيارات، وفي بطاقتها شراء»: لا تبويبَ للقائمة، والتنفيذُ من بطاقة التوصية
+      and "<SaqrList" not in desk and '!(!sa && k === "signals")' in desk and 'data-role="sq-auto"' in desk and "أوقف التداول الآليّ" in desk
+      and all(x in opk for x in ('data-role="op-buy"', "<OrderForm contract={p.contract} ask={p.ask} bid={p.bid} />"))
       and all(x in of for x in ('data-role="of-limit"', 'role={`${role}-tp`}', 'role={`${role}-sl`}', '<ExitFields ex={ex} set={setEx} base={ref} role="of" />',
                                 "marketApi.saqrOrder("))   # ‏D777: الجنيُ والوقفُ في «الأمر المرفق» المشترك
       and all(x in pf for x in ('data-role="sp-orders"', 'data-role="sp-order-cancel"', 'data-role="sp-ord"', 'data-role="sp-ord-edit"')),
-      "٦ القائمةُ تُبنى من دورة صقر في الجلسة، و«قائمةُ العقود» مكانَ إشارات المسح المرفوضة، وزرُّ التداول الآليّ، ونموذجُ الأمر "
+      "٦ القائمةُ تُبنى من دورة صقر في الجلسة (يقرؤها التداولُ الآليّ)، والتنفيذُ من بطاقة «عقود الخيارات» (‏D778)، وزرُّ التداول الآليّ، ونموذجُ الأمر "
       "(السعر · الجني · الوقف)، والأوامرُ المعلّقةُ وأمرا كلّ مركزٍ في المحفظة")
 
 print("\nالنتيجة:", "عطب ✖" if fail else "نظيف ✔")

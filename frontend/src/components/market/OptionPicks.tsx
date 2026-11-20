@@ -6,11 +6,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Search, RefreshCw, LineChart, Layers, LogOut } from "lucide-react";
+import { Search, RefreshCw, LineChart, Layers, LogOut, ShoppingCart, X } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import CompanyLogo from "../common/CompanyLogo";
 import OptionChain from "./OptionChain";
+import OrderForm from "../saqr/OrderForm";
 import { dayMonth, optionTitle, parseOption } from "../../lib/options";
 
 type Pick = { symbol: string; name?: string; contract: string; type: "call" | "put"; strike: number; ask: number; bid: number | null; cost: number;
@@ -34,6 +35,8 @@ export default function OptionPicks() {
   const [budget, setBudget] = useState<number>(() => Number(lsGet("sp_optpicks_budget")) || 150);
   const [draft, setDraft] = useState(String(budget));
   const [chainFor, setChainFor] = useState<string | null>(null);
+  /* ‏D778 (المالك): «نكتفي بعقود الخيارات، وحُطّ في البطاقة نفسِها تنفيذ — زرٌّ بعبارة شراء… يطلع لي سعرُ العرض والطلب وأحدّد الأمر» */
+  const [buyFor, setBuyFor] = useState<string | null>(null);
   const q = useQuery({
     queryKey: ["option-picks", budget],
     queryFn: () => marketApi.optionPicks(budget).then(r => r.data.data),
@@ -124,13 +127,24 @@ export default function OptionPicks() {
                     </div>
                     <ul className="op-why">{p.reasons.map((r, j) => <li key={j}>{r}</li>)}</ul>
                     <div className="op-btns">
-                      <button type="button" className="btn-primary op-act" onClick={() => openChart(p.contract)} data-role="op-open">
+                      {owner && (
+                        <button type="button" className={(buyFor === p.contract ? "btn-ghost" : "btn-primary") + " op-act"} aria-expanded={buyFor === p.contract}
+                          onClick={() => setBuyFor(v => (v === p.contract ? null : p.contract))} data-role="op-buy">
+                          {buyFor === p.contract ? <><X size={14} /> إغلاق التذكرة</> : <><ShoppingCart size={14} /> شراء</>}
+                        </button>
+                      )}
+                      <button type="button" className="btn-ghost op-act" onClick={() => openChart(p.contract)} data-role="op-open">
                         <LineChart size={14} /> فتح في الرسم
                       </button>
                       <button type="button" className="btn-ghost op-act" onClick={() => setChainFor(p.symbol)} data-role="op-chain">
                         <Layers size={14} /> سلسلة العقود
                       </button>
                     </div>
+                    {owner && (
+                      <div className={"sp-addf-wrap" + (buyFor === p.contract ? " open" : "")} aria-hidden={buyFor !== p.contract} data-role="op-ticket">
+                        <div>{buyFor === p.contract && <OrderForm contract={p.contract} ask={p.ask} bid={p.bid} />}</div>
+                      </div>
+                    )}
                   </article>
                 );
               })}
