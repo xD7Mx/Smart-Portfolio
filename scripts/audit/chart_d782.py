@@ -91,6 +91,7 @@ async def fake_an(ev, market="us"):
 
 async def fake_co(sym, name="", now=None):
     return [{"date": "2026-11-30", "title": "أحقّيةُ توزيعٍ نقديّ", "kind": "توزيع"}] if sym == "2222.SR" else []
+real_company_events = EC.company_events
 EC.raw_week, EC.analysis, EC.company_events = fake_raw, fake_an, fake_co
 w_sa = asyncio.run(EC.week(market="sa", symbol="2222.SR", name="أرامكو"))
 w_us = asyncio.run(EC.week())
@@ -98,6 +99,20 @@ check(w_sa["market"] == "sa" and w_sa["company"] and w_sa["events"][1]["ar"] == 
       and w_us["company"] == [] and w_us["market"] == "us" and "READ_SA" in dir(EC) and "الريالُ مربوطٌ بالدولار" in EC.READ_SA,
       "٥ القراءةُ السعوديّةُ بقراءة السوق السعودي (إيجابيّ · سلبيّ) ومعها أحداثُ الشركة المفتوحة — والاسمُ من القاموس يتقدّم على تسمية النموذج",
       f"{w_sa['events'][1]['ar']} · {w_sa['company']}")
+
+# ٥ب أحداثُ الشركة من مفكرتها برمزها المجرّد (كتبويب «المفكرة»)، القادمةُ وحدها وبترتيبها
+from app.services import content_engine as CE   # noqa: E402
+asked = []
+
+
+async def fake_cal(sym, name):
+    asked.append(sym)
+    return [{"headline": "جمعيةٌ عامّةٌ عادية", "published": "2026-12-03", "kind": "جمعية"}, {"headline": "توزيعٌ سابق", "published": "2026-10-01", "kind": "توزيع"},
+            {"headline": "أحقّيةُ توزيعٍ نقديّ", "published": "2026-11-30", "kind": "توزيع"}]
+CE.company_calendar = fake_cal
+ce = asyncio.run(real_company_events("2222.SR", "أرامكو", now=now))
+check(asked == ["2222"] and [c["date"] for c in ce] == ["2026-11-30", "2026-12-03"],
+      "٥ب أحداثُ الشركة من مفكرتها برمزها المجرّد (2222 لا 2222.SR)، القادمةُ وحدها مرتّبةً بتاريخها", f"{asked} · {[c['date'] for c in ce]}")
 
 # ٦ السعرُ الأسرع: ثانيتان للسهم الأمريكيّ المباشر في الجلسة الرسمية ما دامت الحصّةُ فوق ثلثها — وإلّا أربع
 from app.services import usage_tracker as UT   # noqa: E402

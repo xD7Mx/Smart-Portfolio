@@ -208,8 +208,9 @@ async def company_events(symbol: str, name: str = "", now: datetime | None = Non
     from app.services.content_engine import company_calendar
     now = now or datetime.now(timezone.utc)
     today = now.astimezone(RY).date().isoformat()
+    code = str(symbol or "").upper().replace(".SR", "")              # مفكرةُ الشركة برمزها المجرّد (2222) كما في تبويب «المفكرة»
     try:
-        items = await asyncio.wait_for(company_calendar(symbol, name or symbol), timeout=12)
+        items = await asyncio.wait_for(company_calendar(code, name or code), timeout=12)
     except Exception as e:                                        # noqa: BLE001
         logger.debug("أحداثُ الشركة {}: {}", symbol, type(e).__name__)
         return []
