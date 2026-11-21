@@ -605,7 +605,7 @@ export const D7M_COLORS: [string, string, string][] = [
   ["ema200", "EMA 200", "--neg-ink"], ["ema400", "EMA 400", "--chart-4"], ["draw", "الرسم اليدوي", "--brand-ink"],
 ];
 
-/** المستوياتُ المخفيّةُ افتراضاً (‏D756) — 1.1 و0.618 و0.5؛ تُظهَر من الإعدادات */
+/** المستوياتُ المخفيّةُ من «مختصر» (‏D756) — 1.1 و0.618 و0.5؛ وتظهر في «الكل» (‏D783: «أربعَ عشرةَ كتريدنق فيو») */
 export const FIB_HIDDEN = new Set([1.1, 0.618, 0.5]);
 
 export const D7M_DEFAULTS = {
@@ -615,10 +615,11 @@ export const D7M_DEFAULTS = {
   /* ‏D744 (المالك): «مختصرٌ يجيب ستةَ خطوط — خطّان للمقاومة، وخطّان في الوسط للاتجاه المعاكس والدعم القويّ، وخطّان للدعم — مع خيار إظهار الجميع» */
   fibMode: "compact" as "compact" | "all",
   /* ‏D756 (المالك 2026-11-16): «المستويات 1.1 و0.6 و0.5 ألغِها — تبقى خياراً في الإعدادات إن أردتُ إظهارها» */
-  fibLevels: Object.fromEntries(FIB_LEVELS.map(([lv]) => [String(lv), !FIB_HIDDEN.has(lv)])) as Record<string, boolean>,
+  /* ‏D783: «الكل» أربعَ عشرةَ كتريدنق فيو — والثلاثةُ تُخفى من «مختصر» وحده (‏FIB_HIDDEN) */
+  fibLevels: Object.fromEntries(FIB_LEVELS.map(([lv]) => [String(lv), true])) as Record<string, boolean>,
   /* ‏D756: «الأرقامُ أمام آخر شمعة كتريدنق فيو — لا في عمود الأسعار — وخيارٌ: فوق الخطّ أو عليه أو تحته، والافتراضيُّ عليه» */
   fibLabelPos: "above" as "above" | "on" | "below",   // ‏D772: فوق خطّه كتريدنق فيو
-  fibV: 2,
+  fibV: 4,                                   // ‏D783: رقمُ ترحيل الإعدادات (الأربعَ عشرةَ في «الكل»)
   /* ‏D756: «الاتجاهُ الرئيسيّ والفرعيّ خياران في الإعدادات» */
   trend: true, trendMajor: true, trendMinor: true, trendPP: 15, trendShapes: false,
   /* ‏D756: «خطُّ المنتصف النقطيّ في القناة ليس جميلاً — خيارُ إظهاره أو لا»، والافتراضيُّ بلا خطّ */

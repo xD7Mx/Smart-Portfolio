@@ -136,32 +136,47 @@ export class ChartOverlay implements ISeriesPrimitive<Time> {
         ctx.fillText(l.text as string, 8, y - 4);
       }
       // ٤ب أرقامُ المستويات أمام آخر شمعة (‏D761 · D772): السعرُ وحدَه بلون خطّه، على خطّه هو لا غيره — كتريدنق فيو.
-      // ‏D772 (المالك 2026-11-20: «فيها كسرٌ، وأرقامٌ في غير أماكنها، وأرقامٌ بلا خطّ»): كان الرقمُ المزاحمُ يُزاح رأسياً حتى أربعة صفوف فيقع
-      // حيث لا خطّ أو على خطّ مستوىً آخر، وكانت فُسحةٌ بلون البطاقة تُفرَج تحته فتقطع الخطَّ (وخطَّ جاره إن قرب). فالآن: الرقمُ لا يغادر
-      // صفَّ خطّه أبداً — وإن زاحم رقماً قبله أُزيح أفقياً إلى يمينه على الصفّ نفسِه، وإلا تُرك الخطُّ بلا رقم — ولا فُسحةَ تقطع خطّاً.
+      // ‏D783 (المالك 2026-11-21): «الأرقامُ واحدٌ يمينٌ والثاني يسار — ما هي في صفٍّ واحد. خلِّها في صفٍّ واحد بدون أن تتداخل، بشكلٍ احترافيّ»:
+      // كان الرقمُ المزاحمُ يُزاح أفقياً إلى يمين جاره (‏D772) فتتفرّق الأرقامُ أعمدةً. فالآن عمودٌ واحدٌ للأرقام كلِّها، والرقمُ يلامس خطَّه هو:
+      // في موضعه المختار (فوق · على · تحت) فإن زاحم جاراً ففي أحد البديلين؛ فإن ضاقت الثلاثةُ في عنقودٍ متلاصقٍ نزل إلى أقرب صفٍّ خالٍ في العمود
+      // نفسِه (ثلاثةُ صفوفٍ على الأكثر) يصله بخطّه مِهمازٌ منقّطٌ بلونه. ولا فُسحةَ تقطع خطّاً، ولا يركب رقمٌ رقماً، ولا رقمَ تحت وسيلة الإيضاح.
       ctx.font = `700 10.5px ${this.font}`;
       ctx.textBaseline = "middle";
-      const boxes: { x0: number; x1: number; y0: number; y1: number }[] = [];
-      const hits = (b: { x0: number; x1: number; y0: number; y1: number }) => boxes.find(o => b.x0 < o.x1 + 4 && b.x1 > o.x0 - 4 && b.y0 < o.y1 && b.y1 > o.y0);
-      for (const l of [...this.levels].filter(x => x.label).sort((a, b) => (a.rank ?? 9) - (b.rank ?? 9))) {
+      const LH = 12;
+      const labs: { l: Level; y: number; x: number; w: number }[] = [];
+      for (const l of this.levels) {
+        if (!l.label) continue;
         const y = this.py(l.price), x = l.lx != null ? this.px(l.lx) : null;
         if (y == null || x == null || y < 2 || y > H - 4) continue;
-        const h = 12, w = ctx.measureText(l.label as string).width + 4;
-        const pos = l.lpos || "above";
-        const top = Math.round(pos === "above" ? y - h - 1 : pos === "below" ? y + 2 : y - h / 2);
-        let xx = Math.round(Math.min(Math.max(x, 4), W - w - 4)), box = { x0: xx, x1: xx + w, y0: top, y1: top + h }, hit = hits(box);
-        // ‏D772: حدُّ «الحيّز العلويّ» لوسيلة الإيضاح (يساراً) وحدها — كان يُسقط رقمَ أعلى خطٍّ يميناً حيث لا وسيلةَ إيضاح فيبقى الخطُّ بلا رقم
-        if (top < 0 || top + h > H || (top < this.textTop && xx < LEGEND_W)) continue;
-        for (let k = 0; k < 3 && hit; k++) {
-          xx = Math.round(hit.x1 + 6);
-          box = { x0: xx, x1: xx + w, y0: top, y1: top + h };
-          hit = xx + w > W - 4 ? box as any : hits(box);
+        labs.push({ l, y, x, w: ctx.measureText(l.label as string).width + 4 });
+      }
+      if (labs.length) {
+        const wMax = Math.max(...labs.map(o => o.w));
+        const col = Math.round(Math.min(Math.max(Math.min(...labs.map(o => o.x)), 4), W - wMax - 4));
+        const used: [number, number][] = [];
+        const free = (t: number) => t >= 0 && t + LH <= H && !(t < this.textTop && col < LEGEND_W) && !used.some(([a, b]) => t < b + 1 && t + LH > a - 1);
+        labs.sort((a, b) => a.y - b.y || (a.l.rank ?? 9) - (b.l.rank ?? 9));
+        for (const o of labs) {
+          if (o.y < this.textTop && col < LEGEND_W) continue;                  // خطٌّ تحت وسيلة الإيضاح: لا رقمَ يُحشر تحتها
+          const at = (q: string) => Math.round(q === "above" ? o.y - LH - 1 : q === "below" ? o.y + 2 : o.y - LH / 2);
+          const pref = o.l.lpos || "above";
+          let top: number | null = null, lead = false;
+          for (const q of [pref, ...["above", "below", "on"].filter(z => z !== pref)]) if (free(at(q))) { top = at(q); break; }
+          for (let k = 1; top == null && k <= 3; k++) {
+            for (const t of [at("below") + k * (LH + 1), at("above") - k * (LH + 1)]) if (free(t)) { top = t; lead = true; break; }
+          }
+          if (top == null) continue;
+          used.push([top, top + LH]);
+          const c = o.l.lcolor || o.l.color;
+          if (lead) {
+            ctx.strokeStyle = c; ctx.lineWidth = 1; ctx.setLineDash([2, 2]);
+            ctx.beginPath(); ctx.moveTo(col - 4, o.y); ctx.lineTo(col - 4, top + LH / 2); ctx.lineTo(col, top + LH / 2); ctx.stroke();
+            ctx.setLineDash([]);
+          }
+          ctx.fillStyle = c;
+          ctx.textAlign = "left";
+          ctx.fillText(o.l.label as string, col + 2, top + LH / 2 + 0.5);
         }
-        if (hit) continue;
-        boxes.push(box);
-        ctx.fillStyle = l.lcolor || l.color;
-        ctx.textAlign = "left";
-        ctx.fillText(l.label as string, xx + 2, top + h / 2 + 0.5);
       }
       ctx.textBaseline = "alphabetic";
       const placedN: { x: number; y: number }[] = [];

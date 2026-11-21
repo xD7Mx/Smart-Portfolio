@@ -73,7 +73,8 @@ AR_TITLES = {
     "USD-Denominated Trade Balance": "الميزانُ التجاريّ بالدولار",
 }
 AR_PATTERNS = [
-    (r"^Fed Chair (\w+) Speaks$", "كلمةُ رئيس الفيدرالي"), (r"^FOMC Member (\w+) Speaks$", "كلمةُ عضوٍ في الفيدرالي"),
+    # ‏D783: قِيس على الخادم 2026-11-21 — المصدرُ يكتب «Fed Chairman Warsh Speaks» لا «Fed Chair…» فبقي الحدثُ بلا اسمٍ عربيّ
+    (r"^Fed Chair(man)? (\w+) Speaks$", "كلمةُ رئيس الفيدرالي"), (r"^FOMC Member (\w+) Speaks$", "كلمةُ عضوٍ في الفيدرالي"),
     (r"^President (\w+) Speaks$", "كلمةُ الرئيس الأمريكيّ"), (r"^Treasury Sec(retary)? (\w+) Speaks$", "كلمةُ وزير الخزانة الأمريكيّ"),
     (r"^OPEC.*Meetings?$", "اجتماعُ أوبك+"), (r"^OPEC", "أوبك+"),
 ]

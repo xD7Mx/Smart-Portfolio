@@ -4210,3 +4210,23 @@ html.light {
   .pc-ident::after, .troom-mhead::after { content: ""; order: 2; flex-basis: 100%; height: 0; }
   .pc-ident .troom-oc, .pc-ident .ee-btn, .troom-mhead .troom-oc, .troom-mhead .ee-btn { order: 3; }
 }
+
+/* ‏D783: لكلّ متوسّطٍ مفتاحُه ولونُه معاً في الإعدادات */
+.d7m-ema + .d7m-ema { border-top: 1px dashed var(--hairline); }
+
+/* ══ ‏D783: ترسُ القوائم يتحكّم في كلّ شيء — إظهارٌ وترتيبٌ وتسميةٌ وحذف، وأسهمُ رفع العناصر وإنزالها ══ */
+.troom-gearmenu { width: min(320px, 88vw); }
+.troom-grow { display: flex; align-items: center; gap: 2px; min-height: 34px; border-radius: 8px; padding-inline-end: 2px; transition: background-color .18s ease; }
+.troom-grow:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.troom-grow .troom-gitem { flex: 1; min-width: 0; }
+.troom-gitem > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.troom-gacts { display: inline-flex; align-items: center; flex: none; }
+.troom-gacts .troom-icon, .troom-ord .troom-icon { min-width: 32px; min-height: 32px; }
+.troom-icon:disabled { opacity: .35; cursor: default; }
+.troom-rename { flex: 1; display: flex; align-items: center; gap: 4px; min-width: 0; }
+.troom-rename .input { flex: 1; min-width: 0; min-height: 32px; padding: 4px 8px; }
+.troom-gorder { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; margin-top: 4px; padding: 0 8px; border-radius: 8px;
+  font-size: 12.5px; font-weight: 700; color: var(--brand-ink); text-align: start; transition: background-color .18s ease; }
+.troom-gorder:hover { background: color-mix(in srgb, var(--brand-ink) 9%, transparent); }
+.troom-ord { display: inline-flex; align-items: center; flex: none; animation: fadeUp .18s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .troom-grow, .troom-gorder { transition: none; } .troom-ord { animation: none; } }

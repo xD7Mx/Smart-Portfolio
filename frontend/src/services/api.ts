@@ -349,6 +349,8 @@ export const marketApi = {
   watchGroupCreate: (body: { name: string; color?: string }) => api.post<APIResponse>("/market/watchlist/groups", body),
   watchGroupUpdate: (id: number | string, body: { name?: string; color?: string }) => api.patch<APIResponse>(`/market/watchlist/groups/${id}`, body),
   watchGroupRemove: (id: number | string) => api.delete<APIResponse>(`/market/watchlist/groups/${id}`),
+  /* ‏D783: ترتيبُ القوائم نفسِها بيد المالك */
+  watchGroupsOrder: (ids: number[]) => api.put<APIResponse>("/market/watchlist/groups/order", { ids }),
 };
 
 // ── Portfolios (تعدّد المحافظ) ────────────────────────────────

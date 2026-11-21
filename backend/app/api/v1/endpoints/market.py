@@ -1611,6 +1611,29 @@ async def create_watchlist_group(payload: dict, db: AsyncSession = Depends(get_d
     return success_response(data=_serialize_group(g), message="أُنشئت القائمة.")
 
 
+@router.put("/watchlist/groups/order", dependencies=[Depends(require_owner)])
+async def order_watchlist_groups(payload: dict, db: AsyncSession = Depends(get_db)):
+    """‏D783 (المالك 2026-11-21): «ترسُ القائمة يتحكّم في كلّ شيء… ولازم أتحكّم بالترتيب — أرفع وأنزل وأرتّب»: ترتيبُ القوائم نفسِها — {ids: [...]}.
+    ما سُمّي بموضعه، وما لم يُسمَّ (أُنشئ من جهازٍ آخر) بعده بترتيبه السابق — فلا تضيع قائمةٌ ولا تتكرّر رتبة."""
+    ids = []
+    for x in ((payload or {}).get("ids") or []):
+        try:
+            ids.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    rows = (await db.execute(select(WatchlistGroup).order_by(WatchlistGroup.sort_order, WatchlistGroup.id))).scalars().all()
+    pos = {g: i for i, g in enumerate(dict.fromkeys(ids))}
+    tail = len(pos)
+    for g in rows:
+        if g.id in pos:
+            g.sort_order = pos[g.id]
+        else:
+            g.sort_order = tail
+            tail += 1
+    await db.commit()
+    return success_response(data=[_serialize_group(g) for g in sorted(rows, key=lambda g: g.sort_order)])
+
+
 @router.patch("/watchlist/groups/{group_id}", dependencies=[Depends(require_owner)])
 async def update_watchlist_group(group_id: int, payload: dict, db: AsyncSession = Depends(get_db)):
     g = (await db.execute(select(WatchlistGroup).where(WatchlistGroup.id == group_id))).scalar_one_or_none()

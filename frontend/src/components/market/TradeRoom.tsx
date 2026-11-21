@@ -10,9 +10,9 @@
    فيو — جرسُ إعداداتٍ في القائمة نفسِها: أخلّي قائمتين، وأقسمها قسمين»: فترسٌ في صفّ القوائم يُظهر كلَّ قائمةٍ ويُخفيها، ويقسم اللوحةَ قسمين لكلٍّ
    قائمتُه. و«ملتي سكرين كتريدنق فيو — أربعُ شاشات: ربعُ ساعة، ساعة، أربعُ ساعات… بكيفنا»: فشاشةٌ أو اثنتان أو أربع، لكلٍّ إطارُها، والرمزُ
    واحد، و«تحليلُ الرسم» فوقها يقرأ الأطرَ كلَّها معاً. */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Pencil, Check, Trash2, Layers, Settings2 } from "lucide-react";
+import { Plus, X, Pencil, Check, Trash2, Layers, Settings2, ChevronUp, ChevronDown, ArrowUpDown } from "lucide-react";
 import ProChart from "../chart/ProChart";
 import ChartRead, { type ReadFrame } from "../chart/ChartRead";
 import CompanyLogo from "../common/CompanyLogo";
@@ -37,6 +37,23 @@ const isSaudi = (s: string) => /^\d{4}(\.SR)?$/.test(s);
 const isIdx = (s: string) => /^\^|=F$|-USD$/.test(s);
 const lsGet = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* وضعُ التصفّح الخاصّ */ } };
+/* ‏D783: رفعُ العنصر وإنزالُه ينزلق إلى مكانه (‏FLIP) لا يقفز — والحركةُ المخفّضةُ تُحترم */
+function useFlip(ref: React.RefObject<HTMLDivElement>) {
+  const last = useRef(new Map<string, number>());
+  useLayoutEffect(() => {
+    const box = ref.current;
+    if (!box) return;
+    const els = [...box.querySelectorAll<HTMLElement>("[data-sym]")];
+    const now = new Map(els.map(el => [el.dataset.sym as string, el.offsetTop]));
+    const calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!calm) for (const el of els) {
+      const was = last.current.get(el.dataset.sym as string), is = now.get(el.dataset.sym as string);
+      if (was != null && is != null && Math.abs(was - is) > 1 && typeof el.animate === "function")
+        el.animate([{ transform: `translateY(${was - is}px)` }, { transform: "none" }], { duration: 240, easing: "cubic-bezier(.2,.7,.2,1)" });
+    }
+    last.current = now;
+  });
+}
 const lsList = (k: string): string[] => { try { const v = JSON.parse(lsGet(k) || "[]"); return Array.isArray(v) ? v.map(String) : []; } catch { return []; } };
 const pct = (v?: number | null) => v == null || !isFinite(Number(v)) ? null : Number(v);
 /* ‏D747: لأيّ سهمٍ أو صندوقٍ أمريكيّ سلسلةُ خيارات — والمؤشّرُ إلى مؤشّر خياراته (‏S&P 500 ⇐ SPX · ناسداك ⇐ NDX) */
@@ -80,6 +97,8 @@ export default function TradeRoom() {
   const [layoutN, setLayoutState] = useState<number>(() => { const v = Number(lsGet("sp_room_layout")); return v === 2 || v === 4 ? v : 1; });
   const setLayout = (n: number) => { setLayoutState(n); lsSet("sp_room_layout", String(n)); };
   const snaps = useRef(new Map<number, () => ReadFrame | null>());
+  const rowsBox = useRef<HTMLDivElement>(null), rowsBox2 = useRef<HTMLDivElement>(null);
+  useFlip(rowsBox); useFlip(rowsBox2);
 
   /* ‏D762: أيقونةُ حالة السوق بجانب كلّ شركةٍ في القائمة — السعوديّةُ بحالة «تداول» والأمريكيّةُ بحالة نيويورك */
   const { data: ses } = useSessions();
@@ -100,9 +119,19 @@ export default function TradeRoom() {
     if (list === "idx" && groups.length) { const ig = groups.find((g: any) => g.name === "المؤشرات"); setList(ig ? `g${ig.id}` : "mine"); return; }
     if (gid != null && groups.length && !group) setList("mine");
   }, [list, gid, groups, group]);
-  const mineRows: Row[] = useMemo(() => holdings.filter((h: any) => h.company?.symbol).map((h: any) => ({
-    symbol: h.company.symbol, name: h.company.name_ar || h.company.name || h.company.company_name,
-    price: Number(h.last_price) || null, change_pct: pct(h.change_pct) })), [holdings]);
+  /* ‏D783 (المالك): «أرفع وأنزل وأرتّب — أرامكو تحت، والراجحي فوق»: ترتيبُ «محفظتي» بيد المالك يُحفظ في المتصفّح (شركاتُ المحفظة ليست قائمةً
+     على الخادم)، وترتيبُ القوائم الأخرى على الخادم */
+  const [mineOrder, setMineOrderState] = useState<string[]>(() => lsList("sp_room_mine_order"));
+  const setMineOrder = (v: string[]) => { setMineOrderState(v); lsSet("sp_room_mine_order", JSON.stringify(v)); };
+  const mineRows: Row[] = useMemo(() => {
+    const base: Row[] = holdings.filter((h: any) => h.company?.symbol).map((h: any) => ({
+      symbol: h.company.symbol, name: h.company.name_ar || h.company.name || h.company.company_name,
+      price: Number(h.last_price) || null, change_pct: pct(h.change_pct) }));
+    if (!mineOrder.length) return base;
+    const at = new Map(mineOrder.map((s, i) => [s, i])), was = new Map(base.map((r, i) => [r.symbol, i]));
+    const key = (r: Row) => at.has(r.symbol) ? at.get(r.symbol)! : mineOrder.length + was.get(r.symbol)!;
+    return [...base].sort((a, b) => key(a) - key(b));
+  }, [holdings, mineOrder]);
   const { data: wrows = [], isFetching } = useQuery<Row[]>({
     queryKey: ["watchlist", gid],
     queryFn: () => marketApi.watchlist(gid!).then(r => (Array.isArray(r.data.data) ? r.data.data : [])),
@@ -174,13 +203,39 @@ export default function TradeRoom() {
     setHidden(nx);
   };
 
-  const renderRow = (r: Row, i: number, edit: boolean) => {
+  /* ‏D783: رفعُ عنصرٍ وإنزالُه — «محفظتي» في المتصفّح، والقوائمُ على الخادم (ترتيبُ D683 نفسُه) بانسيابٍ فوريّ ثمّ الحفظ */
+  const move = (listId: string, symbol: string, dir: -1 | 1) => {
+    const cur = (listId === "mine" ? mineRows : listId === list ? wrows : wrows2).map(r => r.symbol);
+    const i = cur.indexOf(symbol), j = i + dir;
+    if (i < 0 || j < 0 || j >= cur.length) return;
+    const nx = [...cur];
+    [nx[i], nx[j]] = [nx[j], nx[i]];
+    if (listId === "mine") { setMineOrder(nx); return; }
+    const g = Number(listId.slice(1));
+    qc.setQueryData<Row[]>(["watchlist", g], old => (old ? nx.map(x => old.find(r => r.symbol === x)).filter(Boolean) as Row[] : old));
+    marketApi.watchOrder(nx, g).catch(() => invalidateWatchlist(qc));
+  };
+  /* ‏D783: ترتيبُ القوائم نفسِها، وتسميتُها، وحذفُها — من ترس القوائم */
+  const moveGroup = (id: number, dir: -1 | 1) => {
+    const ids = groups.map((g: any) => g.id as number), i = ids.indexOf(id), j = i + dir;
+    if (i < 0 || j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    qc.setQueryData<any[]>(["watchlist-groups"], old => (old ? ids.map(x => old.find((g: any) => g.id === x)).filter(Boolean) : old));
+    marketApi.watchGroupsOrder(ids).finally(() => qc.invalidateQueries({ queryKey: ["watchlist-groups"] }));
+  };
+  const [renaming, setRenaming] = useState<{ id: number; v: string } | null>(null);
+  const rename = useMutation({
+    mutationFn: (a: { id: number; name: string }) => marketApi.watchGroupUpdate(a.id, { name: a.name }),
+    onSuccess: () => { setRenaming(null); qc.invalidateQueries({ queryKey: ["watchlist-groups"] }); },
+  });
+
+  const renderRow = (r: Row, i: number, edit: boolean, listId: string = list, n: number = rows.length) => {
     const ch = pct(r.change_pct);
     const on = r.symbol === symbol;
     const o = parseOption(r.symbol);
     const byName = isSaudi(r.symbol) || isIdx(r.symbol);
     return (
-      <div key={r.symbol} className={"troom-row card-rise" + (on ? " on" : "")} style={{ animationDelay: `${Math.min(i, 14) * 18}ms` }}>
+      <div key={r.symbol} className={"troom-row card-rise" + (on ? " on" : "")} style={{ animationDelay: `${Math.min(i, 14) * 18}ms` }} data-sym={r.symbol}>
         <button type="button" className="troom-pick" onClick={() => pick(r.symbol)} aria-pressed={on} data-role="troom-row" title={r.name}>
           <CompanyLogo symbol={r.symbol} size={24} />
           <span className="min-w-0 flex-1 text-start">
@@ -194,7 +249,7 @@ export default function TradeRoom() {
               </span>
             </>)}
           </span>
-          {r.price != null && (
+          {r.price != null && !edit && (
             <span className="text-end shrink-0" data-role="troom-price">
               <span className="block text-[12.5px] font-bold tabular-nums text-[var(--ink)]" dir="ltr">{Number(r.price).toFixed(2)}</span>
               {ch != null && <span className={"block text-[10.5px] font-bold tabular-nums " + (ch >= 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]")} dir="ltr">
@@ -203,8 +258,16 @@ export default function TradeRoom() {
           )}
         </button>
         {edit && (
-          <button type="button" className="btn-ghost troom-icon troom-danger" aria-label={`إزالة ${r.symbol}`} title="إزالة"
-            onClick={() => remove.mutate(r.symbol)} data-role="troom-remove"><X size={14} /></button>
+          <span className="troom-ord" data-role="troom-ord">
+            <button type="button" className="btn-ghost troom-icon" aria-label={`ارفع ${r.name || r.symbol}`} title="ارفع" disabled={i === 0}
+              onClick={() => move(listId, r.symbol, -1)} data-role="troom-up"><ChevronUp size={15} /></button>
+            <button type="button" className="btn-ghost troom-icon" aria-label={`أنزل ${r.name || r.symbol}`} title="أنزل" disabled={i === n - 1}
+              onClick={() => move(listId, r.symbol, 1)} data-role="troom-down"><ChevronDown size={15} /></button>
+            {listId !== "mine" && (
+              <button type="button" className="btn-ghost troom-icon troom-danger" aria-label={`إزالة ${r.symbol}`} title="إزالة"
+                onClick={() => remove.mutate(r.symbol)} data-role="troom-remove"><X size={14} /></button>
+            )}
+          </span>
         )}
       </div>
     );
@@ -271,10 +334,43 @@ export default function TradeRoom() {
               aria-expanded={gear} data-role="troom-gear" onClick={() => setGear(g => !g)}><Settings2 size={14} /></button>
             {gear && (
               <div className="troom-gearmenu" role="dialog" aria-label="إعداداتُ القوائم" data-role="troom-gear-menu">
-                <span className="troom-gcap">القوائمُ الظاهرة</span>
-                {allTabs.map(([id, name]) => (
-                  <CheckBox key={id} checked={!hidden.includes(id)} onChange={v => toggleHidden(id, v)} label={name} className="troom-gitem" />
-                ))}
+                <span className="troom-gcap">القوائم — إظهارٌ وترتيبٌ وتسميةٌ وحذف</span>
+                {allTabs.map(([id, name]) => {
+                  const g = id === "mine" ? null : groups.find((x: any) => `g${x.id}` === id);
+                  const gi = g ? groups.indexOf(g) : -1;
+                  return (
+                    <div key={id} className="troom-grow" data-role="troom-glist" data-list={id}>
+                      {g && renaming?.id === g.id ? (
+                        <span className="troom-rename">
+                          <input className="input" autoFocus value={renaming.v} aria-label="الاسمُ الجديد" data-role="troom-rename-input"
+                            onChange={e => setRenaming({ id: g.id, v: e.target.value })}
+                            onKeyDown={e => { if (e.key === "Enter" && renaming.v.trim()) rename.mutate({ id: g.id, name: renaming.v.trim() }); if (e.key === "Escape") setRenaming(null); }} />
+                          <button type="button" className="btn-ghost troom-icon" aria-label="احفظ الاسم" title="احفظ" disabled={!renaming.v.trim() || rename.isPending}
+                            onClick={() => rename.mutate({ id: g.id, name: renaming.v.trim() })} data-role="troom-rename-save"><Check size={15} /></button>
+                        </span>
+                      ) : (
+                        <CheckBox checked={!hidden.includes(id)} onChange={v => toggleHidden(id, v)} label={name} className="troom-gitem" />
+                      )}
+                      {g && owner && renaming?.id !== g.id && (
+                        <span className="troom-gacts">
+                          <button type="button" className="btn-ghost troom-icon" aria-label={`ارفع قائمة ${name}`} title="ارفع" disabled={gi <= 0}
+                            onClick={() => moveGroup(g.id, -1)} data-role="troom-gup"><ChevronUp size={15} /></button>
+                          <button type="button" className="btn-ghost troom-icon" aria-label={`أنزل قائمة ${name}`} title="أنزل" disabled={gi >= groups.length - 1}
+                            onClick={() => moveGroup(g.id, 1)} data-role="troom-gdown"><ChevronDown size={15} /></button>
+                          <button type="button" className="btn-ghost troom-icon" aria-label={`أعِد تسمية ${name}`} title="إعادةُ تسمية"
+                            onClick={() => setRenaming({ id: g.id, v: name })} data-role="troom-grename"><Pencil size={13} /></button>
+                          <button type="button" className="btn-ghost troom-icon troom-danger" aria-label={`احذف قائمة ${name}`} title="حذفُ القائمة"
+                            disabled={groups.length <= 1}
+                            onClick={() => { if (window.confirm(`حذفُ قائمة «${name}» وما فيها؟`)) dropGroup.mutate(g.id); }} data-role="troom-gdel"><Trash2 size={13} /></button>
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+                {owner && (
+                  <button type="button" className="troom-gorder" data-role="troom-gorder" onClick={() => { setEditing(true); setGear(false); }}>
+                    <ArrowUpDown size={14} /> رتّب عناصرَ «{allTabs.find(([id]) => id === list)?.[1] || ""}»</button>
+                )}
                 <span className="troom-gcap">القسمُ الثاني</span>
                 <div className="troom-gsplit" data-role="troom-split">
                   <button type="button" className={"seg-btn chip" + (!list2 ? " on" : "")} aria-pressed={!list2} onClick={() => setList2("")}>بلا</button>
@@ -301,18 +397,18 @@ export default function TradeRoom() {
           </div>
         )}
 
-        {gid != null && group && (
+        {((gid != null && group) || (list === "mine" && owner)) && (
           <div className="troom-bar">
             {/* ‏D761: الاختيارُ يُضيف إلى القائمة ويفتح رسمَه — وعقدُ الخيار المنسوخ من المختبر يُفتح عقداً باسمه */}
-            {owner && <InlineStockSearch onPick={s => { add.mutate({ s, name: isOption(s) ? optionTitle(parseOption(s)!) : undefined }); pick(s); }} global />}
-            <span className="text-[11px] text-[var(--ink-muted)] tabular-nums ms-auto">{wrows.length}</span>
+            {owner && gid != null && <InlineStockSearch onPick={s => { add.mutate({ s, name: isOption(s) ? optionTitle(parseOption(s)!) : undefined }); pick(s); }} global />}
+            <span className="text-[11px] text-[var(--ink-muted)] tabular-nums ms-auto">{rows.length}</span>
             {owner && (
               <button type="button" className={"btn-ghost troom-icon" + (editing ? " on" : "")} title={editing ? "تمّ" : "تحرير القائمة"}
                 aria-label="تحرير القائمة" onClick={() => setEditing(e => !e)} data-role="troom-edit">
                 {editing ? <Check size={15} /> : <Pencil size={14} />}
               </button>
             )}
-            {owner && editing && !group.is_default && (
+            {owner && editing && group && !group.is_default && (
               <button type="button" className="btn-ghost troom-icon troom-danger" title={`حذف قائمة «${group.name}»`} aria-label="حذف القائمة"
                 onClick={() => { if (window.confirm(`حذفُ قائمة «${group.name}» وما فيها؟`)) dropGroup.mutate(group.id); }}>
                 <Trash2 size={14} />
@@ -321,8 +417,8 @@ export default function TradeRoom() {
           </div>
         )}
 
-        <div className="troom-rows" data-role="troom-rows">
-          {rows.map((r, i) => renderRow(r, i, editing && gid != null))}
+        <div ref={rowsBox} className="troom-rows" data-role="troom-rows">
+          {rows.map((r, i) => renderRow(r, i, editing && owner))}
           {!rows.length && (
             <div className="text-[12px] text-[var(--ink-muted)] text-center py-6">
               {gid != null ? (isFetching ? "…" : "القائمةُ فارغة.") : "لا شركات."}
@@ -336,7 +432,7 @@ export default function TradeRoom() {
               <button type="button" className="btn-ghost troom-icon" title="إغلاقُ القسم الثاني" aria-label="إغلاقُ القسم الثاني" onClick={() => setList2("")}
                 data-role="troom-sec2-close"><X size={14} /></button>
             </div>
-            <div className="troom-rows" data-role="troom-rows2">
+            <div ref={rowsBox2} className="troom-rows" data-role="troom-rows2">
               {rows2.map((r, i) => renderRow(r, i, false))}
               {!rows2.length && <div className="text-[12px] text-[var(--ink-muted)] text-center py-4">القائمةُ فارغة.</div>}
             </div>

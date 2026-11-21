@@ -164,14 +164,17 @@ export default function ProChart({ symbol, identity, theme = "dark", preset, slo
   const [cfg, setCfgState] = useState<D7MSettings>(() => {
     try { const sv = JSON.parse(lsGet("sp_d7m_cfg_v2") || "{}");
       const m = { ...D7M_DEFAULTS, ...sv, colors: { ...D7M_DEFAULTS.colors, ...(sv.colors || {}) } };
-      /* ‏D756: إعداداتٌ محفوظةٌ قبل الأمر — تُخفى فيها 1.1 و0.618 و0.5 مرّةً واحدة، وما غيّره المالكُ بعدها يبقى */
-      if ((Number(sv.fibV) || 1) < 2) m.fibLevels = { ...m.fibLevels, ...Object.fromEntries([...FIB_HIDDEN].map(lv => [String(lv), false])) };
+      /* ‏D783 (المالك 2026-11-21): «الفيبو أربعَ عشرةَ مستوىً — عددتُها في تريدنق فيو — وعندنا ناقصة»: الثلاثةُ المخفيّةُ بأمر ‏D756 (1.1 · 0.618 · 0.5)
+         تُخفى من «مختصر» وحده وتعود إلى «الكل» — مرّةً واحدة، وما أخفاه المالكُ بيده بعدها يبقى */
+      if ((Number(sv.fibV) || 1) < 4) m.fibLevels = { ...m.fibLevels, ...Object.fromEntries([...FIB_HIDDEN].map(lv => [String(lv), true])) };
       /* ‏D772: الرقمُ فوق خطّه كتريدنق فيو (كان «على الخطّ» بفُسحةٍ تقطعه) — مرّةً واحدة، وما اختاره المالكُ بعدها يبقى */
       if ((Number(sv.fibV) || 1) < 3) m.fibLabelPos = "above";
-      return { ...m, fibV: 3 }; } catch { return D7M_DEFAULTS; }
+      return { ...m, fibV: 4 }; } catch { return D7M_DEFAULTS; }
   });
   const saveCfg = (c: D7MSettings) => { setCfgState(c); lsSet("sp_d7m_cfg_v2", JSON.stringify(c)); };
   const [showCfg, setShowCfg] = useState(false);
+  /* ‏D783: منتقي اللون في الإعدادات يعرض اللونَ المرسومَ فعلاً — رموزُ الرسم (‏--pc-*)، والقناةُ والرسمُ اليدويُّ بلون الهويّة كما يُرسمان */
+  const colorDefaults = () => Object.fromEntries(D7M_COLORS.map(([k, , t]) => [k, hexTok(k === "channel" || k === "draw" ? "--brand-ink" : PC[k] || t)]));
   /* ‏D781 (المالك): «كتريدنق فيو — سهمٌ في اليسار يطوي أسماءَ المؤشّرات (ويُبقي عددَها)، والضغطُ على المؤشّر نفسِه في الرسم يفتح إعداداته» */
   const [legFold, setLegFold] = useState(() => lsGet("sp_chart_legfold") === "1");
   const foldLeg = () => setLegFold(v => { lsSet("sp_chart_legfold", v ? "0" : "1"); return !v; });
@@ -336,9 +339,9 @@ export default function ProChart({ symbol, identity, theme = "dark", preset, slo
       /* ‏D744 (المالك): «شِل الكلام — المقاومة والدعم ولا تطمع — الشارتُ نظيف»: لا نصَّ على الرسم إلا رقمُ المستوى، والمناطقُ الثلاث
          تظليلٌ خفيف (المقاومة · الوسط: الاتجاهُ المعاكس والدعمُ القويّ · الدعم). و«مختصر» ستةُ خطوطها وحدها، و«الكل» كلُّ المستويات */
       if (D.fib) {
-        /* ‏D756: «مختصر» خطوطُه الستّة إلا ما أُخفي منها في الإعدادات (1.1 و0.618 و0.5 افتراضاً)، و«الكل» ما لم يُخفَ — وأرقامُها أمام آخر شمعة */
+        /* ‏D756 · D783: «مختصر» ستّتُه بلا الثلاثة المخفيّة (0 · −0.1 · 1)، و«الكل» الأربعَ عشرةَ كتريدنق فيو إلّا ما أخفاه المالكُ من الإعدادات */
         const SIX = new Set([0, -0.1, 0.5, 0.618, 1, 1.1]), compact = (st.cfg.fibMode || "compact") === "compact";
-        const shown = (lv: number) => st.cfg.fibLevels[String(lv)] !== false && (!compact || SIX.has(lv));
+        const shown = (lv: number) => st.cfg.fibLevels[String(lv)] !== false && (!compact || (SIX.has(lv) && !FIB_HIDDEN.has(lv)));
         /* ‏D761 (المالك): «الرقمُ نفسُه سادةً — السعرُ على الخطّ بلا نسبةٍ ولا دائرة، ولونُه لونُ الخطّ» — والنصُّ بلون الخطّ مُصمَتاً ليُقرأ */
         const lx = b.length - 1 + 3, lpos = st.cfg.fibLabelPos || "above", inkTxt = ink;
         for (const l of D.fib.lines) {
@@ -838,7 +841,8 @@ export default function ProChart({ symbol, identity, theme = "dark", preset, slo
     const D = shown.includes("d7m") ? d7m : null;
     if (D) {
       const SIX = new Set([0, -0.1, 0.5, 0.618, 1, 1.1]), compact = (cfg.fibMode || "compact") === "compact";
-      for (const l of D.fib?.lines || []) if (cfg.fibLevels[String(l.level)] !== false && (!compact || SIX.has(l.level))) add("fib", `فيبوناتشي ${l.level}`, l.price);
+      for (const l of D.fib?.lines || []) if (cfg.fibLevels[String(l.level)] !== false && (!compact || (SIX.has(l.level) && !FIB_HIDDEN.has(l.level))))
+        add("fib", `فيبوناتشي ${l.level}`, l.price);
       for (const t of D.trend?.lines || []) if (t.x2 !== t.x1) add("trend", t.up ? "خطُّ اتجاهٍ صاعد" : "خطُّ اتجاهٍ هابط", t.y1 + (t.y2 - t.y1) * (i - t.x1) / (t.x2 - t.x1));
       if (D.channel) {
         const at = (q: [number, number][]) => (q.length > 1 && q[1][0] !== q[0][0] ? q[0][1] + (q[1][1] - q[0][1]) * (i - q[0][0]) / (q[1][0] - q[0][0]) : null);
@@ -1028,7 +1032,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset, slo
         <button type="button" className="pc-btn" title={full ? "خروج من ملء الشاشة" : "ملء الشاشة"} aria-label="ملء الشاشة" aria-pressed={full}
           data-role="pc-full" onClick={() => setFull(f => !f)}>{full ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
       </div>
-      {showCfg && <D7MPanel cfg={cfg} onChange={saveCfg} onClose={() => setShowCfg(false)} />}
+      {showCfg && <D7MPanel cfg={cfg} onChange={saveCfg} onClose={() => setShowCfg(false)} colorDefaults={colorDefaults()} />}
       {cfgFor && <IndSettings kind={cfgFor} sr={srCfg} cvd={cvdCfg} onSr={setSr} onCvd={setCvd} onClose={() => setCfgFor(null)} />}
 
       {force && <ForcePanels trend={force.trend} liq={force.liq} compact={mini} />}

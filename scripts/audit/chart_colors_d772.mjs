@@ -36,15 +36,20 @@ const draw = (levels) => {
 };
 const L = (price, label, o = {}) => ({ price, color: "W", lcolor: "W", label, lx: 30, lpos: "above", width: 1, ...o });
 // ثلاثةُ مستوياتٍ متقاربة (300 · 297 · 294 ⇒ صفوفٌ 100 · 103 · 106) ورابعٌ بعيد (250 ⇒ 150)
+// ‏D783 (المالك 2026-11-21): «الأرقامُ واحدٌ يمينٌ والثاني يسار — خلِّها في صفٍّ واحد بدون أن تتداخل»: عمودٌ واحد، والرقمُ يلامس خطَّه (فوقه ·
+// تحته · عليه)، والعنقودُ الضيّقُ ينزل أقربَ صفٍّ خالٍ بمِهمازٍ إلى خطّه — ولا يركب رقمٌ رقماً، ولا فُسحةَ تقطع خطّاً
 const r1 = draw([L(300, "300.00"), L(297, "297.00"), L(294, "294.00"), L(250, "250.00")]);
 const txt = r1.filter(r => r[0] === "fillText").map(r => ({ t: r[1][0], x: r[1][1], y: r[1][2] }));
 const lines = r1.filter(r => r[0] === "moveTo").map(r => r[1][1]);
 const yOf = { "300.00": 100, "297.00": 103, "294.00": 106, "250.00": 150 };
-const onRow = txt.every(t => Math.abs(t.y - (yOf[t.t] - 6.5)) < 0.01);
-const xs = txt.filter(t => t.t !== "250.00").map(t => t.x).sort((a, b) => a - b);
-const apart = xs.every((x, i) => i === 0 || x - xs[i - 1] >= 6 * 6 + 4);
-say(txt.length === 4 && onRow && apart && lines.length === 4 && !r1.some(r => r[0] === "fillRect"),
-    "١ كلُّ رقمٍ فوق خطّه هو (لا يُزاح رأسياً إلى صفّ غيره)، والمتقاربةُ تتجاور أفقياً على صفوفها، ولا فُسحةَ بلون اللوحة تقطع خطّاً (كان الكسرُ منها)",
+const oneCol = txt.length > 0 && txt.every(t => t.x === txt[0].x);
+const touch = t => Math.abs(t.y - (yOf[t.t] - 6.5)) < 0.01 || Math.abs(t.y - (yOf[t.t] + 8.5)) < 0.01 || Math.abs(t.y - (yOf[t.t] + 0.5)) < 0.01;
+const noOverlap = txt.every((a, i) => txt.every((b, j) => i === j || Math.abs(a.y - b.y) >= 13));
+const leads = r1.filter(r => r[0] === "setLineDash" && Array.isArray(r[1][0]) && r[1][0].length === 2 && r[1][0][0] === 2).length;
+say(txt.length === 4 && oneCol && noOverlap && txt.filter(touch).length === 3 && touch(txt.find(t => t.t === "250.00")) && leads === 1
+    && lines.length >= 4 && !r1.some(r => r[0] === "fillRect"),
+    "١ الأرقامُ عمودٌ واحد (لا يمينٌ ويسار)، وكلُّ رقمٍ يلامس خطَّه هو (فوقه أو تحته)، والعنقودُ الضيّقُ ينزل صفّاً خالياً بمِهمازٍ منقّطٍ إلى خطّه — "
+    + "ولا يركب رقمٌ رقماً، ولا فُسحةَ بلون اللوحة تقطع خطّاً",
     txt.map(t => `${t.t}@${t.x},${t.y}`).join(" · "));
 const r2 = draw([L(300, "300.00", { lpos: "on" }), L(150, "150.00", { lpos: "below" })]);
 const t2 = r2.filter(r => r[0] === "fillText").map(r => r[1][2]);
@@ -67,7 +72,7 @@ const tokOk = ["--pc-bg: #000000", "--pc-up: #ffffff", "--pc-down: #f23645", "--
 say(tokOk && /background: \{ color: tok\("--pc-bg"/.test(code) && /grid: \{ vertLines: \{ visible: false \}, horzLines: \{ visible: false \} \}/.test(code)
     && /const ink = C\("fib"\)/.test(code) && !/tokA\("--ink-muted", "#6b7280", 0\.6\)/.test(code) && /inkTxt = ink/.test(code)
     && /\["ema20", "--pc-ema20"\]/.test(code) && /label: fmtPrice\(l\.price\)/.test(code) && !/label: `\$\{l\.level\}/.test(code)
-    && /fibLabelPos: "above"/.test(d7) && /fibV: 3/.test(code) && /text: l\.price\.toFixed/.test(nat) && !/text: \[String\(l\.level\)/.test(nat)
+    && /fibLabelPos: "above"/.test(d7) && /fibV: 4/.test(code) && /text: l\.price\.toFixed/.test(nat) && !/text: \[String\(l\.level\)/.test(nat)
     && !/fillRect/.test(over.slice(over.indexOf("// ٤ب"), over.indexOf("const placedN"))) && !/hit\[0\] - h - 1/.test(over),
     "٣ اللوحةُ سوداءُ بلا شبكةٍ في المظهرين، وخطوطُ المؤشّر مشبعةٌ مُصمَتة (الخطُّ ورقمُه لونٌ واحد — كان الخطُّ رمادياً شفّافاً فبدا الرقمُ بلا خطّ)، "
     + "والرقمُ سعرُ المستوى وحدَه بلا نسبةٍ في الرسمَين، وفوق خطّه افتراضاً");

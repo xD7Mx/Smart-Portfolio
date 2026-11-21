@@ -299,9 +299,9 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await fibMode("الكل");
   const lvAll = Number((await st()).lv);
   await fibMode("مختصر");
-  say(strip.tiles === 2 && strip.old === 0 && strip.h > 0 && strip.h <= 76 && strip.tables === 0 && strip.minF >= 9.5 && lvCompact === 3 && lvAll > 6,
-      `${label}: فوق الرسم لوحتا القوّة (${strip.h}px · ${strip.tiles} لوحتان) بلا جداول ولا الشريطِ القديم، والمستوياتُ مختصرةٌ ثلاثةً (‏D756: 1.1 و0.618 و0.5 مخفيّة) و«الكل» ${lvAll} — `
-      + `والتبديلُ من إعدادات D7M (‏D782)`, `خطٌّ ≥ ${strip.minF}px`);
+  say(strip.tiles === 2 && strip.old === 0 && strip.h > 0 && strip.h <= 76 && strip.tables === 0 && strip.minF >= 9.5 && lvCompact === 3 && lvAll === 14,
+      `${label}: فوق الرسم لوحتا القوّة (${strip.h}px · ${strip.tiles} لوحتان) بلا جداول ولا الشريطِ القديم، والمستوياتُ مختصرةٌ ثلاثةً (‏D756: 1.1 و0.618 و0.5 مخفيّةٌ منها) `
+      + `و«الكل» ${lvAll} كتريدنق فيو (‏D783: أربعَ عشرة) — والتبديلُ من إعدادات D7M (‏D782)`, `خطٌّ ≥ ${strip.minF}px`);
 
   // ١٢د ‏D756 (المالك 2026-11-16): عينُ الإخفاء تُخفي مستويات D7M وتعيدها، و‏MACD مؤشّرٌ بلوحته وقيمه، وأرقامُ فيبوناتشي حبّاتٌ أمام آخر شمعة
   const lvOn = Number((await st()).lv);
