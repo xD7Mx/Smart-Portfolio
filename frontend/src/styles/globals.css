@@ -4041,6 +4041,11 @@ html.light {
 .of-x > * { overflow: hidden; min-height: 0; }
 .of-x.open { grid-template-rows: 1fr; opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .of-x { transition: none; } }
+/* ‏D780: «أغلق بسعرٍ محدَّد» */
+.sp-closel { display: inline-flex; flex-direction: column; gap: 3px; }
+.sp-closel small { font-size: 11px; font-weight: 700; color: var(--ink-muted); }
+.sp-closel .sp-in { width: 110px; min-height: 32px; }
+.sp-mini { min-height: 32px; padding-inline: 10px; margin-inline-start: 6px; }
 /* ‏D778: رأسُ التذكرة — الطلبُ والعرضُ والفارقُ الآن */
 .of-quote { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: end; gap: 8px; padding: 8px 10px; border-radius: 10px;
   background: color-mix(in srgb, var(--brand-ink) 6%, var(--card)); border: 1px solid var(--hairline); }

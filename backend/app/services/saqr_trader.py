@@ -63,7 +63,7 @@ FEE_SA = 0.00155                              # عمولةُ الوسيط الس
 STOCK_STOP = 0.93                             # وقفُ السهم: −7٪
 STOCK_TRAIL = (1.08, 1.12, 0.94)              # من +8٪ إلى الدخول، ومن +12٪ إلى 94٪ من القمّة
 STOCK_TIME_DAYS, STOCK_TIME_GAIN = 42, 1.03   # سهمٌ لم يتقدّم 3٪ في ستّة أسابيع يُحرّر مالُه
-REASON_AR = {"tp": "بلغ أمرُ جني الربح", "sl": "بلغ أمرُ وقف الخسارة", "stop": "بلغ الوقف", "trail": "وقفٌ متحرّكٌ يحمي الربح", "take": "تضاعف العقد — جنيُ الربح", "target": "بلغ السهمُ الهدف",
+REASON_AR = {"lmt": "أمرُ الإغلاق بسعرٍ محدَّد", "tp": "بلغ أمرُ جني الربح", "sl": "بلغ أمرُ وقف الخسارة", "stop": "بلغ الوقف", "trail": "وقفٌ متحرّكٌ يحمي الربح", "take": "تضاعف العقد — جنيُ الربح", "target": "بلغ السهمُ الهدف",
              "time": "اقترب الأجل", "broken": "انكسرت الأطروحة", "manual": "إغلاقٌ يدويّ من المالك", "stale": "لم يتقدّم — يُحرَّر المال",
              "regime": "انقلب السوقُ العامّ", "geo": "خطرٌ جيوسياسيّ", "results": "نتائجُ ربعيةٌ مخيّبة"}
 # ‏D767 (المالك): «أضف خيارَ تحديد الميزانية… خلّ فيه مرونة، أقدر أغيّر الخيارات — هو العقلُ المدبّر وأنا أضع الأوامر»
@@ -347,7 +347,9 @@ def trail(p: dict, bid: float) -> None:
 
 
 def exit_rule(p: dict, bid: float | None, S: float | None, dte: int, tr: dict | None, news: dict | None) -> tuple[str, str] | None:
-    """(السبب، الشرح) إن وجب الخروج — وإلا None. الترتيب: الأجلُ ثمّ الوقفُ ثمّ الجنيُ ثمّ الهدفُ ثمّ الأطروحة."""
+    """(السبب، الشرح) إن وجب الخروج — وإلا None. الترتيب: أمرُ إغلاق المالك المحدَّد، ثمّ الأجلُ ثمّ الوقفُ ثمّ الجنيُ ثمّ الهدفُ ثمّ الأطروحة."""
+    if bid and p.get("close_px") and bid >= p["close_px"]:     # ‏D780: «أغلق بسعرٍ محدَّد» — يُباع متى بلغ الطلبُ سعرَ المالك
+        return "lmt", f"سعرُ الطلب {bid:.2f} بلغ سعرَ إغلاقك {p['close_px']:.2f}."
     if p.get("owner"):
         # ‏D771 (المالك): «إمّا يُقفل إلين يحقّق هدفه أو أنا أضغط إغلاق — وأحدّد جميعَ الأوامر»: جنيُ الربح ووقفُ الخسارة كما كتبهما، وخروجٌ قبل الانتهاء
         if kind_of(p) == "option" and dte <= (p.get("exit_dte") or EXIT_DTE):
@@ -1153,6 +1155,41 @@ async def manual_close(pid: str, price: float | None = None, market: str = "us")
         _point(st)
         save(st)
         return c
+
+
+async def close_limit(pid: str, limit, market: str = "us") -> dict:
+    """‏D780 (المالك): «عند الضغط على إغلاق المركز: أغلق الآن كما هو، وأغلق بسعرٍ محدَّد» — أمرُ بيعٍ محدَّدٌ للمركز كلِّه: يُباع متى بلغ الطلبُ سعرَه
+    (وإن كان الطلبُ فوقه الآن والسوقُ مفتوح بِيع الآن بالطلب، كأمر الوسيط المحدَّد)؛ وفارغٌ يلغيه. يبقى حتى يُنفَّذ أو يُلغى."""
+    from app.services.live_quote import sessions
+    market = _mk(market)
+    lim = _px(limit)
+    if lim is not None and lim <= 0:
+        raise ValueError("سعرُ الإغلاق أكبرُ من صفر.")
+    async with _LOCK:
+        st = load(market)
+        p = next((x for x in st["positions"] if x["id"] == pid), None)
+        if not p:
+            raise ValueError("لا مركزَ بهذا المعرّف.")
+        if lim is None:
+            p.pop("close_px", None)
+            log(st, "manual", f"المالك ألغى أمرَ إغلاق {_title(p)} المحدَّد.", p["symbol"])
+            save(st)
+            return {"closed": None, "position": p}
+        p["close_px"] = lim
+        log(st, "manual", f"أمرُ إغلاقٍ محدَّد: يُباع {_title(p)} متى بلغ الطلبُ {lim:.2f}.", p["symbol"])
+        live_bid = None
+        if ((await sessions()).get(market) or {}).get("state") == "open":
+            if market == "sa":
+                _, live_bid, _ = await _stock_quote("sa", p["symbol"])
+            else:
+                live_bid, _, _, _ = await quote_position(p)
+        c = None
+        if live_bid and live_bid >= lim:
+            c = sell(st, pid, float(live_bid), "lmt", f"الطلبُ {live_bid:.2f} فوق سعر إغلاقك {lim:.2f} — نُفّذ الآن.")
+            log(st, "sell", f"نُفّذ أمرُ الإغلاق المحدَّد الآن: {_title(c)} بسعر {live_bid:.2f} — النتيجة {c['pl']:+,.2f}.", c["symbol"])
+            _point(st)
+        save(st)
+        return {"closed": c, "position": None if c else p}
 
 
 async def set_capital(amount: float, market: str = "us") -> dict:

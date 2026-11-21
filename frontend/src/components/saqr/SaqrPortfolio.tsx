@@ -37,6 +37,15 @@ function ordDesc(o: SOrder) {
 function Position({ p, owner, onChart, i, market, ccy }: { p: SPos; owner: boolean; onChart: (c: string) => void; i: number; market: Market; ccy: string }) {
   const qc = useQueryClient();
   const [closing, setClosing] = useState(false);
+  /* ‏D780 (المالك): «عند الضغط على إغلاق المركز: أغلق الآن كما هو، وخيارُ أغلق بسعرٍ محدَّد» */
+  const [closeHow, setCloseHow] = useState<"now" | "lmt">("now");
+  const [closePx, setClosePx] = useState(() => (p.close_px ?? p.bid ?? p.entry_px).toFixed(2));
+  const closeLim = useMutation({
+    mutationFn: (v: number | null) => marketApi.saqrCloseLimit(p.id, v, market),
+    onSuccess: r => { qc.setQueryData(["saqr", market], r.data.data); setClosing(false); },
+  });
+  const cpx = Number(closePx) > 0 ? Number(closePx) : null;
+  const cpl = cpx != null ? (cpx - p.entry_px) * (p.kind === "stock" ? 1 : 100) * p.qty : null;
   /* ‏D771 (المالك): «أحدّد جميعَ الأوامر، سواءٌ التي سأضعها أو الموضوعةُ الآن — جنيُ ربحٍ 30٪ 40٪ أو عند أمرٍ محدّدٍ يبيع» */
   const [ordEdit, setOrdEdit] = useState(false);
   /* ‏D777: أوامرُ البيع كتذكرة الوسيط — بيعٌ محدَّدٌ بسعره (جنيُ الربح) · وقفٌ بسعره · وقفٌ مطارِد · براكت */
@@ -89,6 +98,11 @@ function Position({ p, owner, onChart, i, market, ccy }: { p: SPos; owner: boole
           <span className="sp-bar"><i style={{ width: `${range}%` }} /></span>
         </div>
       )}
+      {p.close_px ? (
+        <p className="sp-ord" data-role="sp-closelim">أمرُ إغلاقٍ محدَّد: يُباع متى بلغ الطلبُ <b><Num v={px(p.close_px)} /></b>
+          {owner && <button type="button" className="btn-ghost sp-btn sp-mini" onClick={() => closeLim.mutate(null)} disabled={closeLim.isPending}
+            data-role="sp-closelim-cancel"><X size={13} /> إلغاء</button>}</p>
+      ) : null}
       {p.alert && <p className="sp-alert" data-role="sp-alert">إشارةُ خروج: {ALERT[p.alert] || "انكسرت الأطروحة"}</p>}
       {p.why?.length > 0 && <ul className="sp-why">{p.why.slice(0, 3).map((w, j) => <li key={j}>{w}</li>)}</ul>}
       <div className="sp-acts">
@@ -98,10 +112,28 @@ function Position({ p, owner, onChart, i, market, ccy }: { p: SPos; owner: boole
         {owner && closing && (
           /* ‏D769 (المالك): «لما أضغط إغلاق يقفلها بنفس السعر الذي هي عليه الآن — وإن كانت بالناقص يحفظها بالناقص» */
           <div className="sp-closef" data-role="sp-closef">
-            <span className="sp-closeq">يُغلق الآن بسعر السوق — نحو <Num v={px(p.bid)} /> والنتيجةُ نحو <b className={tone(p.pl)}><Num v={susd(p.pl)} /></b></span>
-            <button type="button" className="btn-primary sp-btn" onClick={() => close.mutate()} disabled={close.isPending} data-role="sp-close-ok">{close.isPending ? "يُغلق…" : "أغلق الآن"}</button>
+            <span className="seg inline-flex" role="group" aria-label="طريقةُ الإغلاق" data-role="sp-close-how">
+              <button type="button" className={"seg-btn chip" + (closeHow === "now" ? " on" : "")} aria-pressed={closeHow === "now"} onClick={() => setCloseHow("now")} data-v="now">أغلق الآن</button>
+              <button type="button" className={"seg-btn chip" + (closeHow === "lmt" ? " on" : "")} aria-pressed={closeHow === "lmt"} onClick={() => setCloseHow("lmt")} data-v="lmt">بسعرٍ محدَّد</button>
+            </span>
+            {closeHow === "now" ? (
+              <>
+                <span className="sp-closeq">يُغلق الآن بسعر السوق — نحو <Num v={px(p.bid)} /> والنتيجةُ نحو <b className={tone(p.pl)}><Num v={susd(p.pl)} /></b></span>
+                <button type="button" className="btn-primary sp-btn" onClick={() => close.mutate()} disabled={close.isPending} data-role="sp-close-ok">{close.isPending ? "يُغلق…" : "أغلق الآن"}</button>
+              </>
+            ) : (
+              <>
+                <label className="sp-closel"><small>سعرُ الإغلاق</small>
+                  <input className="sp-in" type="number" min={0.01} step={0.01} dir="ltr" value={closePx} onChange={e => setClosePx(e.target.value)} data-role="sp-close-px" /></label>
+                <span className="sp-closeq">يُباع متى بلغ الطلبُ سعرَك (الطلبُ الآن <Num v={px(p.bid)} />) — ويبقى حتى يُنفَّذ أو تلغيه
+                  {cpl != null ? <> · النتيجةُ عنده نحو <b className={tone(cpl)}><Num v={susd(cpl)} /></b></> : null}</span>
+                <button type="button" className="btn-primary sp-btn" onClick={() => closeLim.mutate(cpx)} disabled={!cpx || closeLim.isPending} data-role="sp-close-lmt">
+                  {closeLim.isPending ? "يُسجَّل…" : "سجّل أمرَ الإغلاق"}</button>
+              </>
+            )}
             <button type="button" className="btn-ghost sp-btn" onClick={() => setClosing(false)}>تراجع</button>
             {close.isError && <span className="sp-err">{err(close.error)}</span>}
+            {closeLim.isError && <span className="sp-err">{err(closeLim.error)}</span>}
           </div>
         )}
       </div>

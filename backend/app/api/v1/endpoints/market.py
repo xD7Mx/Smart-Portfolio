@@ -2458,6 +2458,19 @@ async def saqr_close(pid: str, payload: dict | None = None):
     return success_response(SQ.view(m))
 
 
+@router.post("/saqr/close-limit/{pid}", dependencies=[Depends(require_owner)])
+async def saqr_close_limit(pid: str, payload: dict | None = None):
+    """‏D780: أمرُ إغلاقٍ بسعرٍ محدَّد لمركزٍ قائم — يُباع متى بلغ الطلبُ سعرَه (وفارغٌ يلغيه)."""
+    from app.services import saqr_trader as SQ
+    p = payload or {}
+    m = _mkt(p.get("market"))
+    try:
+        await SQ.close_limit(pid, p.get("limit"), m)
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=422, detail=str(e) or "مدخلاتٌ غيرُ صالحة.")
+    return success_response(SQ.view(m))
+
+
 # ══ ‏D747: البحثُ في السوق الأمريكي كلِّه وسلسلةُ عقود الخيارات ══
 @router.get("/symbol-search")
 async def symbol_search(q: str = ""):

@@ -291,6 +291,9 @@ export const marketApi = {
     api.post<APIResponse>("/market/saqr/open", { contract, qty, price: price ?? null, market, managed }, { timeout: 60000 }),
   saqrClose: (id: string, price?: number | null, market: "us" | "sa" = "us") =>
     api.post<APIResponse>(`/market/saqr/close/${encodeURIComponent(id)}`, { price: price ?? null, market }, { timeout: 60000 }),
+  /* ‏D780: «أغلق بسعرٍ محدَّد» — أمرُ بيعٍ محدَّدٌ للمركز كلِّه (وnull يلغيه) */
+  saqrCloseLimit: (id: string, limit: number | null, market: "us" | "sa" = "us") =>
+    api.post<APIResponse>(`/market/saqr/close-limit/${encodeURIComponent(id)}`, { limit, market }),
   /* ‏D771: قائمةُ صقر وأوامرُ المالك (شراءٌ بسعره، وجنيُ الربح ووقفُ الخسارة، وأوامرٌ معلّقة) */
   saqrList: () => api.get<APIResponse>("/market/saqr/list"),
   saqrListRun: () => api.post<APIResponse>("/market/saqr/list/run", {}),

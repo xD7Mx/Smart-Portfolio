@@ -11,7 +11,7 @@ export type SPos = { id: string; kind?: "option" | "stock"; name?: string | null
   target: number | null; target_label?: string | null; delta?: number | null; iv?: number | null; why: string[]; src: "saqr" | "manual"; auto: boolean;
   value: number; pl: number; pl_pct: number | null; alert?: string; marked?: string; managed?: boolean;
   owner?: boolean; tp_pct?: number | null; sl_pct?: number | null; take_x?: number | null;
-  tp_px?: number | null; sl_px?: number | null; trail_pct?: number | null };
+  tp_px?: number | null; sl_px?: number | null; trail_pct?: number | null; close_px?: number | null };
 export type SOrder = { id: string; contract: string; symbol: string; name?: string | null; type: "call" | "put"; strike: number; expiry: string; qty: number;
   limit: number | null; tp_pct: number | null; sl_pct: number | null; created: string; note?: string;
   otype?: "mkt" | "lmt" | "stp" | "stp_lmt"; stop?: number | null; tif?: "day" | "gtc"; tp_px?: number | null; sl_px?: number | null; trail_pct?: number | null;

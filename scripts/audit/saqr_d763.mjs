@@ -391,6 +391,21 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
       && po && po[1].tp_px === 0.52 && po[1].sl_px === 0.3 && po[1].trail_pct === null,
       `${label}: ١٥ الأوامرُ المعلّقةُ في المحفظة بسعرها وسببِ انتظارها وتُلغى، وأمرا كلّ مركزٍ يضبطهما المالك (+30٪ · −25٪) — بالأمر المرفق كالوسيط (‏D777)`,
       JSON.stringify({ pend: pend.slice(0, 60), ordTxt: ordTxt.slice(0, 40), po: po?.[1] }).slice(0, 240));
+  /* ١٧ ‏D780 (المالك): «عند الضغط على إغلاق المركز: أغلق الآن كما هو، وخيارُ أغلق بسعرٍ محدَّد» */
+  await page.locator('[data-role="sq-nav"] [data-view="portfolio"]').click(); await page.waitForTimeout(600);
+  const pos1 = page.locator('[data-role="sp-pos"]').first();
+  await pos1.locator('[data-role="sp-close"]').click(); await page.waitForTimeout(300);
+  const hows = (await pos1.locator('[data-role="sp-close-how"] [data-v]').allTextContents()).map(t => t.trim());
+  const nowOk = await pos1.locator('[data-role="sp-close-ok"]').count();
+  await pos1.locator('[data-role="sp-close-how"] [data-v="lmt"]').click(); await page.waitForTimeout(250);
+  await pos1.locator('[data-role="sp-close-px"]').fill("0.60");
+  const lq = ((await pos1.locator('[data-role="sp-closef"]').textContent()) || "").replace(/\s+/g, " ");
+  await pos1.locator('[data-role="sp-close-lmt"]').click(); await page.waitForTimeout(600);
+  const pcl = posts.filter(x => x[0] === "/market/saqr/close-limit/p1").pop();
+  say(JSON.stringify(hows) === JSON.stringify(["أغلق الآن", "بسعرٍ محدَّد"]) && nowOk === 1 && /يُباع متى بلغ الطلبُ سعرَك/.test(lq) && /\$20\.00/.test(lq)
+      && pcl && pcl[1].limit === 0.6,
+      `${label}: ١٧ إغلاقُ المركز (‏D780): «أغلق الآن» كما كان، و«بسعرٍ محدَّد» بسعره ونتيجته عنده (0.60 ⇐ +$20.00) — يُرسل أمرَ الإغلاق المحدَّد`,
+      JSON.stringify({ hows, nowOk, lq: lq.slice(0, 120), pcl: pcl?.[1] }).slice(0, 260));
   say(errs.length === 0, `${label}: ٩ لا خطأ`, errs[0] || "");
   await ctx.close();
 }
