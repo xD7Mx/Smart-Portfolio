@@ -501,6 +501,7 @@ python3 scripts/audit/saqr_d776.py || _note "$LINENO"   # ‏D776: فريقُ ص
 python3 scripts/audit/saqr_d777.py || _note "$LINENO"   # ‏D777: تذكرةُ الأمر كإنتراكتف بروكرز بالعربية، و«عقودُ الخيارات» داخل صقر
 python3 scripts/audit/saqr_d779.py || _note "$LINENO"   # ‏D779: التداولُ الآليُّ يشتري من «عقود الخيارات»
 python3 scripts/audit/saqr_d780.py || _note "$LINENO"   # ‏D780: «أغلق الآن» و«أغلق بسعرٍ محدَّد» للمركز القائم
+python3 scripts/audit/chart_d781.py || _note "$LINENO"   # ‏D781: «+» للقائمة، وطيُّ أسماء المؤشّرات، والضغطُ على المؤشّر يفتح إعداداته
 _node scripts/audit/chart_colors_d772.mjs || _note "$LINENO"   # ‏D772: الرسمُ كتريدنق فيو — لوحةٌ سوداءُ وألوانٌ مشبعة، وألوانُ الشموع بيد المالك، وأرقامُ الفيبو على خطوطها
 _node scripts/audit/saqr_d763.mjs || _note "$LINENO"   # ‏D763: المفكرةُ بالتقرير، وتبويباتُ المختبر الثلاثة، والمحفظةُ ولوحةُ صقر في المظهرين
 python3 scripts/audit/research_archive_d749.py || _note "$LINENO"   # ‏D749: أرشيفُ التقارير لجميع الجلسات — كلُّ جلسةٍ بأرقامها هي

@@ -90,6 +90,18 @@ export default function TradeRoom() {
     mutationFn: (a: { s: string; name?: string }) => marketApi.watchAdd(a.s, a.name, gid!),
     onSuccess: () => invalidateWatchlist(qc),
   });
+  /* ‏D781 (المالك): «علامةُ زائدٍ في الرسم: ما يظهر عليه — سهمٌ أو عقد — يُضاف إلى القائمة المفتوحة الآن» — وإن كانت المفتوحةُ «محفظتي» أو
+     «المؤشرات» (لا يُضاف إليهما) فقائمةٌ صغيرةٌ بقوائمك تختار منها */
+  const [addMenu, setAddMenu] = useState(false);
+  const [addedTo, setAddedTo] = useState<string | null>(null);
+  const inList = gid != null && wrows.some(r => r.symbol === symbol);
+  const nameOf = (s: string) => (isOption(s) ? optionTitle(parseOption(s)!) : rows.find(r => r.symbol === s)?.name || undefined);
+  const addTo = useMutation({
+    mutationFn: (g: number) => marketApi.watchAdd(symbol, nameOf(symbol), g),
+    onSuccess: (_r, g) => { invalidateWatchlist(qc); setAddMenu(false); setAddedTo(groups.find((x: any) => x.id === g)?.name || "القائمة"); },
+  });
+  useEffect(() => { setAddMenu(false); setAddedTo(null); }, [symbol]);
+  useEffect(() => { if (!addedTo) return; const t = setTimeout(() => setAddedTo(null), 2600); return () => clearTimeout(t); }, [addedTo]);
   const remove = useMutation({
     mutationFn: (s: string) => marketApi.watchRemove(s, gid!),
     onSuccess: () => invalidateWatchlist(qc),
@@ -218,6 +230,23 @@ export default function TradeRoom() {
               {!label && <span className="text-[12px] text-[var(--ink-muted)] truncate max-w-[40vw] lg:max-w-[180px]">
                 {rows.find(r => r.symbol === symbol)?.name || ""}</span>}
             </>)}
+            {owner && (inList ? (
+              <span className="troom-inlist" data-role="troom-inlist" title={`في «${group?.name || "القائمة"}»`} aria-label="في القائمة"><Check size={14} /></span>
+            ) : (
+              <span className="troom-addw">
+                <button type="button" className="btn-ghost troom-plus" data-role="troom-add" disabled={addTo.isPending}
+                  title={gid != null ? `أضِفه إلى «${group?.name || "القائمة"}»` : "أضِفه إلى قائمة"} aria-label={gid != null ? `أضِفه إلى «${group?.name || "القائمة"}»` : "أضِفه إلى قائمة"}
+                  aria-expanded={gid == null ? addMenu : undefined} onClick={() => (gid != null ? addTo.mutate(gid) : setAddMenu(v => !v))}><Plus size={15} /></button>
+                {addMenu && gid == null && (
+                  <span className="troom-addmenu" role="menu" data-role="troom-add-menu">
+                    {groups.length ? groups.map((g: any) => (
+                      <button key={g.id} type="button" role="menuitem" className="troom-additem" onClick={() => addTo.mutate(g.id)}>{g.name}</button>
+                    )) : <span className="troom-addnone">لا قوائمَ لك بعد — أنشئ قائمةً من «+» في القوائم</span>}
+                  </span>
+                )}
+                {addedTo && <span className="troom-added" role="status" data-role="troom-added">أُضيف إلى «{addedTo}»</span>}
+              </span>
+            ))}
             {chainOf(symbol) && (
               <button type="button" className="btn-ghost troom-oc" onClick={() => setChainFor(chainOf(symbol))} data-role="troom-options"
                 title="عقود الخيارات" aria-label={`عقود خيارات ${chainOf(symbol)}`}>

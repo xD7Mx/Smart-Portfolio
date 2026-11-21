@@ -124,7 +124,9 @@ say(/from "lightweight-charts"/.test(pc) && /^\d+\.\d+\.\d+$/.test(pkg.dependenc
 say(!/fitContent\(/.test(code) && /setVisibleLogicalRange\(/.test(code) && /mouseWheel: true/.test(code) && /pinch: true/.test(code) && /vertTouchDrag: false/.test(code)
     && (code.match(/createChart\(/g) || []).length === 1,
     "٧ الرسمُ يُنشأ مرّةً، ومشهدُه آخرُ الشموع بعرضٍ مقروء (لا الكلُّ محشوراً)، والعجلةُ والقرصُ يكبّران والإصبعُ العموديُّ للصفحة");
-say(!/subscribeClick\(/.test(code) && /onPointerDown=\{drawDown\}/.test(code) && /<Brush /.test(code) && /<Activity /.test(code) && /data-role="pc-draw"/.test(code),
+// ‏D781: نقرةُ المكتبة لا تُستعمل للرسم أبداً — نقرةٌ واحدةٌ تفتح إعدادات المؤشّر الذي تحت المؤشّر (والرسمُ طبقتُه فوقها تلتقط الإصبع)
+const clickBody = (code.match(/const onClick = \(p: MouseEventParams\) => \{[\s\S]*?\n {4}\};/) || [""])[0];
+say((code.match(/subscribeClick\(/g) || []).length <= 1 && !/draw/i.test(clickBody) && /onPointerDown=\{drawDown\}/.test(code) && /<Brush /.test(code) && /<Activity /.test(code) && /data-role="pc-draw"/.test(code),
     "٨ أدواتُ الرسم تلتقط الإصبعَ بنفسها (نقرةُ المكتبة تبتلع الثانيةَ السريعة)، وللرسم أيقونةُ فرشاةٍ وللمؤشّرات أيقونة");
 say(/import ProChart from "\.\.\/chart\/ProChart"/.test(room) && !/key=\{symbol\}/.test(room) && !/NativeChart/.test(room)
     && /\["chart", "الرسم البياني", CandlestickChart\], \["lab", "مختبر الأبحاث", FlaskConical\]/.test(wp) && !/WatchlistTab|الشركات"/.test(wp),
@@ -200,6 +202,7 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
     if (p === "/market/research-desk") return r.fulfill(body({ report: RD_HEAD, dates: RD_DATES, running: { on: false } }));
     if (p === "/market/research-desk/paper") return r.fulfill(body({ html: RD_PAPER(u.searchParams.get("part")), date: "2026-11-15" }));
     if (p === "/market/watchlist/groups") return r.fulfill(body([{ id: 1, name: "الرئيسية", is_default: true }]));
+    if (p === "/market/watchlist" && m === "POST") { saves.push(["watchAdd", JSON.parse(r.request().postData() || "{}")]); return r.fulfill(body({ ok: true })); }   // ‏D781
     return r.fulfill(body([]));
   });
   await page.addInitScript((th) => { try {
@@ -305,6 +308,30 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await page.locator('[data-role="pc-ind"]').click();
   await page.locator('[data-role="pc-ind-menu"] [data-ind="macd"]').click();
   await page.mouse.click(5, 5); await page.waitForTimeout(700);
+
+  /* ١٢هـ ‏D781 (المالك): «سهمٌ في اليسار يطوي أسماءَ المؤشّرات كتريدنق فيو، والضغطُ على المؤشّر نفسِه يفتح إعداداته، و«+» يضيف ما في الرسم إلى القائمة» */
+  const chips0 = await page.locator('[data-role="pc-legend"] .pc-chip').count();
+  await page.locator('[data-role="pc-fold"]').click(); await page.waitForTimeout(300);
+  const folded = { chips: await page.locator('[data-role="pc-legend"] .pc-chip').count(), n: ((await page.locator('[data-role="pc-fold-n"]').textContent().catch(() => "")) || "").trim(),
+    exp: await page.locator('[data-role="pc-fold"]').getAttribute("aria-expanded") };
+  await page.locator('[data-role="pc-fold"]').click(); await page.waitForTimeout(300);
+  const chips1 = await page.locator('[data-role="pc-legend"] .pc-chip').count();
+  await page.locator('[data-role="pc-chip-cfg"][data-ind="d7m"]').click(); await page.waitForTimeout(400);
+  const d7mDlg = await page.locator('[role="dialog"][aria-label="إعدادات D7M"]').count();
+  await page.keyboard.press("Escape"); await page.locator('[role="dialog"][aria-label="إعدادات D7M"]').click({ position: { x: 4, y: 4 } }).catch(() => {});
+  await page.waitForTimeout(300);
+  const plus = await page.locator('[data-role="troom-add"]').count();
+  await page.locator('[data-role="troom-add"]').click().catch(() => {}); await page.waitForTimeout(300);
+  const menuItems = (await page.locator('[data-role="troom-add-menu"] [role="menuitem"]').allTextContents().catch(() => [])).map(t => t.trim());
+  await page.locator('[data-role="troom-add-menu"] [role="menuitem"]').first().click().catch(() => {}); await page.waitForTimeout(600);
+  const wa = saves.filter(x => x[0] === "watchAdd").pop();
+  const added = ((await page.locator('[data-role="troom-added"]').textContent().catch(() => "")) || "").trim();
+  const srcPC = rd("src/components/chart/ProChart.tsx");
+  say(chips0 >= 2 && folded.chips === 0 && folded.n === String(chips0) && folded.exp === "false" && chips1 === chips0 && d7mDlg === 1 && plus === 1
+      && JSON.stringify(menuItems) === JSON.stringify(["الرئيسية"]) && wa && wa[1].group_id === 1 && !!wa[1].symbol && added === "أُضيف إلى «الرئيسية»"
+      && srcPC.includes("chart.subscribeClick(onClick)") && srcPC.includes("e.series.includes(hit as any)"),
+      `${label}: ‏D781 سهمُ الطيّ يُخفي أسماءَ المؤشّرات ويُبقي عددَها (${chips0}) ويعيدها، والضغطُ على المؤشّر (اسمِه أو خطِّه) يفتح إعداداته، `
+      + `و«+» يضيف ما في الرسم إلى قائمةٍ تختارها (والمفتوحةُ «محفظتي») ويقول «أُضيف»`, JSON.stringify({ chips0, folded, chips1, d7mDlg, plus, menuItems, wa: wa?.[1] }).slice(0, 260));
 
   // ١٣ الإطارُ المخصَّص: 6 ساعات
   await page.locator('[data-role="pc-tf-more"]').click();

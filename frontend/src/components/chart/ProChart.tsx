@@ -19,7 +19,7 @@ import {
 } from "lightweight-charts";
 import {
   CandlestickChart, LineChart, AreaChart, BarChart3, Activity, Brush, TrendingUp, Minus, Trash2, Undo2, Camera, Maximize2, Minimize2,
-  Settings2, ChevronDown, Check, MousePointer2, ChevronsRight, Eye, EyeOff, Palette,
+  Settings2, ChevronDown, ChevronRight, Check, MousePointer2, ChevronsRight, Eye, EyeOff, Palette,
 } from "lucide-react";
 import { marketApi } from "../../services/api";
 import {
@@ -148,6 +148,13 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   });
   const saveCfg = (c: D7MSettings) => { setCfgState(c); lsSet("sp_d7m_cfg_v2", JSON.stringify(c)); };
   const [showCfg, setShowCfg] = useState(false);
+  /* ‏D781 (المالك): «كتريدنق فيو — سهمٌ في اليسار يطوي أسماءَ المؤشّرات (ويُبقي عددَها)، والضغطُ على المؤشّر نفسِه في الرسم يفتح إعداداته» */
+  const [legFold, setLegFold] = useState(() => lsGet("sp_chart_legfold") === "1");
+  const foldLeg = () => setLegFold(v => { lsSet("sp_chart_legfold", v ? "0" : "1"); return !v; });
+  const hasCfg = (k: string) => k === "d7m" || k === "stochrsi" || k === "cvd";
+  const openCfg = (k: string) => { if (k === "d7m") setShowCfg(true); else if (k === "stochrsi" || k === "cvd") setCfgFor(k); };
+  const openCfgRef = useRef(openCfg);
+  openCfgRef.current = openCfg;
   const [tool, setTool] = useState<Tool>(null);
   const [railOpen, setRailOpen] = useState(false);
   const [full, setFull] = useState(false);
@@ -445,6 +452,13 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     const onRange = (r: any) => { if (r) setAway(r.to < S.current.bars.length - 1.5); };
     chart.subscribeCrosshairMove(onCross);
     chart.timeScale().subscribeVisibleLogicalRangeChange(onRange);
+    /* ‏D781: الضغطُ على خطّ المؤشّر نفسِه في الرسم يفتح إعداداته — السلسلةُ تحت المؤشّر تُعرف بسجلّ المؤشّرات */
+    const onClick = (p: MouseEventParams) => {
+      const hit = (p as any).hoveredInfo?.series ?? p.hoveredSeries;
+      if (!hit) return;
+      for (const [k, e] of reg.current) if (e.series.includes(hit as any)) { openCfgRef.current(k); return; }
+    };
+    chart.subscribeClick(onClick);
     return () => {
       chart.remove();
       chartRef.current = null; mainRef.current = null; markRef.current = null;
@@ -651,7 +665,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   }, [raw, bars, disp, tzName, eff, scaleMode, calc, d7m, ind, ctype, cvdCfg, cfg, theme, tf, symbol, mainPx, oscPx, wide, hid, hideAll, cc]);
 
   /* لوحةٌ سفلى ظهرت للتوّ: وسيلةُ إيضاحها تُركَّب بعد أن يُعرف موضعُها — فتُملأ قيمُها حينها، لا عند أوّل حركةٍ للمؤشّر (كانت «———») */
-  useEffect(() => { fill(S.current.bars.length - 1); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [paneTops]);
+  useEffect(() => { fill(S.current.bars.length - 1); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [paneTops, legFold]);   // ‏D781: وبعد فكّ الطيّ تُملأ القيمُ فوراً
 
   /* الرسمُ اليدويُّ والأداة: طبقةُ الرسم وحدها */
   useEffect(() => { if (tool !== "trend") { pend.current = null; preview.current = null; } paint(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [draws, tool]);
@@ -799,13 +813,15 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   const chip = (k: IndKey, body: React.ReactNode) => {
     const off = hideAll || !!hid[k];
     return (
-      <span className={"pc-chip" + (off ? " pc-off" : "")} data-ind={k}>{body}
+      <span className={"pc-chip" + (off ? " pc-off" : "")} data-ind={k}>
+        {hasCfg(k) ? <button type="button" className="pc-chip-name" onClick={() => openCfg(k)} title="إعداداتُ المؤشّر" data-role="pc-chip-cfg" data-ind={k}>{body}</button> : body}
         <button type="button" className="pc-eye" data-role="pc-eye" data-eye={k} aria-pressed={off} onClick={() => toggleHid(k)}
           title={off ? "إظهار المؤشّر" : "إخفاء المؤشّر"} aria-label={off ? "إظهار المؤشّر" : "إخفاء المؤشّر"}>{off ? <EyeOff size={13} /> : <Eye size={13} />}</button>
       </span>
     );
   };
   const empty = raw !== undefined && !bars.length;
+  const nMain = (ind.vol ? 1 : 0) + (ind.cvd && !volOk ? 1 : 0) + (ind.d7m ? 1 : 0);
 
   return (
     <div ref={rootRef} className={"pc" + (full ? " pc-full" : "")} data-role="pro-chart" data-tf={tf} data-type={ctype} data-symbol={symbol}>
@@ -955,15 +971,24 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
               <b ref={lv("chg")} className="pc-chg" data-k="chg" />
               <b ref={lv("basis")} className="pc-dim pc-basis" data-k="basis" />
             </div>
-            <div className="pc-chips">
-              {ind.vol && (volOk ? chip("vol", <><span className="pc-k">Vol</span><b ref={lv("vol")}>—</b></>)
-                : chip("vol", <><span className="pc-k">Vol</span><b className="pc-dim">غير متوفّر</b></>))}
-              {ind.cvd && !volOk && chip("cvd", <><span className="pc-k" style={{ color: "var(--chart-3)" }}>CVD D7M</span><b className="pc-dim">غير متوفّر — لا حجم</b></>)}
-              {ind.d7m && chip("d7m", <span className="pc-k" style={{ color: "var(--brand-ink)" }}>D7M</span>)}
-            </div>
+            {nMain > 0 && (
+              <div className={"pc-chips" + (legFold ? " pc-folded" : "")}>
+                <button type="button" className="pc-fold" onClick={foldLeg} aria-expanded={!legFold} data-role="pc-fold"
+                  title={legFold ? "إظهارُ أسماء المؤشّرات" : "طيُّ أسماء المؤشّرات"} aria-label={legFold ? "إظهارُ أسماء المؤشّرات" : "طيُّ أسماء المؤشّرات"}>
+                  {legFold ? <ChevronRight size={14} /> : <ChevronDown size={14} />}{legFold && <b className="pc-fold-n" data-role="pc-fold-n">{nMain}</b>}</button>
+                {!legFold && <>
+                  {ind.vol && (volOk ? chip("vol", <><span className="pc-k">Vol</span><b ref={lv("vol")}>—</b></>)
+                    : chip("vol", <><span className="pc-k">Vol</span><b className="pc-dim">غير متوفّر</b></>))}
+                  {ind.cvd && !volOk && chip("cvd", <><span className="pc-k" style={{ color: "var(--chart-3)" }}>CVD D7M</span><b className="pc-dim">غير متوفّر — لا حجم</b></>)}
+                  {ind.d7m && chip("d7m", <span className="pc-k" style={{ color: "var(--brand-ink)" }}>D7M</span>)}
+                </>}
+              </div>
+            )}
           </div>
           {oscOn.map(k => paneTops[k] != null && (
             <div key={k} className="pc-legend pc-pane-legend" dir="ltr" style={{ top: paneTops[k] + 4 }} data-role="pane-tag" data-ind={k}>
+              {legFold ? <button type="button" className="pc-fold" onClick={foldLeg} aria-expanded={false} title="إظهارُ أسماء المؤشّرات" aria-label="إظهارُ أسماء المؤشّرات"
+                data-role="pc-fold-pane"><ChevronRight size={14} /></button> : <>
               {k === "macd" && chip("macd", <><span className="pc-k" style={{ color: "var(--info-ink)" }}>MACD 12 26 close 9</span>
                 <b ref={lv("mH")}>—</b><b ref={lv("mM")} style={{ color: "var(--info-ink)" }}>—</b><b ref={lv("mS")} style={{ color: "var(--gauge-warn)" }}>—</b></>)}
               {k === "stochrsi" && chip("stochrsi", <><span className="pc-k" style={{ color: "var(--info-ink)" }}>Stoch RSI {srCfg.k} {srCfg.d} {srCfg.rsiLen} {srCfg.stochLen} {srCfg.src}</span>
@@ -971,6 +996,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
               {k === "cvd" && chip("cvd", <><span className="pc-k" style={{ color: "var(--chart-3)" }}>
                 CVD D7M · {cvdCfg.scale === "levels" ? "مستويات" : cvdCfg.scale === "pct" ? "نسبة" : "احجام"} {cvdCfg.len}</span><b ref={lv("cvd")}>—</b>
                 {cvdCfg.ema2 && cvdCfg.style === "candle" && <b ref={lv("cvdE")} className="pc-dim">—</b>}</>)}
+              </>}
             </div>
           ))}
 
