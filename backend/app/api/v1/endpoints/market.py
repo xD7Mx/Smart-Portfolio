@@ -1530,9 +1530,60 @@ def _serialize_group(g: WatchlistGroup) -> dict:
             "is_default": bool(g.is_default), "sort_order": g.sort_order or 0}
 
 
+# ‏D782 (المالك 2026-11-21): «المؤشّراتُ خلّها قابلةً للتعديل — كلُّ شيءٍ لازم يكون قابلاً للتعديل، ما يصلح ثابتةً إجباريةً تسبّب زحمة»،
+# و«المؤشّراتُ ما يظهر أمامها آخرُ سعر مثل قائمتي والسوق الأمريكي». فكانت سبعةً ثابتةً في الواجهة بلا أسعار، وصارت قائمةً من قوائم المراقبة
+# باسمها: تُزرع مرّةً واحدةً لكلّ محفظة، وتُعرض بأسعارها كغيرها، ويضيف إليها المالكُ ويحذف ويحذفها كلَّها — وإن حذفها لم تَعُد (علامةُ الزرع).
+INDICES_GROUP = "المؤشرات"
+INDICES_SEED = [("^TASI.SR", "تاسي"), ("^GSPC", "S&P 500"), ("^IXIC", "ناسداك"), ("^DJI", "داو جونز"),
+                ("BZ=F", "برنت"), ("GC=F", "الذهب"), ("BTC-USD", "بتكوين")]
+_SEED_LOCK = asyncio.Lock()
+
+
+def _seed_path() -> str:
+    import os
+    d = os.environ.get("SP_STATE_DIR", "/app/storage")
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, "watch_seed.json")
+
+
+async def _ensure_indices_group(db: AsyncSession) -> None:
+    import json as _json
+    import os
+    from app.core.portfolio_scope import active_pid, is_aggregate
+    if is_aggregate():
+        return
+    key = f"indices:{active_pid()}"
+    async with _SEED_LOCK:
+        try:
+            with open(_seed_path(), encoding="utf-8") as f:
+                seen = _json.load(f)
+        except Exception:                                         # noqa: BLE001
+            seen = {}
+        if seen.get(key):
+            return
+        has = (await db.execute(select(WatchlistGroup).where(WatchlistGroup.name == INDICES_GROUP))).scalars().first()
+        if has is None:
+            g = WatchlistGroup(name=INDICES_GROUP, color="#3B82F6", is_default=False, sort_order=-1)
+            db.add(g)
+            await db.flush()
+            for k, (sym, nm) in enumerate(INDICES_SEED):
+                db.add(Watchlist(symbol=sym, name=nm, group_id=g.id, sort_order=k + 1))
+            await db.commit()
+        seen[key] = True
+        tmp = _seed_path() + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            _json.dump(seen, f)
+        os.replace(tmp, _seed_path())
+
+
 @router.get("/watchlist/groups")
 async def list_watchlist_groups(db: AsyncSession = Depends(get_db)):
     await _ensure_default_group(db)
+    try:
+        await _ensure_indices_group(db)
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("زرعُ قائمة المؤشّرات: {}", type(e).__name__)
+        await db.rollback()
     rows = (await db.execute(
         select(WatchlistGroup).order_by(WatchlistGroup.sort_order, WatchlistGroup.id)
     )).scalars().all()
@@ -2530,10 +2581,61 @@ async def options_advice(symbol: str = "", budget: float | None = None, expiry: 
 
 
 @router.get("/econ-events")
-async def econ_events():
-    """الأحداثُ الاقتصاديةُ الأمريكيةُ المهمّةُ هذا الأسبوع بوقت الرياض، وقراءةُ أثر كلٍّ منها وميلِه (عقودُ شراء · عقودُ بيع) — ‏D761."""
+async def econ_events(market: str = "us", symbol: str = "", name: str = ""):
+    """الأحداثُ الاقتصاديةُ المهمّةُ هذا الأسبوع بوقت الرياض، وقراءةُ أثر كلٍّ منها وميلِه — ‏D761 للسوق الأمريكيّ (عقودُ شراء · عقودُ بيع)،
+    و‏D782 للسوق السعوديّ (إيجابيٌّ · سلبيٌّ له) ومعها أحداثُ الشركة السعودية المفتوحة من مفكرتها."""
     from app.services.econ_calendar import week
-    return success_response(await week())
+    if symbol and not re.match(r"^[\^A-Za-z0-9=.\-]{1,24}$", symbol):
+        raise HTTPException(status_code=422, detail="رمزٌ غيرُ مقبول.")
+    return success_response(await week(market="sa" if market == "sa" else "us", symbol=symbol, name=(name or "")[:80]))
+
+
+_READ_KEYS = ("tf", "tf_ar", "price", "chg_pct", "bars", "ind", "levels", "force", "shown", "swings", "img")
+
+
+def _read_frame(fr) -> dict | None:
+    """لقطةُ شاشةٍ واحدة بعد التنقية: مفاتيحُها المعروفة وحدودُها — صورةٌ ‏JPEG لا تتجاوز 900 ك.ب، وشموعٌ ≤ 160، ومستوياتٌ ≤ 80."""
+    import json as _json
+    import math as _m
+    if not isinstance(fr, dict):
+        return None
+    out = {k: fr[k] for k in _READ_KEYS if k in fr}
+    bars = out.get("bars")
+    if not isinstance(bars, list) or not (10 <= len(bars) <= 160):
+        return None
+    ok = []
+    for b in bars:
+        if not (isinstance(b, list) and len(b) == 6 and all(isinstance(x, (int, float)) and _m.isfinite(x) for x in b[1:])):
+            return None
+        ok.append([str(b[0])[:20], *b[1:]])
+    out["bars"] = ok
+    if not isinstance(out.get("levels", []), list) or len(out.get("levels", [])) > 80:
+        return None
+    img = out.get("img")
+    if img is not None and not (isinstance(img, str) and img.startswith("data:image/jpeg;base64,") and len(img) <= 900_000):
+        out.pop("img", None)
+    out["tf"] = str(out.get("tf") or "")[:8]
+    out["tf_ar"] = str(out.get("tf_ar") or "")[:24]
+    rest = {k: v for k, v in out.items() if k != "img"}
+    if len(_json.dumps(rest, ensure_ascii=False)) > 60_000:
+        return None
+    return out
+
+
+@router.post("/chart-read")
+async def chart_read(payload: dict):
+    """‏D782 «تحليلُ الرسم»: لقطةُ الرسم (صورتُه وأرقامُه — لكلّ شاشة) يقرؤها الذكاءُ قراءةَ محلّلٍ محترف، وتُحرس قبل العرض:
+    المستوى برقمٍ من اللقطة وإلّا سقط، والجملةُ برقمٍ لا أصلَ له تسقط، ولا مؤشّرَ إلّا ما ظهر — ‏services/chart_read."""
+    from app.services.chart_read import read
+    p = payload or {}
+    sym = str(p.get("symbol") or "")
+    if not re.match(r"^[\^A-Za-z0-9=.\-]{1,24}$", sym):
+        raise HTTPException(status_code=422, detail="رمزٌ غيرُ مقبول.")
+    frames = [f for f in (_read_frame(x) for x in (p.get("frames") or [])[:4]) if f]
+    if not frames:
+        raise HTTPException(status_code=422, detail="لا لقطةَ صالحةً للرسم.")
+    snap = {"symbol": sym, "name": str(p.get("name") or "")[:80], "market": "sa" if p.get("market") == "sa" else "us", "frames": frames}
+    return success_response(await read(snap))
 
 
 @public_router.get("/logo/{symbol}")

@@ -3336,10 +3336,9 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
   padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
 
 @media (max-width: 767px) {
-  /* الجوال كتطبيق تريدنق فيو: الإطارُ الجاري وحده وسهمُ القائمة، والقوائمُ بعرض الشريط */
+  /* الجوال كتطبيق تريدنق فيو: الإطاراتُ الثلاثةُ الأكثرُ استعمالاً وسهمُ القائمة (‏D782 — كان الجاري وحده)، والقوائمُ بعرض الشريط */
   .pc-top { padding: 5px 6px; }
   .pc-ident { flex: 1 1 100%; border-inline-end: 0; padding-inline-end: 0; margin-inline-end: 0; }
-  .pc-group > .pc-tf:not(.on) { display: none; }
   .pc-btn-txt { display: none; }
   .pc-menu-wrap { position: static; }
   .pc-menu, .pc-menu-wide { inset-inline: 6px; width: auto; }
@@ -3502,31 +3501,37 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 @media (max-width: 1023px) { .troom-chart { order: -1; } }
 
 /* ══ ‏D744: شريطُ D7M الذكيّ — صفٌّ رفيعٌ فوق الرسم (بحجم الإصبع) بدل الجداول فوق الشموع ══ */
-.d7s { display: flex; align-items: stretch; gap: 6px; padding: 6px 8px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--hairline);
-  animation: fadeUp .22s ease-out both; }
-.d7s::-webkit-scrollbar { display: none; }
-.d7s-tile { flex: none; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 3px 9px; min-height: 34px; border-radius: 8px;
-  border: 1px solid var(--hairline); background: color-mix(in srgb, var(--ink) 3%, transparent); }
-.d7s-k { font-size: 9.5px; font-weight: 700; color: var(--ink-muted); line-height: 1.2; }
-.d7s-v { display: flex; align-items: center; gap: 6px; font-size: 11.5px; line-height: 1.35; white-space: nowrap; color: var(--ink); }
-.d7s-v b { font-weight: 800; }
-.d7s-pos .d7s-v b, .d7s-tf.pos { color: var(--pos-ink); }
-.d7s-neg .d7s-v b, .d7s-tf.neg { color: var(--neg-ink); }
-.d7s-warn .d7s-v b { color: var(--warn-ink); }
-.d7s-tf.muted { color: var(--ink-muted); }
-.d7s-pos { border-color: color-mix(in srgb, var(--pos-ink) 35%, var(--hairline)); }
-.d7s-neg { border-color: color-mix(in srgb, var(--neg-ink) 35%, var(--hairline)); }
-.d7s-tf { font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.d7s-dim { font-size: 10px; font-weight: 700; color: var(--ink-muted); }
-.d7s-meter { display: inline-grid; grid-template-columns: repeat(10, 4px); gap: 1.5px; direction: ltr; }
-.d7s-meter i { display: block; width: 4px; height: 8px; border-radius: 1px; background: color-mix(in srgb, var(--ink) 14%, transparent); }
-.d7s-pos .d7s-meter i.on { background: var(--pos-ink); }
-.d7s-neg .d7s-meter i.on { background: var(--neg-ink); }
-.d7s-warn .d7s-meter i.on { background: var(--warn-ink); }
-.d7s-muted .d7s-meter i.on { background: var(--ink-muted); }
-.pc-fibmode .seg-btn { min-height: 32px; padding-inline: 10px; }
-@media (max-width: 767px) { .pc-fibmode { order: 9; } }
-@media (prefers-reduced-motion: reduce) { .d7s { animation: none; } }
+/* ══ ‏D782: لوحتا القوّة فوق الرسم — قوّةُ الاتجاه وقوّةُ السيولة (بدل شريط D7M) ══ */
+.fp { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--hairline);
+  animation: fadeUp .24s ease-out both; }
+.fp-pos { --fp-c: var(--pos-ink); } .fp-neg { --fp-c: var(--neg-ink); } .fp-warn { --fp-c: var(--warn-ink); } .fp-muted { --fp-c: var(--ink-muted); }
+.fp-card { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 10px; border-radius: 11px; min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--fp-c) 38%, var(--hairline)); background: color-mix(in srgb, var(--fp-c) 7%, transparent);
+  transition: background-color .35s ease, border-color .35s ease; }
+.fp-ic { flex: none; width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; color: var(--fp-c);
+  background: color-mix(in srgb, var(--fp-c) 16%, transparent); transition: color .35s ease, background-color .35s ease; }
+.fp-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.fp-k { font-size: 10.5px; font-weight: 700; color: var(--ink-muted); line-height: 1.2; }
+.fp-v { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; line-height: 1.3; min-width: 0; }
+.fp-v b { font-size: 14px; font-weight: 800; color: var(--fp-c); transition: color .35s ease; }
+.fp-lv { font-size: 11.5px; font-weight: 700; color: var(--ink); }
+.fp-tag { font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 999px; color: var(--fp-c); background: color-mix(in srgb, var(--fp-c) 14%, transparent); }
+.fp-bar { position: relative; display: block; height: 5px; border-radius: 999px; background: var(--track); overflow: hidden; }
+.fp-bar i { position: absolute; inset-block: 0; inset-inline-start: 0; width: var(--v, 0%); border-radius: inherit; background: var(--fp-c);
+  transition: width .5s cubic-bezier(.2, .7, .2, 1), background-color .35s ease; }
+.fp-num { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: right; }
+.fp-num b { font-size: 19px; font-weight: 800; color: var(--fg-strong); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.fp-stat { font-size: 10px; font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 560px) { .fp { gap: 6px; padding: 6px; } .fp-ic { display: none; } .fp-card { gap: 6px; padding: 6px 8px; }
+  .fp-v b { font-size: 13px; } .fp-num b { font-size: 16px; } }
+.fp-mini { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 6px; }
+.fp-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  color: var(--ink); border: 1px solid color-mix(in srgb, var(--fp-c) 40%, var(--hairline)); background: color-mix(in srgb, var(--fp-c) 9%, transparent);
+  transition: background-color .35s ease, border-color .35s ease; }
+.fp-chip svg, .fp-chip b { color: var(--fp-c); }
+.fp-chip b { font-weight: 800; }
+.fp-chip i { font-style: normal; font-variant-numeric: tabular-nums; color: var(--ink-muted); }
+@media (prefers-reduced-motion: reduce) { .fp { animation: none; } .fp-card, .fp-ic, .fp-bar i, .fp-chip, .fp-v b { transition: none; } }
 
 /* ══ ‏D745: مختبرُ الأبحاث — قسمُ الأبحاث: تقريرٌ بتصميم بيوت الأبحاث ══ */
 .rl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -3658,7 +3663,7 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
 }
 
 /* ══ ‏D761 الأحداثُ الاقتصادية ══ */
-.ee-btn { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 9px; font-size: 12px; font-weight: 700; }
+.ee-btn { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 9px; font-size: 12px; font-weight: 700; white-space: nowrap; flex: none; }
 .ee-btn.hot { color: var(--warn-ink); }
 .ee-n { min-width: 18px; height: 18px; border-radius: 9px; background: var(--warn-ink); color: var(--card); font-size: 10.5px; font-weight: 800;
   display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
@@ -4124,3 +4129,84 @@ html.light {
 .pc-sw:focus-visible { outline: 2px solid var(--brand-ink); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .pc-sw { transition: none; } }
 
+
+
+/* ══ ‏D782: «تحليلُ الرسم» — زرٌّ بجانب «الأحداث» ونافذةُ القراءة ══ */
+.cr-btn { color: var(--brand-ink); }
+.cr-sym { font-variant-numeric: tabular-nums; color: var(--ink-muted); font-weight: 700; margin-inline-start: 4px; }
+.cr-again { margin-inline-start: auto; min-width: 32px; min-height: 32px; display: inline-grid; place-items: center; }
+.cr-wait { display: flex; flex-direction: column; gap: 10px; padding: 14px 2px; }
+.cr-wait-t { font-size: 12.5px; font-weight: 700; color: var(--ink-muted); }
+.cr-wait i { display: block; height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--track), color-mix(in srgb, var(--ink) 9%, var(--track)), var(--track));
+  background-size: 200% 100%; animation: crShimmer 1.3s ease-in-out infinite; }
+.cr-wait i:nth-child(3) { width: 82%; } .cr-wait i:nth-child(4) { width: 64%; }
+@keyframes crShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.cr-err { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px 2px; font-size: 13px; color: var(--ink); }
+.cr-body { display: flex; flex-direction: column; gap: 12px; animation: fadeUp .24s ease-out both; }
+.cr-head { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--cr-c) 35%, var(--hairline));
+  background: color-mix(in srgb, var(--cr-c) 8%, transparent); }
+.cr-pos { --cr-c: var(--pos-ink); } .cr-neg { --cr-c: var(--neg-ink); } .cr-warn { --cr-c: var(--warn-ink); } .cr-muted { --cr-c: var(--ink-muted); }
+.cr-bias { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 800; color: var(--cr-c); }
+.cr-headline { font-size: 13.5px; line-height: 1.8; color: var(--fg-strong); font-weight: 700; }
+.cr-sec { display: flex; flex-direction: column; gap: 6px; }
+.cr-sec h4 { font-size: 12px; font-weight: 800; color: var(--ink-muted); }
+.cr-sec p, .cr-risk { font-size: 12.5px; line-height: 1.8; color: var(--ink); }
+.cr-frame b, .cr-ind b, .cr-p b, .cr-risk b { font-weight: 800; color: var(--fg-strong); margin-inline-end: 6px; }
+.cr-tf { display: inline-block; padding: 0 7px; border-radius: 6px; background: color-mix(in srgb, var(--brand-ink) 12%, transparent); color: var(--brand-ink) !important; }
+.cr-levels { display: flex; flex-direction: column; gap: 5px; }
+.cr-lv { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 6px 9px; border-radius: 9px; border: 1px solid var(--hairline); background: var(--raised); }
+.cr-kind { font-size: 11px; font-weight: 800; padding: 1px 8px; border-radius: 7px; }
+.cr-lv.neg .cr-kind { color: var(--neg-ink); background: color-mix(in srgb, var(--neg-ink) 12%, transparent); }
+.cr-lv.pos .cr-kind { color: var(--pos-ink); background: color-mix(in srgb, var(--pos-ink) 12%, transparent); }
+.cr-px { font-size: 13.5px; font-weight: 800; color: var(--fg-strong); font-variant-numeric: tabular-nums; }
+.cr-from { font-size: 11.5px; font-weight: 700; color: var(--ink-muted); }
+.cr-note { flex-basis: 100%; font-size: 12px; color: var(--ink); line-height: 1.7; }
+.cr-p.pos b { color: var(--pos-ink); } .cr-p.neg b { color: var(--neg-ink); }
+.cr-risk { padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--warn-ink) 9%, transparent); }
+.cr-risk b { color: var(--warn-ink); }
+@media (prefers-reduced-motion: reduce) { .cr-wait i { animation: none; } .cr-body { animation: none; } }
+
+/* ══ ‏D782: الأحداثُ بالعربية وللسوق السعودي ══ */
+.ee-sub { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.ee-sub b { font-weight: 800; color: var(--ink); }
+.ee-co { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.ee-co h4 { font-size: 12px; font-weight: 800; color: var(--ink-muted); }
+.ee-lean[data-lean="pos"], .ee-lean[data-lean="neg"] { font-weight: 800; }
+
+/* ══ ‏D782: القوائمُ الجانبية — ترسُ الإظهار والإخفاء، والقسمُ الثاني ══ */
+.troom-gearw { position: relative; flex: none; }
+.troom-gear { min-width: 32px; padding-inline: 8px !important; color: var(--ink-muted); }
+.troom-gear.on { color: var(--brand-ink); }
+.troom-gearmenu { position: absolute; top: calc(100% + 6px); inset-inline-end: 0; z-index: 45; width: min(260px, 80vw); display: flex; flex-direction: column; gap: 2px;
+  padding: 8px; border-radius: 12px; border: 1px solid var(--hairline); background: var(--raised); box-shadow: 0 10px 28px color-mix(in srgb, var(--ink) 16%, transparent);
+  animation: menuIn .2s ease-out both; }
+.troom-gcap { font-size: 10.5px; font-weight: 800; color: var(--ink-muted); padding: 6px 4px 2px; }
+.troom-gitem { width: 100%; padding: 0 4px; border-radius: 7px; font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.troom-gitem:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.troom-gsplit { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 2px 4px; }
+.troom-gsplit .seg-btn { min-height: 32px; }
+.troom-tabrow { display: flex; align-items: flex-start; gap: 4px; min-width: 0; }
+.troom-tabrow .troom-tabs { flex: 1; min-width: 0; }
+.troom-sec2 { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--hairline); padding-top: 6px; animation: fadeUp .22s ease-out both; }
+.troom-sec2-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12.5px; color: var(--fg-strong); padding-inline: 4px; }
+@media (min-width: 1024px) { .troom-list:has(.troom-sec2) .troom-rows { max-height: 34vh; } }
+@media (prefers-reduced-motion: reduce) { .troom-gearmenu, .troom-sec2 { animation: none; } }
+
+/* ══ ‏D782: الشاشاتُ المتعدّدة ══ */
+.troom-sdot { display: inline-flex; align-items: center; }
+.troom-mhead { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 8px 10px; border-bottom: 1px solid var(--hairline); }
+.troom-mhead .lq { margin-inline-start: 4px; }
+.troom-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; background: var(--hairline); animation: fadeUp .24s ease-out both; }
+@media (min-width: 1024px) { .troom-grid.g2, .troom-grid.g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.troom-pane { min-width: 0; background: var(--card); }
+.pc-mini .pc-top { padding: 4px 6px; }
+@media (prefers-reduced-motion: reduce) { .troom-grid { animation: none; } }
+
+/* ‏D782: رأسُ الرسم على الجوال سطران — الاسمُ وحالتُه والسعرُ أوّلاً، ثمّ العقودُ والأحداثُ و«تحليلُ الرسم» — لا صفٌّ يُقصّ طرفاه */
+@media (max-width: 767px) {
+  .pc-ident, .troom-mhead { flex-wrap: wrap; row-gap: 4px; column-gap: 6px; }
+  .pc-ident > .troom-ident, .troom-mhead > .troom-ident { display: contents; }
+  .pc-ident .lq, .troom-mhead .lq { order: 1; margin-inline-start: auto; }
+  .pc-ident::after, .troom-mhead::after { content: ""; order: 2; flex-basis: 100%; height: 0; }
+  .pc-ident .troom-oc, .pc-ident .ee-btn, .troom-mhead .troom-oc, .troom-mhead .ee-btn { order: 3; }
+}

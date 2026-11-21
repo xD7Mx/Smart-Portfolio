@@ -201,7 +201,11 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
     if (p === "/holdings") return r.fulfill(body(HOLD));
     if (p === "/market/research-desk") return r.fulfill(body({ report: RD_HEAD, dates: RD_DATES, running: { on: false } }));
     if (p === "/market/research-desk/paper") return r.fulfill(body({ html: RD_PAPER(u.searchParams.get("part")), date: "2026-11-15" }));
-    if (p === "/market/watchlist/groups") return r.fulfill(body([{ id: 1, name: "الرئيسية", is_default: true }]));
+    /* ‏D782: «المؤشرات» قائمةٌ على الخادم تُزرع بالسبعة وتُعرض بأسعارها (كانت سبعةً ثابتةً في الواجهة بلا أسعار) */
+    if (p === "/market/watchlist/groups") return r.fulfill(body([{ id: 1, name: "الرئيسية", is_default: true }, { id: 7, name: "المؤشرات", is_default: false, sort_order: -1 }]));
+    if (p === "/market/watchlist" && m === "GET" && u.searchParams.get("group_id") === "7") return r.fulfill(body([["^TASI.SR", "تاسي", 11234.5], ["^GSPC", "S&P 500", 6012.4],
+      ["^IXIC", "ناسداك", 19876.2], ["^DJI", "داو جونز", 44120.7], ["BZ=F", "برنت", 74.3], ["GC=F", "الذهب", 2650.1], ["BTC-USD", "بتكوين", 96123.1]]
+      .map(([symbol, name, price]) => ({ symbol, name, price, change_pct: 0.4 }))));
     if (p === "/market/watchlist" && m === "POST") { saves.push(["watchAdd", JSON.parse(r.request().postData() || "{}")]); return r.fulfill(body({ ok: true })); }   // ‏D781
     return r.fulfill(body([]));
   });
@@ -275,20 +279,29 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await page.waitForTimeout(250);
   say(/Stoch RSI 8 8 14 3 close/.test(srT || "") && srSaved.k === 8 && srSaved.stochLen === 3 && /Stoch RSI 3 3 14 14 close/.test(srBack || ""),
       `${label}: إعداداتُ المؤشّر قابلةٌ للتعديل كتريدنق فيو — 8 8 14 3 تُطبَّق فوراً وتُحفظ، و«الافتراضي» يعيد 3 3 14 14`, `${srT} ← ${srBack}`);
-  // ١٢ج ‏D744: شريطُ D7M رفيعٌ فوق الرسم (لا جداول فوق الشموع)، والمستوياتُ «مختصر» ستةٌ و«الكل» أكثر، ولا نصَّ على الرسم إلا أرقامُ المستويات
+  // ١٢ج ‏D744 · D782: فوق الرسم لوحتا قوّة الاتجاه والسيولة (لا جداول فوق الشموع ولا شريطُ الشاشات الثماني)، والمستوياتُ «مختصر» ستةٌ و«الكل» أكثر —
+  //     و«مختصر · الكل» داخل إعدادات D7M وحدها (‏D782)، ولا نصَّ على الرسم إلا أرقامُ المستويات
   await page.locator('[data-role="pc-ind"]').click();
   await page.locator('[data-role="pc-ind-menu"] [data-ind="d7m"]').click();
   await page.mouse.click(5, 5);
   await page.waitForTimeout(1200);
-  const strip = await page.evaluate(() => { const e = document.querySelector('[data-role="d7m-strip"]'); const r = e?.getBoundingClientRect();
-    return { h: r ? Math.round(r.height) : 0, tiles: e ? e.querySelectorAll(".d7s-tile").length : 0, tables: document.querySelectorAll(".d7m-table").length,
+  const strip = await page.evaluate(() => { const e = document.querySelector('[data-role="force-panels"]'); const r = e?.getBoundingClientRect();
+    return { h: r ? Math.round(r.height) : 0, tiles: e ? e.querySelectorAll(".fp-card").length : 0, tables: document.querySelectorAll(".d7m-table").length,
+             old: document.querySelectorAll('[data-role="d7m-strip"], [data-role="pc-fibmode"]').length,
              minF: e ? Math.min(...[...e.querySelectorAll("*")].filter(x => [...x.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())).map(x => parseFloat(getComputedStyle(x).fontSize))) : 0 }; });
   const lvCompact = Number((await st()).lv);
-  await page.locator('[data-role="pc-fibmode"] button', { hasText: "الكل" }).click(); await page.waitForTimeout(500);
+  const fibMode = async t => {
+    await page.locator('[data-role="pc-cfg"]').first().click(); await page.waitForTimeout(200);
+    await page.locator('[data-role="pc-cfg-menu"] [data-cfg="d7m"]').first().click(); await page.waitForTimeout(300);
+    await page.locator('[role="dialog"][aria-label="إعدادات D7M"] [data-role="fib-mode"] button', { hasText: t }).click(); await page.waitForTimeout(400);
+    await page.locator('[role="dialog"][aria-label="إعدادات D7M"] button[aria-label="إغلاق"]').first().click(); await page.waitForTimeout(300);
+  };
+  await fibMode("الكل");
   const lvAll = Number((await st()).lv);
-  await page.locator('[data-role="pc-fibmode"] button', { hasText: "مختصر" }).click(); await page.waitForTimeout(300);
-  say(strip.tiles >= 4 && strip.h > 0 && strip.h <= 52 && strip.tables === 0 && strip.minF >= 9.5 && lvCompact === 3 && lvAll > 6,
-      `${label}: شريطُ D7M بحجم الإصبع (${strip.h}px · ${strip.tiles} شاشات) بلا جداول، والمستوياتُ مختصرةٌ ثلاثةً (‏D756: 1.1 و0.618 و0.5 مخفيّة) و«الكل» ${lvAll}`, `خطٌّ ≥ ${strip.minF}px`);
+  await fibMode("مختصر");
+  say(strip.tiles === 2 && strip.old === 0 && strip.h > 0 && strip.h <= 76 && strip.tables === 0 && strip.minF >= 9.5 && lvCompact === 3 && lvAll > 6,
+      `${label}: فوق الرسم لوحتا القوّة (${strip.h}px · ${strip.tiles} لوحتان) بلا جداول ولا الشريطِ القديم، والمستوياتُ مختصرةٌ ثلاثةً (‏D756: 1.1 و0.618 و0.5 مخفيّة) و«الكل» ${lvAll} — `
+      + `والتبديلُ من إعدادات D7M (‏D782)`, `خطٌّ ≥ ${strip.minF}px`);
 
   // ١٢د ‏D756 (المالك 2026-11-16): عينُ الإخفاء تُخفي مستويات D7M وتعيدها، و‏MACD مؤشّرٌ بلوحته وقيمه، وأرقامُ فيبوناتشي حبّاتٌ أمام آخر شمعة
   const lvOn = Number((await st()).lv);
@@ -328,7 +341,7 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   const added = ((await page.locator('[data-role="troom-added"]').textContent().catch(() => "")) || "").trim();
   const srcPC = rd("src/components/chart/ProChart.tsx");
   say(chips0 >= 2 && folded.chips === 0 && folded.n === String(chips0) && folded.exp === "false" && chips1 === chips0 && d7mDlg === 1 && plus === 1
-      && JSON.stringify(menuItems) === JSON.stringify(["الرئيسية"]) && wa && wa[1].group_id === 1 && !!wa[1].symbol && added === "أُضيف إلى «الرئيسية»"
+      && JSON.stringify(menuItems) === JSON.stringify(["الرئيسية", "المؤشرات"]) && wa && wa[1].group_id === 1 && !!wa[1].symbol && added === "أُضيف إلى «الرئيسية»"
       && srcPC.includes("chart.subscribeClick(onClick)") && srcPC.includes("e.series.includes(hit as any)"),
       `${label}: ‏D781 سهمُ الطيّ يُخفي أسماءَ المؤشّرات ويُبقي عددَها (${chips0}) ويعيدها، والضغطُ على المؤشّر (اسمِه أو خطِّه) يفتح إعداداته، `
       + `و«+» يضيف ما في الرسم إلى قائمةٍ تختارها (والمفتوحةُ «محفظتي») ويقول «أُضيف»`, JSON.stringify({ chips0, folded, chips1, d7mDlg, plus, menuItems, wa: wa?.[1] }).slice(0, 260));
@@ -473,7 +486,8 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   });
   say(m.over <= 1 && m.minT >= 32 && m.minF >= 9.5 && m.icons, `${label}: لا فيضَ أفقيّ، وأزرارُ الرسم ≥ 32px، وخطٌّ ≥ 9.5px، وللرسم والمؤشّرات والنوع وملء الشاشة أيقونات`,
       `${m.over}px · ${Math.round(m.minT)}px · ${m.minF}px`);
-  if (!desk) say(m.tfs === 1, `${label}: الإطارُ الجاري وحده في الشريط وبقيّتُها في قائمته — كتطبيق تريدنق فيو`, `${m.tfs}`);
+  /* ‏D782 (المالك): «أكثرُ ثلاثةٍ استخداماً بدلَ رصّها كاملة» — في الشاشتين: ثلاثةٌ (ورابعٌ هو الجاري إن لم يكن منها) وبقيّتُها في قائمته */
+  if (!desk) say(m.tfs >= 3 && m.tfs <= 4, `${label}: أكثرُ الإطارات استعمالاً ثلاثةٌ في الشريط (والجاري إن لم يكن منها) وبقيّتُها في قائمته`, `${m.tfs}`);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `pro_${vp.width}_${theme}.png`) });
 
   // ١٨ مختبرُ الأبحاث تبويبٌ هنا (‏D763: عقودُ الخيارات · المحفظة · صقر)، وروابطُه القديمة تصله — والتقريرُ اليوميّ انتقل إلى مفكرة السوق

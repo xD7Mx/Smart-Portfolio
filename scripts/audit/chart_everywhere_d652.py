@@ -33,8 +33,9 @@ check(bool(tfs) and all(x in tfs.group(1) for x in ('"1h"', '"4h"', '"1d"', '"1w
       and 'import ProChart from "../chart/ProChart"' in poc and "NativeChart" not in poc,
       "٣ الرسمُ بإطارات: ساعة · 4 ساعات · يوم · أسبوع · شهر (والمدى أسفلَه يختار إطارَه كتريدنق فيو) — والمحرّكُ واحد")
 check("marketApi.bars(symbol, tf)" in nc, "٤ ويجلب شموعَ الإطار المختار")
-check('preset="stock"' in poc and "{ind.d7m && !preset && <D7MStrip" in nc,
-      "٥ وفي صفحة السهم رسمٌ فقط — لا جدولَ إطاراتٍ ولا قرارَ دخولٍ فوقه")
+# ‏D782: شريطُ D7M صار لوحتي الاتجاه والسيولة — ولا تُعرضان في صفحة السهم كما كان الشريط
+check('preset="stock"' in poc and "ind.d7m && cfg.dashboard && !preset && bars.length >= 30" in nc and "{force && <ForcePanels" in nc,
+      "٥ وفي صفحة السهم رسمٌ فقط — لا لوحاتٍ ولا قرارَ دخولٍ فوقه")
 pc = (src / "components/analysis/PriceChart.tsx").read_text(encoding="utf-8")
 check('"5 سنوات"' in pc, "٦ وحركةُ السعر تبقى على مددها كما أراد المالك")
 check("D7M أسبوعي" not in (src / "pages/CompanyPage.tsx").read_text(encoding="utf-8")

@@ -86,15 +86,17 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
   await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2500);
 
-  // ١ شارةُ حالة السوق والسعرُ الحيّ بجانب الاسم — والسعرُ يتحرّك ويومض
-  const badge = page.locator('[data-role="troom-chart"] [data-role="lq-session"]').first();
-  const st1 = await badge.getAttribute("data-state").catch(() => null), lb1 = await badge.textContent().catch(() => "");
+  // ١ حالةُ السوق بجانب الاسم والسعرُ الحيّ — والسعرُ يتحرّك ويومض. ‏D782 (المالك): «حالةُ السوق أيقونةٌ بجانب الشركات، ومكانُ الشارة
+  //    بجانب الأحداث لزرّ تحليل الرسم» — فالحالةُ أيقونةٌ بجانب الاسم باسمها في وصفها، ولا شارةَ نصّيةٌ في الرأس
+  const badge = page.locator('[data-role="troom-chart"] [data-role="troom-sdot"] [data-role="lq-dot"]').first();
+  const st1 = await badge.getAttribute("data-state").catch(() => null), lb1 = await badge.getAttribute("aria-label").catch(() => "");
+  const oldBadge = await page.locator('[data-role="troom-chart"] [data-role="lq-session"]').count();
   const p1 = await page.locator('[data-role="lq-price"]').first().textContent().catch(() => "");
   px = 755.12;
   await page.waitForTimeout(6200);
   const p2 = await page.locator('[data-role="lq-price"]').first().textContent().catch(() => "");
-  say(st1 === "open" && /السوق مفتوح/.test(lb1 || "") && p1 === "754.37" && p2 === "755.12",
-      `${label}: ١ شارةُ «السوق مفتوح» بجانب الاسم، والسعرُ يتحرّك وحدَه (754.37 ⇐ 755.12 بلا تحديث صفحة)`, `${st1} · ${p1} ⇐ ${p2}`);
+  say(st1 === "open" && /السوق مفتوح/.test(lb1 || "") && oldBadge === 0 && p1 === "754.37" && p2 === "755.12",
+      `${label}: ١ «السوق مفتوح» أيقونةٌ بجانب الاسم (لا شارةٌ في الرأس — ‏D782)، والسعرُ يتحرّك وحدَه (754.37 ⇐ 755.12 بلا تحديث صفحة)`, `${st1} · ${p1} ⇐ ${p2}`);
 
   const shot = async n => { if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/${n}-${vp.width}.png` }).catch(() => {}); };
   await shot("chart");
@@ -171,8 +173,8 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
   await page.waitForTimeout(6200);
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.waitForTimeout(1500);
-  const hb = page.locator('[data-role="troom-chart"] [data-role="lq-session"]').first();
-  const hs = await hb.getAttribute("data-state").catch(() => null), ht = await hb.textContent().catch(() => "");
+  const hb = page.locator('[data-role="troom-chart"] [data-role="troom-sdot"] [data-role="lq-dot"]').first();
+  const hs = await hb.getAttribute("data-state").catch(() => null), ht = await hb.getAttribute("aria-label").catch(() => "");
   say(hs === "holiday" && /عيد الشكر/.test(ht || ""), `${label}: ٨ والعطلةُ باسمها («عيد الشكر»)`, `${hs} · ${ht}`);
   /* ‏D762: أيقونةُ حالة السوق بجانب كلّ شركةٍ في القائمة — الأمريكيّةُ بحالة نيويورك والسعوديّةُ بحالة «تداول» والمشفّرةُ على مدار الساعة */
   const dots = await page.evaluate(() => [...document.querySelectorAll('[data-role="troom-row"]')].map(r => {

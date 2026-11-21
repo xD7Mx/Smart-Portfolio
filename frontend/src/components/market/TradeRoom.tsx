@@ -4,29 +4,40 @@
    «محفظتي» و«المؤشرات» قائمتان ثابتتان، وقوائمُ المالك تُنشأ وتُحذف ويُضاف إليها من السوقين بحقل بحثٍ واحد،
    والضغطُ على سطرٍ يفتح رسمَه. والقوائمُ من خادم «المراقبة» نفسِه.
    ‏D736 (المالك 2026-11-15): «المستخدم عربيّ — الشركاتُ في اليمين والرسمُ البيانيُّ على اليسار»، والرسمُ هو الاحترافيُّ الجديد
-   (‏chart/ProChart) يبقى قائماً حين يتبدّل الرمز — لا يُهدم ويُبنى. */
+   (‏chart/ProChart) يبقى قائماً حين يتبدّل الرمز — لا يُهدم ويُبنى.
+   ‏D782 (المالك 2026-11-21): «المؤشّراتُ لا يظهر أمامها آخرُ سعر مثل قائمتي والسوق الأمريكي… وخلّها قابلةً للتعديل — كلُّ شيءٍ لازم يكون قابلاً
+   للتعديل»: فصارت «المؤشرات» قائمةَ مراقبةٍ على الخادم تُزرع مرّةً بالسبعة وتُعرض بأسعارها، يُضاف إليها ويُحذف منها. و«إخفاءُ القوائم كتريدنق
+   فيو — جرسُ إعداداتٍ في القائمة نفسِها: أخلّي قائمتين، وأقسمها قسمين»: فترسٌ في صفّ القوائم يُظهر كلَّ قائمةٍ ويُخفيها، ويقسم اللوحةَ قسمين لكلٍّ
+   قائمتُه. و«ملتي سكرين كتريدنق فيو — أربعُ شاشات: ربعُ ساعة، ساعة، أربعُ ساعات… بكيفنا»: فشاشةٌ أو اثنتان أو أربع، لكلٍّ إطارُها، والرمزُ
+   واحد، و«تحليلُ الرسم» فوقها يقرأ الأطرَ كلَّها معاً. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Pencil, Check, Trash2, Layers } from "lucide-react";
+import { Plus, X, Pencil, Check, Trash2, Layers, Settings2 } from "lucide-react";
 import ProChart from "../chart/ProChart";
+import ChartRead, { type ReadFrame } from "../chart/ChartRead";
 import CompanyLogo from "../common/CompanyLogo";
+import CheckBox from "../common/CheckBox";
 import InlineStockSearch from "./InlineStockSearch";
 import OptionChain from "./OptionChain";
 import EconEvents from "./EconEvents";
-import { SessionDot, useSessions } from "../chart/LiveQuote";
+import LiveQuote, { SessionDot, useLive, useSessions } from "../chart/LiveQuote";
 import { isOption, optionSub, optionTitle, parseOption } from "../../lib/options";
 import { holdingsApi, marketApi } from "../../services/api";
 import { invalidateWatchlist } from "../../services/watchlistCache";
 import { useAppStore } from "../../store/appStore";
 import { useAuthStore } from "../../store/authStore";
 
-const INDICES: [string, string][] = [
-  ["^TASI.SR", "تاسي"], ["^GSPC", "S&P 500"], ["^IXIC", "ناسداك"], ["^DJI", "داو جونز"],
-  ["BZ=F", "برنت"], ["GC=F", "الذهب"], ["BTC-USD", "بتكوين"],
-];
+/* ‏D782: أسماءُ المؤشّرات للعنوان وحده — والقائمةُ نفسُها على الخادم («المؤشرات») بأسعارها وقابلةٌ للتعديل */
+const INDEX_NAMES: Record<string, string> = { "^TASI.SR": "تاسي", "^GSPC": "S&P 500", "^IXIC": "ناسداك", "^DJI": "داو جونز", "BZ=F": "برنت", "GC=F": "الذهب",
+  "BTC-USD": "بتكوين" };
 const PRESETS = ["السوق السعودي", "السوق الأمريكي"];
 type Row = { symbol: string; name: string; price?: number | null; change_pct?: number | null };
 const isSaudi = (s: string) => /^\d{4}(\.SR)?$/.test(s);
+/** مؤشّرٌ أو عقدٌ آجلٌ أو عملةٌ مشفّرة — يُعرض باسمه أوّلاً ورمزُه تحته */
+const isIdx = (s: string) => /^\^|=F$|-USD$/.test(s);
+const lsGet = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* وضعُ التصفّح الخاصّ */ } };
+const lsList = (k: string): string[] => { try { const v = JSON.parse(lsGet(k) || "[]"); return Array.isArray(v) ? v.map(String) : []; } catch { return []; } };
 const pct = (v?: number | null) => v == null || !isFinite(Number(v)) ? null : Number(v);
 /* ‏D747: لأيّ سهمٍ أو صندوقٍ أمريكيّ سلسلةُ خيارات — والمؤشّرُ إلى مؤشّر خياراته (‏S&P 500 ⇐ SPX · ناسداك ⇐ NDX) */
 const OPT_INDEX: Record<string, string> = { "^GSPC": "^SPX", "^SPX": "^SPX", "^IXIC": "^NDX", "^NDX": "^NDX", "^RUT": "^RUT", "^VIX": "^VIX" };
@@ -53,6 +64,22 @@ export default function TradeRoom() {
   const [editing, setEditing] = useState(false);
   const [chainFor, setChainFor] = useState<string | null>(null);
   const [naming, setNaming] = useState<string | null>(null);
+  /* ‏D782: القوائمُ المخفيّة، والقسمُ الثاني، وعددُ الشاشات — اختياراتُ عرضٍ تُحفظ في المتصفّح */
+  const [hidden, setHiddenState] = useState<string[]>(() => lsList("sp_room_hidden"));
+  const setHidden = (v: string[]) => { setHiddenState(v); lsSet("sp_room_hidden", JSON.stringify(v)); };
+  const [list2, setList2State] = useState<string>(() => lsGet("sp_room_list2") || "");
+  const setList2 = (v: string) => { setList2State(v); lsSet("sp_room_list2", v); };
+  const [gear, setGear] = useState(false);
+  const gearRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!gear) return;
+    const away = (e: Event) => { if (gearRef.current && !gearRef.current.contains(e.target as Node)) setGear(false); };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [gear]);
+  const [layoutN, setLayoutState] = useState<number>(() => { const v = Number(lsGet("sp_room_layout")); return v === 2 || v === 4 ? v : 1; });
+  const setLayout = (n: number) => { setLayoutState(n); lsSet("sp_room_layout", String(n)); };
+  const snaps = useRef(new Map<number, () => ReadFrame | null>());
 
   /* ‏D762: أيقونةُ حالة السوق بجانب كلّ شركةٍ في القائمة — السعوديّةُ بحالة «تداول» والأمريكيّةُ بحالة نيويورك */
   const { data: ses } = useSessions();
@@ -68,23 +95,37 @@ export default function TradeRoom() {
   });
   const gid = list.startsWith("g") ? Number(list.slice(1)) : null;
   const group = groups.find((g: any) => g.id === gid);
-  useEffect(() => { if (gid != null && groups.length && !group) setList("mine"); }, [gid, groups.length, group]);
+  useEffect(() => {
+    /* ‏D782: «المؤشرات» الثابتةُ القديمة (‏idx) صارت قائمةً على الخادم — فمن كانت مفتوحتَه تُفتح له القائمةُ الجديدة */
+    if (list === "idx" && groups.length) { const ig = groups.find((g: any) => g.name === "المؤشرات"); setList(ig ? `g${ig.id}` : "mine"); return; }
+    if (gid != null && groups.length && !group) setList("mine");
+  }, [list, gid, groups, group]);
+  const mineRows: Row[] = useMemo(() => holdings.filter((h: any) => h.company?.symbol).map((h: any) => ({
+    symbol: h.company.symbol, name: h.company.name_ar || h.company.name || h.company.company_name,
+    price: Number(h.last_price) || null, change_pct: pct(h.change_pct) })), [holdings]);
   const { data: wrows = [], isFetching } = useQuery<Row[]>({
     queryKey: ["watchlist", gid],
     queryFn: () => marketApi.watchlist(gid!).then(r => (Array.isArray(r.data.data) ? r.data.data : [])),
     enabled: gid != null && !!group, refetchInterval: 60_000,
   });
-
-  const rows: Row[] = useMemo(() => {
-    if (list === "mine") return holdings.filter((h: any) => h.company?.symbol).map((h: any) => ({
-      symbol: h.company.symbol, name: h.company.name_ar || h.company.name || h.company.company_name,
-      price: Number(h.last_price) || null, change_pct: pct(h.change_pct) }));
-    if (list === "idx") return INDICES.map(([s, n]) => ({ symbol: s, name: n }));
-    return wrows;
-  }, [list, holdings, wrows]);
+  const rows: Row[] = list === "mine" ? mineRows : wrows;
+  /* القسمُ الثاني (‏D782): قائمتُه بأسعارها كالأوّل */
+  const gid2 = list2.startsWith("g") ? Number(list2.slice(1)) : null;
+  const group2 = groups.find((g: any) => g.id === gid2);
+  const { data: wrows2 = [] } = useQuery<Row[]>({
+    queryKey: ["watchlist", gid2],
+    queryFn: () => marketApi.watchlist(gid2!).then(r => (Array.isArray(r.data.data) ? r.data.data : [])),
+    enabled: gid2 != null && !!group2, refetchInterval: 60_000,
+  });
+  const rows2: Row[] = list2 === "mine" ? mineRows : gid2 != null && group2 ? wrows2 : [];
 
   const symbol = sym || rows[0]?.symbol || "^TASI.SR";
-  const label = INDICES.find(([s]) => s === symbol)?.[1];
+  const label = INDEX_NAMES[symbol] || (isIdx(symbol) ? [...rows, ...rows2].find(r => r.symbol === symbol)?.name : undefined);
+  const nm = isOption(symbol) ? optionTitle(parseOption(symbol)!) : label || [...rows, ...rows2].find(r => r.symbol === symbol)?.name || "";
+  const market: "us" | "sa" = isSaudi(symbol) || /TASI/i.test(symbol) ? "sa" : "us";
+  /* السعرُ الحيُّ وحالةُ السوق للرمز المفتوح — النداءُ نفسُه الذي يقرؤه الرسم (مفتاحٌ واحد)، فالأيقونةُ بجانب الاسم تتبع الجلسةَ لحظةً بلحظة */
+  const { data: live } = useLive(symbol);
+  const headDot = /-USD$/.test(symbol) ? <SessionDot always /> : live?.session ? <SessionDot s={live.session} /> : dotFor(symbol);
 
   const add = useMutation({
     mutationFn: (a: { s: string; name?: string }) => marketApi.watchAdd(a.s, a.name, gid!),
@@ -95,7 +136,7 @@ export default function TradeRoom() {
   const [addMenu, setAddMenu] = useState(false);
   const [addedTo, setAddedTo] = useState<string | null>(null);
   const inList = gid != null && wrows.some(r => r.symbol === symbol);
-  const nameOf = (s: string) => (isOption(s) ? optionTitle(parseOption(s)!) : rows.find(r => r.symbol === s)?.name || undefined);
+  const nameOf = (s: string) => (isOption(s) ? optionTitle(parseOption(s)!) : [...rows, ...rows2].find(r => r.symbol === s)?.name || INDEX_NAMES[s] || undefined);
   const addTo = useMutation({
     mutationFn: (g: number) => marketApi.watchAdd(symbol, nameOf(symbol), g),
     onSuccess: (_r, g) => { invalidateWatchlist(qc); setAddMenu(false); setAddedTo(groups.find((x: any) => x.id === g)?.name || "القائمة"); },
@@ -121,11 +162,100 @@ export default function TradeRoom() {
   });
   const missingPresets = PRESETS.filter(p => !groups.some((g: any) => g.name === p));
 
-  const tabs: [string, string][] = [["mine", "محفظتي"], ["idx", "المؤشرات"], ...groups.map((g: any) => [`g${g.id}`, g.name] as [string, string])];
+  const allTabs: [string, string][] = [["mine", "محفظتي"], ...groups.map((g: any) => [`g${g.id}`, g.name] as [string, string])];
+  const shownTabs = allTabs.filter(([id]) => !hidden.includes(id));
+  const tabs = shownTabs.length ? shownTabs : allTabs;
+  /* القائمةُ المفتوحةُ أُخفيت ⇒ أوّلُ الظاهرة؛ والقسمُ الثاني لقائمةٍ حُذفت يُطوى */
+  useEffect(() => { if (groups.length && hidden.includes(list) && tabs.length) setList(tabs[0][0]); }, [hidden, list, tabs, groups.length]);
+  useEffect(() => { if (list2 && list2 !== "mine" && groups.length && !group2) setList2(""); }, [list2, groups.length, group2]);
+  const toggleHidden = (id: string, show: boolean) => {
+    const nx = show ? hidden.filter(x => x !== id) : [...hidden, id];
+    if (allTabs.filter(([t]) => !nx.includes(t)).length === 0) return;        // قائمةٌ واحدةٌ تبقى ظاهرةً على الأقلّ
+    setHidden(nx);
+  };
+
+  const renderRow = (r: Row, i: number, edit: boolean) => {
+    const ch = pct(r.change_pct);
+    const on = r.symbol === symbol;
+    const o = parseOption(r.symbol);
+    const byName = isSaudi(r.symbol) || isIdx(r.symbol);
+    return (
+      <div key={r.symbol} className={"troom-row card-rise" + (on ? " on" : "")} style={{ animationDelay: `${Math.min(i, 14) * 18}ms` }}>
+        <button type="button" className="troom-pick" onClick={() => pick(r.symbol)} aria-pressed={on} data-role="troom-row" title={r.name}>
+          <CompanyLogo symbol={r.symbol} size={24} />
+          <span className="min-w-0 flex-1 text-start">
+            {o ? (<>
+              <span className="troom-nm"><span className="text-[12.5px] font-bold text-[var(--ink)] truncate">{optionTitle(o)}</span>{dotFor(r.symbol)}</span>
+              <span className="block text-[10px] text-[var(--ink-muted)] truncate tabular-nums">{optionSub(o)}</span>
+            </>) : (<>
+              <span className="troom-nm"><span className="text-[12.5px] font-bold text-[var(--ink)] truncate">{byName ? r.name : r.symbol}</span>{dotFor(r.symbol)}</span>
+              <span className="block text-[10px] text-[var(--ink-muted)] truncate tabular-nums" dir={isSaudi(r.symbol) ? undefined : "ltr"} style={{ textAlign: "right" }}>
+                {isIdx(r.symbol) ? r.symbol : isSaudi(r.symbol) ? r.symbol.replace(".SR", "") : (r.name !== r.symbol ? r.name : "")}
+              </span>
+            </>)}
+          </span>
+          {r.price != null && (
+            <span className="text-end shrink-0" data-role="troom-price">
+              <span className="block text-[12.5px] font-bold tabular-nums text-[var(--ink)]" dir="ltr">{Number(r.price).toFixed(2)}</span>
+              {ch != null && <span className={"block text-[10.5px] font-bold tabular-nums " + (ch >= 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]")} dir="ltr">
+                {(ch >= 0 ? "+" : "") + ch.toFixed(2)}%</span>}
+            </span>
+          )}
+        </button>
+        {edit && (
+          <button type="button" className="btn-ghost troom-icon troom-danger" aria-label={`إزالة ${r.symbol}`} title="إزالة"
+            onClick={() => remove.mutate(r.symbol)} data-role="troom-remove"><X size={14} /></button>
+        )}
+      </div>
+    );
+  };
+
+  const identityNode = (
+          <span className="troom-ident flex items-center gap-1.5 min-w-0" data-role="troom-ident">
+            <CompanyLogo symbol={symbol} size={26} />
+            {isOption(symbol) ? (() => { const o = parseOption(symbol)!; return (<>
+              <span className="text-[14px] font-bold text-[var(--ink)] tabular-nums whitespace-nowrap">{optionTitle(o)}</span>
+              <span className="troom-osub tabular-nums">{optionSub(o)}</span>
+            </>); })() : (<>
+              <span className="text-[14px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{label || symbol.replace(".SR", "")}</span>
+              {!label && <span className="text-[12px] text-[var(--ink-muted)] truncate max-w-[40vw] lg:max-w-[180px]">{nm}</span>}
+            </>)}
+            {/* ‏D782 (المالك): «حالةُ السوق أيقونةٌ بجانب الشركات» — بجانب الاسم، ومكانُ شارتها لزرّ «تحليل الرسم» */}
+            <span className="troom-sdot" data-role="troom-sdot">{headDot}</span>
+            {owner && (inList ? (
+              <span className="troom-inlist" data-role="troom-inlist" title={`في «${group?.name || "القائمة"}»`} aria-label="في القائمة"><Check size={14} /></span>
+            ) : (
+              <span className="troom-addw">
+                <button type="button" className="btn-ghost troom-plus" data-role="troom-add" disabled={addTo.isPending}
+                  title={gid != null ? `أضِفه إلى «${group?.name || "القائمة"}»` : "أضِفه إلى قائمة"} aria-label={gid != null ? `أضِفه إلى «${group?.name || "القائمة"}»` : "أضِفه إلى قائمة"}
+                  aria-expanded={gid == null ? addMenu : undefined} onClick={() => (gid != null ? addTo.mutate(gid) : setAddMenu(v => !v))}><Plus size={15} /></button>
+                {addMenu && gid == null && (
+                  <span className="troom-addmenu" role="menu" data-role="troom-add-menu">
+                    {groups.length ? groups.map((g: any) => (
+                      <button key={g.id} type="button" role="menuitem" className="troom-additem" onClick={() => addTo.mutate(g.id)}>{g.name}</button>
+                    )) : <span className="troom-addnone">لا قوائمَ لك بعد — أنشئ قائمةً من «+» في القوائم</span>}
+                  </span>
+                )}
+                {addedTo && <span className="troom-added" role="status" data-role="troom-added">أُضيف إلى «{addedTo}»</span>}
+              </span>
+            ))}
+            {chainOf(symbol) && (
+              <button type="button" className="btn-ghost troom-oc" onClick={() => setChainFor(chainOf(symbol))} data-role="troom-options"
+                title="عقود الخيارات" aria-label={`عقود خيارات ${chainOf(symbol)}`}>
+                <Layers size={13} className="inline-block align-[-2px] me-1" />عقود الخيارات
+              </button>
+            )}
+            {/* ‏D761 · D782: الأحداثُ وأثرُها — للسهم الأمريكيّ بقراءة السوق الأمريكي، وللسعوديّ بقراءة السوق السعودي وأحداثِ الشركة */}
+            {(chainOf(symbol) || market === "sa") && (
+              <EconEvents compact market={market} symbol={market === "sa" && isSaudi(symbol) ? symbol : undefined} name={market === "sa" ? nm : undefined} />
+            )}
+          </span>
+  );
 
   return (
     <div className="troom" data-role="troom">
       <aside className="troom-list card" data-role="troom-list">
+        <div className="troom-tabrow">
         <div className="troom-tabs" role="tablist" aria-label="القوائم">
           {tabs.map(([id, name]) => (
             <button key={id} type="button" role="tab" aria-selected={list === id} data-role="troom-tab"
@@ -135,6 +265,27 @@ export default function TradeRoom() {
             <button type="button" className="seg-btn chip troom-new" title="قائمة جديدة" aria-label="قائمة جديدة" data-role="troom-new"
               onClick={() => setNaming(n => n == null ? "" : null)}><Plus size={14} /></button>
           )}
+        </div>
+          <div ref={gearRef} className="troom-gearw">
+            <button type="button" className={"seg-btn chip troom-gear" + (gear ? " on" : "")} title="إعداداتُ القوائم" aria-label="إعداداتُ القوائم"
+              aria-expanded={gear} data-role="troom-gear" onClick={() => setGear(g => !g)}><Settings2 size={14} /></button>
+            {gear && (
+              <div className="troom-gearmenu" role="dialog" aria-label="إعداداتُ القوائم" data-role="troom-gear-menu">
+                <span className="troom-gcap">القوائمُ الظاهرة</span>
+                {allTabs.map(([id, name]) => (
+                  <CheckBox key={id} checked={!hidden.includes(id)} onChange={v => toggleHidden(id, v)} label={name} className="troom-gitem" />
+                ))}
+                <span className="troom-gcap">القسمُ الثاني</span>
+                <div className="troom-gsplit" data-role="troom-split">
+                  <button type="button" className={"seg-btn chip" + (!list2 ? " on" : "")} aria-pressed={!list2} onClick={() => setList2("")}>بلا</button>
+                  {allTabs.filter(([id]) => id !== list).map(([id, name]) => (
+                    <button key={id} type="button" className={"seg-btn chip" + (list2 === id ? " on" : "")} aria-pressed={list2 === id}
+                      onClick={() => setList2(id)} data-list={id}>{name}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {naming != null && (
@@ -171,91 +322,49 @@ export default function TradeRoom() {
         )}
 
         <div className="troom-rows" data-role="troom-rows">
-          {rows.map((r, i) => {
-            const ch = pct(r.change_pct);
-            const on = r.symbol === symbol;
-            return (
-              <div key={r.symbol} className={"troom-row card-rise" + (on ? " on" : "")} style={{ animationDelay: `${Math.min(i, 14) * 18}ms` }}>
-                <button type="button" className="troom-pick" onClick={() => pick(r.symbol)} aria-pressed={on} data-role="troom-row"
-                  title={r.name}>
-                  <CompanyLogo symbol={r.symbol} size={24} />
-                  <span className="min-w-0 flex-1 text-start">
-                    {(() => {
-                      const o = parseOption(r.symbol);
-                      if (o) return (<>
-                        <span className="troom-nm"><span className="text-[12.5px] font-bold text-[var(--ink)] truncate">{optionTitle(o)}</span>{dotFor(r.symbol)}</span>
-                        <span className="block text-[10px] text-[var(--ink-muted)] truncate tabular-nums">{optionSub(o)}</span>
-                      </>);
-                      return (<>
-                        <span className="troom-nm"><span className="text-[12.5px] font-bold text-[var(--ink)] truncate">{list === "idx" ? r.name : (isSaudi(r.symbol) ? r.name : r.symbol)}</span>{dotFor(r.symbol)}</span>
-                        <span className="block text-[10px] text-[var(--ink-muted)] truncate tabular-nums" dir={isSaudi(r.symbol) ? undefined : "ltr"}
-                          style={{ textAlign: "right" }}>
-                          {list === "idx" ? r.symbol : isSaudi(r.symbol) ? r.symbol.replace(".SR", "") : (r.name !== r.symbol ? r.name : "")}
-                        </span>
-                      </>);
-                    })()}
-                  </span>
-                  {r.price != null && (
-                    <span className="text-end shrink-0">
-                      <span className="block text-[12.5px] font-bold tabular-nums text-[var(--ink)]" dir="ltr">{Number(r.price).toFixed(2)}</span>
-                      {ch != null && <span className={"block text-[10.5px] font-bold tabular-nums " + (ch >= 0 ? "text-[var(--pos-ink)]" : "text-[var(--neg-ink)]")} dir="ltr">
-                        {(ch >= 0 ? "+" : "") + ch.toFixed(2)}%</span>}
-                    </span>
-                  )}
-                </button>
-                {editing && gid != null && (
-                  <button type="button" className="btn-ghost troom-icon troom-danger" aria-label={`إزالة ${r.symbol}`} title="إزالة"
-                    onClick={() => remove.mutate(r.symbol)} data-role="troom-remove"><X size={14} /></button>
-                )}
-              </div>
-            );
-          })}
+          {rows.map((r, i) => renderRow(r, i, editing && gid != null))}
           {!rows.length && (
             <div className="text-[12px] text-[var(--ink-muted)] text-center py-6">
               {gid != null ? (isFetching ? "…" : "القائمةُ فارغة.") : "لا شركات."}
             </div>
           )}
         </div>
+        {list2 && list2 !== list && (
+          <div className="troom-sec2" data-role="troom-sec2">
+            <div className="troom-sec2-head">
+              <b>{allTabs.find(([id]) => id === list2)?.[1] || ""}</b>
+              <button type="button" className="btn-ghost troom-icon" title="إغلاقُ القسم الثاني" aria-label="إغلاقُ القسم الثاني" onClick={() => setList2("")}
+                data-role="troom-sec2-close"><X size={14} /></button>
+            </div>
+            <div className="troom-rows" data-role="troom-rows2">
+              {rows2.map((r, i) => renderRow(r, i, false))}
+              {!rows2.length && <div className="text-[12px] text-[var(--ink-muted)] text-center py-4">القائمةُ فارغة.</div>}
+            </div>
+          </div>
+        )}
       </aside>
 
       <section ref={chartRef} className="troom-chart card" data-role="troom-chart">
-        <ProChart symbol={symbol} theme={theme === "light" ? "light" : "dark"}
-          identity={<span className="flex items-center gap-1.5 min-w-0">
-            <CompanyLogo symbol={symbol} size={26} />
-            {isOption(symbol) ? (() => { const o = parseOption(symbol)!; return (<>
-              <span className="text-[14px] font-bold text-[var(--ink)] tabular-nums whitespace-nowrap">{optionTitle(o)}</span>
-              <span className="troom-osub tabular-nums">{optionSub(o)}</span>
-            </>); })() : (<>
-              <span className="text-[14px] font-bold text-[var(--ink)] tabular-nums" dir="ltr">{label || symbol.replace(".SR", "")}</span>
-              {!label && <span className="text-[12px] text-[var(--ink-muted)] truncate max-w-[40vw] lg:max-w-[180px]">
-                {rows.find(r => r.symbol === symbol)?.name || ""}</span>}
-            </>)}
-            {owner && (inList ? (
-              <span className="troom-inlist" data-role="troom-inlist" title={`في «${group?.name || "القائمة"}»`} aria-label="في القائمة"><Check size={14} /></span>
-            ) : (
-              <span className="troom-addw">
-                <button type="button" className="btn-ghost troom-plus" data-role="troom-add" disabled={addTo.isPending}
-                  title={gid != null ? `أضِفه إلى «${group?.name || "القائمة"}»` : "أضِفه إلى قائمة"} aria-label={gid != null ? `أضِفه إلى «${group?.name || "القائمة"}»` : "أضِفه إلى قائمة"}
-                  aria-expanded={gid == null ? addMenu : undefined} onClick={() => (gid != null ? addTo.mutate(gid) : setAddMenu(v => !v))}><Plus size={15} /></button>
-                {addMenu && gid == null && (
-                  <span className="troom-addmenu" role="menu" data-role="troom-add-menu">
-                    {groups.length ? groups.map((g: any) => (
-                      <button key={g.id} type="button" role="menuitem" className="troom-additem" onClick={() => addTo.mutate(g.id)}>{g.name}</button>
-                    )) : <span className="troom-addnone">لا قوائمَ لك بعد — أنشئ قائمةً من «+» في القوائم</span>}
-                  </span>
-                )}
-                {addedTo && <span className="troom-added" role="status" data-role="troom-added">أُضيف إلى «{addedTo}»</span>}
-              </span>
+        {layoutN === 1 ? (
+          <ProChart symbol={symbol} theme={theme === "light" ? "light" : "dark"} identity={identityNode}
+            layout={{ n: 1, set: setLayout }} read={{ name: nm, market }} snaps={snaps} />
+        ) : (<>
+          {/* ‏D782: الشاشاتُ المتعدّدة — الرأسُ واحدٌ فوقها: الاسمُ والعقودُ والأحداثُ و«تحليلُ الرسم» للأطر كلِّها معاً والسعرُ الحيّ */}
+          <div className="troom-mhead" data-role="troom-mhead">
+            {identityNode}
+            <ChartRead symbol={symbol} name={nm} market={market}
+              frames={() => [...snaps.current.entries()].sort((a, b) => a[0] - b[0]).map(([, f]) => f()).filter(Boolean) as ReadFrame[]} />
+            <LiveQuote symbol={symbol} live={live} badge={false} />
+          </div>
+          <div className={`troom-grid g${layoutN}`} data-role="troom-grid">
+            {Array.from({ length: layoutN }, (_, k) => (
+              <div key={k} className="troom-pane" data-role="troom-pane">
+                <ProChart symbol={symbol} theme={theme === "light" ? "light" : "dark"} slot={k} mini rows={layoutN === 4 ? 2 : 1}
+                  layout={k === 0 ? { n: layoutN, set: setLayout } : undefined} snaps={snaps} />
+              </div>
             ))}
-            {chainOf(symbol) && (
-              <button type="button" className="btn-ghost troom-oc" onClick={() => setChainFor(chainOf(symbol))} data-role="troom-options"
-                title="عقود الخيارات" aria-label={`عقود خيارات ${chainOf(symbol)}`}>
-                <Layers size={13} className="inline-block align-[-2px] me-1" />عقود الخيارات
-              </button>
-            )}
-            {/* ‏D761: الأحداثُ الاقتصاديةُ الأمريكيةُ وأثرُها بجانب السهم الأمريكيّ */}
-            {chainOf(symbol) && <EconEvents compact />}
-          </span>} />
+          </div>
+        </>)}
         {chainFor && (
           <OptionChain underlying={chainFor} onClose={() => setChainFor(null)}
             onPick={c => { setChainFor(null); pick(c); }}

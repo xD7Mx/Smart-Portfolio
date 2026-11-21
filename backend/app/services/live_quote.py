@@ -10,6 +10,10 @@
     ‏market · وما قبل الافتتاح وبعده — في 0.03 ثانية وبلا حصّة. فهو الاحتياطُ، ويُوسَم «مؤجّل 15 دقيقة» ولا يُعرض كأنّه مباشر.
   · ‏`ksa`: ‏`current_session = out_of_session` بعد إغلاق «تداول» — يكشف العطلةَ التي لا يعرفها الجدول.
 ويُخبَّأ الردُّ أربعَ ثوانٍ لكلّ رمز: كلُّ من يشاهد الرمزَ نفسَه يقرأ النداءَ نفسَه.
+
+‏D782 (المالك 2026-11-21): «أبغى السعرَ يتحرّك، أبغى السعرَ تفاعلياً مباشراً — خاصّةً في السوق الأمريكي». فالسهمُ الأمريكيُّ والجلسةُ
+الرسميةُ مفتوحة يُخبَّأ ثانيتين لا أربعاً (والواجهةُ تسأل كلَّ ثانيتين) — ما دام في حصّة ‏`yahoo_live` أكثرُ من ثلثها؛ فإن نقصت عاد
+أربعاً فلا تنفد الحصّةُ فيسقط السعرُ إلى المصدر المؤجّل. والشاشاتُ المتعدّدةُ للرمز الواحد تقرأ النداءَ نفسَه.
 """
 from __future__ import annotations
 
@@ -23,6 +27,7 @@ from loguru import logger
 from app.services.market_session import TV_STATE, YH_STATE, is_saudi, session_for
 
 TTL = 4
+TTL_FAST = 2          # ‏D782: السهمُ الأمريكيُّ في جلسته الرسمية
 TV_EXCH = ("NASDAQ", "NYSE", "AMEX", "CBOE", "NYSE ARCA")
 TV_COLS = ["close", "change", "change_abs", "volume", "open", "high", "low", "update_mode", "current_session",
            "premarket_close", "premarket_change", "postmarket_close", "postmarket_change", "description"]
@@ -140,8 +145,16 @@ async def live(symbol: str) -> dict | None:
         st = (data or {}).pop("_state", None)
         out = {"symbol": sym, **(data or {"price": None}), "session": session_for(sym, st, (data or {}).get("source") or "")}
     out["at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    cache.set(ck, out, TTL)
+    cache.set(ck, out, ttl_for(sym, (out.get("session") or {}).get("state"), out.get("source")))
     return out
+
+
+def ttl_for(sym: str, state: str | None, source: str | None) -> int:
+    """مدّةُ الخبء: ثانيتان للسهم الأمريكيّ المباشر (ياهو) في الجلسة الرسمية ما دام في الحصّة أكثرُ من ثلثها — وإلّا أربع (‏D782)."""
+    from app.services.usage_tracker import remaining_fraction
+    if state == "open" and source == "ياهو" and not is_saudi(sym) and remaining_fraction("yahoo_live") > 1 / 3:
+        return TTL_FAST
+    return TTL
 
 
 async def sessions() -> dict:

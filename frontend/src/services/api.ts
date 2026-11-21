@@ -277,7 +277,12 @@ export const marketApi = {
   sessions: () => api.get<APIResponse>("/market/sessions"),
   optionAdvice: (p: { symbol: string; budget?: number; expiry?: number; contract?: string; side?: string }) =>
     api.get<APIResponse>("/market/options-advice", { params: p, timeout: 120000 }),
-  econEvents: () => api.get<APIResponse>("/market/econ-events", { timeout: 60000 }),
+  /* ‏D782: الأحداثُ للسوقين — والسعوديُّ بقراءته هو وأحداثِ الشركة المفتوحة */
+  econEvents: (market: "us" | "sa" = "us", symbol?: string, name?: string) =>
+    api.get<APIResponse>("/market/econ-events", { params: { market, ...(symbol ? { symbol } : {}), ...(name ? { name } : {}) }, timeout: 60000 }),
+  /* ‏D782: «تحليلُ الرسم» — لقطةُ الرسم (صورتُه وأرقامُه) لكلّ شاشة */
+  chartRead: (snap: { symbol: string; name?: string; market: "us" | "sa"; frames: Record<string, any>[] }) =>
+    api.post<APIResponse>("/market/chart-read", snap, { timeout: 120000 }),
   /* ‏D759 مُنتقي عقود الخيارات طويلة الأجل بميزانية العقد */
   optionPicks: (budget: number) => api.get<APIResponse>("/market/options-picks", { params: { budget } }),
   optionPicksRun: (budget: number) => api.post<APIResponse>("/market/options-picks/run", { budget }),

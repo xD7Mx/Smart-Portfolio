@@ -130,18 +130,9 @@ export default function D7MPanel({ cfg, onChange, onClose }: Props) {
           <Check k="pdc" label="إغلاق أمس" /><Check k="dOpen" label="افتتاح اليوم" />
         </fieldset>
 
+        {/* ‏D782 (المالك): «لوحتان: قوّةُ الاتجاه وقوّةُ السيولة — ولوحةُ الأطر نستغني عنها» — فلا مكانَ ولا حدودَ ولا محلّلَ ولا تنبيهاتٍ ولا أداةَ صفقة */}
         <fieldset><legend>اللوحات</legend>
-          <Check k="dashboard" label="لوحة الاتجاه" />
-          <label className="d7m-row"><span>مكان اللوحة</span>
-            <Select value={cfg.dashPos} onChange={e => set("dashPos", e.target.value)}>
-              <option value="tr">أعلى اليمين</option><option value="tl">أعلى اليسار</option>
-              <option value="br">أسفل اليمين</option><option value="bl">أسفل اليسار</option>
-            </Select>
-          </label>
-          <Num k="bull" label="حدّ الصعود" /><Num k="bear" label="حدّ الهبوط" />
-          <Check k="macdDash" label="المحلّل الذكي" />
-          <Check k="alertsDash" label="التنبيهات" />
-          <Check k="tradeTool" label="أداة الصفقة" />
+          <div data-role="d7m-panels-toggle"><Check k="dashboard" label="لوحتا قوّة الاتجاه والسيولة" /></div>
         </fieldset>
 
       </div>

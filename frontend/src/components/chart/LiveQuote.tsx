@@ -21,7 +21,11 @@ export function useLive(symbol: string | null | undefined) {
     queryKey: ["live", symbol],
     queryFn: () => marketApi.live(symbol as string).then(r => r.data?.data ?? null),
     enabled: !!symbol, retry: 0, staleTime: 3_000,
-    refetchInterval: q => (hidden() ? false : ACTIVE.has((q.state.data as Live | null)?.session?.state || "") ? 5_000 : 60_000),
+    /* ‏D782 (المالك): «أبغى السعرَ تفاعلياً مباشراً — خاصّةً الأمريكي»: كلَّ ثانيتين والسعرُ مباشرٌ في الجلسة الرسمية، وخمسٌ في غيرها */
+    refetchInterval: q => {
+      const d = q.state.data as Live | null;
+      return hidden() ? false : d?.session?.state === "open" && d.price != null && !d.delayed ? 2_000 : ACTIVE.has(d?.session?.state || "") ? 5_000 : 60_000;
+    },
     refetchOnWindowFocus: true,
   });
 }
@@ -66,7 +70,9 @@ export function SessionBadge({ s, compact = false }: { s: Session; compact?: boo
   );
 }
 
-export default function LiveQuote({ symbol, live }: { symbol: string; live: Live | null | undefined }) {
+/* ‏D782 (المالك): «حالةُ السوق أيقونةٌ بجانب الشركات — وبجانب الأحداث ضع "تحليل الرسم"»: فالشارةُ النصّيةُ تُطوى حين تكون الأيقونةُ
+   بجانب الاسم (‏badge=false)، ويبقى السعرُ وتغيّرُه وما قبل الافتتاح وبعده */
+export default function LiveQuote({ symbol, live, badge = true }: { symbol: string; live: Live | null | undefined; badge?: boolean }) {
   const [flash, setFlash] = useState<"" | "up" | "dn">("");
   const prev = useRef<{ sym: string; px: number | null }>({ sym: symbol, px: null });
   const px = live?.price ?? null;
@@ -85,7 +91,7 @@ export default function LiveQuote({ symbol, live }: { symbol: string; live: Live
   const ext = live.ext;
   return (
     <span className="lq" data-role="lq">
-      <SessionBadge s={live.session} />
+      {badge && <SessionBadge s={live.session} />}
       {px != null && (
         <span className="lq-px-wrap">
           <span className={"lq-px" + (flash ? ` lq-flash-${flash}` : "")} dir="ltr" data-role="lq-price">{fmt(px)}</span>

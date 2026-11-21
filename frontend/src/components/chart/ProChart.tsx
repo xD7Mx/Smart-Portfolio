@@ -19,7 +19,7 @@ import {
 } from "lightweight-charts";
 import {
   CandlestickChart, LineChart, AreaChart, BarChart3, Activity, Brush, TrendingUp, Minus, Trash2, Undo2, Camera, Maximize2, Minimize2,
-  Settings2, ChevronDown, ChevronRight, Check, MousePointer2, ChevronsRight, Eye, EyeOff, Palette,
+  Settings2, ChevronDown, ChevronRight, Check, MousePointer2, ChevronsRight, Eye, EyeOff, Palette, Square, Columns2, Grid2x2,
 } from "lucide-react";
 import { marketApi } from "../../services/api";
 import {
@@ -30,10 +30,12 @@ import { ChartOverlay, BandFill, Level, Segment, Path, Note, Band } from "../../
 import { cvdD7M, CVD_DEFAULTS, CvdCfg, stochRsi, STOCHRSI_DEFAULTS, StochRsiCfg, source, macd as macdCalc } from "../../lib/indicators";
 import IndSettings from "./IndSettings";
 import {
-  autoFib, autoChannel, autoTrend, vwapAnchored, ema as emaD7, dashboard, macdSmart, tradeTool, D7M_DEFAULTS, D7MSettings, D7M_COLORS, FIB_HIDDEN,
+  autoFib, autoChannel, autoTrend, vwapAnchored, ema as emaD7, zigzag, D7M_DEFAULTS, D7MSettings, D7M_COLORS, FIB_HIDDEN,
 } from "../analysis/d7m";
 import D7MPanel from "../analysis/D7MPanel";
-import D7MStrip from "./D7MStrip";
+import ForcePanels from "./ForcePanels";
+import ChartRead, { type ReadFrame } from "./ChartRead";
+import { trendForce, liquidityForce } from "../analysis/pulse";
 import LiveQuote, { useLive } from "./LiveQuote";
 
 /* ‏D744 (المالك 2026-11-15): «لا أريد كثرةَ المؤشّرات — أريد CVD ومؤشّرَ الدحم وStoch RSI المدمج». فهي الثلاثة مع الحجم، ولكلٍّ إعداداتُه
@@ -52,6 +54,18 @@ type Tool = null | "trend" | "hline" | "brush";
 /* أزرارُ المدى أسفلَ الرسم كتريدنق فيو: كلٌّ يختار إطارَه ويعرض مدّتَه */
 const RANGES: [string, number | "ytd" | "all", string][] = [["يوم", 1, "1m"], ["5 أيام", 5, "5m"], ["شهر", 30, "30m"], ["3 أشهر", 91, "1h"],
   ["6 أشهر", 182, "2h"], ["منذ بداية العام", "ytd", "1d"], ["سنة", 365, "1d"], ["5 سنوات", 1826, "1wk"], ["الكل", "all", "1mo"]];
+
+/* ‏D782 (المالك 2026-11-21): «الإطاراتُ — خلِّ أكثرَ ثلاثةٍ استخداماً بدلَ رصّها كاملة، والباقي في السهم المنبثق»: يُعدّ كلُّ اختيارٍ لإطار
+   (في المتصفّح)، والشريطُ أكثرُ ثلاثةٍ مرتّبةً بمدّتها، والجاري إن لم يكن منها؛ والبدايةُ ساعةٌ وأربعُ ساعاتٍ ويوم */
+const TF_SEED = ["1h", "4h", "1d"];
+const TF_SEC: Record<string, number> = { m: 60, h: 3600, d: 86400, wk: 604800, mo: 2629800 };
+const tfSecs = (k: string) => { const p = parseTf(k); return p ? p.n * TF_SEC[p.unit] : 0; };
+export function topTfs(use: Record<string, number>): string[] {
+  const used = Object.entries(use || {}).filter(([k, n]) => parseTf(k) && Number(n) > 0).sort((a, b) => Number(b[1]) - Number(a[1])).map(([k]) => k);
+  return [...used, ...TF_SEED.filter(x => !used.includes(x))].slice(0, 3).sort((a, b) => tfSecs(a) - tfSecs(b));
+}
+/* ‏D782: الشاشاتُ المتعدّدة — لكلّ شاشةٍ إطارُها ومؤشّراتُها (الأولى كما هي، والبقيّةُ أربعُ ساعاتٍ فساعةٌ فربعُ ساعةٍ افتراضاً) */
+const SLOT_TF = ["1wk", "4h", "1h", "15m"];
 
 const lsGet = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* وضعُ التصفّح الخاصّ */ } };
@@ -114,17 +128,27 @@ function Menu({ label, title, children, role, wide, up }: {
    لها وحدها فلا تمسّ غرفةَ التداول، وبلا لوحة القرار فوقه (‏D652). والرسمُ اليدويُّ واحدٌ للرمز في المكانين كتريدنق فيو. */
 const IND_STOCK: Record<IndKey, boolean> = { vol: true, stochrsi: false, cvd: false, macd: false, d7m: true };
 
-export default function ProChart({ symbol, identity, theme = "dark", preset }: {
+export default function ProChart({ symbol, identity, theme = "dark", preset, slot = 0, mini = false, rows = 1, layout, snaps, read }: {
   symbol: string; identity?: React.ReactNode; theme?: "dark" | "light"; preset?: "stock";
+  /* ‏D782: الشاشاتُ المتعدّدة — رقمُ الشاشة (لحفظ إطارها ومؤشّراتها)، وشكلُها المختصر، وصفوفُها، ومبدّلُ عددها، وسجلُّ لقطاتها لـ«تحليل الرسم» */
+  slot?: number; mini?: boolean; rows?: number; layout?: { n: number; set: (n: number) => void };
+  snaps?: React.MutableRefObject<Map<number, () => ReadFrame | null>>;
+  /* ‏D782: زرُّ «تحليل الرسم» بجانب «الأحداث» في الشاشة الواحدة (وفي المتعدّدة فوقها كلّها) */
+  read?: { name?: string; market: "us" | "sa" } | null;
 }) {
   /* ── الاختيارات المحفوظة ── */
-  const KT = preset ? "sp_stock_tf" : "sp_chart_tf", KI = preset ? "sp_stock_ind_v3" : "sp_chart_ind_v3";
-  const [tf, setTfState] = useState(() => { const v = lsGet(KT); return v && parseTf(v) ? v : "1wk"; });
-  const setTf = (v: string) => { if (parseTf(v)) { setTfState(v); lsSet(KT, v); } };
+  const KT = preset ? "sp_stock_tf" : slot ? `sp_chart_tf_s${slot}` : "sp_chart_tf", KI = preset ? "sp_stock_ind_v3" : slot ? `sp_chart_ind_v3_s${slot}` : "sp_chart_ind_v3";
+  const [tf, setTfState] = useState(() => { const v = lsGet(KT); return v && parseTf(v) ? v : SLOT_TF[slot] || "1wk"; });
+  const [tfUse, setTfUse] = useState<Record<string, number>>(() => lsJson("sp_chart_tf_use", {} as Record<string, number>));
+  const setTf = (v: string) => {
+    if (!parseTf(v)) return;
+    setTfState(v); lsSet(KT, v);
+    setTfUse(u => { const nx = { ...lsJson("sp_chart_tf_use", {} as Record<string, number>), ...u, [v]: (Number(u[v]) || 0) + 1 }; lsSet("sp_chart_tf_use", JSON.stringify(nx)); return nx; });
+  };
   const [customTfs, setCustomTfs] = useState<string[]>(() => { try { return (JSON.parse(lsGet("sp_chart_tf_custom") || "[]") as string[]).filter(x => parseTf(x)).slice(0, 4); } catch { return []; } });
   const [ctype, setCtypeState] = useState<ChartType>(() => (TYPES.some(t => t[0] === lsGet("sp_chart_type")) ? lsGet("sp_chart_type") as ChartType : "candles"));
   const setCtype = (v: ChartType) => { setCtypeState(v); lsSet("sp_chart_type", v); };
-  const [ind, setIndState] = useState<Record<IndKey, boolean>>(() => lsJson(KI, preset ? IND_STOCK : IND_DEF));
+  const [ind, setIndState] = useState<Record<IndKey, boolean>>(() => lsJson(KI, preset || slot ? IND_STOCK : IND_DEF));
   const toggleInd = (k: IndKey) => setIndState(s => { const n = { ...s, [k]: !s[k] }; lsSet(KI, JSON.stringify(n)); return n; });
   const [cvdCfg, setCvdState] = useState<CvdCfg>(() => lsJson("sp_cvd_cfg", CVD_DEFAULTS));
   const setCvd = (p: Partial<CvdCfg>) => setCvdState(c => { const n = { ...c, ...p }; lsSet("sp_cvd_cfg", JSON.stringify(n)); return n; });
@@ -196,15 +220,8 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     return volRef.current;
   }, [raw, bars]);
   const eff = useMemo(() => ({ ...ind, vol: ind.vol && volOk, cvd: ind.cvd && volOk }), [ind, volOk]);
-  const isUS = !!symbol && !/^\d{4}(\.SR)?$/.test(symbol) && !/TASI/i.test(symbol);
   /* ‏D761 (المالك): «أريد الأرقام تتحرّك — حيويةً كتريدنق فيو»: السعرُ الحيُّ وحالةُ السوق كلَّ خمس ثوانٍ في الجلسة */
   const { data: live } = useLive(symbol);
-  const { data: frames } = useQuery({
-    queryKey: ["frames", symbol],
-    queryFn: () => marketApi.frames(symbol).then(r => r.data?.data || null),
-    enabled: ind.d7m && (cfg.dashboard || cfg.alertsDash) && !!symbol,
-    staleTime: 5 * 60_000, refetchInterval: 5 * 60_000, retry: 0,
-  });
 
   /* ── الرسمُ اليدويّ: محفوظٌ لكلّ رمزٍ على الخادم، والنسخةُ المحلّيةُ للعرض الفوريّ ── */
   const dKey = `sp_draw_${symbol}`;
@@ -218,7 +235,17 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     }).catch(() => {});
     return () => { alive = false; };
   }, [dKey, symbol]);
-  const saveDraws = (d: any[]) => { setDraws(d); lsSet(dKey, JSON.stringify(d)); marketApi.saveDrawings(symbol, d).catch(() => {}); };
+  /* ‏D782: الرسمُ اليدويُّ للرمز واحدٌ في الشاشات المتعدّدة — ما يُرسم في شاشةٍ يظهر في أخواتها فوراً، ولا تكتب إحداها فوق الأخرى */
+  const uid = useRef(Math.random());
+  const saveDraws = (d: any[]) => {
+    setDraws(d); lsSet(dKey, JSON.stringify(d)); marketApi.saveDrawings(symbol, d).catch(() => {});
+    window.dispatchEvent(new CustomEvent("sp-draws", { detail: { symbol, items: d, from: uid.current } }));
+  };
+  useEffect(() => {
+    const on = (e: Event) => { const d = (e as CustomEvent).detail; if (d && d.symbol === symbol && d.from !== uid.current) setDraws(d.items || []); };
+    window.addEventListener("sp-draws", on);
+    return () => window.removeEventListener("sp-draws", on);
+  }, [symbol]);
 
   /* ── الحساب ── مرّةً لكلّ تغيّرٍ في الشموع أو الإعدادات، ويقرؤه الرسمُ ووسيلةُ الإيضاح معاً */
   const calc = useMemo(() => {
@@ -235,23 +262,10 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
       vwap: cfg.vwap || cfg.vwapBand ? vwapAnchored(b, cfg.vwapAnchor, cfg.vwapMult) : null,
     };
   }, [bars, ind.d7m, cfg]);
-  const dash = ind.d7m && cfg.dashboard ? dashboard(bars as any, { bull: cfg.bull, bear: cfg.bear, vix: null, vixWarn: 25, vixBlock: 35,
-    newsDates: [], today: new Date().toISOString().slice(0, 10), daily: frames?.daily, m15: frames?.m15 }) : null;
-  const msmart = ind.d7m && cfg.macdDash && bars.length > 40 ? macdSmart(bars as any) : null;
-  const tt = ind.d7m && cfg.tradeTool && isUS ? tradeTool(bars as any, null, false) : null;
-  const alerts = (() => {
-    if (!ind.d7m || !cfg.alertsDash || bars.length < 40) return null;
-    const vw = vwapAnchored(bars as any, cfg.vwapAnchor).vwap, i = bars.length - 1;
-    const h = macdSmart(bars as any)?.hist[i] ?? 0, c = bars[i].close;
-    const f = autoFib(bars as any, cfg.fibDev, cfg.fibDepth, cfg.fibReverse);
-    const f0 = f?.lines.find(x => x.level === 0)?.price, f1 = f?.lines.find(x => x.level === 1)?.price;
-    const longUp = dash ? dash.rows[0].up : null;
-    return {
-      mom: c > vw[i] && h > 0 ? "شراء" : c < vw[i] && h < 0 ? "بيع" : "انتظار",
-      rev: dash ? (dash.score >= cfg.bull ? "شراء" : dash.score <= cfg.bear ? "بيع" : "انتظار") : "انتظار",
-      bounce: f1 != null && longUp === false && bars[i].low <= f1 ? "شراء" : f0 != null && longUp === true && bars[i].high >= f0 ? "بيع" : "انتظار",
-    };
-  })();
+  /* ‏D782 (المالك): «لوحتان مهمّتان: قوّةُ الاتجاه وقوّةُ السيولة — بسيطٌ وواضح» — بدل شريط D7M (القرار · الأطر الأربعة · الحيتان ·
+     ‏ADX · المحلّل · التنبيهات · الصفقة) — من شموع هذا الإطار نفسِه (‏analysis/pulse) */
+  const force = useMemo(() => (ind.d7m && cfg.dashboard && !preset && bars.length >= 30
+    ? { trend: trendForce(bars as any), liq: liquidityForce(bars as any, volOk) } : null), [bars, volOk, ind.d7m, cfg.dashboard, preset]);
 
   /* ── مراجعُ الرسم ── */
   const boxRef = useRef<HTMLDivElement>(null);
@@ -270,12 +284,13 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
 
   /* الارتفاع: الرسمُ كلُّه داخل الشاشة كتريدنق فيو — اللوحاتُ السفلى تقتسم ارتفاعَه ولا تدفعه تحت الطيّ، إلّا إن ضاقت الرئيسةُ عن حدّها */
   const oscOn = OSC.filter(k => eff[k]);
-  const oscPx = wide ? 104 : 88;
+  const oscPx = mini ? 70 : wide ? 104 : 88;                                      // ‏D782: الشاشةُ المختصرة تقتسم ارتفاعَها الثابت
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   const chromeH = (topRef.current?.offsetHeight ?? 50) + (narrow && (railOpen || tool) ? 42 : 0);
-  const stripH = ind.d7m && !preset ? 47 : 0;                                    // شريطُ D7M فوق الرسم (‏D744)
-  const baseH = full ? Math.max(300, winH - chromeH - 2) : preset ? (wide ? 480 : 400) : wide ? clamp(winH - 345 - stripH, 400, 740) : clamp(winH - 380, 340, 460);
-  const mainPx = Math.max(full ? 200 : wide ? 300 : 250, baseH - oscOn.length * oscPx);
+  const stripH = force ? (mini ? 36 : 66) : 0;                                   // لوحتا الاتجاه والسيولة فوق الرسم (‏D782)
+  const baseH = full ? Math.max(300, winH - chromeH - 2) : mini ? (narrow ? 300 : clamp((winH - 250) / Math.max(1, rows) - 84 - stripH, 220, 640))
+    : preset ? (wide ? 480 : 400) : wide ? clamp(winH - 345 - stripH, 400, 740) : clamp(winH - 380, 340, 460);
+  const mainPx = Math.max(full ? 200 : mini ? 140 : wide ? 300 : 250, baseH - oscOn.length * oscPx);
   const stageH = mainPx + oscOn.length * oscPx;
 
   /* ── نقطةُ رسمٍ محفوظة ← موضعٌ منطقيّ: بزمن شمعتها وكسرها، فتتبع الرسمَ في أيّ إطار ── */
@@ -796,6 +811,72 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     setManual(false);
   };
 
+  /* ── ‏D782 لقطةُ «تحليل الرسم»: صورةُ الرسم كما يراه المالك، وأرقامُه — آخرُ 120 شمعة، وقيمُ المؤشّرات الظاهرة وحدها، والمستوياتُ المرسومة
+     (فيبوناتشي بما يظهر منه · خطوطُ الاتجاه والقناة عند آخر شمعة · ‏VWAP · المتوسّطاتُ المفعّلة · مستوياتُ الشمعة السابقة)، والقممُ والقيعان،
+     ولوحتا الاتجاه والسيولة. لا رقمَ في اللقطة إلّا ممّا على الرسم، والخادمُ لا يقبل من القراءة رقماً ليس فيها ── */
+  const snapFrame = (): ReadFrame | null => {
+    const b = bars, n = b.length, i = n - 1;
+    if (n < 30) return null;
+    const r = (v: number | null | undefined) => (v == null || !isFinite(Number(v)) ? null : +Number(v).toFixed(Math.abs(Number(v)) >= 1 ? 2 : 4));
+    const ts = (t: any) => (typeof t === "number" ? new Date(t * 1000).toISOString().slice(0, 16).replace("T", " ") : String(t));
+    const vis = (k: IndKey) => !!ind[k] && !hideAll && !hid[k] && ((k !== "vol" && k !== "cvd") || volOk);
+    const shown = (["vol", "stochrsi", "cvd", "macd", "d7m"] as IndKey[]).filter(vis);
+    const out: Record<string, any> = {};
+    if (shown.includes("vol")) {
+      const v = b.slice(-21, -1).map(x => x.volume || 0), avg = v.reduce((a, x) => a + x, 0) / Math.max(1, v.length);
+      out.volume = { last: Math.round(b[i].volume || 0), avg20: Math.round(avg), rvol: avg ? r((b[i].volume || 0) / avg) : null };
+    }
+    if (shown.includes("stochrsi")) out["Stoch RSI"] = { k: r(calc.stochrsi.k[i]), d: r(calc.stochrsi.d[i]), k_prev: r(calc.stochrsi.k[i - 1]),
+      d_prev: r(calc.stochrsi.d[i - 1]), overbought: srCfg.upper, oversold: srCfg.lower };
+    if (shown.includes("macd")) out.MACD = { macd: r(calc.macd.line[i]), signal: r(calc.macd.signal[i]), hist: r(calc.macd.hist[i]), hist_prev: r(calc.macd.hist[i - 1]) };
+    if (shown.includes("cvd")) {
+      const L = (cvdCfg.style === "line" ? calc.cvd.line : calc.cvd.c) as (number | null)[];
+      out["CVD D7M"] = { scale: cvdCfg.scale, value: r(L[i]), value_10_bars_ago: r(L[i - 10]) };
+    }
+    const levels: { kind: string; label: string; price: number }[] = [];
+    const add = (kind: string, label: string, v: number | null | undefined) => { const x = r(v); if (x != null && x > 0) levels.push({ kind, label, price: x }); };
+    const D = shown.includes("d7m") ? d7m : null;
+    if (D) {
+      const SIX = new Set([0, -0.1, 0.5, 0.618, 1, 1.1]), compact = (cfg.fibMode || "compact") === "compact";
+      for (const l of D.fib?.lines || []) if (cfg.fibLevels[String(l.level)] !== false && (!compact || SIX.has(l.level))) add("fib", `فيبوناتشي ${l.level}`, l.price);
+      for (const t of D.trend?.lines || []) if (t.x2 !== t.x1) add("trend", t.up ? "خطُّ اتجاهٍ صاعد" : "خطُّ اتجاهٍ هابط", t.y1 + (t.y2 - t.y1) * (i - t.x1) / (t.x2 - t.x1));
+      if (D.channel) {
+        const at = (q: [number, number][]) => (q.length > 1 && q[1][0] !== q[0][0] ? q[0][1] + (q[1][1] - q[0][1]) * (i - q[0][0]) / (q[1][0] - q[0][0]) : null);
+        const a = at(D.channel.base), c2 = at(D.channel.parallel);
+        if (a != null && c2 != null) { add("channel", "أعلى القناة", Math.max(a, c2)); add("channel", "أسفل القناة", Math.min(a, c2)); }
+      }
+      if (D.vwap) { add("vwap", "VWAP", D.vwap.vwap[i]); if (cfg.vwapBand) { add("vwap", "VWAP العلويّ", D.vwap.upper[i]); add("vwap", "VWAP السفليّ", D.vwap.lower[i]); } }
+      for (const len of [20, 50, 100, 200, 400]) if ((cfg as any)[`ema${len}`]) add("ema", `EMA ${len}`, emaD7(calc.closes, len)[i]);
+      if (cfg.pdh) add("pd", "أعلى الشمعة السابقة", b[i - 1]?.high);
+      if (cfg.pdl) add("pd", "أدنى الشمعة السابقة", b[i - 1]?.low);
+      if (cfg.pdc) add("pd", "إغلاق الشمعة السابقة", b[i - 1]?.close);
+    }
+    for (const pv of zigzag(b as any, cfg.fibDev || 3, cfg.fibDepth || 7).slice(-6)) add("swing", pv.isHigh ? "قمّة" : "قاع", pv.price);
+    let img: string | undefined;
+    try {
+      const cv = chartRef.current?.takeScreenshot();
+      if (cv && cv.width > 0 && cv.height > 0) {
+        const W = Math.min(960, cv.width), H = Math.round(cv.height * W / cv.width), o = document.createElement("canvas");
+        o.width = W; o.height = H; o.getContext("2d")?.drawImage(cv, 0, 0, W, H);
+        img = o.toDataURL("image/jpeg", 0.72);
+      }
+    } catch { /* بلا صورة — الأرقامُ تكفي */ }
+    const fz = (f: any) => (f ? { word: f.word, level: f.level, strength: f.strength, stat: f.stat, why: (f.why || []).map((w: any) => w[1]), tag: f.tag || null } : null);
+    return {
+      tf, tf_ar: tfLong(tf), price: r(live?.price ?? b[i].close), chg_pct: r(live?.change_pct ?? null),
+      bars: b.slice(-120).map(x => [ts(x.time), r(x.open), r(x.high), r(x.low), r(x.close), Math.round(x.volume || 0)]),
+      ind: out, levels, shown: shown.map(k => (k === "vol" ? "volume" : k)), force: force ? { trend: fz(force.trend), liquidity: fz(force.liq) } : null, img,
+    };
+  };
+  const snapRef = useRef(snapFrame);
+  snapRef.current = snapFrame;
+  useEffect(() => {
+    if (!snaps) return;
+    const m = snaps.current, f = () => snapRef.current();
+    m.set(slot, f);
+    return () => { if (m.get(slot) === f) m.delete(slot); };
+  }, [snaps, slot]);
+
   /* ── الإطارُ المخصَّص ── */
   const [cn, setCn] = useState("6");
   const [cu, setCu] = useState<TfUnit>("h");
@@ -807,7 +888,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
     if (!TF_PRESETS.includes(k)) { const next = [k, ...customTfs.filter(x => x !== k)].slice(0, 4); setCustomTfs(next); lsSet("sp_chart_tf_custom", JSON.stringify(next)); }
     setTf(k); close();
   };
-  const barTfs = [...TF_BAR, ...customTfs.filter(x => !TF_BAR.includes(x))];
+  const barTfs = useMemo(() => topTfs(tfUse), [tfUse]);
   const TypeIcon = (TYPES.find(t => t[0] === ctype) || TYPES[0])[2];
   const lv = (k: string) => (e: HTMLElement | null) => { legend.current[k] = e; };
   const chip = (k: IndKey, body: React.ReactNode) => {
@@ -824,21 +905,27 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
   const nMain = (ind.vol ? 1 : 0) + (ind.cvd && !volOk ? 1 : 0) + (ind.d7m ? 1 : 0);
 
   return (
-    <div ref={rootRef} className={"pc" + (full ? " pc-full" : "")} data-role="pro-chart" data-tf={tf} data-type={ctype} data-symbol={symbol}>
+    <div ref={rootRef} className={"pc" + (full ? " pc-full" : "") + (mini ? " pc-mini" : "")} data-role="pro-chart" data-tf={tf} data-type={ctype} data-symbol={symbol}
+      data-slot={slot}>
       {/* ══ الشريطُ العلويّ — كتريدنق فيو: الرمزُ · الإطارات · نوعُ الرسم · المؤشّرات · الرسم · لقطة · ملءُ الشاشة ══ */}
       <div ref={topRef} className="pc-top" data-role="pc-top">
-        {(identity || live?.session) && <div className="pc-ident">{identity}<LiveQuote symbol={symbol} live={live} /></div>}
+        {!mini && (identity || live?.session) && (
+          <div className="pc-ident">{identity}
+            {read && <ChartRead symbol={symbol} name={read.name} market={read.market} frames={() => [snapRef.current()].filter(Boolean) as ReadFrame[]} />}
+            <LiveQuote symbol={symbol} live={live} badge={!identity} /></div>
+        )}
         <div className="pc-group" role="group" aria-label="الإطار الزمني" data-role="pc-tfs">
           {barTfs.map(k => (
-            <button key={k} type="button" className={"pc-tf" + (tf === k ? " on" : "")} aria-pressed={tf === k} title={tfLong(k)} onClick={() => setTf(k)}>{tfShort(k)}</button>
+            <button key={k} type="button" className={"pc-tf" + (tf === k ? " on" : "")} aria-pressed={tf === k} title={tfLong(k)} onClick={() => setTf(k)}
+              data-tf={k}>{tfShort(k)}</button>
           ))}
-          {!barTfs.includes(tf) && <span className="pc-tf on" aria-current="true" title={tfLong(tf)}>{tfShort(tf)}</span>}
+          {!barTfs.includes(tf) && <span className="pc-tf on" aria-current="true" title={tfLong(tf)} data-role="pc-tf-cur">{tfShort(tf)}</span>}
           <Menu label={<ChevronDown size={15} />} title="كلُّ الإطارات وإطارٌ مخصَّص" role="pc-tf-more" wide>
             {close => (
               <div className="pc-tfmenu">
                 <div className="pc-tfgrid">
-                  {TF_PRESETS.map(k => (
-                    <button key={k} type="button" className={"pc-tf" + (tf === k ? " on" : "")} onClick={() => { setTf(k); close(); }}>{tfLong(k)}</button>
+                  {[...TF_PRESETS, ...customTfs.filter(x => !TF_PRESETS.includes(x))].map(k => (
+                    <button key={k} type="button" className={"pc-tf" + (tf === k ? " on" : "")} onClick={() => { setTf(k); close(); }} data-tf={k}>{tfLong(k)}</button>
                   ))}
                 </div>
                 <div className="pc-custom" data-role="pc-custom">
@@ -862,6 +949,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
           </Menu>
         </div>
         <span className="pc-sep" aria-hidden />
+        {!mini && <>
         <Menu label={<TypeIcon size={17} />} title="نوع الرسم" role="pc-type">
           {close => <>
             {TYPES.map(([k, name, Ic]) => (
@@ -904,6 +992,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
             </div>
           )}
         </Menu>
+        </>}
         <Menu label={<><Activity size={17} /><span className="pc-btn-txt">المؤشرات</span></>} title="المؤشرات" role="pc-ind">
           {() => IND.map(([k, name, t]) => (
             <button key={k} type="button" className={"pc-item" + (ind[k] ? " on" : "")} aria-pressed={ind[k]} onClick={() => toggleInd(k)} data-ind={k}>
@@ -912,12 +1001,12 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
             </button>
           ))}
         </Menu>
-        <button type="button" className={"pc-btn" + (hideAll ? " on" : "")} aria-pressed={hideAll} data-role="pc-eye-all"
+        {!mini && <button type="button" className={"pc-btn" + (hideAll ? " on" : "")} aria-pressed={hideAll} data-role="pc-eye-all"
           title={hideAll ? "إظهار المؤشرات" : "إخفاء المؤشرات"} aria-label={hideAll ? "إظهار المؤشرات" : "إخفاء المؤشرات"}
-          onClick={() => { const v = !hideAll; setHideAll(v); lsSet("sp_chart_hideall", v ? "1" : "0"); }}>{hideAll ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+          onClick={() => { const v = !hideAll; setHideAll(v); lsSet("sp_chart_hideall", v ? "1" : "0"); }}>{hideAll ? <EyeOff size={17} /> : <Eye size={17} />}</button>}
         <button type="button" className={"pc-btn" + (railOpen || tool ? " on" : "")} title="أدوات الرسم" aria-label="أدوات الرسم" aria-pressed={railOpen}
           data-role="pc-draw" onClick={() => setRailOpen(o => !o)}><Brush size={17} /></button>
-        {(ind.stochrsi || ind.cvd || ind.d7m) && (
+        {!mini && (ind.stochrsi || ind.cvd || ind.d7m) && (
           <Menu label={<><Settings2 size={16} /><span className="pc-btn-txt">الإعدادات</span></>} title="إعدادات المؤشرات" role="pc-cfg">
             {close => IND.filter(([k]) => k !== "vol" && k !== "macd" && ind[k]).map(([k, name]) => (
               <button key={k} type="button" className="pc-item" data-cfg={k} onClick={() => { close(); if (k === "d7m") setShowCfg(true); else setCfgFor(k as "stochrsi" | "cvd"); }}>
@@ -926,23 +1015,23 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
             ))}
           </Menu>
         )}
-        {ind.d7m && cfg.fib && (
-          <span className="seg inline-flex pc-fibmode" role="group" aria-label="مستويات D7M" data-role="pc-fibmode">
-            {([["compact", "مختصر"], ["all", "الكل"]] as const).map(([v, t]) => (
-              <button key={v} type="button" className={"seg-btn chip" + ((cfg.fibMode || "compact") === v ? " on" : "")} aria-pressed={(cfg.fibMode || "compact") === v}
-                title={v === "compact" ? "المستوياتُ المختصرة" : "كلُّ المستويات"} onClick={() => saveCfg({ ...cfg, fibMode: v })}>{t}</button>
-            ))}
-          </span>
-        )}
         <span className="pc-grow" />
-        <button type="button" className="pc-btn" title="لقطةٌ للرسم" aria-label="لقطةٌ للرسم" onClick={shot}><Camera size={17} /></button>
+        {layout && (
+          <Menu label={layout.n === 4 ? <Grid2x2 size={17} /> : layout.n === 2 ? <Columns2 size={17} /> : <Square size={16} />} title="الشاشات" role="pc-layout">
+            {close => ([[1, "شاشةٌ واحدة", Square], [2, "شاشتان", Columns2], [4, "أربعُ شاشات", Grid2x2]] as const).map(([n, name, Ic]) => (
+              <button key={n} type="button" className={"pc-item" + (layout.n === n ? " on" : "")} aria-pressed={layout.n === n} data-layout={n}
+                onClick={() => { layout.set(n); close(); }}><Ic size={15} /> <span>{name}</span>{layout.n === n && <Check size={14} className="pc-check" />}</button>
+            ))}
+          </Menu>
+        )}
+        {!mini && <button type="button" className="pc-btn" title="لقطةٌ للرسم" aria-label="لقطةٌ للرسم" onClick={shot}><Camera size={17} /></button>}
         <button type="button" className="pc-btn" title={full ? "خروج من ملء الشاشة" : "ملء الشاشة"} aria-label="ملء الشاشة" aria-pressed={full}
           data-role="pc-full" onClick={() => setFull(f => !f)}>{full ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
       </div>
       {showCfg && <D7MPanel cfg={cfg} onChange={saveCfg} onClose={() => setShowCfg(false)} />}
       {cfgFor && <IndSettings kind={cfgFor} sr={srCfg} cvd={cvdCfg} onSr={setSr} onCvd={setCvd} onClose={() => setCfgFor(null)} />}
 
-      {ind.d7m && !preset && <D7MStrip dash={dash} msmart={msmart} tt={tt} alerts={alerts} />}
+      {force && <ForcePanels trend={force.trend} liq={force.liq} compact={mini} />}
       <div className="pc-body">
         {/* ══ سكّةُ أدوات الرسم — على يسار الرسم كتريدنق فيو (وصفٌّ فوقه على الجوال) ══ */}
         {(railOpen || tool) && (
@@ -1015,7 +1104,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
           )}
         </div>
         {/* ══ الشريطُ السفليّ تحت الرسم مباشرةً كتريدنق فيو: المدى · الساعةُ بمنطقتها الزمنية · مقياسُ السعر ══ */}
-        <div className="pc-foot" data-role="pc-foot">
+        {!mini && <div className="pc-foot" data-role="pc-foot">
           <div className="pc-ranges" role="group" aria-label="المدى" data-role="pc-ranges">
             {RANGES.map(([lbl, d, rtf]) => (
               <button key={lbl} type="button" className="pc-tf" title={`${lbl} · ${tfLong(rtf)}`} onClick={() => goRange(d, rtf)}>{lbl}</button>
@@ -1038,7 +1127,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset }: {
             data-role="pc-log" onClick={() => setScale(scaleMode === 1 ? 0 : 1)}>log</button>
           <button type="button" className={"pc-btn" + (!manual ? " on" : "")} aria-pressed={!manual} title="مقياسٌ تلقائيّ" aria-label="مقياسٌ تلقائيّ"
             data-role="pc-auto" onClick={() => { chartRef.current?.priceScale("right").applyOptions({ autoScale: true }); setManual(false); }}>تلقائي</button>
-        </div>
+        </div>}
         </div>
       </div>
     </div>

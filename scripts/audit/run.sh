@@ -502,6 +502,9 @@ python3 scripts/audit/saqr_d777.py || _note "$LINENO"   # ‏D777: تذكرةُ 
 python3 scripts/audit/saqr_d779.py || _note "$LINENO"   # ‏D779: التداولُ الآليُّ يشتري من «عقود الخيارات»
 python3 scripts/audit/saqr_d780.py || _note "$LINENO"   # ‏D780: «أغلق الآن» و«أغلق بسعرٍ محدَّد» للمركز القائم
 python3 scripts/audit/chart_d781.py || _note "$LINENO"   # ‏D781: «+» للقائمة، وطيُّ أسماء المؤشّرات، والضغطُ على المؤشّر يفتح إعداداته
+python3 scripts/audit/chart_d782.py || _note "$LINENO"   # ‏D782: «تحليلُ الرسم» المحروس، والأحداثُ بالعربية وللسوقين، والسعرُ كلَّ ثانيتين، و«المؤشرات» على الخادم
+_node scripts/audit/pulse_d782.mjs || _note "$LINENO"   # ‏D782: حسابُ لوحتي قوّة الاتجاه والسيولة على مساراتٍ معلومة
+_node scripts/audit/chart_d782.mjs || _note "$LINENO"   # ‏D782: اللوحتان، وزرُّ التحليل، والأحداثُ السعوديّة، والإطاراتُ الثلاثة، والشاشاتُ الأربع، وترسُ القوائم
 _node scripts/audit/chart_colors_d772.mjs || _note "$LINENO"   # ‏D772: الرسمُ كتريدنق فيو — لوحةٌ سوداءُ وألوانٌ مشبعة، وألوانُ الشموع بيد المالك، وأرقامُ الفيبو على خطوطها
 _node scripts/audit/saqr_d763.mjs || _note "$LINENO"   # ‏D763: المفكرةُ بالتقرير، وتبويباتُ المختبر الثلاثة، والمحفظةُ ولوحةُ صقر في المظهرين
 python3 scripts/audit/research_archive_d749.py || _note "$LINENO"   # ‏D749: أرشيفُ التقارير لجميع الجلسات — كلُّ جلسةٍ بأرقامها هي
