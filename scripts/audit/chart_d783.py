@@ -8,10 +8,15 @@
 
     python3 scripts/audit/chart_d783.py
 """
+import os
 import pathlib
 import re
 import sys
+import tempfile
 
+_SB = tempfile.mkdtemp()
+os.environ["LASTGOOD_PATH"] = os.path.join(_SB, "lastgood.json")
+os.environ["SP_STATE_DIR"] = _SB
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 fail = 0

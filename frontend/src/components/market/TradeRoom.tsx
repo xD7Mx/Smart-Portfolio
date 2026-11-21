@@ -338,6 +338,7 @@ export default function TradeRoom() {
                 {allTabs.map(([id, name]) => {
                   const g = id === "mine" ? null : groups.find((x: any) => `g${x.id}` === id);
                   const gi = g ? groups.indexOf(g) : -1;
+                  const gFirst = gi <= 0, gLast = gi === groups.length - 1, gOnly = groups.length === 1;
                   return (
                     <div key={id} className="troom-grow" data-role="troom-glist" data-list={id}>
                       {g && renaming?.id === g.id ? (
@@ -353,14 +354,14 @@ export default function TradeRoom() {
                       )}
                       {g && owner && renaming?.id !== g.id && (
                         <span className="troom-gacts">
-                          <button type="button" className="btn-ghost troom-icon" aria-label={`ارفع قائمة ${name}`} title="ارفع" disabled={gi <= 0}
+                          <button type="button" className="btn-ghost troom-icon" aria-label={`ارفع قائمة ${name}`} title="ارفع" disabled={gFirst}
                             onClick={() => moveGroup(g.id, -1)} data-role="troom-gup"><ChevronUp size={15} /></button>
-                          <button type="button" className="btn-ghost troom-icon" aria-label={`أنزل قائمة ${name}`} title="أنزل" disabled={gi >= groups.length - 1}
+                          <button type="button" className="btn-ghost troom-icon" aria-label={`أنزل قائمة ${name}`} title="أنزل" disabled={gLast}
                             onClick={() => moveGroup(g.id, 1)} data-role="troom-gdown"><ChevronDown size={15} /></button>
                           <button type="button" className="btn-ghost troom-icon" aria-label={`أعِد تسمية ${name}`} title="إعادةُ تسمية"
                             onClick={() => setRenaming({ id: g.id, v: name })} data-role="troom-grename"><Pencil size={13} /></button>
                           <button type="button" className="btn-ghost troom-icon troom-danger" aria-label={`احذف قائمة ${name}`} title="حذفُ القائمة"
-                            disabled={groups.length <= 1}
+                            disabled={gOnly}
                             onClick={() => { if (window.confirm(`حذفُ قائمة «${name}» وما فيها؟`)) dropGroup.mutate(g.id); }} data-role="troom-gdel"><Trash2 size={13} /></button>
                         </span>
                       )}
