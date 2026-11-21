@@ -46,12 +46,12 @@ export default function ChartRead({ symbol, name, market, frames }: {
   return (
     <>
       <button type="button" className="btn-ghost ee-btn cr-btn" onClick={go} data-role="chart-read-btn" title="الذكاءُ يقرأ الرسمَ ومؤشّراتِه ومستوياتِه"
-        aria-label="تحليل الرسم"><Sparkles size={13} />تحليل الرسم</button>
+        aria-label="تحليل الرسم"><Sparkles size={13} className="ai-star" />تحليل الرسم</button>
       {open && createPortal(
         <div className="d7m-modal ee-modal cr-modal" data-shown={shown ? "1" : "0"} role="dialog" aria-label="تحليل الرسم" onClick={() => setOpen(false)} data-role="chart-read">
           <div className="d7m-sheet ee-sheet cr-sheet" onClick={e => e.stopPropagation()}>
             <div className="d7m-head">
-              <strong><Sparkles size={15} className="inline-block align-[-2px] me-1" />تحليلُ الرسم <span className="cr-sym" dir="ltr">{symbol.replace(".SR", "")}</span></strong>
+              <strong><Sparkles size={15} className="inline-block align-[-2px] me-1 ai-star" />تحليلُ الرسم <span className="cr-sym" dir="ltr">{symbol.replace(".SR", "")}</span></strong>
               <button type="button" className="d7m-btn cr-again" onClick={() => m.mutate()} disabled={m.isPending} aria-label="أعِد التحليل" title="أعِد التحليل"
                 data-role="chart-read-again"><RotateCw size={14} className={m.isPending ? "rl-spin" : ""} /></button>
               <button type="button" className="d7m-btn" onClick={() => setOpen(false)} aria-label="إغلاق"><X size={15} /></button>

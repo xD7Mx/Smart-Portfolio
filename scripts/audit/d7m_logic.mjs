@@ -67,8 +67,13 @@ say(M.D7M_DEFAULTS.bull === 6 && M.D7M_DEFAULTS.bear === -6 && mix.summary === "
 const keys = Object.keys(M.D7M_DEFAULTS);
 const { readFileSync } = await import("node:fs");
 const panel = readFileSync(join(ROOT, "frontend/src/components/analysis/D7MPanel.tsx"), "utf8");
-const miss = keys.filter(k => k !== "fibV" && !new RegExp(`["']${k}["']`).test(panel));   // ‏fibV رقمُ ترحيل الإعدادات لا مدخل (‏D756)
-say(miss.length === 0, "١٠ لوحةُ الإعدادات تتحكّم في كلّ مدخلٍ للمؤشّر", miss.join(","));
+/* ‏D782 (المالك 2026-11-21): «لوحتان: الاتجاهُ والسيولة — ولوحةُ الأطر نستغني عنها»: فأُطفئت مدخلاتُ لوحة السكربت القديمة (مكانُها وحدّاها
+   والمحلّلُ والتنبيهاتُ وأداةُ الصفقة) — تبقى قيمُها في المنطق (‏dashboard يقيسه ٩ · ٩ب) ولا يقرؤها الرسمُ الاحترافيّ؛ فلا مدخلَ يؤثّر ولا يُرى */
+const RETIRED = ["dashPos", "bull", "bear", "macdDash", "alertsDash", "tradeTool"];
+const pro = readFileSync(join(ROOT, "frontend/src/components/chart/ProChart.tsx"), "utf8");
+const miss = keys.filter(k => k !== "fibV" && !RETIRED.includes(k) && !new RegExp(`["']${k}["']`).test(panel));   // ‏fibV رقمُ ترحيل الإعدادات لا مدخل (‏D756)
+const read = RETIRED.filter(k => new RegExp(`cfg\\.${k}\\b`).test(pro));
+say(miss.length === 0 && read.length === 0, "١٠ لوحةُ الإعدادات تتحكّم في كلّ مدخلٍ للمؤشّر — وما أُطفئ بأمر المالك (‏D782) لا يقرؤه الرسم", [...miss, ...read].join(","));
 const nc = readFileSync(join(ROOT, "frontend/src/components/analysis/NativeChart.tsx"), "utf8");
 const usedColors = M.D7M_COLORS.map(c => c[0]).filter(k => !new RegExp(`C\\("${k}"\\)|colors\\?\\.${k}\\b|colors\\?\\.\\[k\\]`).test(nc));
 say(/type="color"/.test(panel) && usedColors.length === 0, "١١ ألوانُ المؤشّر تُختار من الإعدادات وتصل إلى الرسم", usedColors.join(","));
