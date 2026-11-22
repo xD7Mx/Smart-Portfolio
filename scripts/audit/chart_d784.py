@@ -110,16 +110,16 @@ async def fake_rows(market):
     return rows
 
 
-class FakeM:
-    async def daily_base(self, sym, rng):
-        return BARS.get(sym.replace(".SR", ""), [])
-
-    async def get_bars(self, sym, tf):
-        return BARS.get(sym.replace(".SR", ""), [])
-
-
+# الشبكةُ وحدها مصنوعة: يُستبدل نداءُ ياهو الخامُ في مُهايئه، ويمرّ المسحُ بمساره الحقيقيّ كلِّه (الخدمةُ ⇐ المُهايئ ⇐ التنظيف) —
+# ‏D784 قيس على الخادم: استبدالُ الخدمة كلِّها في الحارس أخفى أنّ ‏market_service لا يملك ‏daily_base، فقرأ المسحُ الحقيقيُّ 0 رسوم
 import app.services.market_data as MD   # noqa: E402
-MD.market_service = FakeM()
+FETCHED = []
+
+
+async def fake_fetch(self, symbol, range_, interval):
+    FETCHED.append((symbol, range_, interval))
+    return [dict(b) for b in BARS.get(symbol.replace(".SR", ""), [])]
+MD.YahooFinanceAdapter._fetch_chart_points = fake_fetch
 o_rows, o_uni = CS.market_rows, CS.universe
 CS.market_rows = fake_rows
 
@@ -142,6 +142,11 @@ CS.market_rows = empty_rows
 d_empty = asyncio.run(CS.scan("sa", ai=False))
 kept = json.loads(pathlib.Path(CS._path("sa")).read_text(encoding="utf-8"))
 CS.market_rows, CS.universe = o_rows, o_uni
+scan_src = (ROOT / "backend/app/services/chart_scan.py").read_text(encoding="utf-8")
+check(d_us["read"] == 60 and d_sa["read"] == 60 and all(r == "2y" and i == "1d" for _, r, i in FETCHED) and any(x.endswith(".SR") for x, _, _ in FETCHED)
+      and "M.daily_base(" not in scan_src and "M._yahoo()._fetch_chart_points(" in scan_src,
+      "٤أ المسحُ يجلب الشموعَ بمساره الحقيقيّ (الخدمةُ ⇐ مُهايئُ ياهو ⇐ التنظيف) — يوميُّ سنتين، والسعوديُّ برمزه ‏.SR، بلا خبءٍ يُحمّل مخزنَ الخادم "
+      "(كان يُنادي دالّةً ليست في الخدمة فقرأ 0 رسوم على الخادم)", f"{len(FETCHED)} نداءً · us {d_us['read']} · sa {d_sa['read']}")
 check(d_us["read"] == 60 and d_us["found"] == len(d_us["items"]) and qs == sorted(qs, reverse=True) and all(q >= CS.MIN_Q for q in qs)
       and all(x["side"] == "long" for x in d_sa["items"]) and all("tr" in x for x in d_us["items"]) and not any("tr" in x for x in d_sa["items"])
       and CS._path("sa").startswith(_SB) and "reads" in saved and "reads" not in v and v["job"]["on"] is False
@@ -187,8 +192,27 @@ check(pos and pos["symbol"] == "2010" and any("قراءةُ الرسم: ارتد
       and why["4190"]["verdict"] == "refused" and "لم يُقرأ رسمُه" in why["4190"]["why"],
       "٥ صقرٌ السعوديّ يختار بالرسم: يشتري فرصةَ المسح وحدها (وفي أسبابه سطرُها بأرقامها)، ويرفض ما لا فرصةَ له وما جودتُه دون العتبة وما لم يُقرأ رسمُه — "
       "كلٌّ بسببه من الرسم", json.dumps({k: (x["verdict"], x["why"][-40:]) for k, x in why.items()}, ensure_ascii=False))
-CS.save("sa", {"market": "sa", "at": "2020-01-01T00:00:00+00:00", "items": [], "reads": {}})
-check(CS.chart_of("sa", "2010")[0] == "none", "٥ب ومسحٌ قديمٌ (فوق أربعة أيام) لا يحكم — فقواعدُ صقر السابقة وحدها حتى يُمسح السوق")
+CS.save("sa", {"market": "sa", "at": "2020-01-01T00:00:00+00:00", "read": 3, "items": [], "reads": {}})
+old_none = CS.chart_of("sa", "2010")[0]
+CS.save("sa", {"market": "sa", "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "universe": 271, "read": 0, "found": 0, "items": [], "reads": {}})
+zero_none = CS.chart_of("sa", "2010")[0]
+
+
+async def no_bars(self, symbol, range_, interval):
+    return []
+o_fetch = MD.YahooFinanceAdapter._fetch_chart_points
+MD.YahooFinanceAdapter._fetch_chart_points = no_bars
+CS.market_rows, CS.universe = fake_rows, fake_uni
+before = json.loads(pathlib.Path(CS._path("us")).read_text(encoding="utf-8"))
+d_nobars = asyncio.run(CS.scan("us", ai=False))
+after = json.loads(pathlib.Path(CS._path("us")).read_text(encoding="utf-8"))
+CS.market_rows, CS.universe = o_rows, o_uni
+MD.YahooFinanceAdapter._fetch_chart_points = o_fetch
+sch_src = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
+check(old_none == "none" and zero_none == "none" and d_nobars["read"] == 0 and after["at"] == before["at"] and after["read"] == before["read"]
+      and 'if not d or not d.get("read"):' in sch_src,
+      "٥ب ومسحٌ قديمٌ (فوق أربعة أيام) أو لم يقرأ رسماً لا يحكم — فقواعدُ صقر السابقة وحدها؛ ومسحٌ تعذّرت شموعُه لا يُحفظ فوق السابق، والإقلاعُ يعيده "
+      "(قيس على الخادم: مسحُ الإقلاع 0 رسوم حُفظ حديثاً فرفض صقرٌ كلَّ شركة)", f"{old_none} · {zero_none} · {d_nobars['read']}")
 
 # ٦ دفترُ «عقود الخيارات» يبدأ بفرص الرسم: جهتُها جهةُ العقد، وسطرُها في المبرّر، وتنكسر التوصيةُ بكسر حدّها
 from app.services import option_picks as OP   # noqa: E402

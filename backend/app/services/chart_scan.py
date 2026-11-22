@@ -111,12 +111,40 @@ async def universe(market: str, rows: list[dict]) -> dict[str, dict]:
 
 
 # ── ٢ القراءةُ العميقة بالشموع ────────────────────────────────────────────────────────────────────
-async def deep(sym: str, market: str) -> tuple[dict | None, list[dict]]:
-    from app.services import chart_tech as T
-    from app.services.market_data import market_service as M
+def sa_session() -> tuple[dict, datetime, bool] | None:
+    """لقطةُ «تداول» الرسمية مرّةً للمسح كلِّه — منها شمعةُ اليوم السعوديّ كما في الرسم (‏get_bars: ‏live_daily)."""
     try:
-        bars = T.clean(await asyncio.wait_for(M.daily_base(f"{sym}.SR" if market == "sa" else sym, "2y"), 30))
+        from app.services import tadawul_market as TM
+        rows, live, at = TM.usable_rows()
+        if not rows or not at:
+            return None
+        return rows, datetime.fromisoformat(str(at).replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=3))), bool(live)
     except Exception:                                             # noqa: BLE001
+        return None
+
+
+async def daily(sym: str, market: str, ses: tuple | None = None) -> list[dict]:
+    """يوميُّ سنتين للمسح من مصدر الرسم نفسِه — ياهو ‏/chart ثمّ تنظيفُ ‏D735، وشمعةُ اليوم السعوديّ من «تداول» كما يرسمها التطبيق —
+    بلا خبء: مئاتُ الرموز مرّةً في اليوم لا تُحمَّل على مخزن الخادم ولا على ملفّه (يُكتب كاملاً كلَّ خمس ثوانٍ — ‏D592) وذاكرتُه ‏~1 ج.ب.
+    (‏D784 قيس على الخادم: كان يُنادى ‏market_service.daily_base — وهي في مُهايئ ياهو لا في الخدمة — فلم يُقرأ رسمٌ واحد: 0 من 269)."""
+    from app.services import bars as B
+    from app.services.market_data import market_service as M
+    from app.services.usage_tracker import can_call, record
+    if not can_call("yahoo"):
+        return []
+    record("yahoo")
+    rows = B.clean_daily(await M._yahoo()._fetch_chart_points(f"{sym}.SR" if market == "sa" else sym, "2y", "1d"))
+    if market == "sa" and ses:
+        rows = B.live_daily(rows, ses[0].get(sym), ses[1], ses[2])
+    return rows
+
+
+async def deep(sym: str, market: str, ses: tuple | None = None) -> tuple[dict | None, list[dict]]:
+    from app.services import chart_tech as T
+    try:
+        bars = T.clean(await asyncio.wait_for(daily(sym, market, ses), 30))
+    except Exception as e:                                        # noqa: BLE001
+        logger.debug("مسحُ الرسم/الشموع {}: {}", sym, type(e).__name__)
         return None, []
     if len(bars) < 60:
         return None, bars
@@ -229,7 +257,7 @@ def chart_of(market: str, sym: str) -> tuple[str, dict | None]:
     """حكمُ الرسم على سهمٍ لصقر: ‏("none", None) لا مسحَ حديث (فقواعدُه السابقة وحدها) · ‏("opp", فرصة) · ‏("weak", قراءة) فرصةٌ دون الجودة ·
     ‏("flat", قراءة) لا فرصةَ في الرسم · ‏("unread", None) لم يُقرأ رسمُه في المسح (درجتُه الأوّليةُ دون غيره)."""
     d = fresh(market)
-    if not d:
+    if not d or not d.get("read"):
         return "none", None
     x = next((x for x in d.get("items") or [] if x["symbol"] == sym), None)
     if x:
@@ -270,22 +298,20 @@ async def scan(market: str, ai: bool = True) -> dict:
             pool = sorted(ranked, key=lambda s: -ranked[s])[:DEEP[market]]
             job["msg"] = f"قراءةُ رسوم {len(pool)} شركةً بشموعها"
             sem = asyncio.Semaphore(CONC)
-            got: dict[str, tuple] = {}
+            ses = sa_session() if market == "sa" else None
+            items, kept_bars, reads = [], {}, {}
 
             async def one(s):
                 async with sem:
-                    got[s] = await deep(s, market)
-            await asyncio.gather(*(one(s) for s in pool))
-            items, kept_bars, reads = [], {}, {}
-            for s in pool:
-                r, bars = got.get(s, (None, []))
+                    r, bars = await deep(s, market, ses)
                 if r is not None:                                 # قراءةُ كلّ رسمٍ قُرئ — ليقول صقرٌ لماذا لم يختر سهماً
                     reads[s] = {"setup": r.get("setup"), "quality": r.get("quality"), "side": r.get("side"), "where": r.get("where")}
                 if not r or not r.get("setup") or r["quality"] < MIN_Q:
-                    continue
+                    return                                        # شموعُ ما لا فرصةَ فيه تُترك فوراً — لا تُحبس مئاتُ السلاسل في الذاكرة
                 row = uni.get(s) or {}
                 items.append(item(s, (name_of(s) if market == "sa" else None) or row.get("description") or row.get("name"), r, bars, market))
                 kept_bars[s] = bars
+            await asyncio.gather(*(one(s) for s in pool))
             items.sort(key=lambda x: (-x["quality"], -x["horizon_n"]))
             items = items[:KEEP]
             if ai:
@@ -298,8 +324,12 @@ async def scan(market: str, ai: bool = True) -> dict:
             data = {"market": market, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "universe": len(uni), "screened": len(ranked),
                     "read": len(reads), "found": len(items), "items": items, "dist": dist, "min_q": MIN_Q, "reads": reads,
                     "secs": round(time.monotonic() - t0, 1)}
-            if uni:                                               # مسحٌ بلا مجالٍ (تعذّرُ المُصفّي) لا يمحو مسحاً سابقاً
+            # مسحٌ بلا مجالٍ (تعذّرُ المُصفّي) أو بلا رسمٍ مقروء (تعذّرُ الشموع) لا يمحو مسحاً سابقاً ولا يُعدّ مسحاً — وإلّا رفض صقرٌ
+            # كلَّ شركةٍ «لم يُقرأ رسمُها» (قيس على الخادم 2026-11-22: مسحُ الإقلاع 0 رسوم حُفظ حديثاً)
+            if uni and reads:
                 save(market, data)
+            else:
+                logger.warning("مسحُ الرسم {}: المجال {} · رسومٌ قُرئت {} — لا يُحفظ", market, len(uni), len(reads))
             return data
     finally:
         job.update(on=False, msg="")

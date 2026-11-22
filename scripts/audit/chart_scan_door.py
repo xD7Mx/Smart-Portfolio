@@ -96,8 +96,8 @@ async def main():
     # ٤ آخرُ مسحٍ للرسم
     for m in ("sa", "us"):
         d = CS.fresh(m, days=1)
-        if not d:
-            print(f"══ ٤ {m}: لا مسحَ حديث — يُمسح الآن")
+        if not d or not d.get("read"):
+            print(f"══ ٤ {m}: لا مسحَ حديثاً قرأ رسوماً — يُمسح الآن")
             t0 = time.monotonic()
             try:
                 d = await CS.scan(m)

@@ -457,7 +457,8 @@ async def job_chart_scan_boot():
     """وبعد الإقلاع: سوقٌ بلا مسحٍ حديث يُمسح — فلا تنتظر القائمةُ إغلاقَ الغد."""
     from app.services import chart_scan as CS
     for m in ("sa", "us"):
-        if not CS.fresh(m, days=1):
+        d = CS.fresh(m, days=1)
+        if not d or not d.get("read"):                            # ومسحٌ لم يقرأ رسماً كأنه لم يكن
             await job_chart_scan(m)
 
 
