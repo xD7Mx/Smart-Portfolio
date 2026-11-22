@@ -72,7 +72,7 @@ const tokOk = ["--pc-bg: #000000", "--pc-up: #ffffff", "--pc-down: #f23645", "--
 say(tokOk && /background: \{ color: tok\("--pc-bg"/.test(code) && /grid: \{ vertLines: \{ visible: false \}, horzLines: \{ visible: false \} \}/.test(code)
     && /const ink = C\("fib"\)/.test(code) && !/tokA\("--ink-muted", "#6b7280", 0\.6\)/.test(code) && /inkTxt = ink/.test(code)
     && /\["ema20", "--pc-ema20"\]/.test(code) && /label: fmtPrice\(l\.price\)/.test(code) && !/label: `\$\{l\.level\}/.test(code)
-    && /fibLabelPos: "above"/.test(d7) && /fibV: 4/.test(code) && /text: l\.price\.toFixed/.test(nat) && !/text: \[String\(l\.level\)/.test(nat)
+    && /fibLabelPos: "above"/.test(d7) && /fibV: 5/.test(code) && /text: l\.price\.toFixed/.test(nat) && !/text: \[String\(l\.level\)/.test(nat)
     && !/fillRect/.test(over.slice(over.indexOf("// ٤ب"), over.indexOf("const placedN"))) && !/hit\[0\] - h - 1/.test(over),
     "٣ اللوحةُ سوداءُ بلا شبكةٍ في المظهرين، وخطوطُ المؤشّر مشبعةٌ مُصمَتة (الخطُّ ورقمُه لونٌ واحد — كان الخطُّ رمادياً شفّافاً فبدا الرقمُ بلا خطّ)، "
     + "والرقمُ سعرُ المستوى وحدَه بلا نسبةٍ في الرسمَين، وفوق خطّه افتراضاً");
@@ -130,8 +130,13 @@ for (const [label, vp, theme] of [["الحاسوب · داكن", { width: 1366, 
     const cs = [...document.querySelectorAll('[data-role="pc-stage"] canvas')];
     const c = cs.find(x => x.width > 200 && x.height > 150);
     if (!c) return null;
-    const g = c.getContext("2d"), d = g.getImageData(4, 4, 1, 1).data;
-    return [d[0], d[1], d[2], d[3]];
+    /* ‏D784: اللونُ الغالبُ على شبكةٍ من 144 نقطة — لا بكسلُ الزاوية وحده: «مختصر» ستّةُ خطوطٍ فمنطقةُ المقاومة الملوّنة قد تبلغ الزاوية (قيس: [16,3,3]) */
+    const g = c.getContext("2d"), seen = new Map();
+    for (let i = 1; i <= 12; i++) for (let j = 1; j <= 12; j++) {
+      const d = g.getImageData(Math.floor(c.width * i / 13), Math.floor(c.height * j / 13), 1, 1).data, k = `${d[0]},${d[1]},${d[2]},${d[3]}`;
+      seen.set(k, (seen.get(k) || 0) + 1);
+    }
+    return [...seen.entries()].sort((a, b) => b[1] - a[1])[0][0].split(",").map(Number);
   });
   if (SHOTS) await page.locator('[data-role="pc-stage"]').first().screenshot({ path: `${SHOTS}/chart-${vp.width}-${theme}.png` }).catch(() => {});
   say(px && px[0] < 8 && px[1] < 8 && px[2] < 8, `${label}: ٤ لوحةُ الرسم سوداءُ في المظهر ${theme === "dark" ? "الداكن" : "الفاتح"} كما في الصورة`, JSON.stringify(px));

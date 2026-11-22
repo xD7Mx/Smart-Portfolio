@@ -30,7 +30,7 @@ import { ChartOverlay, BandFill, Level, Segment, Path, Note, Band } from "../../
 import { cvdD7M, CVD_DEFAULTS, CvdCfg, stochRsi, STOCHRSI_DEFAULTS, StochRsiCfg, source, macd as macdCalc } from "../../lib/indicators";
 import IndSettings from "./IndSettings";
 import {
-  autoFib, autoChannel, autoTrend, vwapAnchored, ema as emaD7, zigzag, D7M_DEFAULTS, D7MSettings, D7M_COLORS, FIB_HIDDEN,
+  autoFib, autoChannel, autoTrend, vwapAnchored, ema as emaD7, zigzag, D7M_DEFAULTS, D7MSettings, D7M_COLORS, FIB_SIX,
 } from "../analysis/d7m";
 import D7MPanel from "../analysis/D7MPanel";
 import ForcePanels from "./ForcePanels";
@@ -103,6 +103,10 @@ const tokA = (name: string, fb: string, a: number) => {
   return p && p.length >= 3 ? `rgba(${p[0]}, ${p[1]}, ${p[2]}, ${a})` : c;
 };
 
+/** لونُ المالك (‏#rrggbb) بشفافية — لخلفية Stoch RSI (‏D784) */
+const hexA = (c: string, a: number) => { const m = /^#([0-9a-f]{6})$/i.exec(c); if (!m) return c; const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`; };
+
 /** قائمةٌ تنسدل تحت زرّها وتُطوى بالنقر خارجها. */
 function Menu({ label, title, children, role, wide, up }: {
   label: React.ReactNode; title: string; role?: string; wide?: boolean; up?: boolean; children: (close: () => void) => React.ReactNode;
@@ -166,10 +170,12 @@ export default function ProChart({ symbol, identity, theme = "dark", preset, slo
       const m = { ...D7M_DEFAULTS, ...sv, colors: { ...D7M_DEFAULTS.colors, ...(sv.colors || {}) } };
       /* ‏D783 (المالك 2026-11-21): «الفيبو أربعَ عشرةَ مستوىً — عددتُها في تريدنق فيو — وعندنا ناقصة»: الثلاثةُ المخفيّةُ بأمر ‏D756 (1.1 · 0.618 · 0.5)
          تُخفى من «مختصر» وحده وتعود إلى «الكل» — مرّةً واحدة، وما أخفاه المالكُ بيده بعدها يبقى */
-      if ((Number(sv.fibV) || 1) < 4) m.fibLevels = { ...m.fibLevels, ...Object.fromEntries([...FIB_HIDDEN].map(lv => [String(lv), true])) };
+      if ((Number(sv.fibV) || 1) < 4) m.fibLevels = { ...m.fibLevels, ...Object.fromEntries([1.1, 0.618, 0.5].map(lv => [String(lv), true])) };
       /* ‏D772: الرقمُ فوق خطّه كتريدنق فيو (كان «على الخطّ» بفُسحةٍ تقطعه) — مرّةً واحدة، وما اختاره المالكُ بعدها يبقى */
       if ((Number(sv.fibV) || 1) < 3) m.fibLabelPos = "above";
-      return { ...m, fibV: 4 }; } catch { return D7M_DEFAULTS; }
+      /* ‏D784 (المالك 2026-11-22): «مختصر ستّةُ خطوطٍ لا ثلاثة — كلُّ خطّين منطقة… وتُطبَّق على الجميع»: الستّةُ ظاهرةٌ مرّةً واحدة */
+      if ((Number(sv.fibV) || 1) < 5) m.fibLevels = { ...m.fibLevels, ...Object.fromEntries(FIB_SIX.map(lv => [String(lv), true])) };
+      return { ...m, fibV: 5 }; } catch { return D7M_DEFAULTS; }
   });
   const saveCfg = (c: D7MSettings) => { setCfgState(c); lsSet("sp_d7m_cfg_v2", JSON.stringify(c)); };
   const [showCfg, setShowCfg] = useState(false);
@@ -339,9 +345,11 @@ export default function ProChart({ symbol, identity, theme = "dark", preset, slo
       /* ‏D744 (المالك): «شِل الكلام — المقاومة والدعم ولا تطمع — الشارتُ نظيف»: لا نصَّ على الرسم إلا رقمُ المستوى، والمناطقُ الثلاث
          تظليلٌ خفيف (المقاومة · الوسط: الاتجاهُ المعاكس والدعمُ القويّ · الدعم). و«مختصر» ستةُ خطوطها وحدها، و«الكل» كلُّ المستويات */
       if (D.fib) {
-        /* ‏D756 · D783: «مختصر» ستّتُه بلا الثلاثة المخفيّة (0 · −0.1 · 1)، و«الكل» الأربعَ عشرةَ كتريدنق فيو إلّا ما أخفاه المالكُ من الإعدادات */
-        const SIX = new Set([0, -0.1, 0.5, 0.618, 1, 1.1]), compact = (st.cfg.fibMode || "compact") === "compact";
-        const shown = (lv: number) => st.cfg.fibLevels[String(lv)] !== false && (!compact || (SIX.has(lv) && !FIB_HIDDEN.has(lv)));
+        /* ‏D784 (المالك 2026-11-22): «مختصر ستّةُ خطوطٍ لا ثلاثة — كلُّ خطّين منطقة: خطّان للدعم وخطّان للمقاومة وخطّان في الوسط حيث يتحرّك السهم»
+           (مثالُه على تاسي: 11486 · 11293 · 10558 · 10330 · 9367 · 9175 ⇐ المستويات 1.1 · 1 · 0.618 · 0.5 · 0 · −0.1)؛ و«الكل» الأربعَ عشرةَ
+           كتريدنق فيو (‏D783) — إلّا ما أخفاه المالكُ من الإعدادات */
+        const SIX = new Set(FIB_SIX), compact = (st.cfg.fibMode || "compact") === "compact";
+        const shown = (lv: number) => st.cfg.fibLevels[String(lv)] !== false && (!compact || SIX.has(lv));
         /* ‏D761 (المالك): «الرقمُ نفسُه سادةً — السعرُ على الخطّ بلا نسبةٍ ولا دائرة، ولونُه لونُ الخطّ» — والنصُّ بلون الخطّ مُصمَتاً ليُقرأ */
         const lx = b.length - 1 + 3, lpos = st.cfg.fibLabelPos || "above", inkTxt = ink;
         for (const l of D.fib.lines) {
@@ -566,12 +574,22 @@ export default function ProChart({ symbol, identity, theme = "dark", preset, slo
         s.priceScale().applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
         return [s];
       },
-      /* ‏Stoch RSI بسكربت تريدنق فيو: ‏K أزرق و‏D برتقاليّ، وحدودُ 80 و50 و20، وخلفيةٌ بين 80 و20 (ألوانُه من رموز التطبيق) */
+      /* ‏Stoch RSI بسكربت تريدنق فيو: ‏K أزرق و‏D برتقاليّ، وحدودُ 80 و50 و20، وخلفيةٌ بين 80 و20 (ألوانُه من رموز التطبيق) —
+         ‏D784: ونمطُ كلٍّ بيد المالك (إظهارٌ ولونٌ وسُمكٌ ونوعُ خطّ، والحدودُ والخلفيةُ وشفافيتُها) */
       stochrsi: p => {
-        const k = ln(p, tok("--info-ink", "#2563eb"), 1, fixed(0, 100)), d = ln(p, tok("--gauge-warn", "#d97706"), 1);
-        const band = (v: number, a: number) => k.createPriceLine({ price: v, color: tokA("--ink-muted", "#787b86", a), lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
-        band(srCfg.upper, 1); band(srCfg.middle, 0.5); band(srCfg.lower, 1);
-        k.attachPrimitive(new BandFill(srCfg.upper, srCfg.lower, tokA("--info-ink", "#2196f3", 0.1)));
+        const st = (x: string) => (x === "dashed" ? LineStyle.Dashed : x === "dotted" ? LineStyle.Dotted : LineStyle.Solid);
+        const w = (x: number) => Math.min(4, Math.max(1, Math.round(x) || 1)) as 1 | 2 | 3 | 4;
+        const k = ln(p, srCfg.kColor || tok("--info-ink", "#2563eb"), w(srCfg.kWidth), { ...fixed(0, 100), lineStyle: st(srCfg.kStyle), visible: srCfg.kOn !== false });
+        const d = ln(p, srCfg.dColor || tok("--gauge-warn", "#d97706"), w(srCfg.dWidth), { ...fixed(0, 100), lineStyle: st(srCfg.dStyle), visible: srCfg.dOn !== false });
+        // الحدودُ والخلفيةُ على خطٍّ ظاهر — فإخفاءُ ‏K لا يُخفيها معه
+        const host = srCfg.kOn !== false || srCfg.dOn === false ? k : d;
+        const bc = (a: number) => (srCfg.bandColor ? srCfg.bandColor : tokA("--ink-muted", "#787b86", a));
+        const band = (v: number, a: number, on: boolean) => { if (on) host.createPriceLine({ price: v, color: bc(a), lineWidth: 1, lineStyle: st(srCfg.bandStyle || "dashed"), axisLabelVisible: false, title: "" }); };
+        band(srCfg.upper, 1, srCfg.upOn !== false); band(srCfg.middle, 0.5, srCfg.midOn !== false); band(srCfg.lower, 1, srCfg.loOn !== false);
+        if (srCfg.bgOn !== false) {
+          const a = Math.min(100, Math.max(0, Number(srCfg.bgOpacity ?? 10))) / 100;
+          host.attachPrimitive(new BandFill(srCfg.upper, srCfg.lower, srCfg.bgColor ? hexA(srCfg.bgColor, a) : tokA("--info-ink", "#2196f3", a)));
+        }
         return [k, d];
       },
       cvd: p => {
@@ -840,8 +858,8 @@ export default function ProChart({ symbol, identity, theme = "dark", preset, slo
     const add = (kind: string, label: string, v: number | null | undefined) => { const x = r(v); if (x != null && x > 0) levels.push({ kind, label, price: x }); };
     const D = shown.includes("d7m") ? d7m : null;
     if (D) {
-      const SIX = new Set([0, -0.1, 0.5, 0.618, 1, 1.1]), compact = (cfg.fibMode || "compact") === "compact";
-      for (const l of D.fib?.lines || []) if (cfg.fibLevels[String(l.level)] !== false && (!compact || (SIX.has(l.level) && !FIB_HIDDEN.has(l.level))))
+      const SIX = new Set(FIB_SIX), compact = (cfg.fibMode || "compact") === "compact";
+      for (const l of D.fib?.lines || []) if (cfg.fibLevels[String(l.level)] !== false && (!compact || SIX.has(l.level)))
         add("fib", `فيبوناتشي ${l.level}`, l.price);
       for (const t of D.trend?.lines || []) if (t.x2 !== t.x1) add("trend", t.up ? "خطُّ اتجاهٍ صاعد" : "خطُّ اتجاهٍ هابط", t.y1 + (t.y2 - t.y1) * (i - t.x1) / (t.x2 - t.x1));
       if (D.channel) {
@@ -1085,7 +1103,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset, slo
               {k === "macd" && chip("macd", <><span className="pc-k" style={{ color: "var(--info-ink)" }}>MACD 12 26 close 9</span>
                 <b ref={lv("mH")}>—</b><b ref={lv("mM")} style={{ color: "var(--info-ink)" }}>—</b><b ref={lv("mS")} style={{ color: "var(--gauge-warn)" }}>—</b></>)}
               {k === "stochrsi" && chip("stochrsi", <><span className="pc-k" style={{ color: "var(--info-ink)" }}>Stoch RSI {srCfg.k} {srCfg.d} {srCfg.rsiLen} {srCfg.stochLen} {srCfg.src}</span>
-                <b ref={lv("srK")} style={{ color: "var(--info-ink)" }}>—</b><b ref={lv("srD")} style={{ color: "var(--gauge-warn)" }}>—</b></>)}
+                <b ref={lv("srK")} style={{ color: srCfg.kColor || "var(--info-ink)" }}>—</b><b ref={lv("srD")} style={{ color: srCfg.dColor || "var(--gauge-warn)" }}>—</b></>)}
               {k === "cvd" && chip("cvd", <><span className="pc-k" style={{ color: "var(--chart-3)" }}>
                 CVD D7M · {cvdCfg.scale === "levels" ? "مستويات" : cvdCfg.scale === "pct" ? "نسبة" : "احجام"} {cvdCfg.len}</span><b ref={lv("cvd")}>—</b>
                 {cvdCfg.ema2 && cvdCfg.style === "candle" && <b ref={lv("cvdE")} className="pc-dim">—</b>}</>)}

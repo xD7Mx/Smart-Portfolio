@@ -62,6 +62,7 @@ STALE_DAYS = 4           # آخرُ صفقةٍ أقدمُ من أربعة أيا
 MIN_PX = 0.05            # عقدٌ بأقلّ من خمسة سنتات سعرُه حدُّ التسعير لا قيمتُه
 IV_BAND = (0.5, 1.6)     # تذبذبُ العقد بين نصف تذبذب النقود وضعفِه إلا قليلاً — وما خرج فسعرُه شاذّ
 CANDIDATES = 40
+CHART_MAX, CHART_W = 30, 0.25   # ‏D784: أقصى فرص الرسم بين المرشّحين (والباقي من القائمة الثابتة)، ووزنُ جودتها في الترتيب
 SCAN_TTL, NEWS_TTL, RES_TTL = 6 * 3600, 2 * 3600, 26 * 3600
 _JOB = {"on": False, "budget": None, "msg": "", "at": None}
 
@@ -314,6 +315,26 @@ def reasons(sym: str, tr: dict, news: dict | None, k: dict, note: str) -> list[s
     return out
 
 
+def chart_card(x: dict | None) -> dict | None:
+    """خلاصةُ فرصة الرسم في بطاقة التوصية (‏D784) — ما تعرضه الواجهةُ شارةً."""
+    if not x:
+        return None
+    return {k: x.get(k) for k in ("setup", "side", "quality", "horizon", "where", "entry", "target", "stop", "rr")}
+
+
+def with_chart(rs: list[str], x: dict | None, cr: tuple | None) -> list[str]:
+    """المبرّرُ ومعه قراءةُ الرسم بعد الأطروحة: فرصةٌ بأرقامها، أو ما قاله الرسمُ عن سهمٍ لم يختره (‏D784)."""
+    from app.services.chart_scan import MIN_Q
+    line = None
+    if x:
+        line = chart_line(x)
+    elif cr and cr[0] in ("weak", "flat") and cr[1]:
+        r = cr[1]
+        line = (f"قراءةُ الرسم: «{r['setup']}» جودتُها {r['quality']} دون {MIN_Q} — السعرُ {r['where']}." if cr[0] == "weak"
+                else f"قراءةُ الرسم: لا فرصةَ الآن — السعرُ {r['where']}؛ والاختيارُ على المسار.")
+    return rs[:1] + [line] + rs[1:] if line else rs
+
+
 # ══ المراحل ══
 
 async def scan() -> dict:
@@ -526,6 +547,10 @@ def verdict(e: dict, S: float | None, mid: float | None, dte: int, tr: dict | No
         return "profit", f"بلغ السهمُ الهدفَ {e['target']:,.2f} — اجنِ الربح."
     if mid is not None and e.get("entry_mid") and mid >= e["entry_mid"] * 2:
         return "profit", f"تضاعف العقدُ ({e['entry_mid']:.2f} ⇐ {mid:.2f}) — اجنِ الربح أو جزءاً منه."
+    cs = (e.get("thesis") or {}).get("chart_stop")            # ‏D784: توصيةٌ من فرصة رسمٍ تنكسر بكسر حدّها على الرسم
+    if S is not None and cs and ((call and S < cs) or (not call and S > cs)):
+        return "broken", (f"انكسرت قراءةُ الرسم: {'هبط' if call else 'ارتفع'} السهمُ إلى {S:,.2f} {'دون' if call else 'فوق'} حدِّها {cs:,.2f} "
+                          f"(«{(e.get('thesis') or {}).get('chart_setup') or 'فرصة الرسم'}») — اخرج.")
     if tr:
         flip = tr["state"] == ("هابط" if call else "صاعد")
         broke = tr["close"] < tr["sma200"] * 0.97 if call else tr["close"] > tr["sma200"] * 1.03
@@ -536,6 +561,27 @@ def verdict(e: dict, S: float | None, mid: float | None, dte: int, tr: dict | No
                                                               else f"خبرٌ قويٌّ معاكس: {(news or {}).get('event') or ''}")
             return "broken", f"انكسرت الأطروحة: {why} — اخرج."
     return "hold", "الأطروحةُ سليمة — احتفظ."
+
+
+async def _trend_now(sym: str) -> dict | None:
+    """مسارُ سهمٍ خارج القائمة الثابتة (دخل الدفترَ من فرص الرسم ‏D784) — من شموعه اليومية، مخبّأً ستّ ساعات؛ فلا تُراجَع توصيتُه بلا مسار."""
+    from app.services import cache
+    from app.services.market_data import market_service as M
+    hit = cache.get(f"optpicks:tr:{sym}")
+    if hit is not None:
+        return hit or None
+    try:
+        tr = trend_of(await asyncio.wait_for(M.get_bars(sym, "1d"), 25) or [])
+    except Exception:                                             # noqa: BLE001
+        return None
+    cache.set(f"optpicks:tr:{sym}", tr or {}, SCAN_TTL)
+    return tr
+
+
+def chart_line(x: dict) -> str:
+    """سطرُ قراءة الرسم في مبرّر التوصية (‏D784) — من مسح الرسم اليوميّ بأرقامه."""
+    return (f"قراءةُ الرسم: {x['setup']} — جودتُها {x['quality']} من 100 ومدّتُها {x['horizon']}؛ السعرُ {x['where']}، ومنطقةُ الدخول "
+            f"{x['entry'][0]:,.2f}–{x['entry'][1]:,.2f}، وهدفُ الرسم {x['target']:,.2f} وحدُّه {x['stop']:,.2f}.")
 
 
 STATUS_AR = {"hold": "قائمة", "profit": "اجنِ الربح", "stop": "بلغ الوقف", "broken": "انكسرت الأطروحة", "time": "اقترب الأجل"}
@@ -567,8 +613,12 @@ async def run(budget: float) -> dict:
     try:
         sc = await scan()
         top = dict(sorted(sc.items(), key=lambda kv: -kv[1]["strength"]))
+        # ‏D784 (المالك: «خلِّ صقر يفهم تحليلَ الرسم ويختار بناءً عليه»): فرصُ مسح الرسم اليوميّ للسوق كلِّه تتقدّم المرشّحين بجهتها —
+        # الشراءُ عقدُ شراء والبيعُ عقدُ بيع — وما سواها من القائمة الثابتة بعدها بمساره
+        from app.services import chart_scan as CS
+        opps = {x["symbol"]: x for x in sorted((CS.fresh("us") or {}).get("items") or [], key=lambda x: -x["quality"]) if x.get("tr")}
         _JOB["msg"] = "قراءةُ الأخبار"
-        news = await read_news(top)
+        news = await read_news({**{s: x["tr"] for s, x in opps.items()}, **top})
         book = book_load(budget)
         today = datetime.now(timezone.utc).date().isoformat()
 
@@ -577,7 +627,8 @@ async def run(budget: float) -> dict:
         keep, exits = [], []
         for e in book["open"]:
             S, mid, dte = await _mark(e)
-            st, why = verdict(e, S, mid, dte, sc.get(e["symbol"]), news.get(e["symbol"]))
+            tr_e = sc.get(e["symbol"]) or (opps.get(e["symbol"]) or {}).get("tr") or await _trend_now(e["symbol"])
+            st, why = verdict(e, S, mid, dte, tr_e, news.get(e["symbol"]))
             e["last"] = {"date": today, "mid": round(mid, 3) if mid else None, "price": S, "dte": dte, "status": st, "why": why,
                          "pl_pct": round((mid / e["entry_mid"] - 1) * 100, 1) if mid and e.get("entry_mid") else None}
             (keep if st == "hold" else exits).append(e)
@@ -592,8 +643,18 @@ async def run(budget: float) -> dict:
         wk = (datetime.now(timezone.utc).date() - timedelta(days=COOL_DAYS)).isoformat()
         held |= {e["symbol"] for e in book["closed"] if (e.get("closed") or "") > wk and e["last"]["status"] in ("stop", "broken", "profit")}
         plan, skipped = [], []
-        for s, tr in top.items():
+        for s, x in list(opps.items())[:CHART_MAX]:
             if s in held:
+                continue
+            side = "call" if x["side"] == "long" else "put"
+            nw = news.get(s) or {}
+            imp = {"إيجابي": 1, "سلبي": -1}.get(str(nw.get("impact") or ""), 0)
+            if imp and int(nw.get("strength") or 0) >= 2 and (imp > 0) != (side == "call"):
+                skipped.append({"symbol": s, "why": f"فرصةُ الرسم «{x['setup']}» يعاكسها خبرٌ قويّ — لا صفقة"})
+                continue
+            plan.append((s, x["tr"], side, f"اختارها مسحُ الرسم: {x['setup']} ({'شراء' if side == 'call' else 'بيع'})"))
+        for s, tr in top.items():
+            if s in held or s in opps:
                 continue
             side, note = direction(tr, news.get(s))
             if side:
@@ -616,8 +677,10 @@ async def run(budget: float) -> dict:
                 skipped.append({"symbol": s, "min_cost": low, "why": (f"أرخصُ عقد {kind} يستوفي الشروط كلفتُه {low:,.0f} دولار — فوق الميزانية"
                                                                       if low else f"لا عقدَ {kind} طويلَ الأجل يستوفي الشروط (فارقٌ ≤ 10٪ · سيولة · دلتا · هدف)")})
                 return None
-            return {**k, "trend": tr, "news": news.get(s), "note": note}
-        fresh = sorted([x for x in await asyncio.gather(*(one(p) for p in plan)) if x], key=lambda x: -x["score"])
+            return {**k, "trend": tr, "news": news.get(s), "note": note, "chart": opps.get(s), "chart_read": CS.chart_of("us", s)}
+        # الترتيبُ بدرجة العقد وجودةِ فرصة الرسم معاً (ربعُها) — فما اختاره الرسمُ يتقدّم ما تساوى معه عقداً
+        fresh = sorted([x for x in await asyncio.gather(*(one(p) for p in plan)) if x],
+                       key=lambda x: -(x["score"] + (CHART_W * x["chart"]["quality"] if x.get("chart") else 0)))
         for k in fresh:
             if len(book["open"]) >= MAX_OPEN:
                 break
@@ -627,9 +690,11 @@ async def run(budget: float) -> dict:
             book["open"].append({"contract": k["contract"], "symbol": k["symbol"], "name": k.get("name"), "type": k["type"], "strike": k["strike"],
                                  "expiry": k["expiry"], "t": k["t"], "opened": today, "entry_mid": k["mid"], "entry_ask": k["ask"],
                                  "target": k["target"], "target_label": k["target_label"],
-                                 "thesis": {"state": k["trend"]["state"], "close": k["trend"]["close"], "sma200": k["trend"]["sma200"]},
-                                 "card": {**{x: k[x] for x in k if x not in ("trend", "news", "note")},
-                                          "reasons": reasons(k["symbol"], k["trend"], k["news"], k, k["note"])},
+                                 "thesis": {"state": k["trend"]["state"], "close": k["trend"]["close"], "sma200": k["trend"]["sma200"],
+                                            "chart_stop": (k.get("chart") or {}).get("stop"), "chart_setup": (k.get("chart") or {}).get("setup")},
+                                 "card": {**{x: k[x] for x in k if x not in ("trend", "news", "note", "chart", "chart_read")},
+                                          "chart": chart_card(k.get("chart")),
+                                          "reasons": with_chart(reasons(k["symbol"], k["trend"], k["news"], k, k["note"]), k.get("chart"), k.get("chart_read"))},
                                  "last": {"date": today, "mid": k["mid"], "price": k.get("price"), "dte": k["dte"], "status": "hold",
                                           "why": "توصيةٌ جديدة اليوم.", "pl_pct": 0.0}})
         book_save(budget, book)

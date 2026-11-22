@@ -161,13 +161,13 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
     `${label}: ٧ الترندُ بلونيه (الصاعد والهابط) داخل قسم «الترند» في إعدادات D7M، والمنتقي يعرض اللونَ المرسومَ فعلاً — ولكلّ عنصرٍ لونُه في قسمه`,
     `${tr.legend} · ${tr.up}/${tr.upTok} · ${tr.dn}/${tr.dnTok} · ${tr.colors} منتقيات`);
 
-  // ٨ الفيبو: «الكل» أربعَ عشرةَ كتريدنق فيو، و«مختصر» ثلاثة
+  // ٨ الفيبو: «الكل» أربعَ عشرةَ كتريدنق فيو، و«مختصر» ستّة — كلُّ خطّين منطقة (‏D784)
   await page.locator('[role="dialog"][aria-label="إعدادات D7M"] [data-role="fib-mode"] button', { hasText: "الكل" }).click(); await page.waitForTimeout(700);
   const lvAll = await page.evaluate(() => Number(document.querySelector('[data-role="pro-chart"]')?.dataset.lv));
   await page.locator('[role="dialog"][aria-label="إعدادات D7M"] [data-role="fib-mode"] button', { hasText: "مختصر" }).click(); await page.waitForTimeout(700);
   const lvC = await page.evaluate(() => Number(document.querySelector('[data-role="pro-chart"]')?.dataset.lv));
   await page.locator('[role="dialog"][aria-label="إعدادات D7M"] button[aria-label="إغلاق"]').first().click().catch(() => {});
-  say(lvAll === 14 && lvC === 3, `${label}: ٨ مستوياتُ الفيبو في «الكل» أربعَ عشرةَ كتريدنق فيو، وفي «مختصر» ثلاثة`, `${lvAll} · ${lvC}`);
+  say(lvAll === 14 && lvC === 6, `${label}: ٨ مستوياتُ الفيبو في «الكل» أربعَ عشرةَ كتريدنق فيو، وفي «مختصر» ستّة — كلُّ خطّين منطقة (‏D784)`, `${lvAll} · ${lvC}`);
   const over = await page.evaluate(() => document.scrollingElement.scrollWidth - innerWidth);
   say(errs.length === 0 && over <= 1, `${label}: ٩ لا خطأ ولا فيضَ أفقيّ`, errs[0] || `${over}px`);
   await ctx.close();

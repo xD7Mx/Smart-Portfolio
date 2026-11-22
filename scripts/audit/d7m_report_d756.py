@@ -130,10 +130,10 @@ d7 = (FRONT / "src/components/analysis/d7m.ts").read_text(encoding="utf-8")
 panel = (FRONT / "src/components/analysis/D7MPanel.tsx").read_text(encoding="utf-8")
 check('["macd", "MACD"' in pc and 'data-role="pc-eye"' in pc and 'data-role="pc-eye-all"' in pc and "label: fmtPrice(l.price), lx, lpos, lcolor: gold ? C(\"fibGold\") : inkTxt" in pc and "label: `${l.level} (" not in pc
       and 'data-role="pc-candle-colors"' in pc and "st.cfg.chMid" in pc and "trendMajor" in pc and "slice(-300)" in pc
-      and "FIB_HIDDEN = new Set([1.1, 0.618, 0.5])" in d7 and "chMid: false" in d7 and 'fibLabelPos: "above"' in d7   # ‏D772: الرقمُ فوق خطّه كتريدنق فيو
+      and "export const FIB_SIX = [0, -0.1, 0.5, 0.618, 1, 1.1];" in d7 and "FIB_HIDDEN" not in d7 and "chMid: false" in d7 and 'fibLabelPos: "above"' in d7   # ‏D772: الرقمُ فوق خطّه كتريدنق فيو
       and all(k in panel for k in ('k="trendMajor"', 'k="trendMinor"', 'k="chMid"', 'data-role="fib-label-pos"')),
       "٧ الرسم: ‏MACD، وعينُ الإخفاء لكلّ مؤشّرٍ ولها كلِّها، وأسعارُ فيبوناتشي سادةً بلون خطّها بلا نسبة (‏D761) أمام آخر شمعة (فوق/على/تحت)، وألوانُ الشموع، "
-      "و1.1 و0.618 و0.5 مخفيّةٌ من «مختصر» (وتعود في «الكل» — ‏D783)، والاتجاهان الرئيسيّ والفرعيّ وخطُّ منتصف القناة خياراتٌ في الإعدادات")
+      "و«مختصر» ستّةُ خطوطٍ — كلُّ خطّين منطقة: الدعمُ والوسطُ والمقاومة (‏D784 نقض إخفاءَ ‏D756)، والاتجاهان الرئيسيّ والفرعيّ وخطُّ منتصف القناة خياراتٌ في الإعدادات")
 # ٨ ‏D757: تقريرٌ محفوظٌ يُقرأ ويُرسم — كان مخبّأُ الرسم يُحفظ معه فتصير مفاتيحُ مستوياته نصوصاً ويتعطّل الرسمُ في الخادم
 import json as _json   # noqa: E402
 mk = {"daily": day, "tech": {"close": day[-1]["c"], "piv": {}}, "tasi": {"close": day[-1]["c"]}, "breadth": {}}

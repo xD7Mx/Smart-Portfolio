@@ -393,7 +393,8 @@ def read(daily: list[dict], saudi: bool = False, longs_only: bool = False) -> di
     up_cross = k is not None and kd is not None and k1 is not None and d1 is not None and k > kd and k1 <= d1
     dn_cross = k is not None and kd is not None and k1 is not None and d1 is not None and k < kd and k1 >= d1
     where = _where(p, zs)
-    near = lambda z: z["lo"] - 0.25 * atr_ <= p <= z["hi"] + 1.0 * atr_   # noqa: E731
+    near = lambda z: z["lo"] - 0.25 * atr_ <= p <= z["hi"] + 1.0 * atr_   # noqa: E731  — للشراء: ارتدّ صاعداً من المنطقة
+    near_s = lambda z: z["lo"] - 1.0 * atr_ <= p <= z["hi"] + 0.25 * atr_  # noqa: E731  — وللبيع مرآتُه: ارتدّ هابطاً منها (فالحدُّ فوق السعر دائماً)
     cands = []
     # الشراء
     if near(sup) or (T["side"] == "up" and near(mid)):
@@ -412,8 +413,8 @@ def read(daily: list[dict], saudi: bool = False, longs_only: bool = False) -> di
         cands.append(("استمرارٌ بعد تصحيح", "long", mid if near(mid) else sup, 0.7, res["lo"] if res["lo"] > p * 1.02 else p + 3 * atr_, p - 1.5 * atr_))
     # البيع (عقودُ البيع الأمريكية وحدها)
     if not longs_only:
-        if near(res) or (T["side"] == "down" and near(mid)):
-            z = res if near(res) else mid
+        if near_s(res) or (T["side"] == "down" and near_s(mid)):
+            z = res if near_s(res) else mid
             timing = 1.0 if (k is not None and k > 80) or (dn_cross and (k1 or 100) > 65) else 0.6 if k is not None and k > 60 else 0.0
             if timing and not (Lq["side"] == "up" and Lq["strength"] >= 55):
                 nxt = mid if z is res else sup

@@ -53,12 +53,13 @@ check('data-role="d7m-trend"' in pn and '<Color k="trendUp"' in pn and '<Color k
       and "colorDefaults={colorDefaults()}" in pc and 'hexTok(k === "channel" || k === "draw" ? "--brand-ink" : PC[k] || t)' in pc,
       "٣ الترندُ بلونيه (الصاعد والهابط) في قسم «الترند»، ولكلّ عنصرٍ لونُه في قسمه، والمنتقي يعرض اللونَ المرسومَ فعلاً")
 
-# ٤ الفيبو: «الكل» أربعَ عشرة (والثلاثةُ تُخفى من «مختصر» وحده)، وترحيلُ الإعدادات المحفوظة مرّةً
+# ٤ الفيبو: «الكل» أربعَ عشرة، و«مختصر» ستّة — كلُّ خطّين منطقة (‏D784 نقض «الثلاثة» بأمر المالك 2026-11-22)، وترحيلُ الإعدادات المحفوظة مرّةً
 lv = re.search(r"export const FIB_LEVELS: \[number, string\]\[\] = \[([\s\S]*?)\];", d7)
 n_levels = len(re.findall(r"\[-?\d+(?:\.\d+)?, ", lv.group(1))) if lv else 0
-check(n_levels == 14 and "[String(lv), true])) as Record<string, boolean>" in d7 and "(!compact || (SIX.has(lv) && !FIB_HIDDEN.has(lv)))" in pc
-      and "if ((Number(sv.fibV) || 1) < 4)" in pc and "fibV: 4" in pc,
-      "٤ مستوياتُ الفيبو أربعَ عشرة: «الكل» كلُّها كتريدنق فيو، و«مختصر» ثلاثة (0 · −0.1 · 1)، والإعداداتُ المحفوظةُ تُرحَّل مرّةً", f"{n_levels} مستوى")
+check(n_levels == 14 and "[String(lv), true])) as Record<string, boolean>" in d7 and "(!compact || SIX.has(lv))" in pc and "FIB_HIDDEN" not in d7 + pc
+      and "export const FIB_SIX = [0, -0.1, 0.5, 0.618, 1, 1.1];" in d7
+      and "if ((Number(sv.fibV) || 1) < 4)" in pc and "if ((Number(sv.fibV) || 1) < 5)" in pc and "fibV: 5" in pc,
+      "٤ مستوياتُ الفيبو أربعَ عشرة: «الكل» كلُّها كتريدنق فيو، و«مختصر» ستّةٌ — كلُّ خطّين منطقة (‏D784)، والإعداداتُ المحفوظةُ تُرحَّل مرّةً", f"{n_levels} مستوى")
 
 # ٥ الأرقامُ عمودٌ واحد: لا إزاحةَ أفقية، والرقمُ يلامس خطَّه أو ينزل صفّاً خالياً بمِهماز
 seg = ov[ov.index("// ٤ب أرقامُ المستويات"):ov.index("const placedN")]

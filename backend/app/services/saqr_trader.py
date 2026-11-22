@@ -1292,4 +1292,13 @@ def view(market: str = "us") -> dict:
         "runs": st.get("runs") or [], "running": dict(_JOB if market == "us" else _sa_job()),
         "regime": st.get("regime"), "geo": st.get("geo"),
         "rules": _sa_rules() if market == "sa" else _us_rules(st),
+        "opps": _opps(market),                                    # ‏D784: خلاصةُ آخر مسحٍ للرسم (وقتُه وأعدادُه) لعقدة «الفرص»
     }
+
+
+def _opps(market: str) -> dict | None:
+    try:
+        from app.services.chart_scan import summary
+        return summary(market)
+    except Exception:                                             # noqa: BLE001
+        return None

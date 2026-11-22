@@ -386,6 +386,8 @@ async def _review(st: dict, now: datetime, snap: dict, reg: dict | None, g: dict
 
 
 async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) -> dict | None:
+    from app.services import chart_scan as CS
+    from app.services.option_picks import chart_line
     eq = SQ.equity(st)
     frac, seats = tier(eq)
     fac, fac_why = size_factor(reg, g)
@@ -429,15 +431,25 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
             sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "refused",
                         "why": f"أضعفُ من تاسي في ثلاثة أشهر ({tr['ret3m']:+.1f}٪ مقابل {reg['ret3m']:+.1f}٪)"})
             continue
-        score = pre + min(rs3, 30) + min(tr["strength"], 20)
+        # ‏D784 (المالك: «خلِّ صقر يفهم تحليلَ الرسم ويختار بناءً عليه»): لا شراءَ إلا بفرصةٍ في مسح الرسم اليوميّ للسوق كلِّه، وجودتُها
+        # تُرجّح بين المقبولة — وإن لم يُمسح السوقُ بعد (أو قدم المسح) فقواعدُه السابقة وحدها
+        cv, cx = CS.chart_of("sa", sym)
+        if cv in ("flat", "weak", "unread"):
+            sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "refused",
+                        "why": (f"الرسم: لا فرصةَ الآن — السعرُ {cx['where']}" if cv == "flat"
+                                else f"الرسم: «{cx['setup']}» جودتُها {cx['quality']} دون {CS.MIN_Q}" if cv == "weak"
+                                else "الرسم: لم يُقرأ رسمُه في مسح اليوم")})
+            continue
+        score = pre + min(rs3, 30) + min(tr["strength"], 20) + (cx["quality"] / 2 if cv == "opp" else 0)
         ask = row["ask"]
         hi = tr.get("hi52") or 0
         tgt, lbl = (min(hi, ask * 1.25), "قمّة السنة") if hi >= ask * 1.10 else (round(ask * 1.12, 2), "+12٪")
         k = {"contract": sym, "symbol": sym, "name": row.get("name_en"), "type": "stock", "ask": ask, "bid": row.get("bid"), "price": row.get("price"),
              "stop": round(ask * (1 - c["stock_stop"] / 100), 3), "target": round(tgt, 2), "target_label": lbl, "score": round(score, 1), "results": txt, "results_state": stt,
-             "tr": tr, "rs3": rs3, "chg": row.get("change_pct")}
+             "tr": tr, "rs3": rs3, "chg": row.get("change_pct"), "chart": cx if cv == "opp" else None}
         sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "accepted", "contract": sym, "score": k["score"],
-                    "why": f"{txt} · أقوى من تاسي بـ{rs3:+.1f} نقطة في ثلاثة أشهر · فوق متوسّط 50"})
+                    "why": f"{txt} · أقوى من تاسي بـ{rs3:+.1f} نقطة في ثلاثة أشهر · فوق متوسّط 50"
+                           + (f" · الرسم: {cx['setup']} (جودة {cx['quality']} · {cx['horizon']})" if cv == "opp" else "")})
         if best is None or k["score"] > best["score"]:
             best = k
     pos = None
@@ -449,6 +461,7 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
                    (f"، واليوم {reg['chg']:+.1f}٪" if isinstance(reg.get("chg"), (int, float)) else "") + ".",
                    f"النتائج: {best['results']}",
                    f"المسارُ صاعد: الإغلاق {tr['close']:,.2f} فوق متوسّط 50 ({tr['sma50']:,.2f})، وأقوى من تاسي بـ{best['rs3']:+.1f} نقطة في ثلاثة أشهر.",
+                   *([chart_line(best["chart"])] if best.get("chart") else []),
                    f"الأحداث: {g['level']} — {g.get('why') or ''}" if g else "الأحداث: قراءتُها غيرُ متوفّرة الآن.",
                    f"الوقف {best['stop']:.2f} (−{c['stock_stop']:g}٪) والهدف {best['target']:,.2f} ({best['target_label']})." + (f" {fac_why}." if fac_why else "")]
             pos = SQ.buy(st, best, qty, why, kind="stock")

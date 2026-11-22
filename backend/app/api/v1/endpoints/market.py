@@ -2442,6 +2442,32 @@ async def saqr_list_run():
     return success_response({"list": _saqr_list_view(), "job": {**SL.job(), "on": True}})
 
 
+async def _opps_bg(m: str):
+    from app.services import chart_scan as CS
+    try:
+        await CS.scan(m)
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("مسحُ الرسم {}: {}", m, type(e).__name__)
+
+
+@router.get("/saqr/opportunities")
+async def saqr_opportunities(market: str = "sa"):
+    """فرصُ صقر من مسح الرسم اليوميّ للسوق كلِّه (‏D784): كلُّ فرصةٍ بجودتها ومدّتها ومنطقة دخولها وهدفها وحدّها — والتنفيذُ للمالك."""
+    from app.services import chart_scan as CS
+    return success_response(CS.view(_mkt(market)))
+
+
+@router.post("/saqr/opportunities/run", dependencies=[Depends(require_owner)])
+async def saqr_opportunities_run(payload: dict | None = None):
+    """يُمسح السوقُ الآن بأمر المالك (في الخلفية — دقائق)، والقائمةُ تتابع."""
+    from app.services import chart_scan as CS
+    m = _mkt((payload or {}).get("market"))
+    if not CS._JOB[m]["on"]:
+        asyncio.create_task(_opps_bg(m))
+    v = CS.view(m)
+    return success_response({**v, "job": {**v["job"], "on": True}})
+
+
 @router.get("/saqr/quote/{contract}")
 async def saqr_quote(contract: str):
     """طلبُ العقد وعرضُه الآن (‏D778) — لتذكرة الأمر: حيّان في الجلسة، ومن آخر جلسةٍ خارجها (‏live يقول أيّهما)."""

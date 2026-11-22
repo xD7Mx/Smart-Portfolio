@@ -55,6 +55,7 @@ export type SaqrState = {
   broker: { linked: boolean; name: string }; runs: { started: string; ended: string; capital: number; equity: number; trades: number }[];
   running: { on: boolean; msg: string; at: string | null };
   rules: any;
+  opps?: { at: string; universe: number; screened: number; read: number; found: number } | null;   // ‏D784: خلاصةُ آخر مسحٍ للرسم
 };
 
 const hidden = () => typeof document !== "undefined" && document.visibilityState === "hidden";

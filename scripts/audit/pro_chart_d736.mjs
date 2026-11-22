@@ -79,7 +79,11 @@ say(D.tfLong("6h") === "6 ساعات" && D.tfLong("2h") === "ساعتان" && D.
                         ...Dd.map((v, i) => (v == null && ours.d[i] == null ? 0 : v == null || ours.d[i] == null ? 1e9 : Math.abs(v - ours.d[i]))));
   const flat = I.stochRsi(Array(60).fill(50));
   say(diff < 1e-9 && ours.k.findIndex(v => v != null) === 29 && ours.d.findIndex(v => v != null) === 31 && flat.k.every(v => v == null)
-      && JSON.stringify(I.STOCHRSI_DEFAULTS) === JSON.stringify({ k: 3, d: 3, rsiLen: 14, stochLen: 14, src: "close", upper: 80, middle: 50, lower: 20 })
+      // ‏D784: مدخلاتُ السكربت كما هي، ومعها نمطُ المالك (إظهارٌ ولونٌ وسُمكٌ ونوعُ خطٍّ والحدودُ والخلفية) — الافتراضيُّ رسمُ تريدنق فيو نفسُه
+      && JSON.stringify(Object.fromEntries(["k", "d", "rsiLen", "stochLen", "src", "upper", "middle", "lower"].map(x => [x, I.STOCHRSI_DEFAULTS[x]])))
+         === JSON.stringify({ k: 3, d: 3, rsiLen: 14, stochLen: 14, src: "close", upper: 80, middle: 50, lower: 20 })
+      && I.STOCHRSI_DEFAULTS.kOn === true && I.STOCHRSI_DEFAULTS.dOn === true && I.STOCHRSI_DEFAULTS.kColor === "" && I.STOCHRSI_DEFAULTS.kStyle === "solid"
+      && I.STOCHRSI_DEFAULTS.bandStyle === "dashed" && I.STOCHRSI_DEFAULTS.bgOn === true && I.STOCHRSI_DEFAULTS.bgOpacity === 10
       && JSON.stringify(I.stochRsi(I.source(px.map(c => ({ open: c, high: c + 1, low: c - 1, close: c })), "close"), { ...I.STOCHRSI_DEFAULTS, k: 8, d: 8, rsiLen: 14, stochLen: 3 }).k.slice(-1)) !== JSON.stringify(ours.k.slice(-1)),
       "٤ب Stoch RSI بسكربت تريدنق فيو حرفاً: RSI 14 (وايلدر) ← ستوكاستيك 14 ← K 3 · D 3 — أوّلُ قيمةٍ عند الشمعة 30، ومدًى صفريٌّ فراغٌ لا رقم",
       `أكبرُ فرق ${diff.toExponential(1)} · آخرُ K ${ours.k[159].toFixed(4)} · D ${ours.d[159].toFixed(4)}`);
@@ -299,8 +303,8 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await fibMode("الكل");
   const lvAll = Number((await st()).lv);
   await fibMode("مختصر");
-  say(strip.tiles === 2 && strip.old === 0 && strip.h > 0 && strip.h <= 76 && strip.tables === 0 && strip.minF >= 9.5 && lvCompact === 3 && lvAll === 14,
-      `${label}: فوق الرسم لوحتا القوّة (${strip.h}px · ${strip.tiles} لوحتان) بلا جداول ولا الشريطِ القديم، والمستوياتُ مختصرةٌ ثلاثةً (‏D756: 1.1 و0.618 و0.5 مخفيّةٌ منها) `
+  say(strip.tiles === 2 && strip.old === 0 && strip.h > 0 && strip.h <= 76 && strip.tables === 0 && strip.minF >= 9.5 && lvCompact === 6 && lvAll === 14,
+      `${label}: فوق الرسم لوحتا القوّة (${strip.h}px · ${strip.tiles} لوحتان) بلا جداول ولا الشريطِ القديم، والمستوياتُ مختصرةٌ ستّةً — كلُّ خطّين منطقة (‏D784 نقض ثلاثةَ ‏D756) `
       + `و«الكل» ${lvAll} كتريدنق فيو (‏D783: أربعَ عشرة) — والتبديلُ من إعدادات D7M (‏D782)`, `خطٌّ ≥ ${strip.minF}px`);
 
   // ١٢د ‏D756 (المالك 2026-11-16): عينُ الإخفاء تُخفي مستويات D7M وتعيدها، و‏MACD مؤشّرٌ بلوحته وقيمه، وأرقامُ فيبوناتشي حبّاتٌ أمام آخر شمعة

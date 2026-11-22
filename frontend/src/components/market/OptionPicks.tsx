@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Search, RefreshCw, LineChart, Layers, LogOut, ShoppingCart, X } from "lucide-react";
+import { Search, RefreshCw, LineChart, Layers, LogOut, ShoppingCart, X, Crosshair } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import CompanyLogo from "../common/CompanyLogo";
@@ -18,7 +18,8 @@ type Pick = { symbol: string; name?: string; contract: string; type: "call" | "p
   dte: number; expiry: string; breakeven: number; need_pct: number; pop: number; p_touch: number; target: number; target_label: string; rr: number;
   delta: number; iv: number; oi: number; spread_pct: number; spread_usd: number; px_src?: "ask" | "snap"; quote_at?: string | null;
   opened: string; new: boolean; pl_pct: number | null; mid_now: number | null; entry_mid: number; status_why?: string;
-  trend: { state: string }; reasons: string[] };
+  trend: { state: string }; reasons: string[];
+  chart?: { setup: string; side: "long" | "short"; quality: number; horizon: string; where: string } | null };   // ‏D784: فرصةُ الرسم التي اختارته
 type Exit = { contract: string; symbol: string; type: string; opened: string; closed: string; status: string; status_ar: string; why: string; pl_pct: number | null };
 
 const PRESETS = [50, 100, 150, 300];
@@ -112,6 +113,11 @@ export default function OptionPicks() {
                     <p className={"op-state" + (p.new ? " new" : "")} data-role="op-state">
                       {p.new ? "توصيةٌ جديدة اليوم" : <>قائمةٌ منذ {dm(p.opened)}{p.pl_pct != null && <> · <b className={p.pl_pct >= 0 ? "pos" : "neg"}><Num v={`${sg(p.pl_pct)}%`} /></b> منذ الدخول</>} · الأطروحةُ سليمة</>}
                     </p>
+                    {p.chart && (
+                      <p className="op-chart" data-role="op-chart">
+                        <Crosshair size={13} aria-hidden /> اختاره الرسم: <b>{p.chart.setup}</b> · جودة <Num v={`${p.chart.quality}/100`} /> · {p.chart.horizon}
+                      </p>
+                    )}
                     <p className="op-line">
                       <b>{o ? optionTitle(o) : p.contract}</b> · ينتهي {dm(p.expiry)} (<Num v={`${p.dte}`} /> يوماً) · الكلفة <b><Num v={`$${n2(p.cost)}`} /></b>
                       {" "}· الفارق <Num v={`$${Math.round(p.spread_usd)}`} /> (<Num v={`${p.spread_pct.toFixed(0)}%`} />)

@@ -196,7 +196,7 @@ of = (ROOT / "frontend/src/components/saqr/OrderForm.tsx").read_text(encoding="u
 pf = (ROOT / "frontend/src/components/saqr/SaqrPortfolio.tsx").read_text(encoding="utf-8")
 check("SL.kick(" not in src and "job_saqr_list" not in sch   # ‏D779: لا فحصَ للقائمة في الخلفية and '@router.get("/saqr/list")' in mk
       # ‏D778 (المالك): «قائمةُ العقود لا فايدة منها — نكتفي بعقود الخيارات، وفي بطاقتها شراء»: لا تبويبَ للقائمة، والتنفيذُ من بطاقة التوصية
-      and "<SaqrList" not in desk and '!(!sa && k === "signals")' in desk and 'data-role="sq-auto"' in desk and "أوقف التداول الآليّ" in desk
+      and "<SaqrList" not in desk and '!(sa && k === "options")' in desk and '["opps", "الفرص", Crosshair]' in desk and '"signals", "الإشارات"' not in desk and 'data-role="sq-auto"' in desk and "أوقف التداول الآليّ" in desk
       and all(x in opk for x in ('data-role="op-buy"', "<OrderForm contract={p.contract} ask={p.ask} bid={p.bid} />"))
       and all(x in of for x in ('data-role="of-limit"', 'role={`${role}-tp`}', 'role={`${role}-sl`}', '<ExitFields ex={ex} set={setEx} base={ref} role="of" />',
                                 "marketApi.saqrOrder("))   # ‏D777: الجنيُ والوقفُ في «الأمر المرفق» المشترك

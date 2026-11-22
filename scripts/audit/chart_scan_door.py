@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""كاشفُ مسح الرسم (‏D784) على الخادم — قراءةٌ لا تكتب شيئاً:
+"""كاشفُ مسح الرسم (‏D784) على الخادم:
   ١ مستوياتُ «المختصر» الستّة لتاسي من شموعه الحقيقية بحساب الرسم نفسِه (‏chart_tech) — تُقارن بأرقام المالك
      (11486 · 11293 · 10558 · 10330 · 9367 · 9175) على اليوميّ والأسبوعيّ.
   ٢ أيُّ حقول مُصفّي TradingView الفنية تعود للسوقين (اليوميّ و«|1W» الأسبوعيّ و‏MFI/CMF) — قبل البناء عليها.
+  ٤ آخرُ مسحٍ للسوقين في مخزن الحالة (يكتبه الخادمُ بعد الإقلاع وبعد كلّ إغلاق) بأعداده ومدّته وأفضل فرصه — وإن غاب أو قدم يُمسح هنا
+     (فيكتب ملفَّ الفرص وحده: ‏/app/storage/saqr/opps_{sa,us}.json — لا يمسّ محفظةً ولا دفتراً).
 
     docker exec sp_backend python /app/scripts/audit/chart_scan_door.py
 """
@@ -72,5 +74,32 @@ async def main():
         print(f"══ ٣ السوقُ السعوديّ كلُّه من المُصفّي: {got} من {tot}")
     except Exception as e:                                        # noqa: BLE001
         print("══ ٣ تعذّر:", type(e).__name__)
+    # ٤ آخرُ مسحٍ للرسم
+    import time
+    from app.services import chart_scan as CS
+    for m in ("sa", "us"):
+        d = CS.fresh(m, days=1)
+        if not d:
+            print(f"══ ٤ {m}: لا مسحَ حديث — يُمسح الآن")
+            t0 = time.monotonic()
+            try:
+                d = await CS.scan(m)
+            except Exception as e:                                # noqa: BLE001
+                print(f"   تعذّر: {type(e).__name__}: {str(e)[:160]}")
+                continue
+            print(f"   استغرق {time.monotonic() - t0:.0f} ثانية")
+        print(f"══ ٤ {m}: {d.get('at')} · المجال {d.get('universe')} · بدرجة {d.get('screened')} · رسومٌ قُرئت {d.get('read')} · الفرص {d.get('found')}"
+              f" · {d.get('secs')} ث")
+        print("    الأنواع:", json.dumps(d.get("dist") or {}, ensure_ascii=False))
+        hz = {}
+        for x in d.get("items") or []:
+            hz[x["horizon"]] = hz.get(x["horizon"], 0) + 1
+        print("    المدد:", json.dumps(hz, ensure_ascii=False), "· الجهتان:", sum(1 for x in d.get("items") or [] if x["side"] == "long"), "شراء /",
+              sum(1 for x in d.get("items") or [] if x["side"] == "short"), "بيع")
+        for x in (d.get("items") or [])[:12]:
+            print(f"    {x['symbol']:<6} {x.get('name') or '':<22.22} {x['setup']} · {'شراء' if x['side'] == 'long' else 'بيع'} · جودة {x['quality']} · {x['horizon']}"
+                  f" · دخول {x['entry'][0]:.2f}–{x['entry'][1]:.2f} · هدف {x['target']:.2f} · حدّ {x['stop']:.2f} · R:R {x['rr']} · {x['where']}")
+            if x.get("ai"):
+                print(f"           الذكاء ({x['ai'].get('bias')}): {x['ai'].get('headline')}")
 
 asyncio.run(main())

@@ -507,6 +507,8 @@ _node scripts/audit/pulse_d782.mjs || _note "$LINENO"   # ‏D782: حسابُ ل
 _node scripts/audit/chart_d782.mjs || _note "$LINENO"   # ‏D782: اللوحتان، وزرُّ التحليل، والأحداثُ السعوديّة، والإطاراتُ الثلاثة، والشاشاتُ الأربع، وترسُ القوائم
 python3 scripts/audit/chart_d783.py || _note "$LINENO"   # ‏D783: ترسُ القوائم وترتيبُها، والترندُ بلونيه، والفيبو أربعَ عشرة، والأرقامُ عمودٌ واحد
 _node scripts/audit/chart_d783.mjs || _note "$LINENO"   # ‏D783: التسميةُ والحذفُ والترتيبُ من الترس، وترتيبُ العناصر بانزلاق، والترندُ في الإعدادات، وأربعَ عشرةَ مستوىً
+python3 scripts/audit/chart_d784.py || _note "$LINENO"   # ‏D784: «مختصر» ستّة، ومحرّكُ الرسم ومسحُه اليوميّ، وصقرٌ السعوديّ ودفترُ العقود يختاران بالرسم
+_node scripts/audit/chart_d784.mjs || _note "$LINENO"   # ‏D784: مطابقةُ حساب الخادم للواجهة، ونافذةُ Stoch RSI، وتبويبُ «الفرص» للسوقين
 _node scripts/audit/chart_colors_d772.mjs || _note "$LINENO"   # ‏D772: الرسمُ كتريدنق فيو — لوحةٌ سوداءُ وألوانٌ مشبعة، وألوانُ الشموع بيد المالك، وأرقامُ الفيبو على خطوطها
 _node scripts/audit/saqr_d763.mjs || _note "$LINENO"   # ‏D763: المفكرةُ بالتقرير، وتبويباتُ المختبر الثلاثة، والمحفظةُ ولوحةُ صقر في المظهرين
 python3 scripts/audit/research_archive_d749.py || _note "$LINENO"   # ‏D749: أرشيفُ التقارير لجميع الجلسات — كلُّ جلسةٍ بأرقامها هي

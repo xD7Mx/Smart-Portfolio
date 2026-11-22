@@ -3031,12 +3031,14 @@ html.light {
 .d7m-row { display: flex; align-items: center; justify-content: space-between; gap: 8px;
   min-height: 32px; font-size: 13px; }
 .d7m-row input[type="checkbox"] { width: 18px; height: 18px; }
-.d7m-row input[type="number"], .d7m-row select, .d7m-row textarea { background: var(--field);
+.d7m-row input[type="number"], .d7m-row input[type="text"], .d7m-row select, .d7m-row textarea { background: var(--field);
   color: var(--ink); border: 1px solid var(--hairline); border-radius: 6px; padding: 3px 6px; width: 80px; }
+/* ‏D784: حقولُ نافذة المؤشّر نصّيةٌ (أرقامٌ عربيةٌ تُقبل) فلم يشملها تنسيقُ الأرقام — كانت بلا إطارٍ بارتفاع 19.5px؛ وهدفُ اللمس ≥ 32px */
+.d7m-row input[type="number"], .d7m-row input[type="text"], .d7m-row select { min-height: 32px; }
 .d7m-col { grid-column: 1 / -1; flex-direction: column; align-items: stretch; }
 .d7m-col textarea { width: 100%; font-size: 11px; }
 .d7m-colors { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 2px 10px; }
-.d7m-row input[type="color"] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--hairline); border-radius: 6px; background: none; }
+.d7m-row input[type="color"] { width: 36px; height: 32px; padding: 0; border: 1px solid var(--hairline); border-radius: 6px; background: none; }
 .d7m-reset { min-width: 32px; min-height: 32px; color: var(--ink-muted); }
 .d7m-levels { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 0 8px; }
 @media (max-width: 640px) {
@@ -4230,3 +4232,43 @@ html.light {
 .troom-gorder:hover { background: color-mix(in srgb, var(--brand-ink) 9%, transparent); }
 .troom-ord { display: inline-flex; align-items: center; flex: none; animation: fadeUp .18s ease-out both; }
 @media (prefers-reduced-motion: reduce) { .troom-grow, .troom-gorder { transition: none; } .troom-ord { animation: none; } }
+
+/* ══ ‏D784: فرصُ الرسم — مسحُ السوق كلِّه يومياً: كلُّ فرصةٍ بنوعها وجودتها ومدّتها ودخولها وهدفها وحدّها؛ والتنفيذُ للمالك ══ */
+.so h4 { align-items: center; }
+.so-run { margin-inline-start: auto; min-height: 34px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.so-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.so-filters .seg-btn { min-height: 34px; display: inline-flex; align-items: center; gap: 5px; }
+.so-n { font-size: 10.5px; font-weight: 800; color: var(--ink-muted); }
+.so-filters .seg-btn.on .so-n { color: inherit; }
+.so-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 10px; }
+.so-card { border: 1px solid var(--hairline); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+  transition: border-color .2s ease, box-shadow .2s ease; }
+.so-card:hover { border-color: color-mix(in srgb, var(--brand-ink) 40%, var(--hairline)); }
+.so-chips { margin-inline-start: auto; display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.so-hz { font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 7px; white-space: nowrap; color: var(--brand-ink);
+  background: color-mix(in srgb, var(--brand-ink) 12%, transparent); }
+.so-setup { font-size: 13px; color: var(--ink); line-height: 1.6; }
+.so-setup b { font-weight: 800; }
+.so-q { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.so-q > small { font-size: 10.5px; font-weight: 700; color: var(--ink-muted); }
+.so-q > b { font-size: 14px; font-weight: 900; color: var(--ink); }
+.so-q > b small { font-size: 10px; font-weight: 600; }
+.so-q[data-tier="hi"] .sp-bar i { background: var(--pos-ink); }
+.so-q[data-tier="mid"] .sp-bar i { background: var(--brand-ink); }
+.so-q[data-tier="lo"] .sp-bar i { background: var(--warn-ink); }
+.so-card .op-m b { font-size: 12.5px; }
+.so-pos { color: var(--pos-ink) !important; }
+.so-neg { color: var(--neg-ink) !important; }
+.so-pct { font-size: 10.5px; font-weight: 700; }
+.so-lv { font-size: 10.5px; font-weight: 600; color: var(--ink-muted); }
+.so-ind { line-height: 1.7; }
+.so-ai { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border-radius: 10px; font-size: 12px; line-height: 1.7; color: var(--ink);
+  background: color-mix(in srgb, var(--amber-ink) 7%, var(--field)); }
+.so-ai p { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .so-card { transition: none; animation: none; } }
+/* ‏D784: شارةُ فرصة الرسم في بطاقة «عقود الخيارات» */
+.op-chart { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 11.5px; font-weight: 600; line-height: 1.6;
+  color: var(--brand-ink); background: color-mix(in srgb, var(--brand-ink) 9%, transparent); padding: 3px 9px; border-radius: 8px; }
+.op-chart b { font-weight: 800; }
+/* ‏D784: حدودُ Stoch RSI — كلُّ حدٍّ صفٌّ بعرض النافذة: إظهارُه وقيمتُه */
+.sr-band { grid-column: 1 / -1; }

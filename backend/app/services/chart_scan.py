@@ -1,0 +1,312 @@
+"""مسحُ الرسم للسوق كلِّه — فرصُ صقر من قراءة الرسم (‏D784 · بأمر المالك 2026-11-22).
+
+قال المالك: «خلِّ صقر يفهم تحليلَ الرسم ويبدأ يختار بناءً عليه — الأمريكيُّ والسعوديّ… فائدتُه أنه يُظهر الفرص وأنا أختار… يحلّل الرسمَ لكامل
+السوق الأمريكي ولكامل السوق السعودي فيُظهر الفرص، ويعرف جودةَ الفرصة لمدّة كم: بعد شهر، بعد شهرين، حتى الربع القادم… بشكلٍ يوميّ يصيد المتغيّرات
+ويُطلع لي قائمة… وفي السوق السعودي بدلَ الإشارات الفرص؛ والأمريكيُّ عقودُ الخيارات».
+
+ثلاثُ مراحل كلَّ يوم لكلّ سوق (قِيس على الخادم 2026-11-22: المُصفّي يعيد السوقَ السعوديَّ كلَّه 389 من 389 بنداءٍ واحد، وكلُّ الحقول الفنية حاضرة):
+  ١ السوقُ كلُّه بنداءٍ واحدٍ إلى مُصفّي TradingView: المسارُ (المتوسّطات · ‏±DI) والسيولةُ (‏CMF · ‏MFI · الحجمُ النسبيّ) والتوقيتُ (‏Stoch RSI
+     يوميّاً وأسبوعيّاً) ⇐ درجةٌ أوّلية لكلّ شركة — في المجال وحده: السعوديُّ الرئيسيُّ غيرُ الموقوف، والأمريكيُّ ما له عقودُ خياراتٍ واجتاز الأساس.
+  ٢ رسومُ السوق السعوديّ الرئيسيّ كلِّه، وأعلى الأمريكيّ درجةً (حصّةُ ياهو اليومية)، تُقرأ بشموعها اليومية بحساب الرسم نفسِه (‏chart_tech):
+     المناطقُ الثلاث، ولوحتا الاتجاه والسيولة، وStoch RSI ⇐ الفرصةُ وجودتُها ومدّتُها ودخولُها وهدفُها ووقفُها.
+  ٣ أفضلُها يقرؤها الذكاءُ قراءةَ «تحليل الرسم» نفسَها (‏chart_read) — محروسةً: لا رقمَ إلّا من الرسم.
+ولا ينفّذ المسحُ شيئاً: القائمةُ للمالك يختار منها (وصقرٌ السعوديُّ يشتري ما يشتريه بعدها بقواعده، والأمريكيُّ دفترُ «عقود الخيارات» يبدأ بها)."""
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import time
+from datetime import datetime, timedelta, timezone
+
+from loguru import logger
+
+MIN_Q = 50            # أدنى جودةٍ تُعرض فيها فرصة (من 100)
+KEEP = 40             # ما يُحفظ من الفرص لكلّ سوق
+DEEP = {"sa": 300, "us": 150}  # ما تُقرأ رسومُه بشموعه بعد الدرجة الأوّلية: السعوديُّ الرئيسيُّ كلُّه، والأمريكيُّ أعلاه درجةً (حصّةُ ياهو)
+AI_TOP = 6            # ما يقرؤه الذكاءُ من أفضلها
+CONC = 6
+TECH = ["name", "description", "close", "change", "Value.Traded", "SMA50", "SMA200", "EMA20", "ADX", "ADX+DI", "ADX-DI", "RSI", "Stoch.RSI.K",
+        "Stoch.RSI.D", "Stoch.RSI.K|1W", "RSI|1W", "ChaikinMoneyFlow", "MoneyFlow", "relative_volume_10d_calc", "Perf.1M", "Perf.3M",
+        "price_52_week_high", "price_52_week_low"]
+_JOB: dict[str, dict] = {m: {"on": False, "msg": "", "at": None} for m in ("us", "sa")}
+
+
+def _n(v) -> float | None:
+    return float(v) if isinstance(v, (int, float)) else None
+
+
+# ── ١ الدرجةُ الأوّلية من حقول المُصفّي (بلا شموع) ─────────────────────────────────────────────────────
+def pre_score(row: dict, side: str = "long") -> float | None:
+    """درجةٌ أوّليةٌ للفرصة من حقول المُصفّي: المسارُ (أربعةُ شواهد × 6) والسيولةُ (ثلاثة × 6) وتوقيتُ Stoch RSI (‏+12 · −10) والأسبوعيّ (‏+10) —
+    للشراء أو للبيع؛ و‏None إن غابت الحقول."""
+    c, s50, s200, e20, pdi, mdi = (_n(row.get(k)) for k in ("close", "SMA50", "SMA200", "EMA20", "ADX+DI", "ADX-DI"))
+    if None in (c, s50, s200, e20, pdi, mdi):
+        return None
+    lng = side == "long"
+    t = sum([c > s50, s50 > s200, e20 > s50, pdi > mdi]) if lng else sum([c < s50, s50 < s200, e20 < s50, mdi > pdi])
+    cmf, mfi, rv = _n(row.get("ChaikinMoneyFlow")), _n(row.get("MoneyFlow")), _n(row.get("relative_volume_10d_calc"))
+    liq = sum([cmf is not None and (cmf > 0 if lng else cmf < 0), mfi is not None and ((40 <= mfi <= 80) if lng else (20 <= mfi <= 60)),
+               rv is not None and rv >= 1])
+    k, d, kw, rw = (_n(row.get(x)) for x in ("Stoch.RSI.K", "Stoch.RSI.D", "Stoch.RSI.K|1W", "RSI|1W"))
+    timing = 0
+    if k is not None and d is not None:
+        if (lng and (k < 30 or (k > d and k < 50))) or (not lng and (k > 70 or (k < d and k > 50))):
+            timing = 12
+        elif (lng and k > 85) or (not lng and k < 15):
+            timing = -10
+    wk = (5 if kw is not None and ((kw < 80) if lng else (kw > 20)) else 0) + (5 if rw is not None and ((rw > 50) if lng else (rw < 50)) else 0)
+    return t * 6 + liq * 6 + timing + wk
+
+
+def _tv_blocking(market: str) -> list[dict]:
+    from curl_cffi import requests as cr
+    if market == "sa":
+        flt = [{"left": "type", "operation": "in_range", "right": ["stock"]}]
+    else:
+        flt = [{"left": "exchange", "operation": "in_range", "right": ["NASDAQ", "NYSE", "AMEX"]}, {"left": "close", "operation": "greater", "right": 5},
+               {"left": "average_volume_10d_calc", "operation": "greater", "right": 300_000}, {"left": "type", "operation": "in_range", "right": ["stock", "fund"]}]
+    body = {"filter": flt, "columns": TECH, "sort": {"sortBy": "Value.Traded", "sortOrder": "desc"}, "range": [0, 6000]}
+    with cr.Session(impersonate="chrome") as s:
+        r = s.post(f"https://scanner.tradingview.com/{'ksa' if market == 'sa' else 'america'}/scan", data=json.dumps(body), timeout=25,
+                   headers={"Content-Type": "application/json", "Origin": "https://www.tradingview.com", "Referer": "https://www.tradingview.com/"})
+    if r.status_code != 200:
+        return []
+    return [{**dict(zip(TECH, row.get("d") or [])), "_s": row.get("s")} for row in (json.loads(r.text or "{}").get("data") or [])]
+
+
+async def market_rows(market: str) -> list[dict]:
+    try:
+        return await asyncio.to_thread(_tv_blocking, market)
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("مسحُ الرسم/المُصفّي {}: {}", market, type(e).__name__)
+        return []
+
+
+async def universe(market: str, rows: list[dict]) -> dict[str, dict]:
+    """{رمز: صفّ} في مجال صقر: السعوديُّ الرئيسيُّ غيرُ الموقوف ولا الصندوق، والأمريكيُّ ما له عقودٌ واجتاز الأساس (‏saqr_universe) — وإن
+    تعذّر مجالُ الأمريكيّ فالسوقُ السائلُ كلُّه."""
+    out: dict[str, dict] = {}
+    if market == "sa":
+        from app.data.saudi_directory import SUSPENDED
+        from app.services.saqr_sa import main_company
+        for r in rows:
+            s = str(r.get("name") or "").strip()
+            if not (s.isdigit() and len(s) == 4):                 # الرمزُ من «TADAWUL:2222» إن لم يأتِ الاسمُ رمزاً
+                s = str(r.get("_s") or "").split(":")[-1].strip()
+            if s.isdigit() and len(s) == 4 and main_company(s) and s not in SUSPENDED:
+                out[s] = r
+        return out
+    from app.services.saqr_universe import canon, universe as U
+    try:
+        u = await U()
+        ok = set(u.get("tr") or {})
+    except Exception:                                             # noqa: BLE001
+        ok = set()
+    for r in rows:
+        s = canon(r.get("name"))
+        if s and (not ok or s in ok):
+            out[s] = r
+    return out
+
+
+# ── ٢ القراءةُ العميقة بالشموع ────────────────────────────────────────────────────────────────────
+async def deep(sym: str, market: str) -> tuple[dict | None, list[dict]]:
+    from app.services import chart_tech as T
+    from app.services.market_data import market_service as M
+    try:
+        bars = T.clean(await asyncio.wait_for(M.daily_base(f"{sym}.SR" if market == "sa" else sym, "2y"), 30))
+    except Exception:                                             # noqa: BLE001
+        return None, []
+    if len(bars) < 60:
+        return None, bars
+    return T.read(bars, saudi=market == "sa", longs_only=market == "sa"), bars
+
+
+def item(sym: str, name: str | None, r: dict, bars: list[dict], market: str) -> dict:
+    """سطرُ الفرصة كما يُعرض ويُحفظ — بلا شواهدَ مفصّلة (أسبابُها جملٌ قصيرة)."""
+    from app.services import option_picks as OP
+    T_, L_ = r["trend"], r["liq"] or {}
+    out = {"symbol": sym, "name": name, "setup": r["setup"], "side": r["side"], "quality": r["quality"], "horizon": r["horizon"], "horizon_n": r["horizon_n"],
+           "entry": r["entry"], "target": r["target"], "stop": r["stop"], "rr": r["rr"], "zone": r["zone"], "where": r["where"], "close": round(r["close"], 4),
+           "trend": {"word": T_["word"], "level": T_["level"], "strength": T_["strength"]},
+           "liq": {"word": L_.get("word"), "level": L_.get("level"), "strength": L_.get("strength"), "tag": L_.get("tag")},
+           "k": None if r.get("k") is None else round(r["k"], 1), "rsi": None if r.get("rsi") is None else round(r["rsi"], 1),
+           "weekly": (r.get("weekly") or {}).get("word"), "reasons": r.get("reasons") or [],
+           "zones": [{"name": z["name"], "lo": round(z["lo"], 4), "hi": round(z["hi"], 4)} for z in r["zones"]]}
+    if market == "us":
+        tr = OP.trend_of(bars)                                    # مسارُ دفتر «عقود الخيارات» نفسُه — ليبني عليه عقدَه بلا جلبٍ ثانٍ
+        if tr:
+            out["tr"] = tr
+    return out
+
+
+# ── ٣ قراءةُ الذكاء لأفضلها ────────────────────────────────────────────────────────────────────────
+def snapshot(sym: str, name: str | None, market: str, bars: list[dict]) -> dict:
+    """لقطةُ «تحليل الرسم» من الخادم: اليوميُّ والأسبوعيّ بشموعهما (120 لكلٍّ) ومستوياتِ المناطق الثلاث والقممِ والقيعان وStoch RSI وRSI واللوحتين."""
+    from app.services import chart_tech as T
+
+    def fr(b: list[dict], tf: str, tf_ar: str) -> dict | None:
+        if len(b) < 30:
+            return None
+        f = T.frame(b)
+        if not f:
+            return None
+        r4 = lambda v: None if v is None else round(float(v), 4 if abs(float(v)) < 1 else 2)   # noqa: E731
+        lv = []
+        for z in f["zones"] or []:
+            for x in z["levels"]:
+                lv.append({"kind": "fib", "label": f"فيبوناتشي {x} — منطقة {z['name']}", "price": r4(f["fib"]["lines"][x])})
+        for p in T.zigzag(b, 3, 7)[-6:]:
+            lv.append({"kind": "swing", "label": "قمّة" if p["high"] else "قاع", "price": r4(p["price"])})
+        fz = lambda x: None if not x else {"word": x["word"], "level": x.get("level"), "strength": x.get("strength"), "stat": x.get("stat")}   # noqa: E731
+        return {"tf": tf, "tf_ar": tf_ar, "price": r4(b[-1]["close"]),
+                "bars": [[x["date"][:10], r4(x["open"]), r4(x["high"]), r4(x["low"]), r4(x["close"]), round(x.get("volume") or 0)] for x in b[-120:]],
+                "ind": {"Stoch RSI": {"k": r4(f["k"]), "d": r4(f["d"]), "overbought": 80, "oversold": 20}, "RSI": r4(f["rsi"])},
+                "levels": [x for x in lv if x["price"] is not None], "shown": ["d7m", "stochrsi", "rsi", "volume"],
+                "force": {"trend": fz(f["trend"]), "liquidity": fz(f["liq"])}}
+    frames = [x for x in (fr(bars, "1d", "يوم"), fr(T.weekly(bars, market == "sa"), "1wk", "أسبوع")) if x]
+    return {"symbol": sym, "name": name or "", "market": market, "frames": frames}
+
+
+async def ai_read(sym: str, name: str | None, market: str, bars: list[dict]) -> dict | None:
+    from app.services.chart_read import read
+    snap = snapshot(sym, name, market, bars)
+    if not snap["frames"]:
+        return None
+    try:
+        out = await read(snap)
+    except Exception as e:                                        # noqa: BLE001
+        logger.debug("مسحُ الرسم/الذكاء {}: {}", sym, type(e).__name__)
+        return None
+    if not out.get("ok"):
+        return None
+    rd = out["reading"]
+    return {k: rd.get(k) for k in ("bias", "headline", "buy", "sell", "invalid", "risk")}
+
+
+# ── الحفظُ والقراءة ──────────────────────────────────────────────────────────────────────────────
+def _path(market: str) -> str:
+    d = os.path.join(os.environ.get("SP_STATE_DIR", "/app/storage"), "saqr")
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, f"opps_{market}.json")
+
+
+def load(market: str) -> dict | None:
+    try:
+        with open(_path(market), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:                                             # noqa: BLE001
+        return None
+
+
+def save(market: str, data: dict) -> None:
+    p = _path(market)
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    os.replace(tmp, p)
+
+
+def fresh(market: str, days: int = 4) -> dict | None:
+    """مسحُ السوق إن كان حديثاً (أربعةُ أيامٍ تغطّي العطلةَ الأسبوعية) — وإلّا None."""
+    d = load(market)
+    if not d or not d.get("at"):
+        return None
+    try:
+        at = datetime.fromisoformat(d["at"])
+    except ValueError:
+        return None
+    return d if datetime.now(timezone.utc) - at <= timedelta(days=days) else None
+
+
+def lookup(market: str, sym: str) -> dict | None:
+    d = fresh(market)
+    return next((x for x in (d or {}).get("items") or [] if x["symbol"] == sym), None)
+
+
+def chart_of(market: str, sym: str) -> tuple[str, dict | None]:
+    """حكمُ الرسم على سهمٍ لصقر: ‏("none", None) لا مسحَ حديث (فقواعدُه السابقة وحدها) · ‏("opp", فرصة) · ‏("weak", قراءة) فرصةٌ دون الجودة ·
+    ‏("flat", قراءة) لا فرصةَ في الرسم · ‏("unread", None) لم يُقرأ رسمُه في المسح (درجتُه الأوّليةُ دون غيره)."""
+    d = fresh(market)
+    if not d:
+        return "none", None
+    x = next((x for x in d.get("items") or [] if x["symbol"] == sym), None)
+    if x:
+        return "opp", x
+    r = (d.get("reads") or {}).get(sym)
+    if not r:
+        return "unread", None
+    return ("weak" if r.get("setup") else "flat"), r
+
+
+def summary(market: str) -> dict | None:
+    """خلاصةُ آخر مسحٍ للوحة صقر: وقتُه وأعدادُه — بلا القائمة."""
+    d = load(market)
+    return {k: d.get(k) for k in ("at", "universe", "screened", "read", "found")} if d and d.get("at") else None
+
+
+# ── المسح ─────────────────────────────────────────────────────────────────────────────────────────
+async def scan(market: str, ai: bool = True) -> dict:
+    """مسحُ السوق كلِّه (‏us · sa) ⇐ ‏{market, at, universe, read, found, items, dist} محفوظاً — ولا ينفّذ شيئاً."""
+    from app.data.saudi_directory import name_of
+    from app.services.usage_tracker import background
+    market = "sa" if market == "sa" else "us"
+    job = _JOB[market]
+    if job["on"]:
+        return load(market) or {}
+    job.update(on=True, msg="قراءةُ السوق كلِّه من المُصفّي", at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    t0 = time.monotonic()
+    try:
+        with background():
+            rows = await market_rows(market)
+            uni = await universe(market, rows)
+            sides = ("long",) if market == "sa" else ("long", "short")
+            ranked: dict[str, float] = {}
+            for s, r in uni.items():
+                sc = max((x for x in (pre_score(r, sd) for sd in sides) if x is not None), default=None)
+                if sc is not None:
+                    ranked[s] = sc
+            pool = sorted(ranked, key=lambda s: -ranked[s])[:DEEP[market]]
+            job["msg"] = f"قراءةُ رسوم {len(pool)} شركةً بشموعها"
+            sem = asyncio.Semaphore(CONC)
+            got: dict[str, tuple] = {}
+
+            async def one(s):
+                async with sem:
+                    got[s] = await deep(s, market)
+            await asyncio.gather(*(one(s) for s in pool))
+            items, kept_bars, reads = [], {}, {}
+            for s in pool:
+                r, bars = got.get(s, (None, []))
+                if r is not None:                                 # قراءةُ كلّ رسمٍ قُرئ — ليقول صقرٌ لماذا لم يختر سهماً
+                    reads[s] = {"setup": r.get("setup"), "quality": r.get("quality"), "side": r.get("side"), "where": r.get("where")}
+                if not r or not r.get("setup") or r["quality"] < MIN_Q:
+                    continue
+                row = uni.get(s) or {}
+                items.append(item(s, (name_of(s) if market == "sa" else None) or row.get("description") or row.get("name"), r, bars, market))
+                kept_bars[s] = bars
+            items.sort(key=lambda x: (-x["quality"], -x["horizon_n"]))
+            items = items[:KEEP]
+            if ai:
+                job["msg"] = "الذكاءُ يقرأ أفضلَ الرسوم"
+                for x in items[:AI_TOP]:
+                    x["ai"] = await ai_read(x["symbol"], x["name"], market, kept_bars.get(x["symbol"]) or [])
+            dist: dict[str, int] = {}
+            for x in items:
+                dist[x["setup"]] = dist.get(x["setup"], 0) + 1
+            data = {"market": market, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "universe": len(uni), "screened": len(ranked),
+                    "read": len(reads), "found": len(items), "items": items, "dist": dist, "min_q": MIN_Q, "reads": reads,
+                    "secs": round(time.monotonic() - t0, 1)}
+            if uni:                                               # مسحٌ بلا مجالٍ (تعذّرُ المُصفّي) لا يمحو مسحاً سابقاً
+                save(market, data)
+            return data
+    finally:
+        job.update(on=False, msg="")
+
+
+def view(market: str) -> dict:
+    """القائمةُ للواجهة — بلا قراءات ما لم يُختر (تبقى في الخادم لأسباب صقر)."""
+    m = "sa" if market == "sa" else "us"
+    d = load(m) or {}
+    return {**{k: v for k, v in d.items() if k != "reads"}, "job": dict(_JOB[m])}

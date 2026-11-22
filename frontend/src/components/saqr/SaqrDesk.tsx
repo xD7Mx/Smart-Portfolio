@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Radar, ShieldCheck, Cpu, ShieldAlert, Target, Newspaper, Sparkles, Play, Pause, RefreshCw,
-  LayoutDashboard, Activity, ScrollText, SlidersHorizontal, ArrowDownRight, ArrowUpRight, Info, BellRing, Hand, LineChart, FileText, Filter, BarChart3, Check, Flame, Wallet, Layers } from "lucide-react";
+  LayoutDashboard, Crosshair, ScrollText, SlidersHorizontal, ArrowDownRight, ArrowUpRight, Info, BellRing, Hand, LineChart, FileText, Filter, BarChart3, Check, Flame, Wallet, Layers } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { useLive, useSessions } from "../chart/LiveQuote";
@@ -16,11 +16,13 @@ import MarketSwitch from "./MarketSwitch";
 import SaqrEmblem from "./SaqrEmblem";
 import SaqrPortfolio from "./SaqrPortfolio";
 import OptionPicks from "../market/OptionPicks";
+import SaqrOpps from "./SaqrOpps";
 
 const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="ltr" className={"tabular-nums " + (className || "")}>{v}</bdi>;
-type Tab = "dash" | "portfolio" | "signals" | "options" | "log" | "rules";
+type Tab = "dash" | "portfolio" | "opps" | "options" | "log" | "rules";
 /* ‏D769 (المالك): «المحفظةُ داخل صقر — بجانب لوحة المعلومات والسجل»؛ و‏D777: «خلِّ عقود الخيارات داخل صقر» — للسوق الأمريكيّ */
-const TABS: [Tab, string, any][] = [["dash", "لوحة المتابعة", LayoutDashboard], ["portfolio", "المحفظة", Wallet], ["signals", "الإشارات", Activity],
+/* ‏D784 (المالك): «في السوق السعوديّ بدلَ الإشارات الفرص» — و«يُطلع لي قائمة، سواءٌ السوقُ الأمريكيّ أو السعوديّ»: فرصُ مسح الرسم للسوقين */
+const TABS: [Tab, string, any][] = [["dash", "لوحة المتابعة", LayoutDashboard], ["portfolio", "المحفظة", Wallet], ["opps", "الفرص", Crosshair],
   ["options", "عقود الخيارات", Layers], ["log", "السجل", ScrollText], ["rules", "الإعدادات", SlidersHorizontal]];
 type NState = "ok" | "warn" | "off";
 
@@ -43,8 +45,8 @@ function nodes(s: SaqrState, sesOpen: boolean): { k: string; t: string; d: React
     const tasi = r ? `${r.verdict}${r.chg != null ? ` · ${r.chg > 0 ? "+" : ""}${r.chg.toFixed(1)}%` : ""}` : "غير متوفّر";
     const br = pu ? pu.adv / Math.max(1, pu.adv + pu.dec) : null;
     return [
-      { k: "signals", t: "الإشارات", d: s.scan ? <><Num v={`${s.scan.universe}`} /> شركة</> : "لم يمسح بعد", tip: s.scan ? `${s.scan.universe} شركة` : "لم يمسح بعد",
-        st: s.scan && scanAge < 90 ? "ok" : sesOpen ? "warn" : "off", icon: Radar },
+      { k: "opps", t: "الفرص", d: s.opps ? <><Num v={`${s.opps.found}`} /> فرصة</> : "لم يمسح بعد",
+        tip: s.opps ? `${s.opps.found} فرصةً من رسوم ${s.opps.read} شركة` : "لم يُمسح السوقُ بعد", st: s.opps && ago(s.opps.at) < 4 * 1440 ? "ok" : "off", icon: Crosshair },
       { k: "results", t: "النتائج الربعية", d: pu ? <><Num v={`${pu.results.strong}`} /> قوية · <Num v={`${pu.results.weak}`} /> مخيّبة</> : <>نموّ ≥ <Num v={`${s.rules.growth}%`} /></>,
         tip: `نموُّ صافي الربح ≥ ${s.rules.growth}%`, st: "ok", icon: FileText },
       { k: "tasi", t: "مؤشّر تاسي", d: tasi, tip: tasi, st: !r ? "off" : r.verdict === "هابط" ? "warn" : "ok", icon: LineChart },
@@ -322,8 +324,8 @@ export default function SaqrDesk() {
   const sesOpen = ses?.state === "open";
   const usd = money(s?.ccy), susd = smoney(s?.ccy);
   const [tab0, setTab] = useState<Tab>(() => { try { return (localStorage.getItem("sp_saqr_tab") as Tab) || "dash"; } catch { return "dash"; } });
-  // عقودُ الخيارات للسوق الأمريكيّ وحده؛ و«الإشارات» للسعوديّ وحده (‏D778: «قائمةُ العقود لا فايدة منها — نكتفي بعقود الخيارات»)
-  const tab: Tab = sa && tab0 === "options" ? "dash" : !sa && tab0 === "signals" ? "options" : tab0;
+  // عقودُ الخيارات للسوق الأمريكيّ وحده (‏D778)، و«الفرص» للسوقين (‏D784 — وكانت «الإشارات» للسعوديّ وحده فتُقرأ «الفرص»)
+  const tab: Tab = sa && tab0 === "options" ? "dash" : (tab0 as string) === "signals" ? "opps" : tab0;
   const pick = (t: Tab) => { setTab(t); try { localStorage.setItem("sp_saqr_tab", t); } catch { /* */ } };
   const toggle = useMutation({ mutationFn: (on: boolean) => marketApi.saqrToggle(on, market), onSuccess: r => qc.setQueryData(["saqr", market], r.data.data) });
   /* ‏D771 (المالك): «زرٌّ أوقف التداولَ الآليّ — وهو يطلع العقودَ ويشتغل مثل السكرتير»: الأمريكيُّ ينفّذ أوامرَ المالك، وآلياً من قائمته إن شغّله */
@@ -333,7 +335,7 @@ export default function SaqrDesk() {
   const sw = <MarketSwitch value={market} onChange={setMarket} />;
   const nav = (
     <nav className="seg inline-flex sq-nav" role="tablist" aria-label="صقر" data-role="sq-nav">
-      {TABS.filter(([k]) => !(sa && k === "options") && !(!sa && k === "signals")).map(([k, t, I]) => (
+      {TABS.filter(([k]) => !(sa && k === "options")).map(([k, t, I]) => (
         <button key={k} type="button" role="tab" aria-selected={tab === k} className={"seg-btn chip" + (tab === k ? " on" : "")} onClick={() => pick(k)} data-view={k}>
           <I size={14} /> {t}
         </button>
@@ -342,7 +344,8 @@ export default function SaqrDesk() {
   );
   // ‏D777: عقودُ الخيارات لا تنتظر حالَ صقر — تُفتح فوراً
   if (!s || !Array.isArray(s.positions)) return (
-    <div className="sq" data-role="sq">{sw}{nav}{tab === "options" ? <div key="options" className="sq-pane"><OptionPicks /></div> : <div className="h-60 skeleton rounded-xl" />}</div>
+    <div className="sq" data-role="sq">{sw}{nav}{tab === "options" ? <div key="options" className="sq-pane"><OptionPicks /></div>
+      : tab === "opps" ? <div key="opps" className="sq-pane"><SaqrOpps market={market} /></div> : <div className="h-60 skeleton rounded-xl" />}</div>
   );
   const unreal = s.positions.reduce((a, p) => a + p.pl, 0);
   const busy = s.running?.on || run.isPending;
@@ -443,37 +446,42 @@ export default function SaqrDesk() {
         )}
 
 
-        {tab === "signals" && sa && (
-          <div className="sq-card card card-rise" data-role="sq-signals">
-            <h4>إشاراتُ آخر مسح {s.scan?.at && <span className="sq-muted"><Num v={`${dday(s.scan.at)} ${hhmm(s.scan.at)}`} /></span>}</h4>
+        {tab === "opps" && <SaqrOpps market={market} />}
+        {tab === "opps" && sa && (
+          <details className="robo-held sq-card card" data-role="sq-signals">
+            <summary><span>قراراتُ صقر في آخر دورة {s.scan?.at && <span className="sq-muted"><Num v={`${dday(s.scan.at)} ${hhmm(s.scan.at)}`} /></span>}
+              {s.signals.length > 0 && <> (<Num v={`${s.signals.length}`} />)</>}</span></summary>
             {s.scan && (
-              <p className="sq-muted" data-role="sq-scan">{sa
-                ? <>قرأ <Num v={`${s.scan.universe}`} /> شركة · اجتاز السيولةَ والنتائج <Num v={`${s.scan.pool}`} /> · فحص مسارَ <Num v={`${s.scan.deep}`} /> · ميزانيةُ الصفقة <Num v={usd(s.scan.budget)} /></>
-                : s.scan.full && !s.scan.full.fallback
-                  ? <>قرأ <Num v={`${s.scan.full.optionable}`} /> ورقةً لها عقودُ خيارات (من دليل سيبوي) · اجتاز الأساسَ <Num v={`${s.scan.full.passed}`} /> ·
-                    رشّح <Num v={`${s.scan.pool}`} /> · فحص عقودَ <Num v={`${s.scan.deep}`} /> · ميزانيةُ الصفقة <Num v={usd(s.scan.budget)} /></>
-                  : <>قرأ <Num v={`${s.scan.universe}`} /> رمزاً (منها <Num v={`${s.scan.movers}`} /> من الأنشط اليوم) · رشّح <Num v={`${s.scan.pool}`} /> ·
-                    فحص عقودَ <Num v={`${s.scan.deep}`} /> · ميزانيةُ الصفقة <Num v={usd(s.scan.budget)} /></>}</p>
+              <p className="sq-muted" data-role="sq-scan">قرأ <Num v={`${s.scan.universe}`} /> شركة · اجتاز السيولةَ والنتائج <Num v={`${s.scan.pool}`} /> · فحص مسارَ <Num v={`${s.scan.deep}`} />
+                {" "}ورسمَه · ميزانيةُ الصفقة <Num v={usd(s.scan.budget)} /></p>
             )}
-            {!sa && s.scan?.full?.excluded && Object.keys(s.scan.full.excluded).length > 0 && (
-              <details className="robo-held" data-role="sq-fund">
-                <summary><span>الفرزُ الأساسيّ قبل الفنّ — استُبعد <Num v={`${Object.values(s.scan.full.excluded as Record<string, number>).reduce((a, b) => a + b, 0)}`} /></span></summary>
-                <ul>{Object.entries(s.scan.full.excluded as Record<string, number>).map(([k, n]) => <li key={k}>{k}: <b><Num v={`${n}`} /></b></li>)}</ul>
-              </details>
-            )}
-            {s.signals.length === 0 ? <p className="sq-muted">لم يمسح صقرٌ السوقَ بعد — يمسح في الجلسة الرسمية كلَّ عشرين دقيقة.</p> : (
+            {s.signals.length === 0 ? <p className="sq-muted">لم يصطد صقرٌ بعد — يصطاد في الجلسة الرسمية كلَّ عشرين دقيقة من الفرص وقواعده.</p> : (
               <ul className="sq-sig">
                 {s.signals.map((g, i) => (
                   <li key={g.sym + i} data-role="sq-signal" data-verdict={g.verdict} style={{ animationDelay: `${i * 25}ms` }}>
                     <span className={"sq-v v-" + g.verdict}>{g.verdict === "chosen" ? "نُفّذ" : g.verdict === "accepted" ? "مقبول" : "مرفوض"}</span>
                     <b><Num v={g.sym} />{g.name ? <small className="sq-muted"> {g.name}</small> : null}</b>
-                    {g.side && <span className="sp-side" data-side={g.side}>{g.side === "call" ? "Call" : "Put"}</span>}
                     <span className="sq-why">{g.why}</span>
                   </li>
                 ))}
               </ul>
             )}
-          </div>
+          </details>
+        )}
+
+        {/* ‏D766: مجالُ صقر الأمريكيّ — كم ورقةً لها عقودٌ قرأ وكم اجتاز الأساس، والمستبعَدُ بأسبابه (كان في «الإشارات» المخفيّة عن الأمريكيّ منذ D778) */}
+        {tab === "opps" && !sa && s.scan?.full && !s.scan.full.fallback && (
+          <details className="robo-held sq-card card" data-role="sq-universe">
+            <summary><span>مجالُ صقر الأمريكيّ {s.scan.at && <span className="sq-muted"><Num v={`${dday(s.scan.at)} ${hhmm(s.scan.at)}`} /></span>}</span></summary>
+            <p className="sq-muted" data-role="sq-scan">قرأ <Num v={`${s.scan.full.optionable ?? 0}`} /> ورقةً لها عقودُ خيارات (من دليل سيبوي) · اجتاز الأساسَ <Num v={`${s.scan.full.passed ?? 0}`} /> ·
+              رشّح <Num v={`${s.scan.pool}`} /> · فحص عقودَ <Num v={`${s.scan.deep}`} /></p>
+            {s.scan.full.excluded && Object.keys(s.scan.full.excluded).length > 0 && (
+              <details className="robo-held" data-role="sq-fund">
+                <summary><span>الأساسُ قبل الفنّ — استُبعد <Num v={`${Object.values(s.scan.full.excluded as Record<string, number>).reduce((a, b) => a + b, 0)}`} /></span></summary>
+                <ul>{Object.entries(s.scan.full.excluded as Record<string, number>).map(([k, n]) => <li key={k}>{k}: <b><Num v={`${n}`} /></b></li>)}</ul>
+              </details>
+            )}
+          </details>
         )}
 
         {tab === "portfolio" && <SaqrPortfolio market={market} />}
@@ -510,6 +518,8 @@ export default function SaqrDesk() {
                 <li>النتائجُ الربعية: نموُّ صافي الربح عن الربع المماثل <Num v={`${s.rules.growth}%`} /> فأكثر بإعلانٍ حديث، وتُستبعد الخاسرةُ والمتراجعة، ولا دخولَ قبل نتائجَ لم تصدر في مهلتها.</li>
                 <li>جودةُ السهم: تداولُ اليوم <Num v={`${(s.rules.min_turnover / 1e6).toFixed(0)}`} /> ملايين ريال فأكثر، وفارقُ العرض والطلب <Num v={`${s.rules.max_spread}%`} /> فأقلّ، والموقوفةُ مستبعَدة.</li>
                 <li>القوّةُ النسبية: مسارٌ صاعدٌ فوق متوسّط 50، وأداءٌ يتفوّق على تاسي في ثلاثة أشهر — ولا مطاردةَ لارتفاعٍ يوميّ فوق 6٪.</li>
+                <li>قراءةُ الرسم: لا شراءَ إلا بفرصةٍ في مسح الرسم اليوميّ للسوق كلِّه — ارتدادٌ من منطقة الدعم أو الوسط، أو اختراقُ المقاومة، أو استمرارٌ بعد تصحيح —
+                  جودتُها <Num v="50" /> فأكثر من مئة، وجودتُها ترجّح بين المقبولة.</li>
                 <li>الانضباط: لا دخولَ في أوّل ربع ساعةٍ ولا قبل المزاد، وحدٌّ يوميّ <Num v={`${s.rules.max_new_day}`} /> صفقتين، وتوقّفٌ عند خسارة <Num v={`${s.rules.day_loss}%`} /> في اليوم.</li>
               </ul>
             </div>
@@ -547,6 +557,7 @@ export default function SaqrDesk() {
                   الممتاز (Piotroski ‏5 من 9 فأكثر)، ولا خسارةً تحرق النقد، ولا دينَ مفرطاً ولا سيولةً ضعيفة — ودرجةُ المتانة 65 فأكثر؛ والصناديقُ العميقةُ
                   وحدها (تداولٌ يوميّ ≥ 200 مليون دولار) بلا المرفوعِ ولا صناديقِ الدخل بالعقود.</li>
                 <li>ثمّ المسار: صاعدٌ أو هابطٌ واضح، والخبرُ القويُّ المعاكسُ يُسقط الصفقة.</li>
+                <li>وقراءةُ الرسم أوّلاً: «عقودُ الخيارات» تبدأ بفرص مسح الرسم اليوميّ — فرصةُ الشراء عقدُ شراء وفرصةُ البيع عقدُ بيع — وتنكسر التوصيةُ بكسر حدّها على الرسم.</li>
                 <li>طويلُ الأجل وحده: تختار من «عقود الخيارات» وتنفّذ من بطاقتها بأوامرك (‏D778) — والتداولُ الآليُّ <b>{s.settings?.auto ? "يعمل" : "موقوف"}</b>
                   {s.settings?.auto ? <>، يشتري من توصيات «عقود الخيارات» نفسِها — الأعلى درجةً أوّلاً — حتى <Num v={`${s.rules.max_new_day}`} /> صفقاتٍ يومياً (‏D779)</> : null}.</li>
                 <li>العقد: أجلُ <Num v={`${s.rules.dte[0]}–${s.rules.dte[1]}`} /> يوماً، وكلفتُه ضمن ميزانية العقد، وعرضٌ وطلبٌ حقيقيّان بفارقٍ ≤ <Num v={`${s.rules.max_spread}%`} />،

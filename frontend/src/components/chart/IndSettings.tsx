@@ -1,18 +1,44 @@
 /* نافذةُ إعدادات المؤشّر كتريدنق فيو (‏D744 · المالك 2026-11-15: «المؤشّراتُ قابلةٌ للتعديل — 14 3 3 · 8 8 3 — مثل تريدنق فيو»):
-   «المدخلات» و«النمط»، وكلُّ رقمٍ يُكتب ويُطبَّق فوراً حين يصحّ، و«الافتراضي» يعيد قيمَ السكربت. بلغة نافذة D7M نفسِها. */
+   «المدخلات» و«النمط»، وكلُّ رقمٍ يُكتب ويُطبَّق فوراً حين يصحّ، و«الافتراضي» يعيد قيمَ السكربت. بلغة نافذة D7M نفسِها.
+   ‏D784 (المالك 2026-11-22): «إعداداتُ ستوكاستيك RSI غيرُ ناضجة — يجب أن تكون ناضجةً ممتازة: أغيّر الألوان، أغيّر الرسم» — فنمطُه كتريدنق فيو:
+   خطّا ‏K و‏D (إظهارٌ ولونٌ وسُمكٌ ونوعُ خطّ)، والحدودُ الثلاثة (قيمٌ وإظهارٌ ولونٌ ونوع)، والخلفيةُ بينها (إظهارٌ ولونٌ وشفافية). */
 import { useEffect, useState } from "react";
 import Toggle from "../common/Toggle";
-import { CVD_DEFAULTS, CvdCfg, STOCHRSI_DEFAULTS, StochRsiCfg, SrcKey } from "../../lib/indicators";
+import { CVD_DEFAULTS, CvdCfg, STOCHRSI_DEFAULTS, StochRsiCfg, SrcKey, LineSt } from "../../lib/indicators";
 
-function Num({ label, value, min = 1, max = 500, onChange }: { label: string; value: number; min?: number; max?: number; onChange: (v: number) => void }) {
-  const [txt, setTxt] = useState(String(value));
-  useEffect(() => { setTxt(String(value)); }, [value]);
-  const commit = (t: string) => { const v = Math.floor(Number(t.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660)))); if (Number.isFinite(v) && v >= min && v <= max) onChange(v); };
+/** لونُ الرمز الحاليّ بصيغة ‏#rrggbb ليظهر في منتقي اللون — اللونُ المرسومُ فعلاً حين لم يختر المالكُ غيرَه */
+function tokenHex(name: string): string {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (/^#[0-9a-f]{6}$/i.test(v)) return v;
+  if (/^#[0-9a-f]{3}$/i.test(v)) return "#" + v.slice(1).split("").map(c => c + c).join("");
+  const m = v.match(/\d+(\.\d+)?/g);
+  return m && m.length >= 3 ? "#" + m.slice(0, 3).map(n => Math.round(+n).toString(16).padStart(2, "0")).join("") : "#000000";
+}
+function Color({ label, value, token, onChange }: { label: string; value: string; token: string; onChange: (v: string) => void }) {
   return (
     <label className="d7m-row">
       <span>{label}</span>
-      <input type="text" inputMode="numeric" lang="en" dir="ltr" value={txt} aria-label={label}
-        onChange={e => { setTxt(e.target.value); commit(e.target.value); }} onBlur={() => setTxt(String(value))} />
+      <span className="flex items-center gap-1">
+        <input type="color" aria-label={label} value={value || tokenHex(token)} onChange={e => onChange(e.target.value)} />
+        {value && <button type="button" className="d7m-reset" title="لونُ المظهر" aria-label={`إرجاع ${label}`} onClick={() => onChange("")}>↺</button>}
+      </span>
+    </label>
+  );
+}
+const STYLES: [LineSt, string][] = [["solid", "متّصل"], ["dashed", "متقطّع"], ["dotted", "منقّط"]];
+const WIDTHS: ["1" | "2" | "3" | "4", string][] = [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]];
+
+function Num({ label, value, min = 1, max = 500, onChange, bare }: { label: string; value: number; min?: number; max?: number; onChange: (v: number) => void; bare?: boolean }) {
+  const [txt, setTxt] = useState(String(value));
+  useEffect(() => { setTxt(String(value)); }, [value]);
+  const commit = (t: string) => { const v = Math.floor(Number(t.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660)))); if (Number.isFinite(v) && v >= min && v <= max) onChange(v); };
+  const input = <input type="text" inputMode="numeric" lang="en" dir="ltr" value={txt} aria-label={label}
+    onChange={e => { setTxt(e.target.value); commit(e.target.value); }} onBlur={() => setTxt(String(value))} />;
+  if (bare) return input;
+  return (
+    <label className="d7m-row">
+      <span>{label}</span>
+      {input}
     </label>
   );
 }
@@ -52,10 +78,29 @@ export default function IndSettings({ kind, sr, cvd, onSr, onCvd, onClose }: {
               <Num label="طولُ الستوكاستيك" value={sr.stochLen} onChange={v => onSr({ stochLen: v })} />
               <Seg label="مصدرُ RSI" value={sr.src} opts={SRC} onChange={v => onSr({ src: v })} />
             </fieldset>
-            <fieldset><legend>النمط</legend>
-              <Num label="الحدُّ العلويّ" value={sr.upper} min={0} max={100} onChange={v => onSr({ upper: v })} />
-              <Num label="الحدُّ الأوسط" value={sr.middle} min={0} max={100} onChange={v => onSr({ middle: v })} />
-              <Num label="الحدُّ السفليّ" value={sr.lower} min={0} max={100} onChange={v => onSr({ lower: v })} />
+            {([["k", "خطّ K", "--info-ink"], ["d", "خطّ D", "--gauge-warn"]] as const).map(([x, name, tk]) => (
+              <fieldset key={x} data-role={`sr-${x}`}><legend dir="auto">{name}</legend>
+                <div className="d7m-row"><Toggle checked={sr[`${x}On`] !== false} onChange={v => onSr({ [`${x}On`]: v } as Partial<StochRsiCfg>)} label="إظهار" /></div>
+                <Color label="اللون" value={sr[`${x}Color`] || ""} token={tk} onChange={v => onSr({ [`${x}Color`]: v } as Partial<StochRsiCfg>)} />
+                <Seg label="السُّمك" value={String(sr[`${x}Width`] || 1) as "1"} opts={WIDTHS} onChange={v => onSr({ [`${x}Width`]: Number(v) } as Partial<StochRsiCfg>)} />
+                <Seg label="نوعُ الخطّ" value={sr[`${x}Style`] || "solid"} opts={STYLES} onChange={v => onSr({ [`${x}Style`]: v } as Partial<StochRsiCfg>)} />
+              </fieldset>
+            ))}
+            <fieldset data-role="sr-bands"><legend>الحدود</legend>
+              {/* كلُّ حدٍّ صفٌّ واحد: إظهارُه وقيمتُه معاً */}
+              {([["upOn", "upper", "العلويّ"], ["midOn", "middle", "الأوسط"], ["loOn", "lower", "السفليّ"]] as const).map(([on, key, nm]) => (
+                <div key={key} className="d7m-row sr-band" data-band={key}>
+                  <Toggle checked={sr[on] !== false} onChange={v => onSr({ [on]: v } as Partial<StochRsiCfg>)} label={`الحدُّ ${nm}`} />
+                  <Num bare label={`قيمةُ ${nm}`} value={sr[key]} min={0} max={100} onChange={v => onSr({ [key]: v } as Partial<StochRsiCfg>)} />
+                </div>
+              ))}
+              <Color label="لونُ الحدود" value={sr.bandColor || ""} token="--ink-muted" onChange={v => onSr({ bandColor: v })} />
+              <Seg label="نوعُ خطّ الحدود" value={sr.bandStyle || "dashed"} opts={STYLES} onChange={v => onSr({ bandStyle: v })} />
+            </fieldset>
+            <fieldset data-role="sr-bg"><legend>الخلفية</legend>
+              <div className="d7m-row"><Toggle checked={sr.bgOn !== false} onChange={v => onSr({ bgOn: v })} label="إظهارُ الخلفية بين الحدّين" /></div>
+              <Color label="لونُها" value={sr.bgColor || ""} token="--info-ink" onChange={v => onSr({ bgColor: v })} />
+              <Num label="الشفافية ٪" value={Number(sr.bgOpacity ?? 10)} min={0} max={100} onChange={v => onSr({ bgOpacity: v })} />
             </fieldset>
           </div>
         ) : (

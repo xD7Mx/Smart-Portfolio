@@ -152,7 +152,9 @@ def validate(obj: dict, snap: dict) -> dict:
     """قراءةُ النموذج بعد الحراسة: المستوياتُ برقم اللقطة، والنصوصُ بلا رقمٍ مختلَق، والمؤشّراتُ مما ظهر."""
     pool, lv_pool = known_numbers(snap), level_pool(snap)
     shown = {str(x).lower() for fr in snap.get("frames") or [] for x in (fr.get("shown") or [])}
-    tfs = [str(fr.get("tf_ar") or fr.get("tf") or "") for fr in snap.get("frames") or []]
+    if "volume" in shown:                 # ‏D784: الواجهةُ تسمّي الحجمَ «volume» ومفتاحُه هنا «vol» — فكانت قراءةُ الحجم تُسقط دائماً
+        shown.add("vol")
+    tfs =[str(fr.get("tf_ar") or fr.get("tf") or "") for fr in snap.get("frames") or []]
     out: dict = {"bias": obj.get("bias") if obj.get("bias") in BIAS else "عرضي", "dropped": 0}
     for f in FIELDS:
         t = clean_text(obj.get(f), pool)

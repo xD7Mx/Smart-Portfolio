@@ -302,6 +302,9 @@ export const marketApi = {
   /* ‏D771: قائمةُ صقر وأوامرُ المالك (شراءٌ بسعره، وجنيُ الربح ووقفُ الخسارة، وأوامرٌ معلّقة) */
   saqrList: () => api.get<APIResponse>("/market/saqr/list"),
   saqrListRun: () => api.post<APIResponse>("/market/saqr/list/run", {}),
+  /* ‏D784: فرصُ صقر من مسح الرسم اليوميّ للسوق كلِّه — والتنفيذُ للمالك */
+  saqrOpps: (market: "us" | "sa") => api.get<APIResponse>("/market/saqr/opportunities", { params: { market } }),
+  saqrOppsRun: (market: "us" | "sa") => api.post<APIResponse>("/market/saqr/opportunities/run", { market }),
   /* ‏D778: طلبُ العقد وعرضُه الآن — رأسُ تذكرة الأمر */
   saqrQuote: (contract: string) => api.get<APIResponse>(`/market/saqr/quote/${encodeURIComponent(contract)}`),
   /* ‏D777: تذكرةُ الشراء كإنتراكتف بروكرز — النوعُ والمدّةُ والأوامرُ المرفقة */

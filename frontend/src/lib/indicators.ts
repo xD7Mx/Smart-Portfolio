@@ -180,9 +180,17 @@ export function macd(data: number[], fast = 12, slow = 26, sig = 9) {
    ‏ta.rsi بمتوسّط وايلدر (‏RMA) المبذور بمتوسّطٍ بسيط — كدالّة rsi أعلاه؛ و‏ta.stoch = ‏100 × (الحاليّ − الأدنى) ÷ (الأعلى − الأدنى) على
    ‏lengthStoch شمعة، ومدًى صفريٌّ ‏na لا رقمٌ مختلَق؛ و‏ta.sma على نافذةٍ فيها ‏na ‏na. */
 export type SrcKey = "close" | "open" | "high" | "low" | "hl2" | "hlc3" | "ohlc4";
-export type StochRsiCfg = { k: number; d: number; rsiLen: number; stochLen: number; src: SrcKey; upper: number; middle: number; lower: number };
+/* ‏D784 (المالك 2026-11-22): «إعداداتُ ستوكاستيك RSI غيرُ ناضجة — يجب أن تكون ناضجةً ممتازة: أغيّر الألوان، أغيّر الرسم» — فنمطُها كتريدنق فيو:
+   لكلٍّ من ‏K و‏D إظهارُه ولونُه وسُمكُه ونوعُ خطّه، وللحدود الثلاثة قيمُها وإظهارُها ولونُها ونوعُها، وللخلفية بينها إظهارُها ولونُها وشفافيتُها.
+   واللونُ الفارغ لونُ المظهر (رمزُه) حتى يختار المالكُ غيرَه */
+export type LineSt = "solid" | "dashed" | "dotted";
+export type StochRsiCfg = { k: number; d: number; rsiLen: number; stochLen: number; src: SrcKey; upper: number; middle: number; lower: number;
+  kOn: boolean; kColor: string; kWidth: number; kStyle: LineSt; dOn: boolean; dColor: string; dWidth: number; dStyle: LineSt;
+  upOn: boolean; midOn: boolean; loOn: boolean; bandColor: string; bandStyle: LineSt; bgOn: boolean; bgColor: string; bgOpacity: number };
 /* مدخلاتُ السكربت كلُّها كما في نافذة تريدنق فيو: ‏K · D · طولُ RSI · طولُ الستوكاستيك · مصدرُ RSI — وحدودُ النمط 80 · 50 · 20 */
-export const STOCHRSI_DEFAULTS: StochRsiCfg = { k: 3, d: 3, rsiLen: 14, stochLen: 14, src: "close", upper: 80, middle: 50, lower: 20 };
+export const STOCHRSI_DEFAULTS: StochRsiCfg = { k: 3, d: 3, rsiLen: 14, stochLen: 14, src: "close", upper: 80, middle: 50, lower: 20,
+  kOn: true, kColor: "", kWidth: 1, kStyle: "solid", dOn: true, dColor: "", dWidth: 1, dStyle: "solid",
+  upOn: true, midOn: true, loOn: true, bandColor: "", bandStyle: "dashed", bgOn: true, bgColor: "", bgOpacity: 10 };
 export function source(bars: { open: number; high: number; low: number; close: number }[], src: SrcKey = "close"): number[] {
   return bars.map(b => src === "open" ? b.open : src === "high" ? b.high : src === "low" ? b.low : src === "hl2" ? (b.high + b.low) / 2
     : src === "hlc3" ? (b.high + b.low + b.close) / 3 : src === "ohlc4" ? (b.open + b.high + b.low + b.close) / 4 : b.close);

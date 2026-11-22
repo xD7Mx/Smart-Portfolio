@@ -443,6 +443,24 @@ async def job_saqr_sa_close():
         logger.error(f"صقر السعوديّ/قراءةُ الإغلاق: {e}")
 
 
+async def job_chart_scan(market: str):
+    """مسحُ الرسم للسوق كلِّه (‏D784 — المالك: «بشكلٍ يوميّ يصيد المتغيّرات ويُطلع لي قائمة»): فرصُ اليوم بجودتها ومدّتها — بعد إغلاق كلّ سوق
+    فتُقرأ شمعةُ اليوم كاملة، والقائمةُ جاهزةٌ قبل الجلسة التالية."""
+    try:
+        from app.services import chart_scan as CS
+        await CS.scan(market)
+    except Exception as e:
+        logger.error(f"مسحُ الرسم {market}: {e}")
+
+
+async def job_chart_scan_boot():
+    """وبعد الإقلاع: سوقٌ بلا مسحٍ حديث يُمسح — فلا تنتظر القائمةُ إغلاقَ الغد."""
+    from app.services import chart_scan as CS
+    for m in ("sa", "us"):
+        if not CS.fresh(m, days=1):
+            await job_chart_scan(m)
+
+
 async def job_advisor_weekly():
     """المراجعةُ الأسبوعية (D571): كلَّ خميسٍ مساءً، ورقةٌ لكلّ محفظة في التطبيق وتلغرام."""
     try:
@@ -909,6 +927,11 @@ def start_scheduler():
     # ‏D767: وقراءةُ الإغلاق بعد المزاد (ومهلتُها ربعُ ساعة لا ثانيةٌ: تُشاركها قراءةُ تاسي الدقيقةَ نفسَها) — والإقلاعُ يقرؤها بعد خمس دقائق
     _scheduler.add_job(job_saqr_sa_close, CronTrigger(day_of_week=TRADING_DAYS, hour=15, minute=25), id="saqr_sa_close", replace_existing=True,
                        misfire_grace_time=900, coalesce=True)
+    # ‏D784: مسحُ الرسم للسوق كلِّه — السعوديُّ بعد إغلاقه (15:50)، والأمريكيُّ بعد إغلاقه (00:40 بتوقيت الرياض صيفاً وشتاءً: من الثلاثاء إلى السبت)
+    _scheduler.add_job(job_chart_scan, CronTrigger(day_of_week=TRADING_DAYS, hour=15, minute=50), args=["sa"], id="chart_scan_sa",
+                       replace_existing=True, misfire_grace_time=1800, coalesce=True, max_instances=1)
+    _scheduler.add_job(job_chart_scan, CronTrigger(day_of_week="tue,wed,thu,fri,sat", hour=0, minute=40), args=["us"], id="chart_scan_us",
+                       replace_existing=True, misfire_grace_time=1800, coalesce=True, max_instances=1)
     # ‏D571: المراجعةُ الأسبوعية — الخميسَ بعد آخر جلسة، وقبل مؤتمرات المساء
     _scheduler.add_job(job_advisor_weekly, CronTrigger(day_of_week="thu", hour=19, minute=15),
                        id="advisor_weekly_thu", replace_existing=True)
@@ -951,6 +974,8 @@ def start_scheduler():
                        id="stock_warm_boot", replace_existing=True)
     _scheduler.add_job(job_saqr_sa_close, DateTrigger(run_date=_dt.now(_RIYADH_TZ) + timedelta(minutes=5), timezone=_RIYADH_TZ),
                        id="saqr_sa_close_boot", replace_existing=True, misfire_grace_time=900)
+    _scheduler.add_job(job_chart_scan_boot, DateTrigger(run_date=_dt.now(_RIYADH_TZ) + timedelta(minutes=9), timezone=_RIYADH_TZ),
+                       id="chart_scan_boot", replace_existing=True, misfire_grace_time=1800)
     # ‏مهلةُ التأخّر الافتراضيةُ ثانيةٌ واحدة: الخادمُ بعد الإقلاع مشغولٌ بتجهيز الأسهم فتُفوَّت القراءةُ بصمت — قيس: نُشر ولم يُكتب النبض
     # ‏D580: مساءً بعد إغلاق السوق — إعلاناتُ النتائج تنزل نهاراً
     _scheduler.add_job(job_results_announcements, CronTrigger(hour=20, minute=20), id="results_announcements_evening",
