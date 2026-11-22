@@ -74,9 +74,26 @@ async def main():
         print(f"══ ٣ السوقُ السعوديّ كلُّه من المُصفّي: {got} من {tot}")
     except Exception as e:                                        # noqa: BLE001
         print("══ ٣ تعذّر:", type(e).__name__)
-    # ٤ آخرُ مسحٍ للرسم
+    # ٣ب حصّةُ ياهو اليوم ومن يستهلكها — وهل يُجلب يوميُّ سهمٍ داخل حصّة الخلفية وخارجها (قيس 2026-11-22: مسحُ الإقلاع قرأ 0 رسوم)
     import time
     from app.services import chart_scan as CS
+    from app.services import usage_tracker as U
+    used, lim = U._counts.get("yahoo", 0), U.limit_for("yahoo")
+    print(f"══ ٣ب حصّةُ ياهو اليوم: {used} من {lim} · سقفُ الخلفية {int(lim * U.BACKGROUND_SHARE)} · live {U._counts.get('yahoo_live', 0)} · gemini {U._counts.get('gemini', 0)}")
+    for k, v in list(U.sites("yahoo").items())[:14]:
+        print(f"    {v:>6}  {k}")
+    with U.background():
+        print("    can_call داخل الخلفية:", U.can_call("yahoo"), "· خارجها:", end=" ")
+    print(U.can_call("yahoo"))
+    try:
+        b0 = await M.daily_base("2222.SR", "2y")
+        print(f"    يوميُّ 2222.SR (2y) خارج الخلفية: {len(b0)} شمعة · أوّلُها {b0[0] if b0 else None}")
+        with U.background():
+            r, bars = await CS.deep("2222", "sa")
+        print(f"    deep 2222 داخل الخلفية: {len(bars)} شمعة · الفرصة {(r or {}).get('setup')} · الموضع {(r or {}).get('where')}")
+    except Exception as e:                                        # noqa: BLE001
+        print(f"    تعذّر: {type(e).__name__}: {str(e)[:200]}")
+    # ٤ آخرُ مسحٍ للرسم
     for m in ("sa", "us"):
         d = CS.fresh(m, days=1)
         if not d:
