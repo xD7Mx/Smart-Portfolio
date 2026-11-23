@@ -182,7 +182,9 @@ def m_news(news: dict | None, side: str) -> dict:
 
 
 # ══ ٥ الأحداث ═════════════════════════════════════════════════════════════════════════════════════════
-def m_events(market: str, side: str, reg: dict | None, geo: dict | None, evs: list[dict] | None, earn_days: int | None) -> dict:
+def m_events(market: str, side: str, reg: dict | None, geo: dict | None, evs: list[dict] | None, earn_days: int | None,
+             world: list[dict] | None = None, tone: str | None = None) -> dict:
+    """‏D788: ومعها قراءةُ العالم الواحدة (‏saqr_mind) — محاورُه التي تخصّ قطاعَ الشركة: المعاكسُ القويُّ تحفّظ، والداعمُ يُذكر."""
     bits, v = [], "ok"
     if market == "sa":
         if reg:
@@ -197,6 +199,14 @@ def m_events(market: str, side: str, reg: dict | None, geo: dict | None, evs: li
             if geo.get("level") == "متوسط":
                 v = "warn"
                 bits.append(f"خطرٌ جيوسياسيّ متوسّط: {geo.get('why') or ''}".strip())
+    long_ = side == "long"
+    for t in (world or [])[:2]:
+        against = (t["dir"] == "سلبي") == long_
+        if against and t["strength"] >= 2:
+            v = "warn"
+        bits.append(("العالم يعاكسها — " if against else "العالم يدعمها — ") + f"{t['name']}: {t['why']}")
+    if not world and tone in ("إيجابي", "سلبي"):
+        bits.append(f"نبرةُ العالم لسوقها {tone}")
     hi = [e for e in evs or [] if e.get("impact") == "High"]
     if hi:
         v = "warn"
@@ -302,7 +312,7 @@ def judge(ev: dict) -> dict:
            m_chart(cr_side, cr_any, side),
            m_results(market, side, ev.get("stt"), ev.get("stxt"), ev.get("yf"), ccy),
            m_news(ev.get("news"), side),
-           m_events(market, side, ev.get("reg"), ev.get("geo"), ev.get("events"), ev.get("earn_days")),
+           m_events(market, side, ev.get("reg"), ev.get("geo"), ev.get("events"), ev.get("earn_days"), ev.get("world"), ev.get("tone")),
            m_whales(side, ev.get("liq"), ev.get("deals"), ev.get("flow"), ccy),
            m_analysts(side, ev.get("ops"), ev.get("yf"), ev.get("price"), ccy)]
     veto = [m for m in mem if m["v"] == "veto"]
@@ -664,6 +674,11 @@ async def read_news(market: str, heads: dict[str, list[dict]], names: dict[str, 
 async def context(market: str) -> dict:
     """سياقُ السوق مرّةً للمجلس كلِّه: تاسي والمخاطرُ الجيوسياسية (السعوديّ)، والأحداثُ عاليةُ الأثر القادمة."""
     ctx: dict = {"events": await events(market)}
+    try:                                                          # ‏D788: قراءةُ العالم الواحدة للسوقين
+        from app.services import saqr_mind as SM
+        ctx["world"] = await SM.world()
+    except Exception:                                             # noqa: BLE001
+        ctx["world"] = None
     if market == "sa":
         from app.services import saqr_sa as SA
         try:
@@ -697,6 +712,13 @@ async def collect(market: str, cands: list[dict], ctx: dict, conc: int = 4, flow
         heads[s] = h
         ev = {**c, "market": market, "ccy": "ريال" if market == "sa" else "$", "yf": yfd, "flow": fl, "events": ctx.get("events"),
               "reg": ctx.get("reg"), "geo": ctx.get("geo")}
+        try:                                                      # ‏D788: محاورُ العالم التي تخصّ قطاعَ الشركة
+            from app.services import saqr_mind as SM
+            w = ctx.get("world")
+            ev["world"] = SM.hits(w, market, SM.sector_of(s, market, c.get("sector")))
+            ev["tone"] = (w or {}).get("tone_sa" if market == "sa" else "tone_us")
+        except Exception:                                         # noqa: BLE001
+            ev["world"], ev["tone"] = [], None
         if market == "sa":
             ev["deals"] = deals_of(SD.for_symbol(s), c.get("price"))
             ev["ops"] = ops_of(AO.for_symbol(s))

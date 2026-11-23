@@ -29,7 +29,7 @@ AI_TOP = 6            # ما يقرؤه الذكاءُ من أفضلها
 CONC = 6
 TECH = ["name", "description", "close", "change", "Value.Traded", "SMA50", "SMA200", "EMA20", "ADX", "ADX+DI", "ADX-DI", "RSI", "Stoch.RSI.K",
         "Stoch.RSI.D", "Stoch.RSI.K|1W", "RSI|1W", "ChaikinMoneyFlow", "MoneyFlow", "relative_volume_10d_calc", "Perf.1M", "Perf.3M",
-        "price_52_week_high", "price_52_week_low"]
+        "price_52_week_high", "price_52_week_low", "sector"]   # ‏D788: قطاعُ الشركة — لمحاور العالم في المجلس
 _JOB: dict[str, dict] = {m: {"on": False, "msg": "", "at": None} for m in ("us", "sa")}
 
 
@@ -67,13 +67,15 @@ def _tv_blocking(market: str) -> list[dict]:
     else:
         flt = [{"left": "exchange", "operation": "in_range", "right": ["NASDAQ", "NYSE", "AMEX"]}, {"left": "close", "operation": "greater", "right": 5},
                {"left": "average_volume_10d_calc", "operation": "greater", "right": 300_000}, {"left": "type", "operation": "in_range", "right": ["stock", "fund"]}]
-    body = {"filter": flt, "columns": TECH, "sort": {"sortBy": "Value.Traded", "sortOrder": "desc"}, "range": [0, 6000]}
-    with cr.Session(impersonate="chrome") as s:
-        r = s.post(f"https://scanner.tradingview.com/{'ksa' if market == 'sa' else 'america'}/scan", data=json.dumps(body), timeout=25,
-                   headers={"Content-Type": "application/json", "Origin": "https://www.tradingview.com", "Referer": "https://www.tradingview.com/"})
-    if r.status_code != 200:
-        return []
-    return [{**dict(zip(TECH, row.get("d") or [])), "_s": row.get("s")} for row in (json.loads(r.text or "{}").get("data") or [])]
+    # ‏D788: وإن رُدّ عمودُ القطاع (‏sector) يومًا فالأعمدةُ السابقةُ نفسُها — لا يتعطّل المسحُ لأجل محاور العالم
+    for cols in (TECH, [c for c in TECH if c != "sector"]):
+        body = {"filter": flt, "columns": cols, "sort": {"sortBy": "Value.Traded", "sortOrder": "desc"}, "range": [0, 6000]}
+        with cr.Session(impersonate="chrome") as s:
+            r = s.post(f"https://scanner.tradingview.com/{'ksa' if market == 'sa' else 'america'}/scan", data=json.dumps(body), timeout=25,
+                       headers={"Content-Type": "application/json", "Origin": "https://www.tradingview.com", "Referer": "https://www.tradingview.com/"})
+        if r.status_code == 200:
+            return [{**dict(zip(cols, row.get("d") or [])), "_s": row.get("s")} for row in (json.loads(r.text or "{}").get("data") or [])]
+    return []
 
 
 async def market_rows(market: str) -> list[dict]:
@@ -253,7 +255,7 @@ async def review(market: str, items: list[dict], kept_bars: dict[str, list[dict]
             except Exception:                                     # noqa: BLE001
                 stt = stxt = None
         cands.append({"symbol": s, "name": x.get("name"), "side": x["side"], "price": x["close"], "tr": tr, "cr_side": x, "cr_any": cr_any,
-                      "liq": x.get("liq"), "stt": stt, "stxt": stxt,
+                      "liq": x.get("liq"), "stt": stt, "stxt": stxt, "sector": x.get("sector"),
                       "rs3": (tr["ret3m"] - reg["ret3m"]) if market == "sa" and tr and isinstance(reg.get("ret3m"), (int, float)) else None,
                       "earn_days": CN.earn_days(s) if market == "us" else None})
     evs = await CN.collect(market, cands, ctx)
@@ -310,7 +312,10 @@ async def scan(market: str, ai: bool = True) -> dict:
                 if not r or not r.get("setup") or r["quality"] < MIN_Q:
                     return                                        # شموعُ ما لا فرصةَ فيه تُترك فوراً — لا تُحبس مئاتُ السلاسل في الذاكرة
                 row = uni.get(s) or {}
-                items.append(item(s, (name_of(s) if market == "sa" else None) or row.get("description") or row.get("name"), r, bars, market))
+                it = item(s, (name_of(s) if market == "sa" else None) or row.get("description") or row.get("name"), r, bars, market)
+                if market == "us" and isinstance(row.get("sector"), str):
+                    it["sector"] = row["sector"]
+                items.append(it)
                 kept_bars[s] = bars
             await asyncio.gather(*(one(s) for s in pool))
             items.sort(key=lambda x: (-x["quality"], -x["horizon_n"]))

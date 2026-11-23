@@ -2,11 +2,14 @@
    «أبغى شيئاً طبقَ الأصل من الجزيرة كابيتال… التقاريرُ مؤرّخة… لا تذكر المصادر… والمكتبةُ لا تظهر». فالورقةُ نفسُها — الوثيقةُ التي تصل
    ملفّاً إلى تلغرام بعد إغلاق السوق — بأيام أرشيفها وتنزيلِها. ‏D763: «التقريرُ اليوميّ خلاص خلّه في تبويب مفكرة السوق… بجانب الجزيرة كابيتال
    والراجحي كابيتال في مكانهم الأساسي» — فانتقل من المختبر إلى مفكرة السوق بجانب «التوقعات». والورقةُ تُكتب في الخادم (‏services/research_paper)
-   فلا تختلف الشاشةُ عن الملفّ. */
+   فلا تختلف الشاشةُ عن الملفّ.
+   ‏D788 (المالك 2026-11-23): «التطبيقُ يدعم تعدّدَ المحافظ — خلِّ في التقرير خياراً: بدون محفظة، أو للمحافظ كاملةً، أو لمحفظةٍ معيّنة»:
+   فمبدّلٌ فوق الأيام — «بلا محفظة» (صفحاتُ السوق وحدها) · «كلّ المحافظ» (تقريرُها المجمَّع) · كلُّ محفظةٍ باسمها — يُحفظ في المتصفّح. */
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { FileText, RefreshCw, Download } from "lucide-react";
-import { marketApi } from "../../services/api";
+import { marketApi, portfoliosApi } from "../../services/api";
+import { getActivePortfolioId } from "../../store/portfolioStore";
 import { useAuthStore } from "../../store/authStore";
 
 type Day = { date: string; label: string };
@@ -25,26 +28,33 @@ const months = (ds: Day[]): [string, Day[]][] => {
 export default function DailyReport() {
   const owner = useAuthStore((s: any) => s.isOwner);
   const [day, setDay] = useState<string | null>(null);
+  const [pf, setPfState] = useState<string>(() => { try { return localStorage.getItem("sp_report_pf") || ""; } catch { return ""; } });
+  const setPf = (v: string) => { setPfState(v); setDay(null); try { localStorage.setItem("sp_report_pf", v); } catch { /* */ } };
+  const { data: pfs = [] } = useQuery<any[]>({
+    queryKey: ["portfolios"], queryFn: () => portfoliosApi.list().then(r => (Array.isArray(r.data?.data) ? r.data.data : [])), staleTime: 5 * 60_000,
+  });
+  const live = pfs.filter((p: any) => !p.is_archived);
+  const cur = pf || getActivePortfolioId() || "";
   const [ready, setReady] = useState(false);
   const [height, setHeight] = useState(900);
   const frame = useRef<HTMLIFrameElement | null>(null);
 
   const head = useQuery({
-    queryKey: ["research-desk", day],
-    queryFn: () => marketApi.researchDesk(day).then(r => r.data.data),
+    queryKey: ["research-desk", day, cur],
+    queryFn: () => marketApi.researchDesk(day, cur || null).then(r => r.data.data),
     refetchInterval: q => ((q.state.data as any)?.running?.on ? 5000 : false),
   });
   const rep = head.data?.report;
   const running = head.data?.running?.on;
   const paper = useQuery({
-    queryKey: ["research-paper", rep?.date, "all"],
-    queryFn: () => marketApi.researchPaper(rep.date, "all").then(r => r.data.data?.html as string | null),
+    queryKey: ["research-paper", rep?.date, "all", cur],
+    queryFn: () => marketApi.researchPaper(rep.date, "all", cur || null).then(r => r.data.data?.html as string | null),
     enabled: !!rep?.date,
     staleTime: 5 * 60 * 1000,
   });
   const run = useMutation({ mutationFn: () => marketApi.researchRun(), onSuccess: () => setTimeout(() => head.refetch(), 800) });
   const pdf = useMutation({
-    mutationFn: () => marketApi.researchPdf(rep?.date ?? null),
+    mutationFn: () => marketApi.researchPdf(rep?.date ?? null, cur || null),
     onSuccess: r => {
       const url = URL.createObjectURL(r.data);
       const a = document.createElement("a");
@@ -101,6 +111,21 @@ export default function DailyReport() {
           )}
         </span>
       </div>
+
+      {/* ‏D788: لأيّ محفظة — أو بلا محفظة، أو المحافظُ مجتمعةً */}
+      <div className="seg inline-flex rl-pf" role="group" aria-label="محفظةُ التقرير" data-role="rl-pf">
+        <button type="button" className={"seg-btn chip" + (cur === "none" ? " on" : "")} aria-pressed={cur === "none"} onClick={() => setPf("none")} data-v="none">بلا محفظة</button>
+        {live.length > 1 && (
+          <button type="button" className={"seg-btn chip" + (cur === "all" ? " on" : "")} aria-pressed={cur === "all"} onClick={() => setPf("all")} data-v="all">كلّ المحافظ</button>
+        )}
+        {live.map((p: any) => (
+          <button key={p.id} type="button" className={"seg-btn chip" + (cur === String(p.id) ? " on" : "")} aria-pressed={cur === String(p.id)}
+            onClick={() => setPf(String(p.id))} data-v={String(p.id)}>{p.name}</button>
+        ))}
+      </div>
+      {head.data?.market_only && cur === "all" && (
+        <p className="sq-muted" data-role="rl-pf-note">لم يُكتب تقريرُ المحافظ مجتمعةً لهذا اليوم — صفحاتُ السوق وحدها، ويُكتب من جلسة اليوم.</p>
+      )}
 
       {(head.data?.dates?.length || 0) > 1 && (
         /* ‏D749 (بأمر المالك): «بصيغة أيام — 15 · 14 · 13 — وبتسلسلٍ تاريخيّ لجميع الأيام»: الأيامُ أرقاماً تحت شهرها، الأحدثُ أوّلاً */

@@ -428,7 +428,12 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
         cr_side, cr_any, _ = await CN.chart_sa(sym)
         cands.append({"symbol": sym, "name": row.get("name_en"), "side": "long", "price": row.get("price"), "tr": tr, "rs3": tr["ret3m"] - reg["ret3m"],
                       "cr_side": cr_side, "cr_any": cr_any, "liq": (cr_any or cr_side or {}).get("liq"), "stt": stt, "stxt": txt, "_pre": pre, "_row": row})
-    evs = await CN.collect("sa", cands, {"events": await CN.events("sa"), "reg": reg, "geo": g}) if cands else {}
+    try:                                                          # ‏D788: قراءةُ العالم الواحدة — صقرٌ واحدٌ للسوقين
+        from app.services import saqr_mind as SM
+        w = await SM.world()
+    except Exception:                                             # noqa: BLE001
+        w = None
+    evs = await CN.collect("sa", cands, {"events": await CN.events("sa"), "reg": reg, "geo": g, "world": w}) if cands else {}
     ok = []
     for cd in cands:
         sym, row, tr, rs3 = cd["symbol"], cd["_row"], cd["tr"], cd["rs3"]

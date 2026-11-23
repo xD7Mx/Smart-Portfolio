@@ -30,6 +30,7 @@ from loguru import logger
 
 KEEP_NOTES_DAYS = 365
 BACKFILL_V = 2                                                     # نسخةُ تقرير الأرشيف — ما كُتب بنسخةٍ أقدم يُعاد (‏D749: كُتبت الأولى بلا إغلاقات الشركات)
+ALL = "all"                                                      # ‏D788: مفتاحُ تقرير المحافظ مجتمعةً
 KEEP_REPORTS = 600                                                # تقريرٌ لكلّ محفظةٍ لكلّ جلسة — أرشيفٌ يتّسع لنحو سنة
 MAX_PDF = 25 * 1024 * 1024
 _KIND_RANK = {"تقرير يوميّ": 0, "تقرير اقتصاديّ": 1, "تقرير قطاعيّ": 2, "تقرير دوريّ": 2, "تقرير شهريّ": 2, "تقرير شركة": 3}
@@ -386,7 +387,7 @@ def _market_line(m: dict) -> str:
     sec = [x for x in m.get("sectors") or [] if x.get("pct") is not None]
     return (f"تاسي {n2(t.get('close'))} ({p2(t.get('pct'))}) · قيمةُ التداول {((b.get('value') or 0) / 1e9):.2f} مليار · المرتفعة/المنخفضة "
             f"{b.get('up')}/{b.get('down')} · الأفضلُ قطاعاً {sec[0]['name'] if sec else '—'} والأضعفُ {sec[-1]['name'] if sec else '—'}"
-            f" · نظرتُنا الفنية للمؤشّر: {tech.get('view')}")
+            f" · نظرتُنا للمؤشّر (قراءةُ صقر): {tech.get('view')}")
 
 
 # ── سجلُّ الجلسات والجداولُ المقروءة ─────────────────────────────────────────
@@ -545,14 +546,14 @@ def save_report(r: dict) -> None:
             pass
 
 
-def report_dates(pid: int) -> list[str]:
+def report_dates(pid: int | str) -> list[str]:
     try:
         return sorted({f.split("_")[0] for f in os.listdir(os.path.join(_dir(), "reports")) if f.endswith(f"_{pid}.json")}, reverse=True)
     except OSError:
         return []
 
 
-def load_report(pid: int, day: str | None = None) -> dict | None:
+def load_report(pid: int | str, day: str | None = None) -> dict | None:
     days = report_dates(pid)
     day = day if day in days else (days[0] if days else None)
     r = _load(os.path.join("reports", f"{day}_{pid}.json"), None) if day else None
@@ -597,6 +598,18 @@ async def compose_all(send: bool = True, day: date | None = None) -> dict:
     market = await RP.gather(today)
     if not market:
         return {}
+    # ‏D788 (المالك 2026-11-23): «ما فكرةُ «شراء حذر» طولَ المدّة؟… نظرتُنا المفروضُ يتحكّم فيها صقر — يقرأ الأخبارَ المحلية والعالمية»:
+    # «نظرتُنا» على تاسي من عقل صقر الواحد — الإشاراتُ الفنيةُ الخمس أساسٌ (وتبقى للمقارنة)، والعالمُ والمسارُ والاتّساعُ والمخاطرُ والنفطُ شواهد
+    try:
+        from app.services import saqr_mind as SM
+        o = await SM.outlook_sa(market)
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("قسم الأبحاث/نظرةُ صقر: {}", type(e).__name__)
+        o = None
+    if o and isinstance(market.get("tech"), dict):
+        market["tech"]["view_tech"] = market["tech"].get("view")
+        market["tech"]["view"] = o["view"]
+        market["saqr"] = o
     b = market["breadth"]
     st = RP.history_append(_load("sessions.json", {}), today.isoformat(),
                            {"value": b.get("value"), "volume": b.get("volume"), "trades": b.get("trades"), "up": b.get("up"),
@@ -626,6 +639,14 @@ async def compose_all(send: bool = True, day: date | None = None) -> dict:
                         if rep[pid]["sent"]:
                             sent[today.isoformat()] = pid
                             _save("sent.json", dict(sorted(sent.items())[-60:]))
+            # ‏D788 (المالك 2026-11-23): «التطبيقُ يدعم تعدّدَ المحافظ — هل يدعمها التقرير؟ خلِّ فيه خياراً: للمحافظ كاملةً أو لمحفظةٍ معيّنة أو بلا محفظة»:
+            # فتقريرُ المحافظ مجتمعةً يُكتب أيضاً (قراءةٌ موحَّدةٌ عبر المحافظ كتوحيد الثروة) ويُقرأ باختيار «كلّ المحافظ» — ولا يُرسَل
+            if len(ps) > 1:
+                set_scope(None, True)
+                r = await compose_for(db, ALL, "كلّ المحافظ", market, today)
+                if r:
+                    save_report(r)
+                    rep[ALL] = {"local": len(r["local"]), "global": len(r["global"]), "picks": len(r["picks"]), "positions": len(r["positions"])}
         finally:
             reset_scope()
     logger.info("قسم الأبحاث: التقارير {}", rep)

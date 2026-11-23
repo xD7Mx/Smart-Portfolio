@@ -1062,7 +1062,10 @@ def svg_d7m(bars: list[dict], w: int = 470, h: int = 330, title: str = "", d: di
     pad = (hi - lo) * 0.05 or 1
     lo, hi = lo - pad, hi + pad
     y = _scale(lo, hi, PT, PB)
-    bw = (X1 - X0) / m
+    # ‏D788 (المالك 2026-11-23): «الرسمُ لازقٌ مرّةً في الطرف، ما أشوف النهاية — خلِّ فيه فراغاً من جهة اليمين أشوف شكلَ الشمعة الأخيرة»:
+    # فراغٌ بعد آخر شمعةٍ كإزاحة تريدنق فيو اليمنى — ستّةٌ بالمئة من الشموع، وأربعٌ على الأقلّ — والمستوياتُ تمتدّ إلى المحور
+    gap = max(4, round(m * 0.06))
+    bw = (X1 - X0) / (m + gap)
     x = lambda i: X0 + (i - s0 + 0.5) * bw   # noqa: E731
     cid = "pc" + hashlib.md5(f"{title}|{n}|{w}|{s0}".encode()).hexdigest()[:8]   # مُعرِّفٌ ثابتٌ بين التشغيلات
     out = [f'<defs><clipPath id="{cid}"><rect x="{X0}" y="{PT}" width="{X1 - X0}" height="{PB - PT}"/></clipPath></defs>',
@@ -1240,6 +1243,17 @@ def _bp(v) -> str:
     return _num(v, lambda x: "—" if _f(x) is None else f"{_f(x):+.0f}", cls=True)
 
 
+def _saqr_why(m: dict) -> str:
+    """‏D788: لماذا هذه النظرة — شواهدُ صقر تحت المقياس (والفنيُّ وحده إن خالفها)."""
+    sq = m.get("saqr") or {}
+    if not sq.get("why"):
+        return ""
+    tv = (m.get("tech") or {}).get("view_tech")
+    head = "قراءةُ صقر" + (f" — والفنيُّ وحده «{_e(tv)}»" if tv and tv != sq.get("view") else "")
+    return (f'<div class="sqw" data-k="saqr-why"><b>{head}</b><ul class="bul">' + "".join(f"<li>{_e(w)}</li>" for w in sq["why"][:5])
+            + "".join(f"<li>{_e(t)}</li>" for t in (sq.get("themes") or [])[:2]) + "</ul></div>")
+
+
 def _page(n: int, total: int, title: str, day: str, body: str, pname: str) -> str:
     """الصفحةُ بهويّة تقارير التطبيق: ترويسةٌ بنفسجيةٌ بالاسم والتاريخ والعنوان، وشريطٌ ذهبيّ، وتذييلٌ برقم الصفحة."""
     return (f'<section class="page"><header class="ph"><div class="brand">المحفظة الذكية<small>قسم الأبحاث · {_e(pname)}</small></div>'
@@ -1297,6 +1311,12 @@ tbody tr:nth-child(even) td{{background:{ZEBRA}}} tbody tr:nth-child(odd) td{{ba
 p{{margin:0 0 6px}} .para{{text-align:justify;background:#fff;border:1px solid {LINE};border-radius:8px;padding:8px 10px}}
 ul.bul{{list-style:none;margin:0;padding:0}}
 ul.bul li{{position:relative;padding-inline-start:13px;margin-bottom:6px;text-align:justify}}
+.gnews{{margin:0 0 12px}}
+.gnews .band{{margin-top:0}}
+ul.bul.two{{columns:2;column-gap:22px}}
+.sqw{{margin-top:6px;font-size:9.5px;line-height:1.55}}
+.sqw b{{display:block;color:{NAVY};margin-bottom:3px}}
+ul.bul.two li{{break-inside:avoid}}
 ul.bul li::before{{content:'';position:absolute;inset-inline-start:0;top:.55em;width:6px;height:6px;border-radius:1px;background:{GOLD}}}
 .kv{{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:10.5px}} .kv span:nth-child(odd){{color:{MUTED}}}
 .kv span:nth-child(even){{font-weight:500;color:{NAVY}}}
@@ -1395,9 +1415,13 @@ def render(r: dict, part: str = "all") -> str:
           + (_band("أسعار الفائدة") + _tbl(["الأداة", "العائد %", "يوميّ (نقطة)", "شهريّ (نقطة)", "منذ بداية العام (نقطة)"], rate_rows) if rate_rows else ""))
     r2 = (_band("أسواق السلع (دولار أمريكي)") + _tbl(["السلعة", "السعر", "يوميّ %", "شهريّ %", "منذ بداية العام %"], qrows(m.get("commodities") or []))
           + _band("العملات والعملات المشفّرة") + _tbl(["العملة / الدولار", "السعر", "يوميّ %", "شهريّ %", "منذ بداية العام %"], qrows(m.get("fx") or [], unit=lambda v: "—" if _f(v) is None else (f"{_f(v):,.4f}" if _f(v) < 10 else f"{_f(v):,.2f}")))
-          + (_band("إجراءات الشركات السعودية") + _tbl(["التاريخ", "الشركة", "نوع الحدث"], act) if act else "")
-          + "<h2>الأخبار العالمية</h2>" + (_bul(r.get("global") or []) or '<p class="empty">لا أخبارَ عالميةً جديدة.</p>'))
-    pages.append(("الأسواق الإقليمية والعالمية", f'<div class="cols"><div class="blk">{r2}</div><div class="blk">{l2}</div></div>', "market"))
+          + (_band("إجراءات الشركات السعودية") + _tbl(["التاريخ", "الشركة", "نوع الحدث"], act) if act else ""))
+    # ‏D788 (المالك 2026-11-23): «الأخبارُ العالمية مكانُها ضيّقٌ جدّاً داخل التقرير — خلِّ لها مكاناً خاصّاً في أوّل الصفحة، ورتّب ترتيباً أنيقاً»:
+    # كانت آخرَ العمود الأيمن تحت السلع والعملات وإجراءات الشركات؛ فصارت رأسَ الصفحة بعرضها كلِّه في عمودين، والجداولُ تحتها
+    gn = r.get("global") or []
+    news = ('<section class="gnews" data-k="global-news">' + _band("الأخبار العالمية")
+            + (_bul(gn).replace('<ul class="bul">', '<ul class="bul two">', 1) if gn else '<p class="empty">لا أخبارَ عالميةً جديدة.</p>') + "</section>")
+    pages.append(("الأخبار والأسواق العالمية", f'{news}<div class="cols"><div class="blk">{r2}</div><div class="blk">{l2}</div></div>', "market"))
 
     # ═══ ٣ النظرة الفنية اليومية ═══
     if tech:
@@ -1431,7 +1455,7 @@ def render(r: dict, part: str = "all") -> str:
         kv = lambda rows: '<div class="kv">' + "".join(f'<span>{_e(k)}</span><span{_iso(v)}>{_e(v)}</span>' for k, v in rows) + "</div>"   # noqa: E731
         lft = (f'<div class="box">{_band("ملاحظات فنية")}{kv(notes)}</div><div class="box">{_band("بيانات السوق")}{kv(mkt)}</div>'
                f'<div class="box">{_band("الإحصاءات الرئيسية")}{kv(stats)}</div>'
-               f'<div class="box">{_band("نظرتنا")}{svg_gauge(tech.get("view") or "محايد")}</div>'
+               f'<div class="box">{_band("نظرتنا")}{svg_gauge(tech.get("view") or "محايد")}{_saqr_why(m)}</div>'
                f'<div class="box">{_band("عمق السوق")}{svg_breadth(b.get("up"), b.get("unch"), b.get("down"))}</div>')
         pages.append(("النظرة الفنية اليومية", f'<div class="cols w"><div class="blk">{rgt}</div><div class="blk">{lft}</div></div>', "market"))
 
@@ -1470,6 +1494,6 @@ def render(r: dict, part: str = "all") -> str:
             f'<title>التقرير اليومي — {_e(day_label(day))}</title><style>{_fonts()}{CSS}</style></head><body>{sections}<script>{FIT}</script></body></html>')
 
 
-async def pdf(r: dict) -> bytes | None:
+async def pdf(r: dict, part: str = "all") -> bytes | None:
     from app.services.saqr_report import to_pdf
-    return await to_pdf(render(r, "all"))
+    return await to_pdf(render(r, part))

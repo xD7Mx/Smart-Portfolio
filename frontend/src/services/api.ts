@@ -265,11 +265,12 @@ export const marketApi = {
   quarterReports: (s: string) => api.get<APIResponse>(`/market/quarter-reports/${encodeURIComponent(s)}`),
   tasiStars: (off?: string) => api.get<APIResponse>("/market/tasi-stars", { params: off ? { off } : {} }),
   // ‏D745: قسمُ الأبحاث
-  researchDesk: (day?: string | null) => api.get<APIResponse>("/market/research-desk", { params: day ? { day } : {} }),
-  researchPaper: (day: string | null, part: "market" | "portfolio" | "all") =>
-    api.get<APIResponse>("/market/research-desk/paper", { params: { ...(day ? { day } : {}), part } }),
-  researchPdf: (day: string | null) =>
-    api.get<Blob>("/market/research-desk/pdf", { params: day ? { day } : {}, responseType: "blob", timeout: 120000 }),
+  /* ‏D788: ‏pf — «none» بلا محفظة · «all» المحافظُ مجتمعةً · رقمُ محفظة (وبلا قيمةٍ المحفظةُ النشطة) */
+  researchDesk: (day?: string | null, pf?: string | null) => api.get<APIResponse>("/market/research-desk", { params: { ...(day ? { day } : {}), ...(pf ? { pf } : {}) } }),
+  researchPaper: (day: string | null, part: "market" | "portfolio" | "all", pf?: string | null) =>
+    api.get<APIResponse>("/market/research-desk/paper", { params: { ...(day ? { day } : {}), part, ...(pf ? { pf } : {}) } }),
+  researchPdf: (day: string | null, pf?: string | null) =>
+    api.get<Blob>("/market/research-desk/pdf", { params: { ...(day ? { day } : {}), ...(pf ? { pf } : {}) }, responseType: "blob", timeout: 120000 }),
   researchRun: () => api.post<APIResponse>("/market/research-desk/run"),
   symbolSearch: (q: string) => api.get<APIResponse>("/market/symbol-search", { params: { q } }),
   saudiDirectory: () => api.get<APIResponse>("/market/saudi-directory"),

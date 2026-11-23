@@ -3550,6 +3550,9 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 .rl-spin { animation: rlSpin 1s linear infinite; }
 @keyframes rlSpin { to { transform: rotate(360deg); } }
 .rl-days { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+/* ‏D788: محفظةُ التقرير — بلا محفظة · كلّ المحافظ · محفظةٌ بعينها */
+.rl-pf { display: flex; flex-wrap: wrap; gap: 4px; }
+.rl-pf .seg-btn { min-height: 32px; font-size: 12px; }
 .rl-days .seg-btn { flex: none; min-height: 32px; font-variant-numeric: tabular-nums; }
 .rl-days { align-items: center; padding-bottom: 2px; }
 .rl-month { display: inline-flex; align-items: center; gap: 4px; flex: none; }

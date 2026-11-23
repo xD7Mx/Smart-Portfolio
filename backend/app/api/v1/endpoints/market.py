@@ -2241,46 +2241,70 @@ async def get_special_deals(symbol: str | None = None, days: int = 30):
 _RD_RUN = {"on": False, "at": None, "msg": ""}
 
 
+def _report_key(pf: str | None):
+    """‏D788: أيُّ تقرير — «all» المحافظُ مجتمعةً، ورقمٌ محفظةٌ بعينها، وما سواهما (ومنه «none» بلا محفظة) المحفظةُ النشطة."""
+    from app.core.portfolio_scope import active_pid
+    if pf == "all":
+        return "all"
+    if pf and pf.isdigit():
+        return int(pf)
+    return active_pid() or 0
+
+
+def _report_for(pf: str | None, day: str | None):
+    """التقريرُ المطلوب — وإن لم يُكتب تقريرُ المحافظ مجتمعةً ليومٍ مضى (قبل ‏D788) فتقريرُ النشطة بصفحات السوق وحدها."""
+    from app.core.portfolio_scope import active_pid
+    from app.services import research_desk as RD
+    key = _report_key(pf)
+    r = RD.load_report(key, day)
+    if r and (not day or r.get("date") == day or pf != "all"):
+        return key, r, False
+    if pf == "all":
+        return key, RD.load_report(active_pid() or 0, day), True
+    return key, r, False
+
+
 @router.get("/research-desk")
-async def research_desk_view(day: str | None = None):
-    """أيامُ التقارير المؤرّخة للمحفظة النشطة، وخلاصةُ اليوم المطلوب (أو الأحدث) — والورقةُ نفسُها من `/research-desk/paper`."""
+async def research_desk_view(day: str | None = None, pf: str | None = None):
+    """أيامُ التقارير المؤرّخة للمحفظة النشطة (أو لـ`pf`: ‏all · رقمُ محفظة · none)، وخلاصةُ اليوم المطلوب — والورقةُ من `/research-desk/paper`."""
     from app.core.portfolio_scope import active_pid
     from app.services import research_desk as RD
     from app.services.research_paper import day_label
     pid = active_pid() or 0
-    r = RD.load_report(pid, day)
+    key, r, market_only = _report_for(pf, day)
     head = None
     if r:
         t = (r.get("market") or {}).get("tasi") or {}
         head = {"date": r["date"], "label": day_label(r["date"]), "headline": r.get("headline"), "close": t.get("close"), "pct": t.get("pct"),
                 "view": ((r.get("market") or {}).get("tech") or {}).get("view"), "picks": len(r.get("picks") or [])}
-    dates = RD.report_dates(pid)
-    return success_response({"report": head, "dates": [{"date": d, "label": day_label(d)} for d in dates], "running": dict(_RD_RUN)})
+    dates = sorted(set(RD.report_dates(pid)) | set(RD.report_dates(key) if key != pid else []), reverse=True)
+    return success_response({"report": head, "dates": [{"date": d, "label": day_label(d)} for d in dates], "running": dict(_RD_RUN),
+                             "pf": pf or "", "market_only": market_only or pf == "none"})
 
 
 @router.get("/research-desk/paper")
-async def research_desk_paper(day: str | None = None, part: str = "market"):
-    """الورقةُ (HTML) — صفحاتُ السوق (‏market) أو صفحةُ المحفظة (‏portfolio) أو كلُّها (‏all)."""
-    from app.core.portfolio_scope import active_pid
-    from app.services import research_desk as RD
+async def research_desk_paper(day: str | None = None, part: str = "market", pf: str | None = None):
+    """الورقةُ (HTML) — صفحاتُ السوق (‏market) أو صفحةُ المحفظة (‏portfolio) أو كلُّها (‏all)؛ و`pf` (‏D788): ‏all المحافظُ مجتمعةً · رقمُ محفظة ·
+    none بلا محفظة (صفحاتُ السوق وحدها)."""
     from app.services.research_paper import render
-    r = RD.load_report(active_pid() or 0, day)
+    _key, r, market_only = _report_for(pf, day)
     if not r:
         return success_response({"html": None})
-    return success_response({"html": render(r, part if part in ("market", "portfolio", "all") else "market"), "date": r["date"]})
+    part = "market" if (pf == "none" or market_only) else (part if part in ("market", "portfolio", "all") else "market")
+    return success_response({"html": render(r, part), "date": r["date"], "market_only": part == "market"})
 
 
 @router.get("/research-desk/pdf")
-async def research_desk_pdf(day: str | None = None):
-    """الورقةُ كاملةً ملفَّ PDF بتاريخ جلستها — كما تصل إلى تلغرام."""
+async def research_desk_pdf(day: str | None = None, pf: str | None = None):
+    """الورقةُ كاملةً ملفَّ PDF بتاريخ جلستها — كما تصل إلى تلغرام (وبـ`pf` المختارة — ‏D788)."""
     from fastapi import Response
-    from app.core.portfolio_scope import active_pid
-    from app.services import research_desk as RD
     from app.services.research_paper import pdf
-    r = RD.load_report(active_pid() or 0, day)
+    _key, r, market_only = _report_for(pf, day)
+    if r and (pf == "none" or market_only):
+        r = {**r, "positions": [], "picks": [], "portfolio": [], "market_only": True}
     if not r:
         raise HTTPException(status_code=404, detail="لا تقريرَ لهذا اليوم.")
-    data = await pdf(r)
+    data = await pdf(r, "market" if r.get("market_only") else "all")
     if not data:
         raise HTTPException(status_code=503, detail="تعذّرت طباعةُ التقرير الآن.")
     return Response(content=data, media_type="application/pdf",
