@@ -6,13 +6,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Search, RefreshCw, LineChart, Layers, LogOut, ShoppingCart, X, Crosshair } from "lucide-react";
+import { Search, RefreshCw, LineChart, Layers, LogOut, ShoppingCart, X, Crosshair, Copy, Check } from "lucide-react";
+import { copyText } from "../../lib/symbols";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import CompanyLogo from "../common/CompanyLogo";
 import OptionChain from "./OptionChain";
 import OrderForm from "../saqr/OrderForm";
-import { dayMonth, optionTitle, parseOption } from "../../lib/options";
+import { dayMonth, optionTitle, parseOption, tvCode } from "../../lib/options";
 
 type Pick = { symbol: string; name?: string; contract: string; type: "call" | "put"; strike: number; ask: number; bid: number | null; cost: number;
   dte: number; expiry: string; breakeven: number; need_pct: number; pop: number; p_touch: number; target: number; target_label: string; rr: number;
@@ -39,6 +40,8 @@ export default function OptionPicks() {
   const [chainFor, setChainFor] = useState<string | null>(null);
   /* ‏D778 (المالك): «نكتفي بعقود الخيارات، وحُطّ في البطاقة نفسِها تنفيذ — زرٌّ بعبارة شراء… يطلع لي سعرُ العرض والطلب وأحدّد الأمر» */
   const [buyFor, setBuyFor] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const copy = (t: string) => { copyText(t).then(ok => { if (ok) { setCopied(t); window.setTimeout(() => setCopied(x => (x === t ? null : x)), 1600); } }); };
   const q = useQuery({
     queryKey: ["option-picks", budget],
     queryFn: () => marketApi.optionPicks(budget).then(r => r.data.data),
@@ -119,6 +122,13 @@ export default function OptionPicks() {
                         <Crosshair size={13} aria-hidden /> اختاره الرسم: <b>{p.chart.setup}</b> · جودة <Num v={`${p.chart.quality}/100`} /> · {p.chart.horizon}
                         {p.chart.council && <> · <span data-role="op-council">المجلس {p.chart.council.verdict} <Num v={`${p.chart.council.score}/100`} /></span></>}
                       </p>
+                    )}
+                    {/* ‏D787: رمزُ العقد بصيغة تريدنق فيو — يُنسخ بضغطة ويُلصق في بحث أيّ شاشةٍ فيُفتح (والبحثُ يقبل صيغةَ OCC أيضاً) */}
+                    {o && (
+                      <button type="button" className={"so-code op-code" + (copied === tvCode(o) ? " ok" : "")} onClick={() => copy(tvCode(o))} data-role="op-code"
+                        title="انسخ رمزَ العقد" aria-label={`انسخ رمز العقد ${tvCode(o)}`}>
+                        {copied === tvCode(o) ? <Check size={12} /> : <Copy size={12} />}<bdi dir="ltr">{tvCode(o)}</bdi>
+                      </button>
                     )}
                     <p className="op-line">
                       <b>{o ? optionTitle(o) : p.contract}</b> · ينتهي {dm(p.expiry)} (<Num v={`${p.dte}`} /> يوماً) · الكلفة <b><Num v={`$${n2(p.cost)}`} /></b>

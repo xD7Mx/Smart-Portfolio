@@ -1,10 +1,11 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react";
-import { searchCompanies, SaudiCompany } from "../../data/saudiCompanies";
+import { mergeDirectory, searchCompanies, SaudiCompany } from "../../data/saudiCompanies";
 import CompanyLogo from "../common/CompanyLogo";
 import { marketApi } from "../../services/api";
-import { isOption, optionTitle, parseOption } from "../../lib/options";
+import { optionTitle, parseOption, toOcc } from "../../lib/options";
+import { normalizeSymbol } from "../../lib/symbols";
 
 type Remote = { symbol: string; name: string; type: string; exchange: string; us: boolean };
 const LATIN = /^[\^A-Za-z][A-Za-z0-9.=^ -]{0,24}$/;
@@ -18,6 +19,12 @@ const LATIN = /^[\^A-Za-z][A-Za-z0-9.=^ -]{0,24}$/;
    والتلاشي بالعرض والشفافية معاً، ويُحترَم `prefers-reduced-motion`
    فمن أوقف الحركةَ في نظامه لا تُفرَض عليه. */
 
+/* ‏D787: دليلُ «تداول» الحيّ يُجلب مرّةً في الجلسة عند أوّل بحث، ويُضاف إلى القائمة الثابتة */
+let dirOnce: Promise<void> | null = null;
+const loadDirectory = () => (dirOnce ||= marketApi.saudiDirectory()
+  .then(r => { const d = r.data?.data; if (d && Array.isArray(d.rows)) mergeDirectory(d.rows, !!d.complete); })
+  .catch(() => { dirOnce = null; }));
+
 export default function InlineStockSearch(
   { onPick, global = false }: { onPick: (symbol: string) => void; global?: boolean },
 ) {
@@ -29,7 +36,7 @@ export default function InlineStockSearch(
   const [busy, setBusy] = React.useState(false);
   React.useEffect(() => {
     const t = q.trim();
-    if (!global || !open || !LATIN.test(t) || isOption(t)) { setRemote([]); setBusy(false); return; }
+    if (!global || !open || !LATIN.test(t) || toOcc(t)) { setRemote([]); setBusy(false); return; }
     let live = true;
     setBusy(true);
     const id = window.setTimeout(() => {
@@ -50,7 +57,7 @@ export default function InlineStockSearch(
   const close = () => { setOpen(false); setQ(""); setHits([]); setRemote([]); };
 
   React.useEffect(() => {
-    if (open) inputRef.current?.focus();
+    if (open) { inputRef.current?.focus(); loadDirectory()?.then(() => { const t = inputRef.current?.value || ""; if (t) setHits(searchCompanies(t, 400)); }); }
   }, [open]);
 
   React.useLayoutEffect(() => {
@@ -103,8 +110,9 @@ export default function InlineStockSearch(
           onChange={e => { setQ(e.target.value); setHits(searchCompanies(e.target.value, 400)); }}
           onKeyDown={e => {
             if (e.key === "Enter" && (hits[0] || remote[0] || q)) {
-              const t = q.trim();
-              pick(isOption(t) ? t : (global && LATIN.test(t) ? remote[0]?.symbol || hits[0]?.symbol : hits[0]?.symbol || remote[0]?.symbol) || t);
+              /* ‏D787: رمزٌ ملصوقٌ يُفتح كما هو — عقدٌ بصيغتيه (‏OCC · تريدنق فيو)، أو ببادئة سوقه (‏TADAWUL:1120 · NASDAQ:NVDA)، أو «تاسي» */
+              const t = q.trim(), occ = toOcc(t), code = /:/.test(t) || /^(تاسي|TASI)$/i.test(t) ? normalizeSymbol(t) : null;
+              pick(occ || code || (global && LATIN.test(t) ? remote[0]?.symbol || hits[0]?.symbol : hits[0]?.symbol || remote[0]?.symbol) || t);
             }
             if (e.key === "Escape") close();
           }} />
@@ -113,19 +121,19 @@ export default function InlineStockSearch(
       {/* ══ السوقان في قائمةٍ واحدة ══ (بأمر المالك · D521 · ‏D761)
          كانت نتائجُ السوق الأمريكيّ لا تظهر إن وافق الحرفُ اسماً سعودياً («NIO» في «Union»…) — قائمتان في موضعٍ واحدٍ تُخفي إحداهما
          الأخرى. والآن قائمةٌ واحدة: عقدُ الخيار المنسوخ أوّلاً، ثمّ الأمريكيُّ (والحرفُ لاتينيّ)، ثمّ السعوديّ. */}
-      {open && pos && (hits.length > 0 || (global && (remote.length > 0 || isOption(q.trim()) || (!busy && /^[\^A-Za-z][A-Za-z0-9.=^-]{0,14}$/.test(q.trim()))))) && createPortal(
+      {open && pos && (hits.length > 0 || (global && (remote.length > 0 || !!toOcc(q.trim()) || (!busy && /^[\^A-Za-z][A-Za-z0-9.=^-]{0,14}$/.test(q.trim()))))) && createPortal(
         <div ref={menuRef} dir={pos.rtl ? "rtl" : "ltr"} className="sp-menu search-pop rounded-xl overflow-hidden shadow-2xl"
           style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxH, overflowY: "auto" }}
           data-role="search-remote">
-          {global && isOption(q.trim()) && (
-            <button type="button" onClick={() => pick(q.trim())} data-role="search-option"
+          {global && !!toOcc(q.trim()) && (
+            <button type="button" onClick={() => pick(toOcc(q.trim())!)} data-role="search-option"
               className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[36px] text-start hover:panel transition-colors">
-              <CompanyLogo symbol={q.trim()} size={22} />
-              <span className="text-[12.5px] font-bold text-[var(--ink)]">{optionTitle(parseOption(q.trim())!)}</span>
+              <CompanyLogo symbol={toOcc(q.trim())!} size={22} />
+              <span className="text-[12.5px] font-bold text-[var(--ink)]">{optionTitle(parseOption(toOcc(q.trim())!)!)}</span>
               <span className="text-[var(--ink-muted)] text-[11px] ms-auto">عقد خيار</span>
             </button>
           )}
-          {global && !isOption(q.trim()) && remote.map(r => (
+          {global && !toOcc(q.trim()) && remote.map(r => (
             <button key={r.symbol} type="button" onClick={() => pick(r.symbol)} data-role="search-hit"
               className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[36px] text-start hover:panel transition-colors">
               <CompanyLogo symbol={r.symbol} size={22} />
@@ -134,7 +142,7 @@ export default function InlineStockSearch(
               <span className="text-[var(--ink-muted)] text-[10.5px] ms-auto shrink-0">{r.type}{r.exchange ? ` · ${r.exchange}` : ""}</span>
             </button>
           ))}
-          {global && !isOption(q.trim()) && !remote.length && !hits.length && !busy && (
+          {global && !toOcc(q.trim()) && !remote.length && !hits.length && !busy && (
             <button type="button" onClick={() => pick(q.trim())}
               className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[32px] text-start hover:panel transition-colors">
               <span className="tabular-nums text-[12px] font-semibold text-[var(--ink)]" dir="ltr">{q.trim().toUpperCase()}</span>

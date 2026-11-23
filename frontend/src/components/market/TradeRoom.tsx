@@ -9,10 +9,14 @@
    للتعديل»: فصارت «المؤشرات» قائمةَ مراقبةٍ على الخادم تُزرع مرّةً بالسبعة وتُعرض بأسعارها، يُضاف إليها ويُحذف منها. و«إخفاءُ القوائم كتريدنق
    فيو — جرسُ إعداداتٍ في القائمة نفسِها: أخلّي قائمتين، وأقسمها قسمين»: فترسٌ في صفّ القوائم يُظهر كلَّ قائمةٍ ويُخفيها، ويقسم اللوحةَ قسمين لكلٍّ
    قائمتُه. و«ملتي سكرين كتريدنق فيو — أربعُ شاشات: ربعُ ساعة، ساعة، أربعُ ساعات… بكيفنا»: فشاشةٌ أو اثنتان أو أربع، لكلٍّ إطارُها، والرمزُ
-   واحد، و«تحليلُ الرسم» فوقها يقرأ الأطرَ كلَّها معاً. */
+   واحد، و«تحليلُ الرسم» فوقها يقرأ الأطرَ كلَّها معاً.
+   ‏D787 (المالك 2026-11-23): «خلِّ فيه خيار ثلاث شاشات… وخيارُ تكبير الأربع مع بعض بجانب تحليل الرسم… واجعل كلَّ شاشةٍ منفصلة — مو شرط نفس
+   الشركة: أختار الشركةَ الكبيرة وأختار العقدَ الصغير… في كلّ شاشةٍ بحث: تاسي أو رمزُ شركةٍ أو رمزُ العقد نفسِه». فلكلّ شاشةٍ رمزُها وبحثُها
+   (والأولى هي رمزُ الغرفة)، والقائمةُ تفتح في الشاشة المختارة، و«تحليلُ الرسم» يقرأ شاشاتِ الرمز الرئيسيّ وحدها؛ وثلاثُ شاشات: كبيرةٌ
+   واثنتان بجانبها؛ و«تكبيرُ الشاشات» يملأ النافذةَ بها ويعود بـEsc. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Pencil, Check, Trash2, Layers, Settings2, ChevronUp, ChevronDown, ArrowUpDown } from "lucide-react";
+import { Plus, X, Pencil, Check, Trash2, Layers, Settings2, ChevronUp, ChevronDown, ArrowUpDown, Maximize2, Minimize2, Link2 } from "lucide-react";
 import ProChart from "../chart/ProChart";
 import ChartRead, { type ReadFrame } from "../chart/ChartRead";
 import CompanyLogo from "../common/CompanyLogo";
@@ -22,6 +26,8 @@ import OptionChain from "./OptionChain";
 import EconEvents from "./EconEvents";
 import LiveQuote, { SessionDot, useLive, useSessions } from "../chart/LiveQuote";
 import { isOption, optionSub, optionTitle, parseOption } from "../../lib/options";
+import { normalizeSymbol } from "../../lib/symbols";
+import { lookupCompany } from "../../data/saudiCompanies";
 import { holdingsApi, marketApi } from "../../services/api";
 import { invalidateWatchlist } from "../../services/watchlistCache";
 import { useAppStore } from "../../store/appStore";
@@ -73,8 +79,22 @@ export default function TradeRoom() {
   const setList = (v: string) => { setListState(v); try { localStorage.setItem("sp_room_list", v); } catch { /* خاصّ */ } };
   const [sym, setSymState] = useState<string | null>(() => { try { return localStorage.getItem("sp_room_symbol"); } catch { return null; } });
   const chartRef = useRef<HTMLDivElement>(null);
-  const pick = (s: string) => {
+  /* ‏D787: لكلّ شاشةٍ رمزُها — الأولى رمزُ الغرفة، وما بعدها يتبعها حتى يُختار لها رمز؛ والقائمةُ تفتح في الشاشة المختارة */
+  const [panes, setPanesState] = useState<(string | null)[]>(() => {
+    try { const v = JSON.parse(lsGet("sp_room_panes") || "[]"); return Array.from({ length: 4 }, (_, i) => (Array.isArray(v) && typeof v[i] === "string" ? v[i] : null)); }
+    catch { return [null, null, null, null]; }
+  });
+  const setPane = (k: number, v: string | null) => setPanesState(p => { const n = p.map((x, i) => (i === k ? v : x)); lsSet("sp_room_panes", JSON.stringify(n)); return n; });
+  const [active, setActive] = useState(0);
+  const activeRef = useRef(0);
+  activeRef.current = active;
+  const multiRef = useRef(false);
+  const setMain = (s: string) => {
     setSymState(s); try { localStorage.setItem("sp_room_symbol", s); } catch { /* خاصّ */ }
+  };
+  const pick = (s: string) => {
+    if (multiRef.current && activeRef.current > 0) setPane(activeRef.current, s);
+    else setMain(s);
     // على الجوال القائمةُ تحت الرسم — يُعاد إليه بانسياب
     if (window.innerWidth < 1024) chartRef.current?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   };
@@ -94,8 +114,19 @@ export default function TradeRoom() {
     document.addEventListener("pointerdown", away);
     return () => document.removeEventListener("pointerdown", away);
   }, [gear]);
-  const [layoutN, setLayoutState] = useState<number>(() => { const v = Number(lsGet("sp_room_layout")); return v === 2 || v === 4 ? v : 1; });
-  const setLayout = (n: number) => { setLayoutState(n); lsSet("sp_room_layout", String(n)); };
+  const [layoutN, setLayoutState] = useState<number>(() => { const v = Number(lsGet("sp_room_layout")); return v === 2 || v === 3 || v === 4 ? v : 1; });
+  const setLayout = (n: number) => { setLayoutState(n); lsSet("sp_room_layout", String(n)); if (active >= n) setActive(0); };
+  multiRef.current = layoutN > 1;
+  /* ‏D787: «تكبيرُ الشاشات» — تملأ النافذةَ وتعود بـEsc */
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    if (!wide) return;
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.querySelector(".d7m-modal")) setWide(false); };
+    window.addEventListener("keydown", k);
+    document.documentElement.classList.add("troom-wide-on");
+    return () => { window.removeEventListener("keydown", k); document.documentElement.classList.remove("troom-wide-on"); };
+  }, [wide]);
+  useEffect(() => { if (layoutN === 1) setWide(false); }, [layoutN]);
   const snaps = useRef(new Map<number, () => ReadFrame | null>());
   const rowsBox = useRef<HTMLDivElement>(null), rowsBox2 = useRef<HTMLDivElement>(null);
   useFlip(rowsBox); useFlip(rowsBox2);
@@ -273,6 +304,35 @@ export default function TradeRoom() {
     );
   };
 
+  /* ‏D787: رمزُ الشاشة واسمُها ورأسُها — شعارُه ورمزُه واسمُه وبحثُه (تاسي · رمزُ شركةٍ في السوقين · رمزُ عقدٍ بصيغتيه) */
+  const paneSym = (k: number) => (k === 0 ? symbol : panes[k] || symbol);
+  const paneName = (ps: string) => {
+    if (isOption(ps)) return optionTitle(parseOption(ps)!);
+    if (INDEX_NAMES[ps]) return INDEX_NAMES[ps];
+    const r = [...rows, ...rows2].find(x => x.symbol === ps || x.symbol === ps.replace(".SR", ""));
+    if (r?.name) return r.name;
+    return isSaudi(ps) ? lookupCompany(ps.replace(".SR", ""))?.name_ar || "" : "";
+  };
+  const setPaneSymbol = (k: number, raw: string) => {
+    const s = normalizeSymbol(raw) || raw.toUpperCase();
+    setActive(k);
+    if (k === 0) setMain(s); else setPane(k, s === symbol ? null : s);
+  };
+  const paneHead = (k: number, ps: string, own: boolean) => (
+    <div className="troom-phead" data-role="troom-phead">
+      <CompanyLogo symbol={ps} size={18} />
+      <b className="tabular-nums" dir="ltr">{isOption(ps) ? optionTitle(parseOption(ps)!) : INDEX_NAMES[ps] || ps.replace(".SR", "")}</b>
+      {!isOption(ps) && !INDEX_NAMES[ps] && <span className="troom-pname">{paneName(ps)}</span>}
+      {!own && <span className="troom-pfollow" title="تتبع الشاشةَ الأولى">تتبع الأولى</span>}
+      <span className="troom-pgrow" />
+      {k > 0 && own && (
+        <button type="button" className="btn-ghost troom-picon" onClick={() => setPane(k, null)} title="اربطها بالشاشة الأولى" aria-label="اربطها بالشاشة الأولى"
+          data-role="troom-plink"><Link2 size={13} /></button>
+      )}
+      <span data-role="troom-psearch"><InlineStockSearch global onPick={s => setPaneSymbol(k, s)} /></span>
+    </div>
+  );
+
   const identityNode = (
           <span className="troom-ident flex items-center gap-1.5 min-w-0" data-role="troom-ident">
             <CompanyLogo symbol={symbol} size={26} />
@@ -441,7 +501,7 @@ export default function TradeRoom() {
         )}
       </aside>
 
-      <section ref={chartRef} className="troom-chart card" data-role="troom-chart">
+      <section ref={chartRef} className={"troom-chart card" + (wide ? " troom-wide" : "")} data-role="troom-chart" data-wide={wide ? "1" : "0"}>
         {layoutN === 1 ? (
           <ProChart symbol={symbol} theme={theme === "light" ? "light" : "dark"} identity={identityNode}
             layout={{ n: 1, set: setLayout }} read={{ name: nm, market }} snaps={snaps} />
@@ -449,17 +509,30 @@ export default function TradeRoom() {
           {/* ‏D782: الشاشاتُ المتعدّدة — الرأسُ واحدٌ فوقها: الاسمُ والعقودُ والأحداثُ و«تحليلُ الرسم» للأطر كلِّها معاً والسعرُ الحيّ */}
           <div className="troom-mhead" data-role="troom-mhead">
             {identityNode}
+            {/* ‏D787: «تحليلُ الرسم» يقرأ شاشاتِ الرمز الرئيسيّ وحدها — لا يخلط إطاراً من شركةٍ بإطارٍ من أخرى */}
             <ChartRead symbol={symbol} name={nm} market={market}
-              frames={() => [...snaps.current.entries()].sort((a, b) => a[0] - b[0]).map(([, f]) => f()).filter(Boolean) as ReadFrame[]} />
+              frames={() => [...snaps.current.entries()].filter(([k]) => k < layoutN && paneSym(k) === symbol).sort((a, b) => a[0] - b[0])
+                .map(([, f]) => f()).filter(Boolean) as ReadFrame[]} />
+            <button type="button" className={"btn-ghost troom-wide-btn" + (wide ? " on" : "")} onClick={() => setWide(w => !w)} aria-pressed={wide}
+              data-role="troom-wide" title={wide ? "تصغيرُ الشاشات (Esc)" : "تكبيرُ الشاشات"} aria-label={wide ? "تصغيرُ الشاشات" : "تكبيرُ الشاشات"}>
+              {wide ? <Minimize2 size={15} /> : <Maximize2 size={15} />}<span>{wide ? "تصغير" : "تكبير"}</span>
+            </button>
             <LiveQuote symbol={symbol} live={live} badge={false} />
           </div>
           <div className={`troom-grid g${layoutN}`} data-role="troom-grid">
-            {Array.from({ length: layoutN }, (_, k) => (
-              <div key={k} className="troom-pane" data-role="troom-pane">
-                <ProChart symbol={symbol} theme={theme === "light" ? "light" : "dark"} slot={k} mini rows={layoutN === 4 ? 2 : 1}
-                  layout={k === 0 ? { n: layoutN, set: setLayout } : undefined} snaps={snaps} />
-              </div>
-            ))}
+            {Array.from({ length: layoutN }, (_, k) => {
+              const ps = paneSym(k);
+              return (
+                <div key={k} className={"troom-pane" + (k === active ? " on" : "")} data-role="troom-pane" data-k={k} data-symbol={ps}
+                  onPointerDownCapture={() => { if (k !== active) setActive(k); }}>
+                  {paneHead(k, ps, k === 0 || !!panes[k])}
+                  <ProChart symbol={ps} theme={theme === "light" ? "light" : "dark"} slot={k} mini
+                    rows={layoutN === 4 ? 2 : layoutN === 3 ? (k === 0 ? 1 : 2) : 1}
+                    fit={{ top: wide ? 104 : 250, head: 34 }}
+                    layout={k === 0 ? { n: layoutN, set: setLayout } : undefined} snaps={snaps} />
+                </div>
+              );
+            })}
           </div>
         </>)}
         {chainFor && (

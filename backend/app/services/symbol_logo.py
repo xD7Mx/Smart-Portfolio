@@ -72,9 +72,9 @@ def _store(symbol: str, ctype: str | None, data: bytes | None) -> None:
         pass
 
 
-async def _tv_logoid(c: httpx.AsyncClient, text: str) -> str | None:
+async def _tv_logoid(c: httpx.AsyncClient, text: str, exchange: str = "") -> str | None:
     r = await c.get("https://symbol-search.tradingview.com/symbol_search/v3/",
-                    params={"text": text, "hl": "0", "exchange": "", "lang": "en", "search_type": "", "domain": "production"})
+                    params={"text": text, "hl": "0", "exchange": exchange, "lang": "en", "search_type": "", "domain": "production"})
     if r.status_code != 200:
         return None
     js = r.json()
@@ -88,23 +88,55 @@ async def _tv_logoid(c: httpx.AsyncClient, text: str) -> str | None:
     return None
 
 
+def _sa_logo_by_name(sym: str) -> str | None:
+    """شعارُ الشركة السعودية من الدليل: برمزها، أو باسمها الرسميّ إن كان شعارُها في الدليل على رمزٍ آخر (نُقلت بين السوقين)."""
+    try:
+        from app.data.saudi_directory import SAUDI_DIRECTORY
+    except Exception:                                             # noqa: BLE001
+        return None
+    row = SAUDI_DIRECTORY.get(sym) or {}
+    if row.get("logo"):
+        return row["logo"]
+    nm = (row.get("name") or "").strip()
+    if not nm:
+        return None
+    for s2, v in SAUDI_DIRECTORY.items():
+        if s2 != sym and v.get("logo") and (v.get("name") or "").strip() == nm:
+            return v["logo"]
+    return None
+
+
 async def fetch_logo(symbol: str) -> tuple[str, bytes] | None:
     """(النوع، البايتات) أو None — من الذاكرة أوّلاً."""
-    hit = _cached(symbol)
+    s = str(symbol or "").upper().strip()
+    # ‏D787: للسعوديّ مفتاحُ ذاكرةٍ جديد — قِيس على الخادم أنّ ما خُبّئ قبله لـ1325 و6022 و4328 صورةٌ واحدةٌ بحجمٍ واحد (826 بايتاً): شعارٌ عامٌّ
+    # من بحثٍ بلا سوق، يبقى ثلاثين يوماً ويحجب شعارَ الاسم في الدليل
+    ck = f"SA2_{s.split('.')[0]}" if re.match(r"^\d{4}(?:\.SR)?$", s) else symbol
+    hit = _cached(ck)
     if hit:
         return None if hit[0] == "miss" else hit
-    s = str(symbol or "").upper().strip()
     found = None
+    # ‏D787: السهمُ السعوديّ (‏1325.SR) يُبحث في «تداول» برمزه؛ وإن لم يُعرف شعارُه فشعارُ الاسم نفسِه في الدليل (المنقولُ بين السوقين:
+    # «حديد وطني» شعارُه في الدليل على رمزه القديم 9513 في «نمو» وصار 1325 في الرئيسية)
+    sa = re.match(r"^(\d{4})(?:\.SR)?$", s)
     async with httpx.AsyncClient(timeout=10, headers=_H, follow_redirects=True) as c:
+        if sa:
+            for url in [u for u in (_sa_logo_by_name(sa.group(1)),) if u]:
+                try:
+                    r = await c.get(url)
+                    if r.status_code == 200 and b"<svg" in r.content[:400]:
+                        found = ("image/svg+xml", r.content)
+                except Exception:                                 # noqa: BLE001
+                    pass
         try:
-            lid = await _tv_logoid(c, tv_text(s))
+            lid = None if found else await _tv_logoid(c, sa.group(1) if sa else tv_text(s), "TADAWUL" if sa else "")
             if lid and re.match(r"^[A-Za-z0-9/_.-]+$", lid):
                 r = await c.get(f"https://s3-symbol-logo.tradingview.com/{lid}.svg")
                 if r.status_code == 200 and b"<svg" in r.content[:400]:
                     found = ("image/svg+xml", r.content)
         except Exception:                                         # noqa: BLE001
             found = None
-        for url in ([] if found else [f"https://assets.parqet.com/logos/symbol/{s}?format=png&size=96",
+        for url in ([] if found else [f"https://assets.parqet.com/logos/symbol/{sa.group(1) + '.SR' if sa else s}?format=png&size=96",
                                        f"https://financialmodelingprep.com/image-stock/{s}.png"]):
             try:
                 r = await c.get(url)
@@ -113,5 +145,5 @@ async def fetch_logo(symbol: str) -> tuple[str, bytes] | None:
                     break
             except Exception:                                     # noqa: BLE001
                 continue
-    _store(s, found[0] if found else None, found[1] if found else None)
+    _store(ck, found[0] if found else None, found[1] if found else None)
     return found

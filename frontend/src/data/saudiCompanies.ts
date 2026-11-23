@@ -439,11 +439,11 @@ export function searchCompanies(q: string, limit = 8): SaudiCompany[] {
   /* الاسم الدارج يبحث كما يبحث الاسم النظامي: من كتب «معادن» كان لا يجد
      شيئاً لأن اسمها المسجَّل «التعدين العربية السعودية» — و٤١ شركةً أخرى
      مثلها. الجدول مولَّد من دليل السوق في الخادم، والعرض يبقى نظامياً. */
-  const hits = SAUDI_COMPANIES.filter(c =>
+  const hits = SAUDI_COMPANIES.filter(c => !HIDDEN.has(c.symbol) && (
     c.symbol.startsWith(n) ||
     norm(c.name_ar).includes(n) ||
     c.name_en.toLowerCase().includes(n) ||
-    norm(COMPANY_ALIASES[c.symbol] || "").includes(n)
+    norm(COMPANY_ALIASES[c.symbol] || "").includes(n))
   ).slice(0, limit);
   /* ══ رمزٌ خارج الدليل يبقى قابلاً للفتح ══ (بأمر المالك)
      بحث المالك عن «صناديق البلاد للذهب والأسهم الأمريكية والتقنية» فلم
@@ -458,6 +458,24 @@ export function searchCompanies(q: string, limit = 8): SaudiCompany[] {
               sector: "خارج الدليل" }];
   }
   return hits;
+}
+
+/* ══ ‏D787: الدليلُ الحيّ من «تداول» فوق القائمة الثابتة ══ (المالك 2026-11-23: «وطني للحديد والصلب ما وجدتُ لها رمزاً — شوف رمزه في تداول»)
+   القائمةُ أعلاه تُبنى مع التطبيق، فالمدرَجُ الجديدُ والمنقولُ بين السوقين لا يُوجد فيها («حديد وطني» فيها برمزها القديم 9513 في «نمو» وصارت
+   1325 في الرئيسية). فالخادمُ يرسل دليلَ «تداول» كما نشرته اليوم: ما ليس في القائمة يُضاف، وما غاب عن الصفحتين كلتيهما (والدليلُ كامل)
+   يُخفى من البحث — فلا يُفتح رمزٌ قديمٌ لا سعرَ له. */
+const HIDDEN = new Set<string>();
+export function mergeDirectory(rows: { symbol: string; name_ar: string; name_en?: string; sector?: string }[], complete: boolean): number {
+  const have = new Set(SAUDI_COMPANIES.map(c => c.symbol));
+  const live = new Set(rows.map(r => r.symbol));
+  let added = 0;
+  for (const r of rows) {
+    if (!/^\d{4}$/.test(r.symbol) || have.has(r.symbol)) continue;
+    SAUDI_COMPANIES.push({ symbol: r.symbol, name_ar: r.name_ar, name_en: r.name_en || "", sector: r.sector || "" });
+    added++;
+  }
+  if (complete && live.size >= 200) for (const c of SAUDI_COMPANIES) if (!live.has(c.symbol)) HIDDEN.add(c.symbol);
+  return added;
 }
 
 export function lookupCompany(symbol: string): SaudiCompany | undefined {

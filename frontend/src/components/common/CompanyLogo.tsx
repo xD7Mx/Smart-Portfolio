@@ -47,10 +47,13 @@ export default function CompanyLogo({ symbol, color, size = 40, logoUrl }: { sym
      السعوديّ (‏QQQ.SR) فيفشل كلُّ مصدرٍ ويظهر حرف. صارت من خادمنا (‏/market/logo — شعاراتُ تريدنق فيو بذاكرةٍ ثلاثين يوماً)،
      ثمّ parqet بالرمز كما هو. */
   const saudi = /^\d{4}$/.test(base);
+  /* ‏D787: والسعوديُّ الذي لا تعرفه الخريطة (المدرَجُ الجديدُ والمنقولُ بين السوقين — «حديد وطني» صار 1325) من خادمنا: بحثُ تريدنق فيو في «تداول»
+     برمزه، أو شعارُ الاسم نفسِه في الدليل — قبل parqet */
   const candidates = (saudi ? [
     TV_LOGOS[base] || null,
     `https://www.tadawulgroup.sa/Resources/SEMOBILELOGOS/${base}.png`,
     logoUrl || null,
+    TV_LOGOS[base] ? null : `${API_BASE}/market/logo/${base}.SR`,
     `https://assets.parqet.com/logos/symbol/${base}.SR?format=png&size=${size * 2}`,
   ] : [
     base ? `${API_BASE}/market/logo/${encodeURIComponent(base)}` : null,

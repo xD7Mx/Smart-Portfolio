@@ -5,11 +5,13 @@
    يتجدّد وحده والسوقُ في جلسة. و«تحليلٌ ذكيّ» يقرأ اليونانيات والمسارَ والأخبارَ والأحداثَ ويقول الأنسبَ لميزانيتك أو يمتنع،
    والضغطُ على عقدٍ يفتح بطاقتَه: يونانياتُه كاملةً وحكمُ التحليل عليه، ورسمُه، وإضافتُه للقائمة. */
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, X, Sparkles, LineChart, RefreshCw, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
+import { Plus, X, Sparkles, LineChart, RefreshCw, ShieldCheck, ShieldAlert, ShieldX, Compass, Copy, Check } from "lucide-react";
 import { marketApi } from "../../services/api";
 import CompanyLogo from "../common/CompanyLogo";
-import { dayMonth, dteLabel, optionTitle, parseOption } from "../../lib/options";
+import { dayMonth, dteLabel, optionTitle, parseOption, tvCode } from "../../lib/options";
+import { copyText } from "../../lib/symbols";
 import { SessionBadge, useLive } from "../chart/LiveQuote";
 import EconEvents from "./EconEvents";
 
@@ -32,8 +34,33 @@ const lsSet = (k: string, v: string) => { try { localStorage.setItem(k, v); } ca
 const VIcon = ({ v }: { v: Card["verdict"] }) => (v === "ok" ? <ShieldCheck size={13} /> : v === "warn" ? <ShieldAlert size={13} /> : <ShieldX size={13} />);
 const ACTIVE = new Set(["pre", "open", "post"]);
 
-export default function OptionChain({ underlying, onPick, onAdd, onClose }: {
-  underlying: string; onPick: (contract: string) => void; onAdd?: (contract: string, name: string) => void; onClose: () => void;
+/* ══ ‏D787: دليلُ الفرصة في السلسلة ══ (المالك 2026-11-23: «منطقةُ الدخول في السهم هل هي نفسُها في العقد؟ تختلف. نبغى لمحبّي العقود ما العقودُ
+   المناسبةُ لهذه الفرصة — النطاقُ اللي نسبةُ نجاحه أعلى بتصميمٍ مميّز، والباقي خارجه نطاقٌ مساعد — دليلٌ إرشاديّ»).
+   لكلّ سعر تنفيذٍ في جهة الفرصة (شراءٌ ⇐ Call · بيعٌ ⇐ Put) يُقاس بسعره الحقيقيّ: نقطةُ تعادله (التنفيذُ ± ما يُدفع)، ودلتاه، وعائدُه إن بلغ السهمُ
+   هدفَ الفرصة. «الأنسب»: يتعادل قبل أن يقطع السهمُ ستّين بالمئة من طريقه إلى الهدف، ودلتاه بين 0.35 و0.80، ويربح نصفَ ثمنه فأكثر عند الهدف.
+   «مساعد»: يربح عند الهدف ودلتاه 0.20 فأكثر. وما سواهما خارجُ الدليل. والأجلُ: ما يتّسع لمدّة الفرصة (شهر ⇐ 45 يوماً · شهران ⇐ 75 ·
+   حتى الربع القادم ⇐ 110) فلا يأكل الوقتُ العقدَ قبل أن تكتمل. */
+export type Guide = { side: "long" | "short"; setup: string; entry: [number, number]; target: number; stop: number; close: number; horizon_n: number; horizon: string };
+type Band = "core" | "aux" | null;
+const NEED_DTE: Record<number, number> = { 1: 45, 2: 75, 3: 110 };
+export function bandOf(g: Guide, S: number, k: number, r: Row | undefined): { band: Band; be: number | null; ret: number | null; delta: number | null } {
+  const px = r ? (r.ask || r.sask || r.g?.px || r.last || null) : null;
+  if (!r || !px || px <= 0 || !(S > 0)) return { band: null, be: null, ret: null, delta: null };
+  const long = g.side === "long", T = g.target;
+  const be = long ? k + px : k - px;
+  const pay = (long ? Math.max(T - k, 0) : Math.max(k - T, 0)) - px;
+  const ret = pay / px;
+  const delta = r.g?.delta != null ? Math.abs(r.g.delta) : null;
+  const need = long ? S + 0.6 * (T - S) : S - 0.6 * (S - T);
+  const beOk = long ? be <= need : be >= need;
+  const dOk = delta == null ? true : delta >= 0.35 && delta <= 0.8;
+  if (beOk && dOk && ret >= 0.5) return { band: "core", be, ret, delta };
+  if (ret > 0 && (delta == null || delta >= 0.2)) return { band: "aux", be, ret, delta };
+  return { band: null, be, ret, delta };
+}
+
+export default function OptionChain({ underlying, onPick, onAdd, onClose, guide }: {
+  underlying: string; onPick: (contract: string) => void; onAdd?: (contract: string, name: string) => void; onClose: () => void; guide?: Guide;
 }) {
   const [exp, setExp] = useState<number | null>(null);
   const [all, setAll] = useState(false);
@@ -58,6 +85,15 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose }: {
     placeholderData: prev => prev,
   });
   const c = q.data;
+  /* ‏D787: بدليل الفرصة يُفتح أوّلُ أجلٍ يتّسع لمدّتها — مرّةً، ثمّ يختار المالكُ ما يشاء */
+  const [autoExp, setAutoExp] = useState(false);
+  useEffect(() => {
+    if (!guide || autoExp || exp != null || !c?.expirations?.length) return;
+    const need = NEED_DTE[guide.horizon_n] ?? 45;
+    const e = c.expirations.find(x => x.dte >= need) || c.expirations[c.expirations.length - 1];
+    setAutoExp(true);
+    if (e && e.t !== c.expiry) setExp(e.t);
+  }, [guide, autoExp, exp, c]);
   const cur = exp ?? c?.expiry ?? null;
   const S = live?.price ?? c?.price ?? null;
   const curExp = c?.expirations?.find(e => e.t === cur);
@@ -69,11 +105,32 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose }: {
     for (const r of c.puts || []) m.set(r.strike, { ...(m.get(r.strike) || { k: r.strike }), put: r });
     const list = [...m.values()].sort((a, b) => a.k - b.k);
     if (all || !S || list.length <= 25) return list;
+    if (guide) {                                                   // ‏D787: النافذةُ تتّسع لنطاق الفرصة (من حدّها إلى ما بعد هدفها)
+      const lo = Math.min(S, guide.stop, guide.target) * 0.96, hi = Math.max(S, guide.stop, guide.target) * 1.04;
+      const w = list.filter(r => r.k >= lo && r.k <= hi);
+      if (w.length >= 8 && w.length <= 44) return w;
+    }
     const i = list.findIndex(r => r.k >= S);
     const at = i < 0 ? list.length - 1 : i;
     return list.slice(Math.max(0, at - 12), at + 12);
-  }, [c, all, S]);
+  }, [c, all, S, guide]);
   const pxAt = S != null ? strikes.findIndex(r => r.k >= S) : -1;
+  /* ‏D787: نطاقُ الدليل لكلّ سعر تنفيذ، وحدودُ «الأنسب» و«المساعد»، وأفضلُ ثلاثة عقودٍ في «الأنسب» (الأعلى دلتا فالأرخص تعادلاً) */
+  const bands = useMemo(() => {
+    const out = new Map<number, ReturnType<typeof bandOf>>();
+    if (!guide || !S) return out;
+    for (const r of strikes) out.set(r.k, bandOf(guide, S, r.k, guide.side === "long" ? r.call : r.put));
+    return out;
+  }, [guide, S, strikes]);
+  const span = (b: Band) => { const ks = strikes.filter(r => bands.get(r.k)?.band === b).map(r => r.k); return ks.length ? [Math.min(...ks), Math.max(...ks)] : null; };
+  const coreSpan = guide ? span("core") : null, auxSpan = guide ? span("aux") : null;
+  const best = guide ? strikes.filter(r => bands.get(r.k)?.band === "core").map(r => ({ r: guide.side === "long" ? r.call! : r.put!, b: bands.get(r.k)! }))
+    /* الأقربُ إلى دلتا 0.60 أوّلاً — توازنُ احتمال النجاح وكلفته (الأعمقُ في النقود أغلى، والأبعدُ أضعفُ احتمالاً)، ثمّ الأعلى عائداً عند الهدف */
+    .sort((a, b) => (a.b.delta == null ? 9 : Math.abs(a.b.delta - 0.6)) - (b.b.delta == null ? 9 : Math.abs(b.b.delta - 0.6)) || (b.b.ret ?? 0) - (a.b.ret ?? 0))
+    .slice(0, 3) : [];
+  const [copied, setCopied] = useState<string | null>(null);
+  const copy = (t: string) => copyText(t).then(ok => { if (ok) { setCopied(t); window.setTimeout(() => setCopied(x => (x === t ? null : x)), 1600); } });
+  const needDte = guide ? NEED_DTE[guide.horizon_n] ?? 45 : 0;
 
   const advice = useQuery({
     queryKey: ["opt-advice", underlying, ask?.b ?? null, ask?.n ?? 0],
@@ -105,7 +162,10 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose }: {
     );
   };
 
-  return (
+  /* ‏D787 (المالك: «سلسلةُ العقود في الفرص ما تفتح»): كانت النافذةُ تُرسم داخل لوحة صقر، وحركةُ ظهور اللوحة (‏fadeUp … both) تُبقي عليها تحويلاً
+     (‏matrix(1,0,0,1,0,0)) فتصير اللوحةُ — لا الشاشةُ — مرجعَ ‏position: fixed: فامتدّت النافذةُ بطول اللوحة (‏8171px على الجوال) ورُسمت السلسلةُ
+     خارج الشاشة (تحتها في الجوال وفوقها في الحاسوب) والقائمةُ طويلةٌ والفرصةُ في وسطها. فتُرسم في جذر الصفحة — كقائمة البحث (‏D765) */
+  return createPortal(
     <div className="d7m-modal oc-modal" data-shown={shown ? "1" : "0"} role="dialog" aria-label={`عقود خيارات ${underlying}`} onClick={onClose} data-role="oc">
       <div className="d7m-sheet oc-sheet ocx" onClick={e => e.stopPropagation()}>
         <div className="d7m-head">
@@ -144,20 +204,48 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose }: {
 
         {smart && <Smart q={advice} onClose={() => setSmart(false)} onOpen={k => onPick(k)} onAdd={onAdd} budget={ask?.b ?? null} />}
 
+        {guide && S != null && !!c && (
+          <div className="ocg" data-role="oc-guide" data-side={guide.side}>
+            <div className="ocg-head"><Compass size={15} aria-hidden /><b>دليلُ الفرصة</b>
+              <span className="ocg-setup">{guide.setup} · {guide.side === "long" ? "شراء ⇐ عقودُ Call" : "بيع ⇐ عقودُ Put"}</span></div>
+            <div className="ocg-legs">
+              <span data-role="oc-guide-core"><i className="ocg-sw core" aria-hidden /> الأنسب{coreSpan ? <> <bdi dir="ltr">{f2(coreSpan[0])}–{f2(coreSpan[1])}</bdi></> : " — لا عقدَ في هذا الأجل"}</span>
+              <span data-role="oc-guide-aux"><i className="ocg-sw aux" aria-hidden /> مساعد{auxSpan ? <> <bdi dir="ltr">{f2(auxSpan[0])}–{f2(auxSpan[1])}</bdi></> : " —"}</span>
+              <span className="ocg-mut">الهدف <bdi dir="ltr">{f2(guide.target)}</bdi> · الحدّ <bdi dir="ltr">{f2(guide.stop)}</bdi></span>
+            </div>
+            {curExp && (curExp.dte < needDte
+              ? <p className="ocg-warn" data-role="oc-guide-dte">هذا الأجلُ ({dteLabel(curExp.dte)}) أقصرُ من مدّة الفرصة «{guide.horizon}» — الأنسبُ أجلٌ بعد {needDte} يوماً فأكثر.</p>
+              : <p className="ocg-mut" data-role="oc-guide-dte">الأجلُ يتّسع لمدّة الفرصة «{guide.horizon}».</p>)}
+            {best.length > 0 && (
+              <div className="ocg-best" data-role="oc-guide-best">
+                {best.map(({ r, b }) => { const o = parseOption(r.contract); const code = o ? tvCode(o) : r.contract; return (
+                  <span key={r.contract} className="ocg-pick">
+                    <button type="button" className="ocg-open" onClick={() => setSel({ row: r, call: guide.side === "long" })} data-role="oc-guide-pick">
+                      <b dir="ltr">{f2(r.strike)}</b><small>تعادل <bdi dir="ltr">{f2(b.be)}</bdi> · عند الهدف <bdi dir="ltr">{b.ret != null ? `${b.ret >= 0 ? "+" : ""}${(b.ret * 100).toFixed(0)}%` : "—"}</bdi></small>
+                    </button>
+                    <button type="button" className={"ocg-code" + (copied === code ? " ok" : "")} onClick={() => copy(code)} data-role="oc-guide-code"
+                      title="انسخ رمزَ العقد" aria-label={`انسخ رمز العقد ${code}`}>{copied === code ? <Check size={12} /> : <Copy size={12} />}<bdi dir="ltr">{code}</bdi></button>
+                  </span>); })}
+              </div>
+            )}
+          </div>
+        )}
+
         {!!c?.expirations?.length && (
           <div className="oc-exps" role="group" aria-label="الآجال">
-            {c.expirations.map(e => (
-              <button key={e.t} type="button" className={"seg-btn chip oc-exp" + (cur === e.t ? " on" : "")} onClick={() => { setExp(e.t); setSel(null); }} data-role="oc-exp">
+            {c.expirations.map(e => { const fit = !!guide && e.dte >= needDte; return (
+              <button key={e.t} type="button" onClick={() => { setExp(e.t); setSel(null); }} className={"seg-btn chip oc-exp" + (cur === e.t ? " on" : "") + (fit ? " fit" : "")}
+                data-role="oc-exp" data-fit={fit ? "1" : undefined}>
                 <b>{dayMonth(e.date)}</b><small>{dteLabel(e.dte)}</small>
               </button>
-            ))}
+            ); })}
           </div>
         )}
 
         {q.isPending && !c ? <div className="oc-empty">…</div> : !c || !strikes.length ? (
           <div className="oc-empty" data-role="oc-empty">لا عقودَ خياراتٍ لهذا الرمز.</div>
         ) : (
-          <div className="ocx-table" data-role="oc-table" dir="ltr" style={{ opacity: q.isFetching && !q.isRefetching ? 0.6 : 1 }}>
+          <div className="ocx-table" data-role="oc-table" dir="ltr" data-gside={guide?.side || undefined} style={{ opacity: q.isFetching && !q.isRefetching ? 0.6 : 1 }}>
             <div className="ocx-row ocx-h1">
               <div className="ocx-side ocx-c"><span className="ocx-cap">شراء · CALLS</span></div>
               <div className="ocx-k">{curExp ? dteLabel(curExp.dte) : ""}</div>
@@ -171,7 +259,7 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose }: {
             {strikes.map((r, i) => (
               <div key={r.k}>
                 {i === pxAt && S != null && <div className="ocx-pxline" data-role="oc-pxline"><span dir="ltr">{f2(S)}</span></div>}
-                <div className="ocx-row" data-role="oc-row">
+                <div className={"ocx-row" + (bands.get(r.k)?.band ? ` g-${bands.get(r.k)!.band}` : "")} data-role="oc-row" data-band={bands.get(r.k)?.band || ""}>
                   {cell(r.call, true, S != null && r.k < S)}
                   <div className="ocx-k"><b>{f2(r.k)}</b></div>
                   {cell(r.put, false, S != null && r.k > S)}
@@ -186,8 +274,7 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose }: {
         {sel && <Detail row={sel.row} call={sel.call} S={S} underlying={underlying} budget={Number(budget) >= 10 ? Number(budget) : null}
           onClose={() => setSel(null)} onOpen={() => onPick(sel.row.contract)} onAdd={onAdd ? () => onAdd(sel.row.contract, nameOf(sel.row)) : undefined} />}
       </div>
-    </div>
-  );
+    </div>, document.body);
 }
 
 /* ── بطاقةُ العقد: يونانياتُه كاملةً وحكمُ التحليل الذكيّ عليه ── */

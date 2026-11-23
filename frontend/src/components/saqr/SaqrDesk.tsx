@@ -70,17 +70,42 @@ function nodes(s: SaqrState, sesOpen: boolean): { k: string; t: string; d: React
   ];
 }
 
+/* ══ ‏D787: حولَ صقر — هيبةٌ لا شرح ══ (المالك 2026-11-23: «الرسومُ اللي حول صورة صقر خلِّها رسميةً واحترافيةً وغامضةً قليلاً — بشكلٍ جماليّ يبعث
+   الهيبة… لا تفضحه، لا تفضح قوّته: إيش يسوي هذه بيننا»). كانت حولَه ثماني بطاقاتٍ تسمّي أنظمتَه وأرقامَها؛ فصارت إطاراً كقرص أداةٍ دقيقة:
+   تدريجٌ ناعم، ومدارٌ يدور ببطء، ومسحٌ كالرادار حين يعمل، وأنوارٌ بلا أسماء — كلُّ نورٍ نظامٌ بحاله (يعمل · يتحفّظ · ساكن) ولا يقول ما هو. */
 function Hub({ s, sesOpen }: { s: SaqrState; sesOpen: boolean }) {
   const ns = nodes(s, sesOpen);
-  const R = 110, C = 150;
+  const C = 150, RO = 118;
   const live = s.on && sesOpen;
+  const ticks = Array.from({ length: 72 }, (_, i) => {
+    const a = (i * 5 * Math.PI) / 180, mj = i % 6 === 0, r0 = mj ? 131 : 136, r1 = 141;
+    return <line key={i} className={"sq-tick" + (mj ? " mj" : "")} x1={C + r0 * Math.sin(a)} y1={C - r0 * Math.cos(a)} x2={C + r1 * Math.sin(a)} y2={C - r1 * Math.cos(a)} />;
+  });
+  const sw = (36 * Math.PI) / 180;
   return (
-    <div className={"sq-hub" + (live ? " live" : "")} data-role="sq-hub" data-live={live ? "1" : "0"}>
-      <svg className="sq-wires" viewBox="0 0 300 300" aria-hidden>
-        <circle cx={C} cy={C} r={R} className="sq-orbit" />
+    <div className={"sq-hub" + (live ? " live" : "")} data-role="sq-hub" data-live={live ? "1" : "0"} role="img" aria-label={`صقر — ${s.on ? (sesOpen ? "يعمل" : "ينتظر الجلسة") : "موقوف"}`}>
+      <svg className="sq-wires sq-sigil" viewBox="0 0 300 300" aria-hidden>
+        <defs>
+          <radialGradient id="sqSweepG" cx="150" cy="150" r={RO} gradientUnits="userSpaceOnUse">
+            <stop offset="0.35" style={{ stopColor: "var(--brand-ink)", stopOpacity: 0 }} />
+            <stop offset="1" style={{ stopColor: "var(--brand-ink)", stopOpacity: 0.22 }} />
+          </radialGradient>
+        </defs>
+        <circle cx={C} cy={C} r={145} className="sq-bezel-o" />
+        <g className="sq-bezel">{ticks}</g>
+        <g className="sq-sweep"><path d={`M${C},${C} L${C},${C - RO} A${RO},${RO} 0 0,1 ${C + RO * Math.sin(sw)},${C - RO * Math.cos(sw)} Z`} /></g>
+        <circle cx={C} cy={C} r={RO} className="sq-orbit" />
+        <circle cx={C} cy={C} r={100} className="sq-ring-i" />
         {ns.map((n, i) => {
           const a = (i / ns.length) * Math.PI * 2 - Math.PI / 2;
-          return <line key={n.k} x1={C} y1={C} x2={C + R * Math.cos(a)} y2={C + R * Math.sin(a)} className={"sq-wire " + n.st} />;
+          return (
+            <g key={n.k} transform={`translate(${C + RO * Math.cos(a)},${C + RO * Math.sin(a)})`}>
+              <g className={"sq-node " + n.st} data-role="sq-node" data-state={n.st} data-k={n.k} style={{ animationDelay: `${120 + i * 60}ms` }}>
+                <circle r={8.5} className="sq-lg" />
+                <rect x={-3.6} y={-3.6} width={7.2} height={7.2} transform="rotate(45)" className="sq-lt" />
+              </g>
+            </g>
+          );
         })}
       </svg>
       <div className="sq-core" data-role="sq-core">
@@ -88,19 +113,6 @@ function Hub({ s, sesOpen }: { s: SaqrState; sesOpen: boolean }) {
         <SaqrEmblem size={160} live={live} />
       </div>
       <span className={"sq-cstate " + (live ? "on" : "")} data-role="sq-cstate">{s.on ? (sesOpen ? "يصطاد" : "ينتظر الجلسة") : "موقوف"}</span>
-      {ns.map((n, i) => {
-        const a = (i / ns.length) * 360 - 90;
-        const x = 50 + (R / 300) * 100 * Math.cos((a * Math.PI) / 180), y = 50 + (R / 300) * 100 * Math.sin((a * Math.PI) / 180);
-        const I = n.icon;
-        return (
-          <div key={n.k} className={"sq-node " + n.st} style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${80 + i * 50}ms` }}
-            data-role="sq-node" data-state={n.st} data-k={n.k} title={`${n.t}: ${n.tip}`}>
-            <span className="sq-ni">{n.k === "ai" ? <Sparkles size={15} className="ai-star" /> : <I size={15} />}</span>
-            <span className="sq-nt">{n.t}</span>
-            <span className="sq-nd">{n.d}</span>
-          </div>
-        );
-      })}
     </div>
   );
 }

@@ -19,7 +19,7 @@ import {
 } from "lightweight-charts";
 import {
   CandlestickChart, LineChart, AreaChart, BarChart3, Activity, Brush, TrendingUp, Minus, Trash2, Undo2, Camera, Maximize2, Minimize2,
-  Settings2, ChevronDown, ChevronRight, Check, MousePointer2, ChevronsRight, Eye, EyeOff, Palette, Square, Columns2, Grid2x2,
+  Settings2, ChevronDown, ChevronRight, Check, MousePointer2, ChevronsRight, Eye, EyeOff, Palette, Square, Columns2, Columns3, Grid2x2,
 } from "lucide-react";
 import { marketApi } from "../../services/api";
 import {
@@ -132,13 +132,15 @@ function Menu({ label, title, children, role, wide, up }: {
    لها وحدها فلا تمسّ غرفةَ التداول، وبلا لوحة القرار فوقه (‏D652). والرسمُ اليدويُّ واحدٌ للرمز في المكانين كتريدنق فيو. */
 const IND_STOCK: Record<IndKey, boolean> = { vol: true, stochrsi: false, cvd: false, macd: false, d7m: true };
 
-export default function ProChart({ symbol, identity, theme = "dark", preset, slot = 0, mini = false, rows = 1, layout, snaps, read }: {
+export default function ProChart({ symbol, identity, theme = "dark", preset, slot = 0, mini = false, rows = 1, layout, snaps, read, fit }: {
   symbol: string; identity?: React.ReactNode; theme?: "dark" | "light"; preset?: "stock";
   /* ‏D782: الشاشاتُ المتعدّدة — رقمُ الشاشة (لحفظ إطارها ومؤشّراتها)، وشكلُها المختصر، وصفوفُها، ومبدّلُ عددها، وسجلُّ لقطاتها لـ«تحليل الرسم» */
   slot?: number; mini?: boolean; rows?: number; layout?: { n: number; set: (n: number) => void };
   snaps?: React.MutableRefObject<Map<number, () => ReadFrame | null>>;
   /* ‏D782: زرُّ «تحليل الرسم» بجانب «الأحداث» في الشاشة الواحدة (وفي المتعدّدة فوقها كلّها) */
   read?: { name?: string; market: "us" | "sa" } | null;
+  /* ‏D787: ما فوق الشاشات المختصرة من الصفحة (‏top) ورأسُ كلّ شاشة (‏head) — وفي «تكبير الشاشات» يقلّ ما فوقها فتكبر */
+  fit?: { top: number; head: number };
 }) {
   /* ── الاختيارات المحفوظة ── */
   const KT = preset ? "sp_stock_tf" : slot ? `sp_chart_tf_s${slot}` : "sp_chart_tf", KI = preset ? "sp_stock_ind_v3" : slot ? `sp_chart_ind_v3_s${slot}` : "sp_chart_ind_v3";
@@ -297,7 +299,7 @@ export default function ProChart({ symbol, identity, theme = "dark", preset, slo
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   const chromeH = (topRef.current?.offsetHeight ?? 50) + (narrow && (railOpen || tool) ? 42 : 0);
   const stripH = force ? (mini ? 36 : 66) : 0;                                   // لوحتا الاتجاه والسيولة فوق الرسم (‏D782)
-  const baseH = full ? Math.max(300, winH - chromeH - 2) : mini ? (narrow ? 300 : clamp((winH - 250) / Math.max(1, rows) - 84 - stripH, 220, 640))
+  const baseH = full ? Math.max(300, winH - chromeH - 2) : mini ? (narrow ? 300 : clamp((winH - (fit?.top ?? 250)) / Math.max(1, rows) - 84 - stripH - (fit?.head ?? 0), 220, 760))
     : preset ? (wide ? 480 : 400) : wide ? clamp(winH - 345 - stripH, 400, 740) : clamp(winH - 380, 340, 460);
   const mainPx = Math.max(full ? 200 : mini ? 140 : wide ? 300 : 250, baseH - oscOn.length * oscPx);
   const stageH = mainPx + oscOn.length * oscPx;
@@ -1039,8 +1041,8 @@ export default function ProChart({ symbol, identity, theme = "dark", preset, slo
         )}
         <span className="pc-grow" />
         {layout && (
-          <Menu label={layout.n === 4 ? <Grid2x2 size={17} /> : layout.n === 2 ? <Columns2 size={17} /> : <Square size={16} />} title="الشاشات" role="pc-layout">
-            {close => ([[1, "شاشةٌ واحدة", Square], [2, "شاشتان", Columns2], [4, "أربعُ شاشات", Grid2x2]] as const).map(([n, name, Ic]) => (
+          <Menu label={layout.n === 4 ? <Grid2x2 size={17} /> : layout.n === 3 ? <Columns3 size={17} /> : layout.n === 2 ? <Columns2 size={17} /> : <Square size={16} />} title="الشاشات" role="pc-layout">
+            {close => ([[1, "شاشةٌ واحدة", Square], [2, "شاشتان", Columns2], [3, "ثلاثُ شاشات", Columns3], [4, "أربعُ شاشات", Grid2x2]] as const).map(([n, name, Ic]) => (
               <button key={n} type="button" className={"pc-item" + (layout.n === n ? " on" : "")} aria-pressed={layout.n === n} data-layout={n}
                 onClick={() => { layout.set(n); close(); }}><Ic size={15} /> <span>{name}</span>{layout.n === n && <Check size={14} className="pc-check" />}</button>
             ))}

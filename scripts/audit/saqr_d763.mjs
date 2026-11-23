@@ -224,14 +224,16 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   const hub = await page.evaluate(() => {
     const ns = [...document.querySelectorAll('[data-role="sq-node"]')];
     return { n: ns.length, live: document.querySelector('[data-role="sq-hub"]')?.getAttribute("data-live"),
-      broker: !!ns.find(x => x.dataset.k === "broker"), fund: ns.find(x => x.dataset.k === "fund")?.textContent || "", ibkr: /IBKR/.test(document.querySelector('[data-role="sq-hub"]')?.textContent || ""),
-      ok: ns.filter(x => x.dataset.state === "ok").length, ai: !!document.querySelector('[data-k="ai"] .ai-star'),
+      /* ‏D787 (المالك: «لا تفضح قوّته»): أنوارٌ بلا أسماءٍ ولا تلميحات — الحالُ في سمتها وحدها */
+      broker: !!ns.find(x => x.dataset.k === "broker"), fund: ns.find(x => x.dataset.k === "fund")?.dataset.state || "", ibkr: /IBKR/.test(document.querySelector('[data-role="sq-hub"]')?.textContent || ""),
+      quiet: ns.every(x => !x.textContent.trim()) && !document.querySelector('[data-role="sq-hub"] [title]'),
+      ok: ns.filter(x => x.dataset.state === "ok").length, ai: !!ns.find(x => x.dataset.k === "ai"),
       stats: [...document.querySelectorAll('[data-role="sq-stat"]')].map(x => x.textContent.replace(/\s+/g, " ").trim()),
       state: document.querySelector('[data-role="sq-state"]')?.textContent || "" };
   });
-  say(hub.n === 8 && hub.live === "1" && !hub.broker && !hub.ibkr && /812/.test(hub.fund) && /الفرز الأساسي/.test(hub.fund) && hub.ok >= 6 && hub.ai && /ينفّذ أوامرك/.test(hub.state)
+  say(hub.n === 8 && hub.live === "1" && !hub.broker && !hub.ibkr && hub.fund === "ok" && hub.quiet && hub.ok >= 6 && hub.ai && /ينفّذ أوامرك/.test(hub.state)
       && hub.stats.length === 4 && /صفقات مفتوحة ?1 ?من ?2/.test(hub.stats[0]) && /\+\$11\.35/.test(hub.stats[1]) && /1 \/ 0/.test(hub.stats[2]) && /\+\$48\.70/.test(hub.stats[3]),
-      `${label}: ٤ لوحةُ صقر من الصورة: صقرٌ في المركز وأنظمتُه الثمانية بحالها (بلا IBKR — ‏D767 — ومكانَه «الفرزُ الأساسيّ»)، والزوايا الأربع: المفتوحة · الربحُ الحاليّ · رابحةُ اليوم/خاسرتُه · المحقَّقُ بعد العمولات`,
+      `${label}: ٤ لوحةُ صقر من الصورة: صقرٌ في المركز وأنظمتُه الثمانية أنوارٌ بحالها بلا أسماء (‏D787) (بلا IBKR — ‏D767 — ومكانَه «الفرزُ الأساسيّ»)، والزوايا الأربع: المفتوحة · الربحُ الحاليّ · رابحةُ اليوم/خاسرتُه · المحقَّقُ بعد العمولات`,
       JSON.stringify(hub).slice(0, 200));
   const dash = await page.evaluate(() => ({
     cards: ["sq-health", "sq-exposure", "sq-spy", "sq-session", "sq-win", "sq-equity", "sq-gates"].filter(k => document.querySelector(`[data-role="${k}"]`)).length,
@@ -299,7 +301,7 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   const sa = await page.evaluate(() => ({ head: document.querySelector(".sq-id")?.textContent || "", nodes: [...document.querySelectorAll('[data-role="sq-node"]')].map(x => x.dataset.k),
     tasi: document.querySelector('[data-role="sq-tasi"]')?.textContent || "", read: document.querySelector('[data-role="sq-pulse"]')?.textContent || "",
     spy: !!document.querySelector('[data-role="sq-spy"]'), geoTxt: /جيوسياس/.test(document.querySelector('[data-role="sq"]')?.textContent || ""),
-    br: document.querySelector('[data-k="breadth"]')?.textContent || "", mk: document.querySelector('[data-role="sq"]')?.getAttribute("data-market") }));
+    br: document.querySelector('[data-k="breadth"]')?.getAttribute("data-state") || "", mk: document.querySelector('[data-role="sq"]')?.getAttribute("data-market") }));
   await page.locator('[data-role="sq-nav"] [data-view="rules"]').click(); await page.waitForTimeout(400);
   const saRules = await page.locator('[data-role="sq-rules"]').textContent().catch(() => "");
   await toPf(); await page.waitForTimeout(900);
@@ -307,7 +309,7 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
     card: document.querySelector('[data-role="sp-pos"]')?.textContent || "" }));
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/saqr-sa-pf-${vp.width}-${theme}.png`, fullPage: true }).catch(() => {});
   say(sa.mk === "sa" && /السعوديّ/.test(sa.head) && ["results", "tasi", "breadth"].every(k => sa.nodes.includes(k)) && !sa.nodes.includes("geo") && !sa.nodes.includes("broker")
-      && sa.nodes.length === 7 && /141/.test(sa.br) && !sa.geoTxt && /11,500/.test(sa.tasi) && !sa.spy
+      && sa.nodes.length === 7 && ["ok", "warn"].includes(sa.br) && /141/.test(sa.read) && !sa.geoTxt && /11,500/.test(sa.tasi) && !sa.spy
       && /اتّساعُ السوق/.test(sa.read) && /5\.24 مليار ريال/.test(sa.read) && /البنوك/.test(sa.read) && /88 قوية/.test(sa.read) && /برنت/.test(sa.read)
       && /اتجاهُ المؤشّر العامّ أوّلاً/.test(saRules) && /النتائجُ الربعية/.test(saRules)
       && saPf.mk === "sa" && /1,002\.40 ر\.س/.test(saPf.sum) && /سهم/.test(saPf.card) && /1120/.test(saPf.card) && /Al Rajhi/.test(saPf.card),
@@ -339,8 +341,11 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
       JSON.stringify({ pBud, last: pSet[1], ms }).slice(0, 220));
   /* ١٣ ‏D768: «بعد إيقاف تلغرام ضع تاريخ الصفقة ووقتَ بدئها»، و«صقرٌ متحفّظٌ جداً — يجب أن يكون وحشاً شرساً… 100 دولار للعقد… وأقلُّ شيءٍ 100 دولار ربحاً يومياً» */
   await page.locator('[data-role="sq-nav"] [data-view="dash"]').click(); await page.waitForTimeout(500);
-  const d13 = await page.evaluate(() => ({ day: document.querySelector('[data-role="sq-day"]')?.textContent || "",
-    risk: document.querySelector('[data-role="sq-hub"] [data-k="risk"]')?.textContent || document.querySelector('[data-k="risk"]')?.textContent || "" }));
+  const d13 = await page.evaluate(() => ({ day: document.querySelector('[data-role="sq-day"]')?.textContent || "" }));
+  /* ‏D787: ميزانيةُ العقد لم تعد على أنوار صقر (لا تفضح قوّته) — تُقرأ من «القواعد» */
+  await page.locator('[data-role="sq-nav"] [data-view="rules"]').click(); await page.waitForTimeout(400);
+  d13.risk = await page.locator('[data-role="sq-unit"]').first().textContent().catch(() => "") || "";
+  await page.locator('[data-role="sq-nav"] [data-view="dash"]').click(); await page.waitForTimeout(400);
   if (SHOTS) await page.locator('[data-role="sq-day"]').screenshot({ path: `${SHOTS}/sq-day-${vp.width}-${theme}.png` }).catch(() => {});
   await toPf(); await page.waitForTimeout(900);
   const p13 = await page.evaluate(() => ({ when: [...document.querySelectorAll('[data-role="sp-opened"]')].map(e => e.textContent || ""),

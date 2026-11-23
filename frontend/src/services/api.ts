@@ -272,6 +272,7 @@ export const marketApi = {
     api.get<Blob>("/market/research-desk/pdf", { params: day ? { day } : {}, responseType: "blob", timeout: 120000 }),
   researchRun: () => api.post<APIResponse>("/market/research-desk/run"),
   symbolSearch: (q: string) => api.get<APIResponse>("/market/symbol-search", { params: { q } }),
+  saudiDirectory: () => api.get<APIResponse>("/market/saudi-directory"),
   /* ‏D761 السعرُ الحيُّ وحالةُ السوق (مفتوح · قبل الافتتاح · بعد الإغلاق · مغلق · عطلة) */
   live: (symbol: string) => api.get<APIResponse>(`/market/live/${encodeURIComponent(symbol)}`),
   sessions: () => api.get<APIResponse>("/market/sessions"),

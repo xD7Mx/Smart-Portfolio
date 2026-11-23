@@ -10,11 +10,12 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Crosshair, LineChart, Layers, RefreshCw, Sparkles, Check, AlertTriangle, X, Minus } from "lucide-react";
+import { Crosshair, LineChart, Layers, RefreshCw, Sparkles, Check, AlertTriangle, X, Minus, Copy } from "lucide-react";
+import { copyText } from "../../lib/symbols";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import CompanyLogo from "../common/CompanyLogo";
-import OptionChain from "../market/OptionChain";
+import OptionChain, { type Guide } from "../market/OptionChain";
 import { dday, hhmm, type Market } from "./saqr";
 
 export type Opp = { symbol: string; name?: string | null; setup: string; side: "long" | "short"; quality: number; horizon: string; horizon_n: number;
@@ -32,10 +33,15 @@ const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="l
 const lsSet = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* */ } };
 const p2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const sg = (v: number) => (v >= 0 ? "+" : "") + v.toFixed(1) + "%";
-const H_OPTS: [number, string][] = [[0, "الكل"], [1, "شهر"], [2, "شهران"], [3, "حتى الربع القادم"]];
 const tier = (q: number) => (q >= 75 ? "hi" : q >= 60 ? "mid" : "lo");
 const V_ICON = { ok: Check, warn: AlertTriangle, veto: X, na: Minus } as const;
 const V_WORD = { ok: "يوافق", warn: "يتحفّظ", veto: "يرفض", na: "غير متوفّر" } as const;
+
+/** رمزُ البحث: السعوديُّ برقمه (‏TADAWUL:1120 في تريدنق فيو) والأمريكيُّ برمزه */
+const codeOf = (x: Opp) => x.symbol.replace(".SR", "");
+/** دليلُ السلسلة من الفرصة: جهتُها ونوعُها ومنطقةُ دخولها وهدفُها وحدُّها ومدّتُها */
+const guideOf = (x: Opp): Guide => ({ side: x.side, setup: x.setup, entry: x.entry, target: x.target, stop: x.stop, close: x.close,
+  horizon_n: x.horizon_n, horizon: x.horizon });
 
 /** مجلسُ صقر على البطاقة: حكمُه ودرجتُه، وأعضاؤه السبعة بحكم كلٍّ، و«لماذا» تفتح سطرَ كلّ عضو */
 function CouncilBox({ c }: { c: Council }) {
@@ -63,9 +69,11 @@ export default function SaqrOpps({ market }: { market: Market }) {
   const owner = useAuthStore((s: any) => s.isOwner);
   const nav = useNavigate();
   const sa = market === "sa";
-  const [h, setH] = useState(0);
   const [side, setSide] = useState<"all" | "long" | "short">("all");
-  const [chainFor, setChainFor] = useState<string | null>(null);
+  /* ‏D787: السلسلةُ تُفتح بدليل الفرصة — نطاقُ التنفيذ الأنسب لجهتها وهدفها وحدّها ومدّتها */
+  const [chainFor, setChainFor] = useState<Opp | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const copy = (code: string) => { copyText(code).then(ok => { if (ok) { setCopied(code); window.setTimeout(() => setCopied(c => (c === code ? null : c)), 1600); } }); };
   const q = useQuery<Scan | null>({
     queryKey: ["saqr-opps", market],
     queryFn: () => marketApi.saqrOpps(market).then(r => r.data?.data ?? null),
@@ -76,8 +84,7 @@ export default function SaqrOpps({ market }: { market: Market }) {
   const d = q.data;
   const busy = !!d?.job?.on || run.isPending;
   const all = d?.items || [];
-  const list = useMemo(() => all.filter(x => (!h || x.horizon_n === h) && (side === "all" || x.side === side)), [all, h, side]);
-  const count = (n: number) => all.filter(x => (!n || x.horizon_n === n) && (side === "all" || x.side === side)).length;
+  const list = useMemo(() => all.filter(x => side === "all" || x.side === side), [all, side]);
   /* «افتح الرسم»: الشركةُ نفسُها في غرفة التداول — رسمُها بمناطقها الثلاث وStoch RSI ولوحتيها */
   const openChart = (sym: string) => { lsSet("sp_room_symbol", sa ? `${sym}.SR` : sym); nav("/watchlist"); };
 
@@ -100,15 +107,8 @@ export default function SaqrOpps({ market }: { market: Market }) {
       ) : !q.isLoading && (
         <p className="sq-muted" data-role="so-none">لم يُمسح السوقُ بعد — يُمسح كلَّ يومٍ بعد إغلاقه{owner ? "، أو الآن بزرّ «امسح الآن»" : ""}.</p>
       )}
-      {all.length > 0 && (
+      {all.length > 0 && !sa && (
         <div className="so-filters">
-          <span className="seg inline-flex" role="group" aria-label="المدّة" data-role="so-h">
-            {H_OPTS.map(([n, t]) => (
-              <button key={n} type="button" className={"seg-btn chip" + (h === n ? " on" : "")} aria-pressed={h === n} onClick={() => setH(n)} data-v={n}>
-                {t} <Num v={`${count(n)}`} className="so-n" />
-              </button>
-            ))}
-          </span>
           {!sa && (
             <span className="seg inline-flex" role="group" aria-label="الجهة" data-role="so-side">
               {([["all", "الجهتان"], ["long", "شراء"], ["short", "بيع"]] as const).map(([v, t]) => (
@@ -119,7 +119,7 @@ export default function SaqrOpps({ market }: { market: Market }) {
         </div>
       )}
       {d?.at && all.length === 0 && <p className="sq-muted" data-role="so-empty">لا فرصةَ بجودة <Num v={`${d.min_q ?? 50}`} /> فأكثر في مسح اليوم.</p>}
-      {all.length > 0 && list.length === 0 && <p className="sq-muted" data-role="so-empty">لا فرصةَ بهذه المدّة في مسح اليوم.</p>}
+      {all.length > 0 && list.length === 0 && <p className="sq-muted" data-role="so-empty">لا فرصةَ بهذه الجهة في مسح اليوم.</p>}
       <div className="so-grid">
         {list.map((x, i) => {
           const long = x.side === "long";
@@ -129,6 +129,11 @@ export default function SaqrOpps({ market }: { market: Market }) {
               <header className="op-head">
                 <CompanyLogo symbol={sa ? `${x.symbol}.SR` : x.symbol} size={28} />
                 <span className="op-sym"><b><Num v={x.symbol} /></b>{x.name && <small>{x.name}</small>}</span>
+                {/* ‏D787: «رمزٌ أضغط عليه فأنسخه وألصقه في البحث فيظهر في الشاشة» — رمزُ السهم كما يُكتب في البحث وفي تريدنق فيو */}
+                <button type="button" className={"so-code" + (copied === codeOf(x) ? " ok" : "")} onClick={() => copy(codeOf(x))} data-role="so-code"
+                  title="انسخ الرمز" aria-label={`انسخ الرمز ${codeOf(x)}`}>
+                  {copied === codeOf(x) ? <Check size={12} /> : <Copy size={12} />}<bdi dir="ltr">{codeOf(x)}</bdi>
+                </button>
                 <span className="so-chips">
                   <span className="sp-side" data-side={long ? "call" : "put"} data-role="so-side-chip">{long ? "شراء" : "بيع"}</span>
                   <span className="so-hz" data-role="so-hz">{x.horizon}</span>
@@ -164,7 +169,7 @@ export default function SaqrOpps({ market }: { market: Market }) {
               )}
               <div className="op-btns">
                 <button type="button" className="btn-ghost op-act" onClick={() => openChart(x.symbol)} data-role="so-open"><LineChart size={14} /> افتح الرسم</button>
-                {!sa && <button type="button" className="btn-ghost op-act" onClick={() => setChainFor(x.symbol)} data-role="so-chain"><Layers size={14} /> سلسلة العقود</button>}
+                {!sa && <button type="button" className="btn-ghost op-act" onClick={() => setChainFor(x)} data-role="so-chain"><Layers size={14} /> سلسلة العقود</button>}
               </div>
             </article>
           );
@@ -178,7 +183,8 @@ export default function SaqrOpps({ market }: { market: Market }) {
           ))}</ul>
         </details>
       )}
-      {chainFor && <OptionChain underlying={chainFor} onClose={() => setChainFor(null)} onPick={c => { setChainFor(null); lsSet("sp_room_symbol", c); nav("/watchlist"); }} />}
+      {chainFor && <OptionChain underlying={chainFor.symbol} guide={guideOf(chainFor)} onClose={() => setChainFor(null)}
+        onPick={c => { setChainFor(null); lsSet("sp_room_symbol", c); nav("/watchlist"); }} />}
     </div>
   );
 }

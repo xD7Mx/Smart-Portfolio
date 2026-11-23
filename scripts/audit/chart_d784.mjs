@@ -188,19 +188,18 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   const sa = await page.evaluate(() => ({ cards: [...document.querySelectorAll('[data-role="so-card"]')].map(c => ({ side: c.dataset.side, h: c.dataset.h,
       q: c.querySelector('[data-role="so-q"] .sp-bar i')?.style.width, hz: c.querySelector('[data-role="so-hz"]')?.textContent, chip: c.querySelector('[data-role="so-side-chip"]')?.textContent })),
     meta: document.querySelector('[data-role="so-meta"]')?.textContent || "", ai: !!document.querySelector('[data-role="so-link"] .ai-star'),
-    node: document.querySelector('[data-role="sq-node"][data-k="opps"]')?.textContent || "", oldNode: !!document.querySelector('[data-role="sq-node"][data-k="signals"]'),
+    node: document.querySelector('[data-role="sq-node"][data-k="opps"]')?.getAttribute("data-state") || "", oldNode: !!document.querySelector('[data-role="sq-node"][data-k="signals"]'),
     sig: document.querySelector('[data-role="sq-signals"]')?.textContent || "", sigOpen: document.querySelector('[data-role="sq-signals"]')?.open,
     sideF: !!document.querySelector('[data-role="so-side"]'), chain: !!document.querySelector('[data-role="so-chain"]') }));
   if (SHOTS) await page.locator('[data-role="so"]').screenshot({ path: `${SHOTS}/d784-opps-sa-${vp.width}-${theme}.png` }).catch(() => {});
   say(nav.some(([k, t, s]) => k === "opps" && t === "الفرص" && s === "true") && !nav.some(([k]) => k === "signals" || k === "options")
       && sa.cards.length === 3 && sa.cards[0].q === "81%" && sa.cards[0].hz === "حتى الربع القادم" && sa.cards.every(c => c.chip === "شراء") && sa.ai
-      && /268/.test(sa.meta) && /266/.test(sa.meta) && /الفرصُ بعد مجلس صقر:\s*3/.test(sa.meta) && /3\s*فرصة/.test(sa.node) && !sa.oldNode
+      && /268/.test(sa.meta) && /266/.test(sa.meta) && /الفرصُ بعد مجلس صقر:\s*3/.test(sa.meta) && sa.node === "ok" && !sa.oldNode
       && sa.sigOpen === false && /قراراتُ صقر/.test(sa.sig) && !sa.sideF && !sa.chain,
-    `${label}: ٣ السعوديّ: «الفرص» بدل «الإشارات» (والمحفوظُ قديماً يُفتح عليها) — بطاقاتٌ بجودتها ومدّتها وجهتها، و«الرابط» لأفضلها، وعقدةُ «الفرص» في لوحة صقر، `
+    `${label}: ٣ السعوديّ: «الفرص» بدل «الإشارات» (والمحفوظُ قديماً يُفتح عليها) — بطاقاتٌ بجودتها ومدّتها وجهتها، و«الرابط» لأفضلها، ونورُ «الفرص» في لوحة صقر (‏D787: بلا اسم)، `
       + "وقراراتُ صقر مطويّةٌ تحتها — بلا عقودٍ ولا بيع", JSON.stringify({ nav: nav.map(x => x[0]), n: sa.cards.length, node: sa.node, meta: sa.meta.slice(0, 50) }));
-  await page.locator('[data-role="so-h"] button[data-v="2"]').click(); await page.waitForTimeout(400);
-  const f2 = await page.locator('[data-role="so-card"]').evaluateAll(cs => cs.map(c => c.dataset.h));
-  await page.locator('[data-role="so-h"] button[data-v="0"]').click(); await page.waitForTimeout(300);
+  /* ‏D787 (المالك: «الكلّ وشهر وشهران وحتى الربع القادم ما لها داعي»): لا مرشّحَ للمدّة — والمدّةُ على البطاقة */
+  const f2 = await page.evaluate(() => ({ none: !document.querySelector('[data-role="so-h"]'), hz: document.querySelectorAll('[data-role="so-hz"]').length }));
   await page.locator('[data-role="so-run"]').click(); await page.waitForTimeout(500);
   const runP = posts.find(x => x[0] === "/market/saqr/opportunities/run");
   const meas = await page.evaluate(() => { const r = document.querySelector('[data-role="so"]'); const W = document.documentElement.clientWidth; let minT = 99, minF = 99;
@@ -208,8 +207,8 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
     r?.querySelectorAll("*").forEach(e => { if (e.offsetParent && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) minF = Math.min(minF, parseFloat(getComputedStyle(e).fontSize)); });
     const main = document.querySelector(".app-main");
     return { over: Math.max(document.documentElement.scrollWidth, main ? main.scrollWidth : 0) - W, minT, minF }; });
-  say(JSON.stringify(f2) === '["2"]' && runP && runP[1].market === "sa" && meas.over <= 1 && meas.minT >= 32 && meas.minF >= 9.5,
-    `${label}: ٣ب مرشّحُ المدّة (شهران ⇐ فرصةٌ واحدة)، و«امسح الآن» للمالك يطلب مسحَ سوقه — بلا فيضٍ، ولمسٌ ≥ 32، وخطٌّ ≥ 9.5`, JSON.stringify({ f2, meas }));
+  say(f2.none && f2.hz === 3 && runP && runP[1].market === "sa" && meas.over <= 1 && meas.minT >= 32 && meas.minF >= 9.5,
+    `${label}: ٣ب لا مرشّحَ للمدّة (‏D787) والمدّةُ على كلّ بطاقة، و«امسح الآن» للمالك يطلب مسحَ سوقه — بلا فيضٍ، ولمسٌ ≥ 32، وخطٌّ ≥ 9.5`, JSON.stringify({ f2, meas }));
   await page.locator('[data-role="so-card"]').first().locator('[data-role="so-open"]').click(); await page.waitForTimeout(900);
   const room = await page.evaluate(() => ({ sym: localStorage.getItem("sp_room_symbol"), path: location.pathname, search: location.search }));
   say(room.sym === "2222.SR" && room.path === "/watchlist" && !/tab=lab/.test(room.search),

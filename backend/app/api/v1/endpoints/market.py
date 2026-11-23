@@ -2572,6 +2572,18 @@ async def saqr_close_limit(pid: str, payload: dict | None = None):
 
 
 # ══ ‏D747: البحثُ في السوق الأمريكي كلِّه وسلسلةُ عقود الخيارات ══
+@router.get("/saudi-directory")
+async def saudi_directory_live():
+    """دليلُ الشركات السعودية كما تنشره «تداول» اليوم (الرئيسيةُ و«نمو») — للبحث (‏D787 — المالك 2026-11-23: «وطني للحديد والصلب ما وجدتُ لها
+    رمزاً… شوف رمزه في تداول وجيبه»): قائمةُ البحث في الواجهة ثابتةٌ تُبنى مع التطبيق، فالمدرَجُ الجديدُ والمنقولُ بين السوقين (حديد وطني
+    من 9513 في «نمو» إلى 1325 في الرئيسية) لا تجده حتى تُضاف إليها. وما غاب عن الصفحتين يُوسَم غائباً فلا يُعرض رمزُه القديم."""
+    from app.services.tadawul_sync import directory
+    d = directory() or {}
+    rows = [{"symbol": sym, "name_ar": v.get("name") or "", "name_en": v.get("name_en") or "", "sector": v.get("sector") or "", "market": mk}
+            for mk in ("main", "nomu") for sym, v in (d.get(mk) or {}).items() if v.get("name")]
+    return success_response({"at": d.get("at"), "rows": rows, "complete": len(d.get("main") or {}) >= 200})
+
+
 @router.get("/symbol-search")
 async def symbol_search(q: str = ""):
     """رموزُ السوق الأمريكي كلِّه (وغيرِه) بأسمائها وبورصاتها وأنواعها — للبحث في غرفة التداول."""
