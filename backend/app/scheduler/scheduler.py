@@ -460,6 +460,8 @@ async def job_chart_scan_boot():
         d = CS.fresh(m, days=1)
         if not d or not d.get("read"):                            # ومسحٌ لم يقرأ رسماً كأنه لم يكن
             await job_chart_scan(m)
+        elif d.get("items") and not any(x.get("council") for x in d["items"]):
+            await job_chart_scan(m)                               # ‏D786: ومسحٌ قبل مجلس صقر (فرصُه بلا حكمٍ) يُعاد مرّةً — لا ينتظر المالكُ إغلاقَ الغد
 
 
 async def job_advisor_weekly():

@@ -127,6 +127,11 @@ CS.market_rows = fake_rows
 async def fake_uni(market, rows):
     return {r["name"]: r for r in rows}
 CS.universe = fake_uni
+
+
+async def no_review(market, items, kept, ai=True):           # ‏D786: مجلسُ صقر يُحرس في ‏chart_d786.py — هنا المسحُ وحده
+    return items, []
+o_review, CS.review = CS.review, no_review
 d_us = asyncio.run(CS.scan("us", ai=False))
 d_sa = asyncio.run(CS.scan("sa", ai=False))
 saved = json.loads(pathlib.Path(CS._path("sa")).read_text(encoding="utf-8"))
@@ -148,50 +153,21 @@ check(d_us["read"] == 60 and d_sa["read"] == 60 and all(r == "2y" and i == "1d" 
       "٤أ المسحُ يجلب الشموعَ بمساره الحقيقيّ (الخدمةُ ⇐ مُهايئُ ياهو ⇐ التنظيف) — يوميُّ سنتين، والسعوديُّ برمزه ‏.SR، بلا خبءٍ يُحمّل مخزنَ الخادم "
       "(كان يُنادي دالّةً ليست في الخدمة فقرأ 0 رسوم على الخادم)", f"{len(FETCHED)} نداءً · us {d_us['read']} · sa {d_sa['read']}")
 check(d_us["read"] == 60 and d_us["found"] == len(d_us["items"]) and qs == sorted(qs, reverse=True) and all(q >= CS.MIN_Q for q in qs)
-      and all(x["side"] == "long" for x in d_sa["items"]) and all("tr" in x for x in d_us["items"]) and not any("tr" in x for x in d_sa["items"])
+      and all(x["side"] == "long" for x in d_sa["items"]) and all("tr" in x for x in d_us["items"] + d_sa["items"]) and all(x["liq"].get("side") for x in d_us["items"] + d_sa["items"])
       and CS._path("sa").startswith(_SB) and "reads" in saved and "reads" not in v and v["job"]["on"] is False
       and top and CS.chart_of("us", top["symbol"])[0] == "opp" and (flat is None or CS.chart_of("sa", flat)[0] == "flat")
       and CS.chart_of("sa", "ZZZZ")[0] == "unread" and CS.summary("us")["found"] == d_us["found"]
       and d_empty.get("universe") == 0 and kept["at"] == saved["at"] and kept["found"] == saved["found"],
-      "٤ المسحُ اليوميّ: يقرأ رسومَ المجال كلِّه ويحفظ الفرصَ فوق عتبة الجودة مرتّبةً بها (والسعوديُّ شراءٌ وحده، والأمريكيُّ بمساره لدفتر العقود)، "
+      "٤ المسحُ اليوميّ: يقرأ رسومَ المجال كلِّه ويحفظ الفرصَ فوق عتبة الجودة مرتّبةً بها (والسعوديُّ شراءٌ وحده، ولكلٍّ مسارُه وجهةُ سيولته للمجلس ‏D786)، "
       "وقراءاتُ كلّ رسمٍ في الخادم وحده ليقول صقرٌ لماذا لم يختر، ومسحٌ تعذّر مُصفّيه لا يمحو السابق",
       f"us {d_us['found']}/{d_us['read']} · sa {d_sa['found']}/{d_sa['read']} · {qs[:4]}")
 
-# ٥ صقرٌ السعوديّ يختار بالرسم: لا شراءَ إلا بفرصةٍ في مسح اليوم، ومن لا فرصةَ له يُرفض بسببٍ من الرسم، والفرصةُ سطرٌ في أسباب الشراء
-from app.services import saqr_trader as SQ   # noqa: E402
-from app.services import saqr_sa as SA   # noqa: E402
-REG = {"verdict": "صاعد", "state": "صاعد", "close": 11500, "sma50": 11300, "sma200": 11000, "ret3m": 4.0, "chg": 0.4, "slope50": 1}
-OPP = {"symbol": "2010", "name": "SABIC", "setup": "ارتدادٌ من الدعم", "side": "long", "quality": 72, "horizon": "شهران", "horizon_n": 2,
-       "entry": [68.0, 69.5], "target": 78.0, "stop": 66.9, "rr": 2.1, "zone": "الدعم", "where": "في منطقة الدعم", "close": 70.0}
-CS.save("sa", {"market": "sa", "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "universe": 3, "read": 3, "found": 1, "items": [OPP],
-               "reads": {"2010": {"setup": OPP["setup"], "quality": 72, "side": "long", "where": OPP["where"]},
-                         "1120": {"setup": None, "quality": None, "side": None, "where": "بين الوسط والمقاومة"},
-                         "1180": {"setup": "ارتدادٌ من منطقة الوسط", "quality": 41, "side": "long", "where": "في منطقة الوسط"}}})
-
-
-async def hunt():
-    async def fake_trend(sym):
-        return {"state": "صاعد", "close": 90, "sma50": 85, "sma200": 80, "ret3m": 14.0, "strength": 6, "hi52": 105}
-    o_tr, o_res = SA.trend, SA.results_of
-    SA.trend = fake_trend
-    SA.results_of = lambda s, t: ("strong", "صافي الربح +28٪ عن الربع المماثل.", 28.0)
-    try:
-        snap = {s: {"price": px, "bid": round(px - .02, 2), "ask": round(px + .02, 2), "turnover": 3e7, "change_pct": 1.2, "name_en": s}
-                for s, px in (("1120", 90.0), ("2010", 70.0), ("1180", 40.0), ("4190", 60.0))}
-        st = SQ.fresh(market="sa")
-        pos = await SA._hunt(st, dt.datetime.now(dt.timezone.utc), snap, REG, {"level": "منخفض", "why": "هدوء"})
-        return pos, st
-    finally:
-        SA.trend, SA.results_of = o_tr, o_res
-pos, st5 = asyncio.run(hunt())
-why = {x["sym"]: x for x in st5["signals"]}
-check(pos and pos["symbol"] == "2010" and any("قراءةُ الرسم: ارتدادٌ من الدعم" in w for w in pos["why"])
-      and why["2010"]["verdict"] == "chosen" and "الرسم: ارتدادٌ من الدعم" in why["2010"]["why"]
-      and why["1120"]["verdict"] == "refused" and "لا فرصةَ الآن" in why["1120"]["why"]
-      and why["1180"]["verdict"] == "refused" and "جودتُها 41" in why["1180"]["why"]
-      and why["4190"]["verdict"] == "refused" and "لم يُقرأ رسمُه" in why["4190"]["why"],
-      "٥ صقرٌ السعوديّ يختار بالرسم: يشتري فرصةَ المسح وحدها (وفي أسبابه سطرُها بأرقامها)، ويرفض ما لا فرصةَ له وما جودتُه دون العتبة وما لم يُقرأ رسمُه — "
-      "كلٌّ بسببه من الرسم", json.dumps({k: (x["verdict"], x["why"][-40:]) for k, x in why.items()}, ensure_ascii=False))
+# ٥ ‏D786 (المالك: «التحليلُ الفنيّ خطوةٌ من بين الخطوات… وعملُنا القديم لا يلغيه الجديد»): الرسمُ لم يعد بوّابةً في صيد صقر السعوديّ —
+#    صار عضواً في مجلسه (‏saqr_council) مع المسار والنتائج والأخبار والأحداث والحيتان والمحلّلين؛ وسلوكُ الصيد يُحرس في ‏chart_d786.py
+sas = (ROOT / "backend/app/services/saqr_sa.py").read_text(encoding="utf-8")
+check("CS.chart_of(" not in sas and "CN.judge(evs[sym])" in sas and "CN.chart_sa(sym)" in sas,
+      "٥ الرسمُ عضوٌ في مجلس صقر لا بوّابتُه: لا يُرفض سهمٌ لأنّ الرسمَ بلا فرصةٍ وحده (‏D786 نقض بوّابةَ ‏D784 بأمر المالك)")
+from app.services import research_desk as RD   # noqa: E402
 CS.save("sa", {"market": "sa", "at": "2020-01-01T00:00:00+00:00", "read": 3, "items": [], "reads": {}})
 old_none = CS.chart_of("sa", "2010")[0]
 CS.save("sa", {"market": "sa", "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "universe": 271, "read": 0, "found": 0, "items": [], "reads": {}})
@@ -207,6 +183,7 @@ before = json.loads(pathlib.Path(CS._path("us")).read_text(encoding="utf-8"))
 d_nobars = asyncio.run(CS.scan("us", ai=False))
 after = json.loads(pathlib.Path(CS._path("us")).read_text(encoding="utf-8"))
 CS.market_rows, CS.universe = o_rows, o_uni
+CS.review = o_review
 MD.YahooFinanceAdapter._fetch_chart_points = o_fetch
 sch_src = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 check(old_none == "none" and zero_none == "none" and d_nobars["read"] == 0 and after["at"] == before["at"] and after["read"] == before["read"]
@@ -220,7 +197,9 @@ src = (ROOT / "backend/app/services/option_picks.py").read_text(encoding="utf-8"
 e = {"type": "call", "entry_mid": 2.0, "target": 130.0, "thesis": {"state": "صاعد", "close": 100, "sma200": 90, "chart_stop": 95.0, "chart_setup": "ارتدادٌ من الدعم"}}
 v_br = OP.verdict(e, 94.0, 1.9, 200, None, None)
 v_ok = OP.verdict(e, 99.0, 1.9, 200, None, None)
-x = {**OPP, "symbol": "NVDA"}
+OPP = {"symbol": "NVDA", "name": "NVIDIA", "setup": "ارتدادٌ من الدعم", "side": "long", "quality": 72, "horizon": "شهران", "horizon_n": 2,
+       "entry": [68.0, 69.5], "target": 78.0, "stop": 66.9, "rr": 2.1, "zone": "الدعم", "where": "في منطقة الدعم", "close": 70.0}
+x = dict(OPP)
 lines = OP.with_chart(["الأطروحة", "الأخبار"], x, None)
 lines2 = OP.with_chart(["الأطروحة", "الأخبار"], None, ("flat", {"setup": None, "quality": None, "where": "بين الوسط والمقاومة"}))
 check(v_br[0] == "broken" and "حدِّها 95.00" in v_br[1] and v_ok[0] == "hold" and lines[1].startswith("قراءةُ الرسم: ارتدادٌ من الدعم") and "لا فرصةَ الآن" in lines2[1]
@@ -230,20 +209,19 @@ check(v_br[0] == "broken" and "حدِّها 95.00" in v_br[1] and v_ok[0] == "ho
       "٦ «عقودُ الخيارات» تبدأ بفرص مسح الرسم (الشراءُ عقدُ شراء والبيعُ عقدُ بيع، والخبرُ القويُّ المعاكسُ يُسقطها)، وجودتُها تُرجّح الترتيب، وسطرُها في المبرّر، "
       "وتنكسر التوصيةُ بكسر حدّها على الرسم", f"{v_br[0]} · {v_ok[0]}")
 
-# ٧ قراءةُ الذكاء لأفضل الفرص من الخادم: إطاران (يوم · أسبوع) بشموعهما ومستوياتِ المناطق الستّة والقممِ والقيعان، ولا تُقرأ إلّا مؤشّراتُ اللقطة —
-#    وقراءةُ الحجم لم تعد تُسقط (الواجهةُ تسمّيه «volume» ومفتاحُه «vol» — قيس: كانت تُسقط دائماً)
+# ٧ «تحليلُ الرسم»: قراءةُ الحجم لم تعد تُسقط (الواجهةُ تسمّيه «volume» ومفتاحُه «vol» — قيس: كانت تُسقط دائماً)؛ والمستوى برقم اللقطة يبقى
 from app.services.chart_read import validate   # noqa: E402
-snap = CS.snapshot("S001", "S001 Inc", "us", BARS["S001"])
-f0 = snap["frames"][0] if snap["frames"] else {}
-fibs = [lv for lv in f0.get("levels", []) if lv["kind"] == "fib"]
-obj = {"bias": "صاعد", "headline": f"السعرُ {f0.get('price')} قرب المنطقة", "indicators": [{"name": "الحجم", "reading": "حجمٌ فوق متوسّطه"},
-                                                                                         {"name": "Stoch RSI", "reading": "يتقاطع صاعداً"}],
-       "levels": [{"kind": "دعم", "price": fibs[0]["price"] if fibs else 0, "from": "فيبوناتشي", "note": ""}]}
-rv = validate(obj, {"frames": [{**f0, "shown": ["volume", "stochrsi", "d7m"]}]})
-check([f["tf"] for f in snap["frames"]] == ["1d", "1wk"] and len(f0.get("bars", [])) == 120 and len(fibs) == 6 and "stochrsi" in f0.get("shown", [])
-      and [i["name"] for i in rv["indicators"]] == ["الحجم", "Stoch RSI"] and len(rv["levels"]) == 1 and rv["dropped"] == 0,
-      "٧ لقطةُ الذكاء من الخادم: اليوميُّ والأسبوعيّ بشموعهما ومستوياتُ «مختصر» الستّة والقممُ والقيعان؛ وقراءةُ الحجم تُعرض (كانت تُسقط دائماً)",
-      f"{[f['tf'] for f in snap['frames']]} · {len(fibs)} مستوى · {[i['name'] for i in rv['indicators']]}")
+b0 = BARS["S001"][-120:]
+f0 = {"tf": "1d", "tf_ar": "يوم", "price": round(b0[-1]["close"], 2),
+      "bars": [[x["date"], round(x["open"], 2), round(x["high"], 2), round(x["low"], 2), round(x["close"], 2), x["volume"]] for x in b0],
+      "levels": [{"kind": "fib", "label": "فيبوناتشي 0", "price": round(b0[-30]["low"], 2)}], "shown": ["volume", "stochrsi", "d7m"],
+      "ind": {"Stoch RSI": {"k": 18.0, "d": 22.0}}}
+obj = {"bias": "صاعد", "headline": f"السعرُ {f0['price']} قرب المنطقة", "indicators": [{"name": "الحجم", "reading": "حجمٌ فوق متوسّطه"},
+                                                                                     {"name": "Stoch RSI", "reading": "يتقاطع صاعداً"}],
+       "levels": [{"kind": "دعم", "price": f0["levels"][0]["price"], "from": "فيبوناتشي", "note": ""}]}
+rv = validate(obj, {"frames": [f0]})
+check([i["name"] for i in rv["indicators"]] == ["الحجم", "Stoch RSI"] and len(rv["levels"]) == 1 and rv["dropped"] == 0,
+      "٧ «تحليلُ الرسم»: قراءةُ الحجم تُعرض (كانت تُسقط دائماً)، والمستوى برقم اللقطة يبقى", f"{[i['name'] for i in rv['indicators']]}")
 
 # ٨ الجدولةُ والنقاطُ والواجهة
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")

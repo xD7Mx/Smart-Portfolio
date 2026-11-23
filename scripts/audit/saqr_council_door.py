@@ -11,6 +11,8 @@
   ٤ الصفقاتُ الخاصة (السعوديّ) وآراءُ بيوت الخبرة.
   ٥ تدفّقُ الخيارات (الأمريكيّ): أحجامُ الشراء والبيع، والعقودُ غيرُ الاعتيادية (حجمٌ فوق الاهتمام المفتوح)، وجدرانُ الاهتمام المفتوح.
   ٦ الأحداثُ الاقتصاديةُ القادمة للسوقين.
+  ٧ إفصاحاتُ «أرقام» الرسميةُ للشركة السعودية في ثلاثين يوماً (لم تُقس قبل البناء) — عددُها وأحدثُها.
+  ٨ المجلسُ على المسح المحفوظ بعد النشر: الحكمُ لكلّ فرصة، وتغطيةُ كلّ عضو (كم «غيرُ متوفّر»)، والمستبعَدُ بسببه، و«الرابط».
 
     docker exec sp_backend python /app/scripts/audit/saqr_council_door.py
 """
@@ -151,5 +153,56 @@ async def main():
         print(f"  {m}: {len(ev)} قادمة · عاليةُ الأثر {len(hi)}: " + " | ".join(f"{e.get('at', '')[:16]} {e.get('ar') or e.get('title')}" for e in hi[:5]))
         if ev:
             print(f"     مفاتيح الحدث: {sorted(ev[0].keys())}")
+
+    # ٧
+    print("══ ٧ إفصاحاتُ «أرقام» للشركة (ثلاثون يوماً):")
+    from datetime import datetime, timedelta, timezone
+    from app.services.argaam_calendar import fetch_company_page
+    floor = (datetime.now(timezone.utc) - timedelta(days=30)).date().isoformat()
+    for sym, _ in SA:
+        try:
+            pg = await asyncio.wait_for(fetch_company_page(sym), 25)
+        except Exception as e:                                    # noqa: BLE001
+            print(f"  {sym}: تعذّر {type(e).__name__}")
+            continue
+        ds = (pg or {}).get("disclosures") or []
+        rec = [d for d in ds if str(d.get("date") or "") >= floor]
+        print(f"  {sym}: {len(ds)} إفصاحاً في الصفحة · {len(rec)} في ثلاثين يوماً · بلا تاريخ {sum(1 for d in ds if not d.get('date'))}")
+        for d in rec[:3]:
+            print(f"     [{d.get('date')}] {str(d.get('title'))[:90]}")
+    # ٨
+    print("══ ٨ مجلسُ صقر على المسح المحفوظ:")
+    from app.services import chart_scan as CS
+    for m in ("sa", "us"):
+        d = CS.load(m) or {}
+        items, rej = d.get("items") or [], d.get("rejected") or []
+        print(f"  {m}: محفوظٌ {d.get('at')} في {d.get('secs')} ث · المجال {d.get('universe')} · رسومٌ {d.get('read')} · مقبولة {len(items)} · مستبعَدة {len(rej)}")
+        if items and not any(x.get("council") for x in items):
+            print("     المسحُ سبق المجلس — لا حكمَ فيه بعد")
+            continue
+        cov = {}
+        for x in items:
+            for mm in (x.get("council") or {}).get("members") or []:
+                cov.setdefault(mm["role"], {}).setdefault(mm["v"], 0)
+                cov[mm["role"]][mm["v"]] += 1
+        print("     تغطيةُ الأعضاء في المقبول: " + " · ".join(f"{r} {v}" for r, v in cov.items()))
+        vv = {}
+        for x in items:
+            k = (x.get("council") or {}).get("verdict")
+            vv[k] = vv.get(k, 0) + 1
+        print(f"     الأحكام: {vv}")
+        for x in items[:8]:
+            c, lk = x.get("council") or {}, x.get("link") or {}
+            print(f"     {x['symbol']} {x.get('name') or ''} · {x['setup']} {x['quality']} · المجلس {c.get('verdict')} {c.get('score')}"
+                  + (f" · الرابط {lk.get('decision')}/{lk.get('confidence')}: {str(lk.get('link'))[:110]}" if lk else ""))
+            for mm in c.get("members") or []:
+                print(f"        {mm['role']} ({mm['v']}): {mm['say'][:120]}")
+        why = {}
+        for r in rej:
+            k = (r.get("why") or ["?"])[0].split(":")[0]
+            why[k] = why.get(k, 0) + 1
+        print(f"     أسبابُ الاستبعاد (العضوُ الرافض): {why}")
+        for r in rej[:6]:
+            print(f"     ✘ {r['symbol']} {r.get('name') or ''} · {r['setup']} {r['quality']} — {' · '.join(r.get('why') or [])[:150]}")
 
 asyncio.run(main())

@@ -175,6 +175,20 @@ async def flow():
            "7010": ("neutral", "x", 1.0), "4190": ("pending", "نتائجُ الربع لم تصدر بعد.", None), "2222": ("weak", "صافي الربح −20٪.", -20.0)}
     SA.trend, o_tr = fake_trend, SA.trend
     SA.results_of, o_res = (lambda s, t: res.get(s, ("unknown", "—", None))), SA.results_of
+    # ‏D786: الصيدُ يمرّ بمجلس صقر — مصادرُه الشبكيةُ تُعطَّل هنا (لا شبكة في الحارس): لا رسمَ ولا ياهو ولا عناوين ولا نموذج، فيحكم المسارُ والنتائجُ كما كانا
+    from app.services import saqr_council as CN
+    from app.services import research_desk as RD
+
+    async def none3(sym):
+        return None, None, None
+
+    async def none1(*a, **k):
+        return None
+
+    async def empty(*a, **k):
+        return []
+    o_cn = (CN.chart_sa, CN.yf, CN.heads_sa, CN.events, RD._gemini)
+    CN.chart_sa, CN.yf, CN.heads_sa, CN.events, RD._gemini = none3, none1, empty, empty, none1
     from app.services.saqr_bot import bot
     sent = []
 
@@ -197,6 +211,7 @@ async def flow():
         return pos, verdicts, st, out, sent
     finally:
         SA.trend, SA.results_of = o_tr, o_res
+        CN.chart_sa, CN.yf, CN.heads_sa, CN.events, RD._gemini = o_cn
         bot.send, bot.enabled = o_n
 pos, verdicts, st9, out9, sent9 = asyncio.run(flow())
 check(pos and pos["symbol"] == "1120" and pos["qty"] == SA.shares(min(1000, 1000 * 0.25), 90.02) and pos["stop"] == round(90.02 * SA.STOP, 3)

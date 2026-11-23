@@ -3,11 +3,14 @@
    الفرصة لمدّة كم: بعد شهر، بعد شهرين، حتى الربع القادم… بشكلٍ يوميّ يصيد المتغيّرات ويُطلع لي قائمة… والتنفيذُ عندي، أنا اللي أختار».
    فكلُّ فرصةٍ بطاقة: نوعُها من الرسم (ارتدادٌ من الدعم · اختراقُ المقاومة · استمرارٌ بعد تصحيح…) وجودتُها من مئة ومدّتُها، ومنطقةُ الدخول
    والهدفُ والحدُّ والعائدُ إلى المخاطرة، والاتجاهُ والسيولةُ وموضعُ السعر من المناطق الثلاث، وقراءةُ الذكاء لأفضلها — وزرٌّ يفتحها في الرسم
-   (وللأمريكيّ سلسلةُ عقودها). لا تنفيذَ من هنا: المالكُ يختار. والمحرّكُ في الخادم (‏services/chart_scan). */
+   (وللأمريكيّ سلسلةُ عقودها). لا تنفيذَ من هنا: المالكُ يختار. والمحرّكُ في الخادم (‏services/chart_scan).
+   ‏D786 (المالك: «التحليلُ الفنيّ خطوةٌ من بين الخطوات… يقرأ ويحلّل ويربط مثل الصفة البشرية»): كلُّ فرصةٍ عرضها الرسمُ تمرّ بمجلس صقر —
+   المسارُ والرسمُ والنتائجُ والأخبارُ والأحداثُ والحيتانُ والمحلّلون — فتحمل البطاقةُ حكمَ كلّ عضوٍ وسطرَه، و«الرابط» يقرؤها معاً؛ وما رفضه
+   عضوٌ يُعرض في «استبعدها المجلس» بسببه. */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Crosshair, LineChart, Layers, RefreshCw, Sparkles } from "lucide-react";
+import { Crosshair, LineChart, Layers, RefreshCw, Sparkles, Check, AlertTriangle, X, Minus } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import CompanyLogo from "../common/CompanyLogo";
@@ -17,10 +20,13 @@ import { dday, hhmm, type Market } from "./saqr";
 export type Opp = { symbol: string; name?: string | null; setup: string; side: "long" | "short"; quality: number; horizon: string; horizon_n: number;
   entry: [number, number]; target: number; stop: number; rr: number; zone: string; where: string; close: number;
   trend: { word: string; level: string; strength: number }; liq: { word?: string | null; level?: string | null; strength?: number | null; tag?: string | null };
-  k: number | null; rsi: number | null; weekly?: string | null; reasons: string[];
-  ai?: { bias?: string; headline?: string | null; buy?: string | null; sell?: string | null; invalid?: string | null; risk?: string | null } | null };
+  k: number | null; rsi: number | null; weekly?: string | null; reasons: string[]; council?: Council | null; link?: Link | null };
+export type Member = { role: string; v: "ok" | "warn" | "veto" | "na"; say: string };
+export type Council = { verdict: string; score: number; veto: boolean; oks: number; warns: number; members: Member[]; veto_why?: string[] };
+export type Link = { decision: string; confidence: string; link: string; conflict?: string; watch?: string };
+type Rejected = { symbol: string; name?: string | null; setup: string; side: string; quality: number; why: string[] };
 type Scan = { market?: Market; at?: string; universe?: number; screened?: number; read?: number; found?: number; items?: Opp[]; min_q?: number;
-  job: { on: boolean; msg: string; at: string | null } };
+  rejected?: Rejected[]; job: { on: boolean; msg: string; at: string | null } };
 
 const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="ltr" className={"tabular-nums " + (className || "")}>{v}</bdi>;
 const lsSet = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* */ } };
@@ -28,6 +34,30 @@ const p2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, 
 const sg = (v: number) => (v >= 0 ? "+" : "") + v.toFixed(1) + "%";
 const H_OPTS: [number, string][] = [[0, "الكل"], [1, "شهر"], [2, "شهران"], [3, "حتى الربع القادم"]];
 const tier = (q: number) => (q >= 75 ? "hi" : q >= 60 ? "mid" : "lo");
+const V_ICON = { ok: Check, warn: AlertTriangle, veto: X, na: Minus } as const;
+const V_WORD = { ok: "يوافق", warn: "يتحفّظ", veto: "يرفض", na: "غير متوفّر" } as const;
+
+/** مجلسُ صقر على البطاقة: حكمُه ودرجتُه، وأعضاؤه السبعة بحكم كلٍّ، و«لماذا» تفتح سطرَ كلّ عضو */
+function CouncilBox({ c }: { c: Council }) {
+  return (
+    <div className="so-council" data-role="so-council" data-verdict={c.verdict}>
+      <div className="so-chead">
+        <span className={"so-verdict " + (c.verdict === "يوافق" ? "ok" : "warn")} data-role="so-verdict">المجلس {c.verdict}</span>
+        <span className="sq-muted">مجلسُ صقر <Num v={`${c.score}/100`} /></span>
+      </div>
+      <ul className="so-members" aria-label="أعضاءُ مجلس صقر">
+        {c.members.map(m => {
+          const I = V_ICON[m.v] || Minus;
+          return <li key={m.role} data-v={m.v} data-role="so-member" title={`${m.role} — ${V_WORD[m.v]}: ${m.say}`}><I size={12} aria-hidden />{m.role}</li>;
+        })}
+      </ul>
+      <details className="so-why" data-role="so-why">
+        <summary>لماذا — ما قاله كلُّ عضو</summary>
+        <ul>{c.members.map(m => <li key={m.role} data-v={m.v}><b>{m.role}</b> <small>{V_WORD[m.v]}</small> {m.say}</li>)}</ul>
+      </details>
+    </div>
+  );
+}
 
 export default function SaqrOpps({ market }: { market: Market }) {
   const owner = useAuthStore((s: any) => s.isOwner);
@@ -64,7 +94,8 @@ export default function SaqrOpps({ market }: { market: Market }) {
       {d?.at ? (
         <p className="sq-muted" data-role="so-meta">
           قرأ <Num v={`${d.universe ?? 0}`} /> {sa ? "شركة من السوق الرئيسيّ كلِّه" : "ورقة لها عقودُ خيارات من السوق كلِّه"} · حلّل رسومَ <Num v={`${d.read ?? 0}`} /> بشموعها ·
-          {" "}الفرصُ بجودة <Num v={`${d.min_q ?? 50}`} /> فأكثر: <Num v={`${d.found ?? 0}`} /> · يُمسح كلَّ يومٍ بعد الإغلاق
+          {" "}الفرصُ بعد مجلس صقر: <Num v={`${d.found ?? 0}`} />{(d.rejected || []).length > 0 && <> · استبعد المجلسُ <Num v={`${(d.rejected || []).length}`} /></>}
+          {" "}· يُمسح كلَّ يومٍ بعد الإغلاق
         </p>
       ) : !q.isLoading && (
         <p className="sq-muted" data-role="so-none">لم يُمسح السوقُ بعد — يُمسح كلَّ يومٍ بعد إغلاقه{owner ? "، أو الآن بزرّ «امسح الآن»" : ""}.</p>
@@ -123,11 +154,12 @@ export default function SaqrOpps({ market }: { market: Market }) {
                   x.weekly && <span key="w">الأسبوعيّ {x.weekly}</span>, x.liq.tag && <span key="t">{x.liq.tag}</span>]
                   .filter(Boolean).map((el, j) => <span key={j}>{j > 0 && " · "}{el}</span>)}
               </p>
-              {x.ai?.headline && (
-                <div className="so-ai" data-role="so-ai">
-                  <p><Sparkles size={13} className="ai-star" aria-hidden /> {x.ai.headline}</p>
-                  {x.ai.buy && <p className="sq-muted">الدخول: {x.ai.buy}</p>}
-                  {x.ai.invalid && <p className="sq-muted">يُبطلها: {x.ai.invalid}</p>}
+              {x.council && <CouncilBox c={x.council} />}
+              {x.link?.link && (
+                <div className="so-ai" data-role="so-link">
+                  <p><Sparkles size={13} className="ai-star" aria-hidden /> <b>الرابط: {x.link.decision}</b> <span className="sq-muted">· ثقةٌ {x.link.confidence}</span> — {x.link.link}</p>
+                  {x.link.conflict && <p className="sq-muted">التعارض: {x.link.conflict}</p>}
+                  {x.link.watch && <p className="sq-muted">ما يغيّر الحكم: {x.link.watch}</p>}
                 </div>
               )}
               <div className="op-btns">
@@ -138,6 +170,14 @@ export default function SaqrOpps({ market }: { market: Market }) {
           );
         })}
       </div>
+      {(d?.rejected || []).length > 0 && (
+        <details className="robo-held so-rej" data-role="so-rejected">
+          <summary><span>استبعدها مجلسُ صقر (<Num v={`${(d?.rejected || []).length}`} />) — فرصٌ في الرسم رفضها عضوٌ آخر</span></summary>
+          <ul>{(d?.rejected || []).map(r => (
+            <li key={r.symbol} data-role="so-rej"><b><Num v={r.symbol} /></b>{r.name ? ` ${r.name}` : ""} — {r.setup}: {r.why.join(" · ")}</li>
+          ))}</ul>
+        </details>
+      )}
       {chainFor && <OptionChain underlying={chainFor} onClose={() => setChainFor(null)} onPick={c => { setChainFor(null); lsSet("sp_room_symbol", c); nav("/watchlist"); }} />}
     </div>
   );

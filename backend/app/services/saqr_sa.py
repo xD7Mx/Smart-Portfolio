@@ -386,8 +386,7 @@ async def _review(st: dict, now: datetime, snap: dict, reg: dict | None, g: dict
 
 
 async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) -> dict | None:
-    from app.services import chart_scan as CS
-    from app.services.option_picks import chart_line
+    from app.services import saqr_council as CN
     eq = SQ.equity(st)
     frac, seats = tier(eq)
     fac, fac_why = size_factor(reg, g)
@@ -416,55 +415,62 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
         pre = {"strong": 30, "neutral": 10, "unknown": 0}[stt] + max(-5, min(5, rs_day)) * 2 + min(row.get("turnover") or 0, 1e8) / 1e8 * 10
         pool.append((pre, sym, row, stt, txt, gr))
     pool.sort(key=lambda x: -x[0])
-    _JOB["msg"] = "مساراتُ الشركات وقوّتُها على تاسي"
-    best = None
+    # ‏D786 (المالك: «التحليلُ الفنيّ خطوةٌ من بين الخطوات — يقرأ ويحلّل مثل الصفة البشرية ويربط بين كلّ شيء، وعملُنا القديم لا يلغيه الجديد»):
+    # المرشّحون يُعرضون على مجلس صقر — المسارُ (قاعدتُه القديمة نفسُها) والرسمُ والنتائجُ والأخبارُ والأحداثُ والحيتانُ والمحلّلون —
+    # ورفضُ عضوٍ يُسقط الصفقةَ بسببه، ثمّ «الرابط» يقرأ الأعضاءَ معاً قبل الشراء (وكان ‏D784 يرفض كلَّ ما لا فرصةَ له في الرسم)
+    _JOB["msg"] = "مجلسُ صقر: المسارُ والرسمُ والنتائجُ والأخبارُ والأحداثُ والحيتانُ والمحلّلون"
+    cands = []
     for pre, sym, row, stt, txt, gr in pool[:POOL]:
         tr = await trend(sym)
         if not tr:
             sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "refused", "why": "لا شموعَ كافيةً للمسار"})
             continue
-        rs3 = tr["ret3m"] - reg["ret3m"]
-        if tr["state"] != "صاعد" or tr["close"] < tr["sma50"]:
-            sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "refused", "why": f"المسارُ {tr['state']} — لا شراءَ إلا مع المسار الصاعد"})
+        cr_side, cr_any, _ = await CN.chart_sa(sym)
+        cands.append({"symbol": sym, "name": row.get("name_en"), "side": "long", "price": row.get("price"), "tr": tr, "rs3": tr["ret3m"] - reg["ret3m"],
+                      "cr_side": cr_side, "cr_any": cr_any, "liq": (cr_any or cr_side or {}).get("liq"), "stt": stt, "stxt": txt, "_pre": pre, "_row": row})
+    evs = await CN.collect("sa", cands, {"events": await CN.events("sa"), "reg": reg, "geo": g}) if cands else {}
+    ok = []
+    for cd in cands:
+        sym, row, tr, rs3 = cd["symbol"], cd["_row"], cd["tr"], cd["rs3"]
+        bd = CN.judge(evs[sym])
+        board = CN.compact(bd)
+        if bd["veto"]:
+            sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "refused", "why": "المجلس يرفض — " + " · ".join(bd["veto_why"]), "council": board})
             continue
-        if rs3 <= 0:
-            sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "refused",
-                        "why": f"أضعفُ من تاسي في ثلاثة أشهر ({tr['ret3m']:+.1f}٪ مقابل {reg['ret3m']:+.1f}٪)"})
-            continue
-        # ‏D784 (المالك: «خلِّ صقر يفهم تحليلَ الرسم ويختار بناءً عليه»): لا شراءَ إلا بفرصةٍ في مسح الرسم اليوميّ للسوق كلِّه، وجودتُها
-        # تُرجّح بين المقبولة — وإن لم يُمسح السوقُ بعد (أو قدم المسح) فقواعدُه السابقة وحدها
-        cv, cx = CS.chart_of("sa", sym)
-        if cv in ("flat", "weak", "unread"):
-            sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "refused",
-                        "why": (f"الرسم: لا فرصةَ الآن — السعرُ {cx['where']}" if cv == "flat"
-                                else f"الرسم: «{cx['setup']}» جودتُها {cx['quality']} دون {CS.MIN_Q}" if cv == "weak"
-                                else "الرسم: لم يُقرأ رسمُه في مسح اليوم")})
-            continue
-        score = pre + min(rs3, 30) + min(tr["strength"], 20) + (cx["quality"] / 2 if cv == "opp" else 0)
+        score = cd["_pre"] + min(max(rs3, 0), 30) + min(tr["strength"], 20) + bd["score"] / 2
         ask = row["ask"]
         hi = tr.get("hi52") or 0
         tgt, lbl = (min(hi, ask * 1.25), "قمّة السنة") if hi >= ask * 1.10 else (round(ask * 1.12, 2), "+12٪")
         k = {"contract": sym, "symbol": sym, "name": row.get("name_en"), "type": "stock", "ask": ask, "bid": row.get("bid"), "price": row.get("price"),
-             "stop": round(ask * (1 - c["stock_stop"] / 100), 3), "target": round(tgt, 2), "target_label": lbl, "score": round(score, 1), "results": txt, "results_state": stt,
-             "tr": tr, "rs3": rs3, "chg": row.get("change_pct"), "chart": cx if cv == "opp" else None}
-        sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "accepted", "contract": sym, "score": k["score"],
-                    "why": f"{txt} · أقوى من تاسي بـ{rs3:+.1f} نقطة في ثلاثة أشهر · فوق متوسّط 50"
-                           + (f" · الرسم: {cx['setup']} (جودة {cx['quality']} · {cx['horizon']})" if cv == "opp" else "")})
-        if best is None or k["score"] > best["score"]:
-            best = k
+             "stop": round(ask * (1 - c["stock_stop"] / 100), 3), "target": round(tgt, 2), "target_label": lbl, "score": round(score, 1),
+             "results": cd["stxt"], "results_state": cd["stt"], "tr": tr, "rs3": rs3, "chg": row.get("change_pct"), "board": bd, "chart_read": cd["cr_side"]}
+        good = next((m["say"] for m in bd["members"] if m["v"] == "ok" and m["role"] != "المسار"), None)
+        sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "accepted", "contract": sym, "score": k["score"], "council": board,
+                    "why": f"المجلس {bd['verdict']} ({bd['score']}/100 · {bd['oks']} يوافق · {bd['warns']} يتحفّظ)" + (f" · {good}" if good else "")})
+        ok.append(k)
+    # «الرابط» يقرأ أعلى ثلاثةٍ بالترتيب: أوّلُ من يقول «شراء» يُشترى، و«انتظار» أو «تجنّب» يُذكر سببُه — وتعذّرُه لا يمنع (قواعدُ المجلس وحدها)
+    best, lk = None, None
+    for k in sorted(ok, key=lambda x: -x["score"])[:3]:
+        lk = await CN.link(k["symbol"], k["name"], "sa", "long", k["board"], chart=k.get("chart_read"), price=k["ask"])
+        if lk and lk["decision"] != "شراء":
+            for x in sig:
+                if x.get("contract") == k["contract"] and x["verdict"] == "accepted":
+                    x["why"] += f" · الرابط: {lk['decision']} — {lk['link']}"
+            continue
+        best = k
+        break
     pos = None
     if best:
         qty = shares(budget, best["ask"])
         if qty >= 1:
-            tr = best["tr"]
             why = [f"تاسي {reg['verdict']}: {reg['close']:,.0f} و{'فوق' if reg['close'] >= reg['sma200'] else 'دون'} متوسّط 200" +
                    (f"، واليوم {reg['chg']:+.1f}٪" if isinstance(reg.get("chg"), (int, float)) else "") + ".",
-                   f"النتائج: {best['results']}",
-                   f"المسارُ صاعد: الإغلاق {tr['close']:,.2f} فوق متوسّط 50 ({tr['sma50']:,.2f})، وأقوى من تاسي بـ{best['rs3']:+.1f} نقطة في ثلاثة أشهر.",
-                   *([chart_line(best["chart"])] if best.get("chart") else []),
-                   f"الأحداث: {g['level']} — {g.get('why') or ''}" if g else "الأحداث: قراءتُها غيرُ متوفّرة الآن.",
+                   f"مجلسُ صقر: {best['board']['verdict']} ({best['board']['score']}/100).",
+                   *CN.lines(best["board"]),
+                   (f"الرابط ({lk['decision']} · ثقة {lk['confidence']}): {lk['link']}" + (f" التعارض: {lk['conflict']}" if lk.get("conflict") else ""))
+                   if lk else "الرابط: قراءتُه غيرُ متوفّرة الآن — الشراءُ على حكم الأعضاء.",
                    f"الوقف {best['stop']:.2f} (−{c['stock_stop']:g}٪) والهدف {best['target']:,.2f} ({best['target_label']})." + (f" {fac_why}." if fac_why else "")]
-            pos = SQ.buy(st, best, qty, why, kind="stock")
+            pos = SQ.buy(st, {k: v for k, v in best.items() if k not in ("board", "chart_read")}, qty, why, kind="stock")
             pos["results_state"] = best["results_state"]
             st["day"]["new"] = (st["day"].get("new") or 0) + 1
             for x in sig:

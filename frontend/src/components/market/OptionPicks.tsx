@@ -19,7 +19,8 @@ type Pick = { symbol: string; name?: string; contract: string; type: "call" | "p
   delta: number; iv: number; oi: number; spread_pct: number; spread_usd: number; px_src?: "ask" | "snap"; quote_at?: string | null;
   opened: string; new: boolean; pl_pct: number | null; mid_now: number | null; entry_mid: number; status_why?: string;
   trend: { state: string }; reasons: string[];
-  chart?: { setup: string; side: "long" | "short"; quality: number; horizon: string; where: string } | null };   // ‏D784: فرصةُ الرسم التي اختارته
+  chart?: { setup: string; side: "long" | "short"; quality: number; horizon: string; where: string;   // ‏D784: فرصةُ الرسم التي اختارته
+    council?: { verdict: string; score: number; oks: number; warns: number } | null; link?: { decision: string; link: string } | null } | null };   // ‏D786: ومجلسُ صقر
 type Exit = { contract: string; symbol: string; type: string; opened: string; closed: string; status: string; status_ar: string; why: string; pl_pct: number | null };
 
 const PRESETS = [50, 100, 150, 300];
@@ -116,6 +117,7 @@ export default function OptionPicks() {
                     {p.chart && (
                       <p className="op-chart" data-role="op-chart">
                         <Crosshair size={13} aria-hidden /> اختاره الرسم: <b>{p.chart.setup}</b> · جودة <Num v={`${p.chart.quality}/100`} /> · {p.chart.horizon}
+                        {p.chart.council && <> · <span data-role="op-council">المجلس {p.chart.council.verdict} <Num v={`${p.chart.council.score}/100`} /></span></>}
                       </p>
                     )}
                     <p className="op-line">

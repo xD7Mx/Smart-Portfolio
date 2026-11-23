@@ -9,7 +9,8 @@
      يوميّاً وأسبوعيّاً) ⇐ درجةٌ أوّلية لكلّ شركة — في المجال وحده: السعوديُّ الرئيسيُّ غيرُ الموقوف، والأمريكيُّ ما له عقودُ خياراتٍ واجتاز الأساس.
   ٢ رسومُ السوق السعوديّ الرئيسيّ كلِّه، وأعلى الأمريكيّ درجةً (حصّةُ ياهو اليومية)، تُقرأ بشموعها اليومية بحساب الرسم نفسِه (‏chart_tech):
      المناطقُ الثلاث، ولوحتا الاتجاه والسيولة، وStoch RSI ⇐ الفرصةُ وجودتُها ومدّتُها ودخولُها وهدفُها ووقفُها.
-  ٣ أفضلُها يقرؤها الذكاءُ قراءةَ «تحليل الرسم» نفسَها (‏chart_read) — محروسةً: لا رقمَ إلّا من الرسم.
+  ٣ مجلسُ صقر (‏saqr_council — ‏D786: «التحليلُ الفنيّ خطوةٌ من بين الخطوات»): كلُّ فرصةٍ تُعرض على المسار والنتائج والأخبار والأحداث
+     والحيتان والمحلّلين مع الرسم — ما رفضه عضوٌ يُستبعد بسببه، والباقي يُرتَّب بحكم المجلس، و«الرابط» يقرأ أفضلَها قراءةَ المحلّل.
 ولا ينفّذ المسحُ شيئاً: القائمةُ للمالك يختار منها (وصقرٌ السعوديُّ يشتري ما يشتريه بعدها بقواعده، والأمريكيُّ دفترُ «عقود الخيارات» يبدأ بها)."""
 from __future__ import annotations
 
@@ -158,59 +159,14 @@ def item(sym: str, name: str | None, r: dict, bars: list[dict], market: str) -> 
     out = {"symbol": sym, "name": name, "setup": r["setup"], "side": r["side"], "quality": r["quality"], "horizon": r["horizon"], "horizon_n": r["horizon_n"],
            "entry": r["entry"], "target": r["target"], "stop": r["stop"], "rr": r["rr"], "zone": r["zone"], "where": r["where"], "close": round(r["close"], 4),
            "trend": {"word": T_["word"], "level": T_["level"], "strength": T_["strength"]},
-           "liq": {"word": L_.get("word"), "level": L_.get("level"), "strength": L_.get("strength"), "tag": L_.get("tag")},
+           "liq": {"side": L_.get("side"), "word": L_.get("word"), "level": L_.get("level"), "strength": L_.get("strength"), "tag": L_.get("tag")},
            "k": None if r.get("k") is None else round(r["k"], 1), "rsi": None if r.get("rsi") is None else round(r["rsi"], 1),
            "weekly": (r.get("weekly") or {}).get("word"), "reasons": r.get("reasons") or [],
            "zones": [{"name": z["name"], "lo": round(z["lo"], 4), "hi": round(z["hi"], 4)} for z in r["zones"]]}
-    if market == "us":
-        tr = OP.trend_of(bars)                                    # مسارُ دفتر «عقود الخيارات» نفسُه — ليبني عليه عقدَه بلا جلبٍ ثانٍ
-        if tr:
-            out["tr"] = tr
+    tr = OP.trend_of(bars)                                        # مسارُ صقر نفسُه (‏trend_of) — للمجلس، ولدفتر «عقود الخيارات» بلا جلبٍ ثانٍ
+    if tr:
+        out["tr"] = tr
     return out
-
-
-# ── ٣ قراءةُ الذكاء لأفضلها ────────────────────────────────────────────────────────────────────────
-def snapshot(sym: str, name: str | None, market: str, bars: list[dict]) -> dict:
-    """لقطةُ «تحليل الرسم» من الخادم: اليوميُّ والأسبوعيّ بشموعهما (120 لكلٍّ) ومستوياتِ المناطق الثلاث والقممِ والقيعان وStoch RSI وRSI واللوحتين."""
-    from app.services import chart_tech as T
-
-    def fr(b: list[dict], tf: str, tf_ar: str) -> dict | None:
-        if len(b) < 30:
-            return None
-        f = T.frame(b)
-        if not f:
-            return None
-        r4 = lambda v: None if v is None else round(float(v), 4 if abs(float(v)) < 1 else 2)   # noqa: E731
-        lv = []
-        for z in f["zones"] or []:
-            for x in z["levels"]:
-                lv.append({"kind": "fib", "label": f"فيبوناتشي {x} — منطقة {z['name']}", "price": r4(f["fib"]["lines"][x])})
-        for p in T.zigzag(b, 3, 7)[-6:]:
-            lv.append({"kind": "swing", "label": "قمّة" if p["high"] else "قاع", "price": r4(p["price"])})
-        fz = lambda x: None if not x else {"word": x["word"], "level": x.get("level"), "strength": x.get("strength"), "stat": x.get("stat")}   # noqa: E731
-        return {"tf": tf, "tf_ar": tf_ar, "price": r4(b[-1]["close"]),
-                "bars": [[x["date"][:10], r4(x["open"]), r4(x["high"]), r4(x["low"]), r4(x["close"]), round(x.get("volume") or 0)] for x in b[-120:]],
-                "ind": {"Stoch RSI": {"k": r4(f["k"]), "d": r4(f["d"]), "overbought": 80, "oversold": 20}, "RSI": r4(f["rsi"])},
-                "levels": [x for x in lv if x["price"] is not None], "shown": ["d7m", "stochrsi", "rsi", "volume"],
-                "force": {"trend": fz(f["trend"]), "liquidity": fz(f["liq"])}}
-    frames = [x for x in (fr(bars, "1d", "يوم"), fr(T.weekly(bars, market == "sa"), "1wk", "أسبوع")) if x]
-    return {"symbol": sym, "name": name or "", "market": market, "frames": frames}
-
-
-async def ai_read(sym: str, name: str | None, market: str, bars: list[dict]) -> dict | None:
-    from app.services.chart_read import read
-    snap = snapshot(sym, name, market, bars)
-    if not snap["frames"]:
-        return None
-    try:
-        out = await read(snap)
-    except Exception as e:                                        # noqa: BLE001
-        logger.debug("مسحُ الرسم/الذكاء {}: {}", sym, type(e).__name__)
-        return None
-    if not out.get("ok"):
-        return None
-    rd = out["reading"]
-    return {k: rd.get(k) for k in ("bias", "headline", "buy", "sell", "invalid", "risk")}
 
 
 # ── الحفظُ والقراءة ──────────────────────────────────────────────────────────────────────────────
@@ -274,6 +230,51 @@ def summary(market: str) -> dict | None:
     return {k: d.get(k) for k in ("at", "universe", "screened", "read", "found")} if d and d.get("at") else None
 
 
+# ── ٣ مجلسُ صقر — الرسمُ خطوةٌ من بين الخطوات (‏D786) ────────────────────────────────────────────────────────
+async def review(market: str, items: list[dict], kept_bars: dict[str, list[dict]], ai: bool = True) -> tuple[list[dict], list[dict]]:
+    """كلُّ فرصةٍ من الرسم تُعرض على مجلس صقر (‏saqr_council): المسارُ والرسمُ والنتائجُ والأخبارُ والأحداثُ والحيتانُ والمحلّلون —
+    ما رفضه عضوٌ يُستبعد بسببه (ويُعرض في «استبعدها المجلس»)، والباقي يُرتَّب بحكم المجلس ثمّ درجته ثمّ جودة الرسم، و«الرابط» لأفضلها."""
+    from app.services import chart_tech as T
+    from app.services import saqr_council as CN
+    ctx = await CN.context(market)
+    reg = ctx.get("reg") or {}
+    today = datetime.now(timezone(timedelta(hours=3))).date()
+    cands = []
+    for x in items:
+        s, tr = x["symbol"], x.get("tr")
+        cr_any = x
+        stt = stxt = None
+        if market == "sa":
+            from app.services.saqr_sa import results_of
+            bars = kept_bars.get(s) or []
+            cr_any = T.read(bars, saudi=True, longs_only=False) if len(bars) >= 60 else x
+            try:
+                stt, stxt, _ = results_of(s, today)
+            except Exception:                                     # noqa: BLE001
+                stt = stxt = None
+        cands.append({"symbol": s, "name": x.get("name"), "side": x["side"], "price": x["close"], "tr": tr, "cr_side": x, "cr_any": cr_any,
+                      "liq": x.get("liq"), "stt": stt, "stxt": stxt,
+                      "rs3": (tr["ret3m"] - reg["ret3m"]) if market == "sa" and tr and isinstance(reg.get("ret3m"), (int, float)) else None,
+                      "earn_days": CN.earn_days(s) if market == "us" else None})
+    evs = await CN.collect(market, cands, ctx)
+    boards = {}
+    approved, rejected = [], []
+    for x in items:
+        bd = CN.judge(evs[x["symbol"]])
+        boards[x["symbol"]] = bd
+        x["council"] = CN.compact(bd)
+        x["heads"] = evs[x["symbol"]].get("heads") or []
+        (rejected if bd["veto"] else approved).append(x)
+    rank = {"يوافق": 0, "يوافق بتحفّظ": 1}
+    approved.sort(key=lambda x: (rank.get(x["council"]["verdict"], 2), -x["council"]["score"], -x["quality"]))
+    if ai:
+        for x in approved[:AI_TOP]:
+            x["link"] = await CN.link(x["symbol"], x.get("name"), market, x["side"], boards[x["symbol"]], chart=x, price=x["close"])
+    rej = [{"symbol": x["symbol"], "name": x.get("name"), "setup": x["setup"], "side": x["side"], "quality": x["quality"],
+            "why": x["council"]["veto_why"]} for x in rejected]
+    return approved, rej
+
+
 # ── المسح ─────────────────────────────────────────────────────────────────────────────────────────
 async def scan(market: str, ai: bool = True) -> dict:
     """مسحُ السوق كلِّه (‏us · sa) ⇐ ‏{market, at, universe, read, found, items, dist} محفوظاً — ولا ينفّذ شيئاً."""
@@ -314,15 +315,15 @@ async def scan(market: str, ai: bool = True) -> dict:
             await asyncio.gather(*(one(s) for s in pool))
             items.sort(key=lambda x: (-x["quality"], -x["horizon_n"]))
             items = items[:KEEP]
-            if ai:
-                job["msg"] = "الذكاءُ يقرأ أفضلَ الرسوم"
-                for x in items[:AI_TOP]:
-                    x["ai"] = await ai_read(x["symbol"], x["name"], market, kept_bars.get(x["symbol"]) or [])
+            rejected: list[dict] = []
+            if items:
+                job["msg"] = "مجلسُ صقر يقرأ النتائجَ والأخبارَ والأحداثَ والحيتانَ والمحلّلين"
+                items, rejected = await review(market, items, kept_bars, ai)
             dist: dict[str, int] = {}
             for x in items:
                 dist[x["setup"]] = dist.get(x["setup"], 0) + 1
             data = {"market": market, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "universe": len(uni), "screened": len(ranked),
-                    "read": len(reads), "found": len(items), "items": items, "dist": dist, "min_q": MIN_Q, "reads": reads,
+                    "read": len(reads), "found": len(items), "items": items, "dist": dist, "min_q": MIN_Q, "reads": reads, "rejected": rejected,
                     "secs": round(time.monotonic() - t0, 1)}
             # مسحٌ بلا مجالٍ (تعذّرُ المُصفّي) أو بلا رسمٍ مقروء (تعذّرُ الشموع) لا يمحو مسحاً سابقاً ولا يُعدّ مسحاً — وإلّا رفض صقرٌ
             # كلَّ شركةٍ «لم يُقرأ رسمُها» (قيس على الخادم 2026-11-22: مسحُ الإقلاع 0 رسوم حُفظ حديثاً)

@@ -316,10 +316,16 @@ def reasons(sym: str, tr: dict, news: dict | None, k: dict, note: str) -> list[s
 
 
 def chart_card(x: dict | None) -> dict | None:
-    """خلاصةُ فرصة الرسم في بطاقة التوصية (‏D784) — ما تعرضه الواجهةُ شارةً."""
+    """خلاصةُ فرصة الرسم في بطاقة التوصية (‏D784) — ما تعرضه الواجهةُ شارةً — ومعها حكمُ مجلس صقر و«الرابط» (‏D786)."""
     if not x:
         return None
-    return {k: x.get(k) for k in ("setup", "side", "quality", "horizon", "where", "entry", "target", "stop", "rr")}
+    out = {k: x.get(k) for k in ("setup", "side", "quality", "horizon", "where", "entry", "target", "stop", "rr")}
+    cn = x.get("council") or {}
+    if cn:
+        out["council"] = {k: cn.get(k) for k in ("verdict", "score", "oks", "warns", "members")}
+    if x.get("link"):
+        out["link"] = {k: x["link"].get(k) for k in ("decision", "confidence", "link", "conflict", "watch")}
+    return out
 
 
 def with_chart(rs: list[str], x: dict | None, cr: tuple | None) -> list[str]:
@@ -328,6 +334,10 @@ def with_chart(rs: list[str], x: dict | None, cr: tuple | None) -> list[str]:
     line = None
     if x:
         line = chart_line(x)
+        cn = x.get("council") or {}
+        if cn:                                                    # ‏D786: والمجلسُ كلُّه معها — الرسمُ عضوٌ فيه لا الحَكَم
+            line += (f" ومجلسُ صقر {cn.get('verdict')} ({cn.get('score')}/100: {cn.get('oks')} يوافق · {cn.get('warns')} يتحفّظ)"
+                     + (f" — {x['link']['link']}" if (x.get("link") or {}).get("link") else "") + ".")
     elif cr and cr[0] in ("weak", "flat") and cr[1]:
         r = cr[1]
         line = (f"قراءةُ الرسم: «{r['setup']}» جودتُها {r['quality']} دون {MIN_Q} — السعرُ {r['where']}." if cr[0] == "weak"
@@ -616,7 +626,10 @@ async def run(budget: float) -> dict:
         # ‏D784 (المالك: «خلِّ صقر يفهم تحليلَ الرسم ويختار بناءً عليه»): فرصُ مسح الرسم اليوميّ للسوق كلِّه تتقدّم المرشّحين بجهتها —
         # الشراءُ عقدُ شراء والبيعُ عقدُ بيع — وما سواها من القائمة الثابتة بعدها بمساره
         from app.services import chart_scan as CS
-        opps = {x["symbol"]: x for x in sorted((CS.fresh("us") or {}).get("items") or [], key=lambda x: -x["quality"]) if x.get("tr")}
+        scan_us = CS.fresh("us") or {}
+        # ‏D786: فرصُ الرسم بعد مجلس صقر (ما رفضه عضوٌ لم يبقَ فيها) بترتيب المجلس؛ وما رفضه المجلسُ اليوم لا يدخل الدفترَ من قائمته الثابتة أيضاً
+        opps = {x["symbol"]: x for x in scan_us.get("items") or [] if x.get("tr")}
+        vetoed = {x["symbol"]: x for x in scan_us.get("rejected") or []}
         _JOB["msg"] = "قراءةُ الأخبار"
         news = await read_news({**{s: x["tr"] for s, x in opps.items()}, **top})
         book = book_load(budget)
@@ -655,6 +668,9 @@ async def run(budget: float) -> dict:
             plan.append((s, x["tr"], side, f"اختارها مسحُ الرسم: {x['setup']} ({'شراء' if side == 'call' else 'بيع'})"))
         for s, tr in top.items():
             if s in held or s in opps:
+                continue
+            if s in vetoed:
+                skipped.append({"symbol": s, "why": "مجلسُ صقر يرفض — " + " · ".join(vetoed[s].get("why") or [])})
                 continue
             side, note = direction(tr, news.get(s))
             if side:

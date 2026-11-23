@@ -1707,7 +1707,9 @@ html.light .wealth {
    (‏--pos-fill) فلا يعود عطب «الحبر الذائب» (D014). */
 /* كهرمانيّ: 4.61 على الأبيض — فوق عتبة الميثاق الثانوية. */
 html.light { --amber-ink: #b45309; --pos-ink: #16a34a; --neg-ink: #dc2626;
-             --pos-fill: #047857; --neg-fill: #b3261e; }
+             --pos-fill: #047857; --neg-fill: #b3261e;
+             /* ‏D786: حبرُ التنبيه على صبغةٍ من لونه — ‎#c2410c عليها 4.29:1 (قيس على شارة «يتحفّظ»)، وهذا 5.67 */
+             --warn-fill: #9a3412; }
 
 /* ── زرّا الباند: شكلٌ واحد ورتبةٌ واحدة ──────────────────────────────
    كانا بلغتين: أحدهما ممتلئ بتدرّج الهويّة والآخر رمادي شبح — فيبدوان
@@ -2034,6 +2036,7 @@ button, [role="button"] { min-height: 32px; }
      فإن عاد الحبر يوماً إلى درجةٍ صريحة، لم يتبعه الحشو. */
   --pos-fill: #34d399;
   --neg-fill: #f87171;
+  --warn-fill: #dfb463;   /* ‏D786: كحبر التنبيه في الداكن — يجتاز على صبغته */
   /* ══ بيجُ عمود «المدفوع» ══ (بأمر المالك)
      من درجة بيج التطبيق نفسها (‏hue 38°) لا من لونٍ غريب — لكنّها أعمق
      منه: البيج الأصليّ ‎#f7f3ec يعطي على بطاقةٍ بيضاء **1.11:1**، أي
@@ -4265,6 +4268,7 @@ html.light {
 .so-ai { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border-radius: 10px; font-size: 12px; line-height: 1.7; color: var(--ink);
   background: color-mix(in srgb, var(--amber-ink) 7%, var(--field)); }
 .so-ai p { margin: 0; }
+.so-ai p > svg { display: inline-block; vertical-align: -2px; }   /* ‏preflight يجعل الرسمَ كتلةً فتنفرد النجمةُ بسطرٍ فوق «الرابط» (قيس) */
 @media (prefers-reduced-motion: reduce) { .so-card { transition: none; animation: none; } }
 /* ‏D784: شارةُ فرصة الرسم في بطاقة «عقود الخيارات» */
 .op-chart { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 11.5px; font-weight: 600; line-height: 1.6;
@@ -4272,3 +4276,29 @@ html.light {
 .op-chart b { font-weight: 800; }
 /* ‏D784: حدودُ Stoch RSI — كلُّ حدٍّ صفٌّ بعرض النافذة: إظهارُه وقيمتُه */
 .sr-band { grid-column: 1 / -1; }
+
+/* ══ ‏D786: مجلسُ صقر على بطاقة الفرصة — حكمُه وأعضاؤه السبعة و«لماذا»، والمستبعَدُ بسببه ══ */
+.so-council { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 10px; background: var(--field); }
+.so-chead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.so-verdict { font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.so-verdict.ok { color: var(--pos-fill); background: color-mix(in srgb, var(--pos-ink) 13%, transparent); }   /* حبرٌ على صبغةٍ من لونه ⇐ الدرجةُ العميقة (‏D014) */
+.so-verdict.warn { color: var(--warn-fill); background: color-mix(in srgb, var(--warn-ink) 13%, transparent); }
+.so-members { display: flex; flex-wrap: wrap; gap: 4px; }
+.so-members li { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 7px; white-space: nowrap;
+  color: var(--ink-muted); background: color-mix(in srgb, var(--ink-muted) 10%, transparent); }
+.so-members li[data-v="ok"] { color: var(--pos-fill); background: color-mix(in srgb, var(--pos-ink) 11%, transparent); }
+.so-members li[data-v="warn"] { color: var(--warn-fill); background: color-mix(in srgb, var(--warn-ink) 11%, transparent); }
+.so-members li[data-v="veto"] { color: var(--neg-fill); background: color-mix(in srgb, var(--neg-ink) 11%, transparent); }
+.so-why summary { min-height: 32px; display: flex; align-items: center; font-size: 11.5px; font-weight: 700; color: var(--brand-ink); cursor: pointer; }
+.so-why ul { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; line-height: 1.7; color: var(--ink); padding-top: 2px; }
+.so-why li b { font-weight: 800; }
+.so-why li small { font-size: 10px; font-weight: 700; color: var(--ink-muted); margin-inline-end: 4px; }
+.so-why li[data-v="veto"] b { color: var(--neg-ink); }
+.so-why li[data-v="warn"] b { color: var(--warn-ink); }
+.so-why li[data-v="ok"] b { color: var(--pos-ink); }
+.so-rej ul { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; line-height: 1.7; color: var(--ink); }
+.so-why[open] ul { animation: fadeUp .25s ease-out both; }
+.so-why summary::after { content: ""; width: 6px; height: 6px; margin-inline-start: 8px; border: solid currentColor; border-width: 0 0 1.5px 1.5px;
+  transform: rotate(-45deg) translateY(-2px); transition: transform .2s ease; }
+.so-why[open] summary::after { transform: rotate(135deg) translateY(-1px); }
+@media (prefers-reduced-motion: reduce) { .so-why[open] ul { animation: none; } .so-why summary::after { transition: none; } }

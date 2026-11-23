@@ -103,8 +103,8 @@ const OPP = (sym, name, side, q, hn, setup, extra = {}) => ({ symbol: sym, name,
   k: 18.4, rsi: 44.2, weekly: "صاعد", reasons: ["الاتجاه صاعد قويّ (62/100)"], ...extra });
 const OPPS = {
   sa: { market: "sa", at: iso(now - 3600e3), universe: 268, screened: 266, read: 266, found: 3, min_q: 50, job: { on: false, msg: "", at: null },
-    items: [OPP("2222", "أرامكو السعودية", "long", 81, 3, "ارتدادٌ من الدعم", { ai: { bias: "صاعد", headline: "السعرُ يرتدّ من منطقة الدعم 24.6 مع تشبّعٍ بيعيّ في Stoch RSI",
-      buy: "إن أغلق فوق 25.1", invalid: "إغلاقٌ دون 24.2" } }), OPP("1120", "مصرف الراجحي", "long", 66, 2, "استمرارٌ بعد تصحيح"), OPP("2010", "سابك", "long", 54, 1, "ارتدادٌ من منطقة الوسط")] },
+    items: [OPP("2222", "أرامكو السعودية", "long", 81, 3, "ارتدادٌ من الدعم", { link: { decision: "شراء", confidence: "متوسطة", link: "السعرُ يرتدّ من منطقة الدعم 24.6 مع تشبّعٍ بيعيّ في Stoch RSI والنتائجُ تؤيّد",
+      watch: "إغلاقٌ دون 24.2" } }), OPP("1120", "مصرف الراجحي", "long", 66, 2, "استمرارٌ بعد تصحيح"), OPP("2010", "سابك", "long", 54, 1, "ارتدادٌ من منطقة الوسط")] },
   us: { market: "us", at: iso(now - 7200e3), universe: 812, screened: 790, read: 150, found: 3, min_q: 50, job: { on: false, msg: "", at: null },
     items: [OPP("NVDA", "NVIDIA", "long", 77, 3, "اختراقُ المقاومة"), OPP("TSLA", "Tesla", "short", 63, 2, "رفضٌ من المقاومة"), OPP("AAPL", "Apple", "long", 58, 1, "ارتدادٌ من الدعم")] } };
 const ST = m => ({ market: m, ccy: m === "sa" ? "SAR" : "USD", on: true, capital: 1000, goal: 100000, cash: 1000, equity: 1000, pl: 0, pl_pct: 0, progress: 0,
@@ -187,16 +187,16 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   const nav = await page.locator('[data-role="sq-nav"] [data-view]').evaluateAll(bs => bs.map(b => [b.getAttribute("data-view"), b.textContent.trim(), b.getAttribute("aria-selected")]));
   const sa = await page.evaluate(() => ({ cards: [...document.querySelectorAll('[data-role="so-card"]')].map(c => ({ side: c.dataset.side, h: c.dataset.h,
       q: c.querySelector('[data-role="so-q"] .sp-bar i')?.style.width, hz: c.querySelector('[data-role="so-hz"]')?.textContent, chip: c.querySelector('[data-role="so-side-chip"]')?.textContent })),
-    meta: document.querySelector('[data-role="so-meta"]')?.textContent || "", ai: !!document.querySelector('[data-role="so-ai"] .ai-star'),
+    meta: document.querySelector('[data-role="so-meta"]')?.textContent || "", ai: !!document.querySelector('[data-role="so-link"] .ai-star'),
     node: document.querySelector('[data-role="sq-node"][data-k="opps"]')?.textContent || "", oldNode: !!document.querySelector('[data-role="sq-node"][data-k="signals"]'),
     sig: document.querySelector('[data-role="sq-signals"]')?.textContent || "", sigOpen: document.querySelector('[data-role="sq-signals"]')?.open,
     sideF: !!document.querySelector('[data-role="so-side"]'), chain: !!document.querySelector('[data-role="so-chain"]') }));
   if (SHOTS) await page.locator('[data-role="so"]').screenshot({ path: `${SHOTS}/d784-opps-sa-${vp.width}-${theme}.png` }).catch(() => {});
   say(nav.some(([k, t, s]) => k === "opps" && t === "الفرص" && s === "true") && !nav.some(([k]) => k === "signals" || k === "options")
       && sa.cards.length === 3 && sa.cards[0].q === "81%" && sa.cards[0].hz === "حتى الربع القادم" && sa.cards.every(c => c.chip === "شراء") && sa.ai
-      && /268/.test(sa.meta) && /266/.test(sa.meta) && /الفرصُ بجودة\s*50\s*فأكثر:\s*3/.test(sa.meta) && /3\s*فرصة/.test(sa.node) && !sa.oldNode
+      && /268/.test(sa.meta) && /266/.test(sa.meta) && /الفرصُ بعد مجلس صقر:\s*3/.test(sa.meta) && /3\s*فرصة/.test(sa.node) && !sa.oldNode
       && sa.sigOpen === false && /قراراتُ صقر/.test(sa.sig) && !sa.sideF && !sa.chain,
-    `${label}: ٣ السعوديّ: «الفرص» بدل «الإشارات» (والمحفوظُ قديماً يُفتح عليها) — بطاقاتٌ بجودتها ومدّتها وجهتها، وقراءةُ الذكاء لأفضلها، وعقدةُ «الفرص» في لوحة صقر، `
+    `${label}: ٣ السعوديّ: «الفرص» بدل «الإشارات» (والمحفوظُ قديماً يُفتح عليها) — بطاقاتٌ بجودتها ومدّتها وجهتها، و«الرابط» لأفضلها، وعقدةُ «الفرص» في لوحة صقر، `
       + "وقراراتُ صقر مطويّةٌ تحتها — بلا عقودٍ ولا بيع", JSON.stringify({ nav: nav.map(x => x[0]), n: sa.cards.length, node: sa.node, meta: sa.meta.slice(0, 50) }));
   await page.locator('[data-role="so-h"] button[data-v="2"]').click(); await page.waitForTimeout(400);
   const f2 = await page.locator('[data-role="so-card"]').evaluateAll(cs => cs.map(c => c.dataset.h));
