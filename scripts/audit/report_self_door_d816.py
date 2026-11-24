@@ -91,6 +91,21 @@ async def main():
             res.append(f"{s}={len(b)}{'@' + str(last)[:10] if last else ''}")
         print(f"   {mk}: " + " · ".join(res))
 
+    print("══ ٣ب الأسواقُ الإقليمية والفائدة من مسح TradingView العامّ (‏docs/FETCH_METHOD.md)")
+    from app.services.live_quote import tv_scan
+    cols = ["description", "close", "change", "Perf.1M", "Perf.YTD", "update_mode"]
+    tick = ["TADAWUL:TASI", "DFM:DFMGI", "ADX:FADGI", "QSE:GNRI", "KSE:BKP", "KSE:BKM", "KSE:BKA", "MSM:MSX30", "MSM:MSI",
+            "BAHRAIN:BHSEASI", "BAHRAIN:BHSEEI", "EGX:EGX30", "ECONOMICS:SAINTR", "ECONOMICS:SAIRYY", "TVC:SA10Y", "FX_IDC:SAIBOR3M"]
+    for mkt in ("global",):
+        got = await tv_scan(mkt, tick, cols)
+        for t in tick:
+            row = got.get(t)
+            if row:
+                print(f"   {t:18} · {str(row.get('description'))[:34]:34} · إغلاق={'نعم' if row.get('close') is not None else 'لا'}"
+                      f" · يوميّ={row.get('change') is not None} · شهريّ={row.get('Perf.1M') is not None} · سنويّ={row.get('Perf.YTD') is not None} · {row.get('update_mode')}")
+            else:
+                print(f"   {t:18} · لا صفّ")
+
     print("══ ٤ سايبور — صفحةُ البنك المركزيّ")
     import httpx
     for u in SAIBOR_URLS:
