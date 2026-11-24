@@ -35,15 +35,34 @@ async def refresh_holdings_prices(db: AsyncSession, holdings) -> dict:
     recompute market_value / P&L for each holding, persisting to the DB.
     This is THE link between price providers and the portfolio.
 
-    ‏D789: السعرُ بعملة الشركة (الدولارُ للأمريكيّ) والقيمةُ بالريال بسعر صرف اليوم — ويُعاد جدولُ الصرف لمن يعرض."""
+    ‏D789: السعرُ بعملة الشركة (الدولارُ للأمريكيّ) والقيمةُ بالريال بسعر صرف اليوم — ويُعاد جدولُ الصرف لمن يعرض.
+
+    ‏D791: الأسعارُ تُطلب معاً (ثمانيةٌ في آنٍ على الأكثر) ثمّ تُطبَّق بترتيب الحيازات — كانت تُطلب سهماً بعد سهم: قِيس على الخادم
+    أوّلُ ملخّصٍ لويدجت الآيفون بعشر حيازاتٍ خارج ساعات السوق 13.4 ثانية، ومهلةُ الويدجت 20. الطلباتُ هي هي والنتائجُ هي هي؛
+    والشركةُ تُقرأ من كلّ حيازةٍ قبل الطلبات (لا وصولَ إلى الجلسة من طلباتٍ متزامنة)."""
+    import asyncio
     from app.services.market_data import market_service
+    holdings = list(holdings)
     fxs = await holdings_fx(db, holdings)
+    syms = [yahoo_symbol(h.company.symbol) if h.company else None for h in holdings]
+    sem = asyncio.Semaphore(8)
+
+    async def quote(sym):
+        if not sym:
+            return None
+        async with sem:
+            try:
+                return await market_service.get_price(sym)
+            except Exception as e:                                         # noqa: BLE001 — سهمٌ يتعذّر لا يُسقط البقيّة
+                logger.warning(f"price refresh failed for {sym}: {e}")
+                return None
+
+    quotes = await asyncio.gather(*(quote(s) for s in syms))
     changed = False
-    for h in holdings:
+    for h, p in zip(holdings, quotes):
         if not h.company:
             continue
         try:
-            p = await market_service.get_price(yahoo_symbol(h.company.symbol))
             if p and p.get("price"):
                 qty = float(h.quantity or 0)
                 inv = float(h.invested_amount or 0)

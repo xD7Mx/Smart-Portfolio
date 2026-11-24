@@ -126,6 +126,26 @@ async def main():
     out["status"] = [st.get("active"), st.get("hint") == tok["token"][-4:], bool(st.get("used"))]
     await S(WG.token_revoke)
     out["revoked"] = await S(WG.widget_summary, None, tok["token"])
+    # الأسعارُ تُطلب معاً لا سهماً بعد سهم (قِيس على الخادم 13.4 ثانية لعشر حيازات) — وكلُّ سعرٍ يقع على سهمه
+    from sqlalchemy import select as _sel
+    from sqlalchemy.orm import selectinload as _sil
+    from app.models.portfolio import Holding as _H
+    from app.api.v1.endpoints.holdings import refresh_holdings_prices as _rhp
+    fl = {"now": 0, "max": 0}
+    async def slow_price(sym):
+        fl["now"] += 1
+        fl["max"] = max(fl["max"], fl["now"])
+        await asyncio.sleep(0.2)
+        fl["now"] -= 1
+        return PriceData(sym, PX[sym] + 1, 0.0, CH[sym]).to_dict() if sym in PX else None
+    market_service.get_price = slow_price
+    set_scope(pid1, False)
+    async with AsyncSessionLocal() as d:
+        hs = [h for h in (await d.execute(_sel(_H).options(_sil(_H.company)))).scalars().all() if float(h.quantity or 0) > 0]
+        await _rhp(d, hs)
+        out["conc"] = [fl["max"], len(hs), sorted([h.company.symbol, float(h.last_price)] for h in hs)]
+    reset_scope()
+    market_service.get_price = fake_price
     print("RESULT " + json.dumps(out, ensure_ascii=False, default=str))
 asyncio.run(main())
 '''
@@ -160,6 +180,9 @@ asyncio.run(main())
         h = o.get("http") or [None] * 5
         check(h[0] == 200 and h[1] == 10500.0 and h[2] == 401 and h[3] in (401, 403) and h[4] in (401, 403),
               "٩ عبر الخادم: الملخّصُ برمز الويدجت وحده بلا جلسة (‏200)، والرمزُ في الرابط مرفوض، وإنشاءُ الرمز وحالُه بلا جلسةٍ مرفوضان", str(h))
+        # قبل الإصلاح: ‏[1, 2, …] — سهمٌ بعد سهم
+        check(o.get("conc") == [2, 2, [["1120", 61.0], ["2222", 28.5]]],
+              "١٠ تحديثُ الأسعار يطلبها معاً لا سهماً بعد سهم (المتزامنُ 2 من 2)، وكلُّ سعرٍ يقع على سهمه", str(o.get("conc")))
     subprocess.run(["psql", "-h", host, "-p", port, "-U", "sp", "-d", "postgres", "-qc", f"DROP DATABASE IF EXISTS {db}"],
                    capture_output=True)
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
