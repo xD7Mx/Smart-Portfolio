@@ -20,8 +20,11 @@ type Row = { contract: string; strike: number; last: number | null; bid: number 
   volume: number | null; oi: number | null; iv: number | null; itm: boolean; g?: G | null; sbid?: number; sask?: number; sat?: string };
 type Stats = { atm_iv: number | null; move: number | null; move_pct: number | null; pcr_vol: number | null; pcr_oi: number | null; max_pain: number | null;
   vol: { call: number; put: number }; oi: { call: number; put: number } };
+/* ‏D818: الفوليوم بروفايل للسهم بنافذة أجل العقد — نقطةُ التحكّم وحدّا منطقة القيمة وعُقدُ الحجم الكثيف والفراغات، وأعمدةُ الحجم على محور السعر */
+type VP = { poc: number; val: number; vah: number; hvn: { p: number; w: number }[]; lvn: number[]; lo: number; hi: number; step: number; bins: number[];
+  window: string; thin: boolean };
 type Chain = { symbol: string; name?: string; price?: number; expirations: { t: number; date: string; dte: number }[]; expiry: number | null;
-  calls: Row[]; puts: Row[]; stats?: Stats; session?: any };
+  calls: Row[]; puts: Row[]; stats?: Stats; session?: any; vp?: VP | null };
 type Card = { contract: string; type: "call" | "put"; strike: number; expiry: string; dte: number; cost: number; px_src?: string; g: G; oi: number | null;
   volume: number | null; verdict: "ok" | "warn" | "no"; verdict_ar: string; pros: string[]; cons: string[]; need_pct: number | null };
 
@@ -43,6 +46,17 @@ const ACTIVE = new Set(["pre", "open", "post"]);
 export type Guide = { side: "long" | "short"; setup: string; entry: [number, number]; target: number; stop: number; close: number; horizon_n: number; horizon: string };
 type Band = "core" | "aux" | null;
 const NEED_DTE: Record<number, number> = { 1: 45, 2: 75, 3: 110 };
+/** ‏D818: حالُ سعر تنفيذٍ على البروفايل — حجمُه النسبيّ (لعموده) ووسمُه: نقطةُ التحكّم · حدُّ القيمة · حجمٌ كثيف · فراغ */
+export function vpAt(vp: VP | null | undefined, k: number, gap: number): { w: number; tag: "poc" | "vah" | "val" | "hvn" | "lvn" | null } {
+  if (!vp || !(vp.step > 0) || k < vp.lo || k > vp.hi) return { w: 0, tag: null };
+  const i = Math.min(vp.bins.length - 1, Math.max(0, Math.floor((k - vp.lo) / vp.step)));
+  const near = (p: number) => Math.abs(p - k) <= Math.max(gap / 2, vp.step / 2);
+  const tag = near(vp.poc) ? "poc" : near(vp.vah) ? "vah" : near(vp.val) ? "val" : vp.hvn.some(h => h.w >= 0.6 && near(h.p)) ? "hvn"
+    : vp.lvn.some(near) ? "lvn" : null;
+  return { w: vp.bins[i] || 0, tag };
+}
+const VP_TAG: Record<string, string> = { poc: "تحكّم", vah: "أعلى القيمة", val: "أدنى القيمة", hvn: "حجمٌ كثيف", lvn: "فراغ" };
+
 export function bandOf(g: Guide, S: number, k: number, r: Row | undefined): { band: Band; be: number | null; ret: number | null; delta: number | null } {
   const px = r ? (r.ask || r.sask || r.g?.px || r.last || null) : null;
   if (!r || !px || px <= 0 || !(S > 0)) return { band: null, be: null, ret: null, delta: null };
@@ -115,6 +129,8 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose, guide 
     return list.slice(Math.max(0, at - 12), at + 12);
   }, [c, all, S, guide]);
   const pxAt = S != null ? strikes.findIndex(r => r.k >= S) : -1;
+  /* ‏D818: خطوةُ أسعار التنفيذ — بها يُعرف أيُّ سعر تنفيذٍ يقع على مستوى البروفايل */
+  const gapK = strikes.length > 1 ? Math.min(...strikes.slice(1).map((r, i) => r.k - strikes[i].k).filter(x => x > 0)) : 1;
   /* ‏D787: نطاقُ الدليل لكلّ سعر تنفيذ، وحدودُ «الأنسب» و«المساعد»، وأفضلُ ثلاثة عقودٍ في «الأنسب» (الأعلى دلتا فالأرخص تعادلاً) */
   const bands = useMemo(() => {
     const out = new Map<number, ReturnType<typeof bandOf>>();
@@ -245,7 +261,20 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose, guide 
         {q.isPending && !c ? <div className="oc-empty">…</div> : !c || !strikes.length ? (
           <div className="oc-empty" data-role="oc-empty">لا عقودَ خياراتٍ لهذا الرمز.</div>
         ) : (
-          <div className="ocx-table" data-role="oc-table" dir="ltr" data-gside={guide?.side || undefined} style={{ opacity: q.isFetching && !q.isRefetching ? 0.6 : 1 }}>
+          <>
+          {c.vp && (
+            <div className="ocx-vpleg" data-role="oc-vpleg" dir="rtl">
+              <b>الفوليوم بروفايل</b>
+              {c.vp.thin ? <span>السيولةُ ضعيفةٌ فالبروفايلُ قليلُ الدلالة</span> : <>
+                <span><i className="vp-poc" />نقطةُ التحكّم <bdi dir="ltr">{f2(c.vp.poc)}</bdi></span>
+                <span><i className="vp-va" />منطقةُ القيمة <bdi dir="ltr">{f2(c.vp.val)}–{f2(c.vp.vah)}</bdi></span>
+                <span><i className="vp-hvn" />حجمٌ كثيف: يتباطأ عنده السعر</span>
+                <span><i className="vp-lvn" />فراغ: يعبره السعرُ بسرعة</span>
+              </>}
+              <small>{c.vp.window}</small>
+            </div>
+          )}
+          <div className="ocx-table" data-role="oc-table" dir="ltr" data-gside={guide?.side || undefined} data-vp={c.vp && !c.vp.thin ? "1" : undefined} style={{ opacity: q.isFetching && !q.isRefetching ? 0.6 : 1 }}>
             <div className="ocx-row ocx-h1">
               <div className="ocx-side ocx-c"><span className="ocx-cap">شراء · CALLS</span></div>
               <div className="ocx-k">{curExp ? dteLabel(curExp.dte) : ""}</div>
@@ -261,13 +290,22 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose, guide 
                 {i === pxAt && S != null && <div className="ocx-pxline" data-role="oc-pxline"><span dir="ltr">{f2(S)}</span></div>}
                 <div className={"ocx-row" + (bands.get(r.k)?.band ? ` g-${bands.get(r.k)!.band}` : "")} data-role="oc-row" data-band={bands.get(r.k)?.band || ""}>
                   {cell(r.call, true, S != null && r.k < S)}
-                  <div className="ocx-k"><b>{f2(r.k)}</b></div>
+                  {(() => {
+                    const v = vpAt(c.vp, r.k, gapK);
+                    return (
+                      <div className={"ocx-k" + (v.tag ? ` vp-${v.tag}` : "")} data-vp={v.tag || ""}>
+                        {c.vp && !c.vp.thin && <i className="ocx-vpbar" style={{ width: `${Math.round(v.w * 100)}%` }} aria-hidden />}
+                        <b>{f2(r.k)}</b>{v.tag && !c.vp?.thin && <small className="ocx-vptag" data-role="oc-vptag">{VP_TAG[v.tag]}</small>}
+                      </div>
+                    );
+                  })()}
                   {cell(r.put, false, S != null && r.k > S)}
                 </div>
               </div>
             ))}
             {pxAt === -1 && S != null && <div className="ocx-pxline"><span dir="ltr">{f2(S)}</span></div>}
           </div>
+          </>
         )}
         {!!c && <button type="button" className="seg-btn chip ocx-range" onClick={() => setAll(a => !a)} data-role="oc-range">{all ? "قربَ السعر" : "كلُّ الأسعار"}</button>}
 

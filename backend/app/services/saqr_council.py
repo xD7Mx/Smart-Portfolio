@@ -28,7 +28,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from loguru import logger
 
-ROLES = ("المسار", "الرسم", "النتائج", "الأخبار", "الأحداث", "الحيتان", "المحلّلون")
+ROLES = ("المسار", "الرسم", "الحجم", "النتائج", "الأخبار", "الأحداث", "الحيتان", "المحلّلون")   # ‏D818: «الحجم» — الفوليوم بروفايل
 W = {"ok": 9, "na": 0, "warn": -7}
 ORD = {2: "الثاني", 3: "الثالث", 4: "الرابع", 5: "الخامس"}
 BUY_W = ("شراء", "زيادة", "تجميع", "متفوق", "تفوق")
@@ -320,8 +320,10 @@ def judge(ev: dict) -> dict:
     side, market, ccy = ev.get("side", "long"), ev.get("market", "us"), ev.get("ccy", "")
     cr_side, cr_any = ev.get("cr_side"), ev.get("cr_any")
     chart_buy = bool(cr_side and cr_side.get("setup") and cr_side.get("side") == side and (cr_side.get("quality") or 0) >= 50)
+    from app.services import volume_profile as VP
     mem = [m_trend(ev.get("tr"), side, market, ev.get("rs3"), chart_buy),
            m_chart(cr_side, cr_any, side),
+           VP.member(ev.get("vp_rd"), side),                      # ‏D818: الطريقُ مفتوحٌ من قاعدة حجم؟ أم جدارٌ أمامه أو مطاردة؟
            m_results(market, side, ev.get("stt"), ev.get("stxt"), ev.get("yf"), ccy),
            m_news(ev.get("news"), side),
            m_events(market, side, ev.get("reg"), ev.get("geo"), ev.get("events"), ev.get("earn_days"), ev.get("world"), ev.get("tone")),
@@ -345,7 +347,7 @@ def lines(bd: dict) -> list[str]:
 
 
 # ══ الرابط — النموذجُ يقرأ الأعضاءَ معاً ═══════════════════════════════════════════════════════════════
-LINK_PROMPT = """أنت صقر — محلّلٌ استثماريٌّ واحدٌ محترف — تقرأ شواهدَك السبعةَ عن سهمٍ واحد قبل قرار {what}: المسار · الرسم · النتائج · الأخبار ·
+LINK_PROMPT = """أنت صقر — محلّلٌ استثماريٌّ واحدٌ محترف — تقرأ شواهدَك الثمانيةَ عن سهمٍ واحد قبل قرار {what}: المسار · الرسم · الحجم (الفوليوم بروفايل) · النتائج · الأخبار ·
 الأحداث · الحيتان · المحلّلون — لكلٍّ حكمُه (يوافق · يتحفّظ · يرفض · غير متوفّر) وشاهدُه بأرقامه.
 اربط بينها كما يربط المحلّلُ البشريّ لا كما يجمعها الحاسوب: ما الذي يجتمع؟ وما الذي يتعارض (نتائجُ قويةٌ وخبرٌ جوهريٌّ سلبيّ، أو رسمٌ يدعو للشراء
 وحيتانٌ تخرج، أو مسارٌ صاعدٌ وحدثٌ عالي الأثر غداً)؟ وأيُّها أثقلُ الآن ولماذا؟
@@ -732,8 +734,14 @@ async def collect(market: str, cands: list[dict], ctx: dict, conc: int = 4, flow
             yfd = await yf(f"{s}.SR" if market == "sa" else s)
             h = await (heads_sa(s, c.get("name")) if market == "sa" else heads_us(s))
             fl = await flow(s) if market == "us" and order[s] < flow_max else None
+            try:                                                  # ‏D818: بروفايلُ الحجم بنافذة أفق السهم (شموعُ الساعة لنحو ثلاثة أشهر)
+                from app.services import volume_profile as VP
+                vp = await VP.for_symbol(s, None, market == "sa")
+                vp_rd = VP.read(vp, c.get("price"), c.get("side", "long"))
+            except Exception:                                     # noqa: BLE001
+                vp, vp_rd = None, None
         heads[s] = h
-        ev = {**c, "market": market, "ccy": "ريال" if market == "sa" else "$", "yf": yfd, "flow": fl, "events": ctx.get("events"),
+        ev = {**c, "market": market, "ccy": "ريال" if market == "sa" else "$", "yf": yfd, "flow": fl, "events": ctx.get("events"), "vp": vp, "vp_rd": vp_rd,
               "reg": ctx.get("reg"), "geo": ctx.get("geo")}
         try:                                                      # ‏D788: محاورُ العالم التي تخصّ قطاعَ الشركة
             from app.services import saqr_mind as SM

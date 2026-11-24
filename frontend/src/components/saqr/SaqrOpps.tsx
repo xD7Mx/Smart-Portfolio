@@ -43,7 +43,7 @@ const codeOf = (x: Opp) => x.symbol.replace(".SR", "");
 const guideOf = (x: Opp): Guide => ({ side: x.side, setup: x.setup, entry: x.entry, target: x.target, stop: x.stop, close: x.close,
   horizon_n: x.horizon_n, horizon: x.horizon });
 
-/** ‏D807 (المالك 2026-11-24): «صقرٌ واحد — لا مجلسَ ولا أعضاء»: حكمُ صقر ودرجتُه، وشواهدُه السبعة بحكم كلٍّ، و«لماذا» تفتح سطرَ كلّ شاهد */
+/** ‏D807 (المالك 2026-11-24): «صقرٌ واحد — لا مجلسَ ولا أعضاء»: حكمُ صقر ودرجتُه، وشواهدُه الثمانية بحكم كلٍّ، و«لماذا» تفتح سطرَ كلّ شاهد */
 function CouncilBox({ c }: { c: Council }) {
   return (
     <div className="so-council" data-role="so-council" data-verdict={c.verdict}>

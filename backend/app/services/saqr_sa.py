@@ -385,6 +385,21 @@ async def _review(st: dict, now: datetime, snap: dict, reg: dict | None, g: dict
     return out
 
 
+def vp_exits(ask: float, stop_pct: float, tgt: float, lbl: str, rd: dict | None) -> tuple[float, str, float, str]:
+    """الوقفُ والهدفُ للسهم السعوديّ ⇐ (الوقف، وصفُه، الهدف، وصفُه). ‏D818 (المالك: «في السعوديّ البروفايل يحسّن الدخولَ والوقفَ والهدف»):
+    الوقفُ تحت قاعدة الحجم (أقربُ عقدةٍ كثيفةٍ تحت السعر، وإلّا حدُّ منطقة القيمة الأدنى) بـ1.5٪ إن وقعت داخل الوقف الثابت — قبولُ السعر تحتها
+    فشلُ الصعود، والوقفُ الأضيقُ الأصدقُ يحمي رأسَ المال؛ والهدفُ عقدةُ الحجم الكثيف التالية إن سبقت الهدفَ الفنيّ وبعدت 5٪ فأكثر —
+    هناك يتباطأ السعر. وبلا بروفايلٍ أو بسيولةٍ ضعيفة: الوقفُ الثابتُ والهدفُ الفنيّ كما كانا."""
+    stop, stop_lbl = round(ask * (1 - stop_pct / 100), 3), f"−{stop_pct:g}٪"
+    if rd and not rd.get("thin"):
+        base = next((x for x in (rd.get("support"), rd.get("val")) if x and x < ask * 0.995), None)
+        if base and round(base * 0.985, 3) > stop:
+            stop, stop_lbl = round(base * 0.985, 3), f"تحت قاعدة الحجم {base:,.2f}"
+        if rd.get("next") and ask * 1.05 <= rd["next"] < tgt:
+            tgt, lbl = rd["next"], "عقدةُ حجمٍ كثيف"
+    return stop, stop_lbl, tgt, lbl
+
+
 async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) -> dict | None:
     from app.services import saqr_council as CN
     eq = SQ.equity(st)
@@ -446,8 +461,11 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
         ask = row["ask"]
         hi = tr.get("hi52") or 0
         tgt, lbl = (min(hi, ask * 1.25), "قمّة السنة") if hi >= ask * 1.10 else (round(ask * 1.12, 2), "+12٪")
+        rd = (evs.get(sym) or {}).get("vp_rd")
+        stop, stop_lbl, tgt, lbl = vp_exits(ask, c["stock_stop"], tgt, lbl, rd)
         k = {"contract": sym, "symbol": sym, "name": row.get("name_en"), "type": "stock", "ask": ask, "bid": row.get("bid"), "price": row.get("price"),
-             "stop": round(ask * (1 - c["stock_stop"] / 100), 3), "target": round(tgt, 2), "target_label": lbl, "score": round(score, 1),
+             "stop": stop, "stop_label": stop_lbl, "target": round(tgt, 2), "target_label": lbl, "score": round(score, 1),
+             "vp": ({x: rd[x] for x in ("zone", "poc", "val", "vah", "wall", "next", "support", "window")} if rd else None),
              "results": cd["stxt"], "results_state": cd["stt"], "tr": tr, "rs3": rs3, "chg": row.get("change_pct"), "board": bd, "chart_read": cd["cr_side"]}
         good = next((m["say"] for m in bd["members"] if m["v"] == "ok" and m["role"] != "المسار"), None)
         sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "accepted", "contract": sym, "score": k["score"], "council": board,
@@ -474,7 +492,7 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
                    *CN.lines(best["board"]),
                    (f"الرابط ({lk['decision']} · ثقة {lk['confidence']}): {lk['link']}" + (f" التعارض: {lk['conflict']}" if lk.get("conflict") else ""))
                    if lk else "الرابط: قراءتُه غيرُ متوفّرة الآن — الشراءُ على حكم صقر من شواهده.",
-                   f"الوقف {best['stop']:.2f} (−{c['stock_stop']:g}٪) والهدف {best['target']:,.2f} ({best['target_label']})." + (f" {fac_why}." if fac_why else "")]
+                   f"الوقف {best['stop']:.2f} ({best.get('stop_label') or ''}) والهدف {best['target']:,.2f} ({best['target_label']})." + (f" {fac_why}." if fac_why else "")]
             pos = SQ.buy(st, {k: v for k, v in best.items() if k not in ("board", "chart_read")}, qty, why, kind="stock")
             pos["results_state"] = best["results_state"]
             st["day"]["new"] = (st["day"].get("new") or 0) + 1

@@ -306,7 +306,8 @@ def buy(st: dict, k: dict, qty: float, why: list[str], src: str = "saqr", px: fl
          "qty": int(qty) if kind == "option" else round(float(qty), 4), "entry_px": round(px, 4), "cost": cost, "fee_in": fee, "opened": _iso(),
          "stop": round(stop, 4), "stop0": round(stop, 4), "take_x": k.get("take_x"), "trail": k.get("trail"), "exit_dte": k.get("exit_dte"), "peak": float(k.get("bid") or px), "bid": k.get("bid"), "ask": k.get("ask"), "S": k.get("price"),
          "S0": k.get("price"), "target": k.get("target"), "target_label": k.get("target_label"), "delta": k.get("delta"),
-         "iv": k.get("iv"), "dte0": k.get("dte"), "why": why, "src": src, "auto": src == "saqr", "marked": _iso()}
+         "iv": k.get("iv"), "dte0": k.get("dte"), "why": why, "src": src, "auto": src == "saqr", "marked": _iso(),
+         "vp": k.get("vp")}                                        # ‏D818: قراءةُ الحجم يومَ الدخول — ليُقاس أثرُها على النتائج
     st["positions"].append(p)
     return p
 

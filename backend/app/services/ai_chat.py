@@ -430,8 +430,8 @@ async def build_context(db, question: str) -> dict:
     return ctx
 
 
-SYSTEM_RULES = """اسمك «صقر»، وأنت المحلّل الاستثماري داخل تطبيق «المحفظة الذكية» لسوق الأسهم
-السعودي (تداول). تُخاطب مالك المحفظة.
+SYSTEM_RULES = """اسمك «صقر»، وأنت المحلّل الاستثماري داخل تطبيق «المحفظة الذكية» للسوقين: السعوديّ (تداول)
+والأمريكيّ وعقودِ خياراته. تُخاطب مالك المحفظة.
 
 لغتك:
 عربيةٌ سهلةٌ يفهمها من ليس محاسباً، بلا خفضٍ لمستوى المحتوى. الرقم يبقى كما
@@ -569,7 +569,7 @@ async def _fallback_rules(db, question: str, why: str) -> dict | None:
 
 
 async def answer(db, question: str, history: list | None = None,
-                 prefer_llm: bool = False) -> dict:
+                 prefer_llm: bool = False, saqr: bool = False) -> dict:
     """يُعيد {"reply": نص, "grounded": bool}. عند غياب المفتاح أو نفاد الحصّة
     يُعيد رسالة صادقة بدل الصمت أو نصٍّ مُختلَق."""
     question = (question or "").strip()
@@ -581,6 +581,15 @@ async def answer(db, question: str, history: list | None = None,
         return {"reply": f"سؤالك طويل جداً ({len(question)} حرف). اختصره إلى "
                          f"{MAX_QUESTION} حرف أو أقل وسأجيبك.",
                 "grounded": False, "source": "guard"}
+    # ══ ‏D819: صقرُ تلغرام يجيب من عمله ══ — الفرصُ وعقودُ الخيارات ونظرتُه لتاسي وسهمٌ أمريكيٌّ قرأه: أرقامٌ ثابتةٌ فوراً من ملفّاته
+    if saqr:
+        try:
+            from app.services import saqr_brief
+            got = saqr_brief.answer(question)
+            if got:
+                return {"reply": got, "grounded": True, "source": "saqr"}
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning(f"صقر/عمله: {e}")
     # ══ سؤالُ قرارٍ عن شركةٍ ⇒ مستشارُ المحفظة ══ (D567)
     # «هل أضخّ في الراجحي ريت؟» · «أستبدل سدافكو بالمراعي؟» · «أنتظر أم أشتري؟» — يُجاب من
     # ملفّ قرارٍ يُبنى تلقائياً وموقفٍ محسوبٍ بالقواعد، كما يجيب المستشار. وأمرُ التنفيذ
@@ -640,13 +649,20 @@ async def answer(db, question: str, history: list | None = None,
 
     # لم تُطابق أي نيّة → النموذج التوليدي، وهو وحده من يحتاج كل شيء.
     ctx = await build_context(db, question)
+    if saqr:                                                      # ‏D819: عملُ صقر في رأس السياق — لا يُقصّ
+        try:
+            from app.services import saqr_brief
+            ctx = {"صقر — عمله": saqr_brief.knowledge(), **ctx}
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning(f"صقر/عمله في السياق: {e}")
 
     # ── الاقتطاع بالأولوية لا بالترتيب ────────────────────────────────────
     # السياق يتجاوز الحدّ بكثير (≈٩٠ ألف حرف مقابل ٦٠ ألفاً)، وكان يُقصّ من
     # آخره فتسقط **معرفة التطبيق** كاملةً — وهي مصدر الشرح الوحيد للنموذج،
     # فيصير يشرح منهجية التطبيق تخميناً. وتسقط معها الحوكمة والتوزيعات.
     # فنُقدّم ما لا يُستغنى عنه، ونقصّ الضخم منخفض القيمة أولاً.
-    PRIORITY = ["المحفظة", "قياس الأداء", "فحص السلامة", "معرفة التطبيق",
+    # ‏D819: «نبضُ السوق» (تاسي وأرقامُ الجلسة) كان آخرَ ما يُقصّ أوّلاً — فأجاب صقرٌ عن تاسي «بياناتُه غيرُ متوفّرة»
+    PRIORITY = ["صقر — عمله", "المحفظة", "نبض السوق", "قياس الأداء", "فحص السلامة", "معرفة التطبيق",
                 "ملخّص المحفظة", "الأهداف", "حوكمة المحفظة", "العائد",
                 "الدخل والتوزيعات", "التوزيعات المستلمة", "آخر الصفقات",
                 "حركة النقد", "إحصاءات المحفظة", "صحّة المحفظة",
@@ -678,7 +694,11 @@ async def answer(db, question: str, history: list | None = None,
         role = "المستخدم" if m.get("role") == "user" else "المساعد"
         convo += f"\n{role}: {m.get('content', '')}"
 
-    prompt = (f"{SYSTEM_RULES}\n\n"
+    rules = SYSTEM_RULES
+    if saqr:
+        from app.services import saqr_brief
+        rules += saqr_brief.RULES
+    prompt = (f"{rules}\n\n"
               f"=== بيانات التطبيق (مصدرك الوحيد) ===\n{ctx_json}\n"
               f"=== نهاية البيانات ===\n"
               f"{('سياق المحادثة السابقة:' + convo) if convo else ''}\n\n"

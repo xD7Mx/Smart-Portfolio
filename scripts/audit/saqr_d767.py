@@ -78,7 +78,7 @@ P = {"type": "call", "entry_px": 1.0, "stop": 0.6, "peak": 1.0, "target": 999, "
 check('it["type"] == "put" and c["sides"] == "calls"' in hunt and 'not (calls_only and k["type"] == "put")' in lst   # ‏D775: «الشراءُ وحده» يُطبَّق عند العرض
       and '"stop": round(q["ask"] * (1 - c["opt_stop"] / 100), 4), "take_x": c["take_x"]' in hunt
       and SQ.exit_rule(dict(P), 2.1, 10, 60, None, None) is None and SQ.exit_rule(dict(P), 2.55, 10, 60, None, None)[0] == "take"
-      and "seats_budget(" in SRC["saqr_sa"] and 'c["stock_stop"] / 100' in SRC["saqr_sa"],
+      and "seats_budget(" in SRC["saqr_sa"] and ('c["stock_stop"] / 100' in SRC["saqr_sa"] or ('vp_exits(ask, c["stock_stop"]' in SRC["saqr_sa"] and "(1 - stop_pct / 100)" in SRC["saqr_sa"])),
       "٤ الأوامرُ تحكم الصيد (شراءٌ فقط يتخطّى البيعَ في القائمة والصيد) والوقفَ والجنيَ عند الدخول، والجنيُ بمضاعف المالك المحفوظ في المركز "
       "(×2.5 لا ×2) — في السوقين")
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")

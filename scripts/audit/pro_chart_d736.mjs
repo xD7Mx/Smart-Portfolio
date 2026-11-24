@@ -509,7 +509,7 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   await page.locator('[data-role="ev-report"]').click({ timeout: 8000 }).catch(() => {});
   await page.waitForTimeout(1800);
   const paperOf = () => page.evaluate(() => { const f = document.querySelector('[data-role="rl-doc"] iframe');
-    return { h1: f?.contentDocument?.querySelector("h1")?.textContent || null, h: f ? f.getBoundingClientRect().height : 0 }; });
+    return { h1: f?.contentDocument?.querySelector("h1")?.textContent || null, h: f ? f.offsetHeight : 0 }; });   // ‏D815: ارتفاعُ الورقة نفسِها — على الجوال تُصغَّر بنسبةٍ (‏transform) فالمستطيلُ المرسومُ أقصر
   const doc = await page.evaluate(() => { const W = document.documentElement.clientWidth, main = document.querySelector(".app-main");
     return { tabs: [...document.querySelectorAll('[data-role="rl-tab"]')].map(b => b.textContent.trim()),
              days: [...document.querySelectorAll('[data-role="rl-day"]')].map(b => b.textContent.trim()),

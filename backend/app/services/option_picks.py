@@ -236,7 +236,16 @@ def evaluate(o: dict, S: float, dte: int, call: bool, tr: dict, ref_iv: float | 
     delta = bs_delta(S, K, T, iv, call)
     if not (R["min_delta"] <= abs(delta) <= R["max_delta"]):
         return None, "الدلتا خارج النطاق"
+    # ‏D818 (المالك 2026-11-24: «الثيتا والتآكلُ الزمنيّ المحرّكُ الرئيسيّ لخسارة الناس… أضيفُ الفوليوم بروفايل لاختيار السترايكات»):
+    # عقدةُ حجمٍ ثقيلةٌ بين السعر والتنفيذ جدارٌ يُبطئ السعرَ قبل أن يبلغ التنفيذ — والوقتُ يأكل العقدَ وهو ينتظر
+    from app.services import volume_profile as VP
+    rd = VP.read((tr or {}).get("vp"), S, "long" if call else "short")
+    if rd and not rd["thin"] and rd["wall"] is not None and ((call and S < rd["wall"] < K) or (not call and K < rd["wall"] < S)):
+        return None, "جدارُ حجمٍ قبل التنفيذ"
     tgt, tlabel = target_for(tr, S, call, ref_iv or iv, T)
+    # والهدفُ الواقعيّ: عقدةُ الحجم الكثيف التالية في الجهة إن سبقت الهدفَ الفنيّ — هناك يتباطأ السعر (وتبعد 3٪ فأكثر)
+    if rd and not rd["thin"] and rd["next"] and ((call and S * 1.03 <= rd["next"] < tgt) or (not call and tgt < rd["next"] <= S * 0.97)):
+        tgt, tlabel = round(rd["next"], 2), "عقدةُ حجمٍ كثيف (الفوليوم بروفايل)"
     be = K + px if call else K - px
     if (call and be >= tgt) or (not call and be <= tgt):
         return None, "التعادلُ أبعدُ من الهدف"
@@ -251,13 +260,20 @@ def evaluate(o: dict, S: float, dte: int, call: bool, tr: dict, ref_iv: float | 
     mid = (q["px"] + (o.get("bid") or o.get("sbid") or 0)) / 2
     oi = o.get("oi") or 0
     score = 35 * pop + 25 * min(rr, 3) / 3 + 15 * p_touch + 10 * min(oi, 2000) / 2000 + 10 * (1 - q["spread"] / R["max_spread"]) + 5 * min(dte, 365) / 365
+    if rd and not rd["thin"]:                                     # ‏D818: خارجَ القيمة وأمامه فراغٌ ⇐ حركةٌ أسرع؛ داخلَها والعقدُ بعيد ⇐ يتآكل
+        out_dir = (call and rd["zone"] == "فوق القيمة") or (not call and rd["zone"] == "تحت القيمة")
+        if out_dir and rd["gap_ahead"]:
+            score += 5
+        elif rd["zone"] == "داخل القيمة" and abs(delta) < 0.45:
+            score -= 5
     bid = o.get("bid") if q["src"] == "ask" else o.get("sbid")
     return {"contract": o.get("contract"), "type": "call" if call else "put", "strike": K, "ask": px, "bid": bid, "mid": round(mid, 3),
             "px_src": q["src"], "quote_at": o.get("sat") if q["src"] == "snap" else None,
             "cost": round(px * 100, 2), "spread_pct": round(q["spread"] * 100, 1), "spread_usd": round((px - (bid or 0)) * 100, 2),
             "dte": dte, "breakeven": round(be, 2), "need_pct": round(((be / S - 1) if call else (1 - be / S)) * 100, 1),
             "target": tgt, "target_label": tlabel, "rr": round(rr, 2), "pop": round(pop * 100, 1), "p_touch": round(p_touch * 100, 1),
-            "delta": round(delta, 2), "iv": round(iv * 100, 1), "oi": oi, "volume": o.get("volume"), "score": round(score, 2)}, ""
+            "delta": round(delta, 2), "iv": round(iv * 100, 1), "oi": oi, "volume": o.get("volume"), "score": round(score, 2),
+            "vp": ({k: rd[k] for k in ("zone", "poc", "val", "vah", "wall", "next", "support", "gap_ahead", "window")} if rd else None)}, ""
 
 
 def candidates(rows: list[dict], S: float, dte: int, call: bool, tr: dict, ref_iv: float | None = None, now: float | None = None,
@@ -276,7 +292,7 @@ def pick_contract(rows: list[dict], S: float, dte: int, call: bool, budget: floa
 # ‏D774 — مراحلُ الحكم على العقد بترتيبها في ‏evaluate: أبعدُ مرحلةٍ بلغها عقدٌ من السهم هي سببُ امتناعه الحقيقيّ (قيس على الخادم
 # 2026-11-20: 39 من 45 سهماً «لا عقدَ يستوفي الشروط» بلا سبب — فلا يُعرف أهو الفارقُ أم السيولةُ أم الهدف)
 STAGES = ("لا عرضَ ولا طلبَ حقيقيّين", "اهتمامٌ مفتوحٌ قليل", "الفارقُ بين العرض والطلب واسع", "سعرٌ شاذّ", "الدلتا خارج النطاق",
-          "التعادلُ أبعدُ من الهدف", "العائدُ عند الهدف ضئيل", "احتمالٌ ضئيل")
+          "جدارُ حجمٍ قبل التنفيذ", "التعادلُ أبعدُ من الهدف", "العائدُ عند الهدف ضئيل", "احتمالٌ ضئيل")
 
 
 def exit_date(expiry: str) -> str:
@@ -474,17 +490,26 @@ async def valid_contracts(sym: str, call: bool, tr: dict, diag: dict | None = No
     exps = pick_expiries(base.get("expirations") or [])
     if not exps:
         diag["why"] = f"لا آجالَ بين {MIN_DTE} و{MAX_DTE} يوماً"
+    from app.services import volume_profile as VP
+    vps: dict = {}
     for e in exps:
         ch = await chain(sym, e["t"])
         if not ch:
             continue
+        win = VP.window(e["dte"])[0]                              # ‏D818: بروفايلُ الحجم بنافذة أجل العقد — يُحسب مرّةً لكلّ نافذة
+        if win not in vps:
+            try:
+                vps[win] = await VP.for_symbol(sym, e["dte"], False)
+            except Exception:                                     # noqa: BLE001
+                vps[win] = None
+        tr_e = {**(tr or {}), "vp": vps[win]}
         S = float(ch["price"] or base["price"])
         ref = atm_iv(ch, S, max(e["dte"], 1) / 365)
         if ref is None:          # لا مرجعَ لتذبذب النقود في هذا الأجل — فلا يُوثق بسعر أطرافه
             diag.setdefault("why", "لا عرضَ ولا طلبَ حول سعر السهم")
             continue
         for o in ch["calls"] if call else ch["puts"]:
-            k, why = evaluate(o, S, e["dte"], call, tr, ref)
+            k, why = evaluate(o, S, e["dte"], call, tr_e, ref)
             if not k:
                 if why in STAGES:
                     diag["stage"] = max(diag.get("stage", -1), STAGES.index(why))

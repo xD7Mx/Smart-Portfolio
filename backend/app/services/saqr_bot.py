@@ -46,12 +46,33 @@ BOT_ABOUT = (
     "يعرض ثروتك وتحليل السوق ومفكرة شركاتك وأخبارها ويجيب أسئلتك."
 )
 
+# ══ ‏D819 (المالك 2026-11-24): «صقرٌ على تلغرام يجب إعادةُ تشكيله من جديد، وتضمينُ التقرير اليوميّ كأحد الخيارات — شكلُه الحاليّ لا
+# يعجبني، وسؤالُ صقر لا يعطيني نتيجةً ملموسة» ══
+# كانت القائمةُ سبعةَ أزرارٍ متساويةٍ بلا ترتيب (الثروة · تحليل السوق · المفكرة · الإفصاحات · الأخبار · تقرير المحفظة · اسأل صقر) لا فيها
+# فرصُ صقر ولا عقودُه ولا تقريرُه اليوميّ — وكلُّ ضغطةٍ رسالةٌ جديدة تتراكم. فصارت ستّةَ أبوابٍ بترتيب ما يُطلب:
+#   فرصُ اليوم (السعوديّ · الأمريكيّ · عقودُ الخيارات) · التقريرُ اليوميّ (آخرُه ملفّاً، وأيامُه) · محفظتي (الثروة · تقريرُ الأداء)
+#   · السوق (نظرةُ صقر لتاسي ونبضُه) · الأحداثُ والأخبار (المفكرة · الإفصاحات · الأخبار) · اسأل صقر
+# والتنقّلُ بين الأبواب يُعدّل الرسالةَ نفسَها (لا رسائلَ تتراكم)، والرئيسيةُ بطاقةٌ تقول الحالَ في لمحة: تاسي ونظرةُ صقر، والثروة،
+# وعددُ الفرص، وآخرُ تقرير.
 MENU = [
-    [("💰 الثروة", "wealth"), ("📈 تحليل السوق", "mkt")],
+    [("🦅 فرص اليوم", "opps"), ("📑 التقرير اليومي", "daily")],
+    [("💼 محفظتي", "pf"), ("📈 السوق", "mkt")],
+    [("🗓️ الأحداث والأخبار", "evt"), ("💬 اسأل صقر", "ask")],
+]
+HOME = [[("↩︎ الرئيسية", "menu")]]
+OPPS_MENU = [
+    [("🇸🇦 السوق السعودي", "opps:sa"), ("🇺🇸 السوق الأمريكي", "opps:us")],
+    [("📑 عقود الخيارات", "opps:opt")],
+    [("↩︎ الرئيسية", "menu")],
+]
+PF_MENU = [
+    [("💰 الثروة", "wealth"), ("📄 تقرير الأداء", "report")],
+    [("↩︎ الرئيسية", "menu")],
+]
+EVT_MENU = [
     [("🗓️ المفكرة", "cal"), ("📰 الإفصاحات", "disc")],
     [("🗞️ الأخبار", "news")],
-    [("📄 تقرير المحفظة", "report")],
-    [("🦅 اسأل صقر", "ask")],
+    [("↩︎ الرئيسية", "menu")],
 ]
 
 # قوائمُ فرعية: المفكرة والإفصاحات لكلٍّ نطاقان — محفظتُك والسوق كلّه.
@@ -59,17 +80,17 @@ MENU = [
 # المفكرة إن كان المخزن بارداً. ولكلّ نطاقٍ مصدرُه في الخادم أصلاً.
 CAL_MENU = [
     [("💼 شركات محفظتي", "cal:p"), ("🏛️ السوق كلّه", "cal:m")],
-    [("↩︎ رجوع", "menu")],
+    [("↩︎ رجوع", "evt")],
 ]
 DISC_MENU = [
     [("💼 شركات محفظتي", "disc:p"), ("🏛️ السوق كلّه", "disc:m")],
-    [("↩︎ رجوع", "menu")],
+    [("↩︎ رجوع", "evt")],
 ]
 # الأخبار: كانت غائبةً عن القناة رأساً — يراها المالك في التطبيق ولا يجدها
 # في البوت. وبالنطاقين نفسهما، من مصدر التطبيق نفسه (‏/market/news).
 NEWS_MENU = [
     [("💼 شركات محفظتي", "news:p"), ("🏛️ السوق كلّه", "news:m")],
-    [("↩︎ رجوع", "menu")],
+    [("↩︎ رجوع", "evt")],
 ]
 
 # قائمةُ التقرير: تتفرّع عند الضغط بدل أن تزدحم القائمة الأولى بأربعة
@@ -77,7 +98,7 @@ NEWS_MENU = [
 REPORT_MENU = [
     [("🗓️ أسبوعي", "rep:w"), ("📆 شهري", "rep:m")],
     [("📊 ربع سنوي", "rep:q"), ("📈 سنوي", "rep:y")],
-    [("↩︎ رجوع", "menu")],
+    [("↩︎ رجوع", "pf")],
 ]
 
 
@@ -130,6 +151,19 @@ class SaqrBot:
             **({"reply_markup": kb} if kb else {}),
         )
 
+    @staticmethod
+    def _kb(rows: list) -> dict:
+        return {"inline_keyboard": [[{"text": t, "callback_data": d} for t, d in row] for row in rows]}
+
+    async def edit(self, chat: str, mid: int | None, text: str, menu: list):
+        """‏D819: التنقّلُ يعدّل الرسالةَ نفسَها — وإن تعذّر (رسالةٌ قديمة أو ملفّ) فرسالةٌ جديدة."""
+        if mid:
+            ok = await self._call("editMessageText", chat_id=chat, message_id=mid, text=text, parse_mode="HTML",
+                                  disable_web_page_preview=True, reply_markup=self._kb(menu))
+            if ok:
+                return ok
+        return await self.send(text, menu=menu, chat=chat)
+
     async def send_file(self, data: bytes, filename: str, caption: str = "",
                         chat: str | None = None):
         """إرسال ملف — `multipart` لا JSON، فواجهة تلغرام لا تقبل الملفّات
@@ -164,12 +198,12 @@ class SaqrBot:
         await self._call("setMyShortDescription", short_description=BOT_SHORT)
         await self._call("setMyDescription", description=BOT_ABOUT)
         await self._call("setMyCommands", commands=[
-            {"command": "start", "description": "القائمة"},
+            {"command": "start", "description": "الرئيسية"},
+            {"command": "opps", "description": "فرص صقر اليوم"},
+            {"command": "daily", "description": "التقرير اليومي"},
             {"command": "wealth", "description": "الثروة"},
-            {"command": "market", "description": "تحليل السوق"},
-            {"command": "calendar", "description": "مفكرة الشركات"},
-            {"command": "news", "description": "أخبار المحفظة والسوق"},
-            {"command": "report", "description": "تقرير المحفظة"},
+            {"command": "market", "description": "نظرة صقر للسوق"},
+            {"command": "ask", "description": "اسأل صقر"},
         ])
 
     # ── المحتوى ────────────────────────────────────────────────────────
@@ -386,6 +420,68 @@ class SaqrBot:
             return card("📈", "تحليل السوق", "لم تصل بيانات السوق بعد.")
         return card("📈", "تحليل السوق", "\n\n".join(parts))
 
+    # ── ‏D819: الرئيسية · الفرص · التقرير اليومي ─────────────────────────────
+    async def _home(self, db) -> str:
+        """الحالُ في لمحة: تاسي ونظرةُ صقر، والثروة، وفرصُ آخر مسح، وآخرُ تقريرٍ يوميّ — وكلُّ سطرٍ يُبنى وحده فلا يُسقط تعذّرُه البطاقة."""
+        from app.services import saqr_brief as B
+        rows = []
+        try:
+            t = B.tasi()
+            if t.get("close") is not None:
+                rows.append(("تاسي", f"{num(t['close'], 2)}  {signed(t.get('pct'), 2)}%" + (f"  · {t['view']}" if t.get("view") else "")))
+        except Exception:                                         # noqa: BLE001
+            pass
+        try:
+            s = await self._summary(db)
+            w = s.get("np_wealth")
+            if w is None:
+                w = (s.get("total_current_value") or 0) + await self._cash(db)
+            rows.append(("الثروة", num(w)))
+        except Exception:                                         # noqa: BLE001
+            pass
+        try:
+            sa, us = B.opps("sa", 50), B.opps("us", 50)
+            rows.append(("فرص اليوم", f"السعودي {len(sa['items'])} · الأمريكي {len(us['items'])}"))
+        except Exception:                                         # noqa: BLE001
+            pass
+        try:
+            d = B.daily()
+            if d.get("date"):
+                rows.append(("التقرير اليومي", d["date"]))
+        except Exception:                                         # noqa: BLE001
+            pass
+        body = (rows_block(rows) + "\n" if rows else "") + "اختر باباً، أو اكتب سؤالك مباشرةً."
+        return card("🦅", "صقر — المحفظة الذكية", body)
+
+    async def _opps(self, scope: str) -> str:
+        from app.services import saqr_brief as B
+        if scope == "opt":
+            return card("📑", "عقود الخيارات", esc(B.options_text()))
+        title = "فرص صقر — السوق السعودي" if scope == "sa" else "فرص صقر — السوق الأمريكي"
+        return card("🦅", title, esc(B.opps_text(scope)))
+
+    async def _daily(self, chat: str, day: str | None = None) -> None:
+        """التقريرُ اليوميّ ملفّاً — آخرُه أو يومٌ بعينه، بتعليقه المؤرَّخ."""
+        from app.services import research_desk as RD
+        from app.services import research_paper as RP
+        r = None
+        for pid in (1, "all"):
+            r = RD.load_report(pid, day)
+            if r:
+                break
+        if not r:
+            await self.send(card("📑", "التقرير اليومي", "لم يصدر تقريرٌ بعد — يصدر بعد إغلاق السوق أيامَ التداول."), menu=HOME, chat=chat)
+            return
+        await self._call("sendChatAction", chat_id=chat, action="upload_document")
+        data = await RP.pdf(r)
+        days = RD.report_dates(r.get("portfolio_id") or 1)[:6]
+        pick = [[(d[5:].replace("-", "/"), f"daily:{d}") for d in days[i:i + 3]] for i in range(0, len(days), 3)] + HOME
+        if data:
+            await self.send_file(data, f"daily-report-{r['date']}.pdf", RD.caption(r), chat=chat)
+            await self.send("أيامٌ سابقة:", menu=pick, chat=chat)
+        else:
+            await self.send(RD.caption(r), menu=pick, chat=chat)
+
     # ── التقارير الدورية ──────────────────────────────────────────────
     PERIODS = {
         "w": (7,   "الأسبوعي"),
@@ -577,7 +673,7 @@ class SaqrBot:
             # المبتذل — وهو وصفٌ دقيق: قوالبُ جاهزة لنيّاتٍ معدودة.
             # فمن يضغط «اسأل صقر» يريد **الذكاء** لا القالب. والقاعدية تبقى
             # شبكةَ أمانٍ إن غاب المفتاح أو نفدت الحصّة.
-            res = await answer(db, question, prefer_llm=True)
+            res = await answer(db, question, prefer_llm=True, saqr=True)   # ‏D819: من عمل صقر أوّلاً
             # المفتاح `reply` — تحقّقتُ منه في `ai_chat.answer` بدل افتراضه.
             txt = (res or {}).get("reply")
             return reply(esc(txt or "لم أفهم السؤال."))
@@ -615,69 +711,72 @@ class SaqrBot:
             if text and not text.startswith("/"):
                 self._waiting_question.discard(chat)
                 await self._call("sendChatAction", chat_id=chat, action="typing")
-                await self.send(await self._ask(db, text))
+                await self.send(await self._ask(db, text), menu=HOME, chat=chat)
                 return
 
             key = data or {
-                "/start": "menu", "/menu": "menu",
-                "/wealth": "wealth", "/market": "mkt",
-                "/calendar": "cal", "/report": "report",
-                "/news": "news",
+                "/start": "menu", "/menu": "menu", "/opps": "opps", "/daily": "daily",
+                "/wealth": "wealth", "/market": "mkt", "/calendar": "cal", "/report": "report", "/news": "news",
             }.get(text.split("@")[0].strip(), "menu")
+            # ‏D819: الأبوابُ تُفتح في الرسالة نفسِها (ضغطةُ زرٍّ تعدّلها)؛ والمحتوى رسالةٌ جديدةٌ تحتها أزرارُ بابها
+            mid = ((cbq or {}).get("message") or {}).get("message_id") if cbq else None
 
-            if key == "wealth":
-                await self.send(await self._wealth(db))
+            async def door(title_icon: str, title: str, prompt: str, menu: list):
+                await self.edit(chat, mid, card(title_icon, title, prompt), menu)
+
+            if key == "menu":
+                await self.edit(chat, mid, await self._home(db), MENU)
+            elif key == "opps":
+                await door("🦅", "فرص اليوم", "أيَّ سوقٍ تريد؟ (من آخر مسحٍ لصقر بدخوله وهدفه ووقفه)", OPPS_MENU)
+            elif key.startswith("opps:"):
+                await self._call("sendChatAction", chat_id=chat, action="typing")
+                await self.send(await self._opps(key.split(":", 1)[1]), menu=OPPS_MENU, chat=chat)
+            elif key == "daily":
+                await self._daily(chat)
+            elif key.startswith("daily:"):
+                await self._daily(chat, key.split(":", 1)[1])
+            elif key == "pf":
+                await door("💼", "محفظتي", "الثروةُ الآن، أو تقريرُ الأداء لمدّة.", PF_MENU)
+            elif key == "wealth":
+                await self.send(await self._wealth(db), menu=PF_MENU, chat=chat)
             elif key == "mkt":
                 await self._call("sendChatAction", chat_id=chat, action="typing")
-                await self.send(await self._market(db))
+                from app.services import saqr_brief as B
+                await self.send(card("🇸🇦", "نظرة صقر لتاسي", esc(B.tasi_text())), keyboard=False, chat=chat)
+                await self.send(await self._market(db), menu=HOME, chat=chat)
+            elif key == "evt":
+                await door("🗓️", "الأحداث والأخبار", "المفكرةُ القادمة، أو الإفصاحات، أو الأخبار.", EVT_MENU)
             elif key == "cal":
-                await self.send(card("🗓️", "المفكرة", "أيّ نطاقٍ تريد؟"),
-                                menu=CAL_MENU)
+                await door("🗓️", "المفكرة", "أيّ نطاقٍ تريد؟", CAL_MENU)
             elif key == "disc":
-                await self.send(card("📰", "الإفصاحات", "أيّ نطاقٍ تريد؟"),
-                                menu=DISC_MENU)
+                await door("📰", "الإفصاحات", "أيّ نطاقٍ تريد؟", DISC_MENU)
             elif key == "news":
-                await self.send(card("🗞️", "الأخبار", "أيّ نطاقٍ تريد؟"),
-                                menu=NEWS_MENU)
+                await door("🗞️", "الأخبار", "أيّ نطاقٍ تريد؟", NEWS_MENU)
             elif key.startswith("news:"):
                 await self._call("sendChatAction", chat_id=chat, action="typing")
-                await self.send(await self._news(db, scope=key.split(":")[1]))
+                await self.send(await self._news(db, scope=key.split(":")[1]), menu=EVT_MENU, chat=chat)
             elif key.startswith("cal:"):
-                await self.send(await self._events(db, announced=False, scope=key.split(":")[1]))
+                await self.send(await self._events(db, announced=False, scope=key.split(":")[1]), menu=EVT_MENU, chat=chat)
             elif key.startswith("disc:"):
-                await self.send(await self._events(db, announced=True, scope=key.split(":")[1]))
+                await self.send(await self._events(db, announced=True, scope=key.split(":")[1]), menu=EVT_MENU, chat=chat)
             elif key == "report":
-                # الضغطة الأولى تفتح الفروع ولا تُصدر تقريراً: إصدارُ تقريرٍ
-                # لم يُطلب مدّةً محدّدة له يجعل الزرّ يقول شيئاً ويفعل آخر.
-                await self.send(card(
-                    "📄", "تقرير المحفظة",
-                    "اختر المدّة التي يُقاس عليها الأداء:",
-                    foot="التقييم والتحليل واحدٌ في الأربعة — المتغيّر نافذةُ القياس"),
-                    menu=REPORT_MENU)
+                # الضغطة الأولى تفتح الفروع ولا تُصدر تقريراً: إصدارُ تقريرٍ لم يُطلب مدّةً محدّدة له يجعل الزرّ يقول شيئاً ويفعل آخر.
+                await door("📄", "تقرير الأداء", "اختر المدّة التي يُقاس عليها الأداء:", REPORT_MENU)
             elif key.startswith("rep:"):
                 p = key.split(":", 1)[1]
                 if p not in self.PERIODS:
-                    await self.send(card("📄", "تقرير المحفظة", "مدّةٌ غير معروفة."))
+                    await self.send(card("📄", "تقرير الأداء", "مدّةٌ غير معروفة."), menu=PF_MENU, chat=chat)
                 else:
-                    # ══ الملفّ وحده ══
-                    # كان يُرسَل نصٌّ مطوَّل ثمّ الورقة، فيقرأ المالك الشيء
-                    # مرّتين — والورقة هي المقصودة. بأمره: لا نصّ، الملف فقط.
-                    # ويبقى إشعارُ الانتظار (`upload_document`) فلا يظنّ
-                    # الضغطةَ ضاعت أثناء الطباعة.
+                    # ══ الملفّ وحده ══ (بأمر المالك: لا نصّ، الملف فقط) — وإشعارُ الانتظار فلا يظنّ الضغطةَ ضاعت
                     await self._call("sendChatAction", chat_id=chat, action="upload_document")
                     try:
                         data, name, note = await self._report_pdf(db, p)
                         await self.send_file(data, name, note.strip() or "", chat=chat)
                     except Exception as e:
                         logger.warning(f"🦅 ورقة التقرير تعذّرت: {e}")
-                        # الصمت عند الفشل يترك المالك ينتظر ملفاً لن يأتي.
-                        await self.send(card("📄", "تقرير المحفظة",
-                                             "تعذّر بناء الورقة الآن."))
+                        await self.send(card("📄", "تقرير الأداء", "تعذّر بناء الورقة الآن."), menu=PF_MENU, chat=chat)
             else:
-                await self.send(card(
-                    "🦅", "المحفظة الذكية",
-                    "أنا <b>صقر</b>، مساعدك.\n"
-                    "اختر من الأزرار، أو اكتب سؤالك مباشرةً."))
+                await self.edit(chat, mid, await self._home(db), MENU)
 
     # ── الحلقة ─────────────────────────────────────────────────────────
     async def run(self):

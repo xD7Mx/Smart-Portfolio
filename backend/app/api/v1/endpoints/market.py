@@ -2658,6 +2658,13 @@ async def option_chain(symbol: str, date: int | None = None):
             enrich_rows(got["calls"], S, cur["dte"], True)
             enrich_rows(got["puts"], S, cur["dte"], False)
             got["stats"] = stats(got, S, cur["dte"])
+            # ‏D818: مستوياتُ الفوليوم بروفايل للسهم بنافذة أجل العقد — تُعلَّم بها أسعارُ التنفيذ في السلسلة
+            try:
+                from app.services import volume_profile as VP
+                vp = await VP.for_symbol(symbol, cur["dte"], False)
+                got["vp"] = VP.summary(vp)
+            except Exception:                                     # noqa: BLE001
+                got["vp"] = None
         got["session"] = session_for(symbol)
     return success_response(got, message="سلسلةُ الخيارات." if got else "لا عقودَ خياراتٍ لهذا الرمز.")
 

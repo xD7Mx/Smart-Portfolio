@@ -121,9 +121,9 @@ check(not j_down["veto"] and mem(j_down, "الأحداث")["v"] == "warn" and "�
 b_ok = J(yf=YP, stt="strong", stxt="صافي الربح +28٪.", cr_side=CH_BUY, cr_any=CH_BUY, ops=ops,
          liq={"side": "up", "strength": 60, "word": "داخلةٌ للصعود", "level": "قويّة", "tag": None})
 ls = CN.lines(b_ok)
-check(b_ok["verdict"] == "يوافق" and b_ok["score"] >= 80 and len(b_ok["members"]) == 7 and [m["role"] for m in b_ok["members"]] == list(CN.ROLES)
-      and len(ls) == 7 and ls[0].startswith("المسار (يوافق)") and b_down["verdict"] == "يرفض",
-      "٧ الحكم: سبعةُ أعضاءٍ بالترتيب، ورفضُ عضوٍ يُسقط، والتحفّظاتُ تُنقص الدرجة — وأسطرُ المجلس في أسباب الشراء", f"{b_ok['verdict']} {b_ok['score']}")
+check(b_ok["verdict"] == "يوافق" and b_ok["score"] >= 80 and len(b_ok["members"]) == 8 and [m["role"] for m in b_ok["members"]] == list(CN.ROLES)
+      and len(ls) == 8 and ls[0].startswith("المسار (يوافق)") and b_down["verdict"] == "يرفض",
+      "٧ الحكم: ثمانيةُ أعضاءٍ بالترتيب (والحجمُ ثالثُهم — ‏D818)، ورفضُ عضوٍ يُسقط، والتحفّظاتُ تُنقص الدرجة — وأسطرُ المجلس في أسباب الشراء", f"{b_ok['verdict']} {b_ok['score']}")
 
 # ٨ «الرابط» محروس: لا رقمَ إلّا من الشواهد، ولا شراءَ رفضه عضو، وتعذّرُ النموذج None (لا قراءةَ بديلة)
 CALLS = []
@@ -132,7 +132,7 @@ CALLS = []
 async def fake_gemini(parts, max_tokens=0, temperature=0, **k):   # ‏D806: ومهلةُ النداء
     t = parts[-1]["text"]
     CALLS.append(t)
-    if "شواهدَك السبعةَ" in t:   # ‏D807: صقرٌ واحدٌ يقرأ شواهده
+    if "شواهدَك الثمانيةَ" in t:   # ‏D807: صقرٌ واحدٌ يقرأ شواهده
         return {"decision": "شراء", "confidence": "متوسطة", "link": "المسارُ والنتائجُ يجتمعان عند منطقة الدعم.", "conflict": "",
                 "watch": "إغلاقٌ دون 77.77 يُبطلها"}
     return {"S2": {"impact": "سلبي", "strength": 3, "event": "إقالةُ الرئيس التنفيذيّ"}}
@@ -222,10 +222,10 @@ links = [x for x in d_us["items"] if x.get("link")]
 rank = {"يوافق": 0, "يوافق بتحفّظ": 1}
 keys = [(rank[x["council"]["verdict"]], -x["council"]["score"]) for x in d_us["items"]]
 saved = json.loads(pathlib.Path(CS._path("us")).read_text(encoding="utf-8"))
-check(d_us["items"] and all(x.get("council") and len(x["council"]["members"]) == 7 and not x["council"]["veto"] for x in d_us["items"])
+check(d_us["items"] and all(x.get("council") and len(x["council"]["members"]) == 8 and not x["council"]["veto"] for x in d_us["items"])
       and all(r["why"] for r in d_us.get("rejected") or []) and keys == sorted(keys) and links and all(x in d_us["items"][:CS.AI_TOP] for x in links)
       and saved.get("rejected") == d_us.get("rejected") and d_us["found"] == len(d_us["items"]),
-      "٩ المسحُ يعرض كلَّ فرصةٍ على مجلس صقر: المقبولُ بأعضائه السبعة مرتّباً بحكم المجلس ثمّ درجته، وما رفضه عضوٌ في «استبعدها المجلس» بسببه، "
+      "٩ المسحُ يعرض كلَّ فرصةٍ على مجلس صقر: المقبولُ بأعضائه الثمانية مرتّباً بحكم المجلس ثمّ درجته، وما رفضه عضوٌ في «استبعدها المجلس» بسببه، "
       "و«الرابط» لأفضل المقبول وحده", f"{len(d_us['items'])} مقبولة · {len(d_us.get('rejected') or [])} مستبعَدة · {len(links)} رابطاً")
 
 # ١٠ صقرٌ السعوديّ يصطاد بالمجلس: رسمٌ بلا فرصةٍ لا يرفض وحده، وخبرٌ جوهريٌّ معاكسٌ وثاني ربعِ خسارةٍ يرفضان، و«الرابط» يقول الكلمةَ الأخيرة
@@ -246,7 +246,7 @@ async def hunt(link_decision="شراء", yfs=None):
 
     async def gem(parts, max_tokens=0, temperature=0, **k):
         t = parts[-1]["text"]
-        if "شواهدَك السبعةَ" in t:   # ‏D807: صقرٌ واحدٌ يقرأ شواهده
+        if "شواهدَك الثمانيةَ" in t:   # ‏D807: صقرٌ واحدٌ يقرأ شواهده
             return {"decision": link_decision, "confidence": "متوسطة", "link": "قراءةٌ تربط الأعضاء.", "conflict": "", "watch": ""}
         return {"2010": {"impact": "سلبي", "strength": 3, "event": "إقالةُ الرئيس التنفيذيّ"}}
     o = (SA.trend, SA.results_of, CN.chart_sa, CN.yf, CN.heads_sa, CN.events, RD._gemini)
@@ -271,7 +271,7 @@ pos_w, sg_w = asyncio.run(hunt(link_decision="انتظار", yfs={"7010": YL}))
 check(pos and pos["symbol"] == "1120" and any(w.startswith("المسار (يوافق)") for w in pos["why"]) and any("الرسم (يتحفّظ)" in w for w in pos["why"])
       and any(w.startswith("الرابط (شراء") for w in pos["why"])
       and sg["2010"]["verdict"] == "refused" and "إقالةُ الرئيس" in sg["2010"]["why"] and sg["7010"]["verdict"] == "refused" and "الثاني على التوالي" in sg["7010"]["why"]
-      and pos_w is None and "الرابط: انتظار" in sg_w["1120"]["why"] and len(sg["1120"]["council"]["members"]) == 7,
+      and pos_w is None and "الرابط: انتظار" in sg_w["1120"]["why"] and len(sg["1120"]["council"]["members"]) == 8,
       "١٠ صقرٌ السعوديّ يصطاد بالمجلس: رسمٌ بلا فرصةٍ تحفّظٌ لا رفض فيشتري (وفي أسبابه سطرُ كلّ عضوٍ و«الرابط»)، ويرفض خبرَ إقالة الرئيس وثاني ربعِ خسارةٍ "
       "بسببهما — و«الرابط» إن قال انتظر لا يشتري ويذكر لماذا", json.dumps({k: (v["verdict"], v["why"][:50]) for k, v in sg.items()}, ensure_ascii=False))
 SA.results_of = o_res

@@ -541,6 +541,9 @@ python3 scripts/audit/perf_d814.py || _note "$LINENO"   # ‏D814: أسعارُ 
 _node scripts/audit/perf_d814.mjs || _note "$LINENO"   # ‏D814: كلُّ صفحةٍ تُنزَّل حين تُفتح، والإطاراتُ المفضّلةُ تُجلب سلفاً فيُرسم التبديلُ فوراً
 _node scripts/audit/report_d815.mjs || _note "$LINENO"   # ‏D815 · D817: التقريرُ على الجوال كالحاسوب، والعنوانُ في تحليل السوق، والإجراءاتُ بعرض الصفحة بلا قصّ
 python3 scripts/audit/research_desk_d816.py || _note "$LINENO"   # ‏D816: التقريرُ كاملٌ بالتطبيق وحده حين يغيب تقريرا البيتين
+python3 scripts/audit/volume_profile_d818.py || _note "$LINENO"   # ‏D818: الفوليوم بروفايل للسوقين — جدارُ الحجم يُسقط العقد، والهدفُ عقدةُ الحجم، ووقفُ السعوديّ تحت قاعدته، و«الحجم» شاهدُ صقر
+_node scripts/audit/volume_profile_d818.mjs || _note "$LINENO"   # ‏D818: السلسلةُ تُعلِّم أسعارَ التنفيذ على البروفايل بمفتاحٍ ووسومٍ مقروءةٍ في المظهرين
+python3 scripts/audit/saqr_bot_d819.py || _note "$LINENO"   # ‏D819: صقرٌ على تلغرام بستّة أبوابٍ والتقريرِ اليوميّ، وسؤالُه يُجاب من عمله بأرقامه
 python3 scripts/audit/research_desk_d806.py || _note "$LINENO"   # ‏D806: لا تقريرَ يومياً بلا أخبار — النماذجُ الاحتياطية، وإعادةُ ما فشل، ومصدرٌ مستقلٌّ موثوق، ولا إرسالَ قبل الكتابة
 python3 scripts/audit/saqr_d807.py || _note "$LINENO"   # ‏D807–D809: صقرٌ واحد، والسهمُ الصاعدُ يُشترى في السوق الهابط، وقرصُ صقر بأسمائه
 python3 scripts/audit/chart_d797.py || _note "$LINENO"   # ‏D797: «تحليلُ الرسم» حين يزدحم النموذج — انتظارٌ قصير واحتياطيّان مقيسان وسببٌ مسمّى
