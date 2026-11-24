@@ -533,6 +533,7 @@ _node scripts/audit/us_stocks_d789.mjs || _note "$LINENO"   # ‏D789: الحي�
 _node scripts/audit/troom_wide_d790.mjs || _note "$LINENO"   # ‏D790: «تكبيرُ الشاشات» معتمٌ في المظهرين، يملأ النافذة، وعمودا الثلاث متساويان
 python3 scripts/audit/widget_d791.py || _note "$LINENO"   # ‏D791: ملخّصُ ويدجت الآيفون برمزٍ مستقلّ مُجزَّأ — وأرقامُه أرقامُ المقياس الموحّد، والرئيسيةُ على قاعدةٍ جديدة غيرُ مؤرشفة
 _node scripts/audit/widget_d791.mjs || _note "$LINENO"   # ‏D791: بطاقةُ «ويدجت الآيفون» في الإعدادات، وسكربتُ Scriptable المنسوخ يُشغَّل في محاكيه
+python3 scripts/audit/tadawul_preopen_d793.py || _note "$LINENO"   # ‏D793: قبل أوّل صفقةٍ في اليوم السعرُ هو الإغلاقُ السابق — لقطةُ ما قبل الافتتاح لا تفقد السعر
 _node scripts/audit/chart_colors_d772.mjs || _note "$LINENO"   # ‏D772: الرسمُ كتريدنق فيو — لوحةٌ سوداءُ وألوانٌ مشبعة، وألوانُ الشموع بيد المالك، وأرقامُ الفيبو على خطوطها
 _node scripts/audit/saqr_d763.mjs || _note "$LINENO"   # ‏D763: المفكرةُ بالتقرير، وتبويباتُ المختبر الثلاثة، والمحفظةُ ولوحةُ صقر في المظهرين
 python3 scripts/audit/research_archive_d749.py || _note "$LINENO"   # ‏D749: أرشيفُ التقارير لجميع الجلسات — كلُّ جلسةٍ بأرقامها هي

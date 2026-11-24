@@ -12,8 +12,15 @@
     docker exec sp_backend python /app/scripts/audit/tadawul_preopen_door.py
 """
 import asyncio
+import os
 import sys
+import time
 from datetime import datetime
+
+# بتوقيت مكّة قبل الاستيراد كخادم التطبيق — عمليةُ docker exec لا تمرّ بـmain.py فساعتُها UTC (طريقةُ الجلب ٧)
+os.environ["TZ"] = "Asia/Riyadh"
+if hasattr(time, "tzset"):
+    time.tzset()
 
 sys.path.insert(0, "/app")
 
@@ -44,7 +51,8 @@ async def main():
 
     got, live, at = TM.usable_rows()
     print(f"══ ٣ ما يُعطاه المستعمِلون: صفوف {len(got)} · حيّة {live} · زمنُها {at}"
-          f" · بسعر {sum(1 for r in got.values() if r.get('price'))} · بإغلاقٍ سابق {sum(1 for r in got.values() if r.get('prev_close'))}")
+          f" · بسعر {sum(1 for r in got.values() if r.get('price'))} · منها الإغلاقُ السابق قبل أوّل صفقة (D793)"
+          f" {sum(1 for r in got.values() if r.get('price_basis') == 'prev_close')} · بإغلاقٍ سابق {sum(1 for r in got.values() if r.get('prev_close'))}")
 
     rec = lastgood.load(TM.STORE_KEY, max_age_seconds=TM.CLOSE_MAX_DAYS * 86400)
     if isinstance(rec, dict) and isinstance(rec.get("rows"), dict):

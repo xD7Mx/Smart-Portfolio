@@ -74,8 +74,18 @@ def normalize(rows: list) -> dict[str, dict]:
         if not sym:
             continue
         px = _pos(r.get("lastTradePrice"))
+        prev_close = _pos(r.get("previousClosePrice"))
+        # ══ قبل أوّل صفقةٍ في اليوم: السعرُ هو الإغلاقُ السابق ══ (D793)
+        # قِيس على الخادم 2026-11-24 الساعة 09:47 (مرحلةُ ما قبل الافتتاح): ‏lastTradePrice صفرٌ في 273 من 273 (والافتتاحُ والكمّيةُ
+        # والأعلى والأدنى والتغيّرُ أصفار) والإغلاقُ السابق موجبٌ في 273 — فكانت اللقطةُ «حيّةً بلا سعر»: كلُّ مستعمِلٍ يسقط إلى
+        # مزوّدٍ بحصّة، ومسحةُ التقييم كتبت 196 سعراً عادلاً لا 260، وحُفظ «آخرُ إغلاقٍ» بلا سعر. والسعرُ قبل أوّل صفقةٍ هو آخرُ
+        # سعرِ تداولٍ نفسُه — الإغلاقُ السابق من الصفّ نفسِه، لا رقمٌ مصنوع — ويُسمّى أساسُه (‏price_basis) فلا يُوهِم بصفقةٍ اليوم.
+        basis = None
+        if px is None and prev_close is not None:
+            px, basis = prev_close, "prev_close"
         row = {
             "price": px,
+            "price_basis": basis,
             # ══ ما يعطيه المصدرُ فعلاً ══ (قِيس بعد أوّل جلبٍ حقيقيّ)
             # ادّعيتُ أن «تداول» تنشر المكرّرَ والمضاعفَ والقيمةَ السوقية
             # والعائد — والقياسُ على ‎272 شركةً: **صفرٌ من ‎272** في
@@ -109,7 +119,7 @@ def normalize(rows: list) -> dict[str, dict]:
             "day_high": _pos(r.get("highPrice")),
             "day_low": _pos(r.get("lowPrice")),
             "day_open": _pos(r.get("todayOpen")),
-            "prev_close": _pos(r.get("previousClosePrice")),
+            "prev_close": prev_close,
             "change_pct": _num(r.get("precentChange")),
             "sector_en": (str(r.get("sectorName")).strip()
                           if r.get("sectorName") else None),
