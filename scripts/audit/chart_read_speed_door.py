@@ -64,7 +64,8 @@ async def main():
             obj = _extract_json_obj(txt)
             ok = isinstance(obj, dict)
             v = CR.validate(obj, snap) if ok else None
-            print(f"  {name}: HTTP 200 · {s:.1f}ث · JSON {ok} · مخرَج {u.get('candidatesTokenCount')} · تفكير {u.get('thoughtsTokenCount')}"
+            n_out, n_think = u.get("candidatesTokenCount"), u.get("thoughtsTokenCount")
+            print(f"  {name}: HTTP 200 · {s:.1f}ث · JSON {ok} · مخرَج {n_out} · تفكير {n_think}"
                   f" · اتّجاه {(v or {}).get('bias')} · مستويات {len((v or {}).get('levels') or [])} · مؤشّرات {len((v or {}).get('indicators') or [])}")
         except Exception as e:                                     # noqa: BLE001
             print(f"  {name}: تعذّر — {type(e).__name__} بعد {time.perf_counter() - t0:.1f}ث")
