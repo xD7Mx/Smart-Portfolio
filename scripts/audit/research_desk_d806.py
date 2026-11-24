@@ -185,12 +185,14 @@ check(len(W) == 2 and wl == ["أرامكو تعلن نتائجها — أرقا�
 src_rd = (ROOT / "backend/app/services/research_desk.py").read_text(encoding="utf-8")
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 ops = (ROOT / ".github/workflows/ops.yml").read_text(encoding="utf-8")
+rw = (ROOT / "scripts/ops/research_rewrite.py").read_text(encoding="utf-8")
 check('elif r.get("text_source") != "ai" and not final:' in src_rd and "srcs = recent_sources(k[\"notes\"], today) + await wire_sources(today)" in src_rd
       and "ولا تكتب «لا جديد»" in src_rd and "await compose_all(send=True, final=False)" in sch and 'id="research_ingest_retry"' in sch
       and 'hour=15, minute=28' in sch and 'id="research_report_retry"' in sch and 'id="research_report_last"' in sch and 'if _RD_INGEST["on"]:' in sch
-      and "research_rewrite)" in ops and "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;" in ops and "send=False" in ops.split("research_rewrite)")[1][:1200]
+      and "research_rewrite)" in ops and "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;" in ops and "+send) SEND=1" in ops
+      and "compose_all(send=False, day=day)" in rw and 'if not (r.get("local") or r.get("global")):' in rw and rw.index("if not send:") < rw.index("RD.deliver(r)")
       and not re.search(r"RD\._gemini|await asyncio\.sleep\(15 \* \(i \+ 1\)\)", src_rd),
-      "٦ قراءةُ ما فشل 15:28 قبل الكتابة، ولا يُرسَل تقريرٌ لم يكتبه القسمُ إلا في الأخيرة (16:30 · 17:30)، وقراءتان لا تتزامنان، ومهمّةُ إعادة جلسةٍ بتاريخها وحده بلا إرسال")
+      "٦ قراءةُ ما فشل 15:28 قبل الكتابة، ولا يُرسَل تقريرٌ لم يكتبه القسمُ إلا في الأخيرة (16:30 · 17:30)، وقراءتان لا تتزامنان، ومهمّةُ إعادة جلسةٍ بتاريخها وحده — لا تُرسل إلا بإذن المالك (+send) ولا تقريراً بلا أخبار")
 
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

@@ -36,7 +36,7 @@ on:
           - memory       # خريطةُ الذاكرة: من يشغلها، وما يمكن تحريرُه — قراءةٌ فقط
           - cleanup      # تنظيفٌ آمن: خدماتٌ لا يحتاجها خادمٌ سحابيّ، وذاكرةُ البناء، والصورُ اليتيمة، وسجلّاتُ النظام
           - remove_extras # بإذن المالك الصريح: حذفُ نسخة التطبيق الثانية (sp2) وبرنامج d7m_v5 — بعد نسخةٍ احتياطيّةٍ على الخادم
-          - research_rewrite # ‏D806: يقرأ ما فشلت قراءتُه من تقارير الجهات ثمّ يعيد كتابةَ تقرير جلسةٍ (تاريخُها في probe_name) — بلا إرسال
+          - research_rewrite # ‏D806: يقرأ ما فشلت قراءتُه ثمّ يعيد كتابةَ تقرير جلسةٍ (تاريخُها في probe_name) — و«+send» بإذن المالك يرسله إلى تلغرام
       probe_name:
         description: >-
           اسمُ ملفِّ الكاشف حين تكون المهمّةُ probe — من `scripts/audit`
@@ -297,17 +297,17 @@ jobs:
               docker exec "$C" rm -rf /tmp/control
               rm -rf /tmp/sp-control ;;
             research_rewrite)
-              # ‏D806 (المالك 2026-11-24: «التقريرُ كاتبٌ لا توجد أخبار — عيبٌ لا أقبله»): التاريخُ وحدَه بصيغته — لا نصَّ يُمرَّر إلى بايثون غيره
+              # ‏D806 (المالك 2026-11-24: «التقريرُ كاتبٌ لا توجد أخبار — عيبٌ لا أقبله»؛ ثمّ «نعم، أرسله اليوم»): التاريخُ وحدَه بصيغته،
+              # و«+send» إذنُ المالك بإرسال تقرير المحفظة الافتراضية إلى تلغرام — ولا يُرسَل تقريرٌ بلا أخبار (‏scripts/ops/research_rewrite.py)
+              SEND=0
               case "$P" in
                 [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
-                *) echo "تاريخُ الجلسة غيرُ مقبول: [$P] — YYYY-MM-DD"; exit 2 ;;
+                [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]+send) SEND=1; P="${P%+send}" ;;
+                *) echo "تاريخُ الجلسة غيرُ مقبول: [$P] — YYYY-MM-DD أو YYYY-MM-DD+send"; exit 2 ;;
               esac
-              docker exec -e SP_DAY="$P" "$C" python -c "$(printf '%s\n' \
-                "import asyncio, os, sys; sys.path.insert(0,'/app')" \
-                "from datetime import date" \
-                "from app.services import research_desk as RD" \
-                "print('القراءة:', asyncio.run(RD.ingest(budget=6, days=5)))" \
-                "print('الكتابة:', asyncio.run(RD.compose_all(send=False, day=date.fromisoformat(os.environ['SP_DAY']))))")" ;;
+              docker cp scripts/ops/research_rewrite.py "$C":/tmp/research_rewrite.py
+              docker exec -e SP_DAY="$P" -e SP_SEND="$SEND" "$C" python /tmp/research_rewrite.py
+              docker exec "$C" rm -f /tmp/research_rewrite.py ;;
             probe)
               # اسمٌ مجرّدٌ من `scripts/audit` وحدَها: لا مسارَ ولا معاملاتٍ
               # ولا صَدَفة. فما يُشغَّل ملفٌّ مراجَعٌ في المستودع لا أمرٌ
