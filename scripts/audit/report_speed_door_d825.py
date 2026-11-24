@@ -29,14 +29,17 @@ async def main():
     from app.api.v1.endpoints import market as MK
     from app.services import research_paper as RP
     from app.services import saqr_report as SR
-    print("══ ١ رأسُ التقرير")
-    for pf in (None, "all", "none"):
+    from app.services import research_desk as RD
+    import json
+    size = lambda res: len(getattr(res, "body", b"") or json.dumps(res, ensure_ascii=False, default=str).encode())   # noqa: E731
+    pf = next((str(k) for k in ("all", 1, 2, 3, 4, 5) if RD.report_dates(k)), None)
+    print(f"══ ١ رأسُ التقرير (المحفظة: {pf} · أيامٌ {len(RD.report_dates(pf if pf == 'all' else int(pf))) if pf else 0})")
+    for q in (pf, "all", "none"):
         t0 = time.monotonic()
-        res = await MK.research_desk_view(None, pf)
-        body = getattr(res, "body", b"")
-        print(f"   pf={pf}: {ms(t0)} · {len(body):,}B")
+        res = await MK.research_desk_view(None, q)
+        print(f"   pf={q}: {ms(t0)} · {size(res):,}B")
     print("══ ٢ الورقة")
-    key, r, mo = MK._report_for(None, None)
+    key, r, mo = MK._report_for(pf, None)
     if not r:
         print("   لا تقرير")
         return
@@ -47,8 +50,8 @@ async def main():
             html = RP.render(r, part)
             print(f"   {part} #{i}: {ms(t0)} · {len(html):,} حرفاً")
     t0 = time.monotonic()
-    res = await MK.research_desk_paper(None, "all", None)
-    print(f"   الطلبُ كاملاً (all): {ms(t0)} · {len(getattr(res, 'body', b'')):,}B")
+    res = await MK.research_desk_paper(None, "all", pf)
+    print(f"   الطلبُ كاملاً (all): {ms(t0)} · {size(res):,}B")
     print("══ ٣ الملفّ")
     print(f"   المتصفّح: {SR.chrome_path()}")
     for i in (1, 2):
