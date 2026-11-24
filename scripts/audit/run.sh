@@ -535,6 +535,7 @@ python3 scripts/audit/widget_d791.py || _note "$LINENO"   # ‏D791: ملخّص�
 _node scripts/audit/widget_d791.mjs || _note "$LINENO"   # ‏D791: بطاقةُ «ويدجت الآيفون» في الإعدادات، وسكربتُ Scriptable المنسوخ يُشغَّل في محاكيه
 python3 scripts/audit/tadawul_preopen_d793.py || _note "$LINENO"   # ‏D793: قبل أوّل صفقةٍ في اليوم السعرُ هو الإغلاقُ السابق — لقطةُ ما قبل الافتتاح لا تفقد السعر
 _node scripts/audit/troom_d794.mjs || _note "$LINENO"   # ‏D794–D799: الصفُّ الخارجيّ والتكبيرُ كأوّلِ مرّة، والإطاراتُ المفضّلة، والموازينُ بلا أرقام، ولوحةُ الألوان، والفيبو ثابتةٌ على الشموع
+_node scripts/audit/troom_d801.mjs || _note "$LINENO"   # ‏D801–D805: أيقونةُ الشاشة المختارة، و«الشاشات» بجانب الإطارات، وعقودُ «أبل» من البحث، والفواصلُ تُسحب، والمفضّلة، ولا مِهماز
 python3 scripts/audit/chart_d797.py || _note "$LINENO"   # ‏D797: «تحليلُ الرسم» حين يزدحم النموذج — انتظارٌ قصير واحتياطيّان مقيسان وسببٌ مسمّى
 python3 scripts/audit/widget_d800.py || _note "$LINENO"   # ‏D800: قائمةُ المراقبة في الويدجت برمزه وحده — بترتيبها وأسعار الغرفة، وما لا سعرَ له لا صفر
 _node scripts/audit/widget_d800.mjs || _note "$LINENO"   # ‏D800: الويدجت عمودان كتريدنق فيو في محاكي Scriptable، وقيمُ القوائم في الإعدادات

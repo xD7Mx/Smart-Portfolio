@@ -166,7 +166,7 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   // ═ ٢ الشاشات ═
   await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2600); await paint();
-  await page.locator('[data-role="troom-mhead"] [data-role="troom-layout"]').first().click(); await page.waitForTimeout(250);   // ‏D794: زرُّ التقسيم في الصفّ الخارجيّ
+  await page.locator('[data-role="troom-chart"] [data-role="pc-tfs"] + .troom-layw [data-role="troom-layout"]').first()   /* ‏D801: بجانب الإطارات */.first().click(); await page.waitForTimeout(250);   // ‏D794: زرُّ التقسيم في الصفّ الخارجيّ
   const opts = await page.locator('[data-role="troom-layout-menu"] [data-layout]').evaluateAll(bs => bs.map(b => b.getAttribute("data-layout")));
   await page.locator('[data-role="troom-layout-menu"] [data-layout="3"]').first().click(); await page.waitForTimeout(1400);
   const g3 = await page.evaluate(() => { const g = document.querySelector('[data-role="troom-grid"]'); const ps = [...document.querySelectorAll('[data-role="troom-pane"]')];
@@ -190,7 +190,7 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("sp_room_panes") || "[]"));
   if (SHOTS) await page.locator('[data-role="troom-chart"]').screenshot({ path: `${SHOTS}/d787-panes-${vp.width}-${theme}.png` }).catch(() => {});
   const wideG3 = vp.width >= 1024 ? g3.big > g3.small * 1.6 && g3.side !== 0 : true;
-  say(opts.join() === "1,2,3,4" && /\bg3\b/.test(g3.cls) && g3.n === 3 && g3.heads === 3 && g3.searches === 3 && wideG3
+  say(opts.join() === "1,2,3,3,4" &&   /* ‏D803: للثلاث ترتيبان */ /\bg3\b/.test(g3.cls) && g3.n === 3 && g3.heads === 3 && g3.searches === 3 && wideG3
       && syms1[0] === "2222.SR" && syms1[1] === "NVDA270617C00200000" && syms1[2] === "^TASI.SR"
       && syms2[0] === "2222.SR" && syms2[2] === "1120" && syms3[1] === "2222.SR" && saved[1] === null && saved[2] === "1120",
     `${label}: ٢ ثلاثُ شاشات (كبيرةٌ واثنتان بجانبها)، ولكلٍّ رمزُها وبحثُها: عقدٌ ملصوقٌ بصيغة تريدنق فيو في الثانية و«تاسي» في الثالثة — والقائمةُ تفتح في المختارة `

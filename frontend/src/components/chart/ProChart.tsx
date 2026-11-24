@@ -143,7 +143,7 @@ function Menu({ label, title, children, role, wide, up }: {
    لها وحدها فلا تمسّ غرفةَ التداول، وبلا لوحة القرار فوقه (‏D652). والرسمُ اليدويُّ واحدٌ للرمز في المكانين كتريدنق فيو. */
 const IND_STOCK: Record<IndKey, boolean> = { vol: true, stochrsi: false, cvd: false, macd: false, d7m: true };
 
-export default function ProChart({ symbol, theme = "dark", preset, slot = 0, mini = false, rows = 1, snaps, fit, embedded = false, fillH = null }: {
+export default function ProChart({ symbol, theme = "dark", preset, slot = 0, mini = false, rows = 1, share, snaps, fit, embedded = false, fillH = null, tools }: {
   symbol: string; theme?: "dark" | "light"; preset?: "stock";
   /* ‏D782: الشاشاتُ المتعدّدة — رقمُ الشاشة (لحفظ إطارها ومؤشّراتها)، وشكلُها المختصر، وصفوفُها، ومبدّلُ عددها، وسجلُّ لقطاتها لـ«تحليل الرسم» */
   slot?: number; mini?: boolean; rows?: number;
@@ -153,6 +153,10 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
   embedded?: boolean; fillH?: number | null;
   /* ‏D787: ما فوق الشاشات المختصرة من الصفحة (‏top) ورأسُ كلّ شاشة (‏head) — وفي «تكبير الشاشات» يقلّ ما فوقها فتكبر */
   fit?: { top: number; head: number };
+  /* ‏D803 (المالك 2026-11-24: «أبغى أمدّد واحدةً وأنقص… مرونة»): نصيبُ الشاشة من ارتفاع الشبكة (يُسحب الفاصلُ فيتغيّر) — بديلُ ‏1/rows */
+  share?: number;
+  /* ‏D801 (المالك 2026-11-24: «زرُّ تقسيم الشاشات بجانب الإطارات — لا آخرَ شيءٍ على اليسار»): ما تضعه الغرفةُ بعد أزرار الإطارات مباشرة */
+  tools?: React.ReactNode;
 }) {
   /* ── الاختيارات المحفوظة ── */
   const KT = preset ? "sp_stock_tf" : slot ? `sp_chart_tf_s${slot}` : "sp_chart_tf", KI = preset ? "sp_stock_ind_v3" : slot ? `sp_chart_ind_v3_s${slot}` : "sp_chart_ind_v3";
@@ -306,13 +310,15 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
 
   /* الارتفاع: الرسمُ كلُّه داخل الشاشة كتريدنق فيو — اللوحاتُ السفلى تقتسم ارتفاعَه ولا تدفعه تحت الطيّ، إلّا إن ضاقت الرئيسةُ عن حدّها */
   const oscOn = OSC.filter(k => eff[k]);
-  const oscPx = mini ? 70 : wide ? 104 : 88;                                      // ‏D782: الشاشةُ المختصرة تقتسم ارتفاعَها الثابت
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   const chromeH = (topRef.current?.offsetHeight ?? 50) + (narrow && (railOpen || tool) ? 42 : 0);
   const stripH = force ? (mini ? 36 : 66) : 0;                                   // لوحتا الاتجاه والسيولة فوق الرسم (‏D782)
-  const baseH = fillH != null ? Math.max(240, fillH) : full ? Math.max(300, winH - chromeH - 2) : mini ? (narrow ? 300 : clamp((winH - (fit?.top ?? 250)) / Math.max(1, rows) - 84 - stripH - (fit?.head ?? 0), 220, 760))
+  const baseH = fillH != null ? Math.max(240, fillH) : full ? Math.max(300, winH - chromeH - 2) : mini ? (narrow ? 300 : clamp((winH - (fit?.top ?? 250)) * (share ?? 1 / Math.max(1, rows)) - 84 - stripH - (fit?.head ?? 0), 180, 1400))
     : preset ? (wide ? 480 : 400) : wide ? clamp(winH - 345 - stripH - (embedded ? 46 : 0), 400, 740) : clamp(winH - 380, 340, 460);
-  const mainPx = Math.max(full || fillH != null ? 200 : mini ? 140 : wide ? 300 : 250, baseH - oscOn.length * oscPx);
+  /* ‏D782: الشاشةُ المختصرة تقتسم ارتفاعَها — و‏D803: لوحاتُ المؤشّرات فيها تتبع نصيبَها (لا 70px ثابتة) وحدُّ الرسم الأدنى 96، فسحبُ الفاصل
+     يكبّر الرسمَ ومؤشّراتِه معاً؛ كانت المؤشّراتُ الثابتةُ وحدُّ 140 يمتصّان السحبَ كلَّه في شاشةٍ عاديّة الارتفاع */
+  const oscPx = mini ? clamp(Math.round(baseH * 0.22), 44, 80) : wide ? 104 : 88;
+  const mainPx = Math.max(full || fillH != null ? 200 : mini ? 96 : wide ? 300 : 250, baseH - oscOn.length * oscPx);
   const stageH = mainPx + oscOn.length * oscPx;
 
   /* ── نقطةُ رسمٍ محفوظة ← موضعٌ منطقيّ: بزمن شمعتها وكسرها، فتتبع الرسمَ في أيّ إطار ── */
@@ -407,7 +413,8 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
     if (preview.current) segments.push(preview.current);
     if (stroke.current && stroke.current.length > 1) paths.push({ pts: stroke.current, color: drawC, width: 2 });
     overlay.current.set({ levels, segments, paths, notes, bands, font: getComputedStyle(document.body).fontFamily || "sans-serif", bg: tok("--pc-bg", "#000000"), textTop: 50,
-      leaders: (rootRef.current?.clientWidth ?? 900) >= 600 });                    // ‏D799: لا مِهمازَ منقّطاً على الشاشة الضيّقة
+      leaders: false });   /* ‏D805 (المالك 2026-11-24): «النقاطُ المتّصلةُ بالأرقام ظهرت على الكمبيوتر أيضاً — بعد ثلاث شاشاتٍ ولمّا يصغر الشارت»: كان ‏D799
+                              يطفئ المِهمازَ دون 600px وحدها، والشاشةُ الكبيرةُ في الثلاث أعرضُ منها والتصغيرُ يزاحم الأرقام — فلا مِهمازَ في أيّ عرض */
     // سماتُ تشخيص: ما رُسم على اللوحة (لا يُقرأ من الـDOM) — آخرُ سعرٍ موسوم، وعددُ المستويات المسمّاة والوسوم والرسوم اليدوية
     const root = rootRef.current;
     if (root) {
@@ -993,6 +1000,7 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
             )}
           </Menu>
         </div>
+        {tools}
         <span className="pc-sep" aria-hidden />
         {!mini && <>
         <Menu label={<TypeIcon size={17} />} title="نوع الرسم" role="pc-type">

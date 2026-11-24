@@ -1,6 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import { Search, X } from "lucide-react";
+import { Layers, Search, X } from "lucide-react";
 import { mergeDirectory, searchCompanies, SaudiCompany } from "../../data/saudiCompanies";
 import CompanyLogo from "../common/CompanyLogo";
 import { marketApi } from "../../services/api";
@@ -9,6 +9,28 @@ import { normalizeSymbol } from "../../lib/symbols";
 
 type Remote = { symbol: string; name: string; type: string; exchange: string; us: boolean };
 const LATIN = /^[\^A-Za-z][A-Za-z0-9.=^ -]{0,24}$/;
+/* ‏D802 (المالك 2026-11-24: «كتبتُ أبل وأبغى العقد يطلع معي — ما وجدته»): الأسماءُ العربيةُ لأشهر الأسهم والصناديق الأمريكية — بحثُ الخادم
+   لاتينيٌّ وحده، فـ«أبل» لا تجد شيئاً. خريطةُ أسماءٍ لا أسعار: الرمزُ رمزُ البورصة نفسُه */
+const AR_US: [string[], string, string][] = [
+  [["ابل"], "AAPL", "Apple"], [["تسلا"], "TSLA", "Tesla"], [["انفيديا", "نفيديا"], "NVDA", "NVIDIA"], [["مايكروسوفت"], "MSFT", "Microsoft"],
+  [["امازون"], "AMZN", "Amazon"], [["جوجل", "غوغل", "قوقل", "الفابت"], "GOOGL", "Alphabet"], [["ميتا", "فيسبوك"], "META", "Meta Platforms"],
+  [["نتفلكس", "نتفليكس"], "NFLX", "Netflix"], [["اي ام دي", "ايه ام دي"], "AMD", "Advanced Micro Devices"], [["انتل"], "INTC", "Intel"],
+  [["بالانتير"], "PLTR", "Palantir"], [["برودكوم"], "AVGO", "Broadcom"], [["كوستكو"], "COST", "Costco"], [["ديزني"], "DIS", "Walt Disney"],
+  [["بوينغ", "بوينج"], "BA", "Boeing"], [["نايكي"], "NKE", "Nike"], [["كوكاكولا", "كوكا كولا"], "KO", "Coca-Cola"], [["ماكدونالدز"], "MCD", "McDonald's"],
+  [["والمارت"], "WMT", "Walmart"], [["جي بي مورغان", "جي بي مورجان"], "JPM", "JPMorgan Chase"], [["فيزا"], "V", "Visa"], [["ماستركارد"], "MA", "Mastercard"],
+  [["اوبر"], "UBER", "Uber"], [["كوين بيس", "كوينبيس"], "COIN", "Coinbase"], [["مايكروستراتيجي", "ستراتيجي"], "MSTR", "Strategy"],
+  [["سبايدر", "اس اند بي"], "SPY", "SPDR S&P 500 ETF"], [["كيو كيو كيو", "ناسداك 100"], "QQQ", "Invesco QQQ"], [["نيو"], "NIO", "NIO"],
+  [["علي بابا"], "BABA", "Alibaba"], [["اوراكل"], "ORCL", "Oracle"], [["سيلزفورس"], "CRM", "Salesforce"], [["شوبيفاي"], "SHOP", "Shopify"],
+];
+const arNorm = (t: string) => t.replace(/[إأآٱ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[\u064B-\u0652\u0640]/g, "").replace(/\s+/g, " ").trim();
+const arUs = (q: string): Remote[] => {
+  const t = arNorm(q);
+  if (t.length < 2 || !/[\u0600-\u06FF]/.test(t)) return [];
+  return AR_US.filter(([ns]) => ns.some(n => n.startsWith(t) || (t.length >= 3 && n.includes(t))))
+    .map(([, symbol, name]) => ({ symbol, name, type: "سهمٌ أمريكيّ", exchange: "", us: true }));
+};
+/* ما له سلسلةُ خيارات: سهمٌ أو صندوقٌ أمريكيّ برمزٍ قصير (لا سعوديّ ولا عملةٌ رقمية) */
+const optionable = (r: Remote) => r.us && /^[A-Z][A-Z.\-]{0,6}$/.test(r.symbol) && !/-USD$/.test(r.symbol);
 
 /* ══ بحثٌ يتمدّد في محلّه ══ (بأمر المالك · D210)
 
@@ -26,7 +48,7 @@ const loadDirectory = () => (dirOnce ||= marketApi.saudiDirectory()
   .catch(() => { dirOnce = null; }));
 
 export default function InlineStockSearch(
-  { onPick, global = false }: { onPick: (symbol: string) => void; global?: boolean },
+  { onPick, global = false, onChain }: { onPick: (symbol: string) => void; global?: boolean; onChain?: (underlying: string) => void },
 ) {
   const [open, setOpen] = React.useState(false);
   const [q, setQ] = React.useState("");
@@ -90,6 +112,10 @@ export default function InlineStockSearch(
   }, [open]);
 
   const pick = (sym: string) => { close(); onPick(sym.toUpperCase()); };
+  /* ‏D802: «العقود» بجانب كلّ سهمٍ أمريكيّ — تفتح سلسلةَ خياراته، والعقدُ المختارُ يُفتح في الشاشة نفسِها */
+  const chain = (sym: string) => { close(); onChain?.(sym.toUpperCase()); };
+  const ar = global ? arUs(q) : [];
+  const usRows = [...ar, ...remote.filter(r => !ar.some(a => a.symbol === r.symbol))];
 
   return (
     /* ══ لا `line-height: 0` على الحاوية ══
@@ -112,7 +138,7 @@ export default function InlineStockSearch(
             if (e.key === "Enter" && (hits[0] || remote[0] || q)) {
               /* ‏D787: رمزٌ ملصوقٌ يُفتح كما هو — عقدٌ بصيغتيه (‏OCC · تريدنق فيو)، أو ببادئة سوقه (‏TADAWUL:1120 · NASDAQ:NVDA)، أو «تاسي» */
               const t = q.trim(), occ = toOcc(t), code = /:/.test(t) || /^(تاسي|TASI)$/i.test(t) ? normalizeSymbol(t) : null;
-              pick(occ || code || (global && LATIN.test(t) ? remote[0]?.symbol || hits[0]?.symbol : hits[0]?.symbol || remote[0]?.symbol) || t);
+              pick(occ || code || (global && LATIN.test(t) ? remote[0]?.symbol || hits[0]?.symbol : hits[0]?.symbol || ar[0]?.symbol || remote[0]?.symbol) || t);
             }
             if (e.key === "Escape") close();
           }} />
@@ -121,7 +147,7 @@ export default function InlineStockSearch(
       {/* ══ السوقان في قائمةٍ واحدة ══ (بأمر المالك · D521 · ‏D761)
          كانت نتائجُ السوق الأمريكيّ لا تظهر إن وافق الحرفُ اسماً سعودياً («NIO» في «Union»…) — قائمتان في موضعٍ واحدٍ تُخفي إحداهما
          الأخرى. والآن قائمةٌ واحدة: عقدُ الخيار المنسوخ أوّلاً، ثمّ الأمريكيُّ (والحرفُ لاتينيّ)، ثمّ السعوديّ. */}
-      {open && pos && (hits.length > 0 || (global && (remote.length > 0 || !!toOcc(q.trim()) || (!busy && /^[\^A-Za-z][A-Za-z0-9.=^-]{0,14}$/.test(q.trim()))))) && createPortal(
+      {open && pos && (hits.length > 0 || (global && (usRows.length > 0 || !!toOcc(q.trim()) || (!busy && /^[\^A-Za-z][A-Za-z0-9.=^-]{0,14}$/.test(q.trim()))))) && createPortal(
         <div ref={menuRef} dir={pos.rtl ? "rtl" : "ltr"} className="sp-menu search-pop rounded-xl overflow-hidden shadow-2xl"
           style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxH, overflowY: "auto" }}
           data-role="search-remote">
@@ -133,16 +159,24 @@ export default function InlineStockSearch(
               <span className="text-[var(--ink-muted)] text-[11px] ms-auto">عقد خيار</span>
             </button>
           )}
-          {global && !toOcc(q.trim()) && remote.map(r => (
-            <button key={r.symbol} type="button" onClick={() => pick(r.symbol)} data-role="search-hit"
-              className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[36px] text-start hover:panel transition-colors">
-              <CompanyLogo symbol={r.symbol} size={22} />
-              <span className="tabular-nums text-[12px] font-bold text-[var(--ink)] shrink-0" dir="ltr">{r.symbol}</span>
-              <span className="text-[var(--ink)] text-[12px] truncate min-w-0" dir="ltr" style={{ textAlign: "right" }}>{r.name}</span>
-              <span className="text-[var(--ink-muted)] text-[10.5px] ms-auto shrink-0">{r.type}{r.exchange ? ` · ${r.exchange}` : ""}</span>
-            </button>
+          {global && !toOcc(q.trim()) && usRows.map(r => (
+            <div key={r.symbol} className="search-row flex items-stretch hover:panel transition-colors">
+              <button type="button" onClick={() => pick(r.symbol)} data-role="search-hit" data-symbol={r.symbol}
+                className="flex-1 min-w-0 flex items-center gap-2.5 px-2.5 py-2 min-h-[36px] text-start">
+                <CompanyLogo symbol={r.symbol} size={22} />
+                <span className="tabular-nums text-[12px] font-bold text-[var(--ink)] shrink-0" dir="ltr">{r.symbol}</span>
+                <span className="text-[var(--ink)] text-[12px] truncate min-w-0" dir="ltr" style={{ textAlign: "right" }}>{r.name}</span>
+                <span className="text-[var(--ink-muted)] text-[10.5px] ms-auto shrink-0">{r.type}{r.exchange ? ` · ${r.exchange}` : ""}</span>
+              </button>
+              {onChain && optionable(r) && (
+                <button type="button" className="search-chain" onClick={() => chain(r.symbol)} data-role="search-chain" data-symbol={r.symbol}
+                  title={`عقود خيارات ${r.symbol}`} aria-label={`عقود خيارات ${r.symbol}`}>
+                  <Layers size={13} /><span>العقود</span>
+                </button>
+              )}
+            </div>
           ))}
-          {global && !toOcc(q.trim()) && !remote.length && !hits.length && !busy && (
+          {global && !toOcc(q.trim()) && !usRows.length && !hits.length && !busy && (
             <button type="button" onClick={() => pick(q.trim())}
               className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[32px] text-start hover:panel transition-colors">
               <span className="tabular-nums text-[12px] font-semibold text-[var(--ink)]" dir="ltr">{q.trim().toUpperCase()}</span>

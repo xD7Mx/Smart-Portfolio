@@ -69,9 +69,9 @@ const dashes = r => r.filter(x => x[0] === "setLineDash" && Array.isArray(x[1][0
 // ═ ب الإعدادُ موصول ═
 const pc = rd("src/components/chart/ProChart.tsx"), d7 = rd("src/components/analysis/d7m.ts"), pn = rd("src/components/analysis/D7MPanel.tsx");
 say(/fibAnchor: "fixed" as "fixed" \| "moving"/.test(d7) && /\(st\.cfg\.fibAnchor \|\| "fixed"\) === "fixed" \? D\.fib\.startIndex : undefined/.test(pc)
-    && (pc.match(/, x0 \}\)/g) || []).length >= 3 && /leaders: \(rootRef\.current\?\.clientWidth \?\? 900\) >= 600/.test(pc)
+    && (pc.match(/, x0 \}\)/g) || []).length >= 3 && /leaders: false \}\);/.test(pc)   /* ‏D805: لا مِهمازَ في أيّ عرض */
     && /data-role="fib-anchor"/.test(pn) && /«ثابتةٌ على الشموع»|ثابتةٌ على الشموع/.test(pn) && /تتبع الشاشة/.test(pn),
-    "ب١ «ثابتةٌ على الشموع» افتراضاً و«تتبع الشاشة» خيارٌ في إعدادات D7M، والرسمُ يمرّر بدايةَ الموجة للخطوط والمناطق ويطفئ المِهمازَ دون 600px");
+    "ب١ «ثابتةٌ على الشموع» افتراضاً و«تتبع الشاشة» خيارٌ في إعدادات D7M، والرسمُ يمرّر بدايةَ الموجة للخطوط والمناطق ويطفئ المِهمازَ في كلّ عرض (‏D805)");
 
 // ═ ج المتصفّح ═
 const PORT = 5294;
@@ -127,15 +127,18 @@ for (const [label, vp, theme] of [["الحاسوب · فاتح", { width: 1366, 
     const h = document.querySelector('[data-role="troom-mhead"]'), chart = document.querySelector('[data-role="troom-chart"]');
     const inHead = k => !!h?.querySelector(`[data-role="${k}"]`);
     const inCharts = k => [...document.querySelectorAll('[data-role="pro-chart"]')].some(c => c.querySelector(`[data-role="${k}"]`));
-    return { head: !!h && h.parentElement === chart, ee: inHead("ee-btn"), read: inHead("chart-read-btn"), lay: inHead("troom-layout"), wide: inHead("troom-wide"),
+    /* ‏D801 (المالك 2026-11-24): «زرُّ تقسيم الشاشات بجانب الإطارات — لا آخرَ شيءٍ على اليسار»: واحدٌ بعد أزرار الإطارات مباشرة، لا في الصفّ الخارجيّ */
+    const lay = document.querySelectorAll('[data-role="troom-chart"] [data-role="pc-tfs"] + .troom-layw [data-role="troom-layout"]').length === 1
+      && document.querySelectorAll('[data-role="troom-layout"]').length === 1 && !inHead("troom-layout");
+    return { head: !!h && h.parentElement === chart, ee: inHead("ee-btn"), read: inHead("chart-read-btn"), lay, wide: inHead("troom-wide"),
       inner: ["pc-layout", "pc-full", "chart-read-btn", "ee-btn"].filter(inCharts) };
   });
   const r1 = await row();
-  await page.locator('[data-role="troom-mhead"] [data-role="troom-layout"]').click(); await page.waitForTimeout(300);
+  await page.locator('[data-role="troom-chart"] [data-role="pc-tfs"] + .troom-layw [data-role="troom-layout"]').first()   /* ‏D801: بجانب الإطارات */.click(); await page.waitForTimeout(300);
   await page.locator('[data-role="troom-layout-menu"] [data-layout="2"]').click(); await page.waitForTimeout(1800);
   const r2 = await row();
   say(r1.head && r1.ee && r1.read && r1.lay && r1.wide && !r1.inner.length && r2.head && r2.read && r2.lay && r2.wide && !r2.inner.length,
-      `${label}: ج١ صفٌّ خارجيٌّ واحد فوق الشاشات (الأحداث · تحليل الرسم · تقسيم الشاشة · التكبير) في الشاشة الواحدة والمتعدّدة — ولا شيءَ منها داخل شاشة`,
+      `${label}: ج١ صفٌّ خارجيٌّ واحد فوق الشاشات (الأحداث · تحليل الرسم · التكبير) في الشاشة الواحدة والمتعدّدة، وزرُّ «الشاشات» بجانب الإطارات (‏D801) — ولا ملءَ شاشةٍ ولا تحليلَ داخل شاشة`,
       JSON.stringify({ r1, r2 }));
 
   // ── ج٢ ‏D795 المفضّلاتُ مشتركةٌ بين الشاشات، والمخصَّصُ يُفضَّل ──
@@ -167,7 +170,7 @@ for (const [label, vp, theme] of [["الحاسوب · فاتح", { width: 1366, 
       `${label}: ج٣ لوحتا القوّة الصغيرتان في الشاشات المتعدّدة كلمةٌ ولونٌ وميزان — بلا رقم`, JSON.stringify(mini).slice(0, 240));
 
   // عودةٌ إلى شاشةٍ واحدة
-  await page.locator('[data-role="troom-mhead"] [data-role="troom-layout"]').click(); await page.waitForTimeout(300);
+  await page.locator('[data-role="troom-chart"] [data-role="pc-tfs"] + .troom-layw [data-role="troom-layout"]').first()   /* ‏D801: بجانب الإطارات */.click(); await page.waitForTimeout(300);
   await page.locator('[data-role="troom-layout-menu"] [data-layout="1"]').click(); await page.waitForTimeout(1800);
   const big = await page.evaluate(() => { const t = document.querySelector('[data-role="troom-chart"] [data-role="fp-trend"]');
     return { n0: t?.querySelectorAll('[data-role="fp-strength"]').length ?? -1, word: t?.querySelector('[data-role="fp-word"]')?.textContent || "",
@@ -201,7 +204,7 @@ for (const [label, vp, theme] of [["الحاسوب · فاتح", { width: 1366, 
       `${label}: ج٤ التكبيرُ يملأ النافذةَ والرسمُ إلى قاعها بلا تمرير، وزرُّ التصغير ظاهرٌ — وEsc والزرُّ نفسُه يعيدانه`, JSON.stringify({ W1, esc, back }));
 
   // ── ج٥ ‏D794 أربعُ شاشاتٍ مكبَّرة: الصفُّ لاصقٌ أعلى النافذة وإن مُرِّرت الشاشات ──
-  await page.locator('[data-role="troom-mhead"] [data-role="troom-layout"]').click(); await page.waitForTimeout(300);
+  await page.locator('[data-role="troom-chart"] [data-role="pc-tfs"] + .troom-layw [data-role="troom-layout"]').first()   /* ‏D801: بجانب الإطارات */.click(); await page.waitForTimeout(300);
   await page.locator('[data-role="troom-layout-menu"] [data-layout="4"]').click(); await page.waitForTimeout(1500);
   await page.locator('[data-role="troom-wide"]').click(); await page.waitForTimeout(1600);
   await page.evaluate(() => { const c = document.querySelector('[data-role="troom-chart"]'); c.scrollTop = c.scrollHeight; }); await page.waitForTimeout(400);
@@ -212,7 +215,7 @@ for (const [label, vp, theme] of [["الحاسوب · فاتح", { width: 1366, 
   const back4 = await page.locator('[data-role="troom-chart"]').getAttribute("data-wide");
   say(W4.btn[0] >= 0 && W4.btn[1] <= W4.ih && back4 === "0" && (desk || W4.st > 0),
       `${label}: ج٥ في الشاشات المكبَّرة زرُّ التصغير لاصقٌ أعلى النافذة — يُضغط بلا تمريرٍ إليه${desk ? "" : " وإن مُرِّرت الشاشاتُ إلى آخرها"}`, JSON.stringify({ W4, back4 }));
-  await page.locator('[data-role="troom-mhead"] [data-role="troom-layout"]').click(); await page.waitForTimeout(300);
+  await page.locator('[data-role="troom-chart"] [data-role="pc-tfs"] + .troom-layw [data-role="troom-layout"]').first()   /* ‏D801: بجانب الإطارات */.click(); await page.waitForTimeout(300);
   await page.locator('[data-role="troom-layout-menu"] [data-layout="1"]').click(); await page.waitForTimeout(1800);
 
   // ── ج٦ ‏D799 الفيبو ثابتةٌ على الشموع افتراضاً، و«تتبع الشاشة» خيار — والمِهمازُ مطفأٌ على الجوال ──
@@ -226,8 +229,8 @@ for (const [label, vp, theme] of [["الحاسوب · فاتح", { width: 1366, 
   const fm = await fibAt();
   await dlg.locator('[data-role="fib-anchor"] [data-anchor="fixed"]').click(); await page.waitForTimeout(600);
   const ff = await fibAt();
-  say(anchorOn === "fixed" && /^\d+$/.test(fx.x0 || "") && fm.x0 === "" && ff.x0 === fx.x0 && fx.lead === (desk ? "1" : "0"),
-      `${label}: ج٦ مستوياتُ الفيبو «ثابتةٌ على الشموع» افتراضاً تبدأ من موجتها، و«تتبع الشاشة» خيارٌ يعيدها على العرض، والمِهمازُ المنقّطُ ${desk ? "على الحاسوب" : "مطفأٌ على الجوال"}`,
+  say(anchorOn === "fixed" && /^\d+$/.test(fx.x0 || "") && fm.x0 === "" && ff.x0 === fx.x0 && fx.lead === "0",
+      `${label}: ج٦ مستوياتُ الفيبو «ثابتةٌ على الشموع» افتراضاً تبدأ من موجتها، و«تتبع الشاشة» خيارٌ يعيدها على العرض، والمِهمازُ المنقّطُ مطفأٌ على ${desk ? "الحاسوب" : "الجوال"} (‏D805)`,
       JSON.stringify({ anchorOn, fx, fm, ff }));
 
   // ── ج٧ ‏D798 لوحةُ الألوان: الزرُّ لا يُهدم، والنافذةُ لا تُغلق بالضغط السريع، وحقلُ الرقم يبقى في اليد ──

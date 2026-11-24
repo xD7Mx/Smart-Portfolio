@@ -198,7 +198,7 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
     `${JSON.stringify(ls.tabs)} · قسمٌ ثانٍ ${ls.sec2} · لمس ${ls.tgt}`);
 
   // ٨ الشاشاتُ المتعدّدة: أربعٌ لكلٍّ إطارُها، و«تحليلُ الرسم» فوقها يقرأ الأطرَ كلَّها، ثمّ العودةُ لشاشةٍ واحدة
-  await page.locator('[data-role="troom-mhead"] [data-role="troom-layout"]').first().click(); await page.waitForTimeout(250);      // ‏D794: في الصفّ الخارجيّ
+  await page.locator('[data-role="troom-chart"] [data-role="pc-tfs"] + .troom-layw [data-role="troom-layout"]').first()   /* ‏D801: بجانب الإطارات */.first().click(); await page.waitForTimeout(250);      // ‏D794: في الصفّ الخارجيّ
   await page.locator('[data-role="troom-layout-menu"] [data-layout="4"]').first().click(); await page.waitForTimeout(2500);
   await shot("multi");
   const mv = await page.evaluate(() => ({ panes: [...document.querySelectorAll('[data-role="troom-pane"] [data-role="pro-chart"]')].map(e => e.getAttribute("data-tf")),
@@ -211,7 +211,7 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
   await page.locator('[data-role="troom-mhead"] [data-role="chart-read-btn"]').click(); await page.waitForTimeout(1500);
   const mr = reads[r0] || {};
   await page.keyboard.press("Escape"); await page.waitForTimeout(300);
-  await page.locator('[data-role="troom-mhead"] [data-role="troom-layout"]').first().click(); await page.waitForTimeout(250);
+  await page.locator('[data-role="troom-chart"] [data-role="pc-tfs"] + .troom-layw [data-role="troom-layout"]').first()   /* ‏D801: بجانب الإطارات */.first().click(); await page.waitForTimeout(250);
   await page.locator('[data-role="troom-layout-menu"] [data-layout="1"]').first().click(); await page.waitForTimeout(1500);
   const back = await page.evaluate(() => ({ panes: document.querySelectorAll('[data-role="troom-pane"]').length, one: document.querySelectorAll('[data-role="troom-chart"] [data-role="pro-chart"]').length,
     lay: localStorage.getItem("sp_room_layout") }));

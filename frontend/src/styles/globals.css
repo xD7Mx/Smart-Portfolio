@@ -4206,23 +4206,23 @@ html.light {
 .troom-sdot { display: inline-flex; align-items: center; }
 .troom-mhead { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 8px 10px; border-bottom: 1px solid var(--hairline); }
 .troom-mhead .lq { margin-inline-start: 4px; }
-.troom-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; background: var(--hairline); animation: fadeUp .24s ease-out both; }
-@media (min-width: 1024px) { .troom-grid.g2, .troom-grid.g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.troom-grid { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; background: var(--hairline); animation: fadeUp .24s ease-out both; }
+@media (min-width: 1024px) { .troom-grid.g2, .troom-grid.g4 { grid-template-columns: minmax(0, var(--fa, 1fr)) minmax(0, var(--fb, 1fr)); } }
 .troom-pane { min-width: 0; background: var(--card); }
 .pc-mini .pc-top { padding: 4px 6px; }
 @media (prefers-reduced-motion: reduce) { .troom-grid { animation: none; } }
 /* ══ ‏D787: لكلّ شاشةٍ رمزُها وبحثُها، وثلاثُ شاشات، و«تكبيرُ الشاشات» ══ */
 @media (min-width: 1024px) {
-  .troom-grid.g3 { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); grid-template-rows: auto auto; }
+  .troom-grid.g3 { grid-template-columns: minmax(0, var(--fa, 1.35fr)) minmax(0, var(--fb, 1fr)); grid-template-rows: auto auto; }
   .troom-grid.g3 > .troom-pane:first-child { grid-row: span 2; }
+  /* ‏D803: «كبيرةٌ فوق بالعرض واثنتان تحت بجانب بعض» */
+  .troom-grid.g3t > .troom-pane:first-child { grid-row: auto; grid-column: 1 / -1; }
 }
-.troom-pane { position: relative; transition: box-shadow .2s ease; }
-.troom-grid:not(.g1) .troom-pane.on { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--brand-ink) 55%, transparent); }
+.troom-pane { position: relative; }
 .troom-phead { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 2px 8px; border-bottom: 1px solid var(--hairline);
   font-size: 12px; color: var(--ink); min-width: 0; }
 .troom-phead > b { font-weight: 800; white-space: nowrap; }
 .troom-pname { color: var(--ink-muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.troom-pfollow { font-size: 10px; font-weight: 700; color: var(--ink-muted); padding: 1px 6px; border-radius: 6px; background: var(--field); white-space: nowrap; }
 .troom-pgrow { flex: 1 1 auto; }
 .troom-picon { min-width: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; }
 .troom-wide-btn { min-height: 32px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; border-radius: 9px; font-size: 12px; font-weight: 700; }
@@ -4235,7 +4235,7 @@ html.light {
 /* ‏D790: وبخصوصيةٍ تغلب ‏`html.light .card` (‏0,2,1) — ‏`:root` يرفعها إلى (‏0,3,0) في المظهرين؛ كانت الخلفيةُ تُعلَن ولا تُطبَّق في الفاتح */
 :root .troom-chart.troom-wide { background: var(--bg) !important; padding: 0 !important; }   /* ‏D794: لا حشوةَ فوق الصفّ الثابت يمرّ تحتها المحتوى */
 html.troom-wide-on, html.troom-wide-on body { overflow: hidden; }
-@media (prefers-reduced-motion: reduce) { .troom-chart.troom-wide { animation: none; } .troom-pane { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .troom-chart.troom-wide { animation: none; } }
 /* ══ ‏D787: رمزُ البحث المنسوخ، ودليلُ الفرصة في السلسلة ══ */
 .so-code, .ocg-code { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 8px; font-size: 11px; font-weight: 700;
   color: var(--brand-ink); background: color-mix(in srgb, var(--brand-ink) 8%, transparent); transition: background-color .2s ease, color .2s ease; }
@@ -4429,7 +4429,7 @@ html.troom-wide-on, html.troom-wide-on body { overflow: hidden; }
 /* ══ ‏D794: الصفُّ الخارجيُّ الأساسيّ — مبدّلُ الشاشات والتكبيرُ خارج الشاشات، والصفُّ ثابتٌ أعلى النافذة المكبَّرة ══
    (المالك 2026-11-24: «زرُّ تقسيم الشاشة خارجَ الشاشات — في صفٍّ مع الأحداث وتحليل الرسم والتكبير والتصغير… وإذا كبّرتُها يختفي زرُّ التصغير») */
 .troom-layw { position: relative; }
-.troom-laymenu { position: absolute; top: calc(100% + 6px); inset-inline-start: 0; z-index: 20; min-width: 184px; padding: 4px; border-radius: 12px;
+.troom-laymenu { position: fixed; z-index: 70; width: min(300px, calc(100vw - 16px)); overflow-y: auto; padding: 4px; border-radius: 12px;   /* ‏D801: فوق كلّ شيء */
   background: var(--card); border: 1px solid var(--hairline); box-shadow: 0 12px 32px color-mix(in srgb, var(--bg) 55%, transparent);
   display: flex; flex-direction: column; gap: 2px; animation: cpIn .16s ease-out both; }
 .troom-layitem { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px; border-radius: 8px; font-size: 13px; color: var(--ink);
@@ -4440,7 +4440,7 @@ html.troom-wide-on, html.troom-wide-on body { overflow: hidden; }
 .troom-chart.troom-wide .troom-mhead { position: sticky; top: 0; z-index: 6; background: var(--bg); }
 .troom-one { min-width: 0; }
 @media (max-width: 767px) {
-  .troom-mhead .troom-layw, .troom-mhead .troom-wide-btn { order: 3; }
+  .troom-mhead .troom-wide-btn { order: 3; }
 }
 @media (prefers-reduced-motion: reduce) { .troom-laymenu { animation: none; } .troom-layitem { transition: none; } }
 
@@ -4478,3 +4478,52 @@ html.troom-wide-on, html.troom-wide-on body { overflow: hidden; }
 .widget-pname { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .widget-pval { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--ink-muted); }
 @media (prefers-reduced-motion: reduce) { .widget-param { transition: none; } }
+
+/* ══ ‏D801–D804: زرُّ الشاشات بجانب الإطارات، وأيقونةُ الشاشة المختارة، والفواصلُ تُسحب، والمفضّلة ══
+   (المالك 2026-11-24: «زرُّ التقسيم بجانب الإطارات» · «الإطارُ الأزرقُ مقصوص — أيقونةٌ بجانب الشركة أجمل» · «أمدّد وأنقص» · «تخصيصٌ في المفضّلة مع زرّ مسح») */
+.troom-lay-btn { display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; font-size: 12px; font-weight: 700; }
+.troom-lay-btn.on { color: var(--brand-ink); }
+.troom-flip { transform: scaleX(-1); }
+@media (max-width: 767px) { .pc-top .troom-lay-btn span { display: none; } }
+.troom-laysep { height: 1px; margin: 4px 6px; background: var(--hairline); }
+.troom-laycap { padding: 4px 10px 2px; font-size: 11px; font-weight: 700; color: var(--ink-muted); }
+.troom-layempty { padding: 2px 10px 6px; font-size: 12px; color: var(--ink-muted); }
+.troom-preset { display: flex; align-items: center; gap: 2px; }
+.troom-preset-go { flex: 1 1 auto; min-width: 0; }
+.troom-preset-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.troom-preset-del { min-width: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px;
+  color: var(--ink-muted); transition: color .15s ease, background-color .15s ease; }
+.troom-preset-del:hover { color: var(--neg-ink); background: color-mix(in srgb, var(--neg-ink) 10%, transparent); }
+.troom-preset-add { color: var(--brand-ink); }
+.troom-preset-form { display: flex; align-items: center; gap: 6px; padding: 4px 6px; animation: fadeUp .18s ease-out both; }
+.troom-preset-form .input { flex: 1 1 auto; min-width: 0; min-height: 34px; font-size: 13px; }
+.troom-preset-save { min-height: 34px; padding: 0 12px; }
+/* الشاشةُ المختارة: أيقونةٌ بجانب الشركة ورأسٌ بلونٍ خفيف — لا إطارٌ يُقصّ */
+.troom-sel { min-width: 32px; min-height: 32px; margin-inline-start: -6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px;
+  color: var(--ink-muted); transition: color .2s ease, background-color .2s ease, transform .2s ease; }
+.troom-sel:hover, .troom-pane:hover .troom-sel { color: var(--brand-ink); }
+.troom-sel.on { color: var(--brand-ink); }
+.troom-sel.on svg { animation: cpIn .2s ease-out both; }
+.troom-phead { transition: background-color .2s ease; }
+.troom-grid .troom-phead.on { background: color-mix(in srgb, var(--brand-ink) 9%, var(--card)); }
+/* الفواصل: خطٌّ رفيعٌ يظهر بلون العلامة عند الاقتراب والسحب، وقبضةٌ في وسطه */
+.troom-split { position: absolute; z-index: 7; touch-action: none; display: flex; align-items: center; justify-content: center; outline: none; }
+.troom-split.v { width: 12px; cursor: col-resize; }
+.troom-split.h { height: 12px; cursor: row-resize; }
+.troom-split::before { content: ""; position: absolute; background: transparent; transition: background-color .15s ease; }
+.troom-split.v::before { top: 0; bottom: 0; left: 5px; width: 2px; }
+.troom-split.h::before { left: 0; right: 0; top: 5px; height: 2px; }
+.troom-split > i { position: relative; border-radius: 999px; background: var(--hairline); opacity: 0; transition: opacity .15s ease, background-color .15s ease; }
+.troom-split.v > i { width: 4px; height: 32px; }
+.troom-split.h > i { width: 32px; height: 4px; }
+.troom-split:hover::before, .troom-split.on::before, .troom-split:focus-visible::before { background: color-mix(in srgb, var(--brand-ink) 60%, transparent); }
+.troom-split:hover > i, .troom-split.on > i, .troom-split:focus-visible > i { opacity: 1; background: var(--brand-ink); }
+html:has(.troom-split.on) { cursor: grabbing; user-select: none; }
+/* ‏D802: «العقود» بجانب السهم الأمريكيّ في البحث */
+.search-chain { display: inline-flex; align-items: center; gap: 4px; min-width: 32px; min-height: 32px; margin: 2px 6px; padding: 0 8px; align-self: center;
+  border-radius: 8px; font-size: 11px; font-weight: 700; color: var(--brand-ink); background: color-mix(in srgb, var(--brand-ink) 9%, transparent);
+  transition: background-color .15s ease; flex-shrink: 0; }
+.search-chain:hover { background: color-mix(in srgb, var(--brand-ink) 16%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .troom-sel, .troom-sel.on svg, .troom-phead, .troom-split::before, .troom-split > i, .troom-preset-form, .search-chain, .troom-preset-del { transition: none; animation: none; }
+}

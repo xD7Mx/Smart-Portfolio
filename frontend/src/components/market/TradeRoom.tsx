@@ -16,13 +16,14 @@
    واثنتان بجانبها؛ و«تكبيرُ الشاشات» يملأ النافذةَ بها ويعود بـEsc. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Pencil, Check, Trash2, Layers, Settings2, ChevronUp, ChevronDown, ArrowUpDown, Maximize2, Minimize2, Link2, Square, Columns2, Columns3,
-  Grid2x2 } from "lucide-react";
+import { Plus, X, Pencil, Check, Trash2, Layers, Settings2, ChevronUp, ChevronDown, ArrowUpDown, Maximize2, Minimize2, Link2, Circle, CircleDot } from "lucide-react";
 import ProChart from "../chart/ProChart";
 import ChartRead, { type ReadFrame } from "../chart/ChartRead";
 import CompanyLogo from "../common/CompanyLogo";
 import CheckBox from "../common/CheckBox";
 import InlineStockSearch from "./InlineStockSearch";
+import LayoutMenu, { type Preset, type Var3 } from "./LayoutMenu";
+import PaneSplitters from "./PaneSplitters";
 import OptionChain from "./OptionChain";
 import EconEvents from "./EconEvents";
 import LiveQuote, { SessionDot, useLive, useSessions } from "../chart/LiveQuote";
@@ -65,6 +66,8 @@ const lsList = (k: string): string[] => { try { const v = JSON.parse(lsGet(k) ||
 const pct = (v?: number | null) => v == null || !isFinite(Number(v)) ? null : Number(v);
 /* ‏D747: لأيّ سهمٍ أو صندوقٍ أمريكيّ سلسلةُ خيارات — والمؤشّرُ إلى مؤشّر خياراته (‏S&P 500 ⇐ SPX · ناسداك ⇐ NDX) */
 const OPT_INDEX: Record<string, string> = { "^GSPC": "^SPX", "^SPX": "^SPX", "^IXIC": "^NDX", "^NDX": "^NDX", "^RUT": "^RUT", "^VIX": "^VIX" };
+/* ‏D803: النصيبُ الأصليّ لكلّ ترتيب — ‏a للعمود الأوّل (يميناً) و‏b للصفّ الأوّل (أو للعليا من الاثنتين في «كبيرةٍ وبجانبها اثنتان») */
+const SIZE0: Record<string, { a: number; b: number }> = { "2": { a: 0.5, b: 0.5 }, "3s": { a: 0.575, b: 0.5 }, "3t": { a: 0.5, b: 0.58 }, "4": { a: 0.5, b: 0.5 } };
 const chainOf = (s: string): string | null => {
   const o = parseOption(s);
   if (o) return o.root;
@@ -118,6 +121,30 @@ export default function TradeRoom() {
   const [layoutN, setLayoutState] = useState<number>(() => { const v = Number(lsGet("sp_room_layout")); return v === 2 || v === 3 || v === 4 ? v : 1; });
   const setLayout = (n: number) => { setLayoutState(n); lsSet("sp_room_layout", String(n)); if (active >= n) setActive(0); };
   multiRef.current = layoutN > 1;
+  /* ‏D803 (المالك 2026-11-24): «الثلاثُ: واحدةٌ بالعرض فوق واثنتان تحت بجانب بعض» و«أمدّد واحدةً وأنقص — مرونة»: ترتيبُ الثلاث، ونصيبُ
+     العمود الأوّل (‏a) والصفّ الأوّل (‏b) لكلّ ترتيبٍ على حدة — يُسحب الفاصلُ فيتغيّر، ويُحفظ */
+  const [var3, setVar3State] = useState<Var3>(() => (lsGet("sp_room_var3") === "top" ? "top" : "side"));
+  const setVar3 = (v: Var3) => { setVar3State(v); lsSet("sp_room_var3", v); };
+  const [sizes, setSizesState] = useState<Record<string, { a: number; b: number }>>(() => {
+    try { const v = JSON.parse(lsGet("sp_room_sizes") || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; }
+  });
+  const lkey = layoutN === 3 ? (var3 === "top" ? "3t" : "3s") : String(layoutN);
+  const okR = (v: unknown, d: number) => (typeof v === "number" && v >= 0.25 && v <= 0.75 ? v : d);
+  const sz = { a: okR(sizes[lkey]?.a, (SIZE0[lkey] || SIZE0["2"]).a), b: okR(sizes[lkey]?.b, (SIZE0[lkey] || SIZE0["2"]).b) };
+  const sizesRef = useRef(sizes);
+  sizesRef.current = sizes;
+  const setSize = (part: { a?: number; b?: number }) => setSizesState(o => ({ ...o, [lkey]: { ...sz, ...(o[lkey] || {}), ...part } }));
+  const saveSizes = () => lsSet("sp_room_sizes", JSON.stringify(sizesRef.current));
+  const resetSize = () => setSizesState(o => { const n = { ...o }; delete n[lkey]; lsSet("sp_room_sizes", JSON.stringify(n)); return n; });
+  const shareOf = (k: number) => layoutN === 2 ? 1 : layoutN === 4 ? (k < 2 ? sz.b : 1 - sz.b)
+    : var3 === "top" ? (k === 0 ? sz.b : 1 - sz.b) : (k === 0 ? 1 : k === 1 ? sz.b : 1 - sz.b);
+  /* ‏D804 (المالك 2026-11-24): «أحفظ إعداداً مخصّصاً — ثلاثُ شاشاتٍ لشركاتٍ معيّنة — ثابتاً في المفضّلة، مع زرّ مسح»: عددُ الشاشات وترتيبُها
+     ورمزُ كلٍّ وإطارُه ونصيبُه؛ والتطبيقُ يعيد بناءَ الشاشات (‏epoch) لتقرأ إطاراتِها */
+  const [presets, setPresetsState] = useState<Preset[]>(() => {
+    try { const v = JSON.parse(lsGet("sp_room_presets") || "[]"); return Array.isArray(v) ? v.filter((x: any) => x && x.id && x.n >= 1 && x.n <= 4) : []; } catch { return []; }
+  });
+  const setPresets = (v: Preset[]) => { setPresetsState(v); lsSet("sp_room_presets", JSON.stringify(v)); };
+  const [epoch, setEpoch] = useState(0);
   /* ‏D787: «تكبيرُ الشاشات» — تملأ النافذةَ وتعود بـEsc */
   const [wide, setWide] = useState(false);
   useEffect(() => {
@@ -132,14 +159,6 @@ export default function TradeRoom() {
      خارج الشاشات — في صفٍّ خارجيٍّ أساسيّ مع الأحداث وتحليل الرسم والتكبير والتصغير». فالصفُّ الخارجيُّ واحدٌ في الشاشة الواحدة والمتعدّدة: الهويّةُ
      والأحداثُ وتحليلُ الرسم ومبدّلُ الشاشات والتكبيرُ والسعرُ الحيّ؛ والتكبيرُ للشاشة الواحدة أيضاً، والصفُّ ثابتٌ أعلى النافذة المكبَّرة لا يُمرَّر
      معها — فزرُّ التصغير في مكانه دائماً. والرسمُ الواحدُ المكبَّر يملأ ما تحت الصفّ (يُقاس ويُعايَر كالمتعدّد). */
-  const [layMenu, setLayMenu] = useState(false);
-  const layRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!layMenu) return;
-    const away = (e: Event) => { if (layRef.current && !layRef.current.contains(e.target as Node)) setLayMenu(false); };
-    document.addEventListener("pointerdown", away);
-    return () => document.removeEventListener("pointerdown", away);
-  }, [layMenu]);
   const oneRef = useRef<HTMLDivElement | null>(null);
   const [fillH, setFillH] = useState(() => Math.max(300, window.innerHeight - 330));
   const oneTries = useRef(0);
@@ -188,7 +207,7 @@ export default function TradeRoom() {
         // ثلاثُ شاشات: العمودُ الكبيرُ شاشةٌ واحدة والصغيرُ اثنتان لكلٍّ رأسُها — فيُسوّى العمودان أوّلاً بمعامل الرأس (‏head)،
         // فالفرقُ بينهما يتبعه واحداً بواحد؛ ثمّ يُملأ الارتفاع بمعامل الأعلى
         const ps = g.querySelectorAll<HTMLElement>('[data-role="troom-pane"]');
-        const colDiff = layoutN === 3 && ps.length === 3 ? (ps[0].offsetTop + ps[0].offsetHeight) - (ps[2].offsetTop + ps[2].offsetHeight) : 0;
+        const colDiff = layoutN === 3 && var3 === "side" && ps.length === 3 ? (ps[0].offsetTop + ps[0].offsetHeight) - (ps[2].offsetTop + ps[2].offsetHeight) : 0;
         if (Math.abs(colDiff) > 2) { fitTries.current += 1; setWideHead(h => Math.max(-200, Math.min(400, Math.round(h - colDiff)))); return; }
         if (Math.abs(gap) <= 2) return;
         fitTries.current += 1;
@@ -202,7 +221,7 @@ export default function TradeRoom() {
     const onResize = () => { fitTries.current = 0; measure(200); };
     window.addEventListener("resize", onResize);
     return () => { window.clearTimeout(t); ro?.disconnect(); window.removeEventListener("resize", onResize); };
-  }, [wide, layoutN, wideTop, wideHead]);
+  }, [wide, layoutN, var3, wideTop, wideHead]);
   const snaps = useRef(new Map<number, () => ReadFrame | null>());
   const rowsBox = useRef<HTMLDivElement>(null), rowsBox2 = useRef<HTMLDivElement>(null);
   useFlip(rowsBox); useFlip(rowsBox2);
@@ -394,19 +413,53 @@ export default function TradeRoom() {
     setActive(k);
     if (k === 0) setMain(s); else setPane(k, s === symbol ? null : s);
   };
-  const paneHead = (k: number, ps: string, own: boolean) => (
-    <div className="troom-phead" data-role="troom-phead">
-      <CompanyLogo symbol={ps} size={18} />
-      <b className="tabular-nums" dir="ltr">{isOption(ps) ? optionTitle(parseOption(ps)!) : INDEX_NAMES[ps] || ps.replace(".SR", "")}</b>
-      {!isOption(ps) && !INDEX_NAMES[ps] && <span className="troom-pname">{paneName(ps)}</span>}
-      {!own && <span className="troom-pfollow" title="تتبع الشاشةَ الأولى">تتبع الأولى</span>}
-      <span className="troom-pgrow" />
-      {k > 0 && own && (
-        <button type="button" className="btn-ghost troom-picon" onClick={() => setPane(k, null)} title="اربطها بالشاشة الأولى" aria-label="اربطها بالشاشة الأولى"
-          data-role="troom-plink"><Link2 size={13} /></button>
-      )}
-      <span data-role="troom-psearch"><InlineStockSearch global onPick={s => setPaneSymbol(k, s)} /></span>
-    </div>
+  /* ‏D801 (المالك 2026-11-24): «الإطارُ الأزرقُ حول الشاشة المختارة مقصوصٌ من جهة — وبدلَه شيءٌ أجمل: أيقونةٌ بجانب الشركة، وألغِ «تتبع الأولى»».
+     كان ظلّاً داخلياً (‏inset box-shadow) يُرسم تحت محتوى الشاشة فيغطّيه الرسمُ ورأسُه إلا حيث لا محتوى. فصار للشاشة المختارة أيقونةٌ بجانب
+     شركتها ورأسٌ بلونٍ خفيف؛ والأيقونةُ في غيرها تختارها بضغطة، والضغطُ في أيّ مكانٍ من الشاشة يختارها كما كان. */
+  const paneHead = (k: number, ps: string, own: boolean) => {
+    const on = k === active;
+    return (
+      <div className={"troom-phead" + (on ? " on" : "")} data-role="troom-phead">
+        <button type="button" className={"troom-sel" + (on ? " on" : "")} aria-pressed={on} onClick={() => setActive(k)} data-role="troom-sel"
+          title={on ? "الشاشةُ المختارة — القائمةُ والبحثُ يفتحان فيها" : "اخترْ هذه الشاشة"} aria-label={on ? "الشاشةُ المختارة" : "اخترْ هذه الشاشة"}>
+          {on ? <CircleDot size={15} /> : <Circle size={15} />}
+        </button>
+        <CompanyLogo symbol={ps} size={18} />
+        <b className="tabular-nums" dir="ltr">{isOption(ps) ? optionTitle(parseOption(ps)!) : INDEX_NAMES[ps] || ps.replace(".SR", "")}</b>
+        {!isOption(ps) && !INDEX_NAMES[ps] && <span className="troom-pname">{paneName(ps)}</span>}
+        <span className="troom-pgrow" />
+        {k > 0 && own && (
+          <button type="button" className="btn-ghost troom-picon" onClick={() => setPane(k, null)} title="اربطها بالشاشة الأولى" aria-label="اربطها بالشاشة الأولى"
+            data-role="troom-plink"><Link2 size={13} /></button>
+        )}
+        <span data-role="troom-psearch"><InlineStockSearch global onPick={s => setPaneSymbol(k, s)} onChain={u => { setActive(k); setChainFor(u); }} /></span>
+      </div>
+    );
+  };
+  /* ‏D804: اسمٌ مقترحٌ للتخصيص من رموز شاشاته */
+  const shortSym = (s: string) => { const o = parseOption(s); return o ? optionTitle(o) : INDEX_NAMES[s] || s.replace(".SR", ""); };
+  const suggestName = () => {
+    const ss = Array.from({ length: layoutN }, (_, k) => shortSym(paneSym(k)));
+    return `${["", "شاشة", "شاشتان", "ثلاث", "أربع"][layoutN]} · ${[...new Set(ss)].join(" · ")}`.slice(0, 60);
+  };
+  const tfKey = (k: number) => (k ? `sp_chart_tf_s${k}` : "sp_chart_tf");
+  const savePreset = (name: string) => {
+    const p: Preset = { id: Date.now().toString(36), name, n: layoutN, v3: var3, syms: [symbol, ...panes.slice(1, 4)], tfs: [0, 1, 2, 3].map(k => lsGet(tfKey(k))),
+      a: sz.a, b: sz.b };
+    setPresets([...presets, p].slice(-12));
+  };
+  const applyPreset = (p: Preset) => {
+    const lk = p.n === 3 ? (p.v3 === "top" ? "3t" : "3s") : String(p.n);
+    p.tfs.forEach((t, k) => { if (t) lsSet(tfKey(k), t); });
+    if (p.syms[0]) setMain(p.syms[0]);
+    setPanesState(() => { const n = [0, 1, 2, 3].map(k => (k === 0 ? null : (p.syms[k] as string | null) || null)); lsSet("sp_room_panes", JSON.stringify(n)); return n; });
+    setVar3(p.v3 === "top" ? "top" : "side");
+    setSizesState(o => { const n = { ...o, [lk]: { a: okR(p.a, 0.5), b: okR(p.b, 0.5) } }; lsSet("sp_room_sizes", JSON.stringify(n)); return n; });
+    setLayout(p.n); setActive(0); setEpoch(e => e + 1);
+  };
+  const layoutCtl = (
+    <LayoutMenu n={layoutN} v3={var3} onPick={(n, v) => { setLayout(n); if (v) setVar3(v); }} presets={presets} onApply={applyPreset}
+      onDelete={id => setPresets(presets.filter(x => x.id !== id))} onSave={savePreset} suggest={suggestName} />
   );
 
   const identityNode = (
@@ -537,7 +590,8 @@ export default function TradeRoom() {
         {((gid != null && group) || (list === "mine" && owner)) && (
           <div className="troom-bar">
             {/* ‏D761: الاختيارُ يُضيف إلى القائمة ويفتح رسمَه — وعقدُ الخيار المنسوخ من المختبر يُفتح عقداً باسمه */}
-            {owner && gid != null && <InlineStockSearch onPick={s => { add.mutate({ s, name: isOption(s) ? optionTitle(parseOption(s)!) : undefined }); pick(s); }} global />}
+            {owner && gid != null && <InlineStockSearch onPick={s => { add.mutate({ s, name: isOption(s) ? optionTitle(parseOption(s)!) : undefined }); pick(s); }} global
+              onChain={u => setChainFor(u)} />}
             <span className="text-[11px] text-[var(--ink-muted)] tabular-nums ms-auto">{rows.length}</span>
             {owner && (
               <button type="button" className={"btn-ghost troom-icon" + (editing ? " on" : "")} title={editing ? "تمّ" : "تحرير القائمة"}
@@ -585,23 +639,6 @@ export default function TradeRoom() {
           <ChartRead symbol={symbol} name={nm} market={market}
             frames={() => [...snaps.current.entries()].filter(([k]) => k < layoutN && paneSym(k) === symbol).sort((a, b) => a[0] - b[0])
               .map(([, f]) => f()).filter(Boolean) as ReadFrame[]} />
-          <div ref={layRef} className="troom-layw">
-            <button type="button" className={"btn-ghost troom-wide-btn troom-lay-btn" + (layMenu ? " on" : "")} aria-expanded={layMenu} aria-haspopup="menu"
-              onClick={() => setLayMenu(v => !v)} data-role="troom-layout" title="تقسيمُ الشاشة" aria-label="تقسيمُ الشاشة">
-              {layoutN === 4 ? <Grid2x2 size={15} /> : layoutN === 3 ? <Columns3 size={15} /> : layoutN === 2 ? <Columns2 size={15} /> : <Square size={14} />}
-              <span>الشاشات</span>
-            </button>
-            {layMenu && (
-              <div className="troom-laymenu" role="menu" data-role="troom-layout-menu">
-                {([[1, "شاشةٌ واحدة", Square], [2, "شاشتان", Columns2], [3, "ثلاثُ شاشات", Columns3], [4, "أربعُ شاشات", Grid2x2]] as const).map(([n, name, Ic]) => (
-                  <button key={n} type="button" role="menuitemradio" aria-checked={layoutN === n} className={"troom-layitem" + (layoutN === n ? " on" : "")}
-                    data-layout={n} onClick={() => { setLayout(n); setLayMenu(false); }}>
-                    <Ic size={15} /><span>{name}</span>{layoutN === n && <Check size={14} className="troom-laycheck" />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
           <button type="button" className={"btn-ghost troom-wide-btn" + (wide ? " on" : "")} onClick={() => setWide(w => !w)} aria-pressed={wide}
             data-role="troom-wide" title={wide ? "تصغير (Esc)" : "تكبير — يملأ النافذة"} aria-label={wide ? "تصغير" : "تكبير"}>
             {wide ? <Minimize2 size={15} /> : <Maximize2 size={15} />}<span>{wide ? "تصغير" : "تكبير"}</span>
@@ -610,22 +647,23 @@ export default function TradeRoom() {
         </div>
         {layoutN === 1 ? (
           <div ref={oneRef} className="troom-one" data-role="troom-one">
-            <ProChart symbol={symbol} theme={theme === "light" ? "light" : "dark"} embedded snaps={snaps} fillH={wide ? fillH : null} />
+            <ProChart key={`one-${epoch}`} symbol={symbol} theme={theme === "light" ? "light" : "dark"} embedded snaps={snaps} fillH={wide ? fillH : null} tools={layoutCtl} />
           </div>
         ) : (
-          <div ref={gridRef} className={`troom-grid g${layoutN}`} data-role="troom-grid">
+          <div ref={gridRef} className={`troom-grid g${layoutN}` + (layoutN === 3 && var3 === "top" ? " g3t" : "")} data-role="troom-grid" data-var={layoutN === 3 ? var3 : ""}
+            style={{ ["--fa" as string]: `${sz.a}fr`, ["--fb" as string]: `${1 - sz.a}fr` } as React.CSSProperties}>
             {Array.from({ length: layoutN }, (_, k) => {
               const ps = paneSym(k);
               return (
                 <div key={k} className={"troom-pane" + (k === active ? " on" : "")} data-role="troom-pane" data-k={k} data-symbol={ps}
                   onPointerDownCapture={() => { if (k !== active) setActive(k); }}>
                   {paneHead(k, ps, k === 0 || !!panes[k])}
-                  <ProChart symbol={ps} theme={theme === "light" ? "light" : "dark"} slot={k} mini embedded
-                    rows={layoutN === 4 ? 2 : layoutN === 3 ? (k === 0 ? 1 : 2) : 1}
-                    fit={{ top: wide ? wideTop : 250, head: wide ? wideHead : 34 }} snaps={snaps} />
+                  <ProChart key={`${k}-${epoch}`} symbol={ps} theme={theme === "light" ? "light" : "dark"} slot={k} mini embedded share={shareOf(k)}
+                    fit={{ top: wide ? wideTop : 250, head: wide ? wideHead : 34 }} snaps={snaps} tools={k === 0 ? layoutCtl : undefined} />
                 </div>
               );
             })}
+            <PaneSplitters grid={gridRef} n={layoutN} v3={var3} a={sz.a} b={sz.b} onChange={setSize} onCommit={() => { saveSizes(); fitTries.current = 0; }} onReset={() => { resetSize(); fitTries.current = 0; }} />
           </div>
         )}
         {chainFor && (
