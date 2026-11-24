@@ -553,7 +553,8 @@ async def ai_chat(payload: dict, db: AsyncSession = Depends(get_db)):
     # حارس أخير: أي خطأ غير متوقّع يُعيد رسالة مفهومة بدل 500 — فالواجهة كانت
     # تعرض «تعذّر الاتصال بالخادم» فيبدو المساعد صامتاً حتى عن الأسئلة الجاهزة.
     try:
-        return success_response(data=await answer(db, msg, hist))
+        # ‏D819: المساعدُ في التطبيق هو صقرٌ نفسُه — يجيب من عمله أوّلاً (الفرصُ والعقودُ ونظرتُه لتاسي) كما يجيب على تلغرام
+        return success_response(data=await answer(db, msg, hist, saqr=True))
     except Exception as e:                                       # noqa: BLE001
         logger.error(f"ai_chat فشل: {e}")
         return success_response(data={

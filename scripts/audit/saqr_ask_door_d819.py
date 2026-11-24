@@ -41,13 +41,16 @@ async def main():
             print(f"   السياقُ الكامل: {len(keys)} كتلة · {len(js)} حرفاً")
             saqrish = [k for k in keys if any(w in k for w in ("صقر", "فرص", "مسح", "التقرير اليومي", "عقود", "خيارات"))]
             print("   كتلٌ تخصّ صقرَ وفرصَه:", saqrish or "لا شيء")
+            from app.services import saqr_brief as SB   # ‏D819: وما تضيفه قناةُ صقر في رأس السياق
+            kn = SB.knowledge()
+            print(f"   عملُ صقر في رأس سياق قناته: {len(kn)} كتلة · {len(json.dumps(kn, ensure_ascii=False, default=str))} حرفاً — {list(kn)}")
         except Exception as e:                                  # noqa: BLE001
             print("   بناءُ السياق تعذّر:", type(e).__name__)
         print("══ ٢ الأسئلة")
         for q in QS:
             t0 = time.monotonic()
             try:
-                r = await asyncio.wait_for(C.answer(db, q, prefer_llm=True), 90)
+                r = await asyncio.wait_for(C.answer(db, q, prefer_llm=True, saqr=True), 90)   # ‏D819: القناةُ نفسُها التي يمرّ منها تلغرامُ والتطبيق
             except Exception as e:                              # noqa: BLE001
                 r = {"reply": f"استثناء {type(e).__name__}", "source": "error"}
             txt = str((r or {}).get("reply") or "")
