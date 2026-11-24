@@ -3,7 +3,7 @@
 
   ١ البروفايل لكلّ نافذة: عددُ الشموع ومداها، ونقطةُ التحكّم ومنطقةُ القيمة، والعُقدُ الكثيفة والفراغات، والسيولةُ وزمنُ الحساب.
   ٢ القراءةُ عند السعر الحاليّ وشاهدُ «الحجم» للشراء.
-  ٣ أثرُه على عقود الأمريكيّ: كم عقداً تُسقطه جدرانُ الحجم وكم هدفاً صار عقدةَ حجم (من دفتر العقود الفعليّ لثلاثة رموز).
+  ٣ أثرُه على عقود الأمريكيّ: كم عقداً تُسقطه جدرانُ الحجم وكم هدفاً صار عقدةَ حجم — مقارنةً بالسلسلة نفسِها بلا بروفايل.
 
     docker exec sp_backend python /app/scripts/audit/volume_profile_door_d818.py
 """
@@ -71,6 +71,17 @@ async def main():
             diag: dict = {}
             t0 = time.monotonic()
             _, ks = await OP.valid_contracts(sym, call, tr, diag)
+            real_for = VP.for_symbol                              # المقارنة: السلسلةُ نفسُها بلا بروفايل
+            async def _none(*a, **k):
+                return None
+            VP.for_symbol = _none
+            try:
+                d0: dict = {}
+                _, k0 = await OP.valid_contracts(sym, call, tr, d0)
+            finally:
+                VP.for_symbol = real_for
+            gone = sorted({k['contract'] for k in k0} - {k['contract'] for k in ks})
+            print(f"      بلا البروفايل: {len(k0)} عقداً · أسقطها البروفايل {len(gone)} {gone[:4]}")
             vp_t = [k for k in ks if "الفوليوم" in (k.get("target_label") or "")]
             print(f"   {sym} ({'شراء' if call else 'بيع'}): عقودٌ صالحة {len(ks)} · هدفُها عقدةُ حجم {len(vp_t)} · أبعدُ مرحلة "
                   f"{OP.STAGES[diag['stage']] if diag.get('stage', -1) >= 0 else '—'} · {time.monotonic() - t0:.1f}ث")
