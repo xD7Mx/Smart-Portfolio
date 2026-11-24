@@ -22,7 +22,8 @@ import ChartRead, { type ReadFrame } from "../chart/ChartRead";
 import CompanyLogo from "../common/CompanyLogo";
 import CheckBox from "../common/CheckBox";
 import InlineStockSearch from "./InlineStockSearch";
-import LayoutMenu, { type Preset, type Var3 } from "./LayoutMenu";
+import LayoutMenu, { type Preset } from "./LayoutMenu";
+import { MARKET_NAME } from "../../data/marketCatalog";
 import PaneSplitters from "./PaneSplitters";
 import OptionChain from "./OptionChain";
 import EconEvents from "./EconEvents";
@@ -36,7 +37,7 @@ import { useAppStore } from "../../store/appStore";
 import { useAuthStore } from "../../store/authStore";
 
 /* ‏D782: أسماءُ المؤشّرات للعنوان وحده — والقائمةُ نفسُها على الخادم («المؤشرات») بأسعارها وقابلةٌ للتعديل */
-const INDEX_NAMES: Record<string, string> = { "^TASI.SR": "تاسي", "^GSPC": "S&P 500", "^IXIC": "ناسداك", "^DJI": "داو جونز", "BZ=F": "برنت", "GC=F": "الذهب",
+const INDEX_NAMES: Record<string, string> = { ...MARKET_NAME, "^TASI.SR": "تاسي", "^GSPC": "S&P 500", "^IXIC": "ناسداك", "^DJI": "داو جونز", "BZ=F": "برنت", "GC=F": "الذهب",
   "BTC-USD": "بتكوين" };
 const PRESETS = ["السوق السعودي", "السوق الأمريكي"];
 type Row = { symbol: string; name: string; price?: number | null; change_pct?: number | null };
@@ -67,7 +68,7 @@ const pct = (v?: number | null) => v == null || !isFinite(Number(v)) ? null : Nu
 /* ‏D747: لأيّ سهمٍ أو صندوقٍ أمريكيّ سلسلةُ خيارات — والمؤشّرُ إلى مؤشّر خياراته (‏S&P 500 ⇐ SPX · ناسداك ⇐ NDX) */
 const OPT_INDEX: Record<string, string> = { "^GSPC": "^SPX", "^SPX": "^SPX", "^IXIC": "^NDX", "^NDX": "^NDX", "^RUT": "^RUT", "^VIX": "^VIX" };
 /* ‏D803: النصيبُ الأصليّ لكلّ ترتيب — ‏a للعمود الأوّل (يميناً) و‏b للصفّ الأوّل (أو للعليا من الاثنتين في «كبيرةٍ وبجانبها اثنتان») */
-const SIZE0: Record<string, { a: number; b: number }> = { "2": { a: 0.5, b: 0.5 }, "3s": { a: 0.575, b: 0.5 }, "3t": { a: 0.5, b: 0.58 }, "4": { a: 0.5, b: 0.5 } };
+const SIZE0: Record<string, { a: number; b: number }> = { "2": { a: 0.5, b: 0.5 }, "3t": { a: 0.5, b: 0.58 }, "4": { a: 0.5, b: 0.5 } };
 const chainOf = (s: string): string | null => {
   const o = parseOption(s);
   if (o) return o.root;
@@ -123,12 +124,11 @@ export default function TradeRoom() {
   multiRef.current = layoutN > 1;
   /* ‏D803 (المالك 2026-11-24): «الثلاثُ: واحدةٌ بالعرض فوق واثنتان تحت بجانب بعض» و«أمدّد واحدةً وأنقص — مرونة»: ترتيبُ الثلاث، ونصيبُ
      العمود الأوّل (‏a) والصفّ الأوّل (‏b) لكلّ ترتيبٍ على حدة — يُسحب الفاصلُ فيتغيّر، ويُحفظ */
-  const [var3, setVar3State] = useState<Var3>(() => (lsGet("sp_room_var3") === "top" ? "top" : "side"));
-  const setVar3 = (v: Var3) => { setVar3State(v); lsSet("sp_room_var3", v); };
+  /* ‏D811 (المالك): «احذف الخيارَ الذي تكون الكبيرةُ فيه على اليمين — ثلاث شاشات: الكبيرةُ فوق والصغيرتان تحت بجانب بعض» — ترتيبٌ واحد */
   const [sizes, setSizesState] = useState<Record<string, { a: number; b: number }>>(() => {
     try { const v = JSON.parse(lsGet("sp_room_sizes") || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; }
   });
-  const lkey = layoutN === 3 ? (var3 === "top" ? "3t" : "3s") : String(layoutN);
+  const lkey = layoutN === 3 ? "3t" : String(layoutN);
   const okR = (v: unknown, d: number) => (typeof v === "number" && v >= 0.25 && v <= 0.75 ? v : d);
   const sz = { a: okR(sizes[lkey]?.a, (SIZE0[lkey] || SIZE0["2"]).a), b: okR(sizes[lkey]?.b, (SIZE0[lkey] || SIZE0["2"]).b) };
   const sizesRef = useRef(sizes);
@@ -136,8 +136,7 @@ export default function TradeRoom() {
   const setSize = (part: { a?: number; b?: number }) => setSizesState(o => ({ ...o, [lkey]: { ...sz, ...(o[lkey] || {}), ...part } }));
   const saveSizes = () => lsSet("sp_room_sizes", JSON.stringify(sizesRef.current));
   const resetSize = () => setSizesState(o => { const n = { ...o }; delete n[lkey]; lsSet("sp_room_sizes", JSON.stringify(n)); return n; });
-  const shareOf = (k: number) => layoutN === 2 ? 1 : layoutN === 4 ? (k < 2 ? sz.b : 1 - sz.b)
-    : var3 === "top" ? (k === 0 ? sz.b : 1 - sz.b) : (k === 0 ? 1 : k === 1 ? sz.b : 1 - sz.b);
+  const shareOf = (k: number) => layoutN === 2 ? 1 : layoutN === 4 ? (k < 2 ? sz.b : 1 - sz.b) : (k === 0 ? sz.b : 1 - sz.b);
   /* ‏D804 (المالك 2026-11-24): «أحفظ إعداداً مخصّصاً — ثلاثُ شاشاتٍ لشركاتٍ معيّنة — ثابتاً في المفضّلة، مع زرّ مسح»: عددُ الشاشات وترتيبُها
      ورمزُ كلٍّ وإطارُه ونصيبُه؛ والتطبيقُ يعيد بناءَ الشاشات (‏epoch) لتقرأ إطاراتِها */
   const [presets, setPresetsState] = useState<Preset[]>(() => {
@@ -190,10 +189,9 @@ export default function TradeRoom() {
      الرسم ويُطرح من الموضع: مجموعُ الارتفاع يتبعه واحداً بواحد (حتى حدودِ اللوحة الدنيا والعليا)، فخطوةٌ واحدةٌ تملأ — وعدّادٌ يمنع الدوران. */
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [wideTop, setWideTop] = useState(104);
-  const [wideHead, setWideHead] = useState(34);
   const fitTries = useRef(0);
   useEffect(() => {
-    if (!wide) { setWideTop(104); setWideHead(34); fitTries.current = 0; return; }
+    if (!wide) { setWideTop(104); fitTries.current = 0; return; }
     let t = 0;
     const measure = (delay: number) => {
       window.clearTimeout(t);
@@ -204,11 +202,6 @@ export default function TradeRoom() {
         let top = 0;
         for (let e: HTMLElement | null = g; e && e !== panel; e = e.offsetParent as HTMLElement | null) top += e.offsetTop;
         const gap = panel.clientHeight - (top + g.offsetHeight);
-        // ثلاثُ شاشات: العمودُ الكبيرُ شاشةٌ واحدة والصغيرُ اثنتان لكلٍّ رأسُها — فيُسوّى العمودان أوّلاً بمعامل الرأس (‏head)،
-        // فالفرقُ بينهما يتبعه واحداً بواحد؛ ثمّ يُملأ الارتفاع بمعامل الأعلى
-        const ps = g.querySelectorAll<HTMLElement>('[data-role="troom-pane"]');
-        const colDiff = layoutN === 3 && var3 === "side" && ps.length === 3 ? (ps[0].offsetTop + ps[0].offsetHeight) - (ps[2].offsetTop + ps[2].offsetHeight) : 0;
-        if (Math.abs(colDiff) > 2) { fitTries.current += 1; setWideHead(h => Math.max(-200, Math.min(400, Math.round(h - colDiff)))); return; }
         if (Math.abs(gap) <= 2) return;
         fitTries.current += 1;
         setWideTop(v => Math.max(-400, Math.round(v - gap)));               // معاملُ معايرةٍ لا موضع — قد يكون سالباً (أربعُ شاشات)
@@ -221,7 +214,7 @@ export default function TradeRoom() {
     const onResize = () => { fitTries.current = 0; measure(200); };
     window.addEventListener("resize", onResize);
     return () => { window.clearTimeout(t); ro?.disconnect(); window.removeEventListener("resize", onResize); };
-  }, [wide, layoutN, var3, wideTop, wideHead]);
+  }, [wide, layoutN, wideTop]);
   const snaps = useRef(new Map<number, () => ReadFrame | null>());
   const rowsBox = useRef<HTMLDivElement>(null), rowsBox2 = useRef<HTMLDivElement>(null);
   useFlip(rowsBox); useFlip(rowsBox2);
@@ -444,21 +437,20 @@ export default function TradeRoom() {
   };
   const tfKey = (k: number) => (k ? `sp_chart_tf_s${k}` : "sp_chart_tf");
   const savePreset = (name: string) => {
-    const p: Preset = { id: Date.now().toString(36), name, n: layoutN, v3: var3, syms: [symbol, ...panes.slice(1, 4)], tfs: [0, 1, 2, 3].map(k => lsGet(tfKey(k))),
+    const p: Preset = { id: Date.now().toString(36), name, n: layoutN, syms: [symbol, ...panes.slice(1, 4)], tfs: [0, 1, 2, 3].map(k => lsGet(tfKey(k))),
       a: sz.a, b: sz.b };
     setPresets([...presets, p].slice(-12));
   };
   const applyPreset = (p: Preset) => {
-    const lk = p.n === 3 ? (p.v3 === "top" ? "3t" : "3s") : String(p.n);
+    const lk = p.n === 3 ? "3t" : String(p.n);
     p.tfs.forEach((t, k) => { if (t) lsSet(tfKey(k), t); });
     if (p.syms[0]) setMain(p.syms[0]);
     setPanesState(() => { const n = [0, 1, 2, 3].map(k => (k === 0 ? null : (p.syms[k] as string | null) || null)); lsSet("sp_room_panes", JSON.stringify(n)); return n; });
-    setVar3(p.v3 === "top" ? "top" : "side");
     setSizesState(o => { const n = { ...o, [lk]: { a: okR(p.a, 0.5), b: okR(p.b, 0.5) } }; lsSet("sp_room_sizes", JSON.stringify(n)); return n; });
     setLayout(p.n); setActive(0); setEpoch(e => e + 1);
   };
   const layoutCtl = (
-    <LayoutMenu n={layoutN} v3={var3} onPick={(n, v) => { setLayout(n); if (v) setVar3(v); }} presets={presets} onApply={applyPreset}
+    <LayoutMenu n={layoutN} onPick={setLayout} presets={presets} onApply={applyPreset}
       onDelete={id => setPresets(presets.filter(x => x.id !== id))} onSave={savePreset} suggest={suggestName} />
   );
 
@@ -650,7 +642,7 @@ export default function TradeRoom() {
             <ProChart key={`one-${epoch}`} symbol={symbol} theme={theme === "light" ? "light" : "dark"} embedded snaps={snaps} fillH={wide ? fillH : null} tools={layoutCtl} />
           </div>
         ) : (
-          <div ref={gridRef} className={`troom-grid g${layoutN}` + (layoutN === 3 && var3 === "top" ? " g3t" : "")} data-role="troom-grid" data-var={layoutN === 3 ? var3 : ""}
+          <div ref={gridRef} className={`troom-grid g${layoutN}`} data-role="troom-grid"
             style={{ ["--fa" as string]: `${sz.a}fr`, ["--fb" as string]: `${1 - sz.a}fr` } as React.CSSProperties}>
             {Array.from({ length: layoutN }, (_, k) => {
               const ps = paneSym(k);
@@ -659,11 +651,11 @@ export default function TradeRoom() {
                   onPointerDownCapture={() => { if (k !== active) setActive(k); }}>
                   {paneHead(k, ps, k === 0 || !!panes[k])}
                   <ProChart key={`${k}-${epoch}`} symbol={ps} theme={theme === "light" ? "light" : "dark"} slot={k} mini embedded share={shareOf(k)}
-                    fit={{ top: wide ? wideTop : 250, head: wide ? wideHead : 34 }} snaps={snaps} tools={k === 0 ? layoutCtl : undefined} />
+                    fit={{ top: wide ? wideTop : 250, head: 34 }} snaps={snaps} tools={k === 0 ? layoutCtl : undefined} />
                 </div>
               );
             })}
-            <PaneSplitters grid={gridRef} n={layoutN} v3={var3} a={sz.a} b={sz.b} onChange={setSize} onCommit={() => { saveSizes(); fitTries.current = 0; }} onReset={() => { resetSize(); fitTries.current = 0; }} />
+            <PaneSplitters grid={gridRef} n={layoutN} a={sz.a} b={sz.b} onChange={setSize} onCommit={() => { saveSizes(); fitTries.current = 0; }} onReset={() => { resetSize(); fitTries.current = 0; }} />
           </div>
         )}
         {chainFor && (

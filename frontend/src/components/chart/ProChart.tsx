@@ -206,6 +206,9 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
   const openCfgRef = useRef(openCfg);
   openCfgRef.current = openCfg;
   const [tool, setTool] = useState<Tool>(null);
+  /* ‏D810 (المالك): «النقرتان على أيّ مؤشّرٍ في أيّ شاشة تكبّره وحده فيأخذ مكانَ الباقي — والنقرتان مرّةً أخرى تعيدان الكلّ»:
+     ‏"main" للرسم نفسِه، أو مفتاحُ لوحةٍ سفلى (‏stochrsi · cvd · macd) */
+  const [solo, setSolo] = useState<string | null>(null);
   const [railOpen, setRailOpen] = useState(false);
   const [full, setFull] = useState(false);
   /* المنطقةُ الزمنيةُ ومقياسُ السعر — كتريدنق فيو، ويُحفظان لكلّ الرموز */
@@ -299,7 +302,7 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
   const mainRef = useRef<ISeriesApi<any> | null>(null);
   const markRef = useRef<any>(null);
   const overlay = useRef(new ChartOverlay());
-  const reg = useRef(new Map<string, { sig: string; series: ISeriesApi<any>[] }>());
+  const reg = useRef(new Map<string, { sig: string; series: ISeriesApi<any>[]; vis?: boolean[] }>());
   const sigRef = useRef({ main: "", key: "", n: 0, first: null as any, panes: "" });
   const legend = useRef<Record<string, HTMLElement | null>>({});
   const pend = useRef<any>(null);                 // أوّلُ نقطتَي خطّ الاتجاه
@@ -310,6 +313,7 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
 
   /* الارتفاع: الرسمُ كلُّه داخل الشاشة كتريدنق فيو — اللوحاتُ السفلى تقتسم ارتفاعَه ولا تدفعه تحت الطيّ، إلّا إن ضاقت الرئيسةُ عن حدّها */
   const oscOn = OSC.filter(k => eff[k]);
+  const soloK = oscOn.length && (solo === "main" || oscOn.includes(solo as IndKey)) ? solo : null;   // مؤشّرٌ أُطفئ وهو مكبَّر ⇒ يعود الكلّ
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   const chromeH = (topRef.current?.offsetHeight ?? 50) + (narrow && (railOpen || tool) ? 42 : 0);
   const stripH = force ? (mini ? 36 : 66) : 0;                                   // لوحتا الاتجاه والسيولة فوق الرسم (‏D782)
@@ -472,8 +476,31 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
         const D = S.current.disp;
         root.dataset.lastT = D.length ? crossLabel(D[D.length - 1]) : "";
         root.dataset.scale = String(chart.priceScale("right").options().mode);
+        root.dataset.paneH = chart.panes().map((_, i) => Math.round(chart.paneSize(i).height)).join(",");   // ‏D810: ارتفاعُ كلّ لوحة
+        root.dataset.lines = [...reg.current].map(([k, e]) => `${k}:${e.series.map(s => (s.options().visible ? 1 : 0)).join("")}`).join(" ");   // ‏D813: الظاهرُ من خطوط كلّ مؤشّر
       }
     } catch { /* لم يُرسم بعد */ }
+  };
+
+  /* ‏D810: ضبطُ نصيب اللوحات — بانتقالٍ قصيرٍ من ارتفاعاتها الحاليّة إلى المطلوبة (‏ease-out)، وفوراً لمن يفضّل تقليلَ الحركة */
+  const soloAnim = useRef(0);
+  const setFactors = (chart: IChartApi, want: number[], morph: boolean) => {
+    cancelAnimationFrame(soloAnim.current);
+    const panes = chart.panes();
+    const calm = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!morph || calm) { panes.forEach((p, i) => p.setStretchFactor(want[i] ?? 1)); return; }
+    const tot = want.reduce((a, b) => a + b, 0);
+    const now = panes.map((_, i) => { try { return chart.paneSize(i).height; } catch { return 0; } });
+    const nTot = now.reduce((a, b) => a + b, 0) || 1;
+    const from = now.map(h => (h / nTot) * tot);
+    const t0 = performance.now(), dur = 240;
+    const step = (ts: number) => {
+      const k = Math.min(1, (ts - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      chart.panes().forEach((p, i) => p.setStretchFactor(Math.max(0.0001, from[i] + ((want[i] ?? 1) - from[i]) * e)));
+      readLayout();
+      soloAnim.current = requestAnimationFrame(k < 1 ? step : () => readLayout());
+    };
+    soloAnim.current = requestAnimationFrame(step);
   };
 
   /* ── إنشاءُ الرسم مرّةً واحدة ── */
@@ -503,13 +530,30 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
     chart.subscribeCrosshairMove(onCross);
     chart.timeScale().subscribeVisibleLogicalRangeChange(onRange);
     /* ‏D781: الضغطُ على خطّ المؤشّر نفسِه في الرسم يفتح إعداداته — السلسلةُ تحت المؤشّر تُعرف بسجلّ المؤشّرات */
+    /* ‏D810: والنقرةُ الأولى من نقرتين لا تفتح الإعدادات — تنتظر لحظةً، فإن تلتها الثانيةُ فهي تكبيرٌ لا إعداد */
+    let clickT = 0, lastDbl = 0;
     const onClick = (p: MouseEventParams) => {
       const hit = (p as any).hoveredInfo?.series ?? p.hoveredSeries;
       if (!hit) return;
-      for (const [k, e] of reg.current) if (e.series.includes(hit as any)) { openCfgRef.current(k); return; }
+      for (const [k, e] of reg.current) if (e.series.includes(hit as any)) {
+        window.clearTimeout(clickT);
+        clickT = window.setTimeout(() => { if (Date.now() - lastDbl > 400) openCfgRef.current(k); }, 300);
+        return;
+      }
     };
     chart.subscribeClick(onClick);
+    /* ‏D810: النقرتان على لوحةٍ تكبّرانها وحدها (والرسمُ نفسُه لوحة) — ومرّةً أخرى تعيدان الكلّ؛ ولا تكبيرَ وأداةُ رسمٍ مختارة */
+    const onDbl = (p: MouseEventParams) => {
+      lastDbl = Date.now(); window.clearTimeout(clickT);
+      const pi = (p as any).paneIndex as number | undefined;
+      if (S.current.tool || pi == null || chart.panes().length < 2) return;
+      let key: string | null = pi === 0 ? "main" : null;
+      reg.current.forEach((e, k) => { if (pi > 0 && OSC.includes(k as IndKey) && e.series[0]?.getPane().paneIndex() === pi) key = k; });
+      if (key) setSolo(s => (s === key ? null : key));
+    };
+    chart.subscribeDblClick(onDbl);
     return () => {
+      window.clearTimeout(clickT); cancelAnimationFrame(soloAnim.current);
       chart.remove();
       chartRef.current = null; mainRef.current = null; markRef.current = null;
       reg.current.clear(); sigRef.current = { main: "", key: "", n: 0, first: null, panes: "" };
@@ -692,12 +736,18 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
         const pane = OSC.includes(k) ? (cur?.series[0] ? cur.series[0].getPane().paneIndex() : chart.panes().length) : 0;
         const fresh = build[k](pane);
         if (cur) cur.series.forEach(s => chart.removeSeries(s));
-        R.set(k, { sig, series: fresh });
+        // ‏D813: ظهورُ كلّ خطٍّ كما بُني (‏K و‏D في إعدادات ستوكاستيك) — يُحفظ فلا تمحوه العينُ ولا التكبير
+        R.set(k, { sig, series: fresh, vis: fresh.map(s => s.options().visible !== false) });
       }
       feed[k](R.get(k)!.series);
     }
-    /* ‏D756 (المالك: «علامةُ العين لإخفاء المؤشّرات أو إظهارها»): المخفيُّ يبقى بإعداداته ولوحته، ولا يُرسم */
-    R.forEach((e, k) => e.series.forEach(x => x.applyOptions({ visible: !(hideAll || hid[k]) })));
+    /* ‏D756 (المالك: «علامةُ العين لإخفاء المؤشّرات أو إظهارها»): المخفيُّ يبقى بإعداداته ولوحته، ولا يُرسم —
+       و‏D813: كان هذا السطرُ يُظهر كلَّ خطوط المؤشّر فيمحو إخفاءَ ‏K أو ‏D من إعدادات ستوكاستيك (يُحفظ الإعدادُ ويبقى الخطُّ مرسوماً) */
+    /* ‏D810: والمؤشّرُ المكبَّرُ وحده يُرسم — اللوحاتُ المطويّةُ (سطرٌ من بكسلين) كانت تُظهر شريحةً من الشموع والنطاقات فوقه */
+    const soloIdx = soloK == null ? -1 : soloK === "main" ? 0 : (R.get(soloK)?.series[0]?.getPane().paneIndex() ?? -1);
+    const shown = (x: ISeriesApi<any>) => soloIdx < 0 || x.getPane().paneIndex() === soloIdx;
+    R.forEach((e, k) => e.series.forEach((x, i) => x.applyOptions({ visible: (e.vis?.[i] ?? true) && !(hideAll || hid[k]) && shown(x) })));
+    main.applyOptions({ visible: shown(main) });
     main.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: eff.vol ? 0.2 : 0.06 } });
     /* المشهدُ الأوّل لإطارٍ أو رمزٍ جديد: آخرُ الشموع بعرضٍ مقروء (لا الكلُّ محشوراً) — بعد أن تستقرّ السلاسلُ كلُّها على الزمن الجديد */
     if (pendRange.current != null && n) { const pr = pendRange.current; pendRange.current = null; rangeTo(pr); }
@@ -716,13 +766,23 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
 
     /* ٥ اللوحات: الرئيسةُ بارتفاعها والسفلى بارتفاعٍ واحد — تُضبط حين يتغيّر عددُها أو ارتفاعُ الرسم وحدهما، فما سحبه المالكُ
        من فواصلها يبقى ولا يرتدّ مع كلّ تحديثٍ للسعر */
-    const panes = chart.panes(), pSig = `${panes.length}|${mainPx}|${oscPx}`;
-    if (sigRef.current.panes !== pSig) { panes.forEach((p, i) => p.setStretchFactor(i === 0 ? mainPx : oscPx)); sigRef.current.panes = pSig; }
+    /* ‏D810: والمكبَّرُ وحده يأخذ الارتفاعَ كلَّه والباقي يُطوى (سطرٌ لا يُرى) — بانتقالٍ لا قفزة، والعودةُ كذلك */
+    const panes = chart.panes(), pSig = `${panes.length}|${mainPx}|${oscPx}|${soloK ?? ""}`;
+    if (sigRef.current.panes !== pSig) {
+      const prev = sigRef.current.panes;
+      const want = panes.map((_, i) => (soloIdx < 0 ? (i === 0 ? mainPx : oscPx) : i === soloIdx ? stageH : 0.0001));
+      const morph = prev.split("|")[0] === String(panes.length) && prev.split("|")[3] !== (soloK ?? "");
+      setFactors(chart, want, morph);
+      sigRef.current.panes = pSig;
+    }
     paint();
     fill(n - 1);
     requestAnimationFrame(readLayout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [raw, bars, disp, tzName, eff, scaleMode, calc, d7m, ind, ctype, cvdCfg, cfg, theme, tf, symbol, mainPx, oscPx, wide, hid, hideAll, cc]);
+  }, [raw, bars, disp, tzName, eff, scaleMode, calc, d7m, ind, ctype, cvdCfg, cfg, theme, tf, symbol, mainPx, oscPx, wide, hid, hideAll, cc, soloK]);
+
+  /* ‏D810: أداةُ رسمٍ تُختار ولوحةٌ سفلى مكبَّرة ⇒ يعود الكلّ، فالرسمُ اليدويُّ على الرسم نفسِه */
+  useEffect(() => { if (tool && soloK && soloK !== "main") setSolo(null); }, [tool, soloK]);
 
   /* لوحةٌ سفلى ظهرت للتوّ: وسيلةُ إيضاحها تُركَّب بعد أن يُعرف موضعُها — فتُملأ قيمُها حينها، لا عند أوّل حركةٍ للمؤشّر (كانت «———») */
   useEffect(() => { fill(S.current.bars.length - 1); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [paneTops, legFold]);   // ‏D781: وبعد فكّ الطيّ تُملأ القيمُ فوراً
@@ -949,9 +1009,15 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
   const empty = raw !== undefined && !bars.length;
   const nMain = (ind.vol ? 1 : 0) + (ind.cvd && !volOk ? 1 : 0) + (ind.d7m ? 1 : 0);
 
+  /* ‏D810: زرُّ العودة في رأس المكبَّر — للّمس ولمن لا يعرف النقرتين؛ والنقرتان مرّةً أخرى تفعلان الشيءَ نفسَه */
+  const soloBack = (
+    <button type="button" className="pc-fold pc-solo-back" onClick={() => setSolo(null)} data-role="pc-solo-back"
+      title="إظهارُ كلِّ اللوحات" aria-label="إظهارُ كلِّ اللوحات"><Minimize2 size={14} /></button>
+  );
+
   return (
     <div ref={rootRef} className={"pc" + (full ? " pc-full" : "") + (mini ? " pc-mini" : "")} data-role="pro-chart" data-tf={tf} data-type={ctype} data-symbol={symbol}
-      data-slot={slot}>
+      data-slot={slot} data-solo={soloK ?? ""}>
       {/* ══ الشريطُ العلويّ — كتريدنق فيو: الرمزُ · الإطارات · نوعُ الرسم · المؤشّرات · الرسم · لقطة · ملءُ الشاشة ══ */}
       <div ref={topRef} className="pc-top" data-role="pc-top">
         {!mini && !embedded && live?.session && (
@@ -1098,8 +1164,10 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
           <div ref={boxRef} className="pc-box" />
 
           {/* وسيلةُ الإيضاح — قيمُ الشمعة تحت خطّ التقاطع، ثمّ مؤشّراتُ اللوحة الرئيسة */}
-          <div className="pc-legend" dir="ltr" data-role="pc-legend">
+          <div className={"pc-legend" + (soloK && soloK !== "main" ? " pc-leg-off" : "")} dir="ltr" data-role="pc-legend">
             <div className="pc-ohlc">
+              {/* ‏D810: أوّلَ السطر لا آخرَه — قيمُ الشمعة تتغيّر عرضاً مع حركة المؤشّر فكان الزرُّ يزحف تحت المؤشّر قبل أن يُضغط */}
+              {soloK === "main" && soloBack}
               <span className="pc-k">O</span><b ref={lv("o")} data-k="o">—</b><span className="pc-k">H</span><b ref={lv("h")} data-k="h">—</b>
               <span className="pc-k">L</span><b ref={lv("l")} data-k="l">—</b><span className="pc-k">C</span><b ref={lv("c")} data-k="c">—</b>
               <b ref={lv("chg")} className="pc-chg" data-k="chg" />
@@ -1119,8 +1187,9 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
               </div>
             )}
           </div>
-          {oscOn.map(k => paneTops[k] != null && (
-            <div key={k} className="pc-legend pc-pane-legend" dir="ltr" style={{ top: paneTops[k] + 4 }} data-role="pane-tag" data-ind={k}>
+          {oscOn.map(k => paneTops[k] != null && (!soloK || soloK === k) && (
+            <div key={k} className={"pc-legend pc-pane-legend" + (soloK === k ? " pc-solo" : "")} dir="ltr" style={{ top: paneTops[k] + 4 }} data-role="pane-tag" data-ind={k}>
+              {soloK === k && soloBack}
               {legFold ? <button type="button" className="pc-fold" onClick={foldLeg} aria-expanded={false} title="إظهارُ أسماء المؤشّرات" aria-label="إظهارُ أسماء المؤشّرات"
                 data-role="pc-fold-pane"><ChevronRight size={14} /></button> : <>
               {k === "macd" && chip("macd", <><span className="pc-k" style={{ color: "var(--info-ink)" }}>MACD 12 26 close 9</span>

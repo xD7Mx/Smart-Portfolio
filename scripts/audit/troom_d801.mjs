@@ -6,6 +6,8 @@
 //  ‏D803 «أمدّد واحدةً وأنقص — مرونة»، و«الثلاثُ: واحدةٌ بالعرض فوق واثنتان تحت بجانب بعض».
 //  ‏D804 «أحفظ تخصيصاً (ثلاثُ شاشاتٍ لشركاتٍ معيّنة) في المفضّلة — في شاشة الإطارات نفسِها مع زرّ مسح».
 //  ‏D805 «النقاطُ المتّصلةُ بالأرقام ظهرت على الكمبيوتر أيضاً بعد ثلاث شاشات».
+//  ‏D811 (بعدها): «احذف الخيارَ الذي تكون الكبيرةُ فيه على اليمين — ثلاث شاشات وحدها»: للثلاث ترتيبٌ واحد، والتخصيصُ لا يحمل ترتيباً،
+//        وقيمةُ «side» المحفوظةُ من قبل (في تهيئة هذا الحارس) لا أثرَ لها.
 //    SHOTS=dir node scripts/audit/troom_d801.mjs
 // ─────────────────────────────────────────────────────────────────────────
 import { existsSync, readFileSync } from "node:fs";
@@ -117,7 +119,7 @@ for (const [label, vp, theme] of [["الحاسوب · داكن", { width: 1440, 
   // ── ٣ ‏D803: «كبيرةٌ فوق واثنتان تحت»، والفواصلُ تُسحب وتُحفظ، والنقرتان تعيدانها ──
   const layBtn = page.locator('[data-role="troom-chart"] [data-role="pc-tfs"] + .troom-layw [data-role="troom-layout"]').first();
   await layBtn.click(); await page.waitForTimeout(300);
-  await page.locator('[data-role="troom-layout-menu"] [data-layout="3"][data-var="top"]').click(); await page.waitForTimeout(1800);
+  await page.locator('[data-role="troom-layout-menu"] [data-layout="3"]').click(); await page.waitForTimeout(1800);
   const geo = () => page.evaluate(() => { const g = document.querySelector('[data-role="troom-grid"]').getBoundingClientRect();
     return [...document.querySelectorAll('[data-role="troom-pane"]')].map(p => { const r = p.getBoundingClientRect(); return [Math.round(r.left - g.left), Math.round(r.top - g.top), Math.round(r.width), Math.round(r.height)]; }); });
   const g0 = await geo();
@@ -164,14 +166,14 @@ for (const [label, vp, theme] of [["الحاسوب · داكن", { width: 1440, 
   await layBtn.click(); await page.waitForTimeout(300);
   const items = await page.locator('[data-role="troom-preset"]').count();
   await page.locator('[data-role="troom-preset-go"]').first().click(); await page.waitForTimeout(2200);
-  const s4 = await syms(), var4 = await page.locator('[data-role="troom-grid"]').getAttribute("data-var");
+  const s4 = await syms(), var4 = await page.locator('[data-role="troom-grid"]').getAttribute("class");
   await layBtn.click(); await page.waitForTimeout(300);
   await page.locator('[data-role="troom-preset-del"]').first().click(); await page.waitForTimeout(300);
   const after = await page.locator('[data-role="troom-preset"]').count(), ps2 = await page.evaluate(() => JSON.parse(localStorage.getItem("sp_room_presets") || "[]"));
   await page.keyboard.press("Escape"); await page.waitForTimeout(300);
-  say(sug.length > 0 && ps1.length === 1 && ps1[0].name === "عقدُ أبل تحت أرامكو" && ps1[0].n === 3 && ps1[0].v3 === "top" && one === 1 && items === 1
-      && s4.length === 3 && var4 === "top" && /^AAPL\d{6}C/.test(s4[2] || "") && s4[0] === "2222.SR" && after === 0 && ps2.length === 0,
-      `${label}: ٤ «تخصيص» في قائمة الشاشات يحفظ الحاليّةَ باسمٍ في المفضّلة، وضغطتُه تعيد الثلاثَ بترتيبها ورموزها، وزرُّ المسح يزيلها`,
+  say(sug.length > 0 && ps1.length === 1 && ps1[0].name === "عقدُ أبل تحت أرامكو" && ps1[0].n === 3 && one === 1 && items === 1
+      && s4.length === 3 && /\bg3\b/.test(var4 || "") && /^AAPL\d{6}C/.test(s4[2] || "") && s4[0] === "2222.SR" && after === 0 && ps2.length === 0,
+      `${label}: ٤ «إنشاء لوحة جديدة» في قائمة الشاشات يحفظ الحاليّةَ باسمٍ في المفضّلة، وضغطتُه تعيد الثلاثَ بترتيبها ورموزها، وزرُّ المسح يزيلها`,
       JSON.stringify({ sug, ps1: ps1.map(p => [p.name, p.n, p.v3, p.syms]), one, items, s4, var4, after }));
 
   // ── ٥ ‏D805: لا مِهمازَ منقّطاً في أيّ شاشة ──

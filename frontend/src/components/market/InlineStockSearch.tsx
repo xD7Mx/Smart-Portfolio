@@ -6,6 +6,7 @@ import CompanyLogo from "../common/CompanyLogo";
 import { marketApi } from "../../services/api";
 import { optionTitle, parseOption, toOcc } from "../../lib/options";
 import { normalizeSymbol } from "../../lib/symbols";
+import { searchMarkets } from "../../data/marketCatalog";
 
 type Remote = { symbol: string; name: string; type: string; exchange: string; us: boolean };
 const LATIN = /^[\^A-Za-z][A-Za-z0-9.=^ -]{0,24}$/;
@@ -115,7 +116,12 @@ export default function InlineStockSearch(
   /* ‏D802: «العقود» بجانب كلّ سهمٍ أمريكيّ — تفتح سلسلةَ خياراته، والعقدُ المختارُ يُفتح في الشاشة نفسِها */
   const chain = (sym: string) => { close(); onChain?.(sym.toUpperCase()); };
   const ar = global ? arUs(q) : [];
-  const usRows = [...ar, ...remote.filter(r => !ar.some(a => a.symbol === r.symbol))];
+  /* ‏D812 (المالك): «مربّعُ البحث سبيلُنا إلى الرسم — المؤشّراتُ (تاسي وغيرُه) وبرنت والذهب داخل كلّ إطار»: أوّلَ القائمة، ولا تتكرّر في الأمريكيّ */
+  const mk = global && !toOcc(q.trim()) ? searchMarkets(q) : [];
+  const usRows = [...ar, ...remote.filter(r => !ar.some(a => a.symbol === r.symbol))].filter(r => !mk.some(m => m.symbol === r.symbol));
+  const qn = arNorm(q.toLowerCase());
+  const mkTop = mk.find(m => m.symbol === q.trim().toUpperCase() || m.al.some(a => arNorm(a.toLowerCase()) === qn))
+    || (!hits.length && !ar.length && !remote.length ? mk[0] : undefined);
 
   return (
     /* ══ لا `line-height: 0` على الحاوية ══
@@ -135,10 +141,10 @@ export default function InlineStockSearch(
           tabIndex={open ? 0 : -1}
           onChange={e => { setQ(e.target.value); setHits(searchCompanies(e.target.value, 400)); }}
           onKeyDown={e => {
-            if (e.key === "Enter" && (hits[0] || remote[0] || q)) {
+            if (e.key === "Enter" && (hits[0] || remote[0] || mk[0] || q)) {
               /* ‏D787: رمزٌ ملصوقٌ يُفتح كما هو — عقدٌ بصيغتيه (‏OCC · تريدنق فيو)، أو ببادئة سوقه (‏TADAWUL:1120 · NASDAQ:NVDA)، أو «تاسي» */
               const t = q.trim(), occ = toOcc(t), code = /:/.test(t) || /^(تاسي|TASI)$/i.test(t) ? normalizeSymbol(t) : null;
-              pick(occ || code || (global && LATIN.test(t) ? remote[0]?.symbol || hits[0]?.symbol : hits[0]?.symbol || ar[0]?.symbol || remote[0]?.symbol) || t);
+              pick(occ || code || mkTop?.symbol || (global && LATIN.test(t) ? remote[0]?.symbol || hits[0]?.symbol : hits[0]?.symbol || ar[0]?.symbol || remote[0]?.symbol) || t);
             }
             if (e.key === "Escape") close();
           }} />
@@ -147,7 +153,7 @@ export default function InlineStockSearch(
       {/* ══ السوقان في قائمةٍ واحدة ══ (بأمر المالك · D521 · ‏D761)
          كانت نتائجُ السوق الأمريكيّ لا تظهر إن وافق الحرفُ اسماً سعودياً («NIO» في «Union»…) — قائمتان في موضعٍ واحدٍ تُخفي إحداهما
          الأخرى. والآن قائمةٌ واحدة: عقدُ الخيار المنسوخ أوّلاً، ثمّ الأمريكيُّ (والحرفُ لاتينيّ)، ثمّ السعوديّ. */}
-      {open && pos && (hits.length > 0 || (global && (usRows.length > 0 || !!toOcc(q.trim()) || (!busy && /^[\^A-Za-z][A-Za-z0-9.=^-]{0,14}$/.test(q.trim()))))) && createPortal(
+      {open && pos && (hits.length > 0 || (global && (mk.length > 0 || usRows.length > 0 || !!toOcc(q.trim()) || (!busy && /^[\^A-Za-z][A-Za-z0-9.=^-]{0,14}$/.test(q.trim()))))) && createPortal(
         <div ref={menuRef} dir={pos.rtl ? "rtl" : "ltr"} className="sp-menu search-pop rounded-xl overflow-hidden shadow-2xl"
           style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxH, overflowY: "auto" }}
           data-role="search-remote">
@@ -159,6 +165,14 @@ export default function InlineStockSearch(
               <span className="text-[var(--ink-muted)] text-[11px] ms-auto">عقد خيار</span>
             </button>
           )}
+          {mk.map(m => (
+            <button key={m.symbol} type="button" onClick={() => pick(m.symbol)} data-role="search-mkt" data-symbol={m.symbol}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[36px] text-start hover:panel transition-colors">
+              <CompanyLogo symbol={m.symbol} size={22} />
+              <span className="text-[12.5px] font-bold text-[var(--ink)] truncate min-w-0">{m.name}</span>
+              <span className="text-[var(--ink-muted)] text-[10.5px] ms-auto shrink-0">{m.kind}</span>
+            </button>
+          ))}
           {global && !toOcc(q.trim()) && usRows.map(r => (
             <div key={r.symbol} className="search-row flex items-stretch hover:panel transition-colors">
               <button type="button" onClick={() => pick(r.symbol)} data-role="search-hit" data-symbol={r.symbol}
@@ -176,7 +190,7 @@ export default function InlineStockSearch(
               )}
             </div>
           ))}
-          {global && !toOcc(q.trim()) && !usRows.length && !hits.length && !busy && (
+          {global && !toOcc(q.trim()) && !usRows.length && !hits.length && !mk.length && !busy && (
             <button type="button" onClick={() => pick(q.trim())}
               className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[32px] text-start hover:panel transition-colors">
               <span className="tabular-nums text-[12px] font-semibold text-[var(--ink)]" dir="ltr">{q.trim().toUpperCase()}</span>

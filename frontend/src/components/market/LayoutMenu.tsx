@@ -1,25 +1,26 @@
 /* ══ مبدّلُ الشاشات ══ (‏D801 · ‏D803 · ‏D804 — المالك 2026-11-24)
    «زرُّ تقسيم الشاشات بجانب الإطارات — لا آخرَ شيءٍ على اليسار»: يوضع في شريط الرسم بعد أزرار الإطارات مباشرة.
-   «الثلاثُ: واحدةٌ بالعرض فوق واثنتان تحت بجانب بعض — أجملُ: الشارتُ الكبيرُ فوق وتحته العقدُ كول أو بوت»: ترتيبان للثلاث.
+   «الثلاثُ: واحدةٌ بالعرض فوق واثنتان تحت بجانب بعض — أجملُ: الشارتُ الكبيرُ فوق وتحته العقدُ كول أو بوت».
+   ‏D811 (المالك 2026-11-24): «احذف الخيارَ الذي تكون الكبيرةُ فيه على اليمين، واكتفِ بجملة: ثلاث شاشات — الكبيرةُ فوق والصغيرتان تحت»،
+   و«في خيارات حفظ الإطارات: السطرُ الطويلُ الذي يبدأ بتخصيص — اكتفِ بجملة: إنشاء لوحة جديدة».
    «أحفظ إعداداً مخصّصاً (ثلاثُ شاشاتٍ لشركاتٍ معيّنة) ثابتاً في المفضّلة — مكانُه شاشةُ الإطارات هذه: شاشتان… تخصيص، ثمّ المفضّلةُ مع زرّ مسح».
    النافذةُ فوق كلّ شيء (‏portal) تحت زرّها داخل الشاشة، وتُطوى بالنقر خارجها أو بـEsc — بانسياب. */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, Columns2, Grid2x2, LayoutPanelLeft, LayoutPanelTop, Square, Trash2, BookmarkPlus, Bookmark } from "lucide-react";
+import { Check, Columns2, Grid2x2, LayoutPanelTop, Square, Trash2, BookmarkPlus, Bookmark } from "lucide-react";
 
-export type Var3 = "side" | "top";
-export type Preset = { id: string; name: string; n: number; v3: Var3; syms: (string | null)[]; tfs: (string | null)[]; a: number; b: number };
+/* ‏v3: ترتيبُ الثلاث في تخصيصٍ حُفظ قبل ‏D811 — يُقرأ ولا يُعمل به: للثلاث ترتيبٌ واحد */
+export type Preset = { id: string; name: string; n: number; v3?: string; syms: (string | null)[]; tfs: (string | null)[]; a: number; b: number };
 
-const ITEMS: { n: number; v3?: Var3; name: string; Ic: typeof Square; flip?: boolean }[] = [
+const ITEMS: { n: number; name: string; Ic: typeof Square }[] = [
   { n: 1, name: "شاشةٌ واحدة", Ic: Square },
   { n: 2, name: "شاشتان", Ic: Columns2 },
-  { n: 3, v3: "side", name: "ثلاثٌ — كبيرةٌ وبجانبها اثنتان", Ic: LayoutPanelLeft, flip: true },
-  { n: 3, v3: "top", name: "ثلاثٌ — كبيرةٌ فوق واثنتان تحت", Ic: LayoutPanelTop },
+  { n: 3, name: "ثلاث شاشات", Ic: LayoutPanelTop },
   { n: 4, name: "أربعُ شاشات", Ic: Grid2x2 },
 ];
 
-export default function LayoutMenu({ n, v3, onPick, presets, onApply, onDelete, onSave, suggest }: {
-  n: number; v3: Var3; onPick: (n: number, v3?: Var3) => void;
+export default function LayoutMenu({ n, onPick, presets, onApply, onDelete, onSave, suggest }: {
+  n: number; onPick: (n: number) => void;
   presets: Preset[]; onApply: (p: Preset) => void; onDelete: (id: string) => void; onSave: (name: string) => void; suggest: () => string;
 }) {
   const [open, setOpen] = useState(false);
@@ -47,24 +48,24 @@ export default function LayoutMenu({ n, v3, onPick, presets, onApply, onDelete, 
       window.removeEventListener("resize", place); document.removeEventListener("scroll", place, true); };
   }, [open, place]);
   useEffect(() => { if (naming != null) inp.current?.focus(); }, [naming != null]);
-  const cur = ITEMS.find(i => i.n === n && (n !== 3 || i.v3 === v3)) || ITEMS[0];
+  const cur = ITEMS.find(i => i.n === n) || ITEMS[0];
   const save = () => { const nm = (naming || "").trim() || suggest(); onSave(nm); setNaming(null); };
 
   return (
     <span ref={wrap} className="troom-layw">
       <button ref={btn} type="button" className={"pc-btn troom-lay-btn" + (open ? " on" : "")} aria-expanded={open} aria-haspopup="menu"
         onClick={() => setOpen(v => !v)} data-role="troom-layout" title="تقسيمُ الشاشة" aria-label="تقسيمُ الشاشة">
-        <cur.Ic size={15} className={cur.flip ? "troom-flip" : undefined} /><span>الشاشات</span>
+        <cur.Ic size={15} /><span>الشاشات</span>
       </button>
       {open && createPortal(
         <div ref={pop} className="troom-laymenu" role="menu" dir="rtl" data-role="troom-layout-menu"
           style={at ? { left: at.left, top: at.top, maxHeight: at.maxH } : { left: 0, top: 0, visibility: "hidden" }}>
           {ITEMS.map(it => {
-            const on = it.n === n && (it.n !== 3 || it.v3 === v3);
+            const on = it.n === n;
             return (
               <button key={it.name} type="button" role="menuitemradio" aria-checked={on} className={"troom-layitem" + (on ? " on" : "")}
-                data-layout={it.n} data-var={it.v3 || ""} onClick={() => { onPick(it.n, it.v3); setOpen(false); }}>
-                <it.Ic size={15} className={it.flip ? "troom-flip" : undefined} /><span>{it.name}</span>{on && <Check size={14} className="troom-laycheck" />}
+                data-layout={it.n} onClick={() => { onPick(it.n); setOpen(false); }}>
+                <it.Ic size={15} /><span>{it.name}</span>{on && <Check size={14} className="troom-laycheck" />}
               </button>
             );
           })}
@@ -83,11 +84,11 @@ export default function LayoutMenu({ n, v3, onPick, presets, onApply, onDelete, 
           ))}
           {naming == null ? (
             <button type="button" className="troom-layitem troom-preset-add" onClick={() => setNaming(suggest())} data-role="troom-preset-add">
-              <BookmarkPlus size={15} /><span>تخصيص — احفظ الشاشاتِ الحاليّةَ في المفضّلة</span>
+              <BookmarkPlus size={15} /><span>إنشاء لوحة جديدة</span>
             </button>
           ) : (
             <div className="troom-preset-form" data-role="troom-preset-form">
-              <input ref={inp} className="input" value={naming} maxLength={60} onChange={e => setNaming(e.target.value)} aria-label="اسمُ التخصيص"
+              <input ref={inp} className="input" value={naming} maxLength={60} onChange={e => setNaming(e.target.value)} aria-label="اسمُ اللوحة"
                 onKeyDown={e => { if (e.key === "Enter") save(); }} data-role="troom-preset-name" />
               <button type="button" className="btn-primary troom-preset-save" onClick={save} data-role="troom-preset-save">حفظ</button>
             </div>

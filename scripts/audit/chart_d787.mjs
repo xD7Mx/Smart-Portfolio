@@ -172,7 +172,8 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   const g3 = await page.evaluate(() => { const g = document.querySelector('[data-role="troom-grid"]'); const ps = [...document.querySelectorAll('[data-role="troom-pane"]')];
     const r = ps.map(p => p.getBoundingClientRect()); return { cls: g?.className || "", n: ps.length, heads: document.querySelectorAll('[data-role="troom-phead"]').length,
       searches: document.querySelectorAll('[data-role="troom-psearch"]').length, big: r[0] && r[1] ? Math.round(r[0].height) : 0, small: r[1] ? Math.round(r[1].height) : 0,
-      side: r[0] && r[1] ? Math.round(r[0].left - r[1].left) : 0, syms: ps.map(p => p.dataset.symbol) }; });
+      side: r[0] && r[1] ? Math.round(r[0].left - r[1].left) : 0, w0: r[0] ? Math.round(r[0].width) : 0, w1: r[1] ? Math.round(r[1].width) : 0,
+      below: r[0] && r[1] && r[2] ? r[1].top >= r[0].bottom - 2 && Math.abs(r[1].top - r[2].top) < 2 : false, syms: ps.map(p => p.dataset.symbol) }; });
   const typeIn = async (k, text) => {
     const box = page.locator('[data-role="troom-pane"]').nth(k).locator('[data-role="troom-psearch"]');
     await box.locator(".inline-search-btn").click(); await page.waitForTimeout(200);
@@ -189,11 +190,11 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   const syms3 = await page.locator('[data-role="troom-pane"]').evaluateAll(ps => ps.map(p => p.dataset.symbol));
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("sp_room_panes") || "[]"));
   if (SHOTS) await page.locator('[data-role="troom-chart"]').screenshot({ path: `${SHOTS}/d787-panes-${vp.width}-${theme}.png` }).catch(() => {});
-  const wideG3 = vp.width >= 1024 ? g3.big > g3.small * 1.6 && g3.side !== 0 : true;
-  say(opts.join() === "1,2,3,3,4" &&   /* ‏D803: للثلاث ترتيبان */ /\bg3\b/.test(g3.cls) && g3.n === 3 && g3.heads === 3 && g3.searches === 3 && wideG3
+  const wideG3 = vp.width >= 1024 ? g3.w0 > g3.w1 * 1.6 && g3.below : true;   // ‏D811: الكبيرةُ فوق بالعرض والصغيرتان تحتها
+  say(opts.join() === "1,2,3,4" &&   /* ‏D811: للثلاث ترتيبٌ واحد */ /\bg3\b/.test(g3.cls) && g3.n === 3 && g3.heads === 3 && g3.searches === 3 && wideG3
       && syms1[0] === "2222.SR" && syms1[1] === "NVDA270617C00200000" && syms1[2] === "^TASI.SR"
       && syms2[0] === "2222.SR" && syms2[2] === "1120" && syms3[1] === "2222.SR" && saved[1] === null && saved[2] === "1120",
-    `${label}: ٢ ثلاثُ شاشات (كبيرةٌ واثنتان بجانبها)، ولكلٍّ رمزُها وبحثُها: عقدٌ ملصوقٌ بصيغة تريدنق فيو في الثانية و«تاسي» في الثالثة — والقائمةُ تفتح في المختارة `
+    `${label}: ٢ ثلاثُ شاشات (الكبيرةُ فوق والصغيرتان تحتها)، ولكلٍّ رمزُها وبحثُها: عقدٌ ملصوقٌ بصيغة تريدنق فيو في الثانية و«تاسي» في الثالثة — والقائمةُ تفتح في المختارة `
       + "لا في الأولى، والرابطُ يعيد الثانيةَ تتبع الأولى، والاختيارُ يُحفظ", JSON.stringify({ opts, g3, syms1, syms2, syms3, saved }));
   // ٢ب «تكبيرُ الشاشات»
   await page.locator('[data-role="troom-wide"]').click(); await page.waitForTimeout(500);

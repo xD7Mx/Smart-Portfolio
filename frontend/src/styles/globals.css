@@ -3294,7 +3294,13 @@ html[dir="ltr"] .exit-anim .mobile-drawer { animation-name: drawerOutL !importan
 /* وسيلةُ الإيضاح: فوق الشموع يسارَ الرسم، ولا تلتقط اللمس فلا تعترض السحبَ والتكبير */
 .pc-legend { position: absolute; top: 6px; left: 8px; right: 70px; z-index: 3; pointer-events: none; display: flex; flex-direction: column;
   align-items: flex-start; gap: 3px; font-size: 11px; line-height: 1.5; font-variant-numeric: tabular-nums; color: var(--ink); }
-.pc-pane-legend { transition: top .26s ease; }
+/* ‏D810: المؤشّرُ المكبَّرُ وحده — وسيلةُ إيضاح الرسم المطويّ تختفي بتلاشٍ، وزرُّ العودة في رأس المكبَّر بلون الهويّة */
+.pc-legend { transition: opacity .2s ease, visibility .2s; }
+.pc-pane-legend { transition: top .26s ease, opacity .2s ease; }
+.pc-leg-off { opacity: 0; visibility: hidden; }
+.pc-pane-legend.pc-solo { flex-direction: row; align-items: center; column-gap: 4px; }
+.pc-solo-back { color: var(--brand-ink); animation: fadeUp .2s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .pc-legend { transition: none; } .pc-solo-back { animation: none; } }
 .pc-ohlc, .pc-chips { display: flex; flex-wrap: wrap; align-items: center; column-gap: 4px; row-gap: 2px; }
 .pc-ohlc { padding: 1px 6px; border-radius: 6px; background: color-mix(in srgb, var(--card) 78%, transparent); }
 .pc-ohlc b, .pc-chip b { font-weight: 700; margin-right: 5px; }
@@ -4213,10 +4219,9 @@ html.light {
 @media (prefers-reduced-motion: reduce) { .troom-grid { animation: none; } }
 /* ══ ‏D787: لكلّ شاشةٍ رمزُها وبحثُها، وثلاثُ شاشات، و«تكبيرُ الشاشات» ══ */
 @media (min-width: 1024px) {
-  .troom-grid.g3 { grid-template-columns: minmax(0, var(--fa, 1.35fr)) minmax(0, var(--fb, 1fr)); grid-template-rows: auto auto; }
-  .troom-grid.g3 > .troom-pane:first-child { grid-row: span 2; }
-  /* ‏D803: «كبيرةٌ فوق بالعرض واثنتان تحت بجانب بعض» */
-  .troom-grid.g3t > .troom-pane:first-child { grid-row: auto; grid-column: 1 / -1; }
+  /* ‏D803 · ‏D811: «ثلاث شاشات — الكبيرةُ فوق بالعرض والصغيرتان تحت بجانب بعض» — ترتيبٌ واحد */
+  .troom-grid.g3 { grid-template-columns: minmax(0, var(--fa, 1fr)) minmax(0, var(--fb, 1fr)); grid-template-rows: auto auto; }
+  .troom-grid.g3 > .troom-pane:first-child { grid-column: 1 / -1; }
 }
 .troom-pane { position: relative; }
 .troom-phead { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 2px 8px; border-bottom: 1px solid var(--hairline);
@@ -4483,7 +4488,6 @@ html.troom-wide-on, html.troom-wide-on body { overflow: hidden; }
    (المالك 2026-11-24: «زرُّ التقسيم بجانب الإطارات» · «الإطارُ الأزرقُ مقصوص — أيقونةٌ بجانب الشركة أجمل» · «أمدّد وأنقص» · «تخصيصٌ في المفضّلة مع زرّ مسح») */
 .troom-lay-btn { display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; font-size: 12px; font-weight: 700; }
 .troom-lay-btn.on { color: var(--brand-ink); }
-.troom-flip { transform: scaleX(-1); }
 @media (max-width: 767px) { .pc-top .troom-lay-btn span { display: none; } }
 .troom-laysep { height: 1px; margin: 4px 6px; background: var(--hairline); }
 .troom-laycap { padding: 4px 10px 2px; font-size: 11px; font-weight: 700; color: var(--ink-muted); }
