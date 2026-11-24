@@ -60,6 +60,10 @@ SNAP_DAYS = 5            # العرضُ والطلبُ من آخر جلسة صا
 MIN_PRICE = 2.0          # رمزٌ دون دولارين في المصدر منتهٍ أو غيرُ صالحٍ لعقدٍ طويل
 STALE_DAYS = 4           # آخرُ صفقةٍ أقدمُ من أربعة أيامٍ لا يُبنى عليها سعر (يغطّي عطلةَ نهاية الأسبوع)
 MIN_PX = 0.05            # عقدٌ بأقلّ من خمسة سنتات سعرُه حدُّ التسعير لا قيمتُه
+# ‏D820: جدارُ الحجم وهدفُ عقدته للعقد القصير وحده (≤ 60 يوماً) — هناك يأكل الوقتُ العقدَ وهو ينتظر عند الجدار (همُّ المالك: الثيتا)؛
+# والعقدُ البعيدُ يعبر السعرُ في أجله عُقداً كثيرة، فقيس على الخادم أنّ عقدةَ بروفايلِ ستّة أشهرٍ هدفاً أسقطت عقودَ AMD كلَّها (69 ⇐ 0)
+# وNVDA ‏(54 ⇐ 28) — فالبروفايلُ للبعيد درجةٌ ومعلومةٌ في البطاقة لا بوّابة
+VP_SHORT_DTE = 60
 IV_BAND = (0.5, 1.6)     # تذبذبُ العقد بين نصف تذبذب النقود وضعفِه إلا قليلاً — وما خرج فسعرُه شاذّ
 CANDIDATES = 40
 CHART_MAX, CHART_W = 30, 0.25   # ‏D784: أقصى فرص الرسم بين المرشّحين (والباقي من القائمة الثابتة)، ووزنُ جودتها في الترتيب
@@ -240,11 +244,12 @@ def evaluate(o: dict, S: float, dte: int, call: bool, tr: dict, ref_iv: float | 
     # عقدةُ حجمٍ ثقيلةٌ بين السعر والتنفيذ جدارٌ يُبطئ السعرَ قبل أن يبلغ التنفيذ — والوقتُ يأكل العقدَ وهو ينتظر
     from app.services import volume_profile as VP
     rd = VP.read((tr or {}).get("vp"), S, "long" if call else "short")
-    if rd and not rd["thin"] and rd["wall"] is not None and ((call and S < rd["wall"] < K) or (not call and K < rd["wall"] < S)):
+    gate = bool(rd and not rd["thin"] and dte <= VP_SHORT_DTE)   # ‏D820: بوّابةٌ للقصير وحده
+    if gate and rd["wall"] is not None and ((call and S < rd["wall"] < K) or (not call and K < rd["wall"] < S)):
         return None, "جدارُ حجمٍ قبل التنفيذ"
     tgt, tlabel = target_for(tr, S, call, ref_iv or iv, T)
     # والهدفُ الواقعيّ: عقدةُ الحجم الكثيف التالية في الجهة إن سبقت الهدفَ الفنيّ — هناك يتباطأ السعر (وتبعد 3٪ فأكثر)
-    if rd and not rd["thin"] and rd["next"] and ((call and S * 1.03 <= rd["next"] < tgt) or (not call and tgt < rd["next"] <= S * 0.97)):
+    if gate and rd["next"] and ((call and S * 1.03 <= rd["next"] < tgt) or (not call and tgt < rd["next"] <= S * 0.97)):
         tgt, tlabel = round(rd["next"], 2), "عقدةُ حجمٍ كثيف (الفوليوم بروفايل)"
     be = K + px if call else K - px
     if (call and be >= tgt) or (not call and be <= tgt):

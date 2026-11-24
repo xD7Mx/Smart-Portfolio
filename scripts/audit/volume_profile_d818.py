@@ -106,37 +106,50 @@ check(vs == ["ok", "ok", "warn", "warn", "na", "na", "na", "ok"] and all(m["role
 # ── ٤ عقودُ الأمريكيّ ──
 from app.services import option_picks as OP  # noqa: E402
 
-S, DTE, IV = 20.0, 270, 0.45
-T = DTE / 365
+S, IV = 20.0, 0.45
 TR = {"state": "صاعد", "close": S, "sma50": 19.0, "sma200": 17.0, "hi60": 22.5, "hi120": 24.0, "hi52": 26.0, "lo60": 17.5, "lo120": 16.0, "lo52": 15.0}
 
 
-def row(K, call=True, spread=0.04, oi=800):
-    m = OP.bs_price(S, K, T, IV, call)
-    return {"contract": f"X{K:g}{'C' if call else 'P'}", "strike": float(K), "bid": round(m * (1 - spread / 2), 2), "ask": round(m * (1 + spread / 2), 2),
+def row(K, dte, call=True, spread=0.04, oi=800):
+    m = OP.bs_price(S, K, dte / 365, IV, call)
+    return {"contract": f"X{K:g}{'C' if call else 'P'}{dte}", "strike": float(K), "bid": round(m * (1 - spread / 2), 2), "ask": round(m * (1 + spread / 2), 2),
             "last": round(m, 2), "oi": oi, "volume": 50}
 
 
-calls = [row(k) for k in (14, 16, 18, 20, 22, 24, 26)]
-ref = OP.atm_iv({"calls": calls, "puts": [row(k, False) for k in (18, 20, 22)]}, S, T)
+def ref_of(dte):
+    return OP.atm_iv({"calls": [row(k, dte) for k in (18, 20, 22)], "puts": [row(k, dte, False) for k in (18, 20, 22)]}, S, dte / 365)
+
+
 LOOSE = {"min_rr": 0.0, "min_pop": 0.0}
 P = lambda **k: {"poc": 19.5, "val": 18.5, "vah": 20.5, "hvn": [{"p": 19.5, "w": 1.0}], "lvn": [], "lo": 14.0, "hi": 28.0, "thin": False, "window": "نافذة", **k}   # noqa: E731
-wall_vp = P(hvn=[{"p": 19.5, "w": 1.0}, {"p": 21.0, "w": 0.9}])
-k_wall, why_wall = OP.evaluate(row(22), S, DTE, True, {**TR, "vp": wall_vp}, ref, rules=LOOSE)
-k_nowall, _ = OP.evaluate(row(22), S, DTE, True, TR, ref, rules=LOOSE)
-k_thin, _ = OP.evaluate(row(22), S, DTE, True, {**TR, "vp": {**wall_vp, "thin": True}}, ref, rules=LOOSE)
-k_tgt, _ = OP.evaluate(row(18), S, DTE, True, {**TR, "vp": P(hvn=[{"p": 19.5, "w": 1.0}, {"p": 23.0, "w": 0.9}])}, ref, rules=LOOSE)
-k_plain, _ = OP.evaluate(row(18), S, DTE, True, TR, ref, rules=LOOSE)
-k_out, _ = OP.evaluate(row(18), S, DTE, True, {**TR, "vp": P(vah=19.8, hvn=[{"p": 19.5, "w": 1.0}, {"p": 27.0, "w": 0.9}], lvn=[22.0])}, ref, rules=LOOSE)
+EV = lambda K, dte, vp=None: OP.evaluate(row(K, dte), S, dte, True, {**TR, "vp": vp} if vp else TR, ref_of(dte), rules=LOOSE)   # noqa: E731
+# القصيرُ (45 يوماً): الجدارُ يُسقط، وعقدةُ الحجم هدف
+k_wall, why_wall = EV(21, 45, P(hvn=[{"p": 19.5, "w": 1.0}, {"p": 20.5, "w": 0.9}]))
+k_nowall, _ = EV(21, 45)
+k_thin, _ = EV(21, 45, P(hvn=[{"p": 19.5, "w": 1.0}, {"p": 20.5, "w": 0.9}], thin=True))
+k_tgt, _ = EV(19, 45, P(hvn=[{"p": 19.5, "w": 1.0}, {"p": 21.5, "w": 0.9}]))
+k_tgt0, _ = EV(19, 45)
+# البعيدُ (270 يوماً — ‏D820): لا جدارَ يُسقط ولا عقدةَ تقصّر الهدف — والدرجةُ وحدها
+k_far_wall, why_far = EV(22, 270, P(hvn=[{"p": 19.5, "w": 1.0}, {"p": 21.0, "w": 0.9}]))
+k_far_tgt, _ = EV(18, 270, P(hvn=[{"p": 19.5, "w": 1.0}, {"p": 23.0, "w": 0.9}]))
+k_plain, _ = EV(18, 270)
+k_out, _ = EV(18, 270, P(vah=19.8, hvn=[{"p": 19.5, "w": 1.0}, {"p": 27.0, "w": 0.9}], lvn=[22.0]))
 st = OP.STAGES
 check(k_wall is None and why_wall == "جدارُ حجمٍ قبل التنفيذ" and k_nowall and k_thin
       and st.index("جدارُ حجمٍ قبل التنفيذ") == st.index("الدلتا خارج النطاق") + 1
-      and k_tgt and k_tgt["target"] == 23.0 and "الفوليوم بروفايل" in k_tgt["target_label"] and k_plain["target"] == 26.0
-      and k_tgt["vp"] and k_tgt["vp"]["next"] == 23.0 and k_out and abs(k_out["score"] - k_plain["score"] - 5) < 0.01 and k_plain["vp"] is None,
-      "٤ عقودُ الأمريكيّ: جدارُ حجمٍ ثقيلٌ بين السعر والتنفيذ يُسقط العقدَ بسببه المسمّى (والسيولةُ الضعيفةُ لا تُسقطه)، والهدفُ عقدةُ الحجم التالية "
-      "إن سبقت الهدفَ الفنيّ، والخروجُ من القيمة نحو فراغٍ يرفع الدرجة خمساً — وقراءةُ الحجم في بطاقة العقد",
-      f"{why_wall} · هدف {k_tgt and k_tgt['target']} ({k_tgt and k_tgt['target_label']}) مقابل {k_plain['target']} · فرقُ الدرجة "
-      f"{k_out and round(k_out['score'] - k_plain['score'], 2)}")
+      and k_tgt and k_tgt["target"] == 21.5 and "الفوليوم بروفايل" in k_tgt["target_label"] and k_tgt0["target"] == 22.5 and k_tgt["vp"]["next"] == 21.5
+      and k_out and abs(k_out["score"] - k_plain["score"] - 5) < 0.01 and k_plain["vp"] is None,
+      "٤ العقدُ القصير (≤ 60 يوماً): جدارُ حجمٍ ثقيلٌ بين السعر والتنفيذ يُسقطه بسببه المسمّى (والسيولةُ الضعيفةُ لا تُسقطه)، والهدفُ عقدةُ الحجم التالية "
+      "إن سبقت الهدفَ الفنيّ؛ والخروجُ من القيمة نحو فراغٍ يرفع الدرجة خمساً — وقراءةُ الحجم في بطاقة العقد",
+      f"{why_wall} · هدف {k_tgt and k_tgt['target']} مقابل {k_tgt0['target']} · فرقُ الدرجة {k_out and round(k_out['score'] - k_plain['score'], 2)}")
+src_st = (ROOT / "backend/app/services/saqr_trader.py").read_text(encoding="utf-8")
+bf = src_st[src_st.index("async def best_for("):]
+bf = bf[:bf.index("\ndef ") if "\ndef " in bf else len(bf)]
+check(k_far_wall and why_far == "" and k_far_tgt and k_far_tgt["target"] == 26.0 and k_far_tgt["target_label"] == "قمّة السنة" and k_far_tgt["vp"]
+      and OP.VP_SHORT_DTE == 60 and 'tr_e = {**(tr or {}), "vp": vps[win]}' in bf and "OP.candidates(rows, S, e[\"dte\"], call, tr_e," in bf,
+      "٤ج ‏D820 العقدُ البعيد: لا جدارَ يُسقطه ولا عقدةَ تقصّر هدفَه (قِيس على الخادم: عقدةُ بروفايل ستّة أشهرٍ هدفاً أسقطت عقودَ AMD كلَّها 69 ⇐ 0) — "
+      "والبروفايلُ له درجةٌ ومعلومة؛ وعقودُ صقر نفسِه (‏7–60 يوماً) تُختار بالبروفايل بنافذة أجلها",
+      f"هدفُ البعيد {k_far_tgt and k_far_tgt['target']} ({k_far_tgt and k_far_tgt['target_label']})")
 
 asked: list = []
 

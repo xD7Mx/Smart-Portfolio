@@ -585,17 +585,27 @@ async def best_for(sym: str, call: bool, budget: float, tr: dict, ctx: dict, pf:
         return None, "لا سلسلةَ خيارات"
     pf = pf or PROFILES["balanced"]
     best, why, cheapest = None, "لا عقدَ يستوفي قواعد صقر", None
+    from app.services import volume_profile as VP
+    vps: dict = {}
     for e in pick_expiries(base.get("expirations") or [], pf):
         ch = await chain(sym, e["t"])
         if not ch:
             continue
+        # ‏D820: عقودُ صقر نفسِه تُختار بالفوليوم بروفايل بنافذة أجلها (كانت بلا بروفايل — وهي القصيرةُ التي يهمّها الجدار)
+        win = VP.window(e["dte"])[0]
+        if win not in vps:
+            try:
+                vps[win] = await VP.for_symbol(sym, e["dte"], False)
+            except Exception:                                     # noqa: BLE001
+                vps[win] = None
+        tr_e = {**(tr or {}), "vp": vps[win]}
         S = float(ch["price"] or base["price"])
         T = max(e["dte"], 1) / 365
         ref = OP.atm_iv(ch, S, T)
         if ref is None:
             continue
         rows = ch["calls"] if call else ch["puts"]
-        for k in OP.candidates(rows, S, e["dte"], call, tr, ref_iv=ref, rules=pf["rules"]):
+        for k in OP.candidates(rows, S, e["dte"], call, tr_e, ref_iv=ref, rules=pf["rules"]):
             if k["px_src"] != "ask":
                 continue
             one = k["ask"] * 100 + FEE
