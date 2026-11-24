@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { Suspense, useState, useEffect, useRef } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import {
   Briefcase, TrendingUp, Brain,
@@ -323,7 +323,8 @@ export default function MainLayout() {
         <main ref={mainRef} className="app-main flex-1 overflow-y-auto flex flex-col">
           <div className="p-3 sm:p-5 lg:p-6 max-w-[1600px] w-full mx-auto flex-1">
             {/* D615: الانتقالُ بين الصفحات يتلاشى وينزلق انزلاقاً خفيفاً بدل القفز */}
-            <div key={location.pathname} className="route-in"><Outlet /></div>
+            {/* ‏D814: الصفحةُ تُنزَّل حين تُفتح — والإطارُ (الشريطُ والقائمة) باقٍ، وما ينتظرها شريطٌ رفيعٌ يتحرّك لا شاشةٌ فارغة */}
+            <div key={location.pathname} className="route-in"><Suspense fallback={<div className="page-wait" data-role="page-wait" aria-busy="true" />}><Outlet /></Suspense></div>
             <footer className="sp-footer">حقوق النشر محفوظة لـ D7M ©</footer>
           </div>
         </main>

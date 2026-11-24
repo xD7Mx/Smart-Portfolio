@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { installExitMotion } from "./utils/exitMotion";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -20,17 +20,37 @@ function AuthGate() {
 }
 
 // Pages
-import PortfolioPage   from "./pages/PortfolioPage";
-import CompanyPage     from "./pages/CompanyPage";
-import MarketPage      from "./pages/MarketPage";
-import ReportsPage     from "./pages/ReportsPage";
-import LibraryPage     from "./pages/LibraryPage";
-import NotificationsPage from "./pages/NotificationsPage";
-import SettingsPage    from "./pages/SettingsPage";
-import AIPage          from "./pages/AIPage";
-import CalculatorsPage from "./pages/CalculatorsPage";
-import WatchlistPage   from "./pages/WatchlistPage";
+/* ‏D814 (المالك 2026-11-24: «التطبيقُ يأخذ وقتاً عند التحميل — خلِّه سريعاً»): كانت الصفحاتُ كلُّها (المحفظةُ والسوقُ والشركةُ والمكتبة…)
+   تُنزَّل وتُحلَّل قبل أن تظهر الأولى. فكلُّ صفحةٍ ملفٌّ وحدها يُنزَّل حين تُفتح، والباقي يُجلب في وقت الفراغ بعد ظهور الأولى —
+   فالفتحُ الأوّلُ أخفّ، والتنقّلُ بعده فوريٌّ كما كان. */
+const pageLoaders = {
+  portfolio: () => import("./pages/PortfolioPage"), company: () => import("./pages/CompanyPage"), market: () => import("./pages/MarketPage"),
+  reports: () => import("./pages/ReportsPage"), library: () => import("./pages/LibraryPage"), notifications: () => import("./pages/NotificationsPage"),
+  settings: () => import("./pages/SettingsPage"), ai: () => import("./pages/AIPage"), calculators: () => import("./pages/CalculatorsPage"),
+  watchlist: () => import("./pages/WatchlistPage"),
+};
+const PortfolioPage = React.lazy(pageLoaders.portfolio);
+const CompanyPage = React.lazy(pageLoaders.company);
+const MarketPage = React.lazy(pageLoaders.market);
+const ReportsPage = React.lazy(pageLoaders.reports);
+const LibraryPage = React.lazy(pageLoaders.library);
+const NotificationsPage = React.lazy(pageLoaders.notifications);
+const SettingsPage = React.lazy(pageLoaders.settings);
+const AIPage = React.lazy(pageLoaders.ai);
+const CalculatorsPage = React.lazy(pageLoaders.calculators);
+const WatchlistPage = React.lazy(pageLoaders.watchlist);
 import LoginPage       from "./pages/LoginPage";
+
+/** بعد ظهور الصفحة الأولى: البقيةُ تُجلب في وقت الفراغ واحدةً بعد أخرى — فلا ينتظر التنقّلُ شبكة */
+let warmed = false;
+export function warmPages() {
+  if (warmed) return;
+  warmed = true;
+  const list = Object.values(pageLoaders);
+  const idle = (cb: () => void) => ((window as any).requestIdleCallback ? (window as any).requestIdleCallback(cb, { timeout: 4000 }) : window.setTimeout(cb, 1200));
+  const next = () => { const f = list.shift(); if (f) f().catch(() => {}).finally(() => idle(next)); };
+  idle(next);
+}
 
 // Styles
 import "./styles/globals.css";
@@ -183,6 +203,8 @@ function App() {
 
   // D616: النوافذُ والقوائمُ تتلاشى عند الإغلاق بدل الاختفاء الفوريّ
   useEffect(() => installExitMotion(), []);
+  // ‏D814: الصفحاتُ الأخرى تُجلب في وقت الفراغ بعد ظهور الأولى
+  useEffect(() => { const t = window.setTimeout(warmPages, 1500); return () => window.clearTimeout(t); }, []);
 
   useEffect(() => {
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
@@ -201,6 +223,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <PlaceKeeper />
+        <Suspense fallback={<div className="page-wait" data-role="page-wait" aria-busy="true" />}>{/* الدخول وما قبل الإطار */}
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           {/* قفل كامل: بلا جلسة مالك لا يُعرض أي شيء من التطبيق —
@@ -230,6 +253,7 @@ function App() {
             <Route path="/settings"       element={<SettingsPage />} />
           </Route>
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </QueryClientProvider>
   );

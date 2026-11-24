@@ -36,7 +36,7 @@ COMMOD = (("BZ=F", "خام برنت (برميل)"), ("CL=F", "خام غرب تك
           ("TIO=F", "خام الحديد (طن)"), ("HRC=F", "الحديد المدرفل (طن)"), ("SB=F", "السكر (سنت/رطل)"))
 FX = (("DX-Y.NYB", "مؤشر الدولار"), ("EURUSD=X", "اليورو"), ("GBPUSD=X", "الجنيه الإسترليني"), ("JPY=X", "الين الياباني"),
       ("CHF=X", "الفرنك السويسري"), ("CAD=X", "الدولار الكندي"), ("AUDUSD=X", "الدولار الأسترالي"), ("CNY=X", "اليوان الصيني"),
-      ("INR=X", "الروبية الهندية"), ("BTC-USD", "بيتكوين"), ("ETH-USD", "إيثيريوم"), ("XRP-USD", "ريبل"))
+      ("INR=X", "الروبية الهندية"), ("BTC-USD", "بيتكوين"), ("ETH-USD", "إيثيريوم"))   # ‏D817 (المالك): «العملاتُ المشفّرة — المهمّاتُ الرئيسية فقط»
 RATES = (("^IRX", "الخزانة الأمريكية 3 أشهر"), ("^FVX", "الخزانة الأمريكية 5 سنوات"), ("^TNX", "الخزانة الأمريكية 10 سنوات"))
 
 # نظرتُنا — من الأشدّ هبوطاً إلى الأشدّ صعوداً، كما في دائرة «نظرتنا»
@@ -404,7 +404,9 @@ def averages(store: dict, day: str) -> dict:
     return out
 
 
-async def corporate_actions(today: date, days: int = 7, limit: int = 10) -> list[dict]:
+async def corporate_actions(today: date, days: int = 14, limit: int = 18) -> list[dict]:
+    """إجراءاتُ الشركات السعودية القادمة (توزيعاتٌ · جمعياتٌ · أحقّياتٌ · نتائج) — ‏D817 (المالك 2026-11-24): «لها نصيبُ الأسد وتأخذ مساحتَها
+    بعدم الاقتطاع»: أسبوعان لا أسبوع، وحتى ثمانيةَ عشرَ إجراءً في قسمٍ بعرض الصفحة."""
     try:
         from app.services.content_engine import market_wide_events, clean_events
         from app.data.universe import is_main
@@ -1331,6 +1333,12 @@ ul.bul li::before{{content:'';position:absolute;inset-inline-start:0;top:.55em;w
 .view{{display:inline-block;color:#fff;font-weight:500;padding:1px 9px;font-size:10.5px;border-radius:999px;background:{NAVY}}}
 .view.buy{{background:{GREEN}}} .view.sell{{background:{RED}}} .view.hold{{background:{NAVY}}} .view.warn{{background:#a0662f}}
 .headline{{font-size:15px;font-weight:500;color:{NAVY};background:{ZEBRA};border:1px solid {GOLD};border-radius:8px;padding:8px 12px;margin:0 0 12px}}
+.lead{{color:{NAVY};font-weight:700}}
+.acts{{margin:2px 0 10px}}
+.acts-grid{{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;row-gap:0}}
+.act{{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:baseline;gap:8px;padding:4px 6px;border-bottom:1px solid {LINE}}}
+.act:nth-child(4n+1),.act:nth-child(4n+2){{background:{ZEBRA}}}
+.act-d{{color:{NAVY};font-weight:700;min-width:44px}} .act-c{{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}} .act-t{{color:{MUTED}}}
 .pf{{position:absolute;bottom:0;left:0;right:0;height:38px;background:linear-gradient(135deg,{NAVY},{NAVY_2});display:flex;
      justify-content:space-between;align-items:center;padding:0 30px;color:{GOLD_L};font-size:9.5px;font-weight:300}}
 .pn{{background:{GOLD};color:{NAVY};min-width:28px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;
@@ -1389,9 +1397,10 @@ def render(r: dict, part: str = "all") -> str:
             + (_band("أداء القطاعات") + _tbl(["القطاع", "التغيّر %", "القيمة (مليون)", "الوزن %", "المكرّر"], sec_rows) if sec_rows else "")
             + (_band("معدّل القيم") + _tbl(["", "معدّل 5 أيام", "معدّل 10 أيام", "معدّل 20 يوماً"], avg_rows) if avg_rows else "")
             + (_band("الإحصاءات المجمّعة للسوق") + _tbl(["", "القيمة (مليار ريال)", "الكمية (مليون سهم)", "الصفقات (ألف)"], wk_rows) if wk_rows else ""))
-    right = ((f'<p class="headline">{_e(r.get("headline"))}</p>' if r.get("headline") else "")
-             + "<h2>الأخبار المحلية</h2>" + (_bul((r.get("local") or [])[:6]) or '<p class="empty">لا أخبارَ محليةً جديدة.</p>')
-             + f'<h2>تحليل السوق</h2><p class="para">{_e(r.get("analysis") or "")}</p>'
+    # ‏D817 (المالك 2026-11-24): «العنوانُ في أعلى الصفحة مكانُه الصحيحُ تحليلُ السوق — وبدايةُ الصفحة بالأخبار»: يُفتتح به «تحليل السوق»
+    lead = f'<b class="lead" data-k="headline">{_e(r.get("headline"))}</b> ' if r.get("headline") else ""
+    right = ("<h2>الأخبار المحلية</h2>" + (_bul((r.get("local") or [])[:6]) or '<p class="empty">لا أخبارَ محليةً جديدة.</p>')
+             + f'<h2>تحليل السوق</h2><p class="para" data-k="analysis">{lead}{_e(r.get("analysis") or "")}</p>'
              + (_band("الأكثر ارتفاعاً") + _tbl(["الشركة", "السعر", "التغيّر %"], gl) if gl else "")
              + (_band("الأكثر انخفاضاً") + _tbl(["الشركة", "السعر", "التغيّر %"], ls) if ls else "")
              + (_band("الشركات الأكبر وزناً بالمؤشر") + _tbl(["الشركة", "السعر", "التغيّر %"], heavy) if heavy else ""))
@@ -1407,21 +1416,26 @@ def render(r: dict, part: str = "all") -> str:
                  if "سعود" not in str(x.get("market"))]
     rate_rows = qrows(m.get("rates") or [], bp=True)
     rate_rows += [[_e(x["name"]), _num(x.get("value")), _bp(x.get("d1_bp")), _bp(x.get("mtd_bp")), _bp(x.get("ytd_bp"))] for x in r.get("saibor") or []]
-    act = [[_e(short_day(a["date"])), _e(a["company"]), _e(a["type"])] for a in m.get("actions") or []]
+    acts = m.get("actions") or []
     hd = ["الإغلاق", "يوميّ %", "شهريّ %", "منذ بداية العام %"]
     l2 = (_band("الأسواق الإقليمية" + (f" — كما في {short_day(reg['date'])}" if reg.get("rows") and reg.get("date") else ""))
           + _tbl(["السوق"] + hd, reg_rows)
           + _band("الأسواق العالمية") + _tbl(["المؤشّر"] + hd, qrows(m.get("global") or []))
           + (_band("أسعار الفائدة") + _tbl(["الأداة", "العائد %", "يوميّ (نقطة)", "شهريّ (نقطة)", "منذ بداية العام (نقطة)"], rate_rows) if rate_rows else ""))
     r2 = (_band("أسواق السلع (دولار أمريكي)") + _tbl(["السلعة", "السعر", "يوميّ %", "شهريّ %", "منذ بداية العام %"], qrows(m.get("commodities") or []))
-          + _band("العملات والعملات المشفّرة") + _tbl(["العملة / الدولار", "السعر", "يوميّ %", "شهريّ %", "منذ بداية العام %"], qrows(m.get("fx") or [], unit=lambda v: "—" if _f(v) is None else (f"{_f(v):,.4f}" if _f(v) < 10 else f"{_f(v):,.2f}")))
-          + (_band("إجراءات الشركات السعودية") + _tbl(["التاريخ", "الشركة", "نوع الحدث"], act) if act else ""))
+          + _band("العملات والعملات المشفّرة") + _tbl(["العملة / الدولار", "السعر", "يوميّ %", "شهريّ %", "منذ بداية العام %"], qrows(m.get("fx") or [], unit=lambda v: "—" if _f(v) is None else (f"{_f(v):,.4f}" if _f(v) < 10 else f"{_f(v):,.2f}"))))
+    # ‏D817 (المالك): «إجراءاتُ الشركات السعودية لها نصيبُ الأسد وتأخذ مساحتَها بعدم الاقتطاع» — كانت آخرَ العمود الأيمن تحت السلع والعملات
+    # فتُقصّ حين تطول الصفحة؛ فصارت قسماً بعرض الصفحة تحت الأخبار العالمية، كلُّ إجراءٍ بتاريخه وشركته ونوعه في عمودين
+    acts_html = ('<section class="acts" data-k="actions">' + _band("إجراءات الشركات السعودية — الأسبوعان القادمان")
+                 + ('<div class="acts-grid">' + "".join(f'<div class="act"><span class="act-d n">{_e(short_day(a["date"]))}</span>'
+                                                        f'<b class="act-c">{_e(a["company"])}</b><span class="act-t">{_e(a["type"])}</span></div>' for a in acts) + "</div>"
+                    if acts else '<p class="empty">لا إجراءاتِ شركاتٍ معلنةً في الأسبوعين القادمين.</p>') + "</section>")
     # ‏D788 (المالك 2026-11-23): «الأخبارُ العالمية مكانُها ضيّقٌ جدّاً داخل التقرير — خلِّ لها مكاناً خاصّاً في أوّل الصفحة، ورتّب ترتيباً أنيقاً»:
     # كانت آخرَ العمود الأيمن تحت السلع والعملات وإجراءات الشركات؛ فصارت رأسَ الصفحة بعرضها كلِّه في عمودين، والجداولُ تحتها
     gn = r.get("global") or []
     news = ('<section class="gnews" data-k="global-news">' + _band("الأخبار العالمية")
             + (_bul(gn).replace('<ul class="bul">', '<ul class="bul two">', 1) if gn else '<p class="empty">لا أخبارَ عالميةً جديدة.</p>') + "</section>")
-    pages.append(("الأخبار والأسواق العالمية", f'{news}<div class="cols"><div class="blk">{r2}</div><div class="blk">{l2}</div></div>', "market"))
+    pages.append(("الأخبار والأسواق العالمية", f'{news}{acts_html}<div class="cols"><div class="blk">{r2}</div><div class="blk">{l2}</div></div>', "market"))
 
     # ═══ ٣ النظرة الفنية اليومية ═══
     if tech:
@@ -1472,8 +1486,8 @@ def render(r: dict, part: str = "all") -> str:
     charts = "".join(f'<div class="box">{_band(k["name"] + " — ملاحظات فنية")}<p>{_e(pick_note(k))}</p>'
                      f'{svg_d7m(k.get("bars") or [], w=470, h=290, title=k["symbol"], extra={"buy": k["buy"], "stop": k["stop"], "target": k["target"][1]})}</div>'
                      for k in pk[:2])
-    body4 = ((f'<p class="headline">{_e(r.get("portfolio_headline") or r.get("headline"))}</p>' if (r.get("portfolio_headline") or r.get("headline")) else "")
-             + _band("نظرتنا لمراكز المحفظة")
+    # ‏D817 (المالك): «العنوانُ تكرّر في محفظتنا مع أنّه يخصّ السوقَ لا المحفظة» — صفحةُ المحفظة تبدأ بمراكزها
+    body4 = (_band("نظرتنا لمراكز المحفظة")
              + (_tbl(["الشركة", "الإغلاق", "التغيّر %", "الوزن %", "القيمة العادلة", "الصعود %", "الاتجاه", "نظرتنا"], pos_rows) or '<p class="empty">لا مراكز.</p>')
              + (("<h2>ما يعني مراكزنا اليوم</h2>" + _bul(note_li)) if note_li else "")
              + _band("أفضل اختياراتنا لليوم — السوق السعودي")
@@ -1482,8 +1496,7 @@ def render(r: dict, part: str = "all") -> str:
              + (f'<div class="cols" style="margin-top:4px">{charts}</div>' if charts else "")
              + (("<h2>للمتابعة</h2>" + _bul(r.get("watch") or [])) if r.get("watch") else ""))
     if r.get("backfill"):
-        body4 = ((f'<p class="headline">{_e(r.get("headline"))}</p>' if r.get("headline") else "")
-                 + '<p class="empty">صفحةُ المحفظة تُكتب يومَ الجلسة نفسِها بمراكزها وقتئذٍ — ولا تُعاد كتابتُها لجلسةٍ مضت بمراكز اليوم.</p>'
+        body4 = ('<p class="empty">صفحةُ المحفظة تُكتب يومَ الجلسة نفسِها بمراكزها وقتئذٍ — ولا تُعاد كتابتُها لجلسةٍ مضت بمراكز اليوم.</p>'
                  + (("<h2>للمتابعة</h2>" + _bul(r.get("watch") or [])) if r.get("watch") else ""))
     pages.append(("محفظتنا واختياراتنا", body4, "portfolio"))
 

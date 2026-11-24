@@ -1775,7 +1775,7 @@ class MarketDataService:
                 return data.to_dict()
         return None
 
-    async def get_prices(self, symbols: List[str]) -> dict:
+    async def get_prices(self, symbols: List[str], budget: float = 6.0) -> dict:
         """أسعارُ مجموعةٍ — «تداول» لما تحمله، والمزوّدُ لما بقي (D330).
 
         وهذا مسارُ المحفظة والفرز: كان يُنادي ياهو لكلّ رمزٍ على حِدة،
@@ -1791,7 +1791,74 @@ class MarketDataService:
             else:
                 rest.append(s)
         if rest:
-            out.update(await self.primary.get_prices(rest) or {})
+            out.update(await self._batch_quotes(rest))
+            left = [s for s in rest if s not in out]
+            if left:
+                out.update(await self._each_within(left, budget))
+        return out
+
+    async def _batch_quotes(self, symbols: List[str]) -> dict:
+        """‏D814 (المالك 2026-11-24: «التطبيقُ يأخذ وقتاً — خلِّه سريعاً»): قِيس على الخادم (‏perf_door_d814.py) أنّ قائمةَ المراقبة الباردة
+        تأخذ 13–14 ثانية: كلُّ رمزٍ خارجَ «تداول» يُسأل عنه ياهو وحده (‏/v8/chart) فيأخذ 5–9 ثوانٍ (بتكوين 9.4 · برنت 9.3 · الذهب 9.1 · نيو 8.5)
+        والقائمةُ تنتظر أبطأها. فالمخبّأُ أوّلاً، ثمّ نداءٌ **واحدٌ** للباقي كلِّه (‏/v7/quote — يقبل العقودَ والسلعَ والعملاتِ المشفّرة)،
+        ويُخبّأ كلُّ سعرٍ بمفتاح نداء الرمز الواحد نفسِه فيقرؤه بعدُ كلُّ من يسأل عنه."""
+        import asyncio
+        from app.services import cache
+        out, need = {}, []
+        for s in symbols:
+            hit = cache.get(f"price:yahoo:{s}")
+            if hit is not None:
+                out[s] = hit.to_dict() if hasattr(hit, "to_dict") else hit
+            else:
+                need.append(s)
+        if not need:
+            return out
+        try:
+            from app.services.live_quote import yahoo_quotes
+            qs = await asyncio.wait_for(yahoo_quotes(need), 8)
+        except Exception as e:                                    # noqa: BLE001
+            logger.debug(f"أسعارُ المجموعة دفعةً: {type(e).__name__}")
+            return out
+        num = lambda v: float(v) if isinstance(v, (int, float)) else None   # noqa: E731
+        for s in need:
+            q = qs.get(str(s).upper()) or {}
+            px = num(q.get("regularMarketPrice"))
+            if px is None:
+                continue
+            prev = num(q.get("regularMarketPreviousClose"))
+            chg = num(q.get("regularMarketChange"))
+            pd = PriceData(s, px, chg if chg is not None else (px - prev if prev else 0.0), num(q.get("regularMarketChangePercent")) or 0.0,
+                           volume=num(q.get("regularMarketVolume")) or 0, day_low=num(q.get("regularMarketDayLow")),
+                           day_high=num(q.get("regularMarketDayHigh")), prev_close=prev)
+            cache.set(f"price:yahoo:{s}", pd, cache.PRICE_TTL)
+            out[s] = pd.to_dict()
+        return out
+
+    _bg: set = set()
+
+    async def _each_within(self, symbols: List[str], budget: float) -> dict:
+        """ما لم يُجب عنه النداءُ الواحد: كلُّ رمزٍ وحده بمهلةٍ كلّية — ما وصل قبلها يُعرض، والباقي يكمل في الخلفية فيُخبّأ للنداء التالي
+        (لا تنتظر القائمةُ كلُّها رمزاً واحداً بطيئاً)."""
+        import asyncio
+        sem = asyncio.Semaphore(15)
+
+        async def one(s):
+            async with sem:
+                d = await self.primary.get_price(s)
+                return s, (d.to_dict() if hasattr(d, "to_dict") else d)
+        tasks = [asyncio.ensure_future(one(s)) for s in symbols]
+        done, pending = await asyncio.wait(tasks, timeout=budget)
+        for t in pending:                                         # تكمل وحدها وتُخبّئ ما تجلب
+            self._bg.add(t)
+            t.add_done_callback(self._bg.discard)
+        out = {}
+        for t in done:
+            try:
+                s, d = t.result()
+            except Exception:                                     # noqa: BLE001
+                continue
+            if d:
+                out[s] = d
         return out
 
     def _yahoo(self):

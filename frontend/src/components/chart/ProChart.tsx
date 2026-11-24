@@ -12,7 +12,7 @@
      · المستوياتُ والخطوطُ والفرشاةُ تُرسم في دورة رسم الشموع نفسِها (‏lib/chartOverlay) فلا تتأخّر ولا ترتجف.
      · أيُّ إطار: الجاهزُ والمخصَّص (عددٌ + وحدة)، وأنواعُ رسم، ولقطةٌ، وملءُ الشاشة. والمكتبةُ مع التطبيق لا تُنزَّل عند الفتح. */
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createChart, CandlestickSeries, BarSeries, LineSeries, AreaSeries, HistogramSeries, createSeriesMarkers, CrosshairMode, LineStyle,
   PriceScaleMode, type IChartApi, type ISeriesApi, type MouseEventParams, type Logical,
@@ -238,6 +238,21 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
     refetchInterval: tfIntraday(tf) ? 30_000 : 60_000,
   });
   const bars = useMemo(() => sanitizeBars(raw), [raw]);
+  /* ‏D814 (المالك 2026-11-24: «التطبيقُ يأخذ وقتاً عند تشغيل الإطارات — خلِّه سريعاً»): بعد أن يُرسم الإطارُ الجاري تُجلب في وقت الفراغ شموعُ
+     الإطارات المفضّلة للرمز نفسِه — فالتبديلُ إليها يُرسم فوراً من الذاكرة (ويُحدَّث في الخلفية) بدل انتظار الشبكة والخادم */
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!symbol || !raw) return;
+    const want = fav.filter(f => f !== tf).slice(0, 4);
+    if (!want.length) return;
+    const idle = (cb: () => void) => ((window as any).requestIdleCallback ? (window as any).requestIdleCallback(cb, { timeout: 2500 }) : window.setTimeout(cb, 700));
+    const h = idle(() => want.forEach(f => qc.prefetchQuery({
+      queryKey: ["bars", symbol, f], staleTime: 60_000,
+      queryFn: () => marketApi.bars(symbol, f).then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
+    })));
+    return () => { try { ((window as any).cancelIdleCallback || window.clearTimeout)(h); } catch { /* */ } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol, !!raw, fav.join(",")]);
   /* الشموعُ بالتوقيت العالميّ الحقيقيّ، والعرضُ بمنطقة المالك: «توقيتُ البورصة» افتراضاً أو ما اختاره (‏D739) */
   const tzName = tzPref === "exchange" ? exchangeTz(symbol) : tzPref;
   const disp = useMemo(() => displayTimes(bars, tzName), [bars, tzName]);

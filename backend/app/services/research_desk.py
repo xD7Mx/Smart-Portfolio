@@ -548,11 +548,11 @@ def notes_text(srcs: list[dict], market: dict) -> dict:
 
 
 async def compose_text(srcs: list[dict], market: dict, ps: list[dict], today: date, pname: str, k: dict) -> tuple[dict, str]:
-    """نصُّ التقرير — (النصّ، مصدرُه: ‏ai · notes · none). النموذجُ بنماذجه كلّها، ثمّ محاولةٌ ثانيةٌ بعد مهلة، ثمّ الأخبارُ من مصادرها."""
+    """نصُّ التقرير — (النصّ، مصدرُه: ‏ai · notes · none). النموذجُ بنماذجه كلّها، ثمّ محاولةٌ ثانيةٌ بعد مهلة، ثمّ الأخبارُ من مصادرها —
+    و‏D816: بلا مصدرٍ أصلاً فالعنوانُ من أرقام الجلسة (والباقي يكمله التطبيق في ‏compose_for)."""
     import asyncio
-    empty = {"headline": "", "local": [], "global": [], "portfolio": [], "watch": []}
     if not srcs:
-        return empty, "none"
+        return notes_text([], market), "none"
     prompt = COMPOSE_PROMPT.format(pname=pname, today=today.isoformat(),
                                    sources="\n\n".join(_fmt_source(i + 1, n) for i, n in enumerate(srcs)),
                                    context=_context(k["notes"], today, {n.get("key") for n in srcs}), portfolio=_fmt_positions(ps),
@@ -568,6 +568,77 @@ async def compose_text(srcs: list[dict], market: dict, ps: list[dict], today: da
             await asyncio.sleep(RETRY_GAP)
     logger.warning("قسم الأبحاث: الكتابةُ تعذّرت ({}) — الأخبارُ من مصادرها", LAST["why"])
     return notes_text(srcs, market), "notes"
+
+
+# ── ‏D816: التطبيقُ وحده — حين يغيب تقريرا الجزيرة والراجحي ──────────────────────────────────────────────────
+# قال المالك (2026-11-24): «التقريرُ يستقي معلوماته من الجزيرة والراجحي كمبدأ، ولو حصلت لهما مشكلةٌ يقوم تطبيقُنا بالعمل بنفسه: الأخبارُ
+# المحليةُ والعالمية وبقيةُ التقرير كاملاً — كلُّ معلومةٍ فيه — مع الحفاظ على شكل التقرير». فما كان يأتي من التقريرين وحدهما له هنا بديلٌ
+# من مصادر التطبيق المقيسة (‏scripts/audit/report_self_door_d816.py): الأخبارُ من الوسائل الموثوقة (‏wire_sources · D806)، والأسواقُ
+# الإقليميةُ وسعرُ الفائدة الرسميّ من مسح TradingView العامّ، وما يُتابَع من أحداث الأسبوع ومستويات المؤشّر، وما يعني مراكزَنا من أرقامها.
+REGION_TV = (("DFM:DFMGI", "دبي"), ("ADX:FADGI", "أبو ظبي"), ("QSE:GNRI", "قطر"), ("KSE:BKP", "الكويت (السوق الأول)"), ("EGX:EGX30", "مصر"))
+RATE_TV = ("ECONOMICS:SAINTR", "سعر إعادة الشراء — البنك المركزي السعودي")
+
+
+async def regional_self(today: date) -> tuple[dict, list[dict]]:
+    """الأسواقُ الإقليميةُ وسعرُ الفائدة الرسميّ من مسح TradingView العامّ (‏docs/FETCH_METHOD.md — قِيس على الخادم: خمسةُ أسواقٍ بإغلاقها
+    وتغيّرها اليوميّ ومنذ بداية العام؛ عُمان والبحرين وسايبور لا رمزَ لها فيه). والشهريُّ «—»: المصدرُ يعطي أداءَ شهرٍ متحرّك لا منذ أوّل الشهر."""
+    from app.services.live_quote import tv_scan
+    got = await tv_scan("global", [t for t, _ in REGION_TV] + [RATE_TV[0]], ["close", "change", "Perf.YTD"])
+    rows = [{"market": nm, "close": _num(r.get("close")), "d1": _num(r.get("change")), "mtd": None, "ytd": _num(r.get("Perf.YTD"))}
+            for tk, nm in REGION_TV if (r := got.get(tk)) and _num(r.get("close")) is not None]
+    rate = got.get(RATE_TV[0]) or {}
+    rates = ([{"name": RATE_TV[1], "value": _num(rate.get("close")), "d1_bp": None, "mtd_bp": None, "ytd_bp": None}]
+             if _num(rate.get("close")) is not None else [])
+    return ({"date": today.isoformat(), "rows": rows, "self": True} if rows else {}), rates
+
+
+_GENERIC = {"شركة", "مجموعة", "السعودية", "السعودي", "العربية", "الوطنية", "الوطني", "مصرف", "بنك", "البنك", "للتأمين", "التعاوني", "القابضة",
+            "المتحدة", "الأولى", "الدولية", "للاستثمار", "للتنمية", "المالية", "الشركة"}
+
+
+def _name_key(name: str) -> str:
+    """الكلمةُ المميِّزةُ في اسم الشركة («الراجحي» من «مصرف الراجحي») — ليُعرف خبرُها بين عناوين اليوم."""
+    for w in re.split(r"\s+", str(name or "").strip()):
+        if len(w) >= 3 and w not in _GENERIC:
+            return w
+    return ""
+
+
+def portfolio_self(ps: list[dict], srcs: list[dict]) -> list[dict]:
+    """ما يعني مراكزَنا اليوم من التطبيق وحده: خبرُ اليوم الذي يذكر الشركةَ بنصّه (من مصدره)، وإلّا حركتُها اليومَ إن بلغت 2% ونظرتُنا (المصدر 0)."""
+    heads = [(i, _SRC_TAIL.sub("", str(t)).strip()) for i, s in enumerate(srcs, start=1) for t in (s.get("local_news") or [])]
+    out = []
+    for p in ps:
+        key = _name_key(p.get("name"))
+        hit = next(((i, h) for i, h in heads if key and key in h and not _HOUSES.search(h)), None)
+        pct = p.get("pct")
+        if hit:
+            out.append({"symbol": p["symbol"], "text": hit[1], "src": [hit[0]]})
+        elif isinstance(pct, (int, float)) and abs(pct) >= 2:
+            out.append({"symbol": p["symbol"], "text": f"{'يرتفع' if pct > 0 else 'يتراجع'} {abs(pct):.2f}% اليوم — ونظرتُنا: {p.get('view') or '—'}", "src": [0]})
+    return out[:6]
+
+
+async def watch_self(market: dict) -> list[dict]:
+    """ما يُتابَع من التطبيق وحده: الدعمُ والمقاومةُ الأوليان لتاسي (مؤشّرُ دحم على يوميّ الورقة)، وأحداثُ الأيام القادمة التي تحرّك
+    السوقَ السعوديّ (الفيدراليُّ والنفطُ والصين — بأسمائها العربية وحدها) بموعدها بتوقيت الرياض."""
+    from app.services import research_paper as RP
+    out = []
+    try:
+        lv = RP.levels_of(market) or {}
+        if lv.get("s1") and lv.get("r1"):
+            out.append({"text": f"تاسي بين الدعم الأول {RP.n0(lv['s1'])} والمقاومة الأولى {RP.n0(lv['r1'])} نقطة — واختراقُ أحدهما يرسم اتجاهَ الجلسات القادمة",
+                        "src": [0]})
+    except Exception:                                             # noqa: BLE001
+        pass
+    try:
+        from app.services import econ_calendar as EC
+        evs = [e for e in EC.shape(await EC.raw_week(), market="sa") if not e.get("past") and e.get("ar")]
+        for e in evs[:3]:
+            out.append({"text": f"{e['ar']} — {e['day']} الساعة {e['riyadh'][11:16]} بتوقيت الرياض (أثرُه {e.get('impact_ar') or 'متوسّط'})", "src": [0]})
+    except Exception:                                             # noqa: BLE001
+        pass
+    return out[:4]
 
 
 async def compose_for(db, pid: int, pname: str, market: dict, today: date | None = None) -> dict | None:
@@ -593,14 +664,27 @@ async def compose_for(db, pid: int, pname: str, market: dict, today: date | None
         p["trend"] = RP.trend_of(rows.get(p["symbol"]))
         p["view"] = RP.position_view(p)
     ai, text_source = await compose_text(srcs, market, ps, today, pname, k)
+    # ‏D816: ما لم تأتِ به المصادرُ يكمله التطبيقُ من بياناته — مراكزُنا حين تعذّر النموذج، وما يُتابَع إن خلا، والجداولُ إن غابت عن التقريرين
+    if text_source != "ai" and not ai.get("portfolio"):
+        ai["portfolio"] = portfolio_self(ps, srcs)
+    if not ai.get("watch"):
+        ai["watch"] = await watch_self(market)
     st = sessions_store(k)
     reg, sai = latest_tables(k["notes"], today)
+    if not reg.get("rows") or not sai:
+        try:
+            reg2, sai2 = await regional_self(today)
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning("قسم الأبحاث/الأسواقُ الإقليمية: {}", type(e).__name__)
+            reg2, sai2 = {}, []
+        reg, sai = (reg if reg.get("rows") else reg2), (sai or sai2)
     picks = await RP.picks_for({p["symbol"] for p in ps})
     rep = {"date": today.isoformat(), "portfolio_id": pid, "portfolio_name": pname, "at": datetime.now().isoformat(timespec="minutes"),
            "market": market, "averages": RP.averages(st, today.isoformat()), "analysis": RP.market_analysis(market, RP.averages(st, today.isoformat())),
            "tech_text": list(RP.tech_commentary(market)), "regional": reg, "saibor": sai, "positions": ps, "picks": picks,
            "no_pick_reason": "" if picks else "لم يجتمع في أيّ سهمٍ اليومَ قرارُ شراءٍ وصعودٌ إلى القيمة العادلة واتجاهٌ صاعدٌ بلا تشبّع.",
-           **ai, "n_sources": len(srcs), "text_source": text_source, "ai_why": "" if text_source == "ai" else LAST["why"]}
+           **ai, "n_sources": len(srcs), "n_house": sum(1 for s in srcs if not str(s.get("key") or "").startswith("wire:")),
+           "text_source": text_source, "ai_why": "" if text_source == "ai" else LAST["why"]}
     return rep
 
 

@@ -4,8 +4,11 @@
    والراجحي كابيتال في مكانهم الأساسي» — فانتقل من المختبر إلى مفكرة السوق بجانب «التوقعات». والورقةُ تُكتب في الخادم (‏services/research_paper)
    فلا تختلف الشاشةُ عن الملفّ.
    ‏D788 (المالك 2026-11-23): «التطبيقُ يدعم تعدّدَ المحافظ — خلِّ في التقرير خياراً: بدون محفظة، أو للمحافظ كاملةً، أو لمحفظةٍ معيّنة»:
-   فمبدّلٌ فوق الأيام — «بلا محفظة» (صفحاتُ السوق وحدها) · «كلّ المحافظ» (تقريرُها المجمَّع) · كلُّ محفظةٍ باسمها — يُحفظ في المتصفّح. */
-import { useEffect, useRef, useState } from "react";
+   فمبدّلٌ فوق الأيام — «بلا محفظة» (صفحاتُ السوق وحدها) · «كلّ المحافظ» (تقريرُها المجمَّع) · كلُّ محفظةٍ باسمها — يُحفظ في المتصفّح.
+   ‏D815 (المالك 2026-11-24): «التقريرُ اليوميّ على الجوال يجب أن يظهر كما يظهر على الكمبيوتر» — كانت الورقةُ تلتفّ عموداً واحداً تحت 820px
+   (وسائطُ الشاشة الضيّقة في ورقة الخادم) فتختلف هيئتُها. فالإطارُ يُرسم دائماً بعرض الحاسوب (‏PAPER_W) فتبقى الصفحاتُ الأربعُ بأعمدتها
+   وجداولها ورسومها كما هي، ويُصغَّر كلُّه بنسبةٍ واحدةٍ ليسع الشاشة — والقرصُ بالإصبعين يكبّره للقراءة. */
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { FileText, RefreshCw, Download } from "lucide-react";
 import { marketApi, portfoliosApi } from "../../services/api";
@@ -38,6 +41,20 @@ export default function DailyReport() {
   const [ready, setReady] = useState(false);
   const [height, setHeight] = useState(900);
   const frame = useRef<HTMLIFrameElement | null>(null);
+  /* ‏D815: عرضُ الحاسوب للورقة — فوق حدّ التفافها (820) فتُرسم بأعمدتها؛ والأضيقُ منه يُصغَّر إليه */
+  const PAPER_W = 860;
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [boxW, setBoxW] = useState(0);
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const on = () => setBoxW(el.clientWidth);
+    on();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(on) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  });
+  const scale = boxW > 0 && boxW < PAPER_W ? boxW / PAPER_W : 1;
 
   const head = useQuery({
     queryKey: ["research-desk", day, cur],
@@ -145,10 +162,13 @@ export default function DailyReport() {
       {!rep ? (
         <div className="rl-empty card" data-role="rl-empty">{head.isPending ? "…" : "يصدر التقرير اليومي بعد إغلاق السوق."}</div>
       ) : (
-        <div className="rl-paper" data-ready={ready ? "1" : "0"} data-role="rl-doc">
+        <div ref={wrapRef} className="rl-paper" data-ready={ready ? "1" : "0"} data-role="rl-doc" data-scale={scale.toFixed(3)}>
           {paper.data && (
-            <iframe ref={frame} title={`التقرير اليومي — ${rep.label}`} srcDoc={paper.data} style={{ height }} sandbox="allow-same-origin"
-              onLoad={() => { measure(); setReady(true); }} />
+            <div className="rl-fit" style={{ height: Math.ceil(height * scale) }}>
+              <iframe ref={frame} title={`التقرير اليومي — ${rep.label}`} srcDoc={paper.data} sandbox="allow-same-origin"
+                style={scale < 1 ? { width: PAPER_W, height, transform: `scale(${scale})` } : { height }}
+                onLoad={() => { measure(); setReady(true); }} />
+            </div>
           )}
         </div>
       )}

@@ -26,7 +26,7 @@ MIN_Q = 50            # أدنى جودةٍ تُعرض فيها فرصة (من 1
 KEEP = 40             # ما يُحفظ من الفرص لكلّ سوق
 DEEP = {"sa": 300, "us": 150}  # ما تُقرأ رسومُه بشموعه بعد الدرجة الأوّلية: السعوديُّ الرئيسيُّ كلُّه، والأمريكيُّ أعلاه درجةً (حصّةُ ياهو)
 AI_TOP = 6            # ما يقرؤه الذكاءُ من أفضلها
-CONC = 6
+CONC = 10             # ‏D814 (المالك: «المسحُ يأخذ وقتاً»): قراءةُ الرسوم عشرةً معاً لا ستّاً — قِيس المسحُ السعوديُّ 163ث والأمريكيُّ 377ث
 TECH = ["name", "description", "close", "change", "Value.Traded", "SMA50", "SMA200", "EMA20", "ADX", "ADX+DI", "ADX-DI", "RSI", "Stoch.RSI.K",
         "Stoch.RSI.D", "Stoch.RSI.K|1W", "RSI|1W", "ChaikinMoneyFlow", "MoneyFlow", "relative_volume_10d_calc", "Perf.1M", "Perf.3M",
         "price_52_week_high", "price_52_week_low", "sector"]   # ‏D788: قطاعُ الشركة — لمحاور العالم في المجلس
@@ -258,7 +258,7 @@ async def review(market: str, items: list[dict], kept_bars: dict[str, list[dict]
                       "liq": x.get("liq"), "stt": stt, "stxt": stxt, "sector": x.get("sector"),
                       "rs3": (tr["ret3m"] - reg["ret3m"]) if market == "sa" and tr and isinstance(reg.get("ret3m"), (int, float)) else None,
                       "earn_days": CN.earn_days(s) if market == "us" else None})
-    evs = await CN.collect(market, cands, ctx)
+    evs = await CN.collect(market, cands, ctx, conc=8)              # ‏D814: شواهدُ المرشّحين ثمانيةً معاً لا أربعاً
     boards = {}
     approved, rejected = [], []
     for x in items:
@@ -270,8 +270,13 @@ async def review(market: str, items: list[dict], kept_bars: dict[str, list[dict]
     rank = {"يوافق": 0, "يوافق بتحفّظ": 1}
     approved.sort(key=lambda x: (rank.get(x["council"]["verdict"], 2), -x["council"]["score"], -x["quality"]))
     if ai:
-        for x in approved[:AI_TOP]:
-            x["link"] = await CN.link(x["symbol"], x.get("name"), market, x["side"], boards[x["symbol"]], chart=x, price=x["close"])
+        # ‏D814: قراءاتُ الذكاء لأفضل الفرص معاً (ثلاثٌ في آن) لا واحدةً بعد واحدة — كلٌّ منها حتى 75 ثانية فكانت ستُّها تتتابع دقائق
+        sem = asyncio.Semaphore(3)
+
+        async def link_one(x):
+            async with sem:
+                x["link"] = await CN.link(x["symbol"], x.get("name"), market, x["side"], boards[x["symbol"]], chart=x, price=x["close"])
+        await asyncio.gather(*(link_one(x) for x in approved[:AI_TOP]))
     rej = [{"symbol": x["symbol"], "name": x.get("name"), "setup": x["setup"], "side": x["side"], "quality": x["quality"],
             "why": x["council"]["veto_why"]} for x in rejected]
     return approved, rej
@@ -318,18 +323,22 @@ async def scan(market: str, ai: bool = True) -> dict:
                 items.append(it)
                 kept_bars[s] = bars
             await asyncio.gather(*(one(s) for s in pool))
+            t_read = time.monotonic()
             items.sort(key=lambda x: (-x["quality"], -x["horizon_n"]))
             items = items[:KEEP]
             rejected: list[dict] = []
             if items:
                 job["msg"] = "صقر يقرأ النتائجَ والأخبارَ والأحداثَ والحيتانَ والمحلّلين"
                 items, rejected = await review(market, items, kept_bars, ai)
+            t_rev = time.monotonic()
             dist: dict[str, int] = {}
             for x in items:
                 dist[x["setup"]] = dist.get(x["setup"], 0) + 1
             data = {"market": market, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "universe": len(uni), "screened": len(ranked),
                     "read": len(reads), "found": len(items), "items": items, "dist": dist, "min_q": MIN_Q, "reads": reads, "rejected": rejected,
-                    "secs": round(time.monotonic() - t0, 1)}
+                    "secs": round(time.monotonic() - t0, 1),
+                    # ‏D814: أين ذهب الوقت — القراءةُ (المُصفّي والرسوم) ثمّ المراجعة (الشواهد والذكاء)
+                    "phases": {"read": round(t_read - t0, 1), "review": round(t_rev - t_read, 1)}}
             # مسحٌ بلا مجالٍ (تعذّرُ المُصفّي) أو بلا رسمٍ مقروء (تعذّرُ الشموع) لا يمحو مسحاً سابقاً ولا يُعدّ مسحاً — وإلّا رفض صقرٌ
             # كلَّ شركةٍ «لم يُقرأ رسمُها» (قيس على الخادم 2026-11-22: مسحُ الإقلاع 0 رسوم حُفظ حديثاً)
             if uni and reads:
