@@ -31,6 +31,8 @@ _RIYADH = timezone(timedelta(hours=3))
 # الشراء تصنيفٌ يدوي لا واقعة يمكن إثباتها. الفارق الذي يستحقّ البقاء واحد:
 # مالٌ عاد من محفظتك (REINVEST) مقابل رأس مال جديد من خارجها (بلا وسم).
 from app.services.funding import REINVEST_TAGS, reinvested_amount   # ‏D730: مصدرٌ واحدٌ للوسوم ولما موّله الحوض
+from app.services import fx as FX                                    # ‏D789: السهمُ الأمريكيّ — السعرُ بالدولار والمالُ بالريال
+from app.services.fx import tx_fx
 
 
 async def backfill_realized_gains(db: AsyncSession) -> int:
@@ -58,13 +60,14 @@ async def backfill_realized_gains(db: AsyncSession) -> int:
             qty_f = float(t.quantity or 0)
             price_f = float(t.price or 0)
             fees_f = float(t.fees or 0)
+            fx = tx_fx(t)            # ‏D789: السعرُ بعملة الشركة والتكلفةُ بالريال — وواحدٌ للسعوديّ فلا يتغيّر رقم
             if t.transaction_type == "BUY":
-                invested += qty_f * price_f + fees_f
+                invested += (qty_f * price_f + fees_f) * fx
                 qty += qty_f
             elif t.transaction_type == "SELL":
                 avg = (invested / qty) if qty else 0
                 if t.realized_gain is None:
-                    t.realized_gain = qty_f * (price_f - avg) - fees_f
+                    t.realized_gain = qty_f * (price_f * fx - avg) - fees_f * fx
                     filled += 1
                 invested = max(0, invested - qty_f * avg)
                 qty -= qty_f
@@ -93,6 +96,9 @@ class TransactionCreate(BaseModel):
     amount: Optional[float] = None      # DIVIDEND total amount
     factor: Optional[float] = None      # SPLIT factor (e.g. 2 = 1→2 shares)
     fees: float = 0
+    # ‏D789: ريالٌ لكلّ دولار يومَ التنفيذ — للشركة بغير الريال وحدها (السعرُ والعمولةُ والمبلغُ بعملتها). بلا قيمةٍ يُؤخذ سعرُ اليوم
+    # ويُحفظ مع العملية فلا يتحرّك بعدها؛ وللسعوديّ يُهمل.
+    fx_rate: Optional[float] = None
     # BUY only. REINVEST = مالٌ عاد من محفظتك (توزيعات أو حصيلة تصفية معاً)،
     # وNone = رأس مال جديد من خارجها. الوسمان القديمان DIVIDEND/PROFIT يبقيان
     # مقبولين ومقروءين للصفقات المسجَّلة سابقاً، فلا يتغيّر رقم واحد في سجلّك.
@@ -209,12 +215,13 @@ async def _get_cash(db: AsyncSession) -> Cash:
     return cash
 
 
-def _recalc(h: Holding):
+def _recalc(h: Holding, fx: float = 1.0):
+    """‏fx (‏D789): ريالٌ لكلّ وحدةٍ من عملة السهم اليوم — آخرُ سعرٍ بعملته والقيمةُ بالريال. واحدٌ للسعوديّ فلا يتغيّر رقم."""
     qty = float(h.quantity or 0)
     inv = float(h.invested_amount or 0)
     lp = float(h.last_price or 0)
     h.average_cost = (inv / qty) if qty else 0
-    h.market_value = qty * lp if lp else inv
+    h.market_value = qty * lp * fx if lp else inv
     mv = float(h.market_value or 0)
     h.unrealized_profit = mv - inv
     h.unrealized_profit_pct = ((mv - inv) / inv * 100) if inv else 0
@@ -272,7 +279,11 @@ async def recompute_holding(db: AsyncSession, company_id: int) -> None:
     h.total_bonus_shares = bonus
     h.reinvestment_shares = reinvest_shares
     h.profit_reinvested = profit_reinvested
-    _recalc(h)
+    # ‏D789: الأمريكيّ — تكلفتُه بالدولار للعرض (متوسّطٌ يُقارن بسعره)، وقيمتُه بالريال بسعر صرف اليوم
+    cur, fx_now, _legacy = await FX.company_fx(db, company_id)
+    h.invested_native = (None if cur == FX.BASE or agg["invested_native"] is None
+                         else (0.0 if qty <= 0 else agg["invested_native"]))
+    _recalc(h, fx_now)
 
 
 async def _replay(db: AsyncSession, company_id: int, persist_gains: bool = True) -> dict:
@@ -286,12 +297,15 @@ async def _replay(db: AsyncSession, company_id: int, persist_gains: bool = True)
 
     qty = 0.0
     invested = 0.0
+    # ‏D789: التكلفةُ بعملة الشركة (الدولارُ للأمريكيّ) — للعرض وحده. ‏None = لا تُعرف (نقطةُ مطابقةٍ بلا تكلفةٍ بعملتها)
+    inv_n: float | None = 0.0
     bonus = 0.0
     reinvest_shares = 0.0
     profit_reinvested = 0.0
     # ‏D725: نقطةُ المطابقة مع كشف الوسيط — «في هذا التاريخ أملك كذا بتكلفة كذا». تُطبَّق قبل أوّل عمليةٍ بعدها، فما قبلها
     # يحلّ محلّه ما في الكشف (والكشفُ يشمله)، وما بعدها يُبنى عليها: شراءٌ يضيف، وبيعٌ يبيع من المصحَّح، وتجزئةٌ تضاعفه.
-    cp = (await db.execute(select(Holding.reconciled_at, Holding.reconciled_quantity, Holding.reconciled_invested)
+    cp = (await db.execute(select(Holding.reconciled_at, Holding.reconciled_quantity, Holding.reconciled_invested,
+                                  Holding.reconciled_invested_native)
                            .where(Holding.company_id == company_id))).first()
     cp_at = cp.reconciled_at if cp is not None else None
     cp_pending = cp_at is not None
@@ -300,33 +314,47 @@ async def _replay(db: AsyncSession, company_id: int, persist_gains: bool = True)
     # يلمسه المالك، وهو أخطر ما في التحرير لأنه لا يترك أثراً مرئياً.
     clipped: list[int] = []
 
+    def _cp_native():
+        v = cp.reconciled_invested_native
+        return float(v) if v is not None else None
+
     for t in txs:
         if cp_pending and t.executed_at is not None and t.executed_at > cp_at:
             qty, invested, cp_pending = float(cp.reconciled_quantity or 0), float(cp.reconciled_invested or 0), False
+            inv_n = _cp_native()
         qf = float(t.quantity or 0)
         price = float(t.price or 0)
         fees = float(t.fees or 0)
         total = float(t.total_amount or 0)
         typ = t.transaction_type
+        # ‏D789: السعرُ والعمولةُ بعملة الشركة، والتكلفةُ والربحُ المحقّق بالريال بسعر صرف العملية. وللسعوديّ (وما قبل ‏D789)
+        # سعرُ الصرف واحدٌ تماماً — والضربُ في واحدٍ يعيد العددَ نفسَه بتّاً بتّاً، فلا يتغيّر رقمٌ في سجلٍّ قائم.
+        fx = tx_fx(t)
         if typ == "BUY":
-            invested += qf * price + fees
+            invested += (qf * price + fees) * fx
+            if inv_n is not None:
+                inv_n += qf * price + fees
             qty += qf
             profit_reinvested += reinvested_amount(t)   # ‏D730: الشقُّ الموسوم وحده من الشراء المقسَّم
         elif typ == "SELL":
             avg = (invested / qty) if qty else 0
+            avg_n = (inv_n / qty) if (qty and inv_n is not None) else 0.0
             sell_qty = min(qf, qty)  # never let a replay drive shares negative
             if sell_qty < qf - 1e-9:
                 clipped.append(t.id)
             # Realized gain is recomputed here on the chronological cost basis,
             # so it stays exact even after an earlier row is edited/deleted.
             if persist_gains:
-                t.realized_gain = sell_qty * (price - avg) - fees
+                t.realized_gain = sell_qty * (price * fx - avg) - fees * fx
             invested = max(0, invested - sell_qty * avg)
+            if inv_n is not None:
+                inv_n = max(0.0, inv_n - sell_qty * avg_n)
             qty -= sell_qty
             # بيعٌ كامل يُغلق الدورة: بقايا الفاصلة العائمة في التكلفة كانت
             # تُرحَّل إلى أوّل شراءٍ بعد الإغلاق فتُفسد متوسّطه (D480).
             if qty <= 1e-9:
                 qty, invested = 0.0, 0.0
+                inv_n = 0.0
         elif typ == "DIVIDEND":
             pass  # dividends don't change shares; income is summed below
         elif typ == "BONUS":
@@ -339,9 +367,12 @@ async def _replay(db: AsyncSession, company_id: int, persist_gains: bool = True)
             shares = (total / price) if price else 0
             qty += shares
             invested += total
+            if inv_n is not None:
+                inv_n += total
             reinvest_shares += shares
     if cp_pending:
         qty, invested = float(cp.reconciled_quantity or 0), float(cp.reconciled_invested or 0)
+        inv_n = _cp_native()
 
     # Dividend income comes from the dedicated Dividend LEDGER, not from
     # replaying DIVIDEND transactions — because dividends can also be recorded
@@ -356,7 +387,7 @@ async def _replay(db: AsyncSession, company_id: int, persist_gains: bool = True)
         )).scalar() or 0
     )
 
-    return {"quantity": qty, "invested": invested, "bonus": bonus,
+    return {"quantity": qty, "invested": invested, "invested_native": inv_n, "bonus": bonus,
             "reinvest_shares": reinvest_shares, "profit_reinvested": profit_reinvested,
             "dividends": dividends, "clipped_sales": clipped}
 
@@ -380,13 +411,15 @@ async def _apply(db: AsyncSession, tx: TransactionCreate) -> tuple[float, float 
     inv0 = float(h.invested_amount or 0)
     realized_gain = None
     div_row: Dividend | None = None
+    # ‏D789: سعرُ صرف العملية — السعرُ والعمولةُ والمبلغُ بعملة الشركة، والنقدُ والتكلفةُ بالريال. وللسعوديّ واحدٌ تماماً.
+    fx = float(tx.fx_rate) if tx.fx_rate else 1.0
 
     if t == "BUY":
         if not tx.quantity or not tx.price:
             raise HTTPException(422, "quantity and price are required for BUY")
         if tx.quantity <= 0 or tx.price <= 0 or tx.fees < 0:
             raise HTTPException(422, "quantity and price must be positive for BUY")
-        total = tx.quantity * tx.price + tx.fees
+        total = (tx.quantity * tx.price + tx.fees) * fx
         # حارس السيولة: البيع كان محميّاً («لا تبع أكثر مما تملك») والشراء بلا
         # حارس مقابل — فيهبط النقد إلى ما دون الصفر بصمت، وهي حالة مستحيلة
         # واقعاً تفسد كل ما يُبنى على النقد (القابل للاستثمار، الأوزان، الحوض).
@@ -420,8 +453,8 @@ async def _apply(db: AsyncSession, tx: TransactionCreate) -> tuple[float, float 
         if tx.quantity > qty0:
             raise HTTPException(422, "Cannot sell more shares than held")
         avg = (inv0 / qty0) if qty0 else 0
-        proceeds = tx.quantity * tx.price - tx.fees
-        realized_gain = tx.quantity * (tx.price - avg) - tx.fees
+        proceeds = (tx.quantity * tx.price - tx.fees) * fx
+        realized_gain = tx.quantity * (tx.price * fx - avg) - tx.fees * fx
         h.quantity = qty0 - tx.quantity
         h.invested_amount = max(0, inv0 - tx.quantity * avg)
         h.last_price = tx.price
@@ -431,14 +464,16 @@ async def _apply(db: AsyncSession, tx: TransactionCreate) -> tuple[float, float 
 
     elif t == "DIVIDEND":
         # Cash dividend: amount directly, or per-share (price) × current shares
-        amount = tx.amount if tx.amount else (tx.price or 0) * qty0
+        # ‏D789: المبلغُ ونصيبُ السهم بعملة الشركة، وما يدخل النقدَ وسجلَّ التوزيعات بالريال
+        amount_n = tx.amount if tx.amount else (tx.price or 0) * qty0
+        amount = amount_n * fx
         if amount <= 0:
             raise HTTPException(422, "amount (or per-share price) required for DIVIDEND")
         h.total_dividends_received = float(h.total_dividends_received or 0) + amount
         cash.available_cash = float(cash.available_cash or 0) + amount
         cash.total_cash = float(cash.total_cash or 0) + amount
         total = amount
-        dps = tx.price if tx.price else (amount / qty0 if qty0 else 0)
+        dps = tx.price if tx.price else (amount_n / qty0 if qty0 else 0)
         div_row = Dividend(
             company_id=tx.company_id, dividend_per_share=dps, shares_at_time=qty0,
             received_amount=amount, action=DividendAction.CASH, payment_date=tx.executed_at,
@@ -467,7 +502,8 @@ async def _apply(db: AsyncSession, tx: TransactionCreate) -> tuple[float, float 
     else:
         raise HTTPException(422, f"Unsupported transaction type: {t}")
 
-    _recalc(h)
+    # القيمةُ هنا بسعر العملية وصرفِها لحظةً — وإعادةُ البناء بعدها (‏recompute_holding) تضعها بصرف اليوم
+    _recalc(h, fx)
     return total, realized_gain, div_row
 
 
@@ -502,6 +538,8 @@ async def get_transactions(company_id: int | None = None, limit: int = 500, offs
         "id": t.id, "company_id": t.company_id, "type": t.transaction_type,
         "quantity": float(t.quantity or 0), "price": float(t.price or 0),
         "total": float(t.total_amount or 0), "notes": t.notes,
+        "fees": float(t.fees or 0),
+        "fx_rate": (float(t.fx_rate) if t.fx_rate is not None else None),   # ‏D789: السعرُ بعملة الشركة والإجماليُّ بالريال
         "funding_source": t.funding_source,
         "reinvest_qty": (float(t.reinvest_qty) if t.reinvest_qty is not None else None),   # ‏D730
         # الربح المحقّق للبيع: يُحسب ويُخزَّن ويغذّي الدخل السنوي والتقارير،
@@ -521,7 +559,8 @@ async def get_transactions(company_id: int | None = None, limit: int = 500, offs
 
 @router.get("/funding-preview")
 async def funding_preview(company_id: int, quantity: float, price: float, fees: float = 0,
-                          transaction_date: str | None = None, db: AsyncSession = Depends(get_db)):
+                          transaction_date: str | None = None, fx_rate: float | None = None,
+                          db: AsyncSession = Depends(get_db)):
     """معاينةُ التقسيم الآليّ لشراءٍ قبل تأكيده (‏D730) — الدالّةُ نفسُها التي تحسب عند الحفظ، بالوقت نفسِه
     (‏TransactionCreate يحلّ التاريخَ إلى وقتٍ كما يحلّه عند الحفظ). تقرأ ولا تكتب."""
     from app.services.funding import auto_split
@@ -532,7 +571,32 @@ async def funding_preview(company_id: int, quantity: float, price: float, fees: 
                               transaction_date=transaction_date)
     except ValueError as e:                 # تاريخٌ مستقبليّ أو غيرُ مقروء — كما يُرفض عند الحفظ
         raise HTTPException(422, str(e).split("\n")[-1][:200])
-    return success_response(data=await auto_split(db, company_id, quantity, price, fees, d.executed_at))
+    _fx = (await resolve_fx(db, company_id, "BUY", fx_rate)) or 1.0     # ‏D789: كما يُحسب عند الحفظ
+    return success_response(data=await auto_split(db, company_id, quantity, price * _fx, fees * _fx, d.executed_at))
+
+
+FX_SANE = (3.5, 4.0)     # ‏D789: سعرُ صرفٍ يُدخله المالك من كشف وسيطه — ما خرج عن هذا خطأُ كتابة (‏37.5 بدل 3.75)
+
+
+async def resolve_fx(db: AsyncSession, company_id: int, typ: str, given: float | None) -> float | None:
+    """سعرُ صرف العملية (‏D789): فارغٌ للسعوديّ ولما لا مالَ فيه (منحةٌ وتجزئة)؛ وللأمريكيّ ما أدخله المالك أو سعرُ اليوم.
+
+    ولا تُخلط عمليةٌ بسعر صرفٍ بعملياتٍ قديمةٍ بلا سعر صرف (سُجّلت قبل ‏D789 بأرقامٍ عُدّت ريالاً): التكلفةُ تصير نصفَين
+    بعملتين — فتُرفض حتى يُكمل المالكُ سعرَ صرف القديمة بنفسه (لا يُفرض عليها سعرٌ لم يُدخله)."""
+    from app.models.portfolio import Company as _Co
+    cur = FX.norm((await db.execute(select(_Co.currency).where(_Co.id == company_id))).scalar())
+    # والمنحةُ تحمله أيضاً: لا نقدَ فيها، لكنّ سعرَ يوم منحها بالدولار يُقيَّم به نصيبُها من العائد بالريال
+    if cur == FX.BASE or typ not in ("BUY", "SELL", "DIVIDEND", "BONUS"):
+        return None
+    _c, _r, legacy = await FX.company_fx(db, company_id)
+    if legacy:
+        raise HTTPException(422, "لهذه الشركة عملياتٌ بالدولار سُجّلت قبل دعم العملة بلا سعر صرف، فعُدّت أرقامُها ريالاً. "
+                                 "أكمِل سعرَ صرف كلٍّ منها من «تحرير العملية» أوّلاً، فتُحسب كلُّها بالريال معاً. لم يُحفظ شيء.")
+    if given is None:
+        return float((await FX.usd_sar())["rate"])
+    if not (FX_SANE[0] <= float(given) <= FX_SANE[1]):
+        raise HTTPException(422, f"سعرُ الصرف {given:g} غيرُ معقول — الريالُ مربوطٌ بالدولار عند 3.75 تقريباً. لم يُحفظ شيء.")
+    return float(given)
 
 
 @router.post("")
@@ -562,6 +626,9 @@ async def add_transaction(data: TransactionCreate, db: AsyncSession = Depends(ge
             _d = _cp.astimezone(_RIYADH).date().isoformat()
             raise HTTPException(422, f"رُفضت العملية: تاريخُها قبل مطابقة المركز مع كشف الوسيط ({_d})، والمركزُ المصحَّح يشملها. "
                                      f"لتغيير الكمية بعد ذلك التاريخ استعمل «تعديل المركز». لم يُحفظ شيء.")
+
+    data.fx_rate = await resolve_fx(db, data.company_id, data.transaction_type, data.fx_rate)
+    _fx = data.fx_rate or 1.0
 
     _before = await _ledger_state(db, data.company_id)
 
@@ -594,7 +661,8 @@ async def add_transaction(data: TransactionCreate, db: AsyncSession = Depends(ge
         if not (data.quantity and data.quantity > 0 and data.price and data.price > 0):
             raise HTTPException(422, "quantity and price are required for BUY")
         from app.services.funding import auto_split
-        split = await auto_split(db, data.company_id, data.quantity, data.price, data.fees or 0, data.executed_at)
+        # ‏D789: الحوضُ ونصيبُ الشركة بالريال — فسعرُ السهم وعمولتُه بالريال هنا (وللسعوديّ كما هما)
+        split = await auto_split(db, data.company_id, data.quantity, data.price * _fx, (data.fees or 0) * _fx, data.executed_at)
         if data.expect_reinvest_qty is not None and abs(float(data.expect_reinvest_qty) - split["reinvest_qty"]) > 1e-9:
             raise HTTPException(409, f"تغيّر نصيبُ الشركة من إعادة الاستثمار منذ المعاينة: كان {data.expect_reinvest_qty:g} سهماً "
                                      f"وصار {split['reinvest_qty']} — راجع المعاينة وأكّد من جديد. لم يُحفظ شيء.")
@@ -613,6 +681,7 @@ async def add_transaction(data: TransactionCreate, db: AsyncSession = Depends(ge
         funding_source=(data.funding_source or None) if data.transaction_type == "BUY" else None,
         reinvest_qty=data.reinvest_qty if data.transaction_type == "BUY" else None,
         realized_gain=realized_gain,
+        fx_rate=data.fx_rate,
         notes=data.notes,
         executed_at=data.executed_at,
     )
@@ -848,14 +917,15 @@ def _cash_effect(t: str, total: float, funding_source: str | None) -> float:
     return 0.0
 
 
-def _recompute_total(t: str, qty: float, price: float, fees: float, amount: float) -> float:
-    """إجمالي العملية بنفس صيغة الإنشاء حرفياً (انظر _apply)."""
+def _recompute_total(t: str, qty: float, price: float, fees: float, amount: float, fx: float = 1.0) -> float:
+    """إجمالي العملية بنفس صيغة الإنشاء حرفياً (انظر _apply) — بالريال: ‏fx سعرُ صرف العملية (واحدٌ للسعوديّ)،
+    و‏amount مبلغُ التوزيع بعملة الشركة (‏D789)."""
     if t == "BUY":
-        return qty * price + fees
+        return (qty * price + fees) * fx
     if t == "SELL":
-        return qty * price - fees
+        return (qty * price - fees) * fx
     if t == "DIVIDEND":
-        return amount
+        return amount * fx
     return 0.0   # منحة وتجزئة: لا نقد
 
 
@@ -874,7 +944,8 @@ class TransactionPatch(BaseModel):
     quantity: Optional[float] = None
     price: Optional[float] = None
     fees: Optional[float] = None
-    amount: Optional[float] = None          # مبلغ التوزيع
+    amount: Optional[float] = None          # مبلغ التوزيع — بعملة الشركة (‏D789)
+    fx_rate: Optional[float] = None         # ‏D789: سعرُ صرف العملية للشركة بغير الريال — به يُكمل المالكُ القديمةَ بلا سعر
     executed_at: Optional[datetime] = None
     notes: Optional[str] = None
     funding_source: Optional[str] = None    # "" أو null ⇒ إزالة الوسم
@@ -904,7 +975,18 @@ async def patch_transaction(tx_id: int, data: TransactionPatch,
     qty   = float(data.quantity if data.quantity is not None else (tx.quantity or 0))
     price = float(data.price    if data.price    is not None else (tx.price or 0))
     fees  = float(data.fees     if data.fees     is not None else (tx.fees or 0))
-    amount = float(data.amount  if data.amount   is not None else old_total)
+    # ‏D789: سعرُ الصرف — للسعوديّ فارغٌ دائماً؛ وللأمريكيّ ما أدخله المالك الآن أو المسجَّلُ مع العملية. والمبلغُ المحفوظ
+    # بالريال فيُعاد إلى عملة الشركة بسعرها القديم (وللسعوديّ القسمةُ على واحدٍ تعيده كما هو بتّاً بتّاً).
+    from app.models.portfolio import Company as _Co
+    _cur = FX.norm((await db.execute(select(_Co.currency).where(_Co.id == tx.company_id))).scalar())
+    old_fx = tx_fx(tx)
+    new_fx_rate = None
+    if _cur != FX.BASE and t in ("BUY", "SELL", "DIVIDEND", "BONUS"):     # والمنحةُ تحمله كما تحمله عند الإنشاء — فلا يُمحى بتحريرها
+        new_fx_rate = float(data.fx_rate) if data.fx_rate is not None else (float(tx.fx_rate) if tx.fx_rate is not None else None)
+        if new_fx_rate is not None and not (FX_SANE[0] <= new_fx_rate <= FX_SANE[1]):
+            raise HTTPException(422, f"سعرُ الصرف {new_fx_rate:g} غيرُ معقول — الريالُ مربوطٌ بالدولار عند 3.75 تقريباً. لم يُحفظ شيء.")
+    new_fx = new_fx_rate or 1.0
+    amount = float(data.amount  if data.amount   is not None else old_total / old_fx)
     when  = data.executed_at or tx.executed_at
 
     if qty < 0 or price < 0 or fees < 0:
@@ -924,7 +1006,7 @@ async def patch_transaction(tx_id: int, data: TransactionPatch,
     if when and when.astimezone(_RIYADH).date() > (datetime.now(_RIYADH).date() + timedelta(days=1)):
         raise HTTPException(422, "لا يمكن تسجيل صفقة بتاريخ مستقبلي.")
 
-    new_total = _recompute_total(t, qty, price, fees, amount)
+    new_total = _recompute_total(t, qty, price, fees, amount, new_fx)
 
     # ── الوسم ─────────────────────────────────────────────────────────────
     new_funding = tx.funding_source
@@ -968,6 +1050,7 @@ async def patch_transaction(tx_id: int, data: TransactionPatch,
     tx.price = price
     tx.fees = fees
     tx.total_amount = new_total
+    tx.fx_rate = new_fx_rate
     tx.funding_source = new_funding
     if when:
         tx.executed_at = when
@@ -981,7 +1064,8 @@ async def patch_transaction(tx_id: int, data: TransactionPatch,
         # تعرض «التوزيع للسهم» مناقضاً لمبلغ التوزيع نفسه في السطر ذاته.
         shares = float(div.shares_at_time or 0)
         if shares > 0:
-            div.dividend_per_share = new_total / shares
+            # ‏D789: نصيبُ السهم بعملة الشركة (والمبلغُ المسجَّل بالريال) — وللسعوديّ المبلغان واحد
+            div.dividend_per_share = amount / shares
         if when:
             div.payment_date = when
 
@@ -1007,6 +1091,7 @@ async def patch_transaction(tx_id: int, data: TransactionPatch,
     return success_response(data={
         "id": tx.id, "quantity": float(tx.quantity or 0), "price": float(tx.price or 0),
         "fees": float(tx.fees or 0), "total": float(tx.total_amount or 0),
+        "fx_rate": (float(tx.fx_rate) if tx.fx_rate is not None else None),
         "funding_source": tx.funding_source,
         "reinvest_qty": (float(tx.reinvest_qty) if tx.reinvest_qty is not None else None),
         "date": tx.executed_at.isoformat() if tx.executed_at else None,

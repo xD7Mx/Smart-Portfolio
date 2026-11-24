@@ -169,7 +169,8 @@ export const transactionsApi = {
     api.get<APIResponse>("/transactions" + (companyId ? `?company_id=${companyId}&limit=${limit}` : `?limit=${limit}`)),
   add:    (data: any) => api.post<APIResponse>("/transactions", data),
   // ‏D730: معاينةُ تقسيم الشراء بين إعادة الاستثمار والسيولة — الدالّةُ نفسُها التي تحسب عند الحفظ
-  fundingPreview: (p: { company_id: number; quantity: number; price: number; transaction_date?: string }) =>
+  // ‏D789: وللسهم الأمريكيّ سعرُ صرف العملية — السعرُ بالدولار والتمويلُ بالريال
+  fundingPreview: (p: { company_id: number; quantity: number; price: number; transaction_date?: string; fx_rate?: number }) =>
     api.get<APIResponse>("/transactions/funding-preview", { params: p }),
   get:    (id: number) => api.get<APIResponse>(`/transactions/${id}`),
   // السببُ يُقيَّد في سجلّ التدقيق (D481)
@@ -273,6 +274,8 @@ export const marketApi = {
     api.get<Blob>("/market/research-desk/pdf", { params: { ...(day ? { day } : {}), ...(pf ? { pf } : {}) }, responseType: "blob", timeout: 120000 }),
   researchRun: () => api.post<APIResponse>("/market/research-desk/run"),
   symbolSearch: (q: string) => api.get<APIResponse>("/market/symbol-search", { params: { q } }),
+  // ‏D789: ريالٌ لكلّ دولار ومصدرُه مسمّى (حيّ · آخرُ سعرٍ مقروء · السعرُ الرسميّ المثبَّت)
+  fx: () => api.get<APIResponse>("/market/fx"),
   saudiDirectory: () => api.get<APIResponse>("/market/saudi-directory"),
   /* ‏D761 السعرُ الحيُّ وحالةُ السوق (مفتوح · قبل الافتتاح · بعد الإغلاق · مغلق · عطلة) */
   live: (symbol: string) => api.get<APIResponse>(`/market/live/${encodeURIComponent(symbol)}`),

@@ -14,15 +14,17 @@ export type FundingSplitData = {
 };
 
 /* المعاينةُ بعد توقّف الكتابة قليلاً — «372» تُكتب «3» ثمّ «37»، ولا داعي لثلاثة طلبات */
-export function useFundingSplit(companyId: number, active: boolean, shares: string, price: string, date: string) {
+export function useFundingSplit(companyId: number, active: boolean, shares: string, price: string, date: string, fx?: number) {
   const q = Number(shares), p = Number(price);
-  const ready = active && q > 0 && p > 0 && Number.isFinite(q) && Number.isFinite(p);
-  const key = ready ? `${q}|${p}|${date}` : "";
+  // ‏D789: السهمُ الأمريكيّ — سعرُ الصرف شرطٌ للمعاينة (السعرُ بالدولار والتمويلُ بالريال)
+  const fxOk = fx === undefined || (Number.isFinite(fx) && fx > 0);
+  const ready = active && q > 0 && p > 0 && Number.isFinite(q) && Number.isFinite(p) && fxOk;
+  const key = ready ? `${q}|${p}|${date}|${fx ?? ""}` : "";
   const [settled, setSettled] = useState(key);
   useEffect(() => { const t = setTimeout(() => setSettled(key), 250); return () => clearTimeout(t); }, [key]);
   const query = useQuery({
     queryKey: ["funding-preview", companyId, settled],
-    queryFn: () => transactionsApi.fundingPreview({ company_id: companyId, quantity: q, price: p, transaction_date: date })
+    queryFn: () => transactionsApi.fundingPreview({ company_id: companyId, quantity: q, price: p, transaction_date: date, ...(fx !== undefined ? { fx_rate: fx } : {}) })
       .then(r => r.data.data as FundingSplitData),
     enabled: ready && settled === key,
     staleTime: 0, gcTime: 0, retry: 1,

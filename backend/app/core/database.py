@@ -103,6 +103,10 @@ async def init_db() -> None:
         await _safe("ALTER TABLE holdings ADD COLUMN IF NOT EXISTS reconciled_quantity NUMERIC(18,6)")
         await _safe("ALTER TABLE holdings ADD COLUMN IF NOT EXISTS reconciled_invested NUMERIC(18,6)")
         await _safe("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS realized_gain NUMERIC(18,6)")
+        # ‏D789: السهمُ الأمريكيّ — سعرُ صرف العملية، وتكلفةُ المركز بعملة الشركة (أعمدةٌ تُضاف فارغة: لا رقمَ قائمٌ يتغيّر)
+        await _safe("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS fx_rate NUMERIC(18,8)")
+        await _safe("ALTER TABLE holdings ADD COLUMN IF NOT EXISTS invested_native NUMERIC(18,6)")
+        await _safe("ALTER TABLE holdings ADD COLUMN IF NOT EXISTS reconciled_invested_native NUMERIC(18,6)")
         # الكتب المرفوعة قبل نظام المعالجة الخلفية تُعتبَر جاهزة (DEFAULT TRUE)
         # كي لا تظهر عالقة في «جارٍ التحضير»؛ الرفع الجديد يضبطها False ثم True.
         await _safe("ALTER TABLE library_books ADD COLUMN IF NOT EXISTS ready BOOLEAN DEFAULT TRUE")

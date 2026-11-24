@@ -70,7 +70,9 @@ async def _portfolio_context(db) -> dict:
                 "القطاع": (c.sector if c else None),
                 "الكمية": float(h.quantity or 0),
                 "متوسط التكلفة": float(h.average_cost or 0),
+                # ‏D789: السعرُ بعملة الشركة (الدولارُ للأمريكيّ) وكلُّ مالٍ غيرُه بالريال — تُسمّى العملة فلا يُقرأ الدولارُ ريالاً
                 "السعر الحالي": float(h.last_price or 0),
+                "عملة السعر": ((c.currency or "SAR").upper() if c else "SAR"),
                 "القيمة السوقية": round(m, 2),
                 "الربح/الخسارة": round(float(h.unrealized_profit or 0), 2),
                 "العائد٪": round(float(h.unrealized_profit_pct or 0), 2),

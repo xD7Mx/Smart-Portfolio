@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Search, Pencil, Trash2, TrendingUp, TrendingDown, ShoppingCart, X, SlidersHorizontal, Wallet, Scale, Columns3, RefreshCw, Coins, LayoutGrid, Briefcase, Newspaper, CalendarDays, GripVertical, Star, Shield, ChevronDown, AlertTriangle, Droplets, Save, RotateCcw } from "lucide-react";
 import { GridLayout, useContainerWidth, verticalCompactor } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
-import { companiesApi, holdingsApi, transactionsApi, cashApi, allocationApi, portfolioApi, profileApi, goalsApi } from "../services/api";
+import { companiesApi, holdingsApi, transactionsApi, cashApi, allocationApi, portfolioApi, profileApi, goalsApi, marketApi } from "../services/api";
 import { yearsToGoal, yearsLabel } from "../utils/goal";
 import { useT } from "../i18n";
 import { searchCompanies, lookupCompany, SaudiCompany } from "../data/saudiCompanies";
@@ -194,6 +194,10 @@ function DashboardGrid() {
 
 const fmt = (n: number) => n?.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) ?? "—";
 const fmt2 = (n: number) => n?.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? "0.00";
+/* ‏D789: الشركةُ الأمريكيّة — عملتُها من الخادم (من سوقها)، وللسجلّ القديم بلا عملةٍ يُقرأ من رمزها (حروفٌ لا أرقامُ «تداول») */
+const US_SYM = /^[A-Za-z][A-Za-z0-9.\-]*$/;
+const isUsd = (c: any) => c?.currency ? String(c.currency).toUpperCase() === "USD"
+  : US_SYM.test(String(c?.symbol || "")) && !String(c?.symbol || "").toUpperCase().endsWith(".SR");
 
 /* لوحةُ تمييزٍ بين الشركات — عشرُ درجاتٍ متباينة، لا دلالةَ ربحٍ وخسارة.
    لا تُستبدل برموز `--pos-ink/--neg-ink`: تلك للمعنى لا للتفريق، وقد
@@ -407,6 +411,27 @@ function CompanyModal({ company, onClose }: { company?: any; onClose: () => void
   const [suggestions, setSuggestions] = useState<SaudiCompany[]>([]);
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
+  /* ‏D789 (المالك: «أبغاها تدعم السوقين كاملَين — البحثَ والمحفظةَ نفسَها»): الحرفُ اللاتينيُّ يسأل خادمَنا عن السوق الأمريكي
+     كلِّه (أسهمٌ وصناديقُ مدرجة) بعد توقّفٍ قصيرٍ في الكتابة؛ والسوقُ والعملةُ من الرمز نفسِه كما يحفظهما الخادم — لا اختيارٌ يُنسى. */
+  type Sug = SaudiCompany & { us?: boolean; exchange?: string };
+  const [usHits, setUsHits] = useState<Sug[]>([]);
+  const usQ = !company && /^[A-Za-z][A-Za-z0-9.\- ]{0,20}$/.test(form.symbol.trim()) ? form.symbol.trim() : "";
+  useEffect(() => {
+    if (!usQ) { setUsHits([]); return; }
+    let live = true;
+    const id = window.setTimeout(() => {
+      marketApi.symbolSearch(usQ).then(r => {
+        if (!live) return;
+        const rows = Array.isArray(r.data?.data) ? r.data.data : [];
+        setUsHits(rows.filter((x: any) => x.us && /EQUITY|ETF/i.test(String(x.type || ""))).slice(0, 8)
+          .map((x: any) => ({ symbol: String(x.symbol).toUpperCase(), name_ar: x.name, name_en: x.name,
+                              sector: "", us: true, exchange: x.exchange || "" })));
+      }).catch(() => { if (live) setUsHits([]); });
+    }, 260);
+    return () => { live = false; window.clearTimeout(id); };
+  }, [usQ]);
+  const usForm = /^[A-Za-z]/.test(form.symbol.trim()) && !form.symbol.trim().toUpperCase().endsWith(".SR");
+  const shown: Sug[] = [...suggestions, ...usHits.filter(u => !suggestions.some(x => x.symbol === u.symbol))].slice(0, 12);
 
   // Live Saudi market directory from Sahmak (real symbols + Arabic/English
   // names); merged with the built-in list, so search works even before a key.
@@ -435,9 +460,12 @@ function CompanyModal({ company, onClose }: { company?: any; onClose: () => void
       : [];
     setSuggestions([...local, ...remote].slice(0, 10));
   };
-  const pick = (c: SaudiCompany) => {
-    setForm(f => ({ ...f, symbol: c.symbol, name: c.name_en, name_ar: c.name_ar, sector: c.sector }));
+  const pick = (c: Sug) => {
+    setForm(f => c.us
+      ? { ...f, symbol: c.symbol, name: c.name_en, name_ar: c.name_ar, sector: "", market: c.exchange || "", currency: "USD" }
+      : { ...f, symbol: c.symbol, name: c.name_en, name_ar: c.name_ar, sector: c.sector, currency: "SAR" });
     setSuggestions([]);
+    setUsHits([]);
   };
 
   const mutation = useMutation({
@@ -453,21 +481,23 @@ function CompanyModal({ company, onClose }: { company?: any; onClose: () => void
         <Field label="ابحث بالرمز أو الاسم (عربي/إنجليزي)">
           <div className="relative">
             <input className="input" value={form.symbol} onChange={onSymbolInput}
-              placeholder="2222 · أرامكو · Aramco" autoFocus />
+              placeholder="2222 · أرامكو · AAPL" autoFocus />
             {/* القائمة تندمج بأرضية التطبيق ويحدّها إطارٌ أثقل — كصندوق
                 البحث فوقها تماماً. الصنف `sp-menu` يحمل اللون فلا يتكرّر
                 القرار في كل موضعِ قائمة. */}
-            {suggestions.length > 0 && (
+            {shown.length > 0 && (
               <div className="sp-menu absolute z-20 top-full mt-1 w-full rounded-xl overflow-hidden shadow-2xl"
                 style={{maxHeight: 220, overflowY: "auto"}}>
-                {suggestions.map(c => (
-                  <button key={c.symbol} type="button"
+                {shown.map(c => (
+                  <button key={c.symbol} type="button" data-role={c.us ? "co-us-hit" : "co-sa-hit"}
                     className="w-full text-start px-3 py-2.5 hover:bg-[var(--field)] flex items-center gap-3 transition-colors"
                     onClick={() => pick(c)}>
                     <CompanyLogo symbol={c.symbol} size={26} />
                     <span className="tag-b shrink-0">{c.symbol}</span>
-                    <span className="text-[var(--ink)] text-sm font-semibold">{c.name_ar}</span>
-                    <span className="text-[var(--ink-muted)] text-xs ms-auto">{c.name_en} · {c.sector}</span>
+                    <span className="text-[var(--ink)] text-sm font-semibold" dir={c.us ? "ltr" : undefined}>{c.name_ar}</span>
+                    <span className="text-[var(--ink-muted)] text-xs ms-auto">
+                      {c.us ? `السوق الأمريكي${c.exchange ? " · " + c.exchange : ""}` : `${c.name_en} · ${c.sector}`}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -478,18 +508,29 @@ function CompanyModal({ company, onClose }: { company?: any; onClose: () => void
           <Field label={t("common.sector")}><input className="input" value={form.sector} onChange={set("sector")} placeholder="—" /></Field>
           <div />
         </div>
-        <Field label={t("port.nameEn")}><input className="input" value={form.name} onChange={set("name")} placeholder="Aramco" /></Field>
-        <Field label={t("port.nameAr")}><input className="input" value={form.name_ar} onChange={set("name_ar")} placeholder="أرامكو السعودية" /></Field>
+        {/* ‏dir="auto": الاسمُ الإنجليزيُّ في حقلٍ عربيّ كان يُقلب («.Apple Inc») — اتجاهُ الحقل من أوّل حرفٍ فيه */}
+        <Field label={t("port.nameEn")}><input className="input" dir="auto" value={form.name} onChange={set("name")} placeholder="Aramco" /></Field>
+        <Field label={t("port.nameAr")}><input className="input" dir="auto" value={form.name_ar} onChange={set("name_ar")} placeholder="أرامكو السعودية" /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label={t("port.marketField")}>
-            <Select className="input" value={form.market} onChange={set("market")}>
-              <option>تداول</option><option>نوماد</option><option>السوق الموازية</option>
-            </Select>
+            {usForm ? (
+              <div className="input flex items-center gap-1 whitespace-nowrap overflow-hidden" data-role="co-market" aria-readonly="true">
+                <span>السوق الأمريكي</span>
+                {form.market && !["تداول", "نوماد", "السوق الموازية"].includes(form.market) && (
+                  <span className="text-[11px] text-[var(--ink-muted)] truncate" dir="ltr">· {form.market}</span>
+                )}
+              </div>
+            ) : (
+              <Select className="input" value={form.market} onChange={set("market")}>
+                <option>تداول</option><option>نوماد</option><option>السوق الموازية</option>
+              </Select>
+            )}
           </Field>
           <Field label={t("port.currency")}>
-            <Select className="input" value={form.currency} onChange={set("currency")}>
-              <option>SAR</option><option>USD</option>
-            </Select>
+            {/* العملةُ من السوق: الخادمُ يحفظها من الرمز — فتُعرض ولا تُختار */}
+            <div className="input flex items-center" data-role="co-currency" aria-readonly="true">
+              {usForm ? "دولار أمريكي" : "ريال سعودي"}
+            </div>
           </Field>
         </div>
         <div className="flex gap-3 pt-2">
@@ -527,7 +568,15 @@ function TransactionModal({ company, onClose, initial }: { company: any; onClose
   const qc = useQueryClient();
   const [type, setType] = useState("BUY");
   const [f, setF] = useState({ shares: initial?.shares ?? "", price: initial?.price ?? "", amount: "", factor: "2", date: new Date().toISOString().split("T")[0] });
-  const fs = useFundingSplit(company.id, type === "BUY", f.shares, f.price, f.date);
+  /* ‏D789: السهمُ الأمريكيّ — السعرُ والعمولةُ ومبلغُ التوزيع بالدولار، وكلُّ ما يدخل المحفظةَ بالريال بسعر صرف العملية:
+     يُملأ بسعر اليوم ويُعدَّل من كشف الوسيط، ويُحفظ مع العملية فلا يتحرّك بعدها. */
+  const usd = isUsd(company);
+  const { data: fxNow } = useQuery({
+    queryKey: ["fx"], queryFn: () => marketApi.fx().then(r => r.data?.data), enabled: usd, staleTime: 10 * 60 * 1000,
+  });
+  const [fxIn, setFxIn] = useState("");
+  const fxRate = usd ? (Number(fxIn) > 0 ? Number(fxIn) : Number(fxNow?.rate) || 0) : 1;
+  const fs = useFundingSplit(company.id, type === "BUY", f.shares, f.price, f.date, usd ? fxRate : undefined);
   const [preSplitOk, setPreSplitOk] = useState(false);
   // سياق القرار داخل البطاقة: أسهمك · متوسط تكلفتك · سيولتك.
   const { data: holdingCtx } = useQuery({
@@ -572,6 +621,7 @@ function TransactionModal({ company, onClose, initial }: { company: any; onClose
         if (Number(f.price) > 0) payload.price_per_share = Number(f.price);
       }
       if (type === "SPLIT") { payload.factor = Number(f.factor); payload.confirm_prior_pre_split = preSplitOk; }
+      if (usd && type !== "SPLIT") payload.fx_rate = fxRate;
       return transactionsApi.add(payload).then(r => r.data);
     },
     onSuccess: () => {
@@ -594,16 +644,18 @@ function TransactionModal({ company, onClose, initial }: { company: any; onClose
 
   // ما سيحدث فعلاً بالأرقام — يُحسب من مدخلاتك ومن حيازتك الحالية.
   const shares0 = Number(holdingCtx?.total_shares ?? 0);
-  const invested0 = Number(holdingCtx?.invested_amount ?? 0);
+  // ‏D789: المتوسّطُ يُقارن بسعر السهم بعملته — فللأمريكيّ تكلفتُه بالدولار
+  const invested0 = usd ? Number(holdingCtx?.invested_native ?? 0) : Number(holdingCtx?.invested_amount ?? 0);
+  const avgNow = usd ? Number(holdingCtx?.average_cost_native ?? 0) : Number(holdingCtx?.average_cost ?? 0);
   const addQty = Number(f.shares) || 0;
   const addAmt = addQty * (Number(f.price) || 0);
   const newAvgCost = (shares0 + addQty) > 0 ? (invested0 + addAmt) / (shares0 + addQty) : 0;
 
   const baseValid =
-    (type === "BUY" || type === "SELL") ? Number(f.shares) > 0 && Number(f.price) > 0 :
+    ((type === "BUY" || type === "SELL") ? Number(f.shares) > 0 && Number(f.price) > 0 :
     type === "DIVIDEND" ? Number(f.amount) > 0 :
     type === "BONUS" ? Number(f.shares) > 0 :
-    Number(f.factor) > 0;
+    Number(f.factor) > 0) && (!usd || type === "SPLIT" || fxRate > 0);
 
   /* نفس حراسات الخادم، مطبَّقة هنا أيضاً: الخادم يرفض بيعاً فوق الحيازة أو
      شراءً فوق السيولة، لكن ترك الزرّ مُفعَّلاً يعني ضغطاً وانتظاراً ثم رفضاً.
@@ -612,17 +664,19 @@ function TransactionModal({ company, onClose, initial }: { company: any; onClose
   const blockReason: string | null =
     type === "SELL" && Number(f.shares) > shares0
       ? `لا تملك سوى ${fmt(shares0)} سهم.`
-    : type === "BUY" && cashCtx && (Number(f.shares) * Number(f.price)) > availCash
+    : type === "BUY" && cashCtx && (Number(f.shares) * Number(f.price) * fxRate) > availCash
       ? `السيولة المتاحة ${fmt(availCash)} لا تكفي.`
     : null;
   // ‏D730: لا شراءَ بلا تقسيمٍ محسوبٍ من الخادم
   const valid = baseValid && !blockReason && (type !== "BUY" || !!fs.split);
 
+  // ‏D789: الأمريكيّ — الإجماليُّ بالدولار وما يمسّ السيولةَ بالريال، كلاهما ظاهر
+  const both = (n: number) => usd ? `$${fmt2(n)} · بالريال ${fmt2(n * fxRate)}` : fmt(n);
   const preview: { label: string; value: string } | null =
     (type === "BUY" || type === "SELL") && Number(f.shares) > 0 && Number(f.price) > 0
-      ? { label: tr("port.txTotal"), value: fmt(Number(f.shares) * Number(f.price)) }
+      ? { label: tr("port.txTotal"), value: both(Number(f.shares) * Number(f.price)) }
     : type === "DIVIDEND" && Number(f.amount) > 0
-      ? { label: "يُضاف إلى السيولة", value: fmt(Number(f.amount)) }
+      ? { label: "يُضاف إلى السيولة", value: both(Number(f.amount)) }
     : type === "BONUS" && Number(f.shares) > 0
       ? { label: "أسهمك بعد المنحة", value: fmt(shares0 + Number(f.shares)) }
     : type === "SPLIT" && Number(f.factor) > 0
@@ -644,11 +698,11 @@ function TransactionModal({ company, onClose, initial }: { company: any; onClose
           <div><p className="text-[10px] text-[var(--ink-muted)]">أسهمك</p><p className="text-xs font-bold text-[var(--ink)] tabular-nums">{fmt(holdingCtx?.total_shares ?? 0)}</p></div>
           <div>
             <p className="text-[10px] text-[var(--ink-muted)]">متوسط التكلفة</p>
-            <p className="text-xs font-bold text-[var(--ink)] tabular-nums" dir="ltr">{fmt2(holdingCtx?.average_cost ?? 0)}</p>
+            <p className="text-xs font-bold text-[var(--ink)] tabular-nums" dir="ltr">{usd ? "$" : ""}{fmt2(avgNow)}</p>
             {/* المتوسطُ الجديد يظهر حين تُكتب الكميةُ والسعر — ولا يُعتمد إلا بالتأكيد */}
             {type === "BUY" && addQty > 0 && Number(f.price) > 0 && (
               <p className="text-[10px] font-bold tabular-nums mt-0.5" dir="ltr" style={{ color: "var(--brand-ink)" }}
-                 title="المتوسط بعد هذه العملية">← {fmt2(newAvgCost)}</p>
+                 title="المتوسط بعد هذه العملية">← {usd ? "$" : ""}{fmt2(newAvgCost)}</p>
             )}
           </div>
           <div>
@@ -658,7 +712,7 @@ function TransactionModal({ company, onClose, initial }: { company: any; onClose
             ) : (() => {
               const liq = Number(myAlloc.liquidity_share) || 0;
               const rei = Number(myAlloc.reinvest_share) || 0;
-              const lp  = Number(myAlloc.last_price) || 0;
+              const lp  = (Number(myAlloc.last_price) || 0) * (Number(myAlloc.fx_rate) || 1);   // ‏D789: النصيبُ بالريال فالسعرُ بالريال
               const total = Math.round(liq) + Math.round(rei);
               const shr = (v: number) => lp > 0 ? Math.floor(v / lp) : 0;
               /* معاينةٌ حيّة لا اعتماد (‏D730): التقسيمُ الآليّ يُنقص كلَّ صنفٍ بما يأخذه منه فوراً، ولا يُكتب
@@ -707,12 +761,25 @@ function TransactionModal({ company, onClose, initial }: { company: any; onClose
 
         {(type === "BUY" || type === "SELL") && (
           <div className="grid grid-cols-2 gap-3">
-            <Field label="عدد الأسهم"><NumInput value={f.shares} onChange={updV("shares")} allowDecimal={false} placeholder="0" /></Field>
-            <Field label="سعر السهم"><NumInput value={f.price} onChange={updV("price")} placeholder="0.00" /></Field>
+            <Field label="عدد الأسهم"><NumInput value={f.shares} onChange={updV("shares")} allowDecimal={!!usd} placeholder="0" /></Field>
+            <Field label={usd ? "سعر السهم بالدولار" : "سعر السهم"}><NumInput value={f.price} onChange={updV("price")} placeholder="0.00" /></Field>
           </div>
         )}
         {type === "DIVIDEND" && (
-          <Field label="مبلغ التوزيع الإجمالي"><NumInput value={f.amount} onChange={updV("amount")} placeholder="0.00" /></Field>
+          <Field label={usd ? "مبلغ التوزيع الإجمالي بالدولار" : "مبلغ التوزيع الإجمالي"}><NumInput value={f.amount} onChange={updV("amount")} placeholder="0.00" /></Field>
+        )}
+        {usd && type !== "SPLIT" && (
+          <div data-role="tx-fx">
+            <Field label="سعر الصرف — ريال لكل دولار">
+              <NumInput value={fxIn} onChange={setFxIn}
+                placeholder={fxNow?.rate ? String(Number(fxNow.rate)) : "3.75"} />
+            </Field>
+            {fxNow?.rate && !fxIn && (
+              <p className="text-[10px] text-[var(--ink-muted)] mt-1 tabular-nums" dir="rtl">
+                سعرُ اليوم {Number(fxNow.rate)} · {fxNow.source_ar}
+              </p>
+            )}
+          </div>
         )}
         {type === "BONUS" && (
           <div className="grid grid-cols-2 gap-3">
@@ -752,7 +819,7 @@ function TransactionModal({ company, onClose, initial }: { company: any; onClose
           <div className="panel rounded-xl p-3 text-sm flex items-center justify-between gap-3">
             <span className="text-[var(--ink-muted)]">متوسط التكلفة الجديد</span>
             <span className="text-[var(--brand-ink)] font-bold tabular-nums" dir="ltr">
-              {fmt(newAvgCost)} <span className="text-[11px] text-[var(--ink-muted)]">(الآن {fmt(Number(holdingCtx?.average_cost ?? 0))})</span>
+              {usd ? "$" + fmt2(newAvgCost) : fmt(newAvgCost)} <span className="text-[11px] text-[var(--ink-muted)]">(الآن {usd ? "$" + fmt2(avgNow) : fmt(avgNow)})</span>
             </span>
           </div>
         )}
@@ -969,7 +1036,9 @@ function HoldingModal({ holding, onClose }: { holding: any; onClose: () => void 
   const tr = useT();
   const qc = useQueryClient();
   const [qty, setQty] = useState(String(holding.quantity ?? holding.total_shares ?? ""));
-  const [avg, setAvg] = useState(String(holding.average_cost ?? ""));
+  // ‏D789: الأمريكيّ — المتوسّطُ بالدولار كما في كشف الوسيط (والخادمُ يحوّله بسعر صرف اليوم)؛ والقديمُ بلا سعر صرفٍ كما سُجّل
+  const usdNative = isUsd(holding.company) && !holding.fx_legacy;
+  const [avg, setAvg] = useState(String((usdNative ? holding.average_cost_native : holding.average_cost) ?? ""));
   const mutation = useMutation({
     mutationFn: () => holdingsApi.update(holding.company_id ?? holding.company?.id, {
       quantity: Number(qty), average_cost: Number(avg),
@@ -981,7 +1050,7 @@ function HoldingModal({ holding, onClose }: { holding: any; onClose: () => void 
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <Field label="عدد الأسهم"><NumInput value={qty} onChange={setQty} allowDecimal={false} /></Field>
-          <Field label="متوسط التكلفة"><NumInput value={avg} onChange={setAvg} /></Field>
+          <Field label={usdNative ? "متوسط التكلفة بالدولار" : "متوسط التكلفة"}><NumInput value={avg} onChange={setAvg} /></Field>
         </div>
         {Number(qty) > 0 && Number(avg) > 0 && (
           <div className="panel rounded-xl p-3 text-sm">
@@ -2380,6 +2449,8 @@ export default function PortfolioPage() {
               const pnl    = (h.current_value || 0) - (h.total_cost || 0);
               const pnlPct = h.total_cost ? (pnl / h.total_cost) * 100 : 0;
               const avgCost = h.total_shares ? (h.total_cost / h.total_shares) : 0;
+              const usdRow = isUsd(h.company);                       // ‏D789
+              const avgShown = usdRow && h.average_cost_native != null ? "$" + fmt2(h.average_cost_native) : fmt2(avgCost);
               const divPct = h.total_cost ? (h.total_dividends_received || 0) / h.total_cost * 100 : 0;
               return (
                 <tr key={h.id} className="hover:bg-[var(--field)] transition-colors group"
@@ -2397,6 +2468,12 @@ export default function PortfolioPage() {
                             <span className="text-[var(--ink)] font-bold text-[13px]">{ar}</span>
                             <span className="tag-b" style={{fontSize: 10, padding: "2px 7px"}}>{h.company?.symbol}</span>
                             {en && <span className="text-[var(--ink-muted)] text-[11px]" dir="ltr">{en}</span>}
+                            {h.fx_legacy && (
+                              <span className="tag-a" data-role="hold-fx-legacy" style={{fontSize: 10, padding: "2px 7px"}}
+                                title="عملياتٌ بالدولار سُجّلت قبل دعم العملة بلا سعر صرف، فأرقامُها كما سُجّلت — أكمِل سعرَ صرف كلٍّ منها من «تحرير العملية» في صفحة الشركة">
+                                سعرُ الصرف ناقص
+                              </span>
+                            )}
                           </div>
                         );
                       })()}
@@ -2406,16 +2483,24 @@ export default function PortfolioPage() {
                     <span className="tag-b">{h.company?.sector || "—"}</span>
                   </td>}
                   {cols.shares && <td className="td text-[var(--ink)]">{h.total_shares?.toLocaleString("en-US") ?? "—"}</td>}
-                  {cols.avgCost && <td className="td text-[var(--ink)]">{fmt2(avgCost)}</td>}
+                  {cols.avgCost && <td className="td text-[var(--ink)]" dir={usdRow ? "ltr" : undefined}>{avgShown}</td>}
                   {cols.lastPrice && <td className="td text-[var(--ink)]">
                     {/* آخرُ سعرٍ حيٌّ من المجرى، ورقمُ الاستعلام إن لم
                         يصل دفعٌ — مكوّنٌ واحدٌ لكلّ الشاشات (D330). */}
-                    <LivePrice symbol={h.company?.symbol || h.symbol}
-                               fallback={h.last_price} />
+                    {usdRow ? (
+                      <span dir="ltr" className="inline-flex items-baseline gap-0.5" data-role="hold-usd-price">
+                        <span className="text-[var(--ink-muted)] text-[11px]">$</span>
+                        <LivePrice symbol={h.company?.symbol || h.symbol} fallback={h.last_price} />
+                      </span>
+                    ) : (
+                      <LivePrice symbol={h.company?.symbol || h.symbol}
+                                 fallback={h.last_price} />
+                    )}
                   </td>}
                   {cols.marketValue && <td className="td text-[var(--ink)] font-semibold">
                     {/* وما يُبنى على السعر يتبعه: أسهمٌ × سعرٌ حيّ (D330) */}
                     <LiveValue symbol={h.company?.symbol || h.symbol}
+                               fx={usdRow ? Number(h.fx_rate) || 1 : 1}
                                shares={h.total_shares}
                                fallback={h.current_value} />
                   </td>}
@@ -2476,6 +2561,8 @@ export default function PortfolioPage() {
             const pnl    = (h.current_value || 0) - (h.total_cost || 0);
             const pnlPct = h.total_cost ? (pnl / h.total_cost) * 100 : 0;
             const avgCost = h.total_shares ? (h.total_cost / h.total_shares) : 0;
+            const usdRow = isUsd(h.company);                         // ‏D789
+            const avgShown = usdRow && h.average_cost_native != null ? "$" + fmt2(h.average_cost_native) : fmt2(avgCost);
             const divPct = h.total_cost ? (h.total_dividends_received || 0) / h.total_cost * 100 : 0;
             const dir = lookupCompany(h.company?.symbol);
             const ar = dir?.name_ar || h.company?.name_ar || h.company?.name;
@@ -2493,6 +2580,12 @@ export default function PortfolioPage() {
                         <ShariaBadge status={h.company?.sharia_status} />
                         <span className="text-[var(--ink)] font-bold text-[13px] truncate">{ar}</span>
                         <span className="tag-b" style={{fontSize: 10, padding: "2px 7px"}}>{h.company?.symbol}</span>
+                        {h.fx_legacy && (
+                          <span className="tag-a" data-role="hold-fx-legacy" style={{fontSize: 10, padding: "2px 7px"}}
+                            title="عملياتٌ بالدولار سُجّلت قبل دعم العملة بلا سعر صرف، فأرقامُها كما سُجّلت — أكمِل سعرَ صرف كلٍّ منها من «تحرير العملية» في صفحة الشركة">
+                            سعرُ الصرف ناقص
+                          </span>
+                        )}
                       </div>
                       {cols.sector && h.company?.sector && <span className="text-[var(--ink-muted)] text-[11px]">{h.company.sector}</span>}
                     </div>
@@ -2544,7 +2637,7 @@ export default function PortfolioPage() {
                           (‏69 = 13 تسمية + 56 مربّعاً، فالفجوة صفر)، فأُضيف
                           فراغٌ صريح 8px بينهما: التسمية عنوانٌ للخانة لا
                           سقفٌ ملتصقٌ بها. */}
-                      <span className="block text-[10px] text-[var(--ink-muted)] leading-tight whitespace-nowrap">آخر سعر :</span>
+                      <span className="block text-[10px] text-[var(--ink-muted)] leading-tight whitespace-nowrap">{usdRow ? "آخر سعر $ :" : "آخر سعر :"}</span>
                       {/* عرضٌ ثابت لا يتبع عدد الخانات: كان `inline-block`
                           يتقلّص على محتواه، فيخرج إطار «8.07» أضيق من
                           «203.20» — أبعادٌ تختلف من شركةٍ إلى أخرى في عمودٍ
@@ -2588,7 +2681,7 @@ export default function PortfolioPage() {
                           الرقم عند طرف تسميته تماماً لا عند طرف الخانة. */}
                       <span className="inline-block text-right">
                         <span className="block text-[10px] text-[var(--ink-muted)] leading-tight whitespace-nowrap">{t("port.avgCost")} :</span>
-                        <span className="block whitespace-nowrap text-[var(--ink)] font-semibold tabular-nums">{fmt2(avgCost)}</span>
+                        <span className="block whitespace-nowrap text-[var(--ink)] font-semibold tabular-nums" dir={usdRow ? "ltr" : undefined}>{avgShown}</span>
                       </span>
                     </div>
                   )}

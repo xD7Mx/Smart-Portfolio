@@ -18,11 +18,26 @@ def yahoo_symbol(symbol: str) -> str:
     return s
 
 
-async def refresh_holdings_prices(db: AsyncSession, holdings) -> None:
+async def holdings_fx(db: AsyncSession, holdings) -> dict:
+    """‏D789: لكلّ شركةٍ (العملة، سعرُ صرف اليوم، أهي قديمةٌ بلا سعر صرف) — الريالُ واحدٌ بلا نداء."""
+    from app.services import fx as FX
+    out: dict = {}
+    for h in holdings:
+        if not h.company or h.company_id in out:
+            continue
+        cur = FX.norm(h.company.currency)
+        out[h.company_id] = (cur, 1.0, False) if cur == FX.BASE else await FX.company_fx(db, h.company_id)
+    return out
+
+
+async def refresh_holdings_prices(db: AsyncSession, holdings) -> dict:
     """Pull live prices (served from the 15-min cache — no quota abuse) and
     recompute market_value / P&L for each holding, persisting to the DB.
-    This is THE link between price providers and the portfolio."""
+    This is THE link between price providers and the portfolio.
+
+    ‏D789: السعرُ بعملة الشركة (الدولارُ للأمريكيّ) والقيمةُ بالريال بسعر صرف اليوم — ويُعاد جدولُ الصرف لمن يعرض."""
     from app.services.market_data import market_service
+    fxs = await holdings_fx(db, holdings)
     changed = False
     for h in holdings:
         if not h.company:
@@ -33,7 +48,7 @@ async def refresh_holdings_prices(db: AsyncSession, holdings) -> None:
                 qty = float(h.quantity or 0)
                 inv = float(h.invested_amount or 0)
                 h.last_price = p["price"]
-                h.market_value = qty * float(p["price"])
+                h.market_value = qty * float(p["price"]) * fxs.get(h.company_id, ("SAR", 1.0, False))[1]
                 h.unrealized_profit = float(h.market_value) - inv
                 h.unrealized_profit_pct = ((float(h.market_value) - inv) / inv * 100) if inv else 0
                 changed = True
@@ -41,6 +56,7 @@ async def refresh_holdings_prices(db: AsyncSession, holdings) -> None:
             logger.warning(f"price refresh failed for {h.company.symbol}: {e}")
     if changed:
         await db.commit()
+    return fxs
 
 
 def _effective_sharia(company):
@@ -86,12 +102,21 @@ def _day_change(h: Holding) -> float | None:
         return None
 
 
-def _serialize(h: Holding) -> dict:
+def _serialize(h: Holding, fxi: tuple | None = None) -> dict:
+    from app.services import fx as FX
     qty = float(h.quantity or 0)
     invested = float(h.invested_amount or 0)
     mv = float(h.market_value or 0)
     sharia, purif = _effective_sharia(h.company) if h.company else (None, None)
+    # ‏D789: كلُّ مالٍ هنا بالريال؛ والسعرُ (‏last_price) ومتوسّطُ التكلفة بعملة الشركة يُرسلان باسمهما للأمريكيّ
+    cur = FX.norm(h.company.currency) if h.company else FX.BASE
+    inv_n = float(h.invested_native) if (cur != FX.BASE and h.invested_native is not None) else None
     return {
+        "currency": cur,
+        "fx_rate": (fxi[1] if fxi else (1.0 if cur == FX.BASE else None)),
+        "fx_legacy": bool(fxi[2]) if fxi else False,
+        "invested_native": inv_n,
+        "average_cost_native": (inv_n / qty) if (inv_n is not None and qty) else None,
         "id": h.id,
         "company_id": h.company_id,
         "sort_order": int(h.sort_order or 0),
@@ -129,6 +154,8 @@ def _serialize(h: Holding) -> dict:
             "technical_score": float(h.company.technical_score or 0),
             "color": h.company.color,
             "logo_url": h.company.logo_url,
+            "currency": cur,
+            "exchange": h.company.exchange,
         } if h.company else None,
     }
 
@@ -162,8 +189,8 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
     )
     holdings = [h for h in result.scalars().all()
                 if h.company and h.company.status != "ARCHIVED"]
-    await refresh_holdings_prices(db, holdings)
-    return success_response(data=[_serialize(h) for h in holdings])
+    fxs = await refresh_holdings_prices(db, holdings)
+    return success_response(data=[_serialize(h, fxs.get(h.company_id)) for h in holdings])
 
 
 from pydantic import BaseModel
@@ -219,10 +246,21 @@ async def update_holding(company_id: int, data: HoldingUpdate, db: AsyncSession 
     if not h:
         h = Holding(company_id=company_id, quantity=0, average_cost=0, invested_amount=0, market_value=0)
         db.add(h)
+    # ‏D789: الأمريكيّ — المالكُ يقرأ متوسّطَ تكلفته بالدولار من كشف وسيطه، فيُرسَل بالدولار: تكلفتُه بالدولار كما كتبها،
+    # وبالريال بسعر صرف اليوم (الكشفُ لا يحمل صرفَ كلّ شراء) — وما بعد المطابقة من عملياتٍ يحمل صرفَ يومه.
+    from app.services import fx as FX
+    cur, fx_now, legacy = await FX.company_fx(db, company_id)
+    native = cur != FX.BASE and not legacy
+    old_qty = float(h.quantity or 0)
+    old_inv_n = float(h.invested_native) if h.invested_native is not None else None
+    avg_n = None
+    if native:
+        avg_n = (float(data.average_cost) if data.average_cost is not None
+                 else ((old_inv_n / old_qty) if (old_inv_n is not None and old_qty) else None))
     if data.quantity is not None:
         h.quantity = data.quantity
     if data.average_cost is not None:
-        h.average_cost = data.average_cost
+        h.average_cost = data.average_cost * fx_now if native else data.average_cost
     qty = float(h.quantity or 0)
     avg = float(h.average_cost or 0)
     h.invested_amount = qty * avg
@@ -232,16 +270,18 @@ async def update_holding(company_id: int, data: HoldingUpdate, db: AsyncSession 
     h.reconciled_at = _dt.now(_tz.utc)
     h.reconciled_quantity = qty
     h.reconciled_invested = qty * avg
+    h.invested_native = (qty * avg_n) if avg_n is not None else None
+    h.reconciled_invested_native = h.invested_native
     h.cost_basis_adjustment = 0
     lp = float(h.last_price or 0)
-    h.market_value = qty * lp if lp else h.invested_amount
+    h.market_value = qty * lp * fx_now if lp else h.invested_amount
     inv = float(h.invested_amount or 0)
     h.unrealized_profit = float(h.market_value) - inv
     h.unrealized_profit_pct = ((float(h.market_value) - inv) / inv * 100) if inv else 0
     await db.commit()
     await db.refresh(h, ["company"])
-    await refresh_holdings_prices(db, [h])
-    return success_response(data=_serialize(h), message="Holding updated.")
+    fxs = await refresh_holdings_prices(db, [h])
+    return success_response(data=_serialize(h, fxs.get(h.company_id)), message="Holding updated.")
 
 
 class ReconcileItem(BaseModel):
@@ -352,5 +392,5 @@ async def get_holding(company_id: int, db: AsyncSession = Depends(get_db)):
     h = result.scalar_one_or_none()
     if not h:
         return success_response(data=None, message="No holding found.")
-    await refresh_holdings_prices(db, [h])
-    return success_response(data=_serialize(h))
+    fxs = await refresh_holdings_prices(db, [h])
+    return success_response(data=_serialize(h, fxs.get(h.company_id)))

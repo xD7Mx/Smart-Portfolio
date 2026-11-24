@@ -48,7 +48,9 @@ async def _tranche_value(db) -> float:
 
 
 def _row(plan: LiquidityPlan | None, holding: Holding, company: Company,
-         tranche_value: float, auto_pct: float) -> dict:
+         tranche_value: float, auto_pct: float, fx: float = 1.0) -> dict:
+    """‏fx (‏D789): ريالٌ لكلّ وحدةٍ من عملة السهم اليوم — الدفعاتُ والمبالغُ بالريال والسعرُ بعملة السهم، فالأسهمُ بسعرها
+    بالريال. وواحدٌ للسعوديّ فلا يتغيّر رقم."""
     # النسبة المحرَّرة تتقدّم، فإن لم تُحرَّر فالوزن **المستهدف** في التوزيع
     # النسبي. والمستهدف لا الحالي: الدفعة أداة الوصول إلى الهدف، فتوزيعها على
     # الأوزان الحالية يُثبّت الانحراف بدل أن يُغلقه.
@@ -70,9 +72,10 @@ def _row(plan: LiquidityPlan | None, holding: Holding, company: Company,
     exec_amount = reserved * execn
     # القسمة على سعرٍ صفر مستحيلة الناتج: تُترك الأسهم صفراً ويُعلَن سبب ذلك
     # بدل رقمٍ مُختلَق أو انهيارٍ في الطلب.
-    shares = int(amount // price) if price > 0 else 0
-    spent = shares * price
-    exec_shares = int(exec_amount // price) if price > 0 else 0
+    pb = price * fx
+    shares = int(amount // pb) if price > 0 else 0
+    spent = shares * pb
+    exec_shares = int(exec_amount // pb) if price > 0 else 0
     return {
         "company_id": company.id,
         "symbol": company.symbol,
@@ -90,7 +93,9 @@ def _row(plan: LiquidityPlan | None, holding: Holding, company: Company,
         "exec_tranches": execn,
         "exec_amount": round(exec_amount, 2),
         "exec_shares": exec_shares,
-        "exec_total": round(exec_shares * price, 2),
+        "exec_total": round(exec_shares * pb, 2),
+        "currency": (company.currency or "SAR").upper(),
+        "fx_rate": fx,
         # الباقي بعد شراء أسهمٍ صحيحة — نقدٌ لا يُوظَّف، وإخفاؤه يجعل المجاميع
         # لا تُطابق ما يُخصم من الحساب فعلاً.
         "leftover": round(amount - spent, 2),
@@ -116,12 +121,14 @@ async def get_plan(db: AsyncSession = Depends(get_db)):
     has_targets = sum(targets.get(cid, 0.0) for cid in live) > 0
     mv_all = sum(float(h.market_value or 0) for h in live.values())
 
+    from app.services import fx as FX
+    _rates = await FX.rates_for(db, list(live))
     rows = []
     for cid, h in live.items():
         c = companies[cid]
         auto = (targets.get(cid, 0.0) if has_targets
                 else (float(h.market_value or 0) / mv_all * 100 if mv_all else 0.0))
-        rows.append(_row(plans.get(cid), h, c, tranche_value, auto))
+        rows.append(_row(plans.get(cid), h, c, tranche_value, auto, _rates.get(cid, 1.0)))
     # ترتيب المالك من شاشة الحيازات — مصدرٌ واحد للترتيب في كل البطاقات.
     rank = {cid: (int(h.sort_order or 0) or 10**6, h.id) for cid, h in live.items()}
     rows.sort(key=lambda r: rank.get(r["company_id"], (10**6, 0)))

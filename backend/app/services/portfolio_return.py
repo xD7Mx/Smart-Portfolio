@@ -265,8 +265,10 @@ async def compute_production(db) -> dict:
                                  for t in txs if t.transaction_type == TransactionType.SELL)
                      if g > 0)
     # قيمة المنحة بسعر يوم المنح — تبقى محسوبةً للمراجعة والمقارنة.
+    from app.services import fx as FX
+    _rates = await FX.rates_for(db, [t.company_id for t in txs if t.transaction_type == TransactionType.BONUS])
     bonus_at_grant = sum(bonus_share_value(t, (by_company.get(t.company_id).last_price
-                                               if by_company.get(t.company_id) else 0))
+                                               if by_company.get(t.company_id) else 0), _rates.get(t.company_id, 1.0))
                          for t in txs if t.transaction_type == TransactionType.BONUS)
     # ── قيمة المنحة الداخلة في كل المقاييس: **بسعر السوق اليوم** ──────────
     # قرار المالك صريحاً. والمقايضة معلومة ومقبولة منه: يصير مكوّنٌ من
@@ -276,7 +278,7 @@ async def compute_production(db) -> dict:
     bonus_shares = sum(float(t.quantity or 0)
                        for t in txs if t.transaction_type == TransactionType.BONUS)
     bonus_market_value = sum(
-        float(t.quantity or 0) * float(getattr(by_company.get(t.company_id), "last_price", 0) or 0)
+        float(t.quantity or 0) * float(getattr(by_company.get(t.company_id), "last_price", 0) or 0) * _rates.get(t.company_id, 1.0)
         for t in txs if t.transaction_type == TransactionType.BONUS)
 
     capital_base = await compute_paid_in_capital(db, holdings=holdings, txs=txs)
@@ -344,7 +346,8 @@ async def compute_company_production(db, company_id: int) -> dict:
         select(Holding).where(Holding.company_id == company_id)
     )).scalar_one_or_none()
     invested = float(h.invested_amount or 0) if h else 0.0
-    last_price = float(h.last_price or 0) if h else 0.0
+    from app.services import fx as FX
+    last_price = (float(h.last_price or 0) * (await FX.rates_for(db, [company_id])).get(company_id, 1.0)) if h else 0.0   # ‏D789: بالريال
     bonus_shares = float(h.total_bonus_shares or 0) if h else 0.0
 
     total = dividends + sale_proceeds
@@ -404,7 +407,7 @@ async def compute_return_breakdown(db) -> dict:
     }
 
 
-def bonus_share_value(tx, fallback_price) -> float:
+def bonus_share_value(tx, fallback_price, fx_now: float = 1.0) -> float:
     """قيمة أسهم منحةٍ واحدة — **بسعر يوم المنح إن كان مسجَّلاً**، وإلا بالسعر
     الأخير كتقديرٍ اضطراري.
 
@@ -420,8 +423,10 @@ def bonus_share_value(tx, fallback_price) -> float:
     غير محقّقة على مركزك، ومكانها هناك لا هنا.
 
     تُقرأ من حقل price في عملية المنحة — كان يُخزَّن صفراً دائماً قبل ذلك."""
+    # ‏D789: السعرُ بعملة الشركة — سعرُ يوم المنح بصرف يومه، والسعرُ الأخير بصرف اليوم (‏fx_now). وللسعوديّ كلاهما واحد.
+    from app.services.fx import tx_fx
     grant_price = float(getattr(tx, "price", 0) or 0)
-    price = grant_price if grant_price > 0 else float(fallback_price or 0)
+    price = grant_price * tx_fx(tx) if grant_price > 0 else float(fallback_price or 0) * fx_now
     return float(getattr(tx, "quantity", 0) or 0) * price
 
 

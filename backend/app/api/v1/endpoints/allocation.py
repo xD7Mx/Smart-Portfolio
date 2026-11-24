@@ -125,11 +125,15 @@ async def get_allocation(db: AsyncSession = Depends(get_db)):
     except Exception:                                             # noqa: BLE001
         dy_by_symbol = {}
 
+    # ‏D789: الحاجةُ بالريال والسعرُ بعملة الشركة — فالأسهمُ بسعرها بالريال (صرفُ اليوم)، والسعرُ يُعرض بعملته
+    from app.services import fx as FX
+    _rates = await FX.rates_for(db, [h.company_id for h in holdings])
     data = []
     for h in holdings:
         mv = float(h.market_value or 0)
         tw = targets.get(h.company_id, 0)
         lp = float(h.last_price or 0)
+        _fx = _rates.get(h.company_id, 1.0)
         if tw > 0:
             # ‏D561 بأمر المالك: الهدفُ من رأس المال كلّه (القيمةُ السوقية + السيولة) — المبلغُ
             # ما ينقص الشركةَ لبلوغ هدفها، لا «الوزنُ × السيولة» الذي يُهمل ما تملكه أصلاً
@@ -137,7 +141,7 @@ async def get_allocation(db: AsyncSession = Depends(get_db)):
             # تموّله إعادةُ الاستثمار بحصّة الوزن أوّلاً ثمّ السيولةُ الباقي — كإعادة التوازن.
             need, reinvest_share, liquidity_share = split_need(tw, investable, held(h), pool)
             total_amount = round(need, 2)
-            total_shares = round(total_amount / lp, 1) if lp else None
+            total_shares = round(total_amount / (lp * _fx), 1) if lp else None
         else:
             liquidity_share = reinvest_share = total_amount = total_shares = None
         data.append({
@@ -150,6 +154,8 @@ async def get_allocation(db: AsyncSession = Depends(get_db)):
             "current_weight": round(held(h) / investable * 100, 2) if investable else 0,   # بقيمة اليوم (D563)
             "target_weight": tw,
             "last_price": lp,
+            "fx_rate": _fx,                                   # ‏D789: ريالٌ لكلّ وحدةٍ من عملة السهم اليوم (واحدٌ للسعوديّ)
+            "currency": FX.norm(h.company.currency),
             # None تعني «غير متوفّر» — لا صفراً يُقرأ «لا توزيعات».
             "dividend_yield": dy_by_symbol.get(str(h.company.symbol)),
             # ══ الحكمُ الشرعيّ في جدول القرار ══ (بأمر المالك · D232)
@@ -237,7 +243,9 @@ async def calculate_rebalance(db: AsyncSession = Depends(get_db)):
         select(Transaction).where(Transaction.transaction_type == TransactionType.BONUS)
     )).scalars().all()
     _lp = {h.company_id: float(h.last_price or 0) for h in holdings}
-    bonus_value = round(sum(bonus_share_value(t, _lp.get(t.company_id, 0.0))
+    from app.services import fx as FX
+    _rates = await FX.rates_for(db, [h.company_id for h in holdings])        # ‏D789: الأمريكيّ بالريال
+    bonus_value = round(sum(bonus_share_value(t, _lp.get(t.company_id, 0.0), _rates.get(t.company_id, 1.0))
                             for t in bonus_txs), 2)
 
     # قاعدة واحدة لا نظامان: تمويل شراء أيّ شركة يُشتقّ من **وزنها المستهدف
@@ -262,6 +270,7 @@ async def calculate_rebalance(db: AsyncSession = Depends(get_db)):
         else:
             action = "BUY" if delta > 0 else "SELL"
         lp = float(h.last_price or 0)
+        lpb = lp * _rates.get(h.company_id, 1.0)              # ‏D789: الفرقُ بالريال فالأسهمُ بسعرها بالريال
 
         reinvest_amount = cash_amount = 0.0
         reinvest_shares = cash_shares = None
@@ -270,8 +279,8 @@ async def calculate_rebalance(db: AsyncSession = Depends(get_db)):
             reinvest_amount = round(min(delta, raw_reinvest), 2)
             cash_amount = round(delta - reinvest_amount, 2)
             if lp:
-                reinvest_shares = round(reinvest_amount / lp, 2)
-                cash_shares = round(cash_amount / lp, 2)
+                reinvest_shares = round(reinvest_amount / lpb, 2)
+                cash_shares = round(cash_amount / lpb, 2)
 
         suggestions.append({
             "company_id": h.company_id,
@@ -280,10 +289,11 @@ async def calculate_rebalance(db: AsyncSession = Depends(get_db)):
             "current_weight": round(held(h) / investable * 100, 2),
             "target_weight": target_pct,
             "delta_value": round(delta, 2),
-            "est_shares": round(abs(delta) / lp, 2) if lp else None,
+            "est_shares": round(abs(delta) / lpb, 2) if lp else None,
             # السعر الذي حُسب عليه عدد الأسهم — يُعرض صراحةً كي يعرف القارئ
             # على أي أساس بُني الرقم، فالسعر يتغيّر ويتغيّر معه العدد.
             "price_basis": round(lp, 2) if lp else None,
+            "currency": FX.norm(h.company.currency),
             "action": action,
             "reinvest_amount": reinvest_amount,
             "reinvest_shares": reinvest_shares,
@@ -415,7 +425,7 @@ async def profit_liquidation(db: AsyncSession = Depends(get_db)):
     # البيانات أسرع منه.
     all_txs = (await db.execute(
         select(Transaction.company_id, Transaction.transaction_type,
-               Transaction.quantity, Transaction.price, Transaction.total_amount)
+               Transaction.quantity, Transaction.price, Transaction.total_amount, Transaction.fx_rate)
         .where(Transaction.transaction_type.in_([
             TransactionType.BUY, TransactionType.SELL, TransactionType.BONUS,
             TransactionType.SPLIT, TransactionType.REINVESTMENT]))
@@ -424,7 +434,8 @@ async def profit_liquidation(db: AsyncSession = Depends(get_db)):
     for t in all_txs:
         cid = t.company_id
         qty = float(t.quantity or 0)
-        px = float(t.price or 0)
+        # ‏D789: المرجعُ بالريال كمتوسّط التكلفة — سعرُ العملية بصرف يومها (وللسعوديّ واحد)
+        px = float(t.price or 0) * (float(t.fx_rate) if t.fx_rate else 1.0)
         if t.transaction_type == TransactionType.SELL:
             sells[cid] = sells.get(cid, 0) + 1
             ref_qty[cid] = max(0.0, ref_qty.get(cid, 0.0) - qty)
@@ -460,10 +471,13 @@ async def profit_liquidation(db: AsyncSession = Depends(get_db)):
                     ref_price[cid] = ref_price[cid] / factor
                 ref_qty[cid] = ref_qty.get(cid, 0.0) * factor
 
+    from app.services import fx as FX
+    _rates = await FX.rates_for(db, [h.company_id for h in holdings])
     rows = []
     for h in holdings:
         avg_cost = float(h.average_cost or 0)
-        lp = float(h.last_price or 0)
+        lp_n = float(h.last_price or 0)
+        lp = lp_n * _rates.get(h.company_id, 1.0)              # ‏D789: بالريال كمتوسّط التكلفة — والسعرُ بعملته يُرسَل باسمه
         shares = float(h.quantity or 0)
         if avg_cost <= 0 or lp <= 0 or shares <= 0:
             continue
@@ -511,6 +525,8 @@ async def profit_liquidation(db: AsyncSession = Depends(get_db)):
             "shares_to_sell": shares_to_sell,
             "average_cost": round(avg_cost, 2),
             "last_price": round(lp, 2),
+            "last_price_native": round(lp_n, 2),
+            "currency": FX.norm(h.company.currency),
             "profit_per_share": round(profit_per_share, 2),
             "profit_pct": round(profit_pct, 2),
             # الحكم ومقداره: ما لم يبلغ المركز العتبة فلا مقدار متاح — صفرٌ

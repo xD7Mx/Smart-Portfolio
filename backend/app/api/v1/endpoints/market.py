@@ -2595,6 +2595,15 @@ async def saqr_close_limit(pid: str, payload: dict | None = None):
     return success_response(SQ.view(m))
 
 
+@router.get("/fx")
+async def fx_usd_sar():
+    """سعرُ الصرف (‏D789): ريالٌ لكلّ دولار — تملأ به نافذةُ المعاملة سعرَ صرف العملية الأمريكية (والمالكُ يعدّله من كشف وسيطه)،
+    وتُحوَّل به القيمةُ السوقيةُ للسهم الأمريكيّ إلى الريال. والمصدرُ مسمّى: حيّ · آخرُ سعرٍ مقروء · السعرُ الرسميّ المثبَّت."""
+    from app.services import fx as FX
+    r = await FX.usd_sar()
+    return success_response(data={**r, "pair": "USD/SAR", "peg": FX.PEG, "source_ar": FX.SOURCE_AR.get(r["source"], r["source"])})
+
+
 # ══ ‏D747: البحثُ في السوق الأمريكي كلِّه وسلسلةُ عقود الخيارات ══
 @router.get("/saudi-directory")
 async def saudi_directory_live():

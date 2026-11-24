@@ -58,6 +58,9 @@ class Transaction(Base):
     # NULL مع وسم إعادة الاستثمار = الشراءُ كلُّه منه (سجلُّ ما قبل التقسيم كما هو، لا يتغيّر رقمٌ فيه).
     reinvest_qty = Column(Numeric(18, 6))
     realized_gain = Column(Numeric(18, 6))  # SELL only: proceeds minus cost basis at sale time
+    # ‏D789: ريالٌ لكلّ وحدةٍ من عملة الشركة يومَ التنفيذ (الدولارُ للأمريكيّ). السعرُ والعمولةُ وتوزيعُ السهم بعملة الشركة،
+    # والإجماليُّ (‏total_amount) والربحُ المحقّق بالريال. فارغٌ = واحد: السعوديُّ كلُّه وما سُجّل قبل ‏D789 كما سُجّل حرفاً.
+    fx_rate = Column(Numeric(18, 8))
     notes = Column(Text)
     executed_at = Column(DateTime(timezone=True), nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

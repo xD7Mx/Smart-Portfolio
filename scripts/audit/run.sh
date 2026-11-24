@@ -515,6 +515,8 @@ python3 scripts/audit/chart_d787.py || _note "$LINENO"   # ‏D787: دليلُ �
 _node scripts/audit/chart_d787.mjs || _note "$LINENO"   # ‏D787: الشاشاتُ الثلاث وبحثُ كلّ شاشةٍ والتكبير، والرمزُ المنسوخ، ودليلُ العقود في السلسلة، وأنوارُ صقر
 python3 scripts/audit/chart_d788.py || _note "$LINENO"   # ‏D788: فراغُ الرسم، والأخبارُ العالمية رأسُ صفحتها، ومبدّلُ محفظة التقرير، وعقلُ صقر الواحد و«نظرتُنا» منه
 _node scripts/audit/chart_d788.mjs || _note "$LINENO"   # ‏D788: مبدّلُ «محفظة التقرير» — بلا محفظة · كلّ المحافظ · محفظةٌ بعينها
+python3 scripts/audit/us_stocks_d789.py || _note "$LINENO"   # ‏D789: السهمُ الأمريكيّ — السعرُ بالدولار والمالُ كلُّه بالريال بسعر صرف العملية، والسعوديُّ بتّاً بتّاً كما كان
+_node scripts/audit/us_stocks_d789.mjs || _note "$LINENO"   # ‏D789: الحيازاتُ ونافذةُ المعاملة و«إضافة شركة» للسهم الأمريكيّ
 _node scripts/audit/chart_colors_d772.mjs || _note "$LINENO"   # ‏D772: الرسمُ كتريدنق فيو — لوحةٌ سوداءُ وألوانٌ مشبعة، وألوانُ الشموع بيد المالك، وأرقامُ الفيبو على خطوطها
 _node scripts/audit/saqr_d763.mjs || _note "$LINENO"   # ‏D763: المفكرةُ بالتقرير، وتبويباتُ المختبر الثلاثة، والمحفظةُ ولوحةُ صقر في المظهرين
 python3 scripts/audit/research_archive_d749.py || _note "$LINENO"   # ‏D749: أرشيفُ التقارير لجميع الجلسات — كلُّ جلسةٍ بأرقامها هي

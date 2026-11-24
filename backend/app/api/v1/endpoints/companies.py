@@ -51,6 +51,15 @@ class CompanyCreate(BaseModel):
         # Arabic-first UI: prefer the Arabic name when provided.
         return self.name_ar or self.company_name or self.name or self.symbol
 
+    def resolved_currency(self) -> str:
+        """‏D789: العملةُ من السوق لا من اختيارٍ يُنسى — الرمزُ الأمريكيّ بالدولار (سعرُه من مصدره بالدولار فلا يكون ريالاً)،
+        وسهمُ «تداول» بالريال. وتغييرُها لشركةٍ قديمة لا يغيّر رقماً: عملياتُها بلا سعر صرفٍ تبقى كما سُجّلت حتى يُكمله المالك."""
+        from app.services import fx as FX
+        return "USD" if FX.is_us_symbol(self.symbol) else "SAR"
+
+    def resolved_symbol(self) -> str:
+        return (self.symbol or "").strip().upper()
+
 @router.get("")
 async def get_companies(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Company).where(Company.status != "ARCHIVED"))
@@ -71,6 +80,7 @@ async def add_company(data: CompanyCreate, db: AsyncSession = Depends(get_db)):
     from app.models.portfolio import Holding
     # Symbol is unique — an archived (deleted) company must be revivable,
     # and re-adding an active one is a friendly error, not a 500.
+    data.symbol = data.resolved_symbol()
     existing = (await db.execute(select(Company).where(Company.symbol == data.symbol))).scalar_one_or_none()
     if existing:
         if existing.status != "ARCHIVED":
@@ -89,7 +99,7 @@ async def add_company(data: CompanyCreate, db: AsyncSession = Depends(get_db)):
         existing.company_name = data.resolved_name()
         existing.sector = data.sector or existing.sector
         existing.exchange = data.exchange or data.market or existing.exchange
-        existing.currency = data.currency
+        existing.currency = data.resolved_currency()
         has_holding = (await db.execute(select(Holding.id).where(Holding.company_id == existing.id))).scalar_one_or_none()
         if has_holding is None:
             db.add(Holding(company_id=existing.id, quantity=0, average_cost=0, invested_amount=0, market_value=0))
@@ -111,7 +121,7 @@ async def add_company(data: CompanyCreate, db: AsyncSession = Depends(get_db)):
         company_name=data.resolved_name(),
         exchange=data.exchange or data.market,
         sector=data.sector,
-        currency=data.currency,
+        currency=data.resolved_currency(),
         notes=data.notes,
     )
     db.add(company)
@@ -139,11 +149,11 @@ async def update_company(company_id: int, data: CompanyCreate, db: AsyncSession 
     company = result.scalar_one_or_none()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found.")
-    company.symbol = data.symbol
+    company.symbol = data.resolved_symbol()
     company.company_name = data.resolved_name()
     company.exchange = data.exchange or data.market or company.exchange
     company.sector = data.sector
-    company.currency = data.currency
+    company.currency = data.resolved_currency()
     await db.commit()
     await db.refresh(company)
     return success_response(data=_serialize(company), message="Company updated successfully.")

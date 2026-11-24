@@ -68,7 +68,8 @@ async def main():
     except Exception as e:                                        # noqa: BLE001
         print(f"  الآن: تعذّر {type(e).__name__}: {e}")
     try:
-        pts = await asyncio.wait_for(market_service._fetch_chart_points("SAR=X", "1y", "1d"), 25)
+        from app.services.market_data import YahooFinanceAdapter      # النقاطُ عند محوِّل ياهو لا عند الخدمة الجامعة
+        pts = await asyncio.wait_for(YahooFinanceAdapter()._fetch_chart_points("SAR=X", "1y", "1d"), 25)
         closes = [x.get("close") for x in pts if isinstance(x, dict) and x.get("close")]
         if closes:
             print(f"  سنةٌ يومية: {len(closes)} نقطة · أدنى {min(closes):.5f} · أعلى {max(closes):.5f} · أوّل {pts[0]} · آخر {pts[-1]}")
@@ -76,5 +77,24 @@ async def main():
             print(f"  سنةٌ يومية: لا نقاط — {pts[:2]}")
     except Exception as e:                                        # noqa: BLE001
         print(f"  سنةٌ يومية: تعذّر {type(e).__name__}: {e}")
+
+    print("══ ٥ بعد ‏D789 — خدمةُ الصرف المنشورة وأثرُها على القاعدة (قراءة):")
+    try:
+        from app.services import fx as FX
+        r = await asyncio.wait_for(FX.usd_sar(), 20)
+        print(f"  ‏usd_sar: {r} · {FX.SOURCE_AR.get(r.get('source'), r.get('source'))}")
+        from sqlalchemy import func, select
+        from app.core.database import AsyncSessionLocal
+        from app.models.portfolio import Company
+        from app.models.transaction import Transaction
+        async with AsyncSessionLocal() as db:
+            ids = [i for (i,) in (await db.execute(select(Company.id).execution_options(skip_portfolio_scope=True))).all()]
+            rates = await FX.rates_for(db, ids)
+            not_one = {i: v for i, v in rates.items() if v != 1.0}
+            with_fx = (await db.execute(select(func.count()).select_from(Transaction).where(Transaction.fx_rate.is_not(None))
+                                        .execution_options(skip_portfolio_scope=True))).scalar()
+        print(f"  شركات {len(ids)} · سعرُ صرفٍ غيرُ الواحد: {not_one or 'لا شيء'} · عملياتٌ بسعر صرف: {with_fx}")
+    except Exception as e:                                        # noqa: BLE001
+        print(f"  تعذّر (‏D789 لم يُنشر بعد؟) {type(e).__name__}: {e}")
 
 asyncio.run(main())

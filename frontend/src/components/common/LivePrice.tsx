@@ -54,16 +54,18 @@ export default function LivePrice(
  *  رقمُ المالك. وبلا سعرٍ حيٍّ يُعرض ما حسبه الخادمُ كما هو.
  */
 export function LiveValue(
-  { symbol, shares, fallback, className, style }: {
+  { symbol, shares, fallback, className, style, fx = 1 }: {
     symbol?: string | null;
     shares?: number | null;
     fallback?: number | null;
     className?: string;
     style?: React.CSSProperties;
+    /** ‏D789: ريالٌ لكلّ وحدةٍ من عملة السهم — السعرُ الحيُّ للأمريكيّ بالدولار والقيمةُ بالريال كبقيّة المحفظة */
+    fx?: number;
   },
 ) {
   const live = useLiveQuote(symbol);
-  const v = (live?.p != null && shares) ? live.p * Number(shares)
+  const v = (live?.p != null && shares) ? live.p * Number(shares) * (Number(fx) || 1)
                                         : (fallback ?? null);
   return (
     <FlashPrice value={v} className={className} style={style}>

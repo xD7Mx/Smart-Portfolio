@@ -133,6 +133,10 @@ class Holding(Base):
     reconciled_at = Column(DateTime(timezone=True))
     reconciled_quantity = Column(Numeric(18, 6))
     reconciled_invested = Column(Numeric(18, 6))
+    # ‏D789: تكلفةُ المركز بعملة الشركة (الدولارُ للأمريكيّ) — للعرض وحده: متوسّطُ التكلفة بالدولار يُقارن بسعر الدولار.
+    # كلُّ حسابٍ في المحفظة على ‏invested_amount بالريال؛ وهذه تُبنى من إعادة تشغيل السجلّ نفسِها. وفارغةٌ للسعوديّ.
+    invested_native = Column(Numeric(18, 6))
+    reconciled_invested_native = Column(Numeric(18, 6))
     # الفوارق المُحقَّقة: عند الخروج الكامل يسقط الفارق عن التكلفة (لا تكلفة بلا
     # أسهم) لكنه لا يسقط عن **رأس المال المدفوع** — فالمالك دفعه فعلاً. يُنقل
     # هنا تراكمياً كي لا يُمحى من المقام، ولا يعود فيُطبَّق على مركزٍ جديد لو

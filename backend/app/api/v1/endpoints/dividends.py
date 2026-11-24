@@ -18,6 +18,8 @@ class DividendCreate(BaseModel):
     action: str = "CASH"
     ex_date: Optional[datetime] = None
     payment_date: Optional[datetime] = None
+    # ‏D789: للشركة بغير الريال — نصيبُ السهم بعملتها، وما يدخل النقدَ بالريال بهذا السعر (بلا قيمةٍ: سعرُ اليوم)
+    fx_rate: Optional[float] = None
 
 class DividendUpdate(BaseModel):
     """Editing a recorded dividend re-derives its cash/holding effect from the
@@ -121,7 +123,10 @@ async def add_dividend(data: DividendCreate, db: AsyncSession = Depends(get_db))
         # recording REINVEST here would silently add dividend income
         # without ever buying shares. Use POST /transactions (REINVESTMENT) instead.
         raise HTTPException(422, "Use /transactions with type REINVESTMENT to record a reinvested dividend")
-    amount = data.dividend_per_share * data.shares_at_time
+    # ‏D789: نصيبُ السهم بعملة الشركة والمبلغُ المسجَّل بالريال — وللسعوديّ سعرُ الصرف واحدٌ فلا يتغيّر رقم
+    from app.api.v1.endpoints.transactions import resolve_fx
+    _fx = (await resolve_fx(db, data.company_id, "DIVIDEND", data.fx_rate)) or 1.0
+    amount = data.dividend_per_share * data.shares_at_time * _fx
     div = Dividend(company_id=data.company_id, dividend_per_share=data.dividend_per_share, shares_at_time=data.shares_at_time, received_amount=amount, action=data.action, ex_date=data.ex_date, payment_date=data.payment_date)
     db.add(div)
 
@@ -151,7 +156,13 @@ async def update_dividend(dividend_id: int, data: DividendUpdate, db: AsyncSessi
     new_shares = data.shares_at_time if data.shares_at_time is not None else float(div.shares_at_time or 0)
     if new_dps <= 0 or new_shares <= 0:
         raise HTTPException(422, "dividend_per_share and shares_at_time must be positive")
-    new_amount = new_dps * new_shares
+    # ‏D789: سعرُ صرف التوزيع كامنٌ فيه (المبلغُ بالريال ونصيبُ السهم بعملة الشركة) فيبقى في التعديل كما سُجّل؛ وللسعوديّ واحد
+    from app.models.portfolio import Company as _Co
+    from app.services import fx as FX
+    _cur = FX.norm((await db.execute(select(_Co.currency).where(_Co.id == div.company_id))).scalar())
+    _od, _os = float(div.dividend_per_share or 0), float(div.shares_at_time or 0)
+    _fx = (old_amount / (_od * _os)) if (_cur != FX.BASE and _od > 0 and _os > 0 and old_amount > 0) else 1.0
+    new_amount = new_dps * new_shares * _fx
     delta = new_amount - old_amount
 
     if delta != 0:

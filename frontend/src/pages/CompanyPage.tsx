@@ -31,6 +31,11 @@ import FundingSplit, { useFundingSplit } from "../components/portfolio/FundingSp
 
 const fmt  = (n: number, dec = 2) => (n ?? 0).toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 const fmt0 = (n: number) => (n ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
+/* ‏D789: الشركةُ الأمريكيّة — السعرُ ونصيبُ السهم من التوزيع بالدولار، والإجماليُّ والمستلَمُ بالريال بسعر صرف العملية */
+const US_SYM = /^[A-Za-z][A-Za-z0-9.\-]*$/;
+const isUsd = (c: any) => c?.currency ? String(c.currency).toUpperCase() === "USD"
+  : US_SYM.test(String(c?.symbol || "")) && !String(c?.symbol || "").toUpperCase().endsWith(".SR");
+const MONEY_TX = ["BUY", "SELL", "DIVIDEND"];
 
 /* ══ صفٌّ واحدٌ لا ينكسر ولا يُمرَّر ══
    كانت `flex-wrap` تكسر السبعةَ سطرين على الجوّال. والتمريرُ الأفقيّ
@@ -348,14 +353,16 @@ function useTxDelete(t: any) {
    السلامة على الخادم لا هنا: يعكس أثر النقد القديم بالضبط ثم يطبّق الجديد
    بنفس جدول الحذف، ويعيد بناء الحيازة من إعادة تشغيل السجل كاملاً — فتصحّ
    الكمية والتكلفة والأرباح المحقّقة مهما تغيّر الترتيب أو تخلّلته تجزئة. */
-function useTxEdit(t: any) {
+function useTxEdit(t: any, usd = false) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // ‏D789: مبلغُ التوزيع المحفوظ بالريال يُعاد إلى الدولار بسعر صرفه — والقديمُ بلا سعر صرفٍ كما سُجّل
   const blank = () => ({
     quantity: String(t.quantity ?? ""),
     price: String(t.price ?? ""),
-    amount: String(t.total ?? ""),
+    amount: String(usd && Number(t.fx_rate) > 0 ? +(Number(t.total) / Number(t.fx_rate)).toFixed(6) : (t.total ?? "")),
+    fx: t.fx_rate != null ? String(Number(t.fx_rate)) : "",
     date: t.date ? String(t.date).slice(0, 10) : "",
     funding_source: t.funding_source || "",
   });
@@ -378,6 +385,7 @@ function useTxEdit(t: any) {
     if (t.type === "DIVIDEND") p.amount = Number(f.amount) || 0;
     if (f.date) p.executed_at = f.date;
     if (t.type === "BUY") { p.set_funding_source = true; p.funding_source = f.funding_source; }
+    if (usd && t.type !== "SPLIT" && Number(f.fx) > 0) p.fx_rate = Number(f.fx);
     mut.mutate(p);
   };
 
@@ -387,7 +395,7 @@ function useTxEdit(t: any) {
 /* نموذج التحرير — واحدٌ يخدم بطاقة الجوال وصفّ الكمبيوتر، فلا تتباعد الحقول
    ولا رسائل الخطأ بين الشكلين. الحقول المعروضة تتبع نوع العملية: لا معنى
    لسعرٍ في توزيعٍ نقدي ولا لمبلغٍ في تجزئة. */
-function TxEditForm({ t, ed, all = [] }: { t: any; ed: any; all?: any[] }) {
+function TxEditForm({ t, ed, all = [], usd = false }: { t: any; ed: any; all?: any[]; usd?: boolean }) {
   /* اقتراح سعر يوم المنح من سجلّك أنت — لا من مصدرٍ خارجي.
      المشكلة التي يحلّها: تحديد سعر يوم المنح يلتبس إن وقعت تجزئةٌ في الفترة
      نفسها، فلا يدري المالك أيّ سعرٍ يكتب: ما قبلها أم ما بعدها. والجواب في
@@ -424,9 +432,10 @@ function TxEditForm({ t, ed, all = [] }: { t: any; ed: any; all?: any[] }) {
       <div className="grid grid-cols-2 gap-2.5">
         {["BUY", "SELL", "BONUS"].includes(t.type) && F("عدد الأسهم", "quantity")}
         {t.type === "SPLIT" && F("معامل التجزئة", "quantity")}
-        {["BUY", "SELL"].includes(t.type) && F("سعر السهم", "price")}
-        {t.type === "BONUS" && F("سعر السهم يوم المنح", "price")}
-        {t.type === "DIVIDEND" && F("مبلغ التوزيع", "amount")}
+        {["BUY", "SELL"].includes(t.type) && F(usd ? "سعر السهم بالدولار" : "سعر السهم", "price")}
+        {t.type === "BONUS" && F(usd ? "سعر السهم يوم المنح بالدولار" : "سعر السهم يوم المنح", "price")}
+        {t.type === "DIVIDEND" && F(usd ? "مبلغ التوزيع بالدولار" : "مبلغ التوزيع", "amount")}
+        {usd && t.type !== "SPLIT" && F("سعر الصرف — ريال لكل دولار", "fx")}
         <div>
           <label className="label">التاريخ</label>
           <DateInput className="input" max={new Date().toISOString().slice(0, 10)}
@@ -481,11 +490,12 @@ function TxEditForm({ t, ed, all = [] }: { t: any; ed: any; all?: any[] }) {
 /* بطاقة عملية للجوال — بديل الصفّ الجدولي الذي كان بعرضٍ أدنى ٥٢٠px داخل
    تمرير أفقي، فيُقرأ بالسحب يميناً وشمالاً على الهاتف. رأسٌ (النوع + الوسم +
    التاريخ) ثم شبكة ثلاثية مصطفّة الأعمدة بين البطاقات فتُقارَن العمليات رأسياً. */
-function TxCard({ t, all }: { t: any; all: any[] }) {
+function TxCard({ t, all, usd = false }: { t: any; all: any[]; usd?: boolean }) {
   const { isOwner } = useAuthStore();
   const m = TX_LABEL[t.type] || { label: t.type, color: "var(--ink-muted)" };
   const { mut, ask } = useTxDelete(t);
-  const ed = useTxEdit(t);
+  const ed = useTxEdit(t, usd);
+  const noFx = usd && MONEY_TX.includes(t.type) && t.fx_rate == null;   // ‏D789: قديمةٌ بلا سعر صرف
   const isBonus = t.type === "BONUS";
   /* «الإجمالي» المخزَّن (total_amount) صفرٌ للمنحة دائماً — وهو صحيح ويجب أن
      يبقى: الحقل يمثّل النقد المتحرّك، والمنحة لا نقد فيها، وتغييره يُدخلها في
@@ -504,6 +514,8 @@ function TxCard({ t, all }: { t: any; all: any[] }) {
             className="px-1.5 py-0.5 rounded text-[10px] font-semibold shrink-0"
             style={{ background: "color-mix(in srgb, var(--chart-4) 14%, transparent)", color: "var(--chart-6)" }}>{fundTag(t)}</button>
         )}
+        {noFx && <span className="tag-a shrink-0" data-role="tx-no-fx" style={{ fontSize: 10, padding: "2px 7px" }}
+          title="سُجّلت قبل دعم العملة فعُدّت أرقامُها ريالاً — أدخِل سعرَ صرفها من «تعديل العملية»">بلا سعر صرف</span>}
         <span className="text-[11px] text-[var(--ink-muted)] tabular-nums ms-auto" dir="ltr">
           {t.date ? new Date(t.date).toLocaleDateString("en-GB") : "—"}
         </span>
@@ -517,11 +529,11 @@ function TxCard({ t, all }: { t: any; all: any[] }) {
         )}
       </div>
       {ed.editing ? (
-        <TxEditForm t={t} ed={ed} all={all} />
+        <TxEditForm t={t} ed={ed} all={all} usd={usd} />
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {([["الكمية", fmt(t.quantity, 2)],
-             [isBonus ? "سعر يوم المنح" : "السعر", isBonus && !(t.price > 0) ? "لم يُحدَّد" : fmt(t.price)],
+             [isBonus ? "سعر يوم المنح" : "السعر", isBonus && !(t.price > 0) ? "لم يُحدَّد" : (usd ? "$" : "") + fmt(t.price)],
              [isBonus ? "قيمة المنحة" : "الإجمالي", bonusValue != null ? fmt0(bonusValue) : (isBonus ? "—" : fmt0(t.total))]] as [string, string][]).map(([lbl, v]) => (
             <div key={lbl}>
               <p className="text-[10px] text-[var(--ink-muted)] whitespace-nowrap">{lbl}</p>
@@ -548,11 +560,12 @@ function TxCard({ t, all }: { t: any; all: any[] }) {
   );
 }
 
-function TxRow({ t, all }: { t: any; all: any[] }) {
+function TxRow({ t, all, usd = false }: { t: any; all: any[]; usd?: boolean }) {
   const { isOwner } = useAuthStore();
   const m = TX_LABEL[t.type] || { label: t.type, color: "var(--ink-muted)" };
   const { mut: deleteMut, ask } = useTxDelete(t);
-  const ed = useTxEdit(t);
+  const ed = useTxEdit(t, usd);
+  const noFx = usd && MONEY_TX.includes(t.type) && t.fx_rate == null;   // ‏D789: قديمةٌ بلا سعر صرف
   const isBonus = t.type === "BONUS";
   /* «الإجمالي» المخزَّن (total_amount) صفرٌ للمنحة دائماً — وهو صحيح ويجب أن
      يبقى: الحقل يمثّل النقد المتحرّك، والمنحة لا نقد فيها، وتغييره يُدخلها في
@@ -566,7 +579,7 @@ function TxRow({ t, all }: { t: any; all: any[] }) {
     return (
       <tr>
         <td className="td" colSpan={6}>
-          <TxEditForm t={t} ed={ed} all={all} />
+          <TxEditForm t={t} ed={ed} all={all} usd={usd} />
         </td>
       </tr>
     );
@@ -582,12 +595,14 @@ function TxRow({ t, all }: { t: any; all: any[] }) {
             background: "color-mix(in srgb, var(--chart-4) 14%, transparent)", color: "var(--chart-6)",
           }}>{fundTag(t)}</button>
         )}
+        {noFx && <span className="tag-a ms-1" data-role="tx-no-fx" style={{ fontSize: 10, padding: "2px 7px" }}
+          title="سُجّلت قبل دعم العملة فعُدّت أرقامُها ريالاً — أدخِل سعرَ صرفها من «تعديل العملية»">بلا سعر صرف</span>}
       </td>
       <td className="td tabular-nums">{fmt(t.quantity, 2)}</td>
-      <td className="td tabular-nums">
+      <td className="td tabular-nums" dir={usd ? "ltr" : undefined}>
         {isBonus && !(t.price > 0)
           ? <span className="text-[var(--warn-ink)] text-xs" title="بلا سعر يوم المنح تُقيَّم بسعر اليوم فتتحرّك مع السوق">لم يُحدَّد</span>
-          : fmt(t.price)}
+          : (usd ? "$" : "") + fmt(t.price)}
       </td>
       <td className="td tabular-nums">
         {bonusValue != null ? fmt0(bonusValue) : isBonus ? <span className="text-[var(--ink-muted)]">—</span> : fmt0(t.total)}
@@ -612,10 +627,13 @@ function TxRow({ t, all }: { t: any; all: any[] }) {
 }
 
 /* تعديل/حذف توزيعة — منطقٌ واحد لصفّ الكمبيوتر وبطاقة الجوال معاً. */
-function useDividendEdit(d: any) {
+function useDividendEdit(d: any, usd = false) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
-  const [amount, setAmount] = useState(String(d.received ?? d.received_amount ?? 0));
+  // ‏D789: للأمريكيّ المبلغُ بالدولار (نصيبُ السهم × الأسهم) — والخادمُ يحوّله بسعر صرف التوزيع المسجَّل
+  const start = () => usd ? String(+(Number(d.dividend_per_share || 0) * Number(d.shares_at_time || 0)).toFixed(6))
+                          : String(d.received ?? d.received_amount ?? 0);
+  const [amount, setAmount] = useState(start);
   const invalidate = () => { qc.invalidateQueries(); };
   const updateMut = useMutation({
     mutationFn: () => {
@@ -628,7 +646,7 @@ function useDividendEdit(d: any) {
     mutationFn: () => dividendsApi.remove(d.id).then(r => r.data),
     onSuccess: invalidate,
   });
-  const cancel = () => { setEditing(false); setAmount(String(d.received ?? 0)); };
+  const cancel = () => { setEditing(false); setAmount(start()); };
   /* تأكيدٌ قبل الحذف — كان غائباً تماماً هنا بينما حذف العملية يسأله.
      وحذف التوزيعة ليس أقلّ خطراً: الخادم يعكس أثرها على السيولة وعلى إجمالي
      التوزيعات في الحيازة. فضغطةٌ واحدة على أيقونة ١٣px — يسهل خطؤها على
@@ -645,9 +663,9 @@ function useDividendEdit(d: any) {
 
 /* بطاقة توزيعة للجوال — بديل الصفّ الجدولي بعرضٍ أدنى ٤٨٠px داخل تمرير أفقي.
    يحتفظ بالتعديل الموضعي للمبلغ كما هو على الكمبيوتر تماماً. */
-function DividendCard({ d }: { d: any }) {
+function DividendCard({ d, usd = false }: { d: any; usd?: boolean }) {
   const { isOwner } = useAuthStore();
-  const { editing, setEditing, amount, setAmount, updateMut, deleteMut, cancel, askDelete } = useDividendEdit(d);
+  const { editing, setEditing, amount, setAmount, updateMut, deleteMut, cancel, askDelete } = useDividendEdit(d, usd);
   return (
     <div className="py-3 space-y-2.5">
       <div className="flex items-center gap-2 flex-wrap">
@@ -673,7 +691,7 @@ function DividendCard({ d }: { d: any }) {
       <div className="grid grid-cols-2 gap-2">
         <div>
           <p className="text-[10px] text-[var(--ink-muted)]">للسهم الواحد</p>
-          <p className="text-xs font-bold text-[var(--ink)] tabular-nums" dir="ltr">{fmt(d.dividend_per_share)}</p>
+          <p className="text-xs font-bold text-[var(--ink)] tabular-nums" dir="ltr">{usd ? "$" : ""}{fmt(d.dividend_per_share)}</p>
         </div>
         <div>
           <p className="text-[10px] text-[var(--ink-muted)]">المستلم</p>
@@ -690,13 +708,13 @@ function DividendCard({ d }: { d: any }) {
 }
 
 /* Dividend row — editable (amount) and deletable; both reverse/adjust cash + holding on the server */
-function DividendRow({ d }: { d: any }) {
+function DividendRow({ d, usd = false }: { d: any; usd?: boolean }) {
   const { isOwner } = useAuthStore();
-  const { editing, setEditing, amount, setAmount, updateMut, deleteMut, cancel, askDelete } = useDividendEdit(d);
+  const { editing, setEditing, amount, setAmount, updateMut, deleteMut, cancel, askDelete } = useDividendEdit(d, usd);
 
   return (
     <tr>
-      <td className="td tabular-nums">{fmt(d.dividend_per_share)}</td>
+      <td className="td tabular-nums" dir={usd ? "ltr" : undefined}>{usd ? "$" : ""}{fmt(d.dividend_per_share)}</td>
       <td className="td tabular-nums profit">
         {editing ? (
           <NumInput className="input" style={{ width: 100, padding: "4px 8px" }} value={amount}
@@ -828,6 +846,7 @@ export default function CompanyPage() {
 
   const ref = lookupCompany(company.symbol);
   const nameAr = company.name_ar || company.company_name_ar || ref?.name_ar || company.company_name;
+  const usdCo = isUsd(company);                                   // ‏D789
   const nameEn = ref?.name_en || company.company_name;
   const profit = (holding?.market_value ?? 0) - (holding?.invested_amount ?? 0);
   const roi = holding?.invested_amount > 0 ? (profit / holding.invested_amount) * 100 : 0;
@@ -1015,13 +1034,13 @@ export default function CompanyPage() {
                   كان جدولاً واحداً بعرضٍ أدنى ٥٢٠px يُقرأ على الهاتف بالسحب
                   الأفقي، وهو سلوكٌ يخالف بقيّة التطبيق. */}
               <table className="w-full text-sm hidden md:table">
-                <thead><tr>{["النوع", "الكمية", "السعر", "الإجمالي", "التاريخ", ""].map(h => <th key={h} className="th text-right">{h}</th>)}</tr></thead>
+                <thead><tr>{["النوع", "الكمية", usdCo ? "السعر بالدولار" : "السعر", usdCo ? "الإجمالي بالريال" : "الإجمالي", "التاريخ", ""].map(h => <th key={h} className="th text-right">{h}</th>)}</tr></thead>
                 <tbody>
-                  {txs.map((t: any) => <TxRow key={t.id} t={t} all={txs} />)}
+                  {txs.map((t: any) => <TxRow key={t.id} t={t} all={txs} usd={usdCo} />)}
                 </tbody>
               </table>
               <div className="md:hidden divide-y divide-[var(--hairline)]">
-                {txs.map((t: any) => <TxCard key={t.id} t={t} all={txs} />)}
+                {txs.map((t: any) => <TxCard key={t.id} t={t} all={txs} usd={usdCo} />)}
               </div>
             </>
           )}
@@ -1039,11 +1058,11 @@ export default function CompanyPage() {
                 <table className="w-full text-sm hidden md:table">
                   <thead><tr>{["للسهم الواحد", "المستلم", "التاريخ", "الإجراء", ""].map(h => <th key={h} className="th text-right">{h}</th>)}</tr></thead>
                   <tbody>
-                    {divs.map((d: any) => <DividendRow key={d.id} d={d} />)}
+                    {divs.map((d: any) => <DividendRow key={d.id} d={d} usd={usdCo} />)}
                   </tbody>
                 </table>
                 <div className="md:hidden divide-y divide-[var(--hairline)]">
-                  {divs.map((d: any) => <DividendCard key={d.id} d={d} />)}
+                  {divs.map((d: any) => <DividendCard key={d.id} d={d} usd={usdCo} />)}
                 </div>
               </>
             )}

@@ -116,9 +116,11 @@ async def _year_income(db: AsyncSession, year: int) -> dict:
     if bonus_txs:
         from app.services.portfolio_return import bonus_share_value
         holdings = {h.company_id: h for h in (await db.execute(select(Holding))).scalars().all()}
+        from app.services import fx as FX
+        _rates = await FX.rates_for(db, [t.company_id for t in bonus_txs])     # ‏D789: الأمريكيّ بالريال
         for t in bonus_txs:
             h = holdings.get(t.company_id)
-            bonus_value += bonus_share_value(t, h.last_price if h else 0)
+            bonus_value += bonus_share_value(t, h.last_price if h else 0, _rates.get(t.company_id, 1.0))
 
     # المنحة خارج المجموع: إصدارها يُرسمل احتياطياً ولا يُنشئ قيمة (الكمية
     # تزيد والسعر ينخفض بالتناسب)، وقيمتها محسوبةٌ أصلاً ضمن القيمة السوقية
