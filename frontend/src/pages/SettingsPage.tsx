@@ -3,7 +3,8 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { settingsApi, backupApi, authApi, profileApi } from "../services/api";
 import { useAppStore } from "../store/appStore";
 import { useAuthStore } from "../store/authStore";
-import { Settings, Brain, MessageSquare, Database, Shield, Lock, Info, Globe, Activity, RefreshCw, LayoutGrid, ArrowUp, ArrowDown, Home, LogIn, LogOut, Clock, Timer, KeyRound, User, Camera, Briefcase, Trash2 } from "lucide-react";
+import { Settings, Brain, MessageSquare, Database, Shield, Lock, Info, Globe, Activity, RefreshCw, LayoutGrid, ArrowUp, ArrowDown, Home, LogIn, LogOut, Clock, Timer, KeyRound, User, Camera, Briefcase, Trash2, Smartphone } from "lucide-react";
+import WidgetCard from "../components/settings/WidgetCard";   // ‏D791: ويدجت الآيفون
 import { AvatarImg, PRESET_AVATARS } from "../components/common/Avatar";
 import CollapsibleList from "../components/common/CollapsibleList";
 import { IDLE_OPTIONS, getIdleMinutes, setIdleMinutes } from "../hooks/useIdleLock";
@@ -19,6 +20,7 @@ const SECTIONS = [
   { id: "integrations", labelKey: "set.integrations", icon: Activity },
   { id: "language",  labelKey: "set.language", icon: Globe },
   { id: "telegram",  labelKey: "set.telegram", icon: MessageSquare },
+  { id: "widget",    labelKey: "set.widget",   icon: Smartphone },
   { id: "backup",    labelKey: "set.backup",   icon: Database },
   { id: "security",  labelKey: "set.security", icon: Lock },
   { id: "about",     labelKey: "set.about",    icon: Info },
@@ -469,6 +471,8 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+
+        {active === "widget" && <WidgetCard />}
 
         {active === "telegram" && (
           <div className="card">

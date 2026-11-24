@@ -127,6 +127,43 @@ export default function TradeRoom() {
     return () => { window.removeEventListener("keydown", k); document.documentElement.classList.remove("troom-wide-on"); };
   }, [wide]);
   useEffect(() => { if (layoutN === 1) setWide(false); }, [layoutN]);
+  /* ‏D790 (المالك 2026-11-24: «التكبير لا يعمل بشكل صحيح — فيه أخطاء وبقايا صفحة ظاهرة»): ارتفاعُ الشاشات المكبَّرة كان يُحسب من
+     موضعٍ مخمَّن لأعلى الشبكة (104) وهو في الحقيقة ~67 — فتنتهي الشاشاتُ قبل قاع النافذة بـ81–87px ويظهر ما تحتها. فيُقاس الفراغُ بعد
+     الرسم ويُطرح من الموضع: مجموعُ الارتفاع يتبعه واحداً بواحد (حتى حدودِ اللوحة الدنيا والعليا)، فخطوةٌ واحدةٌ تملأ — وعدّادٌ يمنع الدوران. */
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [wideTop, setWideTop] = useState(104);
+  const [wideHead, setWideHead] = useState(34);
+  const fitTries = useRef(0);
+  useEffect(() => {
+    if (!wide) { setWideTop(104); setWideHead(34); fitTries.current = 0; return; }
+    let t = 0;
+    const measure = (delay: number) => {
+      window.clearTimeout(t);
+      t = window.setTimeout(() => {
+        const g = gridRef.current, panel = chartRef.current;
+        if (!g || !panel || window.innerWidth < 1024 || fitTries.current >= 10) return;  // الجوالُ شاشاتٌ متتاليةٌ تُمرَّر
+        // هندسةُ التخطيط لا المستطيلُ المرسوم: حركةُ الظهور تُصغّر المستطيلَ لحظةً (‏scale) فيُقرأ فراغٌ أكبر من الحقيقة
+        let top = 0;
+        for (let e: HTMLElement | null = g; e && e !== panel; e = e.offsetParent as HTMLElement | null) top += e.offsetTop;
+        const gap = panel.clientHeight - (top + g.offsetHeight);
+        // ثلاثُ شاشات: العمودُ الكبيرُ شاشةٌ واحدة والصغيرُ اثنتان لكلٍّ رأسُها — فيُسوّى العمودان أوّلاً بمعامل الرأس (‏head)،
+        // فالفرقُ بينهما يتبعه واحداً بواحد؛ ثمّ يُملأ الارتفاع بمعامل الأعلى
+        const ps = g.querySelectorAll<HTMLElement>('[data-role="troom-pane"]');
+        const colDiff = layoutN === 3 && ps.length === 3 ? (ps[0].offsetTop + ps[0].offsetHeight) - (ps[2].offsetTop + ps[2].offsetHeight) : 0;
+        if (Math.abs(colDiff) > 2) { fitTries.current += 1; setWideHead(h => Math.max(-200, Math.min(400, Math.round(h - colDiff)))); return; }
+        if (Math.abs(gap) <= 2) return;
+        fitTries.current += 1;
+        setWideTop(v => Math.max(-400, Math.round(v - gap)));               // معاملُ معايرةٍ لا موضع — قد يكون سالباً (أربعُ شاشات)
+      }, delay);
+    };
+    // ما يصل بعد الرسم (شريطا الاتجاه والسيولة لكلّ شاشة) يغيّر ارتفاعَها — فتُعاد المعايرةُ كلّما تغيّر حجمُ الشبكة
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => measure(90)) : null;
+    if (ro && gridRef.current) ro.observe(gridRef.current);
+    measure(fitTries.current ? 120 : 320);                                     // الأوّلُ بعد حركة الظهور (‏.22 ث)
+    const onResize = () => { fitTries.current = 0; measure(200); };
+    window.addEventListener("resize", onResize);
+    return () => { window.clearTimeout(t); ro?.disconnect(); window.removeEventListener("resize", onResize); };
+  }, [wide, layoutN, wideTop, wideHead]);
   const snaps = useRef(new Map<number, () => ReadFrame | null>());
   const rowsBox = useRef<HTMLDivElement>(null), rowsBox2 = useRef<HTMLDivElement>(null);
   useFlip(rowsBox); useFlip(rowsBox2);
@@ -519,7 +556,7 @@ export default function TradeRoom() {
             </button>
             <LiveQuote symbol={symbol} live={live} badge={false} />
           </div>
-          <div className={`troom-grid g${layoutN}`} data-role="troom-grid">
+          <div ref={gridRef} className={`troom-grid g${layoutN}`} data-role="troom-grid">
             {Array.from({ length: layoutN }, (_, k) => {
               const ps = paneSym(k);
               return (
@@ -528,7 +565,7 @@ export default function TradeRoom() {
                   {paneHead(k, ps, k === 0 || !!panes[k])}
                   <ProChart symbol={ps} theme={theme === "light" ? "light" : "dark"} slot={k} mini
                     rows={layoutN === 4 ? 2 : layoutN === 3 ? (k === 0 ? 1 : 2) : 1}
-                    fit={{ top: wide ? 104 : 250, head: 34 }}
+                    fit={{ top: wide ? wideTop : 250, head: wide ? wideHead : 34 }}
                     layout={k === 0 ? { n: layoutN, set: setLayout } : undefined} snaps={snaps} />
                 </div>
               );

@@ -4227,9 +4227,13 @@ html.light {
 .troom-picon { min-width: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; }
 .troom-wide-btn { min-height: 32px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; border-radius: 9px; font-size: 12px; font-weight: 700; }
 .troom-wide-btn.on { color: var(--brand-ink); }
-.troom-chart.troom-wide { position: fixed; inset: 0; z-index: 55; margin: 0; border-radius: 0; overflow: auto; background: var(--bg);
+/* ‏D790: الخلفيةُ بـ!important — قاعدةُ «دمج البطاقات» (‏.card { background: transparent !important }) كانت تغلبها، و‏.troom-chart بطاقةٌ،
+   فصارت الشاشاتُ المكبَّرة شفّافةً يظهر من خلفها شريطُ التطبيق وحدُّ القائمة وزرُّ المحادثة («بقايا صفحة ظاهرة»). */
+.troom-chart.troom-wide { position: fixed; inset: 0; z-index: 55; margin: 0; border-radius: 0; overflow: auto; background: var(--bg) !important;
   animation: troomWideIn .22s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes troomWideIn { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
+/* ‏D790: وبخصوصيةٍ تغلب ‏`html.light .card` (‏0,2,1) — ‏`:root` يرفعها إلى (‏0,3,0) في المظهرين؛ كانت الخلفيةُ تُعلَن ولا تُطبَّق في الفاتح */
+:root .troom-chart.troom-wide { background: var(--bg) !important; }
 html.troom-wide-on, html.troom-wide-on body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .troom-chart.troom-wide { animation: none; } .troom-pane { transition: none; } }
 /* ══ ‏D787: رمزُ البحث المنسوخ، ودليلُ الفرصة في السلسلة ══ */
@@ -4361,3 +4365,14 @@ html.troom-wide-on, html.troom-wide-on body { overflow: hidden; }
   transform: rotate(-45deg) translateY(-2px); transition: transform .2s ease; }
 .so-why[open] summary::after { transform: rotate(135deg) translateY(-1px); }
 @media (prefers-reduced-motion: reduce) { .so-why[open] ul { animation: none; } .so-why summary::after { transition: none; } }
+
+/* ‏D791: ويدجت الآيفون في الإعدادات — أزرارٌ بلمسٍ ≥ 36 ورمزٌ يُعرض مرّةً بخطٍّ ثابت العرض */
+.widget-btn { min-height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border-radius: 10px; font-size: 13px; font-weight: 700; }
+.widget-revoke { color: var(--neg-ink); }
+/* حالُ الرمز «نافذ»: ‏--pos-ink الفاتح (#16a34a) 3.3:1 على البطاقة — دون 4.5 لنصٍّ صغير؛ فأخضرُ الحالة (‏#15803d ‏5:1 · الداكن #22c55e) */
+.tag-g.widget-on { color: var(--st-open); }
+.widget-steps { list-style: decimal; padding-inline-start: 1.25rem; line-height: 1.75; }
+.widget-steps li::marker { color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.widget-token { padding: 12px; border-radius: 12px; border: 1px solid var(--hairline); background: var(--surface); }
+.widget-token-val { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--ink); padding: 8px 10px;
+  border-radius: 8px; background: var(--bg); border: 1px solid var(--hairline); }

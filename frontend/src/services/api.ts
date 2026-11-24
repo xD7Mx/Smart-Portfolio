@@ -452,6 +452,13 @@ export const libraryApi = {
 };
 
 // ── Settings ──────────────────────────────────────────────────
+// ‏D791: ويدجت الآيفون — رمزٌ يُنشئه المالك (يُعرض مرّة) ويُلغيه، والسكربتُ يقرأ /widget/summary به
+export const widgetApi = {
+  status: () => api.get<APIResponse>("/widget/token"),
+  create: () => api.post<APIResponse>("/widget/token"),
+  revoke: () => api.delete<APIResponse>("/widget/token"),
+};
+
 export const settingsApi = {
   get:       () => api.get<APIResponse>("/settings"),
   ai:        () => api.get<APIResponse>("/settings/ai"),

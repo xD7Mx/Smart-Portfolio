@@ -154,6 +154,7 @@ export const STRINGS: Dict = {
   "set.language":    { ar: "اللغة", en: "Language" },
   "set.ai":          { ar: "الذكاء الاصطناعي", en: "AI" },
   "set.telegram":    { ar: "تيليجرام", en: "Telegram" },
+  "set.widget":      { ar: "ويدجت الآيفون", en: "iPhone Widget" },
   "set.backup":      { ar: "النسخ الاحتياطي", en: "Backup" },
   "set.security":    { ar: "الأمان", en: "Security" },
   "set.about":       { ar: "حول", en: "About" },

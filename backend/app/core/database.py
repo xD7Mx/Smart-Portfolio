@@ -244,9 +244,12 @@ async def init_db() -> None:
                   "SELECT id FROM portfolio ORDER BY id LIMIT 1"
               ))).first()
               if row is None:
+                  # ‏D791: «غيرُ مؤرشفة» صراحةً — العمودُ أنشأه ‏create_all بلا قيمةٍ افتراضيةٍ في القاعدة، فكانت المحفظةُ الرئيسية
+                  # على قاعدةٍ جديدة ‏NULL: تختفي من كلّ مرشِّح ‏is_archived = FALSE (قائمةُ المحافظ، ويُنشئ ‏_default_portfolio_id
+                  # محفظةً رئيسيةً ثانية).
                   await conn.execute(text(
-                      "INSERT INTO portfolio (name, currency, mode, is_default, include_in_aggregate) "
-                      "VALUES ('المحفظة الرئيسية', 'SAR', 'BUILD', TRUE, TRUE)"
+                      "INSERT INTO portfolio (name, currency, mode, is_default, include_in_aggregate, is_archived) "
+                      "VALUES ('المحفظة الرئيسية', 'SAR', 'BUILD', TRUE, TRUE, FALSE)"
                   ))
                   row = (await conn.execute(text("SELECT id FROM portfolio ORDER BY id LIMIT 1"))).first()
               default_pid = row[0]

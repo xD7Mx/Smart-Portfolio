@@ -7,7 +7,7 @@ from app.api.v1.endpoints import (
     liquidity,
     health, portfolio, portfolios, companies, holdings, transactions, notes,
     installments, cash, dividends, bonus, goals, allocation,
-    market, ai, notifications, reports, scheduler, settings, backup, auth, library
+    market, ai, notifications, reports, scheduler, settings, backup, auth, library, widget
 )
 from app.core.auth import require_auth
 from app.core.portfolio_context import scope_portfolio
@@ -21,6 +21,8 @@ api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
 api_router.include_router(settings.public_router, prefix="/settings", tags=["Settings"])
 # بثُّ الأسعار المباشر: عامٌّ بلا مصادقة، ولا يحمل بياناتَ محفظة (D290).
 api_router.include_router(market.public_router, prefix="/market", tags=["Market"])
+# ‏D791: ملخّصُ ويدجت الآيفون — عامٌّ بلا جلسة، لكن **برمز الويدجت** وحده (يُنشئه المالكُ ويُلغيه من الإعدادات)
+api_router.include_router(widget.public_router, prefix="/widget", tags=["Widget"])
 
 # Everything else requires a valid session token — this app has no
 # per-user accounts, just one shared owner password gating the whole API
@@ -48,4 +50,5 @@ protected.include_router(library.router, prefix="/library", tags=["Library"])
 protected.include_router(scheduler.router, prefix="/scheduler", tags=["Scheduler"])
 protected.include_router(settings.router, prefix="/settings", tags=["Settings"])
 protected.include_router(backup.router, prefix="/backups", tags=["Backup"])
+protected.include_router(widget.router, prefix="/widget", tags=["Widget"])   # ‏D791: إنشاءُ رمز الويدجت وإلغاؤه
 api_router.include_router(protected)

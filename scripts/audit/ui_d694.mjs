@@ -91,9 +91,14 @@ for (const [label, vp, mobile] of [["الجوال", { width: 390, height: 844 },
 
   // ٤ · الروابطُ القديمة للمختبر تصل مكانَه الجديد
   for (const old of ["/stars", "/portfolio?tab=lab", "/ai?tab=lab"]) {
-    await go(old, 2600);
-    const u = await page.evaluate(() => location.pathname + location.search);
-    const on = (await tabs()).find(x => x.t === "مختبر الأبحاث")?.on;
+    // ‏D791: انتظارٌ للحالة لا مهلةٌ ثابتة — تحت حمل اللجنة الكاملة تأخّر تفعيلُ التبويب عن 2.6 ثانية فسقط الفحصُ والرابطُ صحيح
+    await go(old, 1200);
+    let u = "", on = false;
+    for (let i = 0; i < 24 && !(u === "/watchlist?tab=lab" && on); i++) {
+      if (i) await page.waitForTimeout(250);
+      u = await page.evaluate(() => location.pathname + location.search);
+      on = !!(await tabs()).find(x => x.t === "مختبر الأبحاث")?.on;
+    }
     say(u === "/watchlist?tab=lab" && on, `${label}: الرابطُ القديم ${old} يفتح المختبرَ في غرفة التداول`, u);
   }
   say(errs.length === 0, `${label}: لا خطأَ في الصفحات`, errs[0] || "");
