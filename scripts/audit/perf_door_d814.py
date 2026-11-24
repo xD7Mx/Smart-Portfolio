@@ -44,7 +44,10 @@ async def static_part():
         r = await c.get(base + "/")
         html = r.text
         print(f"   الصفحة {base}: {len(r.content)}B · {(time.monotonic() - t0) * 1000:.0f}ms · تخزين={r.headers.get('cache-control', '—')}")
-        refs = re.findall(r'(?:src|href)="(/[^"]+\.(?:js|css))"', html)
+        refs = re.findall(r'(?:src|href)=["\']?([^"\' >]+\.(?:js|css))', html)
+        refs = [x if x.startswith("/") else "/" + x.lstrip("./") for x in refs if not x.startswith("http")]
+        if not refs:
+            print("   رأسُ الصفحة:", re.sub(r"\s+", " ", html)[:400])
         print(f"   ملفّاتٌ في الصفحة: {len(refs)} · preload={len(re.findall(r'modulepreload', html))}")
         tot_wire = tot_raw = 0
         rows = []
@@ -106,6 +109,37 @@ async def api_part():
     app.dependency_overrides.clear()
 
 
+async def watch_part():
+    """‏/market/watchlist باردةً ‏13ث: أيُّ رموزها يُبطئها؟ — زمنُ سعر كلّ رمزٍ وحده (من غير «تداول»)، والطلبُ كلُّه."""
+    from sqlalchemy import select
+    from app.core.database import AsyncSessionLocal
+    from app.models.market import Watchlist
+    from app.services.market_data import market_service as M
+    print("══ ٢ب قائمةُ المراقبة: زمنُ سعر كلّ رمزٍ ليس في لقطة «تداول»")
+    async with AsyncSessionLocal() as db:
+        rows = (await db.execute(select(Watchlist.symbol, Watchlist.group_id))).all()
+    syms = sorted({str(s) for s, _ in rows})
+    kind = lambda s: "سعوديّ" if s.replace(".SR", "").isdigit() else "عقد" if re.search(r"\d{6}[CP]\d{8}$", s) else "مؤشّر/سلعة" if re.search(r"^\^|=F$|-USD$", s) else "أمريكيّ"   # noqa: E731
+    by = {}
+    for s in syms:
+        by[kind(s)] = by.get(kind(s), 0) + 1
+    print(f"   رموزُ القوائم كلّها: {len(syms)} · {by}")
+    rest = [s for s in syms if not M._tadawul_price(s.replace(".SR", ""))]
+    times = []
+    async def one(s):
+        t0 = time.monotonic()
+        try:
+            d = await asyncio.wait_for(M._yahoo().get_price(s), 30)
+        except Exception:                                        # noqa: BLE001
+            d = None
+        times.append(((time.monotonic() - t0) * 1000, s, d is not None))
+    await asyncio.gather(*(one(s) for s in rest))
+    times.sort(reverse=True)
+    print(f"   خارجَ «تداول»: {len(rest)} · بسعر {sum(1 for x in times if x[2])} · أبطؤها:")
+    for ms, s, ok in times[:8]:
+        print(f"      {kind(s):10} {s:24} {ms:7.0f}ms · سعر={'نعم' if ok else 'لا'}")
+
+
 def scan_part():
     print("══ ٣ المسح — آخرُ مسحٍ مسجَّلٍ لكلّ سوق")
     try:
@@ -120,6 +154,7 @@ def scan_part():
 async def main():
     await static_part()
     await api_part()
+    await watch_part()
     scan_part()
     print("══ انتهى")
 
