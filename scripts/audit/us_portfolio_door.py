@@ -97,4 +97,21 @@ async def main():
     except Exception as e:                                        # noqa: BLE001
         print(f"  تعذّر (‏D789 لم يُنشر بعد؟) {type(e).__name__}: {e}")
 
+    # ٦ تغيّرُ اليوم للأمريكيّ — قِيس ‏NVDA ‏+31% في ٣: أيُّ «إغلاقٍ سابق» يعيده ياهو، وأيُّها يصدق؟ (قراءةٌ من المصدر مباشرة)
+    print("══ ٦ الإغلاقُ السابق في ياهو (‏meta) لنطاقَي يومٍ وخمسة:")
+    import httpx
+    for s in ("NVDA", "AAPL", "SAR=X"):
+        for rng in ("1d", "5d"):
+            try:
+                async with httpx.AsyncClient(timeout=12, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}) as c:
+                    r = await c.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{s}?range={rng}&interval=1d")
+                res = (r.json().get("chart") or {}).get("result") or []
+                m = res[0].get("meta", {}) if res else {}
+                closes = ((res[0].get("indicators") or {}).get("quote") or [{}])[0].get("close") if res else None
+                print(f"  {s} {rng}: سعر {m.get('regularMarketPrice')} · chartPreviousClose {m.get('chartPreviousClose')}"
+                      f" · previousClose {m.get('previousClose')} · regularMarketPreviousClose {m.get('regularMarketPreviousClose')}"
+                      f" · الإغلاقات {closes}")
+            except Exception as e:                                # noqa: BLE001
+                print(f"  {s} {rng}: تعذّر {type(e).__name__}: {e}")
+
 asyncio.run(main())
