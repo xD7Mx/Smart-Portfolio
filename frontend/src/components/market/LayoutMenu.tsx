@@ -71,7 +71,7 @@ export default function LayoutMenu({ n, onPick, presets, onApply, onDelete, onSa
           })}
           <div className="troom-laysep" role="separator" />
           <span className="troom-laycap">المفضّلة</span>
-          {presets.length === 0 && <span className="troom-layempty">لا تخصيصَ محفوظاً بعد</span>}
+          {presets.length === 0 && <span className="troom-layempty">لا لوحةَ محفوظةً بعد</span>}
           {presets.map(p => (
             <div key={p.id} className="troom-preset" data-role="troom-preset" data-id={p.id}>
               <button type="button" role="menuitem" className="troom-layitem troom-preset-go" onClick={() => { onApply(p); setOpen(false); }}

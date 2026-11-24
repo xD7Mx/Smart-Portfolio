@@ -25,7 +25,7 @@ const nc = t => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}
 const src = f => nc(readFileSync(join(FRONT, f), "utf8"));
 const lm = src("src/components/market/LayoutMenu.tsx"), trs = src("src/components/market/TradeRoom.tsx"), pcs = src("src/components/chart/ProChart.tsx");
 const cat = src("src/data/marketCatalog.ts");
-say(/name: "ثلاث شاشات"/.test(lm) && !/"side"|LayoutPanelLeft|كبيرةٌ وبجانبها/.test(lm + trs) && />إنشاء لوحة جديدة</.test(lm) && !/تخصيص — احفظ/.test(lm)
+say(/name: "ثلاث شاشات"/.test(lm) && !/"side"|LayoutPanelLeft|كبيرةٌ وبجانبها/.test(lm + trs) && />إنشاء لوحة جديدة</.test(lm) && !/تخصيص/.test(lm.replace(/\/\*[\s\S]*?\*\//g, ""))
     && !/sp_room_var3/.test(trs),
     "٠أ قائمةُ الشاشات: «ثلاث شاشات» وحدها (لا ترتيبَ «الكبيرةُ على اليمين»)، وزرُّ الحفظ «إنشاء لوحة جديدة» لا السطرُ الطويل");
 const need = ["^TASI.SR", "^GSPC", "^IXIC", "^DJI", "BZ=F", "CL=F", "GC=F", "SI=F", "BTC-USD"];
