@@ -61,15 +61,22 @@ def m_trend(tr: dict | None, side: str, market: str, rs3: float | None = None, c
         return _m("المسار", "warn", "المسارُ غيرُ متوفّر — لا شموعَ كافية")
     st = tr.get("state")
     if market == "sa":
-        if st != "صاعد":
-            return _m("المسار", "veto", f"المسارُ {st} — لا شراءَ إلا مع المسار الصاعد")
         bits, v = [], "ok"
+        if st != "صاعد":
+            # ‏D809 (المالك 2026-11-24): «السعوديُّ لا شراءَ إلا والسهمُ صاعد — حتى لو كان عرضيّاً لكنّه صاعد»: العرضيُّ فوق متوسّط 50 بعائدٍ
+            # موجبٍ في ثلاثة أشهر صاعدٌ في جوهره ⇒ تحفّظ؛ والهابطُ والعرضيُّ المائلُ إلى الهبوط لا شراءَ فيهما
+            r3 = tr.get("ret3m")
+            if st == "عرضي" and tr["close"] >= tr["sma50"] and isinstance(r3, (int, float)) and r3 > 0:
+                v = "warn"
+                bits.append(f"عرضيٌّ مائلٌ إلى الصعود ({r3:+.1f}٪ في ثلاثة أشهر)")
+            else:
+                return _m("المسار", "veto", f"المسارُ {st} — لا شراءَ في السعوديّ إلا والسهمُ صاعد")
         if tr["close"] < tr["sma50"]:
             if not chart_buy:
                 return _m("المسار", "veto", f"الإغلاقُ {tr['close']:,.2f} دون متوسّط 50 ({tr['sma50']:,.2f}) بلا ارتدادٍ يؤكّده الرسم")
             v = "warn"
             bits.append(f"تصحيحٌ دون متوسّط 50 ({tr['sma50']:,.2f}) يؤكّد الرسمُ ارتدادَه")
-        else:
+        elif st == "صاعد":
             bits.append(f"صاعدٌ فوق متوسّط 50 ({tr['sma50']:,.2f})")
         if rs3 is not None:
             if rs3 <= 0:
@@ -188,14 +195,19 @@ def m_events(market: str, side: str, reg: dict | None, geo: dict | None, evs: li
     bits, v = [], "ok"
     if market == "sa":
         if reg:
+            # ‏D809 (المالك 2026-11-24: «السوقُ هابط فاستبعد ستّاً اليوم — ما أحبّ هذه الشكلية؛ الفرصُ دائماً موجودة»): هبوطُ تاسي تحفّظٌ يُنقص
+            # الدرجةَ ويصغّر الحجم — لا رفضٌ لكلّ سهمٍ صاعدٍ في سوقٍ هابط
             if reg.get("verdict") == "هابط" and side == "long":
-                return _m("الأحداث", "veto", f"تاسي هابط ({reg.get('close', 0):,.0f}) — الشركاتُ تتبعه")
-            bits.append(f"تاسي {reg.get('verdict')}")
+                v = "warn"
+                bits.append(f"تاسي هابط ({reg.get('close', 0):,.0f}) — الشراءُ في الصاعد وحده وبحجمٍ أصغر")
+            else:
+                bits.append(f"تاسي {reg.get('verdict')}")
             if reg.get("verdict") == "عرضي":
                 v = "warn"
         if geo:
             if geo.get("level") == "مرتفع":
-                return _m("الأحداث", "veto", f"خطرٌ جيوسياسيّ مرتفع: {geo.get('why') or ''}".strip())
+                v = "warn"                                      # ‏D809: خطرٌ عامٌّ يُنقص الدرجة — لا يُسقط كلَّ فرصة
+                bits.append(f"خطرٌ جيوسياسيّ مرتفع: {geo.get('why') or ''}".strip())
             if geo.get("level") == "متوسط":
                 v = "warn"
                 bits.append(f"خطرٌ جيوسياسيّ متوسّط: {geo.get('why') or ''}".strip())
@@ -333,19 +345,30 @@ def lines(bd: dict) -> list[str]:
 
 
 # ══ الرابط — النموذجُ يقرأ الأعضاءَ معاً ═══════════════════════════════════════════════════════════════
-LINK_PROMPT = """أنت محلّلٌ استثماريٌّ محترف يقرأ «مجلسَ صقر» عن سهمٍ واحد قبل قرار {what}: سبعةُ أعضاء — المسار · الرسم · النتائج · الأخبار ·
+LINK_PROMPT = """أنت صقر — محلّلٌ استثماريٌّ واحدٌ محترف — تقرأ شواهدَك السبعةَ عن سهمٍ واحد قبل قرار {what}: المسار · الرسم · النتائج · الأخبار ·
 الأحداث · الحيتان · المحلّلون — لكلٍّ حكمُه (يوافق · يتحفّظ · يرفض · غير متوفّر) وشاهدُه بأرقامه.
 اربط بينها كما يربط المحلّلُ البشريّ لا كما يجمعها الحاسوب: ما الذي يجتمع؟ وما الذي يتعارض (نتائجُ قويةٌ وخبرٌ جوهريٌّ سلبيّ، أو رسمٌ يدعو للشراء
 وحيتانٌ تخرج، أو مسارٌ صاعدٌ وحدثٌ عالي الأثر غداً)؟ وأيُّها أثقلُ الآن ولماذا؟
 القواعدُ الصارمة:
 ١) لا تذكر رقماً ليس في الشواهد، ولا حدثاً ليس فيها.
-٢) إن رفض عضوٌ فلا يكون القرارُ «{buy}» — قل لماذا.
+٢) إن رفض شاهدٌ فلا يكون القرارُ «{buy}» — قل لماذا.
 ٣) شرطُ التغيير مشروطٌ بمستوىً أو حدثٍ من الشواهد، لا وعدٌ ولا يقين.
-٤) عربيةٌ فصحى موجزة.
+٤) عربيةٌ فصحى موجزة — وصقرٌ واحدٌ يتكلّم: لا «مجلس» ولا «عضو» ولا «أعضاء» في كلامك.
 أعد JSON فقط: {{"decision": "{buy}" أو "انتظار" أو "تجنّب", "confidence": "مرتفعة" أو "متوسطة" أو "منخفضة",
- "link": "جملتان أو ثلاث تربط الأعضاء", "conflict": "أهمُّ تعارضٍ أو ''", "watch": "ما الذي يغيّر الحكم"}}
-المجلس:
+ "link": "جملتان أو ثلاث تربط الشواهد", "conflict": "أهمُّ تعارضٍ أو ''", "watch": "ما الذي يغيّر الحكم"}}
+الشواهد:
 """
+
+
+def one_voice(t: str) -> str:
+    """‏D807 (المالك 2026-11-24): «لا أريد الإشارةَ إلى صقر بأنّه مجلس — "استبعدها مجلسُ صقر ورفضها عضو": إيش الكلام الفاضي هذا؟ صقرٌ واحد»."""
+    import re as _re
+    for a, b in (("مجلسُ صقر", "صقر"), ("مجلسَ صقر", "صقر"), ("مجلسِ صقر", "صقر"), ("مجلس صقر", "صقر"), ("المجلسُ", "صقر"), ("المجلسَ", "صقر"),
+                 ("المجلسِ", "صقر"), ("المجلس", "صقر"), ("الأعضاءُ", "الشواهدُ"), ("الأعضاءَ", "الشواهدَ"), ("الأعضاءِ", "الشواهدِ"), ("الأعضاء", "الشواهد"),
+                 ("أعضاءُ", "شواهدُ"), ("أعضاء", "شواهد"), ("عضوٌ", "شاهدٌ"), ("عضواً", "شاهداً"), ("عضوٍ", "شاهدٍ")):
+        t = t.replace(a, b)
+    return _re.sub(r"\bعضو\b", "شاهد", t)
+
 
 
 async def link(sym: str, name: str | None, market: str, side: str, bd: dict, chart: dict | None = None, price: float | None = None) -> dict | None:
@@ -355,9 +378,9 @@ async def link(sym: str, name: str | None, market: str, side: str, bd: dict, cha
     from app.services.chart_read import clean_text
     buy = "شراء" if side == "long" else "بيع"
     ctx = {"symbol": sym, "name": name or "", "market": "السعوديّ" if market == "sa" else "الأمريكيّ", "side": buy, "price": price,
-           "members": [{"role": m["role"], "verdict": {"ok": "يوافق", "warn": "يتحفّظ", "veto": "يرفض", "na": "غير متوفّر"}[m["v"]], "say": m["say"]}
-                       for m in bd["members"]],
-           "council": {"verdict": bd["verdict"], "score": bd["score"]}}
+           "evidence": [{"role": m["role"], "verdict": {"ok": "يوافق", "warn": "يتحفّظ", "veto": "يرفض", "na": "غير متوفّر"}[m["v"]], "say": m["say"]}
+                        for m in bd["members"]],
+           "saqr": {"verdict": bd["verdict"], "score": bd["score"]}}
     if chart:
         ctx["chart"] = {k: chart.get(k) for k in ("setup", "where", "entry", "target", "stop", "rr", "horizon") if chart.get(k) is not None}
         ctx["zones"] = [{"name": z.get("name"), "lo": z.get("lo"), "hi": z.get("hi")} for z in chart.get("zones") or []]
@@ -367,7 +390,7 @@ async def link(sym: str, name: str | None, market: str, side: str, bd: dict, cha
         return hit or None
     try:
         obj = await RD._gemini([{"text": LINK_PROMPT.format(what="الشراء" if side == "long" else "البيع", buy=buy)
-                                 + json.dumps(ctx, ensure_ascii=False, default=str)}], max_tokens=900, temperature=0.2)
+                                 + json.dumps(ctx, ensure_ascii=False, default=str)}], max_tokens=900, temperature=0.2, deadline=75.0)
     except Exception as e:                                        # noqa: BLE001
         logger.debug("مجلسُ صقر/الرابط {}: {}", sym, type(e).__name__)
         obj = None
@@ -382,7 +405,7 @@ async def link(sym: str, name: str | None, market: str, side: str, bd: dict, cha
         t = clean_text(obj.get(f), pool) if obj.get(f) else ""
         if obj.get(f) and t is None:
             out["dropped"] += 1
-        out[f] = t or ""
+        out[f] = one_voice(t or "")
     if not out["link"]:
         return None
     cache.set(key, out, 6 * 3600)

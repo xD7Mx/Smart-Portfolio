@@ -89,7 +89,7 @@ v0 = SL.view(raw, 500, min_win=0)
 p_good = v0["items"][0]["team"]["p30"] if v0["items"] else 0
 v_hi = SL.view(raw, 500, min_win=95)
 check([i["symbol"] for i in v0["items"]] == ["GOOD"] and raw["done"]["BADN"]["why"] == "خبرٌ قويٌّ يعاكس المسار"
-      and raw["done"]["NEAR"]["why"].startswith("رفضه الفريق") and all(m in v0["items"][0]["team"] for m in ("members", "p30", "verdict"))
+      and raw["done"]["NEAR"]["why"].startswith("صقر لا يشتريه — ") and all(m in v0["items"][0]["team"] for m in ("members", "p30", "verdict"))   # ‏D807: صقرٌ واحد
       and not v_hi["items"] and v_hi["excluded"].get("نسبةُ نجاحه دون 95٪") == 1 and v0["wins"]["0"] == 1 and v0["wins"]["90"] == 0
       and v0["track"]["open"] >= (1 if p_good >= 45 else 0),
       "٣ البناء: الفريقُ يحكم على كلّ عقد (ورفضُه يُسجَّل بعضوه)، والخبرُ المعاكسُ يُسقط السهم — والعرضُ بنسبة النجاح الدنيا التي يختارها المالك "

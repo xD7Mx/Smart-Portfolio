@@ -255,7 +255,7 @@ async def build(cfg: dict, held: set[str] | None = None, final: bool = False) ->
                                "gain_target": round(k["rr"] * 100), "tp30": tp30(k), "pros": pros, "cons": cons, "margin": margin,
                                "grade": "قويّة" if tm["warns"] == 0 else "جيّدة", "team": tm})
                 if not ok:
-                    why = f"رفضه الفريق ({max(vetoes, key=vetoes.get)})" if vetoes else "سلبياتُه أكثر من إيجابياته"
+                    why = f"صقر لا يشتريه — {max(vetoes, key=vetoes.get)}" if vetoes else "سلبياتُه أكثر من إيجابياته"   # ‏D807: صقرٌ واحد
                     done[s] = {"at": stamp, "why": why}
                     continue
                 done[s] = {"at": stamp, "why": None}

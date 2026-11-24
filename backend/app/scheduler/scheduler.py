@@ -355,9 +355,17 @@ async def job_advisor_watch():
         logger.error(f"متابعة المستشار: {e}")
 
 
+_RD_INGEST = {"on": False}
+
+
 async def job_research_ingest(night: bool = False):
-    """قسمُ الأبحاث (D745): قراءةُ تقارير الجهات بالقارئ البصريّ — في عمليةٍ منفصلةٍ كالقارئ البصريّ (ذاكرةُ الخادم)."""
+    """قسمُ الأبحاث (D745): قراءةُ تقارير الجهات بالقارئ البصريّ — في عمليةٍ منفصلةٍ كالقارئ البصريّ (ذاكرةُ الخادم).
+    ‏D806: قراءةٌ واحدةٌ في وقتٍ واحد — الإعادةُ (15:28) لا تكتب ملفَّ المعرفة فوق قراءةٍ لم تنتهِ."""
     import asyncio, sys
+    if _RD_INGEST["on"]:
+        logger.info("قسم الأبحاث: قراءةٌ جاريةٌ بعد — لا ثانية")
+        return
+    _RD_INGEST["on"] = True
     try:
         p = await asyncio.create_subprocess_exec(
             sys.executable, "-c",
@@ -370,6 +378,8 @@ async def job_research_ingest(night: bool = False):
             logger.warning("قسم الأبحاث: القراءةُ جاوزت مهلتَها فأُوقفت")
     except Exception as e:
         logger.error(f"قسم الأبحاث: القراءة {e}")
+    finally:
+        _RD_INGEST["on"] = False
 
 
 async def job_research_night():
@@ -393,12 +403,30 @@ async def job_research_backfill():
 
 
 async def job_research_report():
-    """قسمُ الأبحاث (D745 · D746): التقريرُ اليوميّ لكلّ محفظة بعد إغلاق السوق — يُحفظ ويُرسَل ملفّاً مؤرَّخاً إلى تلغرام."""
+    """قسمُ الأبحاث (D745 · D746): التقريرُ اليوميّ لكلّ محفظة بعد إغلاق السوق — يُحفظ ويُرسَل ملفّاً مؤرَّخاً إلى تلغرام.
+    ‏D806: ولا يُرسَل إلا مكتوباً بقسم الأبحاث؛ وإن تعذّر النموذجُ بنماذجه كلّها أُجّل إلى المحاولتين التاليتين (16:30 · 17:30)."""
     try:
         from app.services.research_desk import compose_all
-        await compose_all(send=True)
+        await compose_all(send=True, final=False)
     except Exception as e:
         logger.error(f"قسم الأبحاث: التقرير {e}")
+
+
+async def job_research_report_retry(final: bool = False):
+    """‏D806 (المالك 2026-11-24: «التقريرُ كاتبٌ لا توجد أخبار — هذا عيبٌ لا أقبله»): ما لم يُرسَل تقريرُ اليوم يُعاد — تُقرأ أوّلاً تقاريرُ
+    اليوم التي فشلت قراءتُها، ثمّ يُكتب؛ والأخيرةُ (‏final) ترسله ولو بأخبار مصادره كما وردت — لا «لا أخبار»."""
+    try:
+        from app.services import research_desk as RD
+        if RD.sent_today():
+            return
+        await job_research_ingest()
+        await RD.compose_all(send=True, final=final)
+    except Exception as e:
+        logger.error(f"قسم الأبحاث: إعادةُ التقرير {e}")
+
+
+async def job_research_report_last():
+    await job_research_report_retry(final=True)
 
 
 async def job_option_book():
@@ -946,6 +974,13 @@ def start_scheduler():
     # ‏D746 (بأمر المالك): «التقريرُ اليوميّ يجيني على تلغرام بعد ما يقفل السوق» — بعد مزاد الإغلاق والتداول على سعره (15:20)
     _scheduler.add_job(job_research_report, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=15, minute=40),
                        id="research_report_close", replace_existing=True)
+    # ‏D806: قراءةُ ما فشل قبل الكتابة، ثمّ محاولتان لما لم يُرسَل — الأخيرةُ ترسل
+    _scheduler.add_job(job_research_ingest, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=15, minute=28),
+                       id="research_ingest_retry", replace_existing=True)
+    _scheduler.add_job(job_research_report_retry, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=16, minute=30),
+                       id="research_report_retry", replace_existing=True)
+    _scheduler.add_job(job_research_report_last, CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=17, minute=30),
+                       id="research_report_last", replace_existing=True)
     # ‏D581: قبل الافتتاح وبعد الإغلاق — والمخزَّنُ يعيش يوماً فيبقى جاهزاً بينهما
     _scheduler.add_job(job_stock_warm, CronTrigger(hour=8, minute=40), id="stock_warm_morning", replace_existing=True)
     _scheduler.add_job(job_stock_warm, CronTrigger(hour=16, minute=10), id="stock_warm_close", replace_existing=True)

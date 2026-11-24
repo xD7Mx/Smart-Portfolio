@@ -359,6 +359,25 @@ async def fetch_economic_news() -> list[dict]:
     return items
 
 
+# ‏D806 (المالك 2026-11-24): «قسمُ الأبحاث يستطيع الاستغناءَ عن تقارير البنوك لو أُقفلت — يجلب أخباراً موثوقةً ورسمية»: أخبارُ الأسواق
+# العالمية والاقتصاد من الوسائل المعتمدة وحدها (‏TRUSTED_SOURCES) — مصدرٌ مستقلٌّ لـ«الأخبار العالمية» في التقرير اليوميّ.
+GLOBAL_QUERIES = ["وول ستريت الأسهم الأمريكية", "أسعار النفط برنت", "الفيدرالي الأمريكي الفائدة", "أسعار الذهب",
+                  "الأسواق العالمية الأسهم", "الأسهم الأوروبية", "الأسهم الآسيوية", "الدولار الأمريكي العملات", "أوبك بلس الإنتاج"]
+
+
+async def fetch_global_news() -> list[dict]:
+    """أخبارُ الأسواق العالمية بالعربية من الوسائل المعتمدة وحدها — مخزّنةٌ ساعة، ولا تُكتب في قاعدة البيانات."""
+    key = "news:gnews:global"
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+    items = await _collect(GLOBAL_QUERIES, "عالمي", max_age_days=2, count=12)
+    items = _dedup_stories([it for it in items if it["trusted"]])
+    if items:
+        cache.set(key, items, NEWS_CACHE_TTL)
+    return items
+
+
 # المفكرة governance: a calendar entry must actually BE a corporate-action
 # announcement — dividend distribution, entitlement/eligibility date, bonus
 # shares, capital increase / rights issue, or a general assembly. Google's

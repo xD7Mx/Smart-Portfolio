@@ -3809,7 +3809,7 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
 .sq-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 380px) minmax(0, 1fr); grid-template-rows: auto auto; gap: 10px; align-items: stretch; }
 .sq-top > .sq-stat:nth-child(1) { grid-column: 1; grid-row: 1; }
 .sq-top > .sq-stat:nth-child(2) { grid-column: 1; grid-row: 2; }
-.sq-top > .sq-hub { grid-column: 2; grid-row: 1 / span 2; }
+.sq-top > .sq-hubw { grid-column: 2; grid-row: 1 / span 2; }
 .sq-top > .sq-stat:nth-child(4) { grid-column: 3; grid-row: 1; }
 .sq-top > .sq-stat:nth-child(5) { grid-column: 3; grid-row: 2; }
 .sq-stat { padding: 12px 14px; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; animation: cardRise .34s cubic-bezier(.2,.8,.2,1) both; }
@@ -3905,7 +3905,7 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
 @keyframes sqDraw { to { stroke-dashoffset: 0; } }
 @media (max-width: 760px) {
   .sq-top { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto; }
-  .sq-top > .sq-hub { grid-column: 1 / -1; grid-row: 1; }
+  .sq-top > .sq-hubw { grid-column: 1 / -1; grid-row: 1; }
   .sq-top > .sq-stat:nth-child(1) { grid-column: 1; grid-row: 2; }
   .sq-top > .sq-stat:nth-child(2) { grid-column: 2; grid-row: 2; }
   .sq-top > .sq-stat:nth-child(4) { grid-column: 1; grid-row: 3; }
@@ -4527,3 +4527,19 @@ html:has(.troom-split.on) { cursor: grabbing; user-select: none; }
 @media (prefers-reduced-motion: reduce) {
   .troom-sel, .troom-sel.on svg, .troom-phead, .troom-split::before, .troom-split > i, .troom-preset-form, .search-chain, .troom-preset-del { transition: none; animation: none; }
 }
+
+/* ══ ‏D808: أسماءُ أنظمة صقر عند نقاطها، وكلماتٌ افتتاحيةٌ تبيّن معناها ══
+   (المالك 2026-11-24: «النقاطُ لازم تدلّ على شيء — كتابةٌ عندها ثابتة… وكلماتٌ افتتاحيةٌ تبيّن معنى هذه النقاط») */
+.sq-hubw { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; max-width: 380px; justify-self: center; min-width: 0; }
+.sq-hubw > .sq-hub { max-width: none; }
+.sq-lbl { font-size: 10.5px; font-weight: 800; fill: var(--ink-muted); animation: fadeUp .4s ease-out both; transition: fill .4s ease; }
+.sq-lbl.ok { fill: var(--ink); }
+.sq-lbl.warn { fill: var(--warn-ink); }
+.sq-legend { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.sq-lead { font-size: 12px; color: var(--ink-muted); line-height: 1.5; }
+.sq-keys { display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.sq-key { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--ink); }
+.sq-key i { width: 8px; height: 8px; transform: rotate(45deg); border-radius: 1.5px; background: color-mix(in srgb, var(--ink-muted) 45%, transparent); }
+.sq-key.ok i { background: var(--pos-ink); }
+.sq-key.warn i { background: var(--warn-ink); }
+@media (prefers-reduced-motion: reduce) { .sq-lbl { animation: none; transition: none; } }

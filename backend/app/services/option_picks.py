@@ -336,7 +336,7 @@ def with_chart(rs: list[str], x: dict | None, cr: tuple | None) -> list[str]:
         line = chart_line(x)
         cn = x.get("council") or {}
         if cn:                                                    # ‏D786: والمجلسُ كلُّه معها — الرسمُ عضوٌ فيه لا الحَكَم
-            line += (f" ومجلسُ صقر {cn.get('verdict')} ({cn.get('score')}/100: {cn.get('oks')} يوافق · {cn.get('warns')} يتحفّظ)"
+            line += (f" وحكمُ صقر {cn.get('verdict')} ({cn.get('score')}/100: {cn.get('oks')} شاهدٌ يؤيّد · {cn.get('warns')} تحفّظ)"
                      + (f" — {x['link']['link']}" if (x.get("link") or {}).get("link") else "") + ".")
     elif cr and cr[0] in ("weak", "flat") and cr[1]:
         r = cr[1]
@@ -670,7 +670,7 @@ async def run(budget: float) -> dict:
             if s in held or s in opps:
                 continue
             if s in vetoed:
-                skipped.append({"symbol": s, "why": "مجلسُ صقر يرفض — " + " · ".join(vetoed[s].get("why") or [])})
+                skipped.append({"symbol": s, "why": "صقر لا يشتريه الآن — " + " · ".join(vetoed[s].get("why") or [])})
                 continue
             side, note = direction(tr, news.get(s))
             if side:

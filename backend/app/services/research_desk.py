@@ -33,6 +33,11 @@ BACKFILL_V = 2                                                     # نسخةُ 
 ALL = "all"                                                      # ‏D788: مفتاحُ تقرير المحافظ مجتمعةً
 KEEP_REPORTS = 600                                                # تقريرٌ لكلّ محفظةٍ لكلّ جلسة — أرشيفٌ يتّسع لنحو سنة
 MAX_PDF = 25 * 1024 * 1024
+MAX_TRIES = 4                                                     # ‏D806: قراءةٌ فشلت تُعاد حتى أربعَ مرّات — لا تُعلَّم «مقروءةً» من أوّل فشل
+DEADLINE_READ, DEADLINE_COMPOSE = 300.0, 200.0                    # ‏D806: مهلةُ النداء الكلّية بنماذجه كلّها — قراءةُ ملفٍّ وكتابةُ نصّ
+RETRY_GAP = 75.0                                                   # ‏D806: بين محاولتَي الكتابة إن خابت الأولى بالنماذج كلّها
+WIRE_HOURS = 30                                                    # ‏D806: نافذةُ الأخبار المستقلّة — جلسةُ اليوم وليلتُها
+LAST = {"why": ""}                                                 # سببُ آخر نداءٍ للنموذج (‏ok · busy · timeout · error · nokey)
 _KIND_RANK = {"تقرير يوميّ": 0, "تقرير اقتصاديّ": 1, "تقرير قطاعيّ": 2, "تقرير دوريّ": 2, "تقرير شهريّ": 2, "تقرير شركة": 3}
 
 READ_PROMPT = """أنت محلّلٌ في قسم أبحاث مدير محفظة. أمامك تقريرٌ منشور: «{title}» من {source} بتاريخ {date} (صنفُه: {kind}).
@@ -59,7 +64,9 @@ COMPOSE_PROMPT = """أنت رئيسُ قسم الأبحاث في مدير محف
 محسوبةٌ في التطبيق فلا تكرّرها؛ ودورُك: العنوان، والأخبارُ المحلية والعالمية، وما يعني مراكزَنا، وما يُتابَع.
 
 المصادرُ المقروءةُ مرقّمة (لا مصدرَ غيرها). كلُّ سطرٍ يحمل أرقامَ مصادره في "src" — لا تُعرض للقارئ، وإنما تُلزمك ألّا تكتب إلا منها.
-وأرقامُ التطبيق مصدرٌ رقمُه 0.
+وأرقامُ التطبيق مصدرٌ رقمُه 0. ومنها تقاريرُ بيوت الأبحاث (للتحليل والربط)، ومنها «أخبارُ اليوم من وسائل موثوقة» — عناوينُ منشورةٌ اليومَ
+في وسائلَ اقتصاديةٍ ووكالاتٍ معتمدة، هي مصدرُك لأخبار الجلسة نفسِها إن لم يصل تقريرُ بيتٍ عنها. ولا يخلو التقرير من أخبارٍ محليةٍ وعالمية
+ما دام في المصادر خبر: اكتب ما فيها بأرقامه، ولا تكتب «لا جديد».
 {sources}
 
 السياقُ التاريخيّ (خلاصةُ ثلاثين يوماً — للربط والمقارنة لا للنقل):
@@ -115,7 +122,11 @@ def item_key(it: dict) -> str:
 def queue(items: list[dict], read: dict, today: date, days: int) -> list[dict]:
     """ما يُقرأ: غيرُ المقروء بملفٍّ ضمن المدى — اليوميُّ الأحدثُ أوّلاً، ثمّ الاقتصاديُّ والقطاعيّ والدوريّ، ثمّ الشركات."""
     floor = (today - timedelta(days=days)).isoformat()
-    out = [it for it in items if it.get("url") and str(it.get("date") or "") >= floor and item_key(it) not in read]
+
+    def due(it):                                                  # ‏D806: ما فشلت قراءتُه يُعاد (حتى ‏MAX_TRIES) — لا يُعلَّم مقروءاً من أوّل فشل
+        r = read.get(item_key(it))
+        return r is None or (r.get("ok") is False and int(r.get("tries") or 1) < MAX_TRIES)
+    out = [it for it in items if it.get("url") and str(it.get("date") or "") >= floor and due(it)]
     num = lambda it: int(re.sub(r"\D", "", str(it.get("date") or "")) or 0)   # noqa: E731
     return sorted(out, key=lambda it: (_KIND_RANK.get(str(it.get("kind")), 2), -num(it)))
 
@@ -193,35 +204,79 @@ async def _download(it: dict) -> str | None:
     return None
 
 
-async def _gemini(parts: list, max_tokens: int, temperature: float = 0.1) -> dict | None:
+async def _post(url: str, key: str, body: dict, timeout: float) -> tuple[int, dict]:
+    """نداءُ النموذج الواحد — (الحالة، الجسم). منفصلٌ ليُستبدل في الحارس بلا شبكة؛ والمفتاحُ معاملٌ لا جزءٌ من العنوان."""
+    import httpx
+    async with httpx.AsyncClient(timeout=timeout) as c:
+        r = await c.post(url, params={"key": key}, json=body)
+    try:
+        data = r.json() if r.status_code == 200 else {}
+    except Exception:                                             # noqa: BLE001
+        data = {}
+    return r.status_code, data
+
+
+async def _ask(parts: list, max_tokens: int, temperature: float, deadline: float) -> tuple[dict | None, str]:
+    """‏D806: (الجواب، السبب) — النموذجُ الأساسيُّ ثمّ الاحتياطيّان المقيسان (‏AI_MODEL_FALLBACKS)، بمحاولاتٍ متقاربةٍ داخل مهلةٍ كلّية.
+    قِيس يومَ 24/11: النموذجُ يردّ «503 high demand» مرّاتٍ في الدقيقة، وكان هذا النداءُ يجرّب نموذجاً واحداً ثلاثاً بانتظار 15 ثمّ 30 ثانية
+    ثمّ يستسلم — ففشلت قراءةُ تقريرَي اليوم وكتابةُ التقرير كلُّها، وخرج التقريرُ بلا أخبار."""
     import asyncio
+    import time
     import httpx
     from app.core.config import settings
     from app.services.ai_content import _extract_json_obj
     from app.services.usage_tracker import can_call, record
     if not settings.AI_API_KEY:
-        return None
+        return None, "nokey"
+    models = [settings.AI_MODEL] + [m.strip() for m in (settings.AI_MODEL_FALLBACKS or "").split(",") if m.strip() and m.strip() != settings.AI_MODEL]
     body = {"contents": [{"parts": parts}], "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens}}
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.AI_MODEL}:generateContent?key={settings.AI_API_KEY}"
-    for i in range(3):
-        if not can_call("gemini"):
-            return None
-        try:
-            record("gemini")
-            async with httpx.AsyncClient(timeout=180) as c:
-                r = await c.post(url, json=body)
-            if r.status_code in (429, 500, 503) and i < 2:
-                await asyncio.sleep(15 * (i + 1))
-                continue
-            if r.status_code != 200:
-                logger.warning("قسم الأبحاث: النموذج HTTP {}", r.status_code)
-                return None
-            obj = _extract_json_obj(r.json()["candidates"][0]["content"]["parts"][0]["text"])
-            return obj if isinstance(obj, dict) else None
-        except Exception as e:                                    # noqa: BLE001
-            logger.warning("قسم الأبحاث: النموذج {}", type(e).__name__)
-            return None
-    return None
+    end = time.monotonic() + deadline
+    why = "error"
+    for model in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        for attempt in range(3):
+            left = end - time.monotonic()
+            if left < 8:
+                return None, "timeout"
+            if not can_call("gemini"):
+                return None, "busy"
+            try:
+                record("gemini")
+                status, data = await _post(url, settings.AI_API_KEY, body, min(150.0, left))
+            except httpx.TimeoutException:
+                why = "timeout"
+                break                                                   # نموذجٌ بطيءٌ الآن ⇒ التالي
+            except Exception as e:                                      # noqa: BLE001
+                logger.warning("قسم الأبحاث: النموذج ({}) {}", model, type(e).__name__)
+                why = "error"
+                break
+            if status in (429, 500, 503):
+                why = "busy"
+                if attempt < 2:
+                    await asyncio.sleep(min(4.0 * (attempt + 1), max(0.0, end - time.monotonic() - 8)))
+                    continue
+                break                                                   # مزدحمٌ بعد ثلاث ⇒ الاحتياطيّ
+            if status != 200:
+                logger.warning("قسم الأبحاث: النموذج ({}) HTTP {}", model, status)
+                why = "error"
+                break                                                   # غيرُ موجودٍ أو مرفوض ⇒ التالي
+            try:
+                obj = _extract_json_obj(data["candidates"][0]["content"]["parts"][0]["text"])
+            except Exception:                                           # noqa: BLE001
+                obj = None
+            if isinstance(obj, dict):
+                return obj, "ok"
+            why = "error"
+            break                                                       # جوابٌ لا يُقرأ ⇒ التالي
+    return None, why
+
+
+async def _gemini(parts: list, max_tokens: int, temperature: float = 0.1, deadline: float = DEADLINE_COMPOSE) -> dict | None:
+    obj, why = await _ask(parts, max_tokens, temperature, deadline)
+    LAST["why"] = why
+    if obj is None:
+        logger.warning("قسم الأبحاث: تعذّر النموذج — {}", why)
+    return obj
 
 
 async def _read(path: str, it: dict) -> dict | None:
@@ -232,7 +287,7 @@ async def _read(path: str, it: dict) -> dict | None:
     try:
         obj = await _gemini([{"file_data": {"mime_type": "application/pdf", "file_uri": uri}},
                              {"text": READ_PROMPT.format(title=it.get("title"), source=it.get("source"), date=it.get("date"), kind=it.get("kind"))}],
-                            max_tokens=4000)
+                            max_tokens=4000, deadline=DEADLINE_READ)
     finally:
         await _forget(fname)
     note = _clean_note(obj or {})
@@ -273,8 +328,10 @@ async def ingest(budget: int = 6, days: int = 10) -> dict:
                     os.remove(path)
                 except OSError:
                     pass
+        prev = k["read"].get(key) or {}
         k["read"][key] = {"date": it.get("date"), "source": it.get("source"), "title": it.get("title"), "kind": it.get("kind"),
-                          "at": datetime.now().isoformat(timespec="minutes"), "ok": bool(note)}
+                          "at": datetime.now().isoformat(timespec="minutes"), "ok": bool(note),
+                          "tries": (int(prev.get("tries") or 1) + 1) if prev else 1, "why": "" if note else (LAST["why"] or ("download" if not path else ""))}
         if note:
             k["notes"].append({"key": key, "date": it.get("date"), "source": it.get("source"), "title": it.get("title"),
                                "kind": it.get("kind"), "url": it.get("url"), **note})
@@ -417,11 +474,107 @@ def latest_tables(notes: list[dict], today: date, upto: str | None = None) -> tu
     return reg, [r for r in sai if "سايبور" in r["name"] or "سوفر" in r["name"] or "إيبور" in r["name"]]
 
 
+# ── ‏D806: أخبارُ اليوم من وسائل موثوقة، والكتابةُ بلا فراغ ────────────────────────────────────────────────────
+def _norm(t: str) -> str:
+    return re.sub(r"[\W_]+", "", re.sub(r"[ًٌٍَُِّْـ]", "", str(t)))[:48]
+
+
+def _fresh(items: list[dict], hours: int) -> list[dict]:
+    from datetime import timezone
+    cut = datetime.now(timezone.utc) - timedelta(hours=hours)
+    out, seen = [], set()
+    for it in items or []:
+        pub, h = it.get("published"), str(it.get("headline") or "").strip()
+        if not h or not it.get("trusted") or not pub or pub < cut:
+            continue
+        n = _norm(h)
+        if n in seen:
+            continue
+        seen.add(n)
+        out.append(it)
+    return out
+
+
+async def wire_sources(today: date, hours: int = WIRE_HOURS) -> list[dict]:
+    """مصدران مستقلّان عن بيوت الأبحاث (‏D806 · بأمر المالك: «لو أقفلوا يستغني التقريرُ عنهم — يجلب أخباراً موثوقةً ورسمية»): عناوينُ اليوم
+    من الوسائل المعتمدة وحدها (‏data/news_sources) — للسوق السعوديّ، وللأسواق العالمية والاقتصاد — بشكل المذكّرة نفسِه."""
+    from app.services import news_fetcher as NF
+    out: list[dict] = []
+    try:
+        loc = _fresh(await NF.fetch_market_news(), hours)[:16]
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("قسم الأبحاث: أخبارُ السوق {}", type(e).__name__)
+        loc = []
+    try:
+        glo = _fresh((await NF.fetch_global_news()) + (await NF.fetch_economic_news()), hours)[:14]
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning("قسم الأبحاث: الأخبارُ العالمية {}", type(e).__name__)
+        glo = []
+    line = lambda it: f"{it['headline']} — {it.get('source')}"   # noqa: E731
+    if loc:
+        out.append({"key": f"wire:sa:{today}", "date": today.isoformat(), "source": "وسائلُ اقتصاديةٌ موثوقة", "kind": "أخبارُ اليوم",
+                    "title": "أخبارُ السوق السعودي اليوم من وسائل موثوقة", "headline": "", "local_news": [line(i) for i in loc]})
+    if glo:
+        out.append({"key": f"wire:world:{today}", "date": today.isoformat(), "source": "وكالاتٌ ووسائلُ اقتصاديةٌ موثوقة", "kind": "أخبارُ اليوم",
+                    "title": "أخبارُ الأسواق العالمية والاقتصاد اليوم من وسائل موثوقة", "headline": "", "global_news": [line(i) for i in glo]})
+    return out
+
+
+_SRC_TAIL = re.compile(r"\s+—\s+[^—]{1,40}$")
+
+
+def notes_text(srcs: list[dict], market: dict) -> dict:
+    """حين يتعذّر النموذجُ بنماذجه كلّها بعد محاولتين: الأخبارُ نفسُها من مصادرها المرقّمة كما وردت (بلا اسمِ جهةٍ ناشرة) — لا «لا أخبار»،
+    والعنوانُ من أرقام الجلسة (المصدر 0). لا سطرَ بلا مصدر، ولا خبرَ مكرّر."""
+    from app.services.research_paper import n2, p2
+
+    def pick(key: str, n: int) -> list[dict]:
+        out, seen = [], set()
+        for i, src in enumerate(srcs, start=1):
+            wire = str(src.get("key") or "").startswith("wire:")
+            for t in src.get(key) or []:
+                t = (_SRC_TAIL.sub("", str(t)) if wire else str(t)).strip()      # اسمُ الوسيلة يُحذف من عنوان الخبر المستقلّ وحده
+                k = _norm(t)
+                if not t or k in seen or _HOUSES.search(t):
+                    continue
+                seen.add(k)
+                out.append({"text": t, "src": [i]})
+        return out[:n]
+    t, b, tech = market.get("tasi") or {}, market.get("breadth") or {}, market.get("tech") or {}
+    head = (f"تاسي يغلق عند {n2(t.get('close'))} ({p2(t.get('pct'))}) بقيمة تداولٍ {((b.get('value') or 0) / 1e9):.2f} مليار ريال"
+            + (f" — ونظرتُنا {tech.get('view')}" if tech.get("view") else "")) if t.get("close") else ""
+    return {"headline": head, "local": pick("local_news", 7), "global": pick("global_news", 5), "portfolio": [],
+            "watch": pick("risks", 3)}
+
+
+async def compose_text(srcs: list[dict], market: dict, ps: list[dict], today: date, pname: str, k: dict) -> tuple[dict, str]:
+    """نصُّ التقرير — (النصّ، مصدرُه: ‏ai · notes · none). النموذجُ بنماذجه كلّها، ثمّ محاولةٌ ثانيةٌ بعد مهلة، ثمّ الأخبارُ من مصادرها."""
+    import asyncio
+    empty = {"headline": "", "local": [], "global": [], "portfolio": [], "watch": []}
+    if not srcs:
+        return empty, "none"
+    prompt = COMPOSE_PROMPT.format(pname=pname, today=today.isoformat(),
+                                   sources="\n\n".join(_fmt_source(i + 1, n) for i, n in enumerate(srcs)),
+                                   context=_context(k["notes"], today, {n.get("key") for n in srcs}), portfolio=_fmt_positions(ps),
+                                   market=_market_line(market))
+    for attempt in range(2):
+        obj = await _gemini([{"text": prompt}], max_tokens=5000, temperature=0.2, deadline=DEADLINE_COMPOSE)
+        if obj:
+            v = validate(obj, len(srcs), {p["symbol"] for p in ps})
+            if v["local"] or v["global"]:
+                return v, "ai"
+            LAST["why"] = "empty"
+        if attempt == 0:
+            await asyncio.sleep(RETRY_GAP)
+    logger.warning("قسم الأبحاث: الكتابةُ تعذّرت ({}) — الأخبارُ من مصادرها", LAST["why"])
+    return notes_text(srcs, market), "notes"
+
+
 async def compose_for(db, pid: int, pname: str, market: dict, today: date | None = None) -> dict | None:
     from app.services import research_paper as RP
     today = today or date.today()
     k = knowledge()
-    srcs = recent_sources(k["notes"], today)
+    srcs = recent_sources(k["notes"], today) + await wire_sources(today)
     ps = await _positions(db)
     rows = {}
     try:
@@ -439,15 +592,7 @@ async def compose_for(db, pid: int, pname: str, market: dict, today: date | None
         p["pct"] = RP._f((snap.get(p["symbol"]) or {}).get("change_pct"))
         p["trend"] = RP.trend_of(rows.get(p["symbol"]))
         p["view"] = RP.position_view(p)
-    ai = {"headline": "", "local": [], "global": [], "portfolio": [], "watch": []}
-    if srcs:
-        prompt = COMPOSE_PROMPT.format(pname=pname, today=today.isoformat(),
-                                       sources="\n\n".join(_fmt_source(i + 1, n) for i, n in enumerate(srcs)),
-                                       context=_context(k["notes"], today, {n.get("key") for n in srcs}), portfolio=_fmt_positions(ps),
-                                       market=_market_line(market))
-        obj = await _gemini([{"text": prompt}], max_tokens=5000, temperature=0.2)
-        if obj:
-            ai = validate(obj, len(srcs), {p["symbol"] for p in ps})
+    ai, text_source = await compose_text(srcs, market, ps, today, pname, k)
     st = sessions_store(k)
     reg, sai = latest_tables(k["notes"], today)
     picks = await RP.picks_for({p["symbol"] for p in ps})
@@ -455,8 +600,12 @@ async def compose_for(db, pid: int, pname: str, market: dict, today: date | None
            "market": market, "averages": RP.averages(st, today.isoformat()), "analysis": RP.market_analysis(market, RP.averages(st, today.isoformat())),
            "tech_text": list(RP.tech_commentary(market)), "regional": reg, "saibor": sai, "positions": ps, "picks": picks,
            "no_pick_reason": "" if picks else "لم يجتمع في أيّ سهمٍ اليومَ قرارُ شراءٍ وصعودٌ إلى القيمة العادلة واتجاهٌ صاعدٌ بلا تشبّع.",
-           **ai, "n_sources": len(srcs)}
+           **ai, "n_sources": len(srcs), "text_source": text_source, "ai_why": "" if text_source == "ai" else LAST["why"]}
     return rep
+
+
+def sent_today(day: date | None = None) -> bool:
+    return bool(_load("sent.json", {}).get((day or date.today()).isoformat()))
 
 
 async def _market_text(day: date, market: dict, upto: str) -> dict:
@@ -586,7 +735,7 @@ async def deliver(r: dict) -> bool:
     return ok
 
 
-async def compose_all(send: bool = True, day: date | None = None) -> dict:
+async def compose_all(send: bool = True, day: date | None = None, final: bool = True) -> dict:
     """بعد إغلاق السوق: أرقامُ الجلسة مرّةً، ثمّ لكلّ محفظةٍ غيرِ مؤرشفة تقريرُها — يُحفظ ويُرسَل ملفّاً مؤرَّخاً.
     و`day` جلسةٌ بعينها (آخرُ جلسةٍ بعد منتصف الليل مثلاً) — ولا تُكتب إلا إن كانت آخرَ جلسةٍ في الشموع."""
     from sqlalchemy import select
@@ -631,9 +780,13 @@ async def compose_all(send: bool = True, day: date | None = None) -> dict:
                     continue
                 save_report(r)
                 rep[pid] = {"local": len(r["local"]), "global": len(r["global"]), "picks": len(r["picks"]), "positions": len(r["positions"])}
+                rep[pid]["text"] = r.get("text_source")
                 if send and pid == main:
                     if sent.get(today.isoformat()):
                         rep[pid]["sent"] = "أُرسل سابقاً"
+                    elif r.get("text_source") != "ai" and not final:
+                        # ‏D806: لا يُرسَل تقريرٌ لم يكتبه قسمُ الأبحاث — يُعاد بعد نصف ساعة وساعة، والأخيرةُ تُرسله بأخبار مصادره
+                        rep[pid]["sent"] = "مؤجَّلٌ إلى المحاولة التالية"
                     else:
                         rep[pid]["sent"] = await deliver(r)
                         if rep[pid]["sent"]:

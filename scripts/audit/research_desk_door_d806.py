@@ -57,6 +57,19 @@ def main():
     from app.core.config import settings
     model = settings.AI_MODEL
     print("   النموذج:", model)
+    print("══ ٥ تقريرُ المحفظة الافتراضية لآخر جلسة: نظرةُ صقر ومصدرُ النصّ وأوّلُ الأخبار")
+    last = sorted(f for f in os.listdir(d) if f.endswith("_1.json"))[-1:]
+    for f in last:
+        r = json.load(open(os.path.join(d, f), encoding="utf-8"))
+        m = r.get("market") or {}
+        t, sq = m.get("tech") or {}, m.get("saqr") or {}
+        print(f"   {f}: نظرتُنا (صقر) {t.get('view')} · الفنيُّ وحده {t.get('view_tech')} · شواهدُ صقر {len(sq.get('why') or [])} · محاور {len(sq.get('themes') or [])}"
+              f" · مصدرُ النصّ {r.get('text_source') or 'قديم'} · سببُ التعذّر {r.get('ai_why') or '—'} · مصادر {r.get('n_sources')}")
+        print("   العنوان:", (r.get("headline") or "—")[:120])
+        for x in (r.get("local") or [])[:3]:
+            print("   محليّ:", str(x.get("text"))[:110])
+        for x in (r.get("global") or [])[:3]:
+            print("   عالميّ:", str(x.get("text"))[:110])
     print("══ انتهى")
 
 

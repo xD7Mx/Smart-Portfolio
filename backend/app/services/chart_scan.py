@@ -322,7 +322,7 @@ async def scan(market: str, ai: bool = True) -> dict:
             items = items[:KEEP]
             rejected: list[dict] = []
             if items:
-                job["msg"] = "مجلسُ صقر يقرأ النتائجَ والأخبارَ والأحداثَ والحيتانَ والمحلّلين"
+                job["msg"] = "صقر يقرأ النتائجَ والأخبارَ والأحداثَ والحيتانَ والمحلّلين"
                 items, rejected = await review(market, items, kept_bars, ai)
             dist: dict[str, int] = {}
             for x in items:

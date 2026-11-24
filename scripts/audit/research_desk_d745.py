@@ -69,7 +69,7 @@ sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
 check("create_subprocess_exec" in sch[sch.index("async def job_research_ingest"):sch.index("async def job_research_night")]
       and 'CronTrigger(day_of_week="sun,mon,tue,wed,thu", hour=15, minute=40)' in sch and 'id="research_ingest_night"' in sch
-      and 'CronTrigger(hour=15, minute=5), id="research_ingest_afternoon"' in sch and "compose_all(send=True)" in sch
+      and 'CronTrigger(hour=15, minute=5), id="research_ingest_afternoon"' in sch and "compose_all(send=True, final=False)" in sch   # ‏D806: يُرسَل مكتوباً
       and 'id="research_report_morning"' not in sch,
       "٩ الجدول: القراءةُ في عمليةٍ منفصلة صباحاً وقبيل الإغلاق وليلاً، والتقريرُ بعد إغلاق السوق أيامَ التداول ويُرسَل")
 check('@router.post("/research-desk/run", dependencies=[Depends(require_owner)])' in mk and '@router.get("/research-desk")' in mk

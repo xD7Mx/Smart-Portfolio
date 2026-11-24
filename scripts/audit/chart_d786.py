@@ -108,11 +108,14 @@ check(ops == {"n": 3, "buy": 2, "hold": 1, "sell": 0, "target": 105} and m_a["v"
       "٥ المحلّلون: آخرُ رأيٍ لكلّ بيتٍ في خمسة أشهر (زيادةُ مراكز ⇐ شراء · محايد ⇐ حياد · تخفيض ⇐ بيع) ووسيطُ المستهدف وعلاوتُه — ومن ياهو للأمريكيّ",
       m_a["say"])
 
-# ٦ الأحداث — تاسي الهابطُ والخطرُ المرتفعُ يرفضان، والحدثُ العالي القريبُ وإعلانُ الأرباح تحفّظ
-check(J(reg={"verdict": "هابط", "close": 10000})["veto"] and J(geo={"level": "مرتفع", "why": "حربٌ إقليمية"})["veto"]
+# ٦ الأحداث — ‏D809 (المالك 2026-11-24: «السوقُ هابطٌ فاستبعد ستّاً — الفرصُ دائماً موجودة»): تاسي الهابطُ والخطرُ المرتفعُ تحفّظٌ يُنقص الدرجة
+#   لا رفضٌ لكلّ سهمٍ صاعد؛ والحدثُ العالي القريبُ وإعلانُ الأرباح تحفّظ
+j_down, j_geo = J(reg={"verdict": "هابط", "close": 10000}), J(geo={"level": "مرتفع", "why": "حربٌ إقليمية"})
+check(not j_down["veto"] and mem(j_down, "الأحداث")["v"] == "warn" and "الشراءُ في الصاعد وحده" in mem(j_down, "الأحداث")["say"]
+      and not j_geo["veto"] and mem(j_geo, "الأحداث")["v"] == "warn"
       and mem(J(events=[{"impact": "High", "ar": "الناتجُ المحلّيّ"}]), "الأحداث")["v"] == "warn"
       and "بعد 5 أيام" in CN.m_events("us", "long", None, None, [], 5)["say"],
-      "٦ الأحداث: تاسي الهابطُ والخطرُ الجيوسياسيُّ المرتفعُ يرفضان، والحدثُ عاليُ الأثر خلال يومين وإعلانُ الأرباح خلال أسبوعين تحفّظ")
+      "٦ الأحداث: تاسي الهابطُ والخطرُ الجيوسياسيُّ المرتفعُ تحفّظٌ يُنقص الدرجة (لا رفضٌ للسهم الصاعد — ‏D809)، والحدثُ عاليُ الأثر وإعلانُ الأرباح القريبان تحفّظ")
 
 # ٧ الحكمُ والأسطر
 b_ok = J(yf=YP, stt="strong", stxt="صافي الربح +28٪.", cr_side=CH_BUY, cr_any=CH_BUY, ops=ops,
@@ -126,10 +129,10 @@ check(b_ok["verdict"] == "يوافق" and b_ok["score"] >= 80 and len(b_ok["memb
 CALLS = []
 
 
-async def fake_gemini(parts, max_tokens=0, temperature=0):
+async def fake_gemini(parts, max_tokens=0, temperature=0, **k):   # ‏D806: ومهلةُ النداء
     t = parts[-1]["text"]
     CALLS.append(t)
-    if "مجلسَ صقر" in t:
+    if "شواهدَك السبعةَ" in t:   # ‏D807: صقرٌ واحدٌ يقرأ شواهده
         return {"decision": "شراء", "confidence": "متوسطة", "link": "المسارُ والنتائجُ يجتمعان عند منطقة الدعم.", "conflict": "",
                 "watch": "إغلاقٌ دون 77.77 يُبطلها"}
     return {"S2": {"impact": "سلبي", "strength": 3, "event": "إقالةُ الرئيس التنفيذيّ"}}
@@ -241,9 +244,9 @@ async def hunt(link_decision="شراء", yfs=None):
     async def yf_by(ysym):
         return (yfs or {}).get(ysym.replace(".SR", ""))
 
-    async def gem(parts, max_tokens=0, temperature=0):
+    async def gem(parts, max_tokens=0, temperature=0, **k):
         t = parts[-1]["text"]
-        if "مجلسَ صقر" in t:
+        if "شواهدَك السبعةَ" in t:   # ‏D807: صقرٌ واحدٌ يقرأ شواهده
             return {"decision": link_decision, "confidence": "متوسطة", "link": "قراءةٌ تربط الأعضاء.", "conflict": "", "watch": ""}
         return {"2010": {"impact": "سلبي", "strength": 3, "event": "إقالةُ الرئيس التنفيذيّ"}}
     o = (SA.trend, SA.results_of, CN.chart_sa, CN.yf, CN.heads_sa, CN.events, RD._gemini)
@@ -277,8 +280,9 @@ SA.results_of = o_res
 from app.services import option_picks as OP   # noqa: E402
 src = (ROOT / "backend/app/services/option_picks.py").read_text(encoding="utf-8")
 card = OP.chart_card({**CH_BUY, "entry": [1, 2], "target": 3, "stop": 0.5, "rr": 2, "council": CN.compact(b_ok), "link": lk_ok})
-check('vetoed = {x["symbol"]: x for x in scan_us.get("rejected") or []}' in src and '"مجلسُ صقر يرفض — "' in src
-      and card["council"]["verdict"] == "يوافق" and card["link"]["decision"] == "شراء" and "ومجلسُ صقر يوافق" in OP.with_chart(["أ", "ب"], {**CH_BUY, "entry": [1, 2],
+# ‏D807 (المالك 2026-11-24): «صقرٌ واحد — لا مجلسَ ولا أعضاء»
+check('vetoed = {x["symbol"]: x for x in scan_us.get("rejected") or []}' in src and '"صقر لا يشتريه الآن — "' in src and "مجلسُ صقر" not in src.split('"""')[-1]
+      and card["council"]["verdict"] == "يوافق" and card["link"]["decision"] == "شراء" and "وحكمُ صقر يوافق" in OP.with_chart(["أ", "ب"], {**CH_BUY, "entry": [1, 2],
                                                                                                    "target": 3, "stop": 0.5, "council": CN.compact(b_ok)}, None)[1],
       "١١ «عقودُ الخيارات» تبدأ بفرص الرسم التي اجتازت المجلس، وما رفضه المجلسُ اليوم لا يدخل الدفترَ من قائمته الثابتة، وحكمُ المجلس و«الرابط» في البطاقة والمبرّر")
 

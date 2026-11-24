@@ -79,7 +79,8 @@ opps = (ROOT / "frontend/src/components/saqr/SaqrOpps.tsx").read_text(encoding="
 desk = (ROOT / "frontend/src/components/saqr/SaqrDesk.tsx").read_text(encoding="utf-8")
 hub = desk[desk.index("function Hub("):desk.index("function Stat(")]
 check('data-role="so-h"' not in opps and "H_OPTS" not in opps and 'data-role="so-code"' in opps and "guide={guideOf(chainFor)}" in opps
-      and "sq-nt" not in hub and "sq-nd" not in hub and "title=" not in hub and "n.t" not in hub and "n.d" not in hub and '"sq-tick"' in hub and 'data-role="sq-node"' in hub,
-      "٤ «الفرص» بلا مرشّح المدّة وبرمزٍ يُنسخ وسلسلةٍ بدليل الفرصة؛ وحولَ صقر قرصُ أداةٍ بأنوارٍ بلا أسماءٍ ولا تلميحات — لا يُفضح ما يفعل")
+      and "sq-nt" not in hub and "sq-nd" not in hub and "title=" not in hub and 'data-role="sq-label"' in hub and "n.d" not in hub and '"sq-tick"' in hub
+      and 'data-role="sq-node"' in hub,
+      "٤ «الفرص» بلا مرشّح المدّة وبرمزٍ يُنسخ وسلسلةٍ بدليل الفرصة؛ وحولَ صقر قرصُ أداةٍ بأسماءٍ ثابتةٍ عند نقاطه (‏D808 نقض «بلا أسماء» بأمر المالك) — بلا تلميحاتٍ ولا أرقامٍ تفضح ما يفعل")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "فشل ✘")
 sys.exit(fail)

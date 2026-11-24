@@ -120,7 +120,7 @@ export default function OptionPicks() {
                     {p.chart && (
                       <p className="op-chart" data-role="op-chart">
                         <Crosshair size={13} aria-hidden /> اختاره الرسم: <b>{p.chart.setup}</b> · جودة <Num v={`${p.chart.quality}/100`} /> · {p.chart.horizon}
-                        {p.chart.council && <> · <span data-role="op-council">المجلس {p.chart.council.verdict} <Num v={`${p.chart.council.score}/100`} /></span></>}
+                        {p.chart.council && <> · <span data-role="op-council">صقر {p.chart.council.verdict} <Num v={`${p.chart.council.score}/100`} /></span></>}
                       </p>
                     )}
                     {/* ‏D787: رمزُ العقد بصيغة تريدنق فيو — يُنسخ بضغطة ويُلصق في بحث أيّ شاشةٍ فيُفتح (والبحثُ يقبل صيغةَ OCC أيضاً) */}

@@ -131,7 +131,7 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   const why = await page.evaluate(() => { const d = document.querySelector('[data-role="so-card"] [data-role="so-why"]');
     return { open: d?.open, lines: [...(d?.querySelectorAll("ul li") || [])].map(li => li.textContent.trim()), h: d?.querySelector("summary")?.getBoundingClientRect().height }; });
   if (SHOTS) await page.locator('[data-role="so-card"]').first().screenshot({ path: `${SHOTS}/d786-card-${vp.width}-${theme}.png` }).catch(() => {});
-  const ok1 = c1.verdict === "المجلس يوافق" && /\bok\b/.test(c1.cls) && /\bwarn\b/.test(c1.card2) && c1.score === "86"
+  const ok1 = c1.verdict === "صقر يوافق" &&   /* ‏D807: صقرٌ واحد */ /\bok\b/.test(c1.cls) && /\bwarn\b/.test(c1.card2) && c1.score === "86"
     && JSON.stringify(c1.members.map(x => x[0])) === JSON.stringify(ROLES) && c1.members.map(x => x[1]).join() === "ok,ok,ok,na,ok,ok,ok" && c1.whyOpen === false
     && why.open === true && why.lines.length === 7 && why.lines[2].includes("ربحٌ في 3 أرباعٍ متتالية") && why.lines[3].includes("غير متوفّر") && why.h >= 32;
   say(ok1, `${label}: ١ بطاقةُ الفرصة تحمل مجلسَ صقر: حكمَه ودرجتَه وأعضاءه السبعة بالترتيب بحكم كلٍّ، و«لماذا» مطويّةٌ تُفتح بسطر كلّ عضو (وغيرُ المتوفّر يقول ذلك)`,
@@ -150,9 +150,9 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   await page.locator('[data-role="so-rejected"] summary').click(); await page.waitForTimeout(350);
   const rj = await page.locator('[data-role="so-rej"]').evaluateAll(ls => ls.map(l => l.textContent.trim()));
   if (SHOTS) await page.locator('[data-role="so-rejected"]').screenshot({ path: `${SHOTS}/d786-rej-${vp.width}-${theme}.png` }).catch(() => {});
-  say(rj0.open === false && /\(\s*2\s*\)/.test(rj0.sum) && /الفرصُ بعد مجلس صقر:\s*2/.test(rj0.meta) && /استبعد المجلسُ\s*2/.test(rj0.meta) && rj0.h >= 32
+  say(rj0.open === false && /\(\s*2\s*\)/.test(rj0.sum) && /الفرص:\s*2/.test(rj0.meta) && /تحت المراقبة:\s*2/.test(rj0.meta) && !/مجلس|استبعد/.test(rj0.meta + rj0.sum)   /* ‏D807 · ‏D809 */ && rj0.h >= 32
       && rj.length === 2 && /إقالةُ الرئيس/.test(rj[0]) && /الثاني على التوالي/.test(rj[1]),
-    `${label}: ٣ ما رفضه عضوٌ يُعرض في «استبعدها مجلسُ صقر» مطويّاً بسببه (إقالةُ الرئيس · ثاني ربعِ خسارة)، وعددُه في سطر المسح`, JSON.stringify({ meta: rj0.meta.slice(-70), rj: rj.map(x => x.slice(0, 40)) }));
+    `${label}: ٣ ما ينقصه شرطٌ يُعرض «تحت المراقبة» مطويّاً بسببه (إقالةُ الرئيس · ثاني ربعِ خسارة) وعددُه في سطر المسح — بلا «مجلس» ولا «استبعد» (‏D807 · ‏D809)`, JSON.stringify({ meta: rj0.meta.slice(-70), rj: rj.map(x => x.slice(0, 40)) }));
 
   // ٥ التباينُ والخطُّ واللمسُ والفيض
   const meas = await page.evaluate(`(${CONTRAST})()`).then(() => null).catch(() => null);
@@ -180,7 +180,7 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   const chip = await page.locator('[data-role="op-council"]').first().textContent().catch(() => "");
   const cc = await page.evaluate(src => { const el = document.querySelector('[data-role="op-council"]'); return el ? eval(`(${src})()`)(el) : 0; }, CONTRAST.toString());
   if (SHOTS) await page.locator('[data-role="op-pick"]').first().screenshot({ path: `${SHOTS}/d786-pick-${vp.width}-${theme}.png` }).catch(() => {});
-  say(/المجلس يوافق/.test(chip || "") && /82\/100/.test(chip || "") && cc >= 4.5 && errs.length === 0,
+  say(/صقر يوافق/.test(chip || "") && !/المجلس/.test(chip || "") && /82\/100/.test(chip || "") && cc >= 4.5 && errs.length === 0,
     `${label}: ٤ بطاقةُ «عقود الخيارات» تقول حكمَ مجلس صقر ودرجتَه — ولا خطأ`, JSON.stringify({ chip, cc: +cc.toFixed(2), err: errs[0] || "" }));
   await ctx.close();
 }

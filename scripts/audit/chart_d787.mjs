@@ -270,15 +270,20 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   await page.locator('[data-role="sq-nav"] [data-view="dash"]').click().catch(() => {}); await page.waitForTimeout(1200);
   const hub = await page.evaluate(() => { const h = document.querySelector('[data-role="sq-hub"]'); const ns = [...document.querySelectorAll('[data-role="sq-node"]')];
     const txt = [...(h?.querySelectorAll("*") || [])].filter(e => [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())).map(e => e.textContent.trim());
-    return { n: ns.length, text: ns.map(x => x.textContent.trim()).join(""), titles: [...(h?.querySelectorAll("[title]") || [])].length, txt, live: h?.dataset.live,
+    /* ‏D808 نقض «أنوارٌ بلا أسماء» بأمر المالك: لكلّ نقطةٍ اسمٌ ثابتٌ قبالتها (لا تلميح)، وتحت القرص كلماتٌ افتتاحيةٌ بمعنى ألوانها */
+    const lbl = [...document.querySelectorAll('[data-role="sq-label"]')].map(e => e.textContent.trim());
+    const fs = Math.min(...[...document.querySelectorAll('[data-role="sq-label"]')].map(e => parseFloat(getComputedStyle(e).fontSize) * (h.getBoundingClientRect().width / 300)));
+    const lg = document.querySelector('[data-role="sq-legend"]')?.textContent || "";
+    return { n: ns.length, text: ns.map(x => x.textContent.trim()).join(""), titles: [...(h?.querySelectorAll("[title]") || [])].length, txt, live: h?.dataset.live, lbl, fs, lg,
       sweep: getComputedStyle(document.querySelector(".sq-sweep")).animationName, ticks: document.querySelectorAll(".sq-tick").length }; });
   if (SHOTS) await page.locator('[data-role="sq-hub"]').screenshot({ path: `${SHOTS}/d787-hub-${vp.width}-${theme}.png` }).catch(() => {});
   await page.emulateMedia({ reducedMotion: "reduce" }); await page.waitForTimeout(250);
   const rm = await page.evaluate(() => ({ sweep: getComputedStyle(document.querySelector(".sq-sweep")).animationName, orbit: getComputedStyle(document.querySelector(".sq-orbit")).animationName }));
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  say(hub.n === 8 && hub.text === "" && hub.titles === 0 && hub.txt.length === 1 && hub.ticks === 72 && (hub.live !== "1" || hub.sweep !== "none") && rm.sweep === "none" && rm.orbit === "none"
-      && errs.length === 0,
-    `${label}: ٥ حولَ صقر قرصُ أداة: 72 تدريجاً وأنوارٌ ثمانيةٌ بلا أسماءٍ ولا تلميحات (النصُّ الوحيدُ حالُه)، ومسحٌ يدور حين يعمل ويسكن مع تقليل الحركة — ولا خطأ`,
+  say(hub.n === 8 && hub.text === "" && hub.titles === 0 && hub.lbl.length === 8 && hub.lbl.every(x => x.length > 1) && hub.fs >= 9.5
+      && /كلُّ نقطةٍ نظامٌ/.test(hub.lg) && /يعمل/.test(hub.lg) && /يتحفّظ/.test(hub.lg) && /ساكن/.test(hub.lg)
+      && hub.ticks === 72 && (hub.live !== "1" || hub.sweep !== "none") && rm.sweep === "none" && rm.orbit === "none" && errs.length === 0,
+    `${label}: ٥ حولَ صقر قرصُ أداة: 72 تدريجاً وأنوارٌ ثمانيةٌ لكلٍّ اسمُه ثابتاً قبالتها (‏D808 — لا تلميح) وتحت القرص معنى ألوانها، ومسحٌ يدور حين يعمل ويسكن مع تقليل الحركة — ولا خطأ`,
     JSON.stringify({ ...hub, rm, err: errs[0] || "" }).slice(0, 240));
   await ctx.close();
 }

@@ -43,22 +43,22 @@ const codeOf = (x: Opp) => x.symbol.replace(".SR", "");
 const guideOf = (x: Opp): Guide => ({ side: x.side, setup: x.setup, entry: x.entry, target: x.target, stop: x.stop, close: x.close,
   horizon_n: x.horizon_n, horizon: x.horizon });
 
-/** مجلسُ صقر على البطاقة: حكمُه ودرجتُه، وأعضاؤه السبعة بحكم كلٍّ، و«لماذا» تفتح سطرَ كلّ عضو */
+/** ‏D807 (المالك 2026-11-24): «صقرٌ واحد — لا مجلسَ ولا أعضاء»: حكمُ صقر ودرجتُه، وشواهدُه السبعة بحكم كلٍّ، و«لماذا» تفتح سطرَ كلّ شاهد */
 function CouncilBox({ c }: { c: Council }) {
   return (
     <div className="so-council" data-role="so-council" data-verdict={c.verdict}>
       <div className="so-chead">
-        <span className={"so-verdict " + (c.verdict === "يوافق" ? "ok" : "warn")} data-role="so-verdict">المجلس {c.verdict}</span>
-        <span className="sq-muted">مجلسُ صقر <Num v={`${c.score}/100`} /></span>
+        <span className={"so-verdict " + (c.verdict === "يوافق" ? "ok" : "warn")} data-role="so-verdict">صقر {c.verdict}</span>
+        <span className="sq-muted">قراءةُ صقر <Num v={`${c.score}/100`} /></span>
       </div>
-      <ul className="so-members" aria-label="أعضاءُ مجلس صقر">
+      <ul className="so-members" aria-label="شواهدُ صقر">
         {c.members.map(m => {
           const I = V_ICON[m.v] || Minus;
           return <li key={m.role} data-v={m.v} data-role="so-member" title={`${m.role} — ${V_WORD[m.v]}: ${m.say}`}><I size={12} aria-hidden />{m.role}</li>;
         })}
       </ul>
       <details className="so-why" data-role="so-why">
-        <summary>لماذا — ما قاله كلُّ عضو</summary>
+        <summary>لماذا — شاهداً شاهداً</summary>
         <ul>{c.members.map(m => <li key={m.role} data-v={m.v}><b>{m.role}</b> <small>{V_WORD[m.v]}</small> {m.say}</li>)}</ul>
       </details>
     </div>
@@ -101,7 +101,7 @@ export default function SaqrOpps({ market }: { market: Market }) {
       {d?.at ? (
         <p className="sq-muted" data-role="so-meta">
           قرأ <Num v={`${d.universe ?? 0}`} /> {sa ? "شركة من السوق الرئيسيّ كلِّه" : "ورقة لها عقودُ خيارات من السوق كلِّه"} · حلّل رسومَ <Num v={`${d.read ?? 0}`} /> بشموعها ·
-          {" "}الفرصُ بعد مجلس صقر: <Num v={`${d.found ?? 0}`} />{(d.rejected || []).length > 0 && <> · استبعد المجلسُ <Num v={`${(d.rejected || []).length}`} /></>}
+          {" "}الفرص: <Num v={`${d.found ?? 0}`} />{(d.rejected || []).length > 0 && <> · تحت المراقبة: <Num v={`${(d.rejected || []).length}`} /></>}
           {" "}· يُمسح كلَّ يومٍ بعد الإغلاق
         </p>
       ) : !q.isLoading && (
@@ -177,7 +177,7 @@ export default function SaqrOpps({ market }: { market: Market }) {
       </div>
       {(d?.rejected || []).length > 0 && (
         <details className="robo-held so-rej" data-role="so-rejected">
-          <summary><span>استبعدها مجلسُ صقر (<Num v={`${(d?.rejected || []).length}`} />) — فرصٌ في الرسم رفضها عضوٌ آخر</span></summary>
+          <summary><span>تحت المراقبة (<Num v={`${(d?.rejected || []).length}`} />) — فرصٌ في الرسم ينقصها شرطٌ قبل الدخول</span></summary>
           <ul>{(d?.rejected || []).map(r => (
             <li key={r.symbol} data-role="so-rej"><b><Num v={r.symbol} /></b>{r.name ? ` ${r.name}` : ""} — {r.setup}: {r.why.join(" · ")}</li>
           ))}</ul>

@@ -418,7 +418,7 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
     # ‏D786 (المالك: «التحليلُ الفنيّ خطوةٌ من بين الخطوات — يقرأ ويحلّل مثل الصفة البشرية ويربط بين كلّ شيء، وعملُنا القديم لا يلغيه الجديد»):
     # المرشّحون يُعرضون على مجلس صقر — المسارُ (قاعدتُه القديمة نفسُها) والرسمُ والنتائجُ والأخبارُ والأحداثُ والحيتانُ والمحلّلون —
     # ورفضُ عضوٍ يُسقط الصفقةَ بسببه، ثمّ «الرابط» يقرأ الأعضاءَ معاً قبل الشراء (وكان ‏D784 يرفض كلَّ ما لا فرصةَ له في الرسم)
-    _JOB["msg"] = "مجلسُ صقر: المسارُ والرسمُ والنتائجُ والأخبارُ والأحداثُ والحيتانُ والمحلّلون"
+    _JOB["msg"] = "صقر يقرأ: المسارَ والرسمَ والنتائجَ والأخبارَ والأحداثَ والحيتانَ والمحلّلين"
     cands = []
     for pre, sym, row, stt, txt, gr in pool[:POOL]:
         tr = await trend(sym)
@@ -440,7 +440,7 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
         bd = CN.judge(evs[sym])
         board = CN.compact(bd)
         if bd["veto"]:
-            sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "refused", "why": "المجلس يرفض — " + " · ".join(bd["veto_why"]), "council": board})
+            sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "refused", "why": "صقر لا يشتريه الآن — " + " · ".join(bd["veto_why"]), "council": board})
             continue
         score = cd["_pre"] + min(max(rs3, 0), 30) + min(tr["strength"], 20) + bd["score"] / 2
         ask = row["ask"]
@@ -451,7 +451,7 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
              "results": cd["stxt"], "results_state": cd["stt"], "tr": tr, "rs3": rs3, "chg": row.get("change_pct"), "board": bd, "chart_read": cd["cr_side"]}
         good = next((m["say"] for m in bd["members"] if m["v"] == "ok" and m["role"] != "المسار"), None)
         sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "accepted", "contract": sym, "score": k["score"], "council": board,
-                    "why": f"المجلس {bd['verdict']} ({bd['score']}/100 · {bd['oks']} يوافق · {bd['warns']} يتحفّظ)" + (f" · {good}" if good else "")})
+                    "why": f"صقر {bd['verdict']} ({bd['score']}/100 · {bd['oks']} شاهدٌ يؤيّد · {bd['warns']} تحفّظ)" + (f" · {good}" if good else "")})
         ok.append(k)
     # «الرابط» يقرأ أعلى ثلاثةٍ بالترتيب: أوّلُ من يقول «شراء» يُشترى، و«انتظار» أو «تجنّب» يُذكر سببُه — وتعذّرُه لا يمنع (قواعدُ المجلس وحدها)
     best, lk = None, None
@@ -470,10 +470,10 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
         if qty >= 1:
             why = [f"تاسي {reg['verdict']}: {reg['close']:,.0f} و{'فوق' if reg['close'] >= reg['sma200'] else 'دون'} متوسّط 200" +
                    (f"، واليوم {reg['chg']:+.1f}٪" if isinstance(reg.get("chg"), (int, float)) else "") + ".",
-                   f"مجلسُ صقر: {best['board']['verdict']} ({best['board']['score']}/100).",
+                   f"حكمُ صقر: {best['board']['verdict']} ({best['board']['score']}/100).",
                    *CN.lines(best["board"]),
                    (f"الرابط ({lk['decision']} · ثقة {lk['confidence']}): {lk['link']}" + (f" التعارض: {lk['conflict']}" if lk.get("conflict") else ""))
-                   if lk else "الرابط: قراءتُه غيرُ متوفّرة الآن — الشراءُ على حكم الأعضاء.",
+                   if lk else "الرابط: قراءتُه غيرُ متوفّرة الآن — الشراءُ على حكم صقر من شواهده.",
                    f"الوقف {best['stop']:.2f} (−{c['stock_stop']:g}٪) والهدف {best['target']:,.2f} ({best['target_label']})." + (f" {fac_why}." if fac_why else "")]
             pos = SQ.buy(st, {k: v for k, v in best.items() if k not in ("board", "chart_read")}, qty, why, kind="stock")
             pos["results_state"] = best["results_state"]

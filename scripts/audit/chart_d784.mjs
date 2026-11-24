@@ -195,7 +195,7 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   if (SHOTS) await page.locator('[data-role="so"]').screenshot({ path: `${SHOTS}/d784-opps-sa-${vp.width}-${theme}.png` }).catch(() => {});
   say(nav.some(([k, t, s]) => k === "opps" && t === "الفرص" && s === "true") && !nav.some(([k]) => k === "signals" || k === "options")
       && sa.cards.length === 3 && sa.cards[0].q === "81%" && sa.cards[0].hz === "حتى الربع القادم" && sa.cards.every(c => c.chip === "شراء") && sa.ai
-      && /268/.test(sa.meta) && /266/.test(sa.meta) && /الفرصُ بعد مجلس صقر:\s*3/.test(sa.meta) && sa.node === "ok" && !sa.oldNode
+      && /268/.test(sa.meta) && /266/.test(sa.meta) && /الفرص:\s*3/.test(sa.meta) && !/مجلس/.test(sa.meta) &&   /* ‏D807: صقرٌ واحد */ sa.node === "ok" && !sa.oldNode
       && sa.sigOpen === false && /قراراتُ صقر/.test(sa.sig) && !sa.sideF && !sa.chain,
     `${label}: ٣ السعوديّ: «الفرص» بدل «الإشارات» (والمحفوظُ قديماً يُفتح عليها) — بطاقاتٌ بجودتها ومدّتها وجهتها، و«الرابط» لأفضلها، ونورُ «الفرص» في لوحة صقر (‏D787: بلا اسم)، `
       + "وقراراتُ صقر مطويّةٌ تحتها — بلا عقودٍ ولا بيع", JSON.stringify({ nav: nav.map(x => x[0]), n: sa.cards.length, node: sa.node, meta: sa.meta.slice(0, 50) }));
