@@ -54,6 +54,19 @@ if [ -d .git ] && command -v git >/dev/null 2>&1; then
   echo
 fi
 
+# ‏D792: بصمةُ الشجرة عند البدء والنهاية — ملفٌّ يُكتب أثناء اللجنة لا يشمله ما سبقه من فحوصها، فلا يُعدّ حكمُها عليه
+# اجتيازاً. قِيس: كاشفُ ‏widget_door_d791.py كُتب أثناء جولةٍ بعد أن مرّ فحصُ «لا سرَّ يُطبَع» (سطرُه مبكّر)، فاجتازت الجولةُ
+# ونُشر، وأسقطه الفحصُ نفسُه في الجولة التالية. والبصمةُ: الإيداعُ وحالُ الشجرة وفروقُها وما لم يُتتبَّع من ملفّاتها.
+_tree_fp() {
+  { git rev-parse HEAD
+    git status --porcelain --untracked-files=all -- frontend/src backend/app scripts docs
+    git diff HEAD -- frontend/src backend/app scripts docs
+    git ls-files -o --exclude-standard -z -- frontend/src backend/app scripts docs | xargs -0 -r cat
+  } 2>/dev/null | sha1sum | cut -c1-12
+}
+_FP0=""
+if [ -d .git ] && command -v git >/dev/null 2>&1; then _FP0="$(_tree_fp)"; fi
+
 _ENV_MISS=""
 command -v node >/dev/null 2>&1 || _ENV_MISS="${_ENV_MISS} node"
 [ -d frontend/src ] || _ENV_MISS="${_ENV_MISS} frontend/src"
@@ -877,6 +890,16 @@ if [ "${1:-}" = "--live" ]; then
   fi
 fi
 
+if [ -n "${_FP0}" ]; then
+  _FP1="$(_tree_fp)"
+  if [ "${_FP0}" != "${_FP1}" ]; then
+    echo
+    echo "FAIL ‏D792 الشجرةُ تغيّرت أثناء اللجنة (${_FP0} ← ${_FP1}) — ما كُتب بعد بدئها لم تشمله فحوصٌ سبقته؛ تُعاد على شجرةٍ ثابتة."
+    _note "$LINENO"
+  else
+    echo "PASS ‏D792 الشجرةُ ثابتةٌ من بدء اللجنة إلى نهايتها (${_FP0}) — الحكمُ على ما فُحص كلُّه"
+  fi
+fi
 echo
 if [ "$fail" = "0" ] && [ "${_SKIPPED}" -gt 0 ]; then
   echo "✔ اجتاز فيما قِيس — و${_SKIPPED} فحصَ متصفّحٍ لم يُقَس هنا (لا node): تُقاس في بيئة التطوير قبل كلّ تسليم."

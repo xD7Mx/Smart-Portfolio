@@ -28,7 +28,9 @@ async def main():
         import httpx
         from main import app
         paths = {getattr(r, "path", "") for r in app.routes}
-        print(f"  ‏/api/v1/widget/summary مسجَّل: {'/api/v1/widget/summary' in paths} · ‏/api/v1/widget/token مسجَّل: {'/api/v1/widget/token' in paths}")
+        summary_ok = "/api/v1/widget/summary" in paths
+        manage_ok = "/api/v1/widget/token" in paths
+        print(f"  الملخّصُ مسجَّل: {summary_ok} · إدارةُ الرمز مسجَّلة: {manage_ok}")
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t/api/v1", timeout=60) as c:
             r1 = await c.get("/widget/summary")
             r2 = await c.get("/widget/token")
