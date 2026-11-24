@@ -120,5 +120,61 @@ check(all(x.get("link") == "قراءة" for x in ap) and tr < 1.4 and live["max"
       "٣ المسح: قراءاتُ الذكاء لأفضل ستّ فرصٍ ثلاثٌ في آن (لا متتابعة)، والرسومُ عشرةً معاً، وزمنُ كلّ مرحلةٍ يُسجَّل مع المسح",
       f"{tr:.2f}ث · معاً {live['max']} · CONC {CS.CONC}")
 
+# ── ٤ ‏D821 الإطاراتُ دون اليوم: أساسٌ واحدٌ يُجدَّد بذيله ──
+from app.services.market_data import YahooFinanceAdapter as _YP  # noqa: E402
+fetches: list = []
+
+
+def _hours(start_day: int, days: int):
+    out = []
+    for d in range(start_day, start_day + days):
+        for h in range(10, 16):
+            c = 100 + d + h / 10
+            out.append({"date": f"2026-{1 + d // 28:02d}-{1 + d % 28:02d} {h:02d}:00", "open": c, "high": c + 0.5, "low": c - 0.5, "close": c, "volume": 1000})
+    return out
+
+
+FULL = _hours(0, 200)
+
+
+async def fake_intraday(self, symbol, range_, interval="60m"):
+    fetches.append((symbol, range_, interval))
+    if range_ == "2y":
+        return list(FULL)
+    if range_ == "5d":
+        return _hours(196, 5) if symbol != "GAP" else _hours(260, 5)
+    return []
+
+_YP._fetch_intraday = fake_intraday
+cache.clear()
+yp = _YP()
+
+
+async def run4():
+    out = {}
+    t0 = time.monotonic()
+    out["h1"] = await yp.get_bars("AAA", "1h")
+    out["h4"] = await yp.get_bars("AAA", "4h")
+    first = list(fetches)
+    fetches.clear()
+    for k in [k for k in list(cache._store) if k.startswith("bars:yahoo:") or k.startswith("bars:stale:") or k.endswith(":fresh")]:
+        cache._store.pop(k, None)                                   # انقضى مخبّأُ الإطارين وحداثةُ الأساس (دقيقتان كلاهما)
+    out["h4b"] = await yp.get_bars("AAA", "4h")
+    second = list(fetches)
+    fetches.clear()
+    out["gap1"] = await yp.get_bars("GAP", "1h")
+    for k in [k for k in list(cache._store) if k.startswith("bars:yahoo:GAP") or k.startswith("bars:stale:GAP") or (k.startswith("bars:base:GAP") and k.endswith(":fresh"))]:
+        cache._store.pop(k, None)
+    out["gap2"] = await yp.get_bars("GAP", "1h")
+    return out, first, second, list(fetches), time.monotonic() - t0
+
+o4, first, second, gapf, _ = asyncio.run(run4())
+last_new = _hours(196, 5)[-1]["date"]
+check([r for _, r, _ in first] == ["2y"] and [r for _, r, _ in second] == ["5d"] and o4["h4b"] and o4["h4b"][-1]["date"] <= last_new
+      and o4["h4b"][0]["date"] == o4["h4"][0]["date"] and len(o4["h4b"]) >= len(o4["h4"]) and [r for _, r, _ in gapf] == ["2y", "5d", "2y"],
+      "٤ ‏D821 الإطاراتُ دون اليوم: الساعةُ والأربعُ من أساسٍ واحدٍ يُنزَّل مرّةً (كانا يُنزّلانه مرّتين)، وبعد انقضاء المخبّأ يُجدَّد بذيله وحده "
+      "(أيامٌ قليلة لا سنتان — قِيس «أربع ساعات» 5 ثوانٍ على الخادم) مُلحَماً بأوّل شمعةٍ فيه؛ وإن لم يلتقِ الذيلُ بالأساس نُزّل التاريخُ كلُّه",
+      f"الأوّل {[r for _, r, _ in first]} · بعد الانقضاء {[r for _, r, _ in second]} · فجوة {[r for _, r, _ in gapf]}")
+
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)

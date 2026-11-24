@@ -655,10 +655,10 @@ class YahooFinanceAdapter:
             if unit == "m":
                 base = 30 if n % 30 == 0 else 15 if n % 15 == 0 else 5 if n % 5 == 0 else 1
                 rng = ("5d" if base == 1 else "1mo") if opt else ("7d" if base == 1 else "60d")
-                rows = B.clean_intraday(await self._fetch_intraday(symbol, rng, f"{base}m"))
+                rows = await self._base_rows(symbol, base, rng, "1d" if base == 1 else "5d", opt)
                 pts, ttl = (B.bucket_intraday(rows, n, B.session_mode(symbol), base) if n != base else rows), 60
             elif unit == "h":
-                rows = B.clean_intraday(await self._fetch_intraday(symbol, "3mo" if opt else "2y", "60m"))
+                rows = await self._base_rows(symbol, 60, "3mo" if opt else "2y", "5d", opt)
                 pts, ttl = (B.bucket_intraday(rows, n * 60, B.session_mode(symbol)) if n > 1 else rows), 2 * 60
             else:
                 pts, ttl = B.bucket_n(riyadh_months(await self._fetch_chart_points(symbol, "max", "1mo")), n), 10 * 60
@@ -668,6 +668,30 @@ class YahooFinanceAdapter:
         cache.set(ck, pts, ttl)
         cache.set(stale_k, pts, 14 * 24 * 3600)
         return pts
+
+    async def _base_rows(self, symbol: str, base: int, rng: str, tail_rng: str, opt: bool = False) -> list:
+        """أساسُ الإطارات دون اليوم (شموعُ {base} دقيقة) — ‏D821: قِيس على الخادم (‏perf_door_d814) أنّ «أربع ساعات» يستغرق 5 ثوانٍ
+        كلّما انقضت دقيقتا مخبّئه: كلُّ إطارٍ يُنزّل تاريخَه كلَّه من جديد (سنتان من الساعات)، والساعةُ والأربعُ تنزّلانه مرّتين.
+        فالأساسُ واحدٌ للإطارات كلّها مخبّأٌ ثلاثةَ أيام، ويُجدَّد بذيله وحده (آخرُ أيامٍ قليلة) يُلحَم به من أوّل شمعةٍ فيه — وإن لم
+        يلتقِ الذيلُ بالأساس (فجوة) أو غاب الأساسُ نُزّل التاريخُ كلُّه كما كان."""
+        from app.services import cache, bars as B
+        nb, u = (1, "h") if base == 60 else (base, "m")
+        bk = f"bars:base:{symbol}:{nb}{u}:{rng}:v1"
+        old = None if opt else cache.get(bk)
+        if old and cache.get(bk + ":fresh"):                      # جُدِّد للتوّ (إطارٌ آخرُ على الأساس نفسِه) — بلا نداء
+            return old
+        rows: list = []
+        if old and len(old) >= 20:
+            tail = B.clean_intraday(await self._fetch_intraday(symbol, tail_rng, f"{base}m"))
+            if tail and str(tail[0]["date"]) <= str(old[-1]["date"]):
+                cut = str(tail[0]["date"])
+                rows = B.clean_intraday([r for r in old if str(r["date"]) < cut] + tail)
+        if not rows:
+            rows = B.clean_intraday(await self._fetch_intraday(symbol, rng, f"{base}m"))
+        if rows and not opt:
+            cache.set(bk, rows[-B.MAX_BARS:], 3 * 24 * 3600)            # ثلاثةُ أيام تعبر العطلة — والذاكرةُ ضيّقة (‏D724)
+            cache.set(bk + ":fresh", True, 60 if u == "m" else 2 * 60)   # حداثتُه كحداثة إطاره
+        return rows
 
     async def _fetch_hourly(self, symbol: str, range_: str) -> list:
         return await self._fetch_intraday(symbol, range_, "60m")
