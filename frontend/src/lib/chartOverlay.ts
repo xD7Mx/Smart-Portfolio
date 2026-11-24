@@ -15,11 +15,14 @@ export type Level = {
   bold?: boolean; line?: boolean;
   /* ‏D756 (المالك 2026-11-16): «أرقامُ المستويات أمام آخر شمعة كتريدنق فيو — لا في عمود الأسعار — فوق الخطّ أو عليه أو تحته، وبحوافّ واضحة» */
   label?: string; lx?: number; lpos?: "above" | "on" | "below"; lcolor?: string;
+  /* ‏D799 (المالك 2026-11-24): «المستوياتُ ليست ثابتةً أمام الشموع — تلحقني إذا لففتُ الشارت»: موضعُ بدايتها (رقمُ شمعةٍ منطقيّ) — يُرسم الخطُّ منه
+     إلى اليمين لا على عرض اللوحة، ورقمُه أمام آخر شمعةٍ وحدَها: إن خرجت من المشهد لم يُلصَق الرقمُ بحافّته */
+  x0?: number;
 };
 export type Segment = { x1: number; y1: number; x2: number; y2: number; color: string; width?: number; dash?: number[]; extend?: boolean };
 export type Path = { pts: { x: number; y: number }[]; color: string; width?: number };
 export type Note = { x: number; y: number; text: string; color: string };
-export type Band = { p1: number; p2: number; color: string };       // تظليلٌ بين سعرين على عرض اللوحة (مناطقُ D7M · D744)
+export type Band = { p1: number; p2: number; color: string; x0?: number };       // تظليلٌ بين سعرين على عرض اللوحة (مناطقُ D7M · D744)
 
 /** خلفيةٌ بين مستويين في لوحة مؤشّر — ‏fill(h0, h1) في سكربت تريدنق فيو (‏Stoch RSI بين 80 و20 · D741). */
 export class BandFill implements ISeriesPrimitive<Time> {
@@ -51,10 +54,13 @@ export class ChartOverlay implements ISeriesPrimitive<Time> {
   font = "sans-serif";
   bg = "#ffffff";
   textTop = 12;             // أسماءُ المستويات لا تُكتب فوق هذا الحدّ — مكانُ وسيلة الإيضاح
+  /* ‏D799: مِهمازُ الرقم المُزاح (خطٌّ منقّط يصله بخطّه) — قال المالك عن الجوال: «إذا صغّرتُ أو كبّرتُ تظهر نقاطٌ متّصلةٌ بالأرقام». فعلى الشاشة
+     الضيّقة لا مِهماز: الرقمُ على خطّه أو فوقه أو تحته، وإلّا لم يُكتب */
+  leaders = true;
 
   attached(p: SeriesAttachedParameter<Time>) { this.chart = p.chart as IChartApi; this.series = p.series; this.req = p.requestUpdate; }
   detached() { this.chart = this.series = this.req = null; }
-  set(part: Partial<Pick<ChartOverlay, "levels" | "segments" | "paths" | "notes" | "bands" | "font" | "bg" | "textTop">>) {
+  set(part: Partial<Pick<ChartOverlay, "levels" | "segments" | "paths" | "notes" | "bands" | "font" | "bg" | "textTop" | "leaders">>) {
     Object.assign(this, part);
     this.req?.();
   }
@@ -86,8 +92,10 @@ export class ChartOverlay implements ISeriesPrimitive<Time> {
       for (const z of this.bands) {
         const a = this.py(z.p1), b = this.py(z.p2);
         if (a == null || b == null) continue;
+        const x0 = z.x0 != null ? this.px(z.x0) : 0;
+        if (x0 == null || x0 >= W) continue;                               // ‏D799: بدايتُها يمينَ المشهد ⇒ لا تُرسم
         ctx.fillStyle = z.color;
-        ctx.fillRect(0, Math.min(a, b), W, Math.max(1, Math.abs(b - a)));
+        ctx.fillRect(Math.max(0, x0), Math.min(a, b), W - Math.max(0, x0), Math.max(1, Math.abs(b - a)));
       }
       // ١ المستويات: خطٌّ على عرض اللوحة
       for (const l of this.levels) {
@@ -97,7 +105,9 @@ export class ChartOverlay implements ISeriesPrimitive<Time> {
         ctx.beginPath();
         ctx.strokeStyle = l.color; ctx.lineWidth = l.width ?? 1; ctx.setLineDash(l.dash ?? []);
         const yy = Math.round(y) + 0.5;
-        ctx.moveTo(0, yy); ctx.lineTo(W, yy); ctx.stroke();
+        const x0 = l.x0 != null ? this.px(l.x0) : 0;
+        if (x0 == null || x0 >= W) continue;                                // ‏D799: الخطُّ يبدأ من موجته — لا يلحق المشهد
+        ctx.moveTo(Math.max(0, x0), yy); ctx.lineTo(W, yy); ctx.stroke();
       }
       ctx.setLineDash([]);
       // ٢ القطع: خطوطُ الاتجاه والقنوات والرسمُ اليدويّ
@@ -148,6 +158,7 @@ export class ChartOverlay implements ISeriesPrimitive<Time> {
         if (!l.label) continue;
         const y = this.py(l.price), x = l.lx != null ? this.px(l.lx) : null;
         if (y == null || x == null || y < 2 || y > H - 4) continue;
+        if (l.x0 != null && (x > W - 8 || x < 0)) continue;              // ‏D799: آخرُ شمعةٍ خارج المشهد ⇒ لا رقمَ مُلصَقٌ بالحافّة
         labs.push({ l, y, x, w: ctx.measureText(l.label as string).width + 4 });
       }
       if (labs.length) {
@@ -162,7 +173,7 @@ export class ChartOverlay implements ISeriesPrimitive<Time> {
           const pref = o.l.lpos || "above";
           let top: number | null = null, lead = false;
           for (const q of [pref, ...["above", "below", "on"].filter(z => z !== pref)]) if (free(at(q))) { top = at(q); break; }
-          for (let k = 1; top == null && k <= 3; k++) {
+          for (let k = 1; top == null && this.leaders && k <= 3; k++) {
             for (const t of [at("below") + k * (LH + 1), at("above") - k * (LH + 1)]) if (free(t)) { top = t; lead = true; break; }
           }
           if (top == null) continue;

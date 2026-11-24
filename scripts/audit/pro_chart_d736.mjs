@@ -364,13 +364,12 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   const onBar = await page.locator('[data-role="pc-tfs"] .pc-tf.on').first().textContent();
   say(applyTxt === "اعرض 6 ساعات" && reqs.some(x => /\?6h$/.test(x)) && s6.tf === "6h" && saved6[0] === "6h" && /6h/.test(saved6[1] || "") && onBar.trim() === "6س" && !s6.cover,
       `${label}: إطارٌ مخصَّص «6 ساعات» يُطلب من الخادم ويُعرض ويُحفظ ويبقى زرّاً في الشريط`, `${reqs.filter(x => /6h/.test(x))[0]} · ${onBar}`);
-  await page.locator('[data-role="pc-tfs"] .pc-tf', { hasText: desk ? "أسبوع" : "6س" }).first().click().catch(() => {});
-  if (!desk) { await page.locator('[data-role="pc-tf-more"]').click(); await page.locator('[data-role="pc-tf-more-menu"] .pc-tf', { hasText: "أسبوع" }).click(); }
+  /* ‏D795: الشريطُ مفضّلاتُ المالك وحدها (ولا مفضّلاتَ هنا) — فالإطاراتُ من قائمتها */
+  await page.locator('[data-role="pc-tf-more"]').click(); await page.locator('[data-role="pc-tf-more-menu"] .pc-tf', { hasText: /^أسبوع$/ }).click();
   await page.waitForTimeout(1200);
 
   // ١٣ب المنطقةُ الزمنية كتريدنق فيو: «توقيتُ البورصة» افتراضاً، والساعةُ تعمل، وكلُّ اختيارٍ يُعيد كتابةَ أوقات الشموع ويُحفظ
-  await page.locator('[data-role="pc-tfs"] .pc-tf', { hasText: "1س" }).first().click().catch(async () => {
-    await page.locator('[data-role="pc-tf-more"]').click(); await page.locator('[data-role="pc-tf-more-menu"] .pc-tf', { hasText: /^ساعة$/ }).click(); });
+  await page.locator('[data-role="pc-tf-more"]').click(); await page.locator('[data-role="pc-tf-more-menu"] .pc-tf', { hasText: /^ساعة$/ }).click();
   await page.waitForTimeout(1200);
   const tzRead = () => page.evaluate(() => ({ last: document.querySelector('[data-role="pro-chart"]').dataset.lastT,
     btn: document.querySelector('.pc-btn[data-role="pc-tz"]')?.textContent || "", clock: document.querySelector('[data-role="pc-clock"]')?.textContent || "" }));
@@ -470,14 +469,17 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
   say(ix.symbol === "^GSPC" && ix.bars === "420" && /\d/.test(ix.c) && !ix.cover && /غير متوفّر/.test(volTxt || ""),
       `${label}: والمؤشّراتُ (S&P 500) تُرسم بشموعها — وحجمٌ لا يسلّمه المصدر «غير متوفّر» لا أعمدةٌ صفرية`, `${ix.symbol} · ${ix.bars} شمعة · ${volTxt}`);
 
-  // ١٧ ملءُ الشاشة، والقياسات
+  // ١٧ ‏D794 (المالك 2026-11-24: «التكبيرُ كأوّلِ مرّة — يملأ المتصفّح، وزرُّ التصغير لا يختفي»): زرُّ التكبير في الصفّ الخارجيّ يملأ النافذةَ بالرسم إلى قاعها، وزرُّه ظاهرٌ فيها
   if (!desk) await page.evaluate(() => scrollTo(0, 0));
-  await page.locator('[data-role="pc-full"]').click();
-  await page.waitForTimeout(600);
-  const fb = await page.evaluate(() => { const r = document.querySelector('[data-role="pro-chart"]').getBoundingClientRect(); return [r.left, r.top, r.width, r.height, innerWidth, innerHeight]; });
-  say(fb[0] === 0 && fb[1] === 0 && fb[2] === fb[4] && Math.abs(fb[3] - fb[5]) <= 1, `${label}: ملءُ الشاشة يغطّيها كلَّها`, fb.slice(2).join("×"));
+  await page.locator('[data-role="troom-wide"]').click();
+  await page.waitForTimeout(900);
+  const fb = await page.evaluate(() => { const c = document.querySelector('[data-role="troom-chart"]').getBoundingClientRect(), p = document.querySelector('[data-role="pro-chart"]').getBoundingClientRect(),
+    b = document.querySelector('[data-role="troom-wide"]').getBoundingClientRect();
+    return { c: [c.left, c.top, c.width, c.height].map(Math.round), pb: Math.round(p.bottom), btn: b.top >= 0 && b.bottom <= innerHeight && b.width > 0, iw: document.documentElement.clientWidth, ih: innerHeight }; });
+  say(fb.c[0] === 0 && fb.c[1] === 0 && fb.c[2] >= fb.iw - 1 && Math.abs(fb.c[3] - fb.ih) <= 1 && Math.abs(fb.pb - fb.ih) <= 2 && fb.btn,
+    `${label}: التكبيرُ يملأ النافذةَ كلَّها والرسمُ إلى قاعها، وزرُّ التصغير ظاهرٌ فيها بلا تمرير`, JSON.stringify(fb));
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `pro_full_${vp.width}_${theme}.png`) });
-  await page.locator('[data-role="pc-full"]').click();
+  await page.locator('[data-role="troom-wide"]').click();
   await page.waitForTimeout(500);
   const m = await page.evaluate(() => {
     const W = document.documentElement.clientWidth, main = document.querySelector(".app-main");
@@ -485,13 +487,13 @@ for (const [label, vp, theme] of [["الحاسوب", { width: 1366, height: 900 
     const root = document.querySelector('[data-role="pro-chart"]');
     const t = [...root.querySelectorAll("button")].filter(e => e.offsetParent).map(e => { const r = e.getBoundingClientRect(); return Math.min(r.width, r.height); });
     const f = [...root.querySelectorAll("*")].filter(e => e.offsetParent && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())).map(e => parseFloat(getComputedStyle(e).fontSize));
-    const icons = ["pc-draw", "pc-ind", "pc-type", "pc-full"].every(k => !!root.querySelector(`[data-role="${k}"] svg`));
+    const icons = ["pc-draw", "pc-ind", "pc-type"].every(k => !!root.querySelector(`[data-role="${k}"] svg`)) && !!document.querySelector('[data-role="troom-wide"] svg');
     return { over: sw - W, minT: Math.min(...t), minF: Math.min(...f), icons, tfs: [...root.querySelectorAll('[data-role="pc-tfs"] .pc-tf')].filter(e => e.offsetParent).length };
   });
   say(m.over <= 1 && m.minT >= 32 && m.minF >= 9.5 && m.icons, `${label}: لا فيضَ أفقيّ، وأزرارُ الرسم ≥ 32px، وخطٌّ ≥ 9.5px، وللرسم والمؤشّرات والنوع وملء الشاشة أيقونات`,
       `${m.over}px · ${Math.round(m.minT)}px · ${m.minF}px`);
-  /* ‏D782 (المالك): «أكثرُ ثلاثةٍ استخداماً بدلَ رصّها كاملة» — في الشاشتين: ثلاثةٌ (ورابعٌ هو الجاري إن لم يكن منها) وبقيّتُها في قائمته */
-  if (!desk) say(m.tfs >= 3 && m.tfs <= 4, `${label}: أكثرُ الإطارات استعمالاً ثلاثةٌ في الشريط (والجاري إن لم يكن منها) وبقيّتُها في قائمته`, `${m.tfs}`);
+  /* ‏D795 نقض ‏D782 (المالك 2026-11-24: «تنتخب بالتفضيل… وما يكون إجباري»): بلا مفضّلاتٍ لا يُفرض شيء — الجاري وحده في الشريط وبقيّتُها في قائمته */
+  if (!desk) say(m.tfs === 1, `${label}: بلا مفضّلاتٍ لا تُفرض إطارات — الجاري وحده في الشريط وبقيّتُها في قائمته`, `${m.tfs}`);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `pro_${vp.width}_${theme}.png`) });
 
   // ١٨ مختبرُ الأبحاث تبويبٌ هنا (‏D763: عقودُ الخيارات · المحفظة · صقر)، وروابطُه القديمة تصله — والتقريرُ اليوميّ انتقل إلى مفكرة السوق

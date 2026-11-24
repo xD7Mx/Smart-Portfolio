@@ -76,6 +76,6 @@ const read = RETIRED.filter(k => new RegExp(`cfg\\.${k}\\b`).test(pro));
 say(miss.length === 0 && read.length === 0, "١٠ لوحةُ الإعدادات تتحكّم في كلّ مدخلٍ للمؤشّر — وما أُطفئ بأمر المالك (‏D782) لا يقرؤه الرسم", [...miss, ...read].join(","));
 const nc = readFileSync(join(ROOT, "frontend/src/components/analysis/NativeChart.tsx"), "utf8");
 const usedColors = M.D7M_COLORS.map(c => c[0]).filter(k => !new RegExp(`C\\("${k}"\\)|colors\\?\\.${k}\\b|colors\\?\\.\\[k\\]`).test(nc));
-say(/type="color"/.test(panel) && usedColors.length === 0, "١١ ألوانُ المؤشّر تُختار من الإعدادات وتصل إلى الرسم", usedColors.join(","));
+say(/<ColorPick\b/.test(panel) && usedColors.length === 0, "١١ ألوانُ المؤشّر تُختار من الإعدادات وتصل إلى الرسم", usedColors.join(","));
 console.log((fail ? "FAIL" : "PASS") + " D463/D464 — مؤشّرُ D7M يطابق سكربتَ المالك");
 process.exit(fail);

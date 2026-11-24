@@ -24,6 +24,9 @@ export default function ChartRead({ symbol, name, market, frames }: {
 }) {
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState(false);
+  /* ‏D797 (المالك 2026-11-24: «تحليلُ الرسم لا يستجيب»): قِيس — النموذجُ يجيب في ثوانٍ لكنه يردّ «مزدحم» مرّاتٍ في الدقيقة، فطال الانتظارُ دقيقتين بلا
+     إشارة. فعدّادُ ثوانٍ يقول إنه يعمل، وسببُ التعذّر يُسمّى (ازدحامُ النموذج · أطولُ من المعتاد · الاتصال) لا «تعذّر» مبهمة */
+  const [sec, setSec] = useState(0);
   const m = useMutation({
     mutationFn: () => {
       const fr = frames().filter(Boolean);
@@ -39,8 +42,18 @@ export default function ChartRead({ symbol, name, market, frames }: {
     return () => window.removeEventListener("keydown", k, true);
   }, [open]);
   useEffect(() => { setOpen(false); m.reset(); }, [symbol]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!m.isPending) return;
+    setSec(0);
+    const t0 = Date.now(), id = window.setInterval(() => setSec(Math.round((Date.now() - t0) / 1000)), 1000);
+    return () => window.clearInterval(id);
+  }, [m.isPending]);
   const go = () => { setOpen(true); m.mutate(); };
-  const d = m.data as { ok: boolean; reading?: Reading; at?: string } | undefined;
+  const d = m.data as { ok: boolean; reading?: Reading; at?: string; reason?: string } | undefined;
+  const why = m.isError ? "تعذّر الاتصالُ بالخادم — تحقّق من الشبكة ثمّ أعِد المحاولة."
+    : d?.reason === "busy" ? "نموذجُ الذكاء مزدحمٌ الآن من جهة مزوّده — أعِد المحاولة بعد دقيقة."
+    : d?.reason === "timeout" ? "استغرق التحليلُ أطولَ من المعتاد — أعِد المحاولة."
+    : d?.reason === "nokey" ? "مفتاحُ الذكاء غيرُ مضبوطٍ على الخادم." : "تعذّر التحليلُ الآن.";
   const r = d?.ok ? d.reading : null;
   const tone = r ? (r.bias === "صاعد" ? "pos" : r.bias === "هابط" ? "neg" : "warn") : "muted";
   return (
@@ -58,12 +71,12 @@ export default function ChartRead({ symbol, name, market, frames }: {
             </div>
             {m.isPending ? (
               <div className="cr-wait" role="status" data-role="chart-read-wait">
-                <span className="cr-wait-t">يقرأ الرسمَ ومؤشّراتِه ومستوياتِه…</span>
+                <span className="cr-wait-t">يقرأ الرسمَ ومؤشّراتِه ومستوياتِه… <b className="cr-sec tabular-nums" dir="ltr" data-role="chart-read-sec">{sec}</b> ث</span>
                 <i /><i /><i />
               </div>
             ) : m.isError || (d && !d.ok) ? (
               <div className="cr-err" role="status" data-role="chart-read-err">
-                <p>تعذّر التحليلُ الآن.</p>
+                <p data-role="chart-read-why">{why}</p>
                 <button type="button" className="btn-primary" onClick={() => m.mutate()}>أعِد المحاولة</button>
               </div>
             ) : r ? (

@@ -620,6 +620,8 @@ export const D7M_DEFAULTS = {
   fibLevels: Object.fromEntries(FIB_LEVELS.map(([lv]) => [String(lv), true])) as Record<string, boolean>,
   /* ‏D756: «الأرقامُ أمام آخر شمعة كتريدنق فيو — لا في عمود الأسعار — وخيارٌ: فوق الخطّ أو عليه أو تحته، والافتراضيُّ عليه» */
   fibLabelPos: "above" as "above" | "on" | "below",   // ‏D772: فوق خطّه كتريدنق فيو
+  /* ‏D799 (المالك 2026-11-24): «خلّها ثابتة — أو خيارٌ: ثابتة أو متحرّكة»: ثابتةٌ تبدأ من أوّل نقطتَي الموجة وتقف عندها؛ ومتحرّكةٌ على عرض الشاشة */
+  fibAnchor: "fixed" as "fixed" | "moving",
   fibV: 5,                                   // رقمُ ترحيل الإعدادات (‏D783: الأربعَ عشرةَ في «الكل» · ‏D784: الستّةُ في «مختصر»)
   /* ‏D756: «الاتجاهُ الرئيسيّ والفرعيّ خياران في الإعدادات» */
   trend: true, trendMajor: true, trendMinor: true, trendPP: 15, trendShapes: false,

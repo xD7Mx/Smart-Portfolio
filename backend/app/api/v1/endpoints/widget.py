@@ -174,3 +174,80 @@ async def widget_summary(pf: str | None = None, x_widget_token: str | None = Hea
         "day_change": day, "day_change_pct": day_pct, "unrealized": round(mv - cost, 2),
         "holdings": top, "movers": movers, "count": len(rows), "tasi": tasi,
     })
+
+
+async def _default_pid(db: AsyncSession) -> int | None:
+    """المحفظةُ الافتراضيةُ بمرشِّح التطبيق — قراءةٌ لا تُنشئ محفظةً إن غابت."""
+    from app.models.portfolio import Portfolio
+    return (await db.execute(select(Portfolio.id).where(Portfolio.is_archived.is_(False))
+                             .order_by(Portfolio.is_default.desc(), Portfolio.id).limit(1)
+                             .execution_options(skip_portfolio_scope=True))).scalar()
+
+
+@public_router.get("/watchlist")
+async def widget_watchlist(list: str | None = None, x_widget_token: str | None = Header(default=None),  # noqa: A002
+                           db: AsyncSession = Depends(get_db)):
+    """‏D800 (المالك 2026-11-24): «أريد في الويدجت — بجانب المحفظة — الشركاتِ اللي حاطّها في القائمة، مثل ويدجت تريدنق فيو: عشرُ شركاتٍ أو أكثر،
+    مقاسَ منتصف الشاشة تقريباً، تتوزّع يميناً ويساراً». قائمةٌ من قوائم التطبيق بأسعارها — من الباب نفسِه الذي تقرأ منه غرفةُ التداول قوائمَها
+    (‏market_service.get_prices)، وشعارُ كلٍّ من بابنا العامّ (‏/market/logo).
+
+    ‏list: فارغٌ أو ‏mine = «محفظتي» (شركاتُ الحيازات) · رقمٌ = قائمةٌ برقمها · اسمٌ = قائمةٌ باسمها. ولا زمنَ لكلّ سعرٍ في المصدر — فزمنُ الطلب وحده."""
+    await _check(db, x_widget_token)
+    from app.core.portfolio_scope import reset_scope, set_scope
+    from app.models.market import Watchlist, WatchlistGroup
+    from app.models.portfolio import Holding
+    from sqlalchemy.orm import selectinload
+    from app.api.v1.endpoints.market import _normalize_symbol
+    from app.data import saudi_directory
+    pid = await _default_pid(db)
+    spec = (list or "").strip()
+    pairs: list[tuple[str, str]] = []
+    try:
+        if pid is not None:
+            set_scope(pid, False)
+        groups = (await db.execute(select(WatchlistGroup).order_by(WatchlistGroup.sort_order, WatchlistGroup.id))).scalars().all()
+        lists = [{"key": "mine", "name": "محفظتي"}] + [{"key": str(g.id), "name": g.name} for g in groups]
+        g = None
+        if spec and spec.lower() not in ("mine", "محفظتي"):
+            g = next((x for x in groups if str(x.id) == spec), None) or \
+                next((x for x in groups if (x.name or "").strip().casefold() == spec.casefold()), None)
+            if g is None:
+                raise HTTPException(404, "لا قائمةَ بهذا الاسم — اكتب ‏list وحدها لمحفظتي، أو اسمَ قائمةٍ كما في التطبيق.")
+        if g is None:
+            name = "محفظتي"
+            hs = (await db.execute(select(Holding).options(selectinload(Holding.company))
+                                   .order_by(Holding.sort_order, Holding.id))).scalars().all()
+            for h in hs:
+                if h.company and h.company.status != "ARCHIVED" and float(h.quantity or 0) > 0:
+                    pairs.append((h.company.symbol, h.company.company_name or h.company.symbol))
+        else:
+            name = g.name
+            rows = (await db.execute(select(Watchlist).where(Watchlist.group_id == g.id)
+                                     .order_by(Watchlist.sort_order, Watchlist.created_at))).scalars().all()
+            pairs = [(r.symbol, r.name or saudi_directory.name_of(r.symbol) or r.symbol) for r in rows]
+    finally:
+        reset_scope()
+    pairs = pairs[:24]
+    prices: dict = {}
+    if pairs:
+        try:
+            from app.services.market_data import market_service
+            prices = await market_service.get_prices([_normalize_symbol(s) for s, _ in pairs])
+        except Exception:                                              # noqa: BLE001 — السعرُ الغائبُ «غيرُ متوفّر» لا يُسقط القائمة
+            prices = {}
+    items = []
+    for sym, nm in pairs:
+        p = prices.get(_normalize_symbol(sym)) or {}
+        ys = _normalize_symbol(sym)
+        items.append({"symbol": sym, "name": nm, "price": p.get("price"), "change": p.get("change"), "change_pct": p.get("change_pct"),
+                      "logo": "/market/logo/" + ys})
+    try:
+        row = await _row(db)
+        m = _meta(row)
+        if m is not None:
+            m["used"] = datetime.now(timezone.utc).isoformat()
+            row.value = json.dumps(m)
+            await db.commit()
+    except Exception:                                                  # noqa: BLE001
+        await db.rollback()
+    return success_response(data={"at": datetime.now(timezone.utc).isoformat(), "list": name, "lists": lists, "items": items})

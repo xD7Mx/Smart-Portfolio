@@ -2,19 +2,38 @@ import { D7M_COLORS, D7M_DEFAULTS, FIB_LEVELS, type D7MSettings } from "./d7m";
 import Select from "../common/Select";
 import Toggle from "../common/Toggle";
 import CheckBox from "../common/CheckBox";
-
-/** لونُ الرمز الحاليّ بصيغة #rrggbb ليظهر في منتقي اللون. */
-function tokenHex(name: string): string {
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  if (/^#[0-9a-f]{6}$/i.test(v)) return v;
-  if (/^#[0-9a-f]{3}$/i.test(v)) return "#" + v.slice(1).split("").map(c => c + c).join("");
-  const m = v.match(/\d+(\.\d+)?/g);
-  if (m && m.length >= 3) return "#" + m.slice(0, 3).map(n => Math.round(+n).toString(16).padStart(2, "0")).join("");
-  return "#000000";
-}
+import ColorPick, { tokenHex, useBackdropClose } from "../common/ColorPick";
 
 type K = keyof D7MSettings;
 type Props = { cfg: D7MSettings; onChange: (c: D7MSettings) => void; onClose: () => void; colorDefaults?: Record<string, string> };
+type Ctx = { cfg: D7MSettings; set: (k: K, v: unknown) => void; colorDefaults?: Record<string, string> };
+
+/* ‏D798 (المالك 2026-11-24): «لمّا أغيّر لونَ الترند الصاعد والهابط — الألوانُ إذا ضغطتُ على الشاشة بسرعة تُغلق». قِيس السبب: كانت عناصرُ
+   الصفّ (‏Check · Num · Color) معرَّفةً **داخل** دالّة النافذة، فكلُّ تغييرٍ يعيد رسمَها نوعاً جديداً — فيهدم React حقلَ اللون ويبنيه، فيُغلق
+   منتقي الألوان الأصيلُ على الجوال عند أوّل حركةٍ فيه، ويفقد حقلُ الرقم مؤشّرَه بعد كلّ حرف. فصارت عناصرَ ثابتةً خارجها، واللونُ من لوحة
+   ألوانٍ كتريدنق فيو (‏ColorPick)، ونقرُ الخلفية لا يُغلق النافذةَ إلا إن بدأ عليها وانتهى عليها. */
+function Check({ c, k, label }: { c: Ctx; k: K; label: string }) {
+  return <div className="d7m-row"><Toggle checked={!!c.cfg[k]} onChange={v => c.set(k, v)} label={label} /></div>;
+}
+function Num({ c, k, label, step = 1 }: { c: Ctx; k: K; label: string; step?: number }) {
+  return (
+    <label className="d7m-row">
+      <span>{label}</span>
+      <input type="number" step={step} value={Number(c.cfg[k])} dir="ltr"
+        onChange={e => { const n = Number(e.target.value); if (Number.isFinite(n)) c.set(k, n); }} />
+    </label>
+  );
+}
+function Color({ c, k, name }: { c: Ctx; k: string; name: string }) {
+  const fb = c.colorDefaults?.[k] || tokenHex((D7M_COLORS.find(x => x[0] === k) || ["", "", "--ink-muted"])[2]);
+  return (
+    <div className="d7m-row" data-color={k}>
+      <span>{name}</span>
+      <ColorPick label={name} value={c.cfg.colors[k] || ""} fallback={fb}
+        onChange={v => { const cs = { ...c.cfg.colors }; if (v) cs[k] = v; else delete cs[k]; c.set("colors", cs); }} />
+    </div>
+  );
+}
 
 /** إعداداتُ مؤشّر D7M — كلُّ مدخلٍ في السكربت له مفتاحٌ هنا.
  *  ‏D783 (المالك 2026-11-21): «الترندُ لم أجده في إعدادات الدحم في الألوان — ضاع»: كانت الألوانُ قسماً عامّاً في الأعلى، ولونُ الترند فيه باسم
@@ -22,32 +41,10 @@ type Props = { cfg: D7MSettings; onChange: (c: D7MSettings) => void; onClose: ()
  *  والمنتقي يعرض اللونَ المرسومَ نفسَه (‏colorDefaults من الرسم). */
 export default function D7MPanel({ cfg, onChange, onClose, colorDefaults }: Props) {
   const set = (k: K, v: unknown) => onChange({ ...cfg, [k]: v } as D7MSettings);
-  /* ‏D678: مفتاحُ التطبيق الواحد بدل صندوق اختيار النظام */
-  const Check = ({ k, label }: { k: K; label: string }) => (
-    <div className="d7m-row"><Toggle checked={!!cfg[k]} onChange={v => set(k, v)} label={label} /></div>
-  );
-  const Num = ({ k, label, step = 1 }: { k: K; label: string; step?: number }) => (
-    <label className="d7m-row">
-      <span>{label}</span>
-      <input type="number" step={step} value={Number(cfg[k])} dir="ltr"
-        onChange={e => { const n = Number(e.target.value); if (Number.isFinite(n)) set(k, n); }} />
-    </label>
-  );
-  const Color = ({ k, name }: { k: string; name: string }) => (
-    <label className="d7m-row" data-color={k}>
-      <span>{name}</span>
-      <span className="flex items-center gap-1">
-        <input type="color" aria-label={name} value={cfg.colors[k] || colorDefaults?.[k] || tokenHex((D7M_COLORS.find(c => c[0] === k) || ["", "", "--ink-muted"])[2])}
-          onChange={e => set("colors", { ...cfg.colors, [k]: e.target.value })} />
-        {cfg.colors[k] && (
-          <button type="button" className="d7m-reset" title="اللونُ الافتراضيّ" aria-label={`إرجاع ${name}`}
-            onClick={() => { const c = { ...cfg.colors }; delete c[k]; set("colors", c); }}>↺</button>
-        )}
-      </span>
-    </label>
-  );
+  const c: Ctx = { cfg, set, colorDefaults };
+  const bd = useBackdropClose(onClose);
   return (
-    <div className="d7m-modal" role="dialog" aria-label="إعدادات D7M" onClick={onClose}>
+    <div className="d7m-modal" role="dialog" aria-label="إعدادات D7M" {...bd} data-role="d7m-settings">
       <div className="d7m-sheet" onClick={e => e.stopPropagation()}>
         <div className="d7m-head">
           <strong>إعدادات D7M</strong>
@@ -56,19 +53,30 @@ export default function D7MPanel({ cfg, onChange, onClose, colorDefaults }: Prop
         </div>
 
         <fieldset><legend>فيبوناتشي تلقائي</legend>
-          <Check k="fib" label="إظهار" />
-          <Num k="fibDev" label="مضاعف الانحراف" step={0.5} />
-          <Num k="fibDepth" label="العمق" />
-          <Check k="fibReverse" label="عكس الاتجاه" />
-          <Check k="fibZones" label="تظليلُ المناطق الثلاث" />
-          <Color k="fib" name="لونُ المستويات" />
-          <Color k="fibGold" name="لونُ المستويات الذهبية" />
+          <Check c={c} k="fib" label="إظهار" />
+          <Num c={c} k="fibDev" label="مضاعف الانحراف" step={0.5} />
+          <Num c={c} k="fibDepth" label="العمق" />
+          <Check c={c} k="fibReverse" label="عكس الاتجاه" />
+          <Check c={c} k="fibZones" label="تظليلُ المناطق الثلاث" />
+          <Color c={c} k="fib" name="لونُ المستويات" />
+          <Color c={c} k="fibGold" name="لونُ المستويات الذهبية" />
           <div className="d7m-row d7m-col" data-role="fib-mode">
             <span>المستويات</span>
             <span className="seg inline-flex">
               {([["compact", "مختصر"], ["all", "الكل"]] as const).map(([v, t]) => (
                 <button key={v} type="button" className={"seg-btn chip" + ((cfg.fibMode || "compact") === v ? " on" : "")} aria-pressed={(cfg.fibMode || "compact") === v}
                   onClick={() => set("fibMode", v)}>{t}</button>
+              ))}
+            </span>
+          </div>
+          {/* ‏D799 (المالك 2026-11-24): «مستوياتُ الفيبوناتشي ليست ثابتةً أمام الشموع — تلحقني إذا لففتُ الشارت إلى اليسار… خلّها ثابتة، أو خيار:
+              ثابتة أو متحرّكة» — «ثابتة» تبدأ من قاع الموجة أو قمّتها وتقف عندها، و«متحرّكة» على عرض الشاشة كما كانت */}
+          <div className="d7m-row d7m-col" data-role="fib-anchor">
+            <span>المستوياتُ عند تحريك الرسم</span>
+            <span className="seg inline-flex">
+              {([["fixed", "ثابتةٌ على الشموع"], ["moving", "تتبع الشاشة"]] as const).map(([v, t]) => (
+                <button key={v} type="button" className={"seg-btn chip" + ((cfg.fibAnchor || "fixed") === v ? " on" : "")} aria-pressed={(cfg.fibAnchor || "fixed") === v}
+                  onClick={() => set("fibAnchor", v)} data-anchor={v}>{t}</button>
               ))}
             </span>
           </div>
@@ -93,58 +101,58 @@ export default function D7MPanel({ cfg, onChange, onClose, colorDefaults }: Prop
         </fieldset>
 
         <fieldset data-role="d7m-trend"><legend>الترند — خطوطُ الاتجاه التلقائية</legend>
-          <Check k="trend" label="إظهار" />
-          <Check k="trendMajor" label="الترندُ الرئيسي" />
-          <Check k="trendMinor" label="الترندُ الفرعي" />
-          <Num k="trendPP" label="فترة المحور" />
-          <Check k="trendShapes" label="علامات الاختراق" />
-          <Color k="trendUp" name="لونُ الترند الصاعد" />
-          <Color k="trendDown" name="لونُ الترند الهابط" />
+          <Check c={c} k="trend" label="إظهار" />
+          <Check c={c} k="trendMajor" label="الترندُ الرئيسي" />
+          <Check c={c} k="trendMinor" label="الترندُ الفرعي" />
+          <Num c={c} k="trendPP" label="فترة المحور" />
+          <Check c={c} k="trendShapes" label="علامات الاختراق" />
+          <Color c={c} k="trendUp" name="لونُ الترند الصاعد" />
+          <Color c={c} k="trendDown" name="لونُ الترند الهابط" />
         </fieldset>
 
         <fieldset><legend>القناة التلقائية</legend>
-          <Check k="channel" label="إظهار" />
-          <Check k="chMid" label="خطُّ المنتصف" />
-          <Num k="chDev" label="مضاعف الانحراف" step={0.5} />
-          <Num k="chDepth" label="العمق" />
-          <Color k="channel" name="لونُ القناة" />
+          <Check c={c} k="channel" label="إظهار" />
+          <Check c={c} k="chMid" label="خطُّ المنتصف" />
+          <Num c={c} k="chDev" label="مضاعف الانحراف" step={0.5} />
+          <Num c={c} k="chDepth" label="العمق" />
+          <Color c={c} k="channel" name="لونُ القناة" />
         </fieldset>
 
         <fieldset><legend>VWAP</legend>
-          <Check k="vwap" label="إظهار" />
+          <Check c={c} k="vwap" label="إظهار" />
           <label className="d7m-row"><span>المرساة</span>
             <Select value={cfg.vwapAnchor} onChange={e => set("vwapAnchor", e.target.value)}>
               <option value="Session">جلسة</option><option value="Week">أسبوع</option>
               <option value="Month">شهر</option><option value="Year">سنة</option>
             </Select>
           </label>
-          <Check k="vwapBand" label="النطاقات" />
-          <Num k="vwapMult" label="مضاعف النطاق" step={0.5} />
-          <Color k="vwap" name="لونُ VWAP" />
-          <Color k="band" name="لونُ النطاقات" />
+          <Check c={c} k="vwapBand" label="النطاقات" />
+          <Num c={c} k="vwapMult" label="مضاعف النطاق" step={0.5} />
+          <Color c={c} k="vwap" name="لونُ VWAP" />
+          <Color c={c} k="band" name="لونُ النطاقات" />
         </fieldset>
 
         <fieldset><legend>المتوسطات الأُسّية</legend>
           {(["ema20", "ema50", "ema100", "ema200", "ema400"] as const).map(k => (
             <div key={k} className="d7m-ema">
-              <Check k={k} label={`EMA ${k.slice(3)}`} />
-              <Color k={k} name={`لونُ EMA ${k.slice(3)}`} />
+              <Check c={c} k={k} label={`EMA ${k.slice(3)}`} />
+              <Color c={c} k={k} name={`لونُ EMA ${k.slice(3)}`} />
             </div>
           ))}
         </fieldset>
 
         <fieldset><legend>الرسمُ اليدويّ</legend>
-          <Color k="draw" name="لونُ الرسم اليدويّ" />
+          <Color c={c} k="draw" name="لونُ الرسم اليدويّ" />
         </fieldset>
 
         <fieldset><legend>مستويات اليوم السابق</legend>
-          <Check k="pdh" label="أعلى أمس" /><Check k="pdl" label="أدنى أمس" />
-          <Check k="pdc" label="إغلاق أمس" /><Check k="dOpen" label="افتتاح اليوم" />
+          <Check c={c} k="pdh" label="أعلى أمس" /><Check c={c} k="pdl" label="أدنى أمس" />
+          <Check c={c} k="pdc" label="إغلاق أمس" /><Check c={c} k="dOpen" label="افتتاح اليوم" />
         </fieldset>
 
         {/* ‏D782 (المالك): «لوحتان: قوّةُ الاتجاه وقوّةُ السيولة — ولوحةُ الأطر نستغني عنها» — فلا مكانَ ولا حدودَ ولا محلّلَ ولا تنبيهاتٍ ولا أداةَ صفقة */}
         <fieldset><legend>اللوحات</legend>
-          <div data-role="d7m-panels-toggle"><Check k="dashboard" label="لوحتا قوّة الاتجاه والسيولة" /></div>
+          <div data-role="d7m-panels-toggle"><Check c={c} k="dashboard" label="لوحتا قوّة الاتجاه والسيولة" /></div>
         </fieldset>
 
       </div>

@@ -4233,7 +4233,7 @@ html.light {
   animation: troomWideIn .22s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes troomWideIn { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
 /* ‏D790: وبخصوصيةٍ تغلب ‏`html.light .card` (‏0,2,1) — ‏`:root` يرفعها إلى (‏0,3,0) في المظهرين؛ كانت الخلفيةُ تُعلَن ولا تُطبَّق في الفاتح */
-:root .troom-chart.troom-wide { background: var(--bg) !important; }
+:root .troom-chart.troom-wide { background: var(--bg) !important; padding: 0 !important; }   /* ‏D794: لا حشوةَ فوق الصفّ الثابت يمرّ تحتها المحتوى */
 html.troom-wide-on, html.troom-wide-on body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .troom-chart.troom-wide { animation: none; } .troom-pane { transition: none; } }
 /* ══ ‏D787: رمزُ البحث المنسوخ، ودليلُ الفرصة في السلسلة ══ */
@@ -4376,3 +4376,105 @@ html.troom-wide-on, html.troom-wide-on body { overflow: hidden; }
 .widget-token { padding: 12px; border-radius: 12px; border: 1px solid var(--hairline); background: var(--surface); }
 .widget-token-val { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--ink); padding: 8px 10px;
   border-radius: 8px; background: var(--bg); border: 1px solid var(--hairline); }
+
+/* ══ ‏D798: منتقي الألوان كتريدنق فيو — لوحةٌ من رموزٍ واحدةٍ في المظهرين (كرموز الرسم ‏--pc-*) ══
+   (المالك 2026-11-24: «ألوانٌ رئيسية — الأبيض والأصفر والأحمر والأخضر والمتشبّعة — نفسَ اللي في تريدنق فيو»)
+   الصفوفُ: رماديّات · مشبعة · فاتحة · داكنة. والمختارُ يُحفظ قيمةً (‏#rrggbb) لأنّ لوحةَ الرسم لا تقرأ الرموز. */
+:root {
+  --tvp-1: #ffffff; --tvp-2: #d1d4dc; --tvp-3: #b2b5be; --tvp-4: #9598a1; --tvp-5: #787b86;
+  --tvp-6: #5d606b; --tvp-7: #434651; --tvp-8: #2a2e39; --tvp-9: #131722; --tvp-10: #000000;
+  --tvp-11: #f23645; --tvp-12: #ff9800; --tvp-13: #ffeb3b; --tvp-14: #4caf50; --tvp-15: #089981;
+  --tvp-16: #00bcd4; --tvp-17: #2962ff; --tvp-18: #673ab7; --tvp-19: #9c27b0; --tvp-20: #e91e63;
+  --tvp-21: #faa1a4; --tvp-22: #ffcc80; --tvp-23: #fff59d; --tvp-24: #a5d6a7; --tvp-25: #70ccbd;
+  --tvp-26: #80deea; --tvp-27: #90bff9; --tvp-28: #b39ddb; --tvp-29: #ce93d8; --tvp-30: #f48fb1;
+  --tvp-31: #b22833; --tvp-32: #e65100; --tvp-33: #f57f17; --tvp-34: #1b5e20; --tvp-35: #056656;
+  --tvp-36: #006064; --tvp-37: #0c3299; --tvp-38: #311b92; --tvp-39: #4a148c; --tvp-40: #880e4f;
+}
+.cp { position: relative; display: inline-flex; }
+.cp-btn { min-width: 40px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px;
+  border: 1px solid var(--hairline); background: var(--surface); transition: border-color .15s ease; }
+.cp-btn:hover, .cp-btn[aria-expanded="true"] { border-color: var(--brand-ink); }
+.cp-btn i { width: 22px; height: 16px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--hairline); }
+.cp-pop { position: fixed; z-index: 90; padding: 8px; border-radius: 12px;   /* ‏D798ب: فوق نافذة الإعدادات (60) — موضعُها من زرّها */
+  background: var(--card); border: 1px solid var(--hairline); box-shadow: 0 12px 32px color-mix(in srgb, var(--bg) 55%, transparent);
+  display: flex; flex-direction: column; gap: 8px; animation: cpIn .16s ease-out both; transform-origin: top right; }
+@keyframes cpIn { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+.cp-grid { display: grid; grid-template-columns: repeat(10, 32px); gap: 2px; direction: ltr; }
+.cp-sw { position: relative; width: 32px; height: 32px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; }
+.cp-sw i { position: absolute; inset: 5px; border-radius: 4px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 18%, transparent);
+  transition: transform .12s ease; }
+.cp-sw:hover i { transform: scale(1.12); }
+.cp-sw.on { outline: 2px solid var(--brand-ink); outline-offset: -2px; }
+.cp-sw svg { position: relative; color: var(--tvp-1); filter: drop-shadow(0 0 1px var(--tvp-10)); }
+.cp-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cp-custom { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; font-size: 12px; color: var(--ink); cursor: pointer; }
+.cp-custom input[type="color"] { width: 32px; height: 28px; padding: 0; border: 1px solid var(--hairline); border-radius: 6px; background: none; }
+.cp-reset { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 10px; border-radius: 8px; font-size: 12px;
+  color: var(--ink); border: 1px solid var(--hairline); }
+@media (max-width: 400px) { .cp-grid { grid-template-columns: repeat(8, 32px); } }
+@media (prefers-reduced-motion: reduce) { .cp-pop { animation: none; } .cp-sw i, .cp-btn { transition: none; } }
+
+/* ══ ‏D795: الإطاراتُ المفضّلة — نجمةٌ بجانب كلّ إطارٍ في السهم المنبثق، والشريطُ مفضّلاتُ المالك بترتيب ضغطه ══ */
+.pc-tfgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pc-tfopt { display: flex; align-items: stretch; gap: 2px; min-width: 0; }
+.pc-tfopt .pc-tf { flex: 1; min-width: 0; text-align: start; padding-inline: 10px; }
+.pc-star { min-width: 32px; min-height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px;
+  color: var(--ink-muted); transition: color .15s ease, transform .15s ease; }
+.pc-star:hover { color: var(--ink); }
+.pc-star.on { color: var(--gauge-warn); }
+.pc-star:active { transform: scale(.9); }
+.pc-favcap { display: block; }
+@media (prefers-reduced-motion: reduce) { .pc-star { transition: none; } .pc-star:active { transform: none; } }
+
+/* ══ ‏D794: الصفُّ الخارجيُّ الأساسيّ — مبدّلُ الشاشات والتكبيرُ خارج الشاشات، والصفُّ ثابتٌ أعلى النافذة المكبَّرة ══
+   (المالك 2026-11-24: «زرُّ تقسيم الشاشة خارجَ الشاشات — في صفٍّ مع الأحداث وتحليل الرسم والتكبير والتصغير… وإذا كبّرتُها يختفي زرُّ التصغير») */
+.troom-layw { position: relative; }
+.troom-laymenu { position: absolute; top: calc(100% + 6px); inset-inline-start: 0; z-index: 20; min-width: 184px; padding: 4px; border-radius: 12px;
+  background: var(--card); border: 1px solid var(--hairline); box-shadow: 0 12px 32px color-mix(in srgb, var(--bg) 55%, transparent);
+  display: flex; flex-direction: column; gap: 2px; animation: cpIn .16s ease-out both; }
+.troom-layitem { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px; border-radius: 8px; font-size: 13px; color: var(--ink);
+  text-align: start; transition: background-color .15s ease; }
+.troom-layitem:hover { background: var(--surface); }
+.troom-layitem.on { color: var(--brand-ink); font-weight: 700; }
+.troom-laycheck { margin-inline-start: auto; }
+.troom-chart.troom-wide .troom-mhead { position: sticky; top: 0; z-index: 6; background: var(--bg); }
+.troom-one { min-width: 0; }
+@media (max-width: 767px) {
+  .troom-mhead .troom-layw, .troom-mhead .troom-wide-btn { order: 3; }
+}
+@media (prefers-reduced-motion: reduce) { .troom-laymenu { animation: none; } .troom-layitem { transition: none; } }
+
+/* ══ ‏D796: لوحتا القوّة بميزانٍ كميزان السعر العادل — الكلمةُ ولونُها كما هما، والأرقامُ والشواهدُ عند الضغط ══
+   (المالك 2026-11-24: «بدلَ الأرقام مؤشّرٌ كميزان الموية… وحافظ على الألوان والكلمات… وتظهر التفاصيلُ والأرقام إذا أردتُها») */
+.fp { align-items: start; }
+.fp-card { flex-direction: column; align-items: stretch; gap: 0; padding: 0; }
+.fp-face { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 6px 10px; border-radius: 11px; text-align: start; color: inherit; }
+.fp-face:disabled { cursor: default; }
+.fp-face:focus-visible { outline: 2px solid var(--fp-c); outline-offset: -2px; }
+.fp-gauge { display: block; padding-top: 5px; }
+.fp-na { font-size: 11px; color: var(--ink-muted); }
+.fp-more { flex: none; color: var(--ink-muted); transition: transform .25s ease; }
+.fp-open .fp-more { transform: rotate(180deg); }
+.fp-detail { display: flex; flex-direction: column; gap: 6px; padding: 6px 12px 10px; border-top: 1px dashed color-mix(in srgb, var(--fp-c) 30%, var(--hairline));
+  animation: fadeUp .2s ease-out both; }
+.fp-dnum { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; font-size: 12px; color: var(--ink-muted); }
+.fp-dnum b { font-size: 15px; font-weight: 800; color: var(--fg-strong); font-variant-numeric: tabular-nums; }
+.fp-dnum .fp-stat { font-size: 12px; color: var(--ink); }
+.fp-dsep { color: var(--ink-muted); }
+.fp-why { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--ink); line-height: 1.45; }
+.fp-why li { display: flex; gap: 6px; }
+.fp-why li.pos span { color: var(--pos-ink); }
+.fp-why li.neg span { color: var(--neg-ink); }
+.fp-mg { display: inline-flex; align-items: center; margin-inline-start: 2px; }
+@media (max-width: 560px) { .fp-face { gap: 6px; padding: 6px 8px; } }
+@media (prefers-reduced-motion: reduce) { .fp-more { transition: none; } .fp-detail { animation: none; } }
+
+/* ‏D800: قوائمُ المراقبة في بطاقة الويدجت — قيمةُ خانة Parameter لكلّ قائمة تُنسخ بضغطة */
+.widget-lists { display: flex; flex-direction: column; gap: 6px; }
+.widget-lcap { font-size: 12px; color: var(--ink-muted); }
+.widget-param { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--hairline);
+  background: var(--surface); color: var(--ink); text-align: start; transition: border-color .15s ease; }
+.widget-param:hover { border-color: var(--brand-ink); }
+.widget-pname { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.widget-pval { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--ink-muted); }
+@media (prefers-reduced-motion: reduce) { .widget-param { transition: none; } }

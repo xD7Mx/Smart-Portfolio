@@ -160,7 +160,8 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   await page.locator('[data-role="pc-cfg-menu"] [data-cfg="stochrsi"]').first().click(); await page.waitForTimeout(400);
   const dlg = page.locator('[data-role="ind-settings"]');
   const fs = await dlg.evaluate(d => ["sr-k", "sr-d", "sr-bands", "sr-bg"].filter(k => d.querySelector(`[data-role="${k}"]`)).length).catch(() => 0);
-  await dlg.locator('[data-role="sr-k"] input[type="color"]').fill("#ff0000"); await page.waitForTimeout(250);
+  await dlg.locator('[data-role="sr-k"] [data-role="color-pick-btn"]').click(); await page.waitForTimeout(200);   // ‏D798: لوحةُ الألوان ثمّ «مخصَّص»
+  await page.locator('[data-role="color-pick-pop"] input[type="color"]').fill("#ff0000"); await page.waitForTimeout(250);   // اللوحةُ فوق النافذة (‏D798ب)
   await dlg.locator('[data-role="sr-k"] button', { hasText: "متقطّع" }).click(); await page.waitForTimeout(200);
   await dlg.locator('[data-role="sr-k"] button', { hasText: /^3$/ }).click(); await page.waitForTimeout(200);
   await dlg.locator('[data-role="sr-d"] [role="switch"]').click(); await page.waitForTimeout(200);

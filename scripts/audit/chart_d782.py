@@ -50,19 +50,30 @@ check(81 not in CR.known_numbers({"frames": [{"img": "data:81", "bars": []}]}) a
       and CR.clean_text("على إطار 4 ساعات", []) == "على إطار 4 ساعات",
       "٢ الصورةُ لا تُعدّ مصدرَ أرقام، والبصمةُ ثابتةٌ للّقطة نفسِها (تُخبَّأ القراءةُ ثلاثَ دقائق)، والأعدادُ الصغيرة (إطارُ «4 ساعات») ليست أسعاراً")
 
-# ٣ النموذجُ لا يُنادى بلا مفتاح، فلا قراءةَ مختلَقة: ‏ok=False
+# ٣ النموذجُ يتعذّر ⇒ لا قراءةَ مختلَقة: ‏ok=False بسببه — ‏D797: النداءُ في ‏chart_read._post (لا ‏research_desk._gemini) بمحاولاتٍ قصيرةٍ ونموذجٍ احتياطيّ
 RD_calls = []
+from app.core.config import settings as _st   # noqa: E402
+_key0, _st.AI_API_KEY = _st.AI_API_KEY, "test-key"
 
 
-async def fake_gemini(parts, max_tokens, temperature=0.1):
-    RD_calls.append(parts)
+async def fake_post(url, key, body, timeout):
+    RD_calls.append(body["contents"][0]["parts"])
+    return 503, {}
+
+
+async def _no_sleep(*a, **k):
     return None
-from app.services import research_desk as RD   # noqa: E402
-RD._gemini = fake_gemini
-r = asyncio.run(CR.read(snap))
+_sleep0 = asyncio.sleep
+CR._post = fake_post
+asyncio.sleep = _no_sleep
+try:
+    r = asyncio.run(CR.read(snap))
+finally:
+    asyncio.sleep = _sleep0
+    _st.AI_API_KEY = _key0
 img_sent = any("inline_data" in p for p in (RD_calls[0] if RD_calls else []))
-check(r["ok"] is False and "reading" not in r and img_sent and "لا تذكر رقماً ليس في اللقطة" in CR.PROMPT,
-      "٣ الصورةُ تُرسل مع الأرقام، وإن تعذّر النموذجُ قيل «تعذّر» — لا قراءةَ بديلةٌ مختلَقة")
+check(r["ok"] is False and "reading" not in r and r.get("reason") == "busy" and img_sent and "لا تذكر رقماً ليس في اللقطة" in CR.PROMPT,
+      "٣ الصورةُ تُرسل مع الأرقام، وإن تعذّر النموذجُ قيل لماذا («مزدحم») — لا قراءةَ بديلةٌ مختلَقة")
 
 # ٤ الأحداث: عربيةٌ من القاموس، وللسوق السعودي ما يحرّكه (الفيدراليّ العالي · النفط · الصين العالية) لا كلُّ حدثٍ أمريكيّ
 from datetime import datetime, timezone   # noqa: E402
@@ -140,10 +151,11 @@ check("await _ensure_indices_group(db)" in mk and seed.count('", "') == 7 and 's
 check('data-role="troom-gear"' in tr and 'lsSet("sp_room_hidden"' in tr and 'data-role="troom-sec2"' in tr and 'lsSet("sp_room_layout"' in tr
       and "slot={k} mini" in tr and 'data-role="troom-sdot"' in tr and "<ChartRead" in tr,
       "٩ ترسُ القوائم (إظهارٌ وإخفاءٌ وقسمٌ ثانٍ)، والشاشاتُ المتعدّدة، وأيقونةُ حالة السوق بجانب الاسم، و«تحليلُ الرسم» فوق الشاشات")
-check("D7MStrip" not in pc and 'data-role="pc-fibmode"' not in pc and "<ForcePanels" in pc and "topTfs(tfUse)" in pc and 'lsSet("sp_chart_tf_use"' in pc
-      and 'data-role="fib-mode"' in pn and 'data-role="d7m-panels-toggle"' in pn and "badge={!identity}" in pc and 'window.dispatchEvent(new CustomEvent("sp-draws"' in pc
+# ‏D795 (المالك 2026-11-24) نقض «أكثرَ ثلاثةٍ استخداماً»: الشريطُ مفضّلاتُ المالك بنجمةٍ وبترتيب ضغطه (‏sp_chart_tf_fav)؛ و‏D794 أخرج الهويّةَ من الرسم إلى الصفّ الخارجيّ
+check("D7MStrip" not in pc and 'data-role="pc-fibmode"' not in pc and "<ForcePanels" in pc and 'FAV_KEY = "sp_chart_tf_fav"' in pc and "toggleFav" in pc
+      and "topTfs(" not in pc and 'data-role="fib-mode"' in pn and 'data-role="d7m-panels-toggle"' in pn and "<LiveQuote symbol={symbol} live={live} badge />" in pc and 'window.dispatchEvent(new CustomEvent("sp-draws"' in pc
       and "2_000" in lq and not (ROOT / "frontend/src/components/chart/D7MStrip.tsx").exists(),
-      "١٠ الرسم: لوحتا القوّة بدل الشريط، والإطاراتُ أكثرُ ثلاثةٍ استخداماً، و«مختصر · الكل» داخل إعدادات D7M وحدها، والرسمُ اليدويُّ واحدٌ في الشاشات، "
+      "١٠ الرسم: لوحتا القوّة بدل الشريط، والإطاراتُ مفضّلاتُ المالك بنجمة (‏D795)، و«مختصر · الكل» داخل إعدادات D7M وحدها، والرسمُ اليدويُّ واحدٌ في الشاشات، "
       "والسعرُ كلَّ ثانيتين")
 print("\nالنتيجة:", "نظيف ✔" if not fail else "فشل ✘")
 sys.exit(fail)

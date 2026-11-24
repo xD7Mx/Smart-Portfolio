@@ -49,7 +49,8 @@ check(all(f'data-role="{k}"' in tr for k in ("troom-gup", "troom-gdown", "troom-
       "٢ ترسُ القوائم يتحكّم في كلّ شيء (إظهار · رفع · إنزال · تسمية · حذف · ترتيبُ العناصر)، والعنصرُ ينزلق إلى مكانه ويحترم تقليلَ الحركة")
 
 # ٣ الترندُ بلونيه داخل قسمه، ولكلّ عنصرٍ لونُه في قسمه، والمنتقي يعرض اللونَ المرسوم
-check('data-role="d7m-trend"' in pn and '<Color k="trendUp"' in pn and '<Color k="trendDown"' in pn and "<legend>الألوان</legend>" not in pn
+# ‏D798: عناصرُ الصفّ ثابتةٌ خارج النافذة (لا تُهدم مع كلّ تغيير) فتحمل سياقَها ‏c
+check('data-role="d7m-trend"' in pn and '<Color c={c} k="trendUp"' in pn and '<Color c={c} k="trendDown"' in pn and "<legend>الألوان</legend>" not in pn
       and "colorDefaults={colorDefaults()}" in pc and 'hexTok(k === "channel" || k === "draw" ? "--brand-ink" : PC[k] || t)' in pc,
       "٣ الترندُ بلونيه (الصاعد والهابط) في قسم «الترند»، ولكلّ عنصرٍ لونُه في قسمه، والمنتقي يعرض اللونَ المرسومَ فعلاً")
 

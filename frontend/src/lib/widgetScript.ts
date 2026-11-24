@@ -13,12 +13,14 @@ const SCRIPT = String.raw`// المحفظة الذكية — ويدجت الشا
 // يقرأ ملخّصَ محفظتك من خادم التطبيق برمز الويدجت (من الإعدادات ← ويدجت الآيفون).
 // الرمزُ يُحفظ في سلسلة مفاتيح الآيفون — لا في هذا السكربت.
 // معامل الويدجت (Parameter): فارغ = المحفظة الافتراضية · all = كل المحافظ · رقم = محفظة بعينها.
+//   list = قائمة «محفظتي» بأسعارها في عمودين · list:اسم القائمة = قائمةٌ من قوائم التطبيق.
 // يعمل على الشاشة الرئيسية (صغير · متوسط · كبير) وعلى شاشة القفل.
 
 const ORIGIN = __ORIGIN__;
 const API = __API__;
 const KEY = "smart_portfolio_widget_token";
 const CACHE = "smart_portfolio_widget.json";
+const LOGOS = "smart_portfolio_logos";
 
 const C = (light, dark) => Color.dynamic(new Color(light), new Color(dark));
 const COL = {
@@ -50,18 +52,19 @@ async function token(ask) {
   return t || null;
 }
 
-function cachePath() { const fm = FileManager.local(); return fm.joinPath(fm.documentsDirectory(), CACHE); }
-function saveCache(d) { try { FileManager.local().writeString(cachePath(), JSON.stringify(d)); } catch (e) {} }
-function readCache() { try { const fm = FileManager.local(); return fm.fileExists(cachePath()) ? JSON.parse(fm.readString(cachePath())) : null; } catch (e) { return null; } }
+function cachePath(k) { const fm = FileManager.local(); return fm.joinPath(fm.documentsDirectory(), k ? "smart_portfolio_list_" + k.replace(/[^\w\u0600-\u06FF]/g, "_") + ".json" : CACHE); }
+function saveCache(d, k) { try { FileManager.local().writeString(cachePath(k), JSON.stringify(d)); } catch (e) {} }
+function readCache(k) { try { const fm = FileManager.local(); return fm.fileExists(cachePath(k)) ? JSON.parse(fm.readString(cachePath(k))) : null; } catch (e) { return null; } }
 
-async function load(t, pf) {
-  const r = new Request(API + "/widget/summary" + (pf ? "?pf=" + encodeURIComponent(pf) : ""));
+async function load(t, pf, list) {
+  const r = new Request(API + (list != null ? "/widget/watchlist" + (list ? "?list=" + encodeURIComponent(list) : "") : "/widget/summary" + (pf ? "?pf=" + encodeURIComponent(pf) : "")));
   r.headers = { "X-Widget-Token": t };
   r.timeoutInterval = 20;
   let j = null;
   try { j = await r.loadJSON(); } catch (e) { j = null; }
   const code = r.response ? r.response.statusCode : 0;   // ‏401 يُعرف من الحالة وإن لم يكن الجسمُ JSON
   if (code === 401) return { error: "auth" };
+  if (code === 404 && list != null) return { error: "nolist", detail: j && (j.detail || j.message) };
   if (!j || !j.success || !j.data) return { error: "net" };
   return { data: j.data };
 }
@@ -131,6 +134,99 @@ function build(d, stale, family) {
   return w;
 }
 
+// ── قائمةُ المراقبة في عمودين كويدجت تريدنق فيو (يمينٌ ثمّ يسار) ──
+const disp = s => String(s || "").replace(/\.SR$/, "").replace(/^\^/, "");
+const n2 = v => v == null ? NA : Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: Math.abs(Number(v)) >= 1000 ? 2 : 3 });
+const chg = v => v == null ? "" : sg(v) + Math.abs(Number(v)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+
+async function logo(path) {
+  const fm = FileManager.local();
+  const dir = fm.joinPath(fm.documentsDirectory(), LOGOS);
+  try { if (!fm.fileExists(dir)) fm.createDirectory(dir, true); } catch (e) {}
+  const sym = String(path || "").split("/").pop();
+  if (!sym) return null;
+  const f = fm.joinPath(dir, sym.replace(/[^\w.=-]/g, "_") + ".png");
+  try { if (fm.fileExists(f) && Date.now() - fm.modificationDate(f).getTime() < 7 * 864e5) return fm.readImage(f); } catch (e) {}
+  try {
+    const r = new Request(API + "/market/logo/" + encodeURIComponent(sym));
+    r.timeoutInterval = 6;
+    const img = await r.loadImage();
+    if (img) { try { fm.writeImage(f, img); } catch (e) {} return img; }
+  } catch (e) {}
+  try { if (fm.fileExists(f)) return fm.readImage(f); } catch (e) {}
+  return null;
+}
+
+function cell(row, it, img, wide) {
+  const c = row.addStack();
+  c.layoutHorizontally();
+  c.centerAlignContent();
+  const tx = c.addStack();
+  tx.layoutVertically();
+  const l1 = tx.addStack(); l1.layoutHorizontally(); l1.centerAlignContent();
+  if (wide) { const nm = l1.addText(String(it.name || "")); nm.font = Font.systemFont(10); nm.textColor = COL.muted; nm.lineLimit = 1; nm.minimumScaleFactor = 0.7; }
+  l1.addSpacer();
+  const sy = l1.addText(disp(it.symbol)); sy.font = Font.boldSystemFont(13); sy.textColor = COL.ink; sy.lineLimit = 1;
+  const l2 = tx.addStack(); l2.layoutHorizontally(); l2.centerAlignContent();
+  l2.addSpacer();
+  const ch = l2.addText(chg(it.change)); ch.font = Font.semiboldSystemFont(11); ch.textColor = tone(it.change); ch.lineLimit = 1;
+  l2.addSpacer(5);
+  const px = l2.addText(n2(it.price)); px.font = Font.semiboldSystemFont(12); px.textColor = it.price == null ? COL.muted : COL.ink; px.lineLimit = 1; px.minimumScaleFactor = 0.7;
+  c.addSpacer(6);
+  if (img) { const im = c.addImage(img); im.imageSize = new Size(26, 26); im.cornerRadius = 13; }
+  else {
+    const b = c.addStack(); b.size = new Size(26, 26); b.cornerRadius = 13; b.backgroundColor = COL.line; b.centerAlignContent();
+    const i = b.addText(disp(it.symbol).slice(0, 1)); i.font = Font.boldSystemFont(11); i.textColor = COL.muted;
+  }
+  return c;
+}
+
+async function buildList(d, stale, family) {
+  const w = new ListWidget();
+  w.backgroundColor = COL.bg;
+  w.setPadding(10, 12, 10, 12);
+  w.url = ORIGIN + "/watchlist";
+  w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000);
+  const items = d.items || [];
+  const one = family === "small";
+  const rows = family === "large" || family === "extraLarge" ? 8 : 3;
+  const cap = one ? rows : rows * 2;
+  const shown = items.slice(0, cap);
+  const imgs = await Promise.all(shown.map(it => logo(it.logo)));
+  const h = w.addStack(); h.layoutHorizontally(); h.centerAlignContent();
+  const tm = h.addText((stale ? "آخر تحديث " : "") + hhmm(d.at)); tm.font = Font.systemFont(10); tm.textColor = COL.muted;
+  if (items.length > cap) { h.addSpacer(6); const more = h.addText("+" + (items.length - cap)); more.font = Font.systemFont(10); more.textColor = COL.muted; }
+  h.addSpacer();
+  const ln = h.addText(d.list || "القائمة"); ln.font = Font.boldSystemFont(11); ln.textColor = COL.brand; ln.lineLimit = 1;
+  w.addSpacer(4);
+  if (!shown.length) { txt(w, "القائمةُ فارغة.", 12, COL.muted, false); w.addSpacer(); return w; }
+  for (let r = 0; r < Math.ceil(shown.length / (one ? 1 : 2)); r++) {
+    if (r) { const sep = w.addStack(); sep.size = new Size(0, 1); sep.backgroundColor = COL.line; }
+    w.addSpacer(3);
+    const row = w.addStack(); row.layoutHorizontally(); row.centerAlignContent();
+    if (one) cell(row, shown[r], imgs[r], false);
+    else {
+      const i = 2 * r;                                     // من اليمين: الأوّلُ يمينٌ والثاني يساره
+      if (shown[i + 1]) cell(row, shown[i + 1], imgs[i + 1], true); else row.addSpacer();
+      row.addSpacer(12);
+      cell(row, shown[i], imgs[i], true);
+    }
+    w.addSpacer(3);
+  }
+  w.addSpacer();
+  return w;
+}
+
+function accessoryList(d, family) {
+  const w = new ListWidget();
+  w.url = ORIGIN + "/watchlist";
+  w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000);
+  const items = (d.items || []).slice(0, family === "accessoryRectangular" ? 3 : 1);
+  for (const it of items) txt(w, disp(it.symbol) + "  " + n2(it.price) + "  " + chg(it.change), family === "accessoryInline" ? 12 : 11, tone(it.change), false);
+  if (!items.length) txt(w, "القائمةُ فارغة", 11, COL.muted, false);
+  return w;
+}
+
 function message(title, body) {
   const w = new ListWidget();
   w.backgroundColor = COL.bg;
@@ -175,17 +271,23 @@ function accessoryMsg(s) {
 async function main() {
   const family = config.widgetFamily || "medium";
   const acc = String(family).indexOf("accessory") === 0;     // شاشةُ القفل
-  const pf = (args.widgetParameter || "").trim();
+  const P = (args.widgetParameter || "").trim();
+  const lm = /^(list|قائمة)\s*(?:[:：]\s*([\s\S]*))?$/i.exec(P);
+  const list = lm ? (lm[2] || "").trim() : null;                // ‏null ⇐ ملخّصُ المحفظة · نصٌّ ⇐ قائمةُ مراقبة
+  const key = list != null ? (list || "mine") : null;
   let t = await token(false);
   if (!t) { Script.setWidget(acc ? accessoryMsg("أدخل الرمز في Scriptable") : message("رمزُ الويدجت غيرُ مُدخَل", "افتح Scriptable وشغّل السكربت مرّةً والصق الرمز.")); Script.complete(); return; }
-  let r = await load(t, pf);
-  if (r.error === "auth" && !config.runsInWidget) { t = await token(true); if (t) r = await load(t, pf); }
+  let r = await load(t, P, list);
+  if (r.error === "auth" && !config.runsInWidget) { t = await token(true); if (t) r = await load(t, P, list); }
+  const view = async (d, stale) => list != null ? (acc ? accessoryList(d, family) : await buildList(d, stale, family))
+    : (acc ? accessory(d, stale, family) : build(d, stale, family));
   let w;
-  if (r.data) { saveCache(r.data); w = acc ? accessory(r.data, false, family) : build(r.data, false, family); }
+  if (r.data) { saveCache(r.data, key); w = await view(r.data, false); }
   else if (r.error === "auth") w = acc ? accessoryMsg("الرمزُ غيرُ صالح") : message("الرمزُ غيرُ صالح", "أنشئ رمزاً جديداً من الإعدادات في التطبيق ثمّ شغّل السكربت مرّةً والصقه.");
+  else if (r.error === "nolist") w = acc ? accessoryMsg("القائمةُ غيرُ موجودة") : message("القائمةُ غيرُ موجودة", r.detail || "اكتب list وحدها لمحفظتي، أو list:اسم القائمة كما في التطبيق.");
   else {
-    const c = readCache();
-    w = c ? (acc ? accessory(c, true, family) : build(c, true, family))
+    const c = readCache(key);
+    w = c ? await view(c, true)
           : (acc ? accessoryMsg("تعذّر التحديث") : message("تعذّر التحديث", "لا اتصال بالخادم الآن — سيُعاد المحاولة تلقائياً."));
   }
   if (config.runsInWidget) Script.setWidget(w);

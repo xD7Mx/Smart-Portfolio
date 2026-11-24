@@ -16,7 +16,8 @@
    واثنتان بجانبها؛ و«تكبيرُ الشاشات» يملأ النافذةَ بها ويعود بـEsc. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Pencil, Check, Trash2, Layers, Settings2, ChevronUp, ChevronDown, ArrowUpDown, Maximize2, Minimize2, Link2 } from "lucide-react";
+import { Plus, X, Pencil, Check, Trash2, Layers, Settings2, ChevronUp, ChevronDown, ArrowUpDown, Maximize2, Minimize2, Link2, Square, Columns2, Columns3,
+  Grid2x2 } from "lucide-react";
 import ProChart from "../chart/ProChart";
 import ChartRead, { type ReadFrame } from "../chart/ChartRead";
 import CompanyLogo from "../common/CompanyLogo";
@@ -126,7 +127,45 @@ export default function TradeRoom() {
     document.documentElement.classList.add("troom-wide-on");
     return () => { window.removeEventListener("keydown", k); document.documentElement.classList.remove("troom-wide-on"); };
   }, [wide]);
-  useEffect(() => { if (layoutN === 1) setWide(false); }, [layoutN]);
+  /* ‏D794 (المالك 2026-11-24): «زرُّ التكبير مو عاجبني — التجربةُ الأولى قبل تقسيم الشاشات كانت روعة: يملأ المتصفّحَ كاملاً على الكمبيوتر والجوال،
+     وأصل إلى زرّ التصغير بلا صعوبة. والآن إذا كبّرتُها يختفي زرُّ التصغير وألفّ الماوس حتى أنزل الصفحةَ ثمّ أضغطه… وزرُّ تقسيم الشاشة لازم يكون
+     خارج الشاشات — في صفٍّ خارجيٍّ أساسيّ مع الأحداث وتحليل الرسم والتكبير والتصغير». فالصفُّ الخارجيُّ واحدٌ في الشاشة الواحدة والمتعدّدة: الهويّةُ
+     والأحداثُ وتحليلُ الرسم ومبدّلُ الشاشات والتكبيرُ والسعرُ الحيّ؛ والتكبيرُ للشاشة الواحدة أيضاً، والصفُّ ثابتٌ أعلى النافذة المكبَّرة لا يُمرَّر
+     معها — فزرُّ التصغير في مكانه دائماً. والرسمُ الواحدُ المكبَّر يملأ ما تحت الصفّ (يُقاس ويُعايَر كالمتعدّد). */
+  const [layMenu, setLayMenu] = useState(false);
+  const layRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!layMenu) return;
+    const away = (e: Event) => { if (layRef.current && !layRef.current.contains(e.target as Node)) setLayMenu(false); };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [layMenu]);
+  const oneRef = useRef<HTMLDivElement | null>(null);
+  const [fillH, setFillH] = useState(() => Math.max(300, window.innerHeight - 330));
+  const oneTries = useRef(0);
+  useEffect(() => {
+    if (!wide || layoutN !== 1) { oneTries.current = 0; return; }
+    let t = 0;
+    const measure = (delay: number) => {
+      window.clearTimeout(t);
+      t = window.setTimeout(() => {
+        const box = oneRef.current, panel = chartRef.current;
+        if (!box || !panel || oneTries.current >= 10) return;
+        let top = 0;
+        for (let e: HTMLElement | null = box; e && e !== panel; e = e.offsetParent as HTMLElement | null) top += e.offsetTop;
+        const gap = panel.clientHeight - (top + box.offsetHeight);
+        if (Math.abs(gap) <= 2) return;
+        oneTries.current += 1;
+        setFillH(v => Math.max(240, Math.round(v + gap)));
+      }, delay);
+    };
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => measure(90)) : null;
+    if (ro && oneRef.current) ro.observe(oneRef.current);
+    measure(oneTries.current ? 120 : 320);
+    const onResize = () => { oneTries.current = 0; measure(200); };
+    window.addEventListener("resize", onResize);
+    return () => { window.clearTimeout(t); ro?.disconnect(); window.removeEventListener("resize", onResize); };
+  }, [wide, layoutN, fillH]);
   /* ‏D790 (المالك 2026-11-24: «التكبير لا يعمل بشكل صحيح — فيه أخطاء وبقايا صفحة ظاهرة»): ارتفاعُ الشاشات المكبَّرة كان يُحسب من
      موضعٍ مخمَّن لأعلى الشبكة (104) وهو في الحقيقة ~67 — فتنتهي الشاشاتُ قبل قاع النافذة بـ81–87px ويظهر ما تحتها. فيُقاس الفراغُ بعد
      الرسم ويُطرح من الموضع: مجموعُ الارتفاع يتبعه واحداً بواحد (حتى حدودِ اللوحة الدنيا والعليا)، فخطوةٌ واحدةٌ تملأ — وعدّادٌ يمنع الدوران. */
@@ -539,23 +578,41 @@ export default function TradeRoom() {
       </aside>
 
       <section ref={chartRef} className={"troom-chart card" + (wide ? " troom-wide" : "")} data-role="troom-chart" data-wide={wide ? "1" : "0"}>
-        {layoutN === 1 ? (
-          <ProChart symbol={symbol} theme={theme === "light" ? "light" : "dark"} identity={identityNode}
-            layout={{ n: 1, set: setLayout }} read={{ name: nm, market }} snaps={snaps} />
-        ) : (<>
-          {/* ‏D782: الشاشاتُ المتعدّدة — الرأسُ واحدٌ فوقها: الاسمُ والعقودُ والأحداثُ و«تحليلُ الرسم» للأطر كلِّها معاً والسعرُ الحيّ */}
-          <div className="troom-mhead" data-role="troom-mhead">
-            {identityNode}
-            {/* ‏D787: «تحليلُ الرسم» يقرأ شاشاتِ الرمز الرئيسيّ وحدها — لا يخلط إطاراً من شركةٍ بإطارٍ من أخرى */}
-            <ChartRead symbol={symbol} name={nm} market={market}
-              frames={() => [...snaps.current.entries()].filter(([k]) => k < layoutN && paneSym(k) === symbol).sort((a, b) => a[0] - b[0])
-                .map(([, f]) => f()).filter(Boolean) as ReadFrame[]} />
-            <button type="button" className={"btn-ghost troom-wide-btn" + (wide ? " on" : "")} onClick={() => setWide(w => !w)} aria-pressed={wide}
-              data-role="troom-wide" title={wide ? "تصغيرُ الشاشات (Esc)" : "تكبيرُ الشاشات"} aria-label={wide ? "تصغيرُ الشاشات" : "تكبيرُ الشاشات"}>
-              {wide ? <Minimize2 size={15} /> : <Maximize2 size={15} />}<span>{wide ? "تصغير" : "تكبير"}</span>
+        {/* ‏D794: الصفُّ الخارجيُّ الأساسيّ — واحدٌ للشاشة الواحدة والمتعدّدة، ثابتٌ أعلى النافذة المكبَّرة */}
+        <div className="troom-mhead" data-role="troom-mhead">
+          {identityNode}
+          {/* ‏D787: «تحليلُ الرسم» يقرأ شاشاتِ الرمز الرئيسيّ وحدها — لا يخلط إطاراً من شركةٍ بإطارٍ من أخرى */}
+          <ChartRead symbol={symbol} name={nm} market={market}
+            frames={() => [...snaps.current.entries()].filter(([k]) => k < layoutN && paneSym(k) === symbol).sort((a, b) => a[0] - b[0])
+              .map(([, f]) => f()).filter(Boolean) as ReadFrame[]} />
+          <div ref={layRef} className="troom-layw">
+            <button type="button" className={"btn-ghost troom-wide-btn troom-lay-btn" + (layMenu ? " on" : "")} aria-expanded={layMenu} aria-haspopup="menu"
+              onClick={() => setLayMenu(v => !v)} data-role="troom-layout" title="تقسيمُ الشاشة" aria-label="تقسيمُ الشاشة">
+              {layoutN === 4 ? <Grid2x2 size={15} /> : layoutN === 3 ? <Columns3 size={15} /> : layoutN === 2 ? <Columns2 size={15} /> : <Square size={14} />}
+              <span>الشاشات</span>
             </button>
-            <LiveQuote symbol={symbol} live={live} badge={false} />
+            {layMenu && (
+              <div className="troom-laymenu" role="menu" data-role="troom-layout-menu">
+                {([[1, "شاشةٌ واحدة", Square], [2, "شاشتان", Columns2], [3, "ثلاثُ شاشات", Columns3], [4, "أربعُ شاشات", Grid2x2]] as const).map(([n, name, Ic]) => (
+                  <button key={n} type="button" role="menuitemradio" aria-checked={layoutN === n} className={"troom-layitem" + (layoutN === n ? " on" : "")}
+                    data-layout={n} onClick={() => { setLayout(n); setLayMenu(false); }}>
+                    <Ic size={15} /><span>{name}</span>{layoutN === n && <Check size={14} className="troom-laycheck" />}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+          <button type="button" className={"btn-ghost troom-wide-btn" + (wide ? " on" : "")} onClick={() => setWide(w => !w)} aria-pressed={wide}
+            data-role="troom-wide" title={wide ? "تصغير (Esc)" : "تكبير — يملأ النافذة"} aria-label={wide ? "تصغير" : "تكبير"}>
+            {wide ? <Minimize2 size={15} /> : <Maximize2 size={15} />}<span>{wide ? "تصغير" : "تكبير"}</span>
+          </button>
+          <LiveQuote symbol={symbol} live={live} badge={false} />
+        </div>
+        {layoutN === 1 ? (
+          <div ref={oneRef} className="troom-one" data-role="troom-one">
+            <ProChart symbol={symbol} theme={theme === "light" ? "light" : "dark"} embedded snaps={snaps} fillH={wide ? fillH : null} />
+          </div>
+        ) : (
           <div ref={gridRef} className={`troom-grid g${layoutN}`} data-role="troom-grid">
             {Array.from({ length: layoutN }, (_, k) => {
               const ps = paneSym(k);
@@ -563,15 +620,14 @@ export default function TradeRoom() {
                 <div key={k} className={"troom-pane" + (k === active ? " on" : "")} data-role="troom-pane" data-k={k} data-symbol={ps}
                   onPointerDownCapture={() => { if (k !== active) setActive(k); }}>
                   {paneHead(k, ps, k === 0 || !!panes[k])}
-                  <ProChart symbol={ps} theme={theme === "light" ? "light" : "dark"} slot={k} mini
+                  <ProChart symbol={ps} theme={theme === "light" ? "light" : "dark"} slot={k} mini embedded
                     rows={layoutN === 4 ? 2 : layoutN === 3 ? (k === 0 ? 1 : 2) : 1}
-                    fit={{ top: wide ? wideTop : 250, head: wide ? wideHead : 34 }}
-                    layout={k === 0 ? { n: layoutN, set: setLayout } : undefined} snaps={snaps} />
+                    fit={{ top: wide ? wideTop : 250, head: wide ? wideHead : 34 }} snaps={snaps} />
                 </div>
               );
             })}
           </div>
-        </>)}
+        )}
         {chainFor && (
           <OptionChain underlying={chainFor} onClose={() => setChainFor(null)}
             onPick={c => { setChainFor(null); pick(c); }}

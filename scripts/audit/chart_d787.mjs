@@ -166,9 +166,9 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   // ═ ٢ الشاشات ═
   await page.goto(`http://localhost:${PORT}/watchlist`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2600); await paint();
-  await page.locator('[data-role="pc-layout"]').first().click(); await page.waitForTimeout(250);
-  const opts = await page.locator('[data-layout]').evaluateAll(bs => bs.map(b => b.getAttribute("data-layout")));
-  await page.locator('[data-layout="3"]').first().click(); await page.waitForTimeout(1400);
+  await page.locator('[data-role="troom-mhead"] [data-role="troom-layout"]').first().click(); await page.waitForTimeout(250);   // ‏D794: زرُّ التقسيم في الصفّ الخارجيّ
+  const opts = await page.locator('[data-role="troom-layout-menu"] [data-layout]').evaluateAll(bs => bs.map(b => b.getAttribute("data-layout")));
+  await page.locator('[data-role="troom-layout-menu"] [data-layout="3"]').first().click(); await page.waitForTimeout(1400);
   const g3 = await page.evaluate(() => { const g = document.querySelector('[data-role="troom-grid"]'); const ps = [...document.querySelectorAll('[data-role="troom-pane"]')];
     const r = ps.map(p => p.getBoundingClientRect()); return { cls: g?.className || "", n: ps.length, heads: document.querySelectorAll('[data-role="troom-phead"]').length,
       searches: document.querySelectorAll('[data-role="troom-psearch"]').length, big: r[0] && r[1] ? Math.round(r[0].height) : 0, small: r[1] ? Math.round(r[1].height) : 0,

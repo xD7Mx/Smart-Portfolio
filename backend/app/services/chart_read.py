@@ -23,6 +23,11 @@ import re
 from loguru import logger
 
 TTL = 180
+# ‏D797 (المالك 2026-11-24: «تحليلُ الرسم لا يستجيب»): قِيس — النموذجُ يجيب البرومبتَ نفسَه في 8–10 ثوانٍ، لكنه يردّ «503 UNAVAILABLE — high demand»
+# مرّاتٍ في الدقيقة، وكان الانتظارُ بين المحاولات 15 ثمّ 30 ثانية (قراءةُ إطارين 68.8 ثانية) — وفي الشاشات المتعدّدة أربعةُ أطرٍ بصورها تتجاوز مهلةَ
+# الواجهة (120 ثانية) فيبدو الزرُّ ميّتاً. فللقراءة مهلةٌ كلّيةٌ دون مهلة الواجهة، ومحاولاتٌ قصيرةٌ متقاربة، ثمّ النموذجُ الاحتياطيّ إن ضُبط —
+# وإن تعذّر قيل لماذا: «مزدحم» أو «أطولُ من المعتاد» — لا «تعذّر» مبهمة.
+DEADLINE = 90.0
 TOL = 0.0035
 BIAS = ("صاعد", "هابط", "عرضي")
 KINDS = ("مقاومة", "دعم")
@@ -223,7 +228,6 @@ async def read(snap: dict) -> dict:
     """{ok, reading?, at} — القراءةُ المحروسة، أو ‏ok=False إن تعذّر النموذج (فيُقال «تعذّر»، ولا قراءةَ بديلةٌ مختلَقة)."""
     from datetime import datetime, timezone
     from app.services import cache
-    from app.services import research_desk as RD
     key = "chartread:" + fingerprint(snap)
     hit = cache.get(key)
     if hit is not None:
@@ -238,14 +242,76 @@ async def read(snap: dict) -> dict:
             "frames": [{**{k: v for k, v in fr.items() if k != "img"}, "key_prices": key_prices(fr)} for fr in frames]}
     what = "رسمَ سهمٍ واحدٍ على إطارٍ واحد" if len(frames) == 1 else f"رسمَ سهمٍ واحدٍ على {len(frames)} أطر (شاشاتٌ متعدّدة)"
     parts.append({"text": PROMPT.format(what=what) + json.dumps(lean, ensure_ascii=False, separators=(",", ":"))})
-    try:
-        obj = await RD._gemini(parts, max_tokens=3000, temperature=0.2)
-    except Exception as e:                                        # noqa: BLE001
-        logger.warning("قراءةُ الرسم: {}", type(e).__name__)
-        obj = None
+    obj, why = await _ask(parts)
     at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     if not isinstance(obj, dict):
-        return {"ok": False, "at": at}
+        return {"ok": False, "at": at, "reason": why}
     out = {"ok": True, "reading": validate(obj, snap), "at": at}
     cache.set(key, out, TTL)
     return out
+
+
+async def _ask(parts: list) -> tuple[dict | None, str]:
+    """(القراءة، السبب) — النموذجُ الأساسيُّ ثمّ الاحتياطيّ، بمحاولاتٍ قصيرةٍ متقاربة داخل مهلةٍ كلّية (‏DEADLINE).
+    السببُ: ‏ok · ‏busy (ازدحامٌ أو حصّة) · ‏timeout (تجاوزت المهلة) · ‏error (غيرُ ذلك) · ‏nokey."""
+    import asyncio
+    import time
+    import httpx
+    from app.core.config import settings
+    from app.services.ai_content import _extract_json_obj
+    from app.services.usage_tracker import can_call, record
+    if not settings.AI_API_KEY:
+        return None, "nokey"
+    models = [settings.AI_MODEL] + [m.strip() for m in (settings.AI_MODEL_FALLBACKS or "").split(",") if m.strip() and m.strip() != settings.AI_MODEL]
+    body = {"contents": [{"parts": parts}], "generationConfig": {"temperature": 0.2, "maxOutputTokens": 3000}}
+    end = time.monotonic() + DEADLINE
+    why = "error"
+    for model in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        for attempt in range(3):
+            left = end - time.monotonic()
+            if left < 5:
+                return None, "timeout"
+            if not can_call("gemini"):
+                return None, "busy"
+            try:
+                record("gemini")
+                status, data = await _post(url, settings.AI_API_KEY, body, min(60.0, left))
+            except httpx.TimeoutException:
+                why = "timeout"
+                break                                                   # نموذجٌ بطيءٌ الآن ⇒ التالي
+            except Exception as e:                                      # noqa: BLE001
+                logger.warning("قراءةُ الرسم ({}): {}", model, type(e).__name__)
+                why = "error"
+                break
+            if status in (429, 500, 503):
+                why = "busy"
+                if attempt < 2:
+                    await asyncio.sleep(min(2.0 * (attempt + 1), max(0.0, end - time.monotonic() - 5)))
+                    continue
+                break                                                   # مزدحمٌ بعد ثلاث ⇒ الاحتياطيّ
+            if status != 200:
+                logger.warning("قراءةُ الرسم ({}): HTTP {}", model, status)
+                why = "error"
+                break
+            try:
+                obj = _extract_json_obj(data["candidates"][0]["content"]["parts"][0]["text"])
+            except Exception:                                           # noqa: BLE001
+                obj = None
+            if isinstance(obj, dict):
+                return obj, "ok"
+            why = "error"
+            break
+    return None, why
+
+
+async def _post(url: str, key: str, body: dict, timeout: float) -> tuple[int, dict]:
+    """نداءُ النموذج الواحد — (الحالة، الجسم). منفصلٌ ليُستبدل في الحارس بلا شبكة."""
+    import httpx
+    async with httpx.AsyncClient(timeout=timeout) as c:
+        r = await c.post(url, params={"key": key}, json=body)
+    try:
+        data = r.json() if r.status_code == 200 else {}
+    except ValueError:
+        data = {}
+    return r.status_code, data

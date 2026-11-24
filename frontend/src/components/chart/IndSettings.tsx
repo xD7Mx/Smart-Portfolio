@@ -4,25 +4,17 @@
    خطّا ‏K و‏D (إظهارٌ ولونٌ وسُمكٌ ونوعُ خطّ)، والحدودُ الثلاثة (قيمٌ وإظهارٌ ولونٌ ونوع)، والخلفيةُ بينها (إظهارٌ ولونٌ وشفافية). */
 import { useEffect, useState } from "react";
 import Toggle from "../common/Toggle";
+import ColorPick, { tokenHex, useBackdropClose } from "../common/ColorPick";
 import { CVD_DEFAULTS, CvdCfg, STOCHRSI_DEFAULTS, StochRsiCfg, SrcKey, LineSt } from "../../lib/indicators";
 
-/** لونُ الرمز الحاليّ بصيغة ‏#rrggbb ليظهر في منتقي اللون — اللونُ المرسومُ فعلاً حين لم يختر المالكُ غيرَه */
-function tokenHex(name: string): string {
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  if (/^#[0-9a-f]{6}$/i.test(v)) return v;
-  if (/^#[0-9a-f]{3}$/i.test(v)) return "#" + v.slice(1).split("").map(c => c + c).join("");
-  const m = v.match(/\d+(\.\d+)?/g);
-  return m && m.length >= 3 ? "#" + m.slice(0, 3).map(n => Math.round(+n).toString(16).padStart(2, "0")).join("") : "#000000";
-}
+/* ‏D798 (المالك 2026-11-24): «خلّ في إعدادات المؤشّرات ألواناً رئيسية — الأبيض والأصفر والأحمر والأخضر والمتشبّعة — نفسَ اللي في تريدنق فيو»:
+   لوحةُ ألوانٍ تنفتح تحت الزرّ (‏ColorPick) بدل منتقي النظام وحده، و«مخصَّص» فيها لمن أراد غيرها */
 function Color({ label, value, token, onChange }: { label: string; value: string; token: string; onChange: (v: string) => void }) {
   return (
-    <label className="d7m-row">
+    <div className="d7m-row">
       <span>{label}</span>
-      <span className="flex items-center gap-1">
-        <input type="color" aria-label={label} value={value || tokenHex(token)} onChange={e => onChange(e.target.value)} />
-        {value && <button type="button" className="d7m-reset" title="لونُ المظهر" aria-label={`إرجاع ${label}`} onClick={() => onChange("")}>↺</button>}
-      </span>
-    </label>
+      <ColorPick label={label} value={value} fallback={tokenHex(token)} onChange={onChange} />
+    </div>
   );
 }
 const STYLES: [LineSt, string][] = [["solid", "متّصل"], ["dashed", "متقطّع"], ["dotted", "منقّط"]];
@@ -60,8 +52,9 @@ export default function IndSettings({ kind, sr, cvd, onSr, onCvd, onClose }: {
   kind: "stochrsi" | "cvd"; sr: StochRsiCfg; cvd: CvdCfg; onSr: (p: Partial<StochRsiCfg>) => void; onCvd: (p: Partial<CvdCfg>) => void; onClose: () => void;
 }) {
   const title = kind === "stochrsi" ? "Stoch RSI" : "CVD D7M";
+  const bd = useBackdropClose(onClose);
   return (
-    <div className="d7m-modal" role="dialog" aria-label={`إعدادات ${title}`} onClick={onClose} data-role="ind-settings">
+    <div className="d7m-modal" role="dialog" aria-label={`إعدادات ${title}`} {...bd} data-role="ind-settings">
       <div className="d7m-sheet" onClick={e => e.stopPropagation()}>
         <div className="d7m-head">
           <strong dir="ltr">{title}</strong>

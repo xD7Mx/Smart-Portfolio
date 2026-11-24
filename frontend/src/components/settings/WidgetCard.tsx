@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Copy, Check, KeyRound, Trash2 } from "lucide-react";
-import { widgetApi } from "../../services/api";
+import { marketApi, widgetApi } from "../../services/api";
 import { widgetScript } from "../../lib/widgetScript";
 import { copyText } from "../../lib/symbols";
 import { useAuthStore } from "../../store/authStore";
@@ -30,7 +30,13 @@ export default function WidgetCard() {
   const { isOwner } = useAuthStore();
   const { data: st } = useQuery({ queryKey: ["widget-token"], queryFn: () => widgetApi.status().then(r => r.data?.data) });
   const [fresh, setFresh] = useState<string | null>(null);
-  const [copied, setCopied] = useState<"script" | "token" | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  /* ‏D800 (المالك 2026-11-24): «أريد في الويدجت الشركاتِ اللي حاطّها في القائمة — مثل ويدجت تريدنق فيو — تتوزّع يميناً ويساراً»: قوائمُ التطبيق
+     وقيمةُ خانة Parameter لكلٍّ تُنسخ بضغطة */
+  const { data: groups = [] } = useQuery<any[]>({
+    queryKey: ["watchlist-groups"],
+    queryFn: () => marketApi.watchGroups().then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
+  });
   const [err, setErr] = useState<string | null>(null);
   const create = useMutation({
     mutationFn: () => widgetApi.create().then(r => r.data?.data),
@@ -41,7 +47,7 @@ export default function WidgetCard() {
     mutationFn: () => widgetApi.revoke(),
     onSuccess: () => { setFresh(null); qc.invalidateQueries({ queryKey: ["widget-token"] }); },
   });
-  const copy = async (what: "script" | "token", text: string) => {
+  const copy = async (what: string, text: string) => {
     if (await copyText(text)) { setCopied(what); window.setTimeout(() => setCopied(null), 1600); }
   };
   const active = !!st?.active;
@@ -74,7 +80,7 @@ export default function WidgetCard() {
         <li>اضغط «نسخ سكربت الويدجت» هنا، ثمّ في Scriptable اضغط <b>+</b> والصق السكربت وسمّه «المحفظة الذكية».</li>
         <li>اضغط «إنشاء رمز» هنا وانسخه، ثمّ شغّل السكربت مرّةً في Scriptable والصق الرمز حين يُطلب.</li>
         <li>اضغط مطوّلاً على الشاشة الرئيسية ← <b>+</b> ← Scriptable ← اختر الحجم، ثمّ «تعديل الويدجت» واختر السكربت.</li>
-        <li>اختياريّ: في خانة <b>Parameter</b> اكتب <span dir="ltr">all</span> لكلّ المحافظ، أو رقمَ محفظةٍ بعينها.</li>
+        <li>اختياريّ: في خانة <b>Parameter</b> اكتب <span dir="ltr">all</span> لكلّ المحافظ — أو قيمةَ قائمةٍ من «قوائمُ المراقبة» أدناه لتظهر شركاتُها بأسعارها في عمودين.</li>
       </ol>
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -100,6 +106,17 @@ export default function WidgetCard() {
         )}
       </div>
       {err && <p className="text-xs text-[var(--neg-ink)] mt-2">{err}</p>}
+
+      <div className="widget-lists mt-4" data-role="widget-lists">
+        <span className="widget-lcap">قوائمُ المراقبة في الويدجت — انسخ القيمةَ والصقها في خانة <b>Parameter</b></span>
+        {([["list", "محفظتي"], ...groups.map((g: any) => [`list:${g.name}`, g.name])] as [string, string][]).map(([v, name]) => (
+          <button key={v} type="button" className="widget-param" onClick={() => copy(v, v)} data-role="widget-param" data-param={v}>
+            <span className="widget-pname">{name}</span>
+            <code dir="ltr" className="widget-pval">{v}</code>
+            {copied === v ? <Check size={14} /> : <Copy size={14} />}
+          </button>
+        ))}
+      </div>
 
       {fresh && (
         <div className="widget-token fade-in mt-4" data-role="widget-token">

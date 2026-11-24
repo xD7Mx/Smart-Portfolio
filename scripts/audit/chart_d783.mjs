@@ -153,9 +153,10 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
     const dlg = document.querySelector('[role="dialog"][aria-label="إعدادات D7M"]');
     const hex = n => { const v = getComputedStyle(document.documentElement).getPropertyValue(n).trim(); if (/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
       const m = v.match(/\d+(\.\d+)?/g); return m ? "#" + m.slice(0, 3).map(x => Math.round(+x).toString(16).padStart(2, "0")).join("") : v; };
-    const up = dlg?.querySelector('[data-role="d7m-trend"] [data-color="trendUp"] input[type="color"]'), dn = dlg?.querySelector('[data-role="d7m-trend"] [data-color="trendDown"] input[type="color"]');
-    return { legend: dlg?.querySelector('[data-role="d7m-trend"] legend')?.textContent || "", up: up?.value, dn: dn?.value, upTok: hex("--pc-trend-up"), dnTok: hex("--pc-trend-down"),
-      general: [...(dlg?.querySelectorAll("legend") || [])].some(l => l.textContent.trim() === "الألوان"), colors: dlg?.querySelectorAll('input[type="color"]').length || 0 };
+    /* ‏D798: المنتقي لوحةُ ألوانٍ كتريدنق فيو — زرُّه يحمل اللونَ المرسوم («الاسم: ‎#rrggbb») */
+    const val = k => (dlg?.querySelector(`[data-role="d7m-trend"] [data-color="${k}"] [data-role="color-pick-btn"]`)?.getAttribute("aria-label") || "").split(": ").pop();
+    return { legend: dlg?.querySelector('[data-role="d7m-trend"] legend')?.textContent || "", up: val("trendUp"), dn: val("trendDown"), upTok: hex("--pc-trend-up"), dnTok: hex("--pc-trend-down"),
+      general: [...(dlg?.querySelectorAll("legend") || [])].some(l => l.textContent.trim() === "الألوان"), colors: dlg?.querySelectorAll('[data-role="color-pick"]').length || 0 };
   });
   say(/الترند/.test(tr.legend) && tr.up === tr.upTok && tr.dn === tr.dnTok && !tr.general && tr.colors >= 12,
     `${label}: ٧ الترندُ بلونيه (الصاعد والهابط) داخل قسم «الترند» في إعدادات D7M، والمنتقي يعرض اللونَ المرسومَ فعلاً — ولكلّ عنصرٍ لونُه في قسمه`,

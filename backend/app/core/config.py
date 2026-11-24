@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # just not get silently swapped for a stingier one overnight like the
     # rolling "-latest" alias does.
     AI_MODEL: str = "gemini-3.1-flash-lite"
+    # ‏D797: نماذجُ احتياطيةٌ مفصولةٌ بفواصل لما يُنتظر بالثانية (تحليلُ الرسم) — قِيس 2026-11-24: الأساسيُّ يردّ «503 high demand» مرّتين في دقيقة.
+    # والأسماءُ تُقاس قبل أن تُكتب هنا (scripts/audit/ai_models_door.py) — لا تُخمَّن. قِيس على الخادم 2026-11-24: ‏gemini-3-flash-preview
+    # ‏200 في 0.7 و0.6 ثانية، و‏gemini-flash-lite-latest ‏200 في 0.6 و0.5؛ و‏gemini-2.5-flash(-lite) ‏404 (متقاعد) و‏gemini-flash-latest ‏503 ثمّ انقطاع.
+    AI_MODEL_FALLBACKS: str = "gemini-3-flash-preview,gemini-flash-lite-latest"
     AI_API_KEY: Optional[str] = None
     AI_TEMPERATURE: float = 0.3
     AI_MAX_TOKENS: int = 4096

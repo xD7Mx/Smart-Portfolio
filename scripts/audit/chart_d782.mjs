@@ -67,7 +67,7 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
     sessionStorage.setItem("d782-init", "1");
     localStorage.setItem("sp_token", "probe"); localStorage.setItem("sp_room_symbol", "SPY"); localStorage.setItem("sp_room_list", "g2");
     localStorage.setItem("sp_chart_tf", "1d"); localStorage.setItem("sp_room_layout", "1");
-    localStorage.setItem("sp_chart_tf_use", JSON.stringify({ "15m": 5, "1d": 3, "1wk": 2, "1h": 1 }));
+    localStorage.setItem("sp_chart_tf_fav", JSON.stringify(["1d", "1wk"]));          // ‏D795: مفضّلاتُ المالك بترتيب نجماته
     localStorage.setItem("sp_chart_ind_v3", JSON.stringify({ vol: true, stochrsi: true, cvd: false, macd: false, d7m: true }));
   } catch { /* */ } });
   await page.route("**/api/v1/**", async r => {
@@ -95,10 +95,15 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
     const t = e?.querySelector('[data-role="fp-trend"]'), l = e?.querySelector('[data-role="fp-liq"]');
     const fonts = e ? [...e.querySelectorAll("*")].filter(x => [...x.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())).map(x => parseFloat(getComputedStyle(x).fontSize)) : [0];
     return { h: r ? Math.round(r.height) : 0, strip: document.querySelectorAll('[data-role="d7m-strip"]').length, ts: t?.getAttribute("data-side"), ls: l?.getAttribute("data-side"),
-      tw: t?.textContent || "", lw: l?.textContent || "", n: t?.querySelector('[data-role="fp-strength"]')?.textContent, minF: Math.min(...fonts) };
+      tw: t?.textContent || "", lw: l?.textContent || "", n0: t?.querySelectorAll('[data-role="fp-strength"]').length, g: e?.querySelectorAll('[data-role="fp-gauge"]').length,
+      minF: Math.min(...fonts) };
   });
+  /* ‏D796: الوجهُ كلمةٌ وميزانٌ بلا رقم — والرقمُ والشواهدُ عند الضغط */
+  await page.locator('[data-role="troom-chart"] [data-role="fp-trend"] [data-role="fp-face"]').first().click().catch(() => {}); await page.waitForTimeout(300);
+  fp.n = await page.locator('[data-role="troom-chart"] [data-role="fp-trend"] [data-role="fp-strength"]').first().textContent().catch(() => "");
+  await page.locator('[data-role="troom-chart"] [data-role="fp-trend"] [data-role="fp-face"]').first().click().catch(() => {}); await page.waitForTimeout(250);
   say(fp.strip === 0 && fp.ts === "up" && fp.ls === "up" && /قوّة الاتجاه/.test(fp.tw) && /صاعد/.test(fp.tw) && /قوّة السيولة/.test(fp.lw) && /داخلةٌ للصعود/.test(fp.lw)
-      && Number(fp.n) > 0 && fp.h > 0 && fp.h <= 76 && fp.minF >= 9.5,
+      && fp.n0 === 0 && fp.g === 2 && Number(fp.n) > 0 && fp.h > 0 && fp.h <= 76 && fp.minF >= 9.5,
     `${label}: ١ لوحتان فوق الرسم — قوّةُ الاتجاه (صاعد) وقوّةُ السيولة (داخلةٌ للصعود) — بدل الشريط، بارتفاع ${fp.h}px`, `${fp.tw.slice(0, 40)} | ${fp.lw.slice(0, 40)} · خطٌّ ≥ ${fp.minF}px`);
 
   // ٢ «تحليل الرسم» بجانب «الأحداث» مكانَ شارة السوق، والحالةُ أيقونةٌ بجانب الاسم
@@ -113,16 +118,23 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
   say(hd.badge === 0 && hd.dot === "open" && hd.after && hd.sameRow && hd.leftOf && hd.h >= 32 && hd.price,
     `${label}: ٢ زرُّ «تحليل الرسم» بجانب «الأحداث» مكانَ شارة السوق، وحالةُ السوق أيقونةٌ بجانب الاسم، والسعرُ باقٍ`, JSON.stringify(hd));
 
-  // ٣ الإطاراتُ: أكثرُ ثلاثةٍ استخداماً بمدّتها، والجاري إن لم يكن منها، والعدُّ يُحفظ — و«مختصر · الكل» داخل D7M وحدها
-  const tfs = await page.locator('[data-role="troom-chart"] [data-role="pc-tfs"] button[data-tf]').evaluateAll(es => es.map(e => e.getAttribute("data-tf")));
+  // ٣ ‏D795 (نقض «أكثرَ ثلاثةٍ استخداماً»): الشريطُ مفضّلاتُ المالك بترتيب نجماته لا بمدّتها، والنجمةُ في السهم المنبثق تضيف وتُزيل، والجاري إن لم يكن منها
+  const bar = () => page.locator('[data-role="troom-chart"] [data-role="pc-tfs"] button[data-fav="1"]').evaluateAll(es => es.map(e => e.getAttribute("data-tf")));   // القائمةُ المنبثقةُ داخل المجموعة
+  const tfs = await bar();
   await page.locator('[data-role="troom-chart"] [data-role="pc-tf-more"]').first().click(); await page.waitForTimeout(300);
+  await page.locator('[data-role="pc-tf-more-menu"] [data-star="15m"]').first().click(); await page.waitForTimeout(250);
+  const tfs2 = await bar();
+  await page.locator('[data-role="pc-tf-more-menu"] [data-star="1wk"]').first().click(); await page.waitForTimeout(250);
+  const tfs3 = await bar();
+  await page.locator('[data-role="pc-tf-more-menu"] [data-star="1wk"]').first().click(); await page.waitForTimeout(250);
   await page.locator('[data-role="pc-tf-more-menu"] button[data-tf="4h"]').first().click(); await page.waitForTimeout(1200);
   const cur = await page.locator('[data-role="troom-chart"] [data-role="pc-tf-cur"]').first().textContent().catch(() => "");
-  const use = await page.evaluate(() => JSON.parse(localStorage.getItem("sp_chart_tf_use") || "{}"));
+  const fav = await page.evaluate(() => JSON.parse(localStorage.getItem("sp_chart_tf_fav") || "[]"));
   const fibBar = await page.locator('[data-role="pc-fibmode"]').count();
-  say(JSON.stringify(tfs) === JSON.stringify(["15m", "1d", "1wk"]) && /4/.test(cur || "") && use["4h"] === 1 && use["15m"] === 5 && fibBar === 0,
-    `${label}: ٣ شريطُ الإطارات أكثرُ ثلاثةٍ استخداماً مرتّبةً بمدّتها (ربعُ ساعة · يوم · أسبوع) والباقي في السهم المنبثق، والجاري يظهر ويُعدّ — ولا «مختصر · الكل» في الشريط`,
-    `${tfs.join(",")} · الجاري ${cur} · ${JSON.stringify(use)}`);
+  say(JSON.stringify(tfs) === JSON.stringify(["1d", "1wk"]) && JSON.stringify(tfs2) === JSON.stringify(["1d", "1wk", "15m"]) && JSON.stringify(tfs3) === JSON.stringify(["1d", "15m"])
+      && /4/.test(cur || "") && JSON.stringify(fav) === JSON.stringify(["1d", "15m", "1wk"]) && fibBar === 0,
+    `${label}: ٣ الشريطُ مفضّلاتُ المالك بترتيب نجماته (يوم · أسبوع ثمّ ربعُ ساعة)، والنجمةُ تُزيل وتعيد إلى الآخر، والجاري يظهر إن لم يكن منها — ولا «مختصر · الكل» في الشريط`,
+    `${tfs.join(",")} → ${tfs2.join(",")} → ${tfs3.join(",")} · الجاري ${cur} · ${JSON.stringify(fav)}`);
   await page.locator('[data-role="troom-chart"] [data-role="pc-cfg"]').first().click(); await page.waitForTimeout(250);
   await page.locator('[data-role="pc-cfg-menu"] [data-cfg="d7m"]').first().click(); await page.waitForTimeout(400);
   const inCfg = await page.evaluate(() => ({ fib: !!document.querySelector('[role="dialog"][aria-label="إعدادات D7M"] [data-role="fib-mode"]'),
@@ -186,8 +198,8 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
     `${JSON.stringify(ls.tabs)} · قسمٌ ثانٍ ${ls.sec2} · لمس ${ls.tgt}`);
 
   // ٨ الشاشاتُ المتعدّدة: أربعٌ لكلٍّ إطارُها، و«تحليلُ الرسم» فوقها يقرأ الأطرَ كلَّها، ثمّ العودةُ لشاشةٍ واحدة
-  await page.locator('[data-role="troom-chart"] [data-role="pc-layout"]').first().click(); await page.waitForTimeout(250);
-  await page.locator('[data-role="pc-layout-menu"] [data-layout="4"]').first().click(); await page.waitForTimeout(2500);
+  await page.locator('[data-role="troom-mhead"] [data-role="troom-layout"]').first().click(); await page.waitForTimeout(250);      // ‏D794: في الصفّ الخارجيّ
+  await page.locator('[data-role="troom-layout-menu"] [data-layout="4"]').first().click(); await page.waitForTimeout(2500);
   await shot("multi");
   const mv = await page.evaluate(() => ({ panes: [...document.querySelectorAll('[data-role="troom-pane"] [data-role="pro-chart"]')].map(e => e.getAttribute("data-tf")),
     mini: document.querySelectorAll('[data-role="troom-pane"] .fp-mini').length, head: !!document.querySelector('[data-role="troom-mhead"] [data-role="chart-read-btn"]'),
@@ -199,8 +211,8 @@ for (const vp of [{ width: 1366, height: 860 }, { width: 390, height: 844 }]) {
   await page.locator('[data-role="troom-mhead"] [data-role="chart-read-btn"]').click(); await page.waitForTimeout(1500);
   const mr = reads[r0] || {};
   await page.keyboard.press("Escape"); await page.waitForTimeout(300);
-  await page.locator('[data-role="troom-pane"]').first().locator('[data-role="pc-layout"]').click(); await page.waitForTimeout(250);
-  await page.locator('[data-role="pc-layout-menu"] [data-layout="1"]').first().click(); await page.waitForTimeout(1500);
+  await page.locator('[data-role="troom-mhead"] [data-role="troom-layout"]').first().click(); await page.waitForTimeout(250);
+  await page.locator('[data-role="troom-layout-menu"] [data-layout="1"]').first().click(); await page.waitForTimeout(1500);
   const back = await page.evaluate(() => ({ panes: document.querySelectorAll('[data-role="troom-pane"]').length, one: document.querySelectorAll('[data-role="troom-chart"] [data-role="pro-chart"]').length,
     lay: localStorage.getItem("sp_room_layout") }));
   const wide = vp.width >= 1024;
