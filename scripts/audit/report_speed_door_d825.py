@@ -60,6 +60,12 @@ async def main():
         t1 = time.monotonic()
         data = await SR.to_pdf(html)
         print(f"   PDF #{i}: البناء {(t1 - t0) * 1000:,.0f}ms · الطباعة {ms(t1)} · {len(data or b''):,}B")
+    print("══ ٣ب الملفُّ من باب التطبيق (‏D825: محفوظٌ بمحتوى ورقته)")
+    rp, pp = MK._pdf_args(pf, None)
+    for i in (1, 2, 3):
+        t0 = time.monotonic()
+        data = await RP.pdf(rp, pp)
+        print(f"   ضغطة #{i}: {ms(t0)} · {len(data or b''):,}B")
     try:
         import resource
         print(f"   ذاكرةُ الكاشف القصوى: {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024:,.0f}MB")
