@@ -8,7 +8,7 @@
 
     python3 scripts/audit/option_picks_d759.py
 """
-import asyncio, math, os, pathlib, sys, tempfile, time   # noqa: E401
+import asyncio, json, math, os, pathlib, sys, tempfile, time   # noqa: E401
 _SB = tempfile.mkdtemp()
 os.environ["LASTGOOD_PATH"] = os.path.join(_SB, "lastgood.json")
 os.environ["SP_STATE_DIR"] = _SB
@@ -141,12 +141,27 @@ async def fake_mark(e):
     return MARK.get(e["symbol"], (S, e["entry_mid"], 270))
 
 
+# ‏D840 (المالك 2026-11-25: «تكاملٌ في القرار»): التوصيةُ الجديدةُ من فرص صقر الموافَق عليها وحدها — فالمسحُ هنا فرصٌ بموافقته (وFL بتحفّظ)
+from app.services import chart_scan as CS   # noqa: E402
+import datetime as _dt   # noqa: E402
+
+
+def _opp(sym, verdict="يوافق"):
+    return {"symbol": sym, "name": sym, "side": "long", "setup": "ارتدادٌ من الدعم", "quality": 70, "horizon": "شهران", "where": "في منطقة الدعم",
+            "entry": [19.5, 20.5], "target": 26.0, "stop": 18.0, "rr": 2.0, "close": S, "tr": SC.get(sym) or TR,
+            "council": {"verdict": verdict, "score": 80, "oks": 6, "warns": 0, "veto": False, "members": []}}
+
+
+SCAN = {"market": "us", "read": 10, "items": []}
+CS.fresh = lambda market, days=4: {**SCAN, "at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds")}
+SCAN["items"] = [_opp("UP"), _opp("UP2"), _opp("FL", "يوافق بتحفّظ")]
 OP.scan, OP.read_news, OP.contracts_for, OP._mark = fake_scan, fake_news, fake_contracts, fake_mark
 r1 = asyncio.run(OP.run(400))
 r2 = asyncio.run(OP.run(400))
 c1, c2 = [p["contract"] for p in r1["picks"]], [p["contract"] for p in r2["picks"]]
 MARK["UP"] = (S, 0.5, 260)                                   # هبط العقدُ دون نصف دخوله
 SC["UP3"] = {**TR, "strength": 7.5}
+SCAN["items"].append(_opp("UP3"))
 r3 = asyncio.run(OP.run(400))
 c3 = [p["contract"] for p in r3["picks"]]
 ex = {x["symbol"]: x["status"] for x in r3["exits"]}
@@ -154,7 +169,11 @@ check(c1 and c1 == c2 and len(set(c1)) == len(c1) and all(p["new"] for p in r1["
       and ex.get("UP") == "stop" and "UP" not in {p["symbol"] for p in r3["picks"]} and any(x.startswith("UP2-") for x in c3) and any(x.startswith("UP3-") for x in c3)
       and OP.book_budgets() == [400] and OP.cached(400)["picks"] == r3["picks"],
       "٧ الدفتر: البحثُ الثاني يُعيد القائمةَ نفسَها (لا تتبدّل كلَّ يوم)، والتوصيةُ التي بلغت وقفَها تخرج إلى «إشارات خروج» بسببها، "
-      "والمقعدُ الشاغرُ وحدَه يُملأ من مسارٍ قائم ولا يعود السهمُ الخارجُ قبل أسبوع — والعرضيُّ لا يدخل", f"{c1} ⇐ {c3} · {ex}")
+      "والمقعدُ الشاغرُ وحدَه يُملأ من فرص صقر الموافَق عليها ولا يعود السهمُ الخارجُ قبل أسبوع — وما تحفّظ عليه صقر لا يدخل", f"{c1} ⇐ {c3} · {ex}")
+sk = {x["symbol"]: x["why"] for x in r1["skipped"]}
+check(all((p.get("saqr") or {}).get("state") == "approve" for p in r1["picks"]) and r1["picks"] and "صقر يتحفّظ" in sk.get("FL", "")
+      and r1["gate"]["approved"] == 2 and "فرص صقر الموافَق عليها" in r1["gate"]["text"],
+      "٧ب ‏D840 القرارُ الواحد: كلُّ توصيةٍ جديدةٍ عليها موافقةُ صقر ونسبةُ نجاحها، وما تحفّظ عليه يُذكر سببُه في «لم يدخل»", json.dumps(sk, ensure_ascii=False)[:200])
 mk = (ROOT / "backend/app/api/v1/endpoints/market.py").read_text(encoding="utf-8")
 sch = (ROOT / "backend/app/scheduler/scheduler.py").read_text(encoding="utf-8")
 check('@router.get("/options-picks")' in mk and '@router.post("/options-picks/run", dependencies=[Depends(require_owner)])' in mk

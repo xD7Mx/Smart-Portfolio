@@ -195,6 +195,44 @@ def card(k: dict, call: bool, S: float, dte: int, expiry: str, ctx: dict) -> dic
             "need_pct": round(((g.get("be") or S) / S - 1) * 100 * (1 if call else -1), 1) if g else None}
 
 
+def saqr_rule(c: dict, st: dict) -> dict:
+    """‏D840 — حكمُ صقر على البطاقة باتّجاهها (بلا نسبة النجاح — تُحسب للمرشّحين وحدهم): الرفضُ أو المعاكسةُ ⇐ «أمتنع»، وما لم يوافق عليه
+    موافقةً كاملةً ⇐ لا يزيد على «بحذر»، وموافقتُه ⇐ سببٌ في المؤيّدات. والعقدُ الميّتُ (لا عرضَ ولا سيولة) يبقى على امتناعه."""
+    from app.services import saqr_council as CN
+    lvl, why = CN.rule(st, c["type"] == "call")
+    c["saqr"] = {"level": lvl, "state": st.get("state"), "why": [why], "p30": None, "floor": None}
+    if c["verdict"] == "no":
+        return c
+    if lvl == "no":
+        c.update(verdict="no", verdict_ar=VERDICT["no"])
+        c["cons"].insert(0, why)
+    elif lvl == "warn":
+        if c["verdict"] == "ok":
+            c.update(verdict="warn", verdict_ar=VERDICT["warn"])
+        c["cons"].insert(0, why)
+    else:
+        c["pros"].insert(0, why)
+    return c
+
+
+def saqr_win(c: dict, st: dict, S: float) -> dict:
+    """‏D840 — نسبةُ النجاح بنموذج صقر وحدُّ المالك على بطاقةٍ مرشّحة: «مناسب» لا يبقى مناسباً دون الحدّ — كالدخول الآليّ تماماً."""
+    from app.services import saqr_council as CN
+    g = c.get("g") or {}
+    if c["verdict"] == "no" or not g:
+        return c
+    d = CN.decide(st, {"contract": c["contract"], "type": c["type"], "strike": c["strike"], "iv": g.get("iv"), "ask": g.get("px"), "dte": c["dte"]}, S)
+    c["saqr"].update(p30=d["p30"], floor=d["floor"], level=d["level"] if c["saqr"]["level"] != "no" else "no")
+    if d["p30"] is not None:
+        line = f"نسبةُ نجاحه بنموذج صقر {d['p30']:.0f}٪ (يبلغ +30٪ قبل الوقف)" + (f" — وحدُّك {d['floor']:.0f}٪" if d["floor"] else "") + "."
+        (c["pros"] if not d["floor"] or d["p30"] >= d["floor"] else c["cons"]).append(line)
+    elif d["floor"]:
+        c["cons"].append(f"نسبةُ نجاحه غيرُ متوفّرة — وحدُّك {d['floor']:.0f}٪.")
+    if c["verdict"] == "ok" and d["level"] == "warn":
+        c.update(verdict="warn", verdict_ar=VERDICT["warn"])
+    return c
+
+
 def _score(c: dict) -> float:
     g = c["g"] or {}
     d = abs(g.get("delta") or 0)
@@ -219,15 +257,17 @@ def why_none(cards: list[dict], nm: str) -> str:
     """‏D838: لماذا لا عقدَ مقبولاً — بالأعداد، لا «ضمن هذه الشروط» المبهمة (قيس على ATR: ستّةَ عشرَ عقداً بلا عرضٍ وطلبٍ ولا اهتمام)."""
     if not cards:
         return f"لا عقدَ على {nm} يمكن تسعيرُه في هذه الآجال — لا عرضَ ولا طلبَ ولا صفقةً حديثة؛ عقودُه لا تُتداول، والفرصةُ — إن وُجدت — على السهم نفسِه."
-    kinds = {"quote": 0, "liq": 0, "spread": 0, "other": 0}
+    kinds = {"quote": 0, "liq": 0, "spread": 0, "saqr": 0, "other": 0}
     for c in cards:
         if c["verdict"] != "no":
             continue
         t = " ".join(c.get("cons") or [])
-        k = "quote" if "لا سعرَ صالحاً" in t else "liq" if "لا سيولة" in t else "spread" if "الفارقُ بين العرض والطلب" in t else "other"
+        k = "quote" if "لا سعرَ صالحاً" in t else "liq" if "لا سيولة" in t else "spread" if "الفارقُ بين العرض والطلب" in t \
+            else "saqr" if (c.get("saqr") or {}).get("level") == "no" else "other"
         kinds[k] += 1
     parts = [f"{n} بلا عرضٍ وطلبٍ حيّين" if k == "quote" else f"{n} بلا سيولة (لا اهتمامَ مفتوحاً ولا تداول)" if k == "liq"
-             else f"{n} فارقُها بين العرض والطلب فوق 15٪" if k == "spread" else f"{n} لأسبابٍ أخرى (تآكلٌ سريعٌ أو احتمالٌ ضئيل)"
+             else f"{n} فارقُها بين العرض والطلب فوق 15٪" if k == "spread" else f"{n} يرفضها صقر (يعاكس فرصتَه أو يرفض السهمَ اليوم)" if k == "saqr"
+             else f"{n} لأسبابٍ أخرى (تآكلٌ سريعٌ أو احتمالٌ ضئيل)"
              for k, n in kinds.items() if n]
     dead = kinds["quote"] + kinds["liq"] + kinds["spread"]
     tail = " — عقودُه لا تصلح للتداول الآن، والفرصةُ على السهم نفسِه." if dead >= 0.8 * len(cards) else "."
@@ -249,8 +289,10 @@ async def analyze(symbol: str, budget: float | None = None, expiry: int | None =
     ctx = await _context(sym)
     tr, news = ctx.get("trend"), ctx.get("news")
     lean, why = OP.direction(tr, news) if tr else (None, "لا شموعَ كافيةً للحكم على المسار.")
+    from app.services import saqr_council as CN
+    st = CN.stance(sym)                                           # ‏D840: حكمُ صقر اليوم — القرارُ الواحد
     head = {"symbol": sym, "price": S, "trend": tr, "news": news, "hv": round(ctx["hv"] * 100, 1) if ctx.get("hv") else None,
-            "earnings": ctx.get("earnings"), "lean": lean, "lean_note": why,
+            "earnings": ctx.get("earnings"), "lean": lean, "lean_note": why, "saqr": st,
             "events": [e for e in ctx.get("events") or [] if not e["past"]][:4]}
     exps = base.get("expirations") or []
 
@@ -263,7 +305,7 @@ async def analyze(symbol: str, budget: float | None = None, expiry: int | None =
             return {**head, "contract": None, "error": "العقدُ غيرُ موجودٍ في السلسلة الآن (انتهى أو لا تداولَ عليه)."}
         S1 = float(ch.get("price") or S)
         enrich_rows([row], S1, e["dte"], one["type"] == "call")
-        c = card(row, one["type"] == "call", S1, e["dte"], e["date"], ctx)
+        c = saqr_win(saqr_rule(card(row, one["type"] == "call", S1, e["dte"], e["date"], ctx), st), st, S1)
         if budget and c["cost"] > budget:
             c["cons"].append(f"كلفتُه {c['cost']:,.0f} دولار فوق ميزانيتك {budget:,.0f}.")
             if c["verdict"] == "ok":
@@ -271,7 +313,8 @@ async def analyze(symbol: str, budget: float | None = None, expiry: int | None =
         return {**head, "contract": c}
 
     # ── الأنسبُ في السلسلة ──
-    sides = [side] if side in ("call", "put") else ([lean] if lean else ["call", "put"])
+    # ‏D840: الاتّجاهُ ما طُلب، وإلّا اتّجاهُ فرصة صقر اليوم، وإلّا ميلُ المسار
+    sides = [side] if side in ("call", "put") else ([st["type"]] if st.get("type") and st["state"] != "veto" else [lean] if lean else ["call", "put"])
     # ‏D838: من فرصة صقر تُفحص آجالُ مدّتها وحدها (أقربُ ثلاثةٍ تتّسع لها) — كدليل الفرصة في السلسلة، لا آجالٌ أقصرُ منها
     targets = [x for x in exps if x["t"] == expiry] if expiry else \
         ([x for x in exps if x["dte"] >= min_dte][:3] or exps[-1:]) if min_dte else pick_expiries(exps)
@@ -289,7 +332,7 @@ async def analyze(symbol: str, budget: float | None = None, expiry: int | None =
                 g = r.get("g")
                 if not g or (ref and not (OP.IV_BAND[0] * ref <= g["iv"] / 100 <= OP.IV_BAND[1] * ref)) or g["px"] < OP.MIN_PX:
                     continue
-                cards.append(card(r, sd == "call", S1, e["dte"], e["date"], ctx))
+                cards.append({**saqr_rule(card(r, sd == "call", S1, e["dte"], e["date"], ctx), st), "_S": S1})
     usable = [c for c in cards if c["verdict"] != "no"]
     within = [c for c in usable if not budget or c["cost"] <= budget]
     within.sort(key=_score, reverse=True)
@@ -298,9 +341,12 @@ async def analyze(symbol: str, budget: float | None = None, expiry: int | None =
         if c["expiry"] in seen:
             continue
         seen.add(c["expiry"])
-        best.append(c)
+        best.append(saqr_win(c, st, c["_S"]))
         if len(best) >= 3:
             break
+    best.sort(key=lambda c: {"ok": 0, "warn": 1}.get(c["verdict"], 2))
+    for c in cards:
+        c.pop("_S", None)
     refused = sorted([c for c in cards if c["verdict"] == "no" and (not budget or c["cost"] <= budget)], key=lambda c: -(c["g"] or {}).get("pop", 0))[:3]
     fit = None
     if budget and not within:
@@ -338,7 +384,8 @@ async def analyze(symbol: str, budget: float | None = None, expiry: int | None =
 
 
 SUM = """أنت مستشارُ خياراتٍ أمريكيّ. اكتب للمستثمر خلاصةً عربيةً فصيحةً في ثلاث جملٍ قصيرة من الحقائق أدناه وحدها (لا تضف رقماً ولا خبراً):
-ما الاتجاه، وما الأنسبُ ولماذا، وما الخطرُ الأهمّ. إن لم يكن عقدٌ مناسب فقل ذلك صراحةً. نصٌّ فقط بلا عناوين.
+ما الاتجاه، وما الأنسبُ ولماذا، وما الخطرُ الأهمّ. وحكمُ صقر (‏saqr) هو القرار: لا تصف عقداً بأنّه مناسبٌ إن لم يوافق عليه صقر.
+إن لم يكن عقدٌ مناسب فقل ذلك صراحةً. نصٌّ فقط بلا عناوين.
 
 """
 
@@ -354,7 +401,7 @@ async def summary(res: dict) -> str | None:
              "best": [{k: c[k] for k in ("contract", "cost", "dte", "verdict_ar")} | {"pop": (c["g"] or {}).get("pop"), "delta": (c["g"] or {}).get("delta"),
                       "cons": c["cons"][:2]} for c in res.get("best") or []],
              "refused": [{"contract": c["contract"], "why": c["cons"][:1]} for c in res.get("refused") or []][:2],
-             "fit": (res.get("fit") or {}).get("text"), "abstain": res.get("abstain")}
+             "fit": (res.get("fit") or {}).get("text"), "abstain": res.get("abstain"), "saqr": (res.get("saqr") or {}).get("text")}
     import hashlib
     import json as _j
     key = "optadv:sum:" + hashlib.md5(_j.dumps(facts, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:16]

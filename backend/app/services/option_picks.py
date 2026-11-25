@@ -656,13 +656,14 @@ async def run(budget: float) -> dict:
         # ‏D784 (المالك: «خلِّ صقر يفهم تحليلَ الرسم ويختار بناءً عليه»): فرصُ مسح الرسم اليوميّ للسوق كلِّه تتقدّم المرشّحين بجهتها —
         # الشراءُ عقدُ شراء والبيعُ عقدُ بيع — وما سواها من القائمة الثابتة بعدها بمساره
         from app.services import chart_scan as CS
+        from app.services import saqr_council as CN
         scan_us = CS.fresh("us") or {}
         # ‏D786: فرصُ الرسم بعد مجلس صقر (ما رفضه عضوٌ لم يبقَ فيها) بترتيب المجلس؛ وما رفضه المجلسُ اليوم لا يدخل الدفترَ من قائمته الثابتة أيضاً
         opps = {x["symbol"]: x for x in scan_us.get("items") or [] if x.get("tr")}
-        vetoed = {x["symbol"]: x for x in scan_us.get("rejected") or []}
         _JOB["msg"] = "قراءةُ الأخبار"
-        news = await read_news({**{s: x["tr"] for s, x in opps.items()}, **top})
         book = book_load(budget)
+        # ‏D840: أخبارُ فرص صقر والتوصياتِ القائمة وحدها — فالقائمةُ الثابتةُ لا تُرشّح بعد اليوم
+        news = await read_news({**{s: x["tr"] for s, x in opps.items()}, **{e["symbol"]: top[e["symbol"]] for e in book["open"] if e["symbol"] in top}})
         today = datetime.now(timezone.utc).date().isoformat()
 
         # ١ مراجعةُ القائمة: كلُّ توصيةٍ بقاعدة خروجها
@@ -672,6 +673,10 @@ async def run(budget: float) -> dict:
             S, mid, dte = await _mark(e)
             tr_e = sc.get(e["symbol"]) or (opps.get(e["symbol"]) or {}).get("tr") or await _trend_now(e["symbol"])
             st, why = verdict(e, S, mid, dte, tr_e, news.get(e["symbol"]))
+            if st == "hold":                                      # ‏D840: والقرارُ الواحد — صقر رفض السهمَ اليوم أو انقلبت فرصتُه ⇐ انكسرت الأطروحة
+                lv, sw = CN.rule(CN.stance(e["symbol"]), e["type"] == "call")
+                if lv == "no":
+                    st, why = "broken", f"انكسرت الأطروحة: {sw} — اخرج."
             e["last"] = {"date": today, "mid": round(mid, 3) if mid else None, "price": S, "dte": dte, "status": st, "why": why,
                          "pl_pct": round((mid / e["entry_mid"] - 1) * 100, 1) if mid and e.get("entry_mid") else None}
             (keep if st == "hold" else exits).append(e)
@@ -686,8 +691,14 @@ async def run(budget: float) -> dict:
         wk = (datetime.now(timezone.utc).date() - timedelta(days=COOL_DAYS)).isoformat()
         held |= {e["symbol"] for e in book["closed"] if (e.get("closed") or "") > wk and e["last"]["status"] in ("stop", "broken", "profit")}
         plan, skipped = [], []
+        # ‏D840 (المالك: «تكاملٌ في القرار — صقر والعقود والتحليل الذكيّ — لرفع نسبة النجاح»): التوصيةُ الجديدةُ من فرص اليوم التي وافق عليها
+        # صقرٌ موافقةً كاملةً وحدها — كالدخول الآليّ؛ وما تحفّظ عليه لا يدخل، ولا تدخل القائمةُ الثابتةُ بمسارها وحده بعد اليوم
+        approved = CN.opportunities("us")
         for s, x in list(opps.items())[:CHART_MAX]:
             if s in held:
+                continue
+            if s not in approved:
+                skipped.append({"symbol": s, "why": CN.stance(s)["text"]})
                 continue
             side = "call" if x["side"] == "long" else "put"
             nw = news.get(s) or {}
@@ -696,17 +707,6 @@ async def run(budget: float) -> dict:
                 skipped.append({"symbol": s, "why": f"فرصةُ الرسم «{x['setup']}» يعاكسها خبرٌ قويّ — لا صفقة"})
                 continue
             plan.append((s, x["tr"], side, f"اختارها مسحُ الرسم: {x['setup']} ({'شراء' if side == 'call' else 'بيع'})"))
-        for s, tr in top.items():
-            if s in held or s in opps:
-                continue
-            if s in vetoed:
-                skipped.append({"symbol": s, "why": "صقر لا يشتريه الآن — " + " · ".join(vetoed[s].get("why") or [])})
-                continue
-            side, note = direction(tr, news.get(s))
-            if side:
-                plan.append((s, tr, side, note))
-            elif note:
-                skipped.append({"symbol": s, "why": note})
         plan = plan[:CANDIDATES]
         _JOB["msg"] = "البحثُ في العقود"
         sem = asyncio.Semaphore(4)
@@ -733,6 +733,13 @@ async def run(budget: float) -> dict:
             if k["score"] < NEW_MIN:
                 skipped.append({"symbol": k["symbol"], "why": f"أفضلُ عقدٍ له دون عتبة الدخول (درجة {k['score']:.0f} من 100)"})
                 continue
+            stc = CN.stance(k["symbol"])
+            dc = CN.decide(stc, k, k.get("price"))                # ‏D840: ونسبةُ نجاحه بنموذج صقر لا تقلّ عن حدّ المالك — كالدخول الآليّ
+            if dc["level"] != "ok":
+                skipped.append({"symbol": k["symbol"], "why": " ".join(dc["why"][1:] or dc["why"])})
+                continue
+            k["saqr"] = {"state": stc["state"], "text": stc["text"], "verdict": stc.get("verdict"), "score": stc.get("score"),
+                         "decision": stc.get("decision"), "p30": dc["p30"], "floor": dc["floor"]}
             book["open"].append({"contract": k["contract"], "symbol": k["symbol"], "name": k.get("name"), "type": k["type"], "strike": k["strike"],
                                  "expiry": k["expiry"], "t": k["t"], "opened": today, "entry_mid": k["mid"], "entry_ask": k["ask"],
                                  "target": k["target"], "target_label": k["target_label"],
@@ -761,6 +768,9 @@ async def run(budget: float) -> dict:
         res = {"budget": budget, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "picks": picks, "exits": recent, "us_session": us,
                "closed": any(p.get("px_src") == "snap" for p in picks), "skipped": skipped[:30], "scanned": len(sc),
                "news_ok": any(v is not None for v in news.values()),
+               "gate": {"approved": len(approved), "scan": bool(scan_us),
+                        "text": (f"التوصياتُ الجديدةُ من فرص صقر الموافَق عليها اليوم وحدها ({len(approved)}) — بنسبة نجاحٍ لا تقلّ عن حدّك."
+                                 if scan_us else "لا مسحَ حديثٌ لصقر — لا توصيةَ جديدةَ حتى يمسح السوق.")},
                "limits": {"min_dte": MIN_DTE, "max_dte": MAX_DTE, "min_oi": MIN_OI, "max_spread": int(MAX_SPREAD * 100)}}
         cache.set(f"optpicks:res2:{int(budget)}", res, RES_TTL)
         return res

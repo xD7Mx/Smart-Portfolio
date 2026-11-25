@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Search, RefreshCw, LineChart, Layers, LogOut, ShoppingCart, X, Crosshair, Copy, Check } from "lucide-react";
+import { Search, RefreshCw, LineChart, Layers, LogOut, ShoppingCart, X, Crosshair, Copy, Check, ShieldCheck } from "lucide-react";
 import { copyText } from "../../lib/symbols";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
@@ -21,7 +21,8 @@ type Pick = { symbol: string; name?: string; contract: string; type: "call" | "p
   opened: string; new: boolean; pl_pct: number | null; mid_now: number | null; entry_mid: number; status_why?: string;
   trend: { state: string }; reasons: string[];
   chart?: { setup: string; side: "long" | "short"; quality: number; horizon: string; where: string;   // ‏D784: فرصةُ الرسم التي اختارته
-    council?: { verdict: string; score: number; oks: number; warns: number } | null; link?: { decision: string; link: string } | null } | null };   // ‏D786: ومجلسُ صقر
+    council?: { verdict: string; score: number; oks: number; warns: number } | null; link?: { decision: string; link: string } | null } | null;   // ‏D786: ومجلسُ صقر
+  saqr?: { state: string; text: string; p30: number | null; floor: number } | null };   // ‏D840: القرارُ الواحد — موافقةُ صقر ونسبةُ النجاح بنموذجه
 type Exit = { contract: string; symbol: string; type: string; opened: string; closed: string; status: string; status_ar: string; why: string; pl_pct: number | null };
 
 const PRESETS = [50, 100, 150, 300];
@@ -93,6 +94,7 @@ export default function OptionPicks() {
             فارقٌ ≤ <Num v={`${res.limits?.max_spread}%`} /> · قُرئ مسارُ <Num v={`${res.scanned}`} /> رمزاً{res.news_ok ? " وأخبارُها" : " — قراءةُ الأخبار غيرُ متوفّرة الآن"}
             {res.closed && " · السوقُ الأمريكيّ مغلق: العرضُ والطلب من آخر جلسة"}
           </p>
+          {res.gate?.text && <p className="op-gate" data-role="op-gate"><ShieldCheck size={13} aria-hidden style={{ color: "var(--brand-ink)" }} /> {res.gate.text}</p>}
           {picks.length === 0 ? (
             <p className="op-empty" data-role="op-none">
               {res.us_session && res.us_session.state !== "open"
@@ -117,6 +119,13 @@ export default function OptionPicks() {
                     <p className={"op-state" + (p.new ? " new" : "")} data-role="op-state">
                       {p.new ? "توصيةٌ جديدة اليوم" : <>قائمةٌ منذ {dm(p.opened)}{p.pl_pct != null && <> · <b className={p.pl_pct >= 0 ? "pos" : "neg"}><Num v={`${sg(p.pl_pct)}%`} /></b> منذ الدخول</>} · الأطروحةُ سليمة</>}
                     </p>
+                    {p.saqr && (
+                      <p className="op-saqr" data-role="op-saqr" data-state={p.saqr.state}>
+                        <ShieldCheck size={13} aria-hidden style={{ color: "var(--brand-ink)" }} /> <b>صقر يوافق</b>
+                        {p.saqr.p30 != null && <> · نسبةُ النجاح <b><Num v={`${p.saqr.p30.toFixed(0)}%`} /></b></>}
+                        {p.saqr.floor > 0 && <> · حدُّك <Num v={`${p.saqr.floor.toFixed(0)}%`} /></>}
+                      </p>
+                    )}
                     {p.chart && (
                       <p className="op-chart" data-role="op-chart">
                         <Crosshair size={13} aria-hidden /> اختاره الرسم: <b>{p.chart.setup}</b> · جودة <Num v={`${p.chart.quality}/100`} /> · {p.chart.horizon}

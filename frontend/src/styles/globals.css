@@ -4447,6 +4447,13 @@ html.troom-wide-on, html.troom-wide-on body { overflow: hidden; }
 .op-chart { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 11.5px; font-weight: 600; line-height: 1.6;
   color: var(--brand-ink); background: color-mix(in srgb, var(--brand-ink) 9%, transparent); padding: 3px 9px; border-radius: 8px; }
 .op-chart b { font-weight: 800; }
+/* ‏D840: القرارُ الواحد — موافقةُ صقر ونسبةُ النجاح في بطاقة «عقود الخيارات» وفي التحليل الذكيّ */
+.op-saqr, .oa-saqr { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 11.5px; font-weight: 600; line-height: 1.6;
+  color: var(--ink); background: color-mix(in srgb, var(--brand-ink) 9%, transparent); padding: 3px 9px; border-radius: 8px; }
+.op-saqr b, .oa-saqr b { font-weight: 800; color: var(--brand-ink); }
+.oa-saqr[data-state="veto"], .oa-saqr[data-state="none"], .oa-saqr[data-state="caution"] { background: color-mix(in srgb, var(--warn-ink) 9%, transparent); }
+.oa-saqr[data-state="veto"] b, .oa-saqr[data-state="none"] b, .oa-saqr[data-state="caution"] b { color: var(--warn-ink); }
+.op-gate { display: flex; align-items: center; gap: 5px; margin: 0; font-size: 11.5px; line-height: 1.7; color: var(--ink-muted); }
 /* ‏D784: حدودُ Stoch RSI — كلُّ حدٍّ صفٌّ بعرض النافذة: إظهارُه وقيمتُه */
 .sr-band { grid-column: 1 / -1; }
 

@@ -77,7 +77,8 @@ for (const [label, vp] of [["الحاسوب", { width: 1366, height: 900 }], ["�
     if (p === "/market/saqr/opportunities") return r.fulfill(body(OPPS));
     if (p.startsWith("/market/options/")) return r.fulfill(body(chain(Number(u.searchParams.get("date")) || 1)));
     if (p === "/market/options-advice") { adv.push(Object.fromEntries(u.searchParams));
-      return r.fulfill(body({ symbol: "ATR", price: 100, best: [], refused: [], fit: { ok: false, min_cost: null, text: NONE }, budget: 200, scanned: 16, abstain: null, lean: "call" })); }
+      return r.fulfill(body({ symbol: "ATR", price: 100, best: [], refused: [], fit: { ok: false, min_cost: null, text: NONE }, budget: 200, scanned: 16, abstain: null, lean: "call",
+        saqr: { state: "approve", text: "صقر يوافق: فرصةُ صعود «ارتدادٌ من الدعم» — حكمُه يوافق (84/100)." } })); }
     if (p === "/auth/me") return r.fulfill(body({ id: 1, username: "owner", is_owner: true, role: "owner" }));
     return r.fulfill(body([]));
   });
@@ -107,6 +108,9 @@ for (const [label, vp] of [["الحاسوب", { width: 1366, height: 900 }], ["�
     `${label}: ٣ التحليلُ الذكيّ من الفرصة يحلّل الفرصةَ نفسَها — جهتَها وأقصرَ أجلٍ يتّسع لمدّتها (75 يوماً لشهرين) وميزانيةَ المالك — وسببُ «لا شيء» معروضٌ بالأعداد`,
     JSON.stringify({ q, fit: fit.slice(0, 90) }));
   say(lbl.trim() === "الميزانية" && !/\$/.test(lbl), `${label}: ٤ الميزانيةُ بلا علامة الدولار بجانبها`, JSON.stringify(lbl));
+  /* ‏D840: القرارُ الواحد — حكمُ صقر على السهم ظاهرٌ في رأس التحليل الذكيّ */
+  const sq = await page.evaluate(() => { const e = document.querySelector('[data-role="oc-saqr"]'); return e ? { t: e.textContent.trim(), st: e.dataset.state, h: e.getBoundingClientRect().height } : null; });
+  say(!!sq && sq.st === "approve" && /^صقر يوافق/.test(sq.t) && sq.h > 0, `${label}: ٥ ‏D840 حكمُ صقر اليوم على السهم في رأس التحليل الذكيّ — القرارُ الواحد`, JSON.stringify(sq));
 
   // ═ ٢ عقودٌ تُتداول ═
   DEAD = false;

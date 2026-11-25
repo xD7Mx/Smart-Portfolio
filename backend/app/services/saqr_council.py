@@ -850,6 +850,81 @@ def opportunities(market: str) -> dict[str, dict]:
     return out
 
 
+# ══ ‏D840 — قرارٌ واحدٌ في صقر وعقود الخيارات والتحليل الذكيّ ══
+# المالك (2026-11-25): «أريد تكاملاً في القرار — سواءٌ بصقر أو العقود أو التحليل الذكيّ — لرفع نسبة النجاح». كان الدخولُ الآليُّ وحده يمرّ ببابه
+# (‏gate_why)، وقائمةُ «عقود الخيارات» تُرشّح من مسار السهم ولو لم يوافق صقر، والتحليلُ الذكيّ يقول «مناسب» لعقدٍ يعاكس فرصةَ صقر. فالحكمُ واحد:
+#   «مناسب» = ما يشتريه صقر: فرصةُ اليوم بموافقته الكاملة وباتّجاه العقد، ونسبةُ نجاحه لا تقلّ عن حدّ المالك.
+#   «بحذر»  = لم يوافق صقر موافقةً كاملة (يتحفّظ، أو ليس في فرصه اليوم)، أو نسبةُ النجاح دون الحدّ.
+#   «أمتنع» = صقر يرفض السهمَ اليوم، أو العقدُ يعاكس اتّجاهَ فرصته.
+
+def stance(sym: str, market: str = "us") -> dict:
+    """حكمُ صقر اليوم على سهم — من مسح السوق الأخير بلا حكمٍ جديد (فلا كلفةَ ولا انتظار):
+    ‏state: approve (فرصةٌ بموافقته الكاملة) · caution (فرصةٌ بتحفّظ أو قراءةٍ أخيرةٍ مخالفة) · veto (رفضه) · none (ليس في فرصه أو لا مسحَ حديث)."""
+    from app.services import chart_scan as CS
+    s = str(sym or "").upper().lstrip("^")
+    d = CS.fresh(market)
+    if not d:
+        return {"state": "none", "scan": False, "text": "لا مسحَ حديثٌ لصقر — حكمُه على هذا السهم غيرُ متوفّر الآن."}
+    x = next((x for x in d.get("items") or [] if x.get("symbol") == s), None)
+    if x:
+        cn, lk = x.get("council") or {}, x.get("link") or {}
+        side = x.get("side") or "long"
+        buy = "شراء" if side == "long" else "بيع"
+        full = cn.get("verdict") == AUTO_VERDICT and not cn.get("veto") and (not lk or lk.get("decision") == buy)
+        way = "صعود" if side == "long" else "هبوط"
+        head = f"فرصةُ {way} «{x.get('setup') or 'الرسم'}» — حكمُه {cn.get('verdict')} ({cn.get('score')}/100)"
+        txt = (f"صقر يوافق: {head}" + (f" وقراءتُه الأخيرة «{lk.get('decision')}»" if lk.get("decision") else "") + "." if full
+               else f"صقر يتحفّظ: {head}" + (f" وقراءتُه الأخيرة «{lk.get('decision')}»" if lk.get("decision") and lk.get("decision") != buy else "") + ".")
+        return {"state": "approve" if full else "caution", "scan": True, "side": side, "type": "call" if side == "long" else "put",
+                "verdict": cn.get("verdict"), "score": cn.get("score"), "decision": lk.get("decision"), "setup": x.get("setup"),
+                "horizon": x.get("horizon"), "text": txt}
+    r = next((r for r in d.get("rejected") or [] if r.get("symbol") == s), None)
+    if r:
+        return {"state": "veto", "scan": True, "side": r.get("side"), "text": "صقر يرفضه اليوم — " + (" · ".join(r.get("why") or []) or "لا يشتريه الآن") + "."}
+    return {"state": "none", "scan": True, "text": "ليس في فرص صقر اليوم — لم يوافق عليه."}
+
+
+def rule(st: dict, call: bool) -> tuple[str, str]:
+    """حكمُ صقر على عقدٍ باتّجاهه: ‏(ok · warn · no، والسبب)."""
+    want = "call" if call else "put"
+    if st.get("state") == "veto":
+        return "no", st["text"]
+    if st.get("type") and st["type"] != want:
+        way = "صعود" if st.get("side") == "long" else "هبوط"
+        return "no", f"يعاكس صقر: فرصتُه اليوم {way}، والعقدُ {'شراء (Call)' if call else 'بيع (Put)'}."
+    if st.get("state") == "approve":
+        return "ok", st["text"]
+    return "warn", st["text"]
+
+
+def win(k: dict, S: float | None) -> dict:
+    """نسبةُ نجاح العقد بنموذج صقر نفسِه (بلوغُ +30٪ قبل وقف المالك) وحدُّ المالك الواحد للسوقين — ‏{p30, floor, stop}."""
+    from app.services import saqr_team as TEAM
+    from app.services import saqr_trader as TR
+    try:
+        stop = float(TR.cfg(TR.load("us")).get("opt_stop") or TEAM.STOP * 100) / 100
+    except Exception:                                             # noqa: BLE001
+        stop = TEAM.STOP
+    try:
+        floor = TR.win_floor()
+    except Exception:                                             # noqa: BLE001
+        floor = 0.0
+    od = TEAM.odds(k, S, stop) if S else None
+    return {"p30": od["p30"] if od else None, "floor": floor or 0.0, "stop": round(stop * 100)}
+
+
+def decide(st: dict, k: dict, S: float | None) -> dict:
+    """القرارُ الواحد على عقد: ‏{level: ok|warn|no, why: [..], p30, floor, state} — به يحكم «عقودُ الخيارات» والتحليلُ الذكيّ كما يحكم الدخولُ الآليّ."""
+    lvl, why = rule(st, k.get("type") == "call")
+    w = win(k, S) if lvl != "no" else {"p30": None, "floor": 0.0, "stop": None}
+    whys = [why]
+    if lvl == "ok" and w["floor"] and (w["p30"] is None or w["p30"] < w["floor"]):
+        lvl = "warn"
+        p = "غيرُ متوفّرة" if w["p30"] is None else f"{w['p30']:.0f}٪"
+        whys.append(f"نسبةُ نجاحه {p} دون حدّك {w['floor']:.0f}٪.")
+    return {"level": lvl, "why": whys, "p30": w["p30"], "floor": w["floor"], "state": st.get("state")}
+
+
 async def confirm(market: str, cands: list[dict], ctx: dict | None = None) -> dict[str, dict]:
     """حكمُ صقر الجديد لحظةَ الشراء على مرشّحين من الفرص — ‏{رمز: {bd, lk, why}}: why=None ⇐ اجتاز الباب."""
     if not cands:

@@ -204,7 +204,7 @@ lines = OP.with_chart(["الأطروحة", "الأخبار"], x, None)
 lines2 = OP.with_chart(["الأطروحة", "الأخبار"], None, ("flat", {"setup": None, "quality": None, "where": "بين الوسط والمقاومة"}))
 check(v_br[0] == "broken" and "حدِّها 95.00" in v_br[1] and v_ok[0] == "hold" and lines[1].startswith("قراءةُ الرسم: ارتدادٌ من الدعم") and "لا فرصةَ الآن" in lines2[1]
       and OP.chart_card(x)["quality"] == 72 and 'CS.fresh("us")' in src and 'side = "call" if x["side"] == "long" else "put"' in src
-      and "for s, x in list(opps.items())[:CHART_MAX]:" in src and "if s in held or s in opps:" in src
+      and "for s, x in list(opps.items())[:CHART_MAX]:" in src and "if s not in approved:" in src
       and '"chart_stop": (k.get("chart") or {}).get("stop")' in src and "CHART_W * x[\"chart\"][\"quality\"]" in src,
       "٦ «عقودُ الخيارات» تبدأ بفرص مسح الرسم (الشراءُ عقدُ شراء والبيعُ عقدُ بيع، والخبرُ القويُّ المعاكسُ يُسقطها)، وجودتُها تُرجّح الترتيب، وسطرُها في المبرّر، "
       "وتنكسر التوصيةُ بكسر حدّها على الرسم", f"{v_br[0]} · {v_ok[0]}")

@@ -41,7 +41,9 @@ const PICK = { symbol: "NVDA", name: "NVIDIA Corporation", contract: "NVDA270618
 const RES = (b) => ({ budget: b, at: "2026-11-18T14:00:00+00:00", scanned: 90, news_ok: true, closed: true, limits: { min_dte: 150, max_dte: 430, min_oi: 100, max_spread: 10 },
   picks: [PICK, { ...PICK, symbol: "INTC", name: "Intel Corporation", contract: "INTC270618P00018000", type: "put", strike: 18, cost: 95, pop: 38.2, delta: -0.41,
     need_pct: 12.4, px_src: "snap", quote_at: "2026-11-17T20:40", spread_pct: 4.2, spread_usd: 4, new: true, opened: "2026-11-18", pl_pct: 0, trend: { state: "هابط" },
-    reasons: ["الأطروحة: المسار هابط — …", "الأخبار (سلبي): استقالةُ الرئيس التنفيذيّ (2026-11-10)"] }],
+    reasons: ["الأطروحة: المسار هابط — …", "الأخبار (سلبي): استقالةُ الرئيس التنفيذيّ (2026-11-10)"],
+    saqr: { state: "approve", text: "صقر يوافق: فرصةُ هبوط", p30: 61.4, floor: 60 } }],
+  gate: { approved: 4, scan: true, text: "التوصياتُ الجديدةُ من فرص صقر الموافَق عليها اليوم وحدها (4) — بنسبة نجاحٍ لا تقلّ عن حدّك." },
   exits: [{ contract: "NIO270319P00004000", symbol: "NIO", type: "put", opened: "2026-11-10", closed: "2026-11-18", status: "stop", status_ar: "بلغ الوقف",
     why: "هبط العقدُ إلى 0.40 — نصفُ سعر الدخول (0.80) أو دونه: بلغ الوقف.", pl_pct: -50 }],
   skipped: [{ symbol: "AAPL", why: "المسارُ عرضيّ — لا اتجاهَ يُشترى له عقد" }] });
@@ -119,6 +121,12 @@ for (const vp of [{ width: 1366, height: 900 }, { width: 390, height: 844 }]) {
   const s1 = await page.locator('[data-role="op-pick"]').nth(1).locator('[data-role="op-state"]').textContent().catch(() => "");
   say(/قائمةٌ منذ 17 نوفمبر/.test(s0 || "") && /\+12\.4%/.test(s0 || "") && /الأطروحةُ سليمة/.test(s0 || "") && /جديدة اليوم/.test(s1 || ""),
       `${label}: ٢ب التوصيةُ تبقى بتاريخها وربحِها منذ الدخول («قائمةٌ منذ 17 نوفمبر · +12.4%»)، والجديدةُ موسومة`, `${s0} | ${s1}`);
+  /* ‏D840: القرارُ الواحد — موافقةُ صقر ونسبةُ نجاحها على التوصية الجديدة، وقاعدةُ القائمة فوقها؛ والقديمةُ بلا شارة (لا اختلاق) */
+  const sq1 = await page.locator('[data-role="op-pick"]').nth(1).locator('[data-role="op-saqr"]').textContent().catch(() => "");
+  const sq0 = await page.locator('[data-role="op-pick"]').nth(0).locator('[data-role="op-saqr"]').count();
+  const gate = await page.locator('[data-role="op-gate"]').textContent().catch(() => "");
+  say(/صقر يوافق/.test(sq1 || "") && /61%/.test(sq1 || "") && /60%/.test(sq1 || "") && sq0 === 0 && /فرص صقر الموافَق عليها/.test(gate || ""),
+      `${label}: ٢ج ‏D840 التوصيةُ الجديدةُ عليها موافقةُ صقر ونسبةُ نجاحها وحدُّ المالك، وقاعدةُ القائمة ظاهرة`, `${sq1} | ${gate}`);
   const why = await page.locator('[data-role="op-pick"]').nth(0).locator(".op-why li").allTextContents().catch(() => []);
   say(why.some(x => /الهدفُ الفنيّ/.test(x)) && why.some(x => /^لماذا تنفيذ 230/.test(x)) && why.some(x => /خطّةُ الخروج/.test(x))
       && /خيار بيع/.test(await page.locator('[data-role="op-pick"]').nth(1).textContent() || ""),

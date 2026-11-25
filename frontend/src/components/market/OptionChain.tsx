@@ -26,7 +26,8 @@ type VP = { poc: number; val: number; vah: number; hvn: { p: number; w: number }
 type Chain = { symbol: string; name?: string; price?: number; expirations: { t: number; date: string; dte: number }[]; expiry: number | null;
   calls: Row[]; puts: Row[]; stats?: Stats; session?: any; vp?: VP | null };
 type Card = { contract: string; type: "call" | "put"; strike: number; expiry: string; dte: number; cost: number; px_src?: string; g: G; oi: number | null;
-  volume: number | null; verdict: "ok" | "warn" | "no"; verdict_ar: string; pros: string[]; cons: string[]; need_pct: number | null };
+  volume: number | null; verdict: "ok" | "warn" | "no"; verdict_ar: string; pros: string[]; cons: string[]; need_pct: number | null;
+  saqr?: { level: string; state: string; p30: number | null; floor: number | null } };   // ‏D840: حكمُ صقر على العقد ونسبةُ نجاحه بنموذجه
 
 const f2 = (v: number | null | undefined) => (v == null || !isFinite(v) ? "—" : v.toFixed(2));
 const fk = (v: number | null | undefined) => (v == null ? "—" : v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e4 ? `${(v / 1e3).toFixed(0)}K` : v.toLocaleString("en-US"));
@@ -410,6 +411,9 @@ function Smart({ q, onClose, onOpen, onAdd, budget }: { q: any; onClose: () => v
             {d.earnings && <span className="ocx-tag">الأرباح {d.earnings.slice(0, 10)}</span>}
             {(d.events || []).slice(0, 2).map((e: any) => <span key={e.id} className="ocx-tag t-ev">{e.day} {e.riyadh.slice(-5)} · {e.title}</span>)}
           </div>
+          {/* ‏D840: القرارُ الواحد — حكمُ صقر اليوم على السهم فوق كلّ شيء؛ «مناسب» لا يُقال إلّا لما يوافق عليه */}
+          {d.saqr?.text && <p className="oa-saqr" data-role="oc-saqr" data-state={d.saqr.state}>
+            <ShieldCheck size={13} aria-hidden style={{ color: d.saqr.state === "approve" ? "var(--brand-ink)" : "var(--warn-ink)" }} /> <b>{d.saqr.text}</b></p>}
           {d.abstain ? <p className="ocx-abstain" data-role="oc-abstain">{d.abstain}</p> : d.lean_note && <p className="ocx-note">{d.lean_note}</p>}
           {d.fit && (
             <div className={"ocx-fit" + (d.fit.ok ? " ok" : "")} data-role="oc-fit">
@@ -419,7 +423,7 @@ function Smart({ q, onClose, onOpen, onAdd, budget }: { q: any; onClose: () => v
               {d.fit.lab && <p>بدائلُ ضمن ميزانيتك من مختبر الأبحاث: {d.fit.lab.map((x: any) => `${x.symbol} ($${Math.round(x.cost)} · ${Math.round(x.pop)}%)`).join(" · ")}</p>}
             </div>
           )}
-          {(d.best || []).length > 0 && <h4 className="ocx-h">{d.abstain ? "إن أصررت — بحذر" : "الأنسب"}</h4>}
+          {(d.best || []).length > 0 && <h4 className="ocx-h">{d.abstain ? "إن أصررت — بحذر" : d.best.some((c: Card) => c.verdict === "ok") ? "الأنسب" : "الأقرب — بحذر"}</h4>}
           {(d.best || []).map((c: Card) => {
             const o = parseOption(c.contract);
             return (
@@ -430,7 +434,8 @@ function Smart({ q, onClose, onOpen, onAdd, budget }: { q: any; onClose: () => v
                 </div>
                 <div className="ocx-mini">
                   <span>الدلتا <bdi dir="ltr">{c.g.delta.toFixed(2)}</bdi></span><span>الثيتا <bdi dir="ltr">{usd(c.g.theta)}</bdi>/يوم</span>
-                  <span>التذبذب <bdi dir="ltr">{c.g.iv}%</bdi></span><span>احتمال الربح <bdi dir="ltr">{c.g.pop}%</bdi></span><span><bdi dir="ltr">{c.dte}</bdi> يوماً</span>
+                  <span>التذبذب <bdi dir="ltr">{c.g.iv}%</bdi></span><span>احتمال الربح <bdi dir="ltr">{c.g.pop}%</bdi></span>
+                  {c.saqr?.p30 != null && <span data-role="oc-p30">نجاح صقر <bdi dir="ltr">{c.saqr.p30.toFixed(0)}%</bdi></span>}<span><bdi dir="ltr">{c.dte}</bdi> يوماً</span>
                 </div>
                 <Verdict c={c} />
                 <div className="ocx-dbtns">

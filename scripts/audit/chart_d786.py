@@ -286,10 +286,10 @@ from app.services import option_picks as OP   # noqa: E402
 src = (ROOT / "backend/app/services/option_picks.py").read_text(encoding="utf-8")
 card = OP.chart_card({**CH_BUY, "entry": [1, 2], "target": 3, "stop": 0.5, "rr": 2, "council": CN.compact(b_ok), "link": lk_ok})
 # ‏D807 (المالك 2026-11-24): «صقرٌ واحد — لا مجلسَ ولا أعضاء»
-check('vetoed = {x["symbol"]: x for x in scan_us.get("rejected") or []}' in src and '"صقر لا يشتريه الآن — "' in src and "مجلسُ صقر" not in src.split('"""')[-1]
+check('approved = CN.opportunities("us")' in src and 'CN.stance(s)["text"]' in src and "مجلسُ صقر" not in src.split('"""')[-1]
       and card["council"]["verdict"] == "يوافق" and card["link"]["decision"] == "شراء" and "وحكمُ صقر يوافق" in OP.with_chart(["أ", "ب"], {**CH_BUY, "entry": [1, 2],
                                                                                                    "target": 3, "stop": 0.5, "council": CN.compact(b_ok)}, None)[1],
-      "١١ «عقودُ الخيارات» تبدأ بفرص الرسم التي اجتازت المجلس، وما رفضه المجلسُ اليوم لا يدخل الدفترَ من قائمته الثابتة، وحكمُ المجلس و«الرابط» في البطاقة والمبرّر")
+      "١١ «عقودُ الخيارات» من فرص الرسم التي وافق عليها صقرٌ وحدها (‏D840 — لا قائمةَ ثابتةَ بمسارها)، وحكمُ صقر و«الرابط» في البطاقة والمبرّر")
 
 # ١٢ قراءةُ الأخبار دفعةً واحدة: رمزٌ بلا عناوين لا حدثَ له بلا نداء، ودفعةٌ تعذّرت «غيرُ متوفّرة»، والمقروءُ مخبّأ
 for k in list(cache._store):
