@@ -71,7 +71,12 @@ export default function ChartRead({ symbol, name, market, frames }: {
             </div>
             {m.isPending ? (
               <div className="cr-wait" role="status" data-role="chart-read-wait">
-                <span className="cr-wait-t">يقرأ الرسمَ ومؤشّراتِه ومستوياتِه… <b className="cr-sec tabular-nums" dir="ltr" data-role="chart-read-sec">{sec}</b> ث</span>
+                {/* ‏D824 (المالك): «سطرُ الكلام وعدّادُ الثواني مكسّران» — كان العدّادُ بصنف «cr-sec» الذي تحمله أقسامُ التحليل (عمودٌ مرن) فينكسر
+                    سطرُه؛ فالنصُّ يميناً والعدّادُ شارةٌ يساراً في صفٍّ واحد، بعرضٍ ثابتٍ لا يتراقص مع الأرقام */}
+                <div className="cr-wait-row">
+                  <span className="cr-wait-t">يقرأ الرسمَ ومؤشّراتِه ومستوياتِه…</span>
+                  <span className="cr-timer" data-role="chart-read-timer"><b dir="ltr" data-role="chart-read-sec">{sec}</b>ث</span>
+                </div>
                 <i /><i /><i />
               </div>
             ) : m.isError || (d && !d.ok) ? (

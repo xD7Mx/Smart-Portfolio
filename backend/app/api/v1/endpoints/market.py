@@ -2291,7 +2291,23 @@ async def research_desk_paper(day: str | None = None, part: str = "market", pf: 
     if not r:
         return success_response({"html": None})
     part = "market" if (pf == "none" or market_only) else (part if part in ("market", "portfolio", "all") else "market")
-    return success_response({"html": render(r, part), "date": r["date"], "market_only": part == "market"})
+    html = render(r, part)
+    try:                                                          # ‏D825: ملفُّها يُعَدّ في الخلفية — فيصل «PDF» فوراً
+        from app.services.research_paper import pdf_warm
+        rp, pp = _pdf_args(pf, day)
+        if rp:
+            pdf_warm(rp, pp)
+    except Exception as e:                                        # noqa: BLE001
+        logger.debug(f"pdf warm: {e}")
+    return success_response({"html": html, "date": r["date"], "market_only": part == "market"})
+
+
+def _pdf_args(pf: str | None, day: str | None):
+    """التقريرُ والجزءُ اللذان يُطبعان ملفّاً لـ`pf` — بلا محفظةٍ (أو تقريرٌ للسوق وحده) صفحاتُ السوق وحدها."""
+    _key, r, market_only = _report_for(pf, day)
+    if r and (pf == "none" or market_only):
+        r = {**r, "positions": [], "picks": [], "portfolio": [], "market_only": True}
+    return r, ("market" if r and r.get("market_only") else "all")
 
 
 @router.get("/research-desk/pdf")
@@ -2299,12 +2315,10 @@ async def research_desk_pdf(day: str | None = None, pf: str | None = None):
     """الورقةُ كاملةً ملفَّ PDF بتاريخ جلستها — كما تصل إلى تلغرام (وبـ`pf` المختارة — ‏D788)."""
     from fastapi import Response
     from app.services.research_paper import pdf
-    _key, r, market_only = _report_for(pf, day)
-    if r and (pf == "none" or market_only):
-        r = {**r, "positions": [], "picks": [], "portfolio": [], "market_only": True}
+    r, part = _pdf_args(pf, day)
     if not r:
         raise HTTPException(status_code=404, detail="لا تقريرَ لهذا اليوم.")
-    data = await pdf(r, "market" if r.get("market_only") else "all")
+    data = await pdf(r, part)
     if not data:
         raise HTTPException(status_code=503, detail="تعذّرت طباعةُ التقرير الآن.")
     return Response(content=data, media_type="application/pdf",

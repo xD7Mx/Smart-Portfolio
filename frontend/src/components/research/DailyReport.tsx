@@ -10,7 +10,7 @@
    وجداولها ورسومها كما هي، ويُصغَّر كلُّه بنسبةٍ واحدةٍ ليسع الشاشة — والقرصُ بالإصبعين يكبّره للقراءة. */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { FileText, RefreshCw, Download } from "lucide-react";
+import { FileText, RefreshCw, Check } from "lucide-react";
 import { marketApi, portfoliosApi } from "../../services/api";
 import { getActivePortfolioId } from "../../store/portfolioStore";
 import { useAuthStore } from "../../store/authStore";
@@ -27,6 +27,17 @@ const months = (ds: Day[]): [string, Day[]][] => {
   }
   return out;
 };
+
+/** ‏D823: أيقونةُ التنزيل — سهمُها يهبط إلى الصينية ما دام الملفُّ يُعدّ (لا دوران) */
+function DownloadIc({ busy }: { busy: boolean }) {
+  return (
+    <svg className={"rl-dl" + (busy ? " busy" : "")} width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" data-role="rl-dl" data-busy={busy ? "1" : "0"}>
+      <path className="rl-dl-tray" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <g className="rl-dl-arrow"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /></g>
+    </svg>
+  );
+}
 
 export default function DailyReport() {
   const owner = useAuthStore((s: any) => s.isOwner);
@@ -70,6 +81,7 @@ export default function DailyReport() {
     staleTime: 5 * 60 * 1000,
   });
   const run = useMutation({ mutationFn: () => marketApi.researchRun(), onSuccess: () => setTimeout(() => head.refetch(), 800) });
+  const [saved, setSaved] = useState(false);
   const pdf = useMutation({
     mutationFn: () => marketApi.researchPdf(rep?.date ?? null, cur || null),
     onSuccess: r => {
@@ -79,6 +91,8 @@ export default function DailyReport() {
       a.download = `daily-report-${rep?.date}.pdf`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1600);
     },
   });
 
@@ -116,8 +130,8 @@ export default function DailyReport() {
         <span className="rl-acts">
           {rep && (
             <button type="button" className="btn-ghost rl-btn" onClick={() => pdf.mutate()} disabled={pdf.isPending} data-role="rl-pdf"
-              aria-label="تنزيل التقرير ملفَّ PDF" title="تنزيل التقرير ملفَّ PDF">
-              <Download size={15} className={pdf.isPending ? "rl-spin" : ""} /> PDF
+              aria-busy={pdf.isPending} aria-label="تنزيل التقرير ملفَّ PDF" title="تنزيل التقرير ملفَّ PDF">
+              {saved ? <Check size={15} className="rl-done" data-role="rl-pdf-done" /> : <DownloadIc busy={pdf.isPending} />} PDF
             </button>
           )}
           {owner && (

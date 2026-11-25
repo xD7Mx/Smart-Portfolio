@@ -42,6 +42,8 @@ import LiveQuote, { useLive } from "./LiveQuote";
    كتريدنق فيو (ترسٌ واحدٌ يفتح نافذةَ كلّ مؤشّر). كانت معها: SMA 20/50/200 وRSI وStochastic وMACD. */
 /* ‏D756 (المالك 2026-11-16): «لم أجد مؤشّر الماكد — لازم يكون موجوداً» — ‏MACD 12 26 9 بلوحته كتريدنق فيو */
 type IndKey = "vol" | "stochrsi" | "cvd" | "macd" | "d7m";
+/* ‏D826: شموعُ إطارٍ غادره المالكُ تبقى في ذاكرة المتصفّح نصفَ ساعة (كانت خمسَ دقائق) — فالعودةُ إليه فوريّة */
+const BARS_GC = 30 * 60_000;
 const IND: [IndKey, string, string][] = [
   ["vol", "الحجم", "--ink-muted"], ["stochrsi", "Stoch RSI", "--info-ink"], ["cvd", "CVD D7M", "--chart-3"], ["macd", "MACD", "--info-ink"],
   ["d7m", "D7M", "--brand-ink"]];
@@ -233,7 +235,7 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
   const { data: raw, isError, isPending } = useQuery({
     queryKey: ["bars", symbol, tf],
     queryFn: () => marketApi.bars(symbol, tf).then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
-    enabled: !!symbol, retry: 1, staleTime: 10_000,
+    enabled: !!symbol, retry: 1, staleTime: 10_000, gcTime: BARS_GC,
     /* الشمعةُ الجاريةُ تتحرّك مع التداول — الخادمُ يكتبها من جلسة «تداول» الرسمية ومن شموع المصدر */
     refetchInterval: tfIntraday(tf) ? 30_000 : 60_000,
   });
@@ -241,18 +243,24 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
   /* ‏D814 (المالك 2026-11-24: «التطبيقُ يأخذ وقتاً عند تشغيل الإطارات — خلِّه سريعاً»): بعد أن يُرسم الإطارُ الجاري تُجلب في وقت الفراغ شموعُ
      الإطارات المفضّلة للرمز نفسِه — فالتبديلُ إليها يُرسم فوراً من الذاكرة (ويُحدَّث في الخلفية) بدل انتظار الشبكة والخادم */
   const qc = useQueryClient();
+  /* ‏D826 (المالك 2026-11-24: «تأخيرٌ في تحميل صفحات تريدنق فيو لجميع الإطارات»): قِيس أنّ شموعَ الإطار تُرمى من ذاكرة المتصفّح بعد خمس دقائق
+     من مغادرته (الافتراضيّ)، والمفضّلةُ تُجلب سلفاً مرّةً واحدةً عند فتح الرمز — فبعد دقائق على إطارٍ واحدٍ يعود كلُّ إطارٍ آخرَ إلى الشبكة والخادم
+     (‏772ms بشبكةٍ 600ms؛ وعلى الجوال ثانيةٌ إلى ثلاث). فالشموعُ تبقى نصفَ ساعة، والمفضّلةُ تُنعَش بهدوءٍ عند كلّ تبديل (الحديثةُ بلا طلب)،
+     وإطارٌ يقترب منه الإصبعُ أو المؤشّرُ يبدأ جلبُه قبل الضغطة */
+  const warm = (f: string) => {
+    if (!symbol || f === tf) return;
+    qc.prefetchQuery({ queryKey: ["bars", symbol, f], staleTime: 60_000, gcTime: BARS_GC,
+      queryFn: () => marketApi.bars(symbol, f).then(r => (Array.isArray(r.data?.data) ? r.data.data : [])) });
+  };
   useEffect(() => {
     if (!symbol || !raw) return;
     const want = fav.filter(f => f !== tf).slice(0, 4);
     if (!want.length) return;
     const idle = (cb: () => void) => ((window as any).requestIdleCallback ? (window as any).requestIdleCallback(cb, { timeout: 2500 }) : window.setTimeout(cb, 700));
-    const h = idle(() => want.forEach(f => qc.prefetchQuery({
-      queryKey: ["bars", symbol, f], staleTime: 60_000,
-      queryFn: () => marketApi.bars(symbol, f).then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
-    })));
+    const h = idle(() => want.forEach(warm));
     return () => { try { ((window as any).cancelIdleCallback || window.clearTimeout)(h); } catch { /* */ } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol, !!raw, fav.join(",")]);
+  }, [symbol, tf, !!raw, fav.join(",")]);
   /* الشموعُ بالتوقيت العالميّ الحقيقيّ، والعرضُ بمنطقة المالك: «توقيتُ البورصة» افتراضاً أو ما اختاره (‏D739) */
   const tzName = tzPref === "exchange" ? exchangeTz(symbol) : tzPref;
   const disp = useMemo(() => displayTimes(bars, tzName), [bars, tzName]);
@@ -1041,7 +1049,7 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
         <div className="pc-group" role="group" aria-label="الإطار الزمني" data-role="pc-tfs">
           {fav.map(k => (
             <button key={k} type="button" className={"pc-tf" + (tf === k ? " on" : "")} aria-pressed={tf === k} title={tfLong(k)} onClick={() => setTf(k)}
-              data-tf={k} data-fav="1">{tfShort(k)}</button>
+              onPointerEnter={() => warm(k)} onPointerDown={() => warm(k)} onFocus={() => warm(k)} data-tf={k} data-fav="1">{tfShort(k)}</button>
           ))}
           {!fav.includes(tf) && <span className="pc-tf on" aria-current="true" title={tfLong(tf)} data-role="pc-tf-cur">{tfShort(tf)}</span>}
           <Menu label={<ChevronDown size={15} />} title="كلُّ الإطارات وإطارٌ مخصَّص" role="pc-tf-more" wide>
@@ -1053,7 +1061,8 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
                     const on = fav.includes(k);
                     return (
                       <span key={k} className="pc-tfopt" data-tfopt={k}>
-                        <button type="button" className={"pc-tf" + (tf === k ? " on" : "")} onClick={() => { setTf(k); close(); }} data-tf={k}>{tfLong(k)}</button>
+                        <button type="button" className={"pc-tf" + (tf === k ? " on" : "")} onClick={() => { setTf(k); close(); }}
+                          onPointerEnter={() => warm(k)} onPointerDown={() => warm(k)} onFocus={() => warm(k)} data-tf={k}>{tfLong(k)}</button>
                         <button type="button" className={"pc-star" + (on ? " on" : "")} aria-pressed={on} onClick={() => toggleFav(k)} data-star={k}
                           title={on ? "أزِله من المفضّلة" : "أضِفه إلى المفضّلة"} aria-label={on ? `أزِل ${tfLong(k)} من المفضّلة` : `أضِف ${tfLong(k)} إلى المفضّلة`}>
                           <Star size={14} fill={on ? "currentColor" : "none"} /></button>

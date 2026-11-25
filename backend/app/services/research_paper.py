@@ -404,9 +404,9 @@ def averages(store: dict, day: str) -> dict:
     return out
 
 
-async def corporate_actions(today: date, days: int = 14, limit: int = 18) -> list[dict]:
-    """إجراءاتُ الشركات السعودية القادمة (توزيعاتٌ · جمعياتٌ · أحقّياتٌ · نتائج) — ‏D817 (المالك 2026-11-24): «لها نصيبُ الأسد وتأخذ مساحتَها
-    بعدم الاقتطاع»: أسبوعان لا أسبوع، وحتى ثمانيةَ عشرَ إجراءً في قسمٍ بعرض الصفحة."""
+async def corporate_actions(today: date, days: int = 7, limit: int = 18) -> list[dict]:
+    """إجراءاتُ الشركات السعودية القادمة (توزيعاتٌ · جمعياتٌ · أحقّياتٌ · نتائج) لأسبوعٍ كما كانت — ‏D822 (المالك 2026-11-24): «لم أطلب سوى
+    إعطائه المساحةَ الكافية لا إعادةَ تصميمه»: فلا يُقصّ من إجراءات الأسبوع شيء (كان الحدُّ عشرة)، والصفحةُ تُفسح له."""
     try:
         from app.services.content_engine import market_wide_events, clean_events
         from app.data.universe import is_main
@@ -562,7 +562,7 @@ def market_at(day: str, ctx: dict, store: dict | None = None) -> dict | None:
             "intraday": [{"t": b["date"][11:16], "c": b["close"], "v": b["volume"]} for b in intra],
             "daily": [{"d": b["date"][:10], "o": b["open"], "h": b["high"], "l": b["low"], "c": b["close"], "v": ctx.get("vol", {}).get(b["date"][:10]) or b["volume"]}
                       for b in bars[-260:]],
-            "global": q(GLOBAL), "commodities": q(COMMOD), "fx": q(FX), "rates": q(RATES, True), "actions": acts[:10]}
+            "global": q(GLOBAL), "commodities": q(COMMOD), "fx": q(FX), "rates": q(RATES, True), "actions": acts[:18]}   # ‏D822: لا يُقصّ من إجراءات الأسبوع شيء
 
 
 # ── الاختيارات ونظرتُنا للمراكز ───────────────────────────────────────────
@@ -1334,11 +1334,6 @@ ul.bul li::before{{content:'';position:absolute;inset-inline-start:0;top:.55em;w
 .view.buy{{background:{GREEN}}} .view.sell{{background:{RED}}} .view.hold{{background:{NAVY}}} .view.warn{{background:#a0662f}}
 .headline{{font-size:15px;font-weight:500;color:{NAVY};background:{ZEBRA};border:1px solid {GOLD};border-radius:8px;padding:8px 12px;margin:0 0 12px}}
 .lead{{color:{NAVY};font-weight:700}}
-.acts{{margin:2px 0 10px}}
-.acts-grid{{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;row-gap:0}}
-.act{{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:baseline;gap:8px;padding:4px 6px;border-bottom:1px solid {LINE}}}
-.act:nth-child(4n+1),.act:nth-child(4n+2){{background:{ZEBRA}}}
-.act-d{{color:{NAVY};font-weight:700;min-width:44px}} .act-c{{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}} .act-t{{color:{MUTED}}}
 .pf{{position:absolute;bottom:0;left:0;right:0;height:38px;background:linear-gradient(135deg,{NAVY},{NAVY_2});display:flex;
      justify-content:space-between;align-items:center;padding:0 30px;color:{GOLD_L};font-size:9.5px;font-weight:300}}
 .pn{{background:{GOLD};color:{NAVY};min-width:28px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;
@@ -1416,26 +1411,23 @@ def render(r: dict, part: str = "all") -> str:
                  if "سعود" not in str(x.get("market"))]
     rate_rows = qrows(m.get("rates") or [], bp=True)
     rate_rows += [[_e(x["name"]), _num(x.get("value")), _bp(x.get("d1_bp")), _bp(x.get("mtd_bp")), _bp(x.get("ytd_bp"))] for x in r.get("saibor") or []]
-    acts = m.get("actions") or []
+    act = [[_e(short_day(a["date"])), _e(a["company"]), _e(a["type"])] for a in m.get("actions") or []]
     hd = ["الإغلاق", "يوميّ %", "شهريّ %", "منذ بداية العام %"]
     l2 = (_band("الأسواق الإقليمية" + (f" — كما في {short_day(reg['date'])}" if reg.get("rows") and reg.get("date") else ""))
           + _tbl(["السوق"] + hd, reg_rows)
           + _band("الأسواق العالمية") + _tbl(["المؤشّر"] + hd, qrows(m.get("global") or []))
           + (_band("أسعار الفائدة") + _tbl(["الأداة", "العائد %", "يوميّ (نقطة)", "شهريّ (نقطة)", "منذ بداية العام (نقطة)"], rate_rows) if rate_rows else ""))
+    # ‏D822 (المالك 2026-11-24): «إجراءاتُ الشركات غيّرتَ تصميمها فصار مختلفاً عن أقرانه — أرجِعه كما كان شكلاً ومحتوى، لم أطلب إلّا المساحةَ
+    # الكافية»: جدولٌ كأقرانه في مكانه تحت العملات؛ والمساحةُ: لا حدَّ يقصّ إجراءات الأسبوع، والصفحةُ تُصغَّر بنسبتها إن طالت (‏FIT)
     r2 = (_band("أسواق السلع (دولار أمريكي)") + _tbl(["السلعة", "السعر", "يوميّ %", "شهريّ %", "منذ بداية العام %"], qrows(m.get("commodities") or []))
-          + _band("العملات والعملات المشفّرة") + _tbl(["العملة / الدولار", "السعر", "يوميّ %", "شهريّ %", "منذ بداية العام %"], qrows(m.get("fx") or [], unit=lambda v: "—" if _f(v) is None else (f"{_f(v):,.4f}" if _f(v) < 10 else f"{_f(v):,.2f}"))))
-    # ‏D817 (المالك): «إجراءاتُ الشركات السعودية لها نصيبُ الأسد وتأخذ مساحتَها بعدم الاقتطاع» — كانت آخرَ العمود الأيمن تحت السلع والعملات
-    # فتُقصّ حين تطول الصفحة؛ فصارت قسماً بعرض الصفحة تحت الأخبار العالمية، كلُّ إجراءٍ بتاريخه وشركته ونوعه في عمودين
-    acts_html = ('<section class="acts" data-k="actions">' + _band("إجراءات الشركات السعودية — الأسبوعان القادمان")
-                 + ('<div class="acts-grid">' + "".join(f'<div class="act"><span class="act-d n">{_e(short_day(a["date"]))}</span>'
-                                                        f'<b class="act-c">{_e(a["company"])}</b><span class="act-t">{_e(a["type"])}</span></div>' for a in acts) + "</div>"
-                    if acts else '<p class="empty">لا إجراءاتِ شركاتٍ معلنةً في الأسبوعين القادمين.</p>') + "</section>")
+          + _band("العملات والعملات المشفّرة") + _tbl(["العملة / الدولار", "السعر", "يوميّ %", "شهريّ %", "منذ بداية العام %"], qrows(m.get("fx") or [], unit=lambda v: "—" if _f(v) is None else (f"{_f(v):,.4f}" if _f(v) < 10 else f"{_f(v):,.2f}")))
+          + (_band("إجراءات الشركات السعودية") + _tbl(["التاريخ", "الشركة", "نوع الحدث"], act) if act else ""))
     # ‏D788 (المالك 2026-11-23): «الأخبارُ العالمية مكانُها ضيّقٌ جدّاً داخل التقرير — خلِّ لها مكاناً خاصّاً في أوّل الصفحة، ورتّب ترتيباً أنيقاً»:
     # كانت آخرَ العمود الأيمن تحت السلع والعملات وإجراءات الشركات؛ فصارت رأسَ الصفحة بعرضها كلِّه في عمودين، والجداولُ تحتها
     gn = r.get("global") or []
     news = ('<section class="gnews" data-k="global-news">' + _band("الأخبار العالمية")
             + (_bul(gn).replace('<ul class="bul">', '<ul class="bul two">', 1) if gn else '<p class="empty">لا أخبارَ عالميةً جديدة.</p>') + "</section>")
-    pages.append(("الأخبار والأسواق العالمية", f'{news}{acts_html}<div class="cols"><div class="blk">{r2}</div><div class="blk">{l2}</div></div>', "market"))
+    pages.append(("الأخبار والأسواق العالمية", f'{news}<div class="cols"><div class="blk">{r2}</div><div class="blk">{l2}</div></div>', "market"))
 
     # ═══ ٣ النظرة الفنية اليومية ═══
     if tech:
@@ -1507,6 +1499,97 @@ def render(r: dict, part: str = "all") -> str:
             f'<title>التقرير اليومي — {_e(day_label(day))}</title><style>{_fonts()}{CSS}</style></head><body>{sections}<script>{FIT}</script></body></html>')
 
 
-async def pdf(r: dict, part: str = "all") -> bytes | None:
+# ══ ‏D825: الملفُّ يُطبع مرّةً لكلّ ورقة ══ — قِيس على الخادم (‏report_speed_door_d825.py): الورقةُ تُبنى في 6–19ms، والملفُّ 7–10 ثوانٍ في كلّ
+# ضغطة: يُشغَّل متصفّحٌ بلا واجهةٍ من جديد ليطبع الورقةَ نفسَها التي لم تتغيّر. فالملفُّ يُحفظ بمفتاح محتوى ورقته (الورقةُ حتميّة: لا ساعةَ فيها)
+# ويُعاد فوراً، ويُعَدّ في الخلفية حين تُفتح الورقة — طابعٌ واحدٌ في آن (ذاكرةُ الخادم ضيّقة)، ولا تحضيرَ في الخلفية إن ضاقت.
+PDF_KEEP = 16
+_PDF_LOCK: asyncio.Lock | None = None
+_PDF_RUN: dict = {}
+
+
+def _pdf_dir() -> str:
+    import os
+    d = os.path.join(os.environ.get("SP_STATE_DIR", "/app/storage"), "research_desk", "pdf")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def pdf_key(html: str) -> str:
+    return hashlib.sha1(html.encode("utf-8")).hexdigest()[:24]
+
+
+def pdf_cached(key: str) -> bytes | None:
+    import os
+    f = os.path.join(_pdf_dir(), f"{key}.pdf")
+    try:
+        if os.path.getsize(f) > 800:
+            os.utime(f)                                           # الأحدثُ استعمالاً يبقى
+            with open(f, "rb") as fh:
+                return fh.read()
+    except OSError:
+        pass
+    return None
+
+
+def _mem_ok(need_mb: int = 350) -> bool:
+    try:
+        with open("/proc/meminfo") as fh:
+            m = {ln.split(":")[0]: ln.split()[1] for ln in fh}
+        return int(m.get("MemAvailable", 0)) / 1024 >= need_mb
+    except Exception:                                             # noqa: BLE001
+        return True
+
+
+async def _print(html: str, key: str) -> bytes | None:
+    import os
     from app.services.saqr_report import to_pdf
-    return await to_pdf(render(r, part))
+    global _PDF_LOCK
+    if _PDF_LOCK is None:
+        _PDF_LOCK = asyncio.Lock()
+    async with _PDF_LOCK:                                         # طابعٌ واحدٌ في آن
+        hit = pdf_cached(key)
+        if hit:
+            return hit
+        data = await to_pdf(html)
+        if data:
+            d = _pdf_dir()
+            tmp = os.path.join(d, f".{key}.tmp")
+            with open(tmp, "wb") as fh:
+                fh.write(data)
+            os.replace(tmp, os.path.join(d, f"{key}.pdf"))
+            files = sorted((os.path.join(d, n) for n in os.listdir(d) if n.endswith(".pdf")), key=os.path.getmtime, reverse=True)
+            for f in files[PDF_KEEP:]:
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
+        return data
+
+
+def _start(html: str, key: str):
+    t = _PDF_RUN.get(key)
+    if t is None or t.done():
+        t = asyncio.ensure_future(_print(html, key))
+        _PDF_RUN[key] = t
+        t.add_done_callback(lambda _t, k=key: _PDF_RUN.pop(k, None) if _PDF_RUN.get(k) is _t else None)
+    return t
+
+
+async def pdf(r: dict, part: str = "all") -> bytes | None:
+    """الورقةُ ملفّاً — من المحفوظ إن طُبعت ورقتُها نفسُها من قبل، وإلّا تُطبع (وإن كانت تُطبع الآن في الخلفية يُنتظر طبعُها لا طبعٌ ثانٍ)."""
+    html = render(r, part)
+    key = pdf_key(html)
+    hit = pdf_cached(key)
+    if hit:
+        return hit
+    return await asyncio.shield(_start(html, key))
+
+
+def pdf_warm(r: dict, part: str = "all") -> bool:
+    """يُعِدّ ملفَّ الورقة في الخلفية حين تُفتح — فيصل الحفظُ فوراً. لا شيءَ إن كان محفوظاً أو يُطبع، أو ضاقت ذاكرةُ الخادم."""
+    html = render(r, part)
+    key = pdf_key(html)
+    if key in _PDF_RUN or pdf_cached(key) or not _mem_ok():
+        return False
+    _start(html, key)
+    return True

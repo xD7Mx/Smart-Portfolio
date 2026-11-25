@@ -3,7 +3,7 @@
 //  ‏D815 «التقريرُ اليوميّ على الجوال يجب أن يظهر كما يظهر على الكمبيوتر» — كانت الورقةُ تلتفّ عموداً واحداً تحت 820px.
 //  ‏D817 (صورتا ملفّ 24/11): «العنوانُ في أعلى الصفحة مكانُه الصحيحُ تحليلُ السوق، وبدايةُ الصفحة بالأخبار — وتكرّر في محفظتنا مع أنّه
 //        يخصّ السوق»، و«العملاتُ المشفّرة قلّلها — المهمّاتُ الرئيسية فقط»، و«إجراءاتُ الشركات السعودية لها نصيبُ الأسد وتأخذ مساحتَها
-//        بعدم الاقتطاع».
+//        بعدم الاقتطاع»؛ ثمّ ‏D822: «لم أطلب سوى المساحة الكافية لا إعادةَ تصميمه» — فجدولٌ كأقرانه بلا اقتطاع.
 // الورقةُ تُكتب من الخادم نفسِه (‏research_paper.render) بأقصى ما تحمله عادةً — جداولُها بصفوفها وثمانيةَ عشرَ إجراءً (‏research_desk_d816.py).
 //    SHOTS=dir node scripts/audit/report_d815.mjs
 // ─────────────────────────────────────────────────────────────────────────
@@ -27,8 +27,8 @@ const HTML = readFileSync(out, "utf8");
 
 // ═ ساكنٌ على المصدر ═
 const rp = readFileSync(join(ROOT, "backend/app/services/research_paper.py"), "utf8");
-say(!/XRP-USD/.test(rp) && /"BTC-USD"/.test(rp) && /"ETH-USD"/.test(rp) && /days: int = 14, limit: int = 18/.test(rp),
-    "٠ العملاتُ المشفّرةُ الرئيسيةُ وحدها (بتكوين · إيثريوم)، وإجراءاتُ الشركات أسبوعان حتى ثمانيةَ عشرَ إجراءً");
+say(!/XRP-USD/.test(rp) && /"BTC-USD"/.test(rp) && /"ETH-USD"/.test(rp) && /days: int = 7, limit: int = 18/.test(rp) && /"actions": acts\[:18\]/.test(rp),
+    "٠ العملاتُ المشفّرةُ الرئيسيةُ وحدها (بتكوين · إيثريوم)، وإجراءاتُ الشركات لأسبوعٍ كما كانت — بلا حدِّ العشرة الذي يقصّها (‏D822)");
 
 const PORT = 5303;
 const CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
@@ -53,14 +53,18 @@ const browser = await chromium.launch({ executablePath: CHROME });
     return { inAna: !!b, first: a?.firstElementChild === b }; });
   say(pg.length === 4 && p1.first.includes("الأخبار المحلية") && !p1.head && lead.inAna && lead.first && !p4.head,
       "١ الصفحةُ الأولى تبدأ بالأخبار المحلية، وعنوانُ اليوم يفتتح «تحليل السوق» — ولا يتكرّر في صفحة «محفظتنا»", JSON.stringify({ p1: p1.first, lead, p4: p4.head }));
-  const acts = await page.evaluate(() => { const s = document.querySelector('[data-k="actions"]'); if (!s) return null;
-    const pb = s.closest(".pb").getBoundingClientRect(), r = s.getBoundingClientRect();
-    const items = [...s.querySelectorAll(".act")]; const lim = s.closest(".page").querySelector(".pf").getBoundingClientRect().top;
-    return { n: items.length, wide: r.width / pb.width, cut: items.filter(i => i.getBoundingClientRect().bottom > lim).length,
-             cols: getComputedStyle(s.querySelector(".acts-grid")).gridTemplateColumns.split(" ").length, afterNews: s.previousElementSibling?.getAttribute("data-k") }; });
+  /* ‏D822 (المالك): «غيّرتَ تصميمَ إجراءات الشركات فصار مختلفاً عن أقرانه — أرجِعه كما كان شكلاً ومحتوى، لم أطلب إلّا المساحةَ الكافية» */
+  const acts = await page.evaluate(() => {
+    const band = [...document.querySelectorAll(".band")].find(b => b.textContent.trim() === "إجراءات الشركات السعودية"); if (!band) return null;
+    const tw = band.nextElementSibling, rows = [...tw.querySelectorAll("tbody tr")], lim = band.closest(".page").querySelector(".pf").getBoundingClientRect().top;
+    const fxb = [...document.querySelectorAll(".band")].find(b => /العملات والعملات المشفّرة/.test(b.textContent)), fxt = fxb?.nextElementSibling;
+    return { n: rows.length, cut: rows.filter(r => r.getBoundingClientRect().bottom > lim).length, head: [...tw.querySelectorAll("th")].map(x => x.textContent).join(),
+             same: tw.className === fxt?.className && tw.querySelector("table")?.className === fxt?.querySelector("table")?.className,
+             afterFx: band.previousElementSibling === fxt, old: !!document.querySelector(".acts, .act, .acts-grid, [data-k=actions]") }; });
   const fx = await page.evaluate(() => [...document.querySelectorAll("td")].some(td => /ريبل/.test(td.textContent)));
-  say(acts && acts.n === 18 && acts.wide > 0.9 && acts.cut === 0 && acts.cols === 2 && acts.afterNews === "global-news" && !fx,
-      "٢ إجراءاتُ الشركات السعودية قسمٌ بعرض الصفحة تحت الأخبار العالمية في عمودين — الثمانيةَ عشرَ كلُّها بلا اقتطاع، ولا «ريبل» في العملات", JSON.stringify({ acts, fx }));
+  say(acts && acts.n === 18 && acts.cut === 0 && acts.head === "التاريخ,الشركة,نوع الحدث" && acts.same && acts.afterFx && !acts.old && !fx,
+      "٢ ‏D822 إجراءاتُ الشركات السعودية جدولٌ كأقرانه في مكانه تحت العملات — كما كان شكلاً ومحتوى (لا قسمَ بتصميمٍ خاصّ)، وإجراءاتُ الأسبوع كلُّها "
+      + "بلا اقتطاع (ثمانيةَ عشرَ هنا)، ولا «ريبل» في العملات", JSON.stringify({ acts, fx }));
   say(pg.every(p => p.over <= 0 && p.fit >= 0.8), "٣ كلُّ صفحةٍ تسع محتواها بأقصى صفوفه — لا شيءَ يُقصّ تحت تذييلها (والتصغيرُ ≥ 0.8)",
       pg.map(p => `${p.t}: ${p.over}px · ${p.fit}`).join(" | "));
   if (process.env.SHOTS) await page.screenshot({ path: join(process.env.SHOTS, "d815_paper.png"), fullPage: true });
