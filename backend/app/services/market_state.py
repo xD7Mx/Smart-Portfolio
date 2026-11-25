@@ -110,9 +110,18 @@ def _observe(code, phase: str, feed_at, price=None) -> None:
 def _today_obs(now: datetime, tail: int = 800) -> list[dict]:
     """مشاهداتُ اليوم من آخر السجلّ — لا يُقرأ الملفُّ كلُّه في كلّ سؤال."""
     day = now.date().isoformat()
+    # ‏D843: قيس برقيب الحلقة — كان `readlines()` يقرأ السجلَّ كلَّه (يكبر بلا حدّ) ثمّ يأخذ ذيلَه، في كلّ سؤالٍ عن الساعة
+    # (كلَّ عشرين ثانيةً من كلّ صفحة) فحبس الخادمَ حتى 6.3 ثانية. فالذيلُ وحده يُقرأ من آخر الملفّ (‏~400 بايتٍ للسطر بسخاء)
     try:
-        with open(_OBS, encoding="utf-8") as f:
-            lines = f.readlines()[-tail:]
+        with open(_OBS, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            f.seek(max(0, size - tail * 400))
+            chunk = f.read().decode("utf-8", errors="ignore")
+        lines = chunk.splitlines()
+        if size > tail * 400 and lines:
+            lines = lines[1:]                                     # أوّلُ سطرٍ قد يكون مقطوعاً
+        lines = lines[-tail:]
     except OSError:
         return []
     out = []

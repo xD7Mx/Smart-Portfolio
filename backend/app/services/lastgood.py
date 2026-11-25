@@ -41,12 +41,49 @@ def _read_disk() -> dict:
 # طويلةُ العمر لا ترى شيئاً كتبته عمليةٌ أخرى بعد إقلاعها — تقرأ غياباً
 # حيث المفتاحُ موجودٌ على القرص. وفحصُ زمنِ التعديل رخيصٌ (‏`stat`
 # واحدة) وينعش دون أن يُلغي تجميعَ الكتابة.
+# ══ والإنعاشُ لا يحبس الخادم ══ (D843)
+# قِيس على الخادم برقيب الحلقة (‏loop_stalls_door_d843): في أربعين دقيقةً حُبست حلقةُ الأحداث نحو ثلاث دقائق هنا بعينه —
+# ‏`_read_disk` من `load` و`save` (أطولُها 26 و35 ثانية): الملفُّ كبيرٌ والذاكرةُ ضيّقة، فكلّما كتبت عمليةٌ أخرى قرأته عمليةُ
+# الخادم كلَّه داخل الحلقة وتحت القفل — فانتظرت كلُّ صفحة. فإن كان النداءُ من داخل حلقة الأحداث والنسخةُ في الذاكرة موجودة
+# أُنعشت في خيطٍ جانبيّ وخدمت النسخةُ الحاليةُ حتى يتمّ (ثوانٍ)؛ وخارجَ الحلقة (السكربتات والخيوط) يبقى الإنعاشُ فورياً كما كان.
+_refreshing = {"on": False}
+
+
+def _in_loop() -> bool:
+    try:
+        import asyncio
+        asyncio.get_running_loop()
+        return True
+    except RuntimeError:
+        return False
+
+
+def _bg_reload(m) -> None:
+    global _mem, _mtime
+    try:
+        disk = _read_disk()
+        with _lock:
+            if _mem is not None and _dirty_keys:
+                for k in _dirty_keys:
+                    if k in _mem:
+                        disk[k] = _mem[k]
+            # ما حُفظ في الذاكرة أثناء القراءة ولم يُكتب بعدُ يبقى (مفاتيحُ متّسخة)؛ والمفاتيحُ الأخرى من القرص
+            _mem, _mtime = disk, m
+    finally:
+        _refreshing["on"] = False
+
+
 def _load() -> dict:
     global _mem, _mtime
     try:
         m = os.stat(_PATH).st_mtime
     except OSError:
         m = None
+    if _mem is not None and m is not None and m != _mtime and _in_loop():
+        if not _refreshing["on"]:
+            _refreshing["on"] = True
+            Thread(target=_bg_reload, args=(m,), daemon=True, name="lastgood-reload").start()
+        return _mem
     if _mem is None or (m is not None and m != _mtime):
         disk = _read_disk()
         if _mem is not None and _dirty_keys:
