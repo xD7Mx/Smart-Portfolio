@@ -1256,10 +1256,13 @@ def _saqr_why(m: dict) -> str:
             + "".join(f"<li>{_e(t)}</li>" for t in (sq.get("themes") or [])[:2]) + "</ul></div>")
 
 
-def _page(n: int, total: int, title: str, day: str, body: str, pname: str) -> str:
-    """الصفحةُ بهويّة تقارير التطبيق: ترويسةٌ بنفسجيةٌ بالاسم والتاريخ والعنوان، وشريطٌ ذهبيّ، وتذييلٌ برقم الصفحة."""
-    return (f'<section class="page"><header class="ph"><div class="brand">المحفظة الذكية<small>قسم الأبحاث · {_e(pname)}</small></div>'
-            f'<div class="pt"><div class="d">{_e(day_label(day))}</div><h1>{_e(title)}</h1></div></header><div class="gold"></div>'
+def _page(n: int, total: int, title: str, day: str, body: str, sub: str = "") -> str:
+    """الصفحةُ بهويّة تقارير التطبيق: ترويسةٌ بنفسجيةٌ بالاسم والتاريخ والعنوان، وشريطٌ ذهبيّ، وتذييلٌ برقم الصفحة.
+    ‏D829 (المالك 2026-11-25): «لا تكتب بجانب قسم الأبحاث المحفظةَ الاستثمارية أو المضاربية أو كلَّ المحافظ — اكتفِ بقسم الأبحاث»: فالهويّةُ
+    «المحفظة الذكية» وتحتها «قسم الأبحاث» وحدَه، واسمُ المحفظة المختارة تحت عنوان صفحتها (‏sub) — ولا شيءَ لكلّ المحافظ."""
+    return (f'<section class="page"><header class="ph"><div class="brand">المحفظة الذكية<small>قسم الأبحاث</small></div>'
+            f'<div class="pt"><div class="d">{_e(day_label(day))}</div><h1>{_e(title)}</h1>'
+            + (f'<div class="ps" data-k="pf-name">{_e(sub)}</div>' if sub else "") + '</div></header><div class="gold"></div>'
             f'<div class="pb">{body}</div><footer class="pf"><span>المحفظة الذكية · قسم الأبحاث · {_e(day_label(day))}</span><b class="pn">{n}</b></footer></section>')
 
 
@@ -1274,12 +1277,23 @@ def _fonts() -> str:
 
 # ‏D756: ملاءمةُ الصفحة — إن زاد محتوى صفحةٍ عن مساحتها بين الترويسة والتذييل صُغِّر بنسبته (لا أقلَّ من 72٪) فلا يُقصّ ولا يفيض إلى ما بعدها.
 # تعمل عند الطباعة ملفّاً (المتصفّحُ بلا واجهة يشغّلها)، وتشغّلها صفحةُ «مختبر الأبحاث» على الورقة المعروضة (الإطارُ لا يشغّل نصوصاً).
-FIT = ("(function(){function fit(d){d=d||document;if((d.defaultView||window).innerWidth<820)return;"
+# ‏D827 (المالك 2026-11-25: «عند التنزيل يظهر قصٌّ في الصفحة الثانية — آخرُ إجراءات الشركات يختفي، وفي التطبيق على الكمبيوتر واضحٌ وتحته فراغ»):
+# قِيس أنّ الطابعَ يفتح الورقةَ بنافذةٍ عرضُها 780 فتخرج الدالّةُ قبل أن تعمل (كانت تشترط 820) — الصفحاتُ كلُّها بلا تصغيرٍ فيُقصّ ما زاد.
+# فالحكمُ بتخطيط الورقة لا برقم العرض: تعمل ما دامت الأعمدةُ عمودين (تخطيطُ الطباعة والحاسوب)، ويطبع الطابعُ بعرض الحاسوب نفسِه (‏saqr_report).
+# ‏D827 (ثانياً): والتصغيرُ بالتكبير (‏zoom) يعيد لفَّ الأسطر فتقصر الصفحةُ عمّا قُدِّر — قِيس بأسماء شركاتٍ طويلة: 0.806 وفراغٌ أسفلَ الصفحة؛
+# وقياسُ ما تحت التكبير يختلف بين إصدارات المتصفّح. فالتصغيرُ تحويلٌ (‏transform) والجسمُ يُعرَّض بنسبته (يملأ الصفحةَ عرضاً)، والقياسُ بمواضع
+# التخطيط (‏offset — لا يمسّها التحويل)، وأكبرُ نسبةٍ تسع الصفحةَ تُطلب بالتنصيف (الأصغرُ يسع دائماً — والتكرارُ البسيطُ يتأرجح حين ينفكّ
+# لفُّ الأسطر ويعود): لا قصّ ولا فراغ.
+FIT = ("(function(){function fit(d){d=d||document;var w=d.defaultView||window,c=d.querySelector('.cols');"
+       "if(c&&w.getComputedStyle(c).gridTemplateColumns.split(' ').length<2)return;"
        "d.querySelectorAll('.page').forEach(function(pg){var pb=pg.querySelector('.pb'),pf=pg.querySelector('.pf');if(!pb||!pf)return;"
-       "pb.style.zoom='';var t=pb.getBoundingClientRect().top,lim=pf.getBoundingClientRect().top-10,b=t;"
-       "Array.prototype.forEach.call(pb.children,function(c){var r=c.getBoundingClientRect();if(r.height)b=Math.max(b,r.bottom);});"
-       "var pad=parseFloat(getComputedStyle(pb).paddingTop)||0;if(b>lim){pb.style.zoom=Math.max(.72,(lim-t-pad)/(b-t-pad));pg.setAttribute('data-fit',pb.style.zoom);}"
-       "else pg.removeAttribute('data-fit');});}window.__fit=fit;"
+       "pb.style.transform='';pb.style.width='';pb.style.zoom='';pg.removeAttribute('data-fit');"
+       "var top=pb.offsetTop,lim=pf.offsetTop-10,W=pb.offsetWidth;"
+       "function bot(){var b=top;Array.prototype.forEach.call(pb.children,function(x){if(x.offsetHeight)b=Math.max(b,x.offsetTop+x.offsetHeight);});return b;}"
+       "if(bot()<=lim)return;pb.style.transformOrigin='top right';"
+       "function fits(s){pb.style.width=(W/s)+'px';return top+(bot()-top)*s<=lim;}"
+       "var lo=.72,hi=1,s=lo;if(fits(lo)){for(var i=0;i<12;i++){var m=(lo+hi)/2;if(fits(m))lo=m;else hi=m;}s=lo;}"
+       "pb.style.width=(W/s)+'px';pb.style.transform='scale('+s+')';pg.setAttribute('data-fit',String(Math.round(s*1000)/1000));});}window.__fit=fit;"
        "if(document.readyState==='complete')fit();else window.addEventListener('load',function(){fit();});"
        "if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){fit();});})();")
 
@@ -1294,6 +1308,7 @@ body{{background:#ebe5d4;color:{INK};font-family:'Thmanyah Serif Display','Segoe
 .brand{{color:#fff;font-size:20px;font-weight:500;line-height:1.25}}
 .brand small{{display:block;color:{GOLD_L};font-size:11px;font-weight:300}}
 .pt{{text-align:left;color:{GOLD_L}}} .pt .d{{font-size:11px;font-weight:300}} .pt h1{{margin:0;color:#fff;font-size:18px;font-weight:500;line-height:1.3}}
+.pt .ps{{font-size:11px;font-weight:300;color:{GOLD_L};margin-top:1px}}
 .gold{{height:4px;background:linear-gradient(90deg,{GOLD},{GOLD_L},{GOLD})}}
 .pb{{padding:16px 30px 58px}}
 .cols{{display:grid;grid-template-columns:1fr 1fr;gap:18px}}
@@ -1494,7 +1509,8 @@ def render(r: dict, part: str = "all") -> str:
 
     keep = [pg for pg in pages if part == "all" or pg[2] == part]
     total = len(keep)
-    sections = "".join(_page(i + 1, total, title, day, body, pname) for i, (title, body, _k) in enumerate(keep))
+    one = pname if (pname and str(r.get("portfolio_id")) != "all" and not r.get("market_only")) else ""   # ‏D829: محفظةٌ بعينها — لا «كلّ المحافظ»
+    sections = "".join(_page(i + 1, total, title, day, body, one if k == "portfolio" else "") for i, (title, body, k) in enumerate(keep))
     return (f'<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>التقرير اليومي — {_e(day_label(day))}</title><style>{_fonts()}{CSS}</style></head><body>{sections}<script>{FIT}</script></body></html>')
 

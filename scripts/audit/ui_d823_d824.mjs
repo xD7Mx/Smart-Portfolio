@@ -1,5 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────
 // D823 · D824 — ملاحظتا المالك (2026-11-24):
+//  ‏D830 «تحذيرُ كروم عند التنزيل»: الملفُّ يُفتح في قارئ المتصفّح برابطٍ موقَّع (العرضُ ليس تنزيلاً).
 //  ‏D823 «أنيميشنُ زرّ حفظ التقرير لم يعجبني — لا أريده أن يدور، خلِّ السهمَ ينزل للأسفل أو أنيميشناً أجملَ وأكثرَ احترافية».
 //  ‏D824 «عند تحليل الرسم والضغطِ عليه سطرُ الكلام وعدّادُ الثواني مكسّران وليسا مرتّبين» — كان العدّادُ بصنف «cr-sec» الذي تحمله أقسامُ
 //        التحليل نفسُها (عمودٌ مرن) فينكسر سطرُه.
@@ -51,6 +52,9 @@ for (const [label, vp, reduce] of [["الحاسوب", { width: 1366, height: 900
     if (p === "/market/research-desk") return r.fulfill(body({ report: HEAD, dates: [{ date: HEAD.date, label: HEAD.label }], running: { on: false } }));
     if (p === "/market/research-desk/paper") return r.fulfill(body({ html: PAPER, date: HEAD.date }));
     if (p === "/market/research-desk/pdf") { await sleep(2200); return r.fulfill({ status: 200, contentType: "application/pdf", body: Buffer.from("%PDF-1.4\n%%EOF") }); }
+    /* ‏D830: الملفُّ يُفتح في قارئ المتصفّح برابطٍ موقَّع — العرضُ ليس تنزيلاً فلا يحذّر كروم */
+    if (p === "/market/research-desk/pdf-link") { await sleep(2200); return r.fulfill(body({ path: "/market/research-desk/pdf-view?k=1&day=2026-11-25&mo=0&exp=9999999999&sig=t", date: HEAD.date })); }
+    if (p === "/market/research-desk/pdf-view") return r.fulfill({ status: 200, contentType: "application/pdf", headers: { "Content-Disposition": 'inline; filename="daily-report-2026-11-25.pdf"' }, body: Buffer.from("%PDF-1.4\n%%EOF") });
     if (p === "/market/chart-read") { await sleep(3300); return r.fulfill(body(READING)); }
     if (/^\/market\/(history|bars)\//.test(p)) return r.fulfill(body(bars()));
     if (p === "/portfolios") return r.fulfill(body([{ id: 1, name: "محفظتي", is_archived: false }]));
@@ -65,6 +69,7 @@ for (const [label, vp, reduce] of [["الحاسوب", { width: 1366, height: 900
     await page.locator('[data-role="ev-report"]').click({ timeout: 8000 }).catch(() => {});
     await page.waitForTimeout(1500);
     const btn = page.locator('[data-role="rl-pdf"]');
+    const popP = ctx.waitForEvent("page", { timeout: 8000 }).catch(() => null);
     await btn.click().catch(() => {});
     await page.waitForTimeout(500);
     if (process.env.SHOTS && !reduce) await page.locator('[data-role="rl-pdf"]').screenshot({ path: join(process.env.SHOTS, `d823_${vp.width}.png`) }).catch(() => {});
@@ -78,10 +83,14 @@ for (const [label, vp, reduce] of [["الحاسوب", { width: 1366, height: 900
     const done = await page.locator('[data-role="rl-pdf-done"]').count();
     await page.waitForTimeout(1900);
     const back = await page.locator('[data-role="rl-pdf"] [data-role="rl-dl"]').count();
+    const pop = await popP;
+    const view = pop ? pop.url() : "";
+    if (pop) await pop.close().catch(() => {});
     const anim = reduce ? busy.anim === "none" : busy.anim === "rlDrop";
-    say(busy.aria === "true" && busy.on === "1" && anim && busy.spins === 0 && busy.op === 1 && done === 1 && back === 1,
-        `${label}: ١ زرُّ PDF وقتَ الإعداد — ${reduce ? "ساكنٌ مع تقليل الحركة" : "سهمُه يهبط إلى الصينية"} ولا شيءَ يدور، والزرُّ بلونه كاملاً، ثمّ علامةُ تمامٍ لحظةً وتعود الأيقونة`,
-        JSON.stringify({ ...busy, done, back }));
+    say(busy.aria === "true" && busy.on === "1" && anim && busy.spins === 0 && busy.op === 1 && done === 1 && back === 1 && /\/market\/research-desk\/pdf-view\?k=1&day=2026-11-25/.test(view),
+        `${label}: ١ زرُّ PDF وقتَ الإعداد — ${reduce ? "ساكنٌ مع تقليل الحركة" : "سهمُه يهبط إلى الصينية"} ولا شيءَ يدور، والزرُّ بلونه كاملاً، ثمّ علامةُ تمامٍ لحظةً — `
+        + "والملفُّ يُفتح في قارئ المتصفّح برابطه الموقَّع (‏D830: العرضُ ليس تنزيلاً فلا يحذّر كروم)",
+        JSON.stringify({ ...busy, done, back, view: view.slice(-90) }));
   }
 
   // ═ ٢ انتظارُ تحليل الرسم ═

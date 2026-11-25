@@ -547,6 +547,8 @@ python3 scripts/audit/saqr_bot_d819.py || _note "$LINENO"   # ‏D819: صقرٌ 
 _node scripts/audit/ui_d823_d824.mjs || _note "$LINENO"   # ‏D823 · D824: سهمُ حفظ التقرير يهبط ولا يدور، وانتظارُ تحليل الرسم صفٌّ واحدٌ بعدّادٍ مرتّب
 python3 scripts/audit/report_pdf_d825.py || _note "$LINENO"   # ‏D825: ملفُّ التقرير يُطبع مرّةً ويُعَدّ عند فتح الورقة — لا متصفّحَ في كلّ ضغطة
 _node scripts/audit/chart_cache_d826.mjs || _note "$LINENO"   # ‏D826: الإطاراتُ تبقى في ذاكرة المتصفّح نصفَ ساعة وتُجلب عند الاقتراب منها
+python3 scripts/audit/report_d827_d830.py || _note "$LINENO"   # ‏D827 · D829 · D830: الملفُّ المطبوعُ بلا قصّ، والترويسةُ «قسم الأبحاث» وحدَه، والملفُّ يُعرض في قارئ المتصفّح بلا تحذير
+_node scripts/audit/reader_d828.mjs || _note "$LINENO"   # ‏D828: قارئُ التقرير على الجوال بملء الشاشة — إصبعان ونقرتان وأزرارُ تكبير
 python3 scripts/audit/research_desk_d806.py || _note "$LINENO"   # ‏D806: لا تقريرَ يومياً بلا أخبار — النماذجُ الاحتياطية، وإعادةُ ما فشل، ومصدرٌ مستقلٌّ موثوق، ولا إرسالَ قبل الكتابة
 python3 scripts/audit/saqr_d807.py || _note "$LINENO"   # ‏D807–D809: صقرٌ واحد، والسهمُ الصاعدُ يُشترى في السوق الهابط، وقرصُ صقر بأسمائه
 python3 scripts/audit/chart_d797.py || _note "$LINENO"   # ‏D797: «تحليلُ الرسم» حين يزدحم النموذج — انتظارٌ قصير واحتياطيّان مقيسان وسببٌ مسمّى

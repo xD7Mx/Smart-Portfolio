@@ -272,6 +272,10 @@ export const marketApi = {
     api.get<APIResponse>("/market/research-desk/paper", { params: { ...(day ? { day } : {}), part, ...(pf ? { pf } : {}) } }),
   researchPdf: (day: string | null, pf?: string | null) =>
     api.get<Blob>("/market/research-desk/pdf", { params: { ...(day ? { day } : {}), ...(pf ? { pf } : {}) }, responseType: "blob", timeout: 120000 }),
+  /* ‏D830: رابطُ عرض الملفّ في قارئ المتصفّح (موقَّعٌ قصيرُ العمر) — العرضُ ليس تنزيلاً فلا يحذّر كروم */
+  researchPdfLink: (day: string | null, pf?: string | null) =>
+    api.get<APIResponse>("/market/research-desk/pdf-link", { params: { ...(day ? { day } : {}), ...(pf ? { pf } : {}) } }),
+  apiUrl: (path: string) => `${BASE_URL}${path}`,
   researchRun: () => api.post<APIResponse>("/market/research-desk/run"),
   symbolSearch: (q: string) => api.get<APIResponse>("/market/symbol-search", { params: { q } }),
   // ‏D789: ريالٌ لكلّ دولار ومصدرُه مسمّى (حيّ · آخرُ سعرٍ مقروء · السعرُ الرسميّ المثبَّت)

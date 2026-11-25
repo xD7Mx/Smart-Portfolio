@@ -10,7 +10,8 @@
    وجداولها ورسومها كما هي، ويُصغَّر كلُّه بنسبةٍ واحدةٍ ليسع الشاشة — والقرصُ بالإصبعين يكبّره للقراءة. */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { FileText, RefreshCw, Check } from "lucide-react";
+import { FileText, RefreshCw, Check, Maximize2 } from "lucide-react";
+import PaperReader from "./PaperReader";
 import { marketApi, portfoliosApi } from "../../services/api";
 import { getActivePortfolioId } from "../../store/portfolioStore";
 import { useAuthStore } from "../../store/authStore";
@@ -82,33 +83,65 @@ export default function DailyReport() {
   });
   const run = useMutation({ mutationFn: () => marketApi.researchRun(), onSuccess: () => setTimeout(() => head.refetch(), 800) });
   const [saved, setSaved] = useState(false);
+  /* ‏D830 (المالك 2026-11-25: «عند التحميل يصلني تحذيرٌ من كروم — إن قدرتَ فطريقةٌ بلا تحذير»): كروم يحذّر من تنزيل ملفٍّ عبر اتّصالٍ غير
+     مشفّر، والعرضُ في قارئ المتصفّح ليس تنزيلاً. فالملفُّ يُفتح في صفحةٍ جديدةٍ بقارئ المتصفّح (ومنه الطباعةُ والحفظُ والمشاركة) برابطٍ موقَّعٍ
+     قصيرِ العمر — والصفحةُ تُفتح في لحظة الضغطة نفسِها (المتصفّحاتُ تمنع فتحها بعد انتظار)؛ وإن مُنعت فالتنزيلُ كما كان */
   const pdf = useMutation({
-    mutationFn: () => marketApi.researchPdf(rep?.date ?? null, cur || null),
-    onSuccess: r => {
+    mutationFn: async (w: Window | null) => {
+      if (w) {
+        const r = await marketApi.researchPdfLink(rep?.date ?? null, cur || null);
+        const path = r.data?.data?.path as string | undefined;
+        if (path) { w.location.href = marketApi.apiUrl(path); return "view"; }
+        try { w.close(); } catch { /* */ }
+      }
+      const r = await marketApi.researchPdf(rep?.date ?? null, cur || null);
       const url = URL.createObjectURL(r.data);
       const a = document.createElement("a");
       a.href = url;
       a.download = `daily-report-${rep?.date}.pdf`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1600);
+      return "download";
     },
+    onSuccess: () => { setSaved(true); setTimeout(() => setSaved(false), 1600); },
+    onError: (_e, w) => { try { w?.close(); } catch { /* */ } },
   });
+  const openPdf = () => {
+    let w: Window | null = null;
+    try { w = window.open("", "_blank"); } catch { w = null; }
+    if (w) {
+      try {
+        w.document.title = `التقرير اليومي — ${rep?.label || ""}`;
+        w.document.body.style.cssText = "margin:0;display:grid;place-items:center;height:100vh;font:15px system-ui,sans-serif;color:#555;background:#f6f3ea";
+        w.document.body.innerHTML = '<p dir="rtl">يُفتح التقرير…</p>';
+      } catch { /* */ }
+    }
+    pdf.mutate(w);
+  };
+  const [reading, setReading] = useState(false);
 
   /* الإطارُ بطول ورقته — يُقاس عند التحميل وكلّما تغيّر عرضُ النافذة (الورقةُ تلتفّ عموداً واحداً على الهاتف) */
   /* ‏D756: كلُّ صفحةٍ ورقةُ A4 بقياسها — وما زاد من محتواها يُصغَّر بنسبته (دالّةُ الورقة نفسُها، فالإطارُ لا يشغّل نصوصاً) */
+  /* ‏D827: الخوارزميةُ نفسُها التي في الورقة (‏research_paper.FIT): تحويلٌ لا تكبير، والجسمُ يُعرَّض بنسبته، والقياسُ بمواضع التخطيط — ويُكرَّر
+     بأكبر نسبةٍ تسع الصفحة (كان التكبيرُ يعيد لفَّ الأسطر فيبقى فراغ؛ وفي الطابع كانت لا تعمل أصلاً فيُقصّ ما زاد) */
   const fitPages = (d: Document) => {
-    if ((d.defaultView?.innerWidth || 0) < 820) return;
+    const cols = d.querySelector(".cols");
+    if (cols && (d.defaultView?.getComputedStyle(cols).gridTemplateColumns.split(" ").length || 2) < 2) return;
     d.querySelectorAll<HTMLElement>(".page").forEach(pg => {
       const pb = pg.querySelector<HTMLElement>(".pb"), pf = pg.querySelector<HTMLElement>(".pf");
       if (!pb || !pf) return;
-      (pb.style as any).zoom = "";
-      const t = pb.getBoundingClientRect().top, lim = pf.getBoundingClientRect().top - 10, pad = parseFloat(getComputedStyle(pb).paddingTop) || 0;
-      let b = t;
-      Array.from(pb.children).forEach(c => { const r = c.getBoundingClientRect(); if (r.height) b = Math.max(b, r.bottom); });
-      if (b > lim) { (pb.style as any).zoom = String(Math.max(0.72, (lim - t - pad) / (b - t - pad))); pg.setAttribute("data-fit", (pb.style as any).zoom); }
-      else pg.removeAttribute("data-fit");
+      pb.style.transform = ""; pb.style.width = ""; (pb.style as any).zoom = ""; pg.removeAttribute("data-fit");
+      const top = pb.offsetTop, lim = pf.offsetTop - 10, W = pb.offsetWidth;
+      const bot = () => Array.from(pb.children).reduce((b, x) => { const e = x as HTMLElement; return e.offsetHeight ? Math.max(b, e.offsetTop + e.offsetHeight) : b; }, top);
+      if (bot() <= lim) return;
+      pb.style.transformOrigin = "top right";
+      /* أكبرُ نسبةٍ تسع الصفحة بالتنصيف — الأصغرُ يسع دائماً (أوسعُ فأقصرُ)، والتكرارُ البسيطُ يتأرجح حين ينفكّ لفُّ الأسطر ويعود */
+      const fits = (k: number) => { pb.style.width = `${W / k}px`; return top + (bot() - top) * k <= lim; };
+      let lo = 0.72, hi = 1, s = lo;
+      if (fits(lo)) { for (let i = 0; i < 12; i++) { const m = (lo + hi) / 2; if (fits(m)) lo = m; else hi = m; } s = lo; }
+      pb.style.width = `${W / s}px`;
+      pb.style.transform = `scale(${s})`;
+      pg.setAttribute("data-fit", String(Math.round(s * 1000) / 1000));
     });
   };
   const measure = () => {
@@ -129,7 +162,7 @@ export default function DailyReport() {
           التقرير اليومي{rep?.label ? <span className="rl-date"> · {rep.label}</span> : null}</h2>
         <span className="rl-acts">
           {rep && (
-            <button type="button" className="btn-ghost rl-btn" onClick={() => pdf.mutate()} disabled={pdf.isPending} data-role="rl-pdf"
+            <button type="button" className="btn-ghost rl-btn" onClick={openPdf} disabled={pdf.isPending} data-role="rl-pdf"
               aria-busy={pdf.isPending} aria-label="تنزيل التقرير ملفَّ PDF" title="تنزيل التقرير ملفَّ PDF">
               {saved ? <Check size={15} className="rl-done" data-role="rl-pdf-done" /> : <DownloadIc busy={pdf.isPending} />} PDF
             </button>
@@ -182,9 +215,18 @@ export default function DailyReport() {
               <iframe ref={frame} title={`التقرير اليومي — ${rep.label}`} srcDoc={paper.data} sandbox="allow-same-origin"
                 style={scale < 1 ? { width: PAPER_W, height, transform: `scale(${scale})` } : { height }}
                 onLoad={() => { measure(); setReady(true); }} />
+              {/* ‏D828: على الجوال الورقةُ مصغَّرةٌ لتسع الشاشة — ولمسُها يفتح القارئَ بملء الشاشة للقراءة والتكبير */}
+              {scale < 1 && (
+                <button type="button" className="rl-read" onClick={() => setReading(true)} data-role="rl-read" aria-label="اقرأ التقرير بملء الشاشة">
+                  <span className="rl-read-chip"><Maximize2 size={14} /> اقرأ بملء الشاشة</span>
+                </button>
+              )}
             </div>
           )}
         </div>
+      )}
+      {reading && paper.data && rep && (
+        <PaperReader html={paper.data} width={PAPER_W} title={`التقرير اليومي — ${rep.label}`} onClose={() => setReading(false)} fit={fitPages} />
       )}
     </div>
   );

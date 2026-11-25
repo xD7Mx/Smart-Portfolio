@@ -2325,6 +2325,63 @@ async def research_desk_pdf(day: str | None = None, pf: str | None = None):
                     headers={"Content-Disposition": f'attachment; filename="daily-report-{r["date"]}.pdf"', "Cache-Control": "no-store"})
 
 
+# ══ ‏D830: الملفُّ يُعرض في قارئ المتصفّح لا يُنزَّل ══ — المالك 2026-11-25: «عند التحميل يصلني تحذيرٌ من كروم… إن قدرتَ فطريقةُ تنزيلٍ بلا تحذير
+# أفضل — ولاحظتُه في تقرير الراجحي أيضاً، أمّا الجزيرة فلا». كروم يحذّر من تنزيل ملفٍّ عبر اتّصالٍ غير مشفّر (‏http) — والتطبيقُ على http،
+# وملفُّ الجزيرة من موقعٍ مشفّر. والعرضُ في قارئ المتصفّح ليس تنزيلاً فلا تحذير؛ والقارئُ صفحةٌ جديدة لا تحمل رمزَ الدخول، فرابطٌ موقَّعٌ قصيرُ
+# العمر (عشرُ دقائق) بيوم التقرير ومحفظته. والدواءُ التامُّ تشفيرُ التطبيق (‏https) — قرارُ المالك.
+_PDF_LINK_TTL = 600
+
+
+def _pdf_sig(key: str, day: str, mo: str, exp: int) -> str:
+    import hmac
+    from app.core.config import settings
+    return hmac.new(f"{settings.JWT_SECRET}|pdf-view".encode(), f"{key}|{day}|{mo}|{exp}".encode(), _hashlib.sha256).hexdigest()[:32]
+
+
+@router.get("/research-desk/pdf-link")
+async def research_desk_pdf_link(day: str | None = None, pf: str | None = None):
+    """رابطُ عرض الملفّ في قارئ المتصفّح — موقَّعٌ قصيرُ العمر بالتقرير المحسوم (اليوم والمحفظة) في هذا الطلب."""
+    import time as _t
+    from urllib.parse import urlencode
+    key, r, market_only = _report_for(pf, day)
+    if not r:
+        raise HTTPException(status_code=404, detail="لا تقريرَ لهذا اليوم.")
+    mo = "1" if (pf == "none" or market_only) else "0"
+    k = str(r.get("portfolio_id", key))                           # مفتاحُ التقرير نفسِه (‏all أو رقمُ المحفظة) — لا يحتاج القارئُ جلسةً ليحسمه
+    exp = int(_t.time()) + _PDF_LINK_TTL
+    q = urlencode({"k": k, "day": r["date"], "mo": mo, "exp": exp, "sig": _pdf_sig(k, r["date"], mo, exp)})
+    try:                                                          # يُعَدّ الآن إن لم يكن — فيصل القارئُ إليه جاهزاً
+        from app.services.research_paper import pdf_warm
+        rp, pp = _pdf_args(pf, day)
+        if rp:
+            pdf_warm(rp, pp)
+    except Exception as e:                                        # noqa: BLE001
+        logger.debug(f"pdf warm: {e}")
+    return success_response({"path": f"/market/research-desk/pdf-view?{q}", "date": r["date"], "expires_in": _PDF_LINK_TTL})
+
+
+@public_router.get("/research-desk/pdf-view")
+async def research_desk_pdf_view(k: str, day: str, mo: str, exp: int, sig: str):
+    """الملفُّ نفسُه للعرض في قارئ المتصفّح (‏inline) — بالرابط الموقَّع وحدَه، وينتهي بعد عشر دقائق."""
+    import hmac
+    import time as _t
+    from fastapi import Response
+    from app.services import research_desk as RD
+    from app.services.research_paper import pdf
+    if exp < _t.time() or not hmac.compare_digest(sig, _pdf_sig(k, day, mo, exp)):
+        raise HTTPException(status_code=403, detail="انتهى الرابط — اضغط «PDF» من جديد.")
+    r = RD.load_report("all" if k == "all" else int(k), day) if (k == "all" or k.isdigit()) else None
+    if not r or r.get("date") != day:
+        raise HTTPException(status_code=404, detail="لا تقريرَ لهذا اليوم.")
+    if mo == "1":
+        r = {**r, "positions": [], "picks": [], "portfolio": [], "market_only": True}
+    data = await pdf(r, "market" if r.get("market_only") else "all")
+    if not data:
+        raise HTTPException(status_code=503, detail="تعذّرت طباعةُ التقرير الآن.")
+    return Response(content=data, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="daily-report-{day}.pdf"', "Cache-Control": "private, max-age=600"})
+
+
 @router.post("/research-desk/run", dependencies=[Depends(require_owner)])
 async def research_desk_run():
     """يقرأ الجديدَ الآن ثمّ يكتب التقرير — في الخلفية، والصفحةُ تتابع حالَه."""

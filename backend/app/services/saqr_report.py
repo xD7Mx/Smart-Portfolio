@@ -270,7 +270,8 @@ async def to_pdf(html: str) -> bytes | None:
         out = os.path.join(d, "r.pdf")
         with open(src, "w", encoding="utf-8") as f:
             f.write(html)
-        cmd = [exe, "--headless", "--disable-gpu", "--no-sandbox",
+        # ‏D827: بعرض الحاسوب (860 كإطار التطبيق) — كان الطابعُ يفتح الورقةَ بـ780 فتلتفّ عموداً واحداً ولا تعمل ملاءمةُ الصفحة فيُقصّ ما زاد
+        cmd = [exe, "--headless", "--disable-gpu", "--no-sandbox", "--window-size=860,1200",
                "--no-pdf-header-footer", "--run-all-compositor-stages-before-draw",
                "--virtual-time-budget=5000",
                f"--print-to-pdf={out}", f"file://{src}"]
