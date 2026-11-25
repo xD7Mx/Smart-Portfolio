@@ -46,7 +46,7 @@ check("invested += (qf * price + fees) * fx" in rp and "t.realized_gain = sell_q
       "٢ التكلفةُ والنقدُ والربحُ المحقّقُ والتوزيعُ بالريال بسعر صرف العملية (إعادةُ التشغيل والتطبيقُ الأماميّ معاً)، والقيمةُ بصرف اليوم")
 # ٣ العملةُ من السوق، والقيمةُ في تحديث الأسعار بصرف اليوم
 check('return "USD" if FX.is_us_symbol(self.symbol) else "SAR"' in K and "currency=data.resolved_currency()" in K
-      and 'h.market_value = qty * float(p["price"]) * fxs.get(h.company_id, ("SAR", 1.0, False))[1]' in H,
+      and 'mv = qty * float(p["price"]) * fxs.get(h.company_id, ("SAR", 1.0, False))[1]' in H and "h.market_value = mv" in H,   # ‏D843: تُحسب ثمّ تُكتب إن تغيّرت
       "٣ عملةُ الشركة من سوقها (الرمزُ الأمريكيّ بالدولار وسهمُ «تداول» بالريال)، وتحديثُ الأسعار يضع القيمةَ بالريال")
 
 port, host = os.environ.get("SP_PG_PORT"), os.environ.get("SP_PG_HOST")
