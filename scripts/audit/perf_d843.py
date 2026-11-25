@@ -18,7 +18,9 @@ import sys
 import tempfile
 import time
 
-os.environ["SP_STATE_DIR"] = tempfile.mkdtemp(prefix="sp_d843_")
+_SB = tempfile.mkdtemp(prefix="sp_d843_")
+os.environ["LASTGOOD_PATH"] = os.path.join(_SB, "lastgood.json")
+os.environ["SP_STATE_DIR"] = _SB
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 fail = 0
