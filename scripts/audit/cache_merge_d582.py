@@ -14,7 +14,7 @@ def check(ok, label, det=""):
     print(f"{'PASS' if ok else 'FAIL'} {label}" + (f" — {det}" if det else ""))
 
 def run(code: str) -> str:
-    env = {**os.environ, "SP_STATE_DIR": SB, "PYTHONPATH": str(ROOT / "backend")}
+    env = {**os.environ, "SP_STATE_DIR": SB, "PYTHONPATH": str(ROOT / "backend"), "SP_CACHE_WRITE_EVERY": "5"}   # ‏D843: الخادمُ دقيقة، والفحصُ يقصّرها
     r = subprocess.run([sys.executable, "-c", textwrap.dedent(code)], env=env, capture_output=True, text=True, timeout=60)
     if r.returncode:
         print(r.stderr[-800:])

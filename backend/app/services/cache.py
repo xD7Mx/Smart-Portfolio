@@ -29,7 +29,10 @@ _store: dict[str, tuple[float, object]] = {}
 _PERSIST_MIN_TTL = 60 * 60
 _dirty = False
 _last_write = 0.0
-_WRITE_EVERY = 5.0        # ثوانٍ — تجميعُ الكتابات في مسحٍ كامل للسوق
+# ‏D843: قيس على الخادم — الملفُّ بلغ 86MB، وكتابتُه كلَّ عشر ثوانٍ تقريباً في خيطٍ جانبيّ تأخذ قفلَ المفسّر (‏GIL) فتجوع حلقةُ الأحداث
+# (رقيبُ الحلقة سجّل حبساتٍ في أماكنَ تافهةٍ كـ«bars._fix» 13ث)، والمبادلةُ ممتلئةٌ بنصف جيجا. والملفُّ للنجاة من الإقلاع وحده —
+# فدقيقةٌ بين الكتابات تكفي (والإطفاءُ المنتظم يُنزل الباقي ‏atexit)
+_WRITE_EVERY = float(os.environ.get("SP_CACHE_WRITE_EVERY") or 60.0)   # ثوانٍ — تجميعُ الكتابات (والفحوصُ تقصّرها)
 # ‏D582: الملفُّ مشتركٌ بين الخادم والمسحة والكواشف — كلُّ عمليةٍ كانت تكتبه كاملاً من ذاكرتها فتمحو ما
 # كتبه غيرُها (قِيس: مفاتيحُ السلامة والتوصيات التي جهّزها الخادمُ غابت عن القرص بعد مسحة النشر).
 # فالكتابةُ تدمج ما على القرص متى كتبه غيرُنا منذ آخر كتابةٍ لنا، والمسحُ الكلّيُّ (clear) وحده لا يدمج.
@@ -77,13 +80,9 @@ def _write_merged(force_wipe: bool = False) -> None:
         snap = {k: (exp, v) for k, (exp, v) in _store.items() if exp - now >= _PERSIST_MIN_TTL - 1}
         _dirty = False
         known_mtime = _disk_mtime
-    out = {}
-    for k, (exp, v) in snap.items():                              # التحقّقُ من قابلية التسلسل خارجَ القفل
-        try:
-            json.dumps(v, ensure_ascii=False)
-        except (TypeError, ValueError):
-            continue
-        out[k] = [exp, v]
+    # ‏D843: التحقّقُ من قابلية التسلسل كان يسلسل كلَّ قيمةٍ مرّتين (هنا ثمّ في الكتابة) — فالكتابةُ تُجرَّب أوّلاً، والتحقّقُ قيمةً قيمةً
+    # حين تتعذّر وحدها
+    out = {k: [exp, v] for k, (exp, v) in snap.items()}
     path = _path()
     lock_fh = None
     tmp = None
@@ -118,8 +117,18 @@ def _write_merged(force_wipe: bool = False) -> None:
                         out[k] = [exp, item[1]]
                         absorb[k] = (exp, item[1])
         fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
+        try:
+            body = json.dumps(out, ensure_ascii=False)
+        except (TypeError, ValueError):
+            for k in list(out):
+                try:
+                    json.dumps(out[k][1], ensure_ascii=False)
+                except (TypeError, ValueError):
+                    out.pop(k, None)
+            body = json.dumps(out, ensure_ascii=False)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(out, fh, ensure_ascii=False)
+            fh.write(body)
+        del body
         os.replace(tmp, path)
         tmp = None
         new_mtime = os.stat(path).st_mtime
@@ -320,3 +329,22 @@ _load_disk()
 # عينُ العطب الذي نعالجه.
 import atexit as _atexit
 _atexit.register(flush)
+
+
+def sweep_orphans(max_age: float = 3600.0) -> int:
+    """‏D843: نسخٌ مؤقّتةٌ يتيمةٌ من كتاباتٍ قُطعت (عمليةٌ أُوقفت في منتصفها) — قيس على الخادم: عشرٌ بين 13 و86MB في المخزن وبجانب
+    ‏lastgood.json. تُحذف عند الإقلاع ما مضى عليها ساعة (فلا تُمسّ كتابةٌ جارية)؛ ولا يُحذف غيرُها."""
+    import glob
+    from app.services import lastgood
+    now, n = time.time(), 0
+    pats = [os.path.join(os.path.dirname(_path()), "tmp*.tmp"), lastgood._PATH + ".tmp.*"]
+    for pat in pats:
+        for f in glob.glob(pat):
+            try:
+                if now - os.stat(f).st_mtime > max_age:
+                    os.unlink(f)
+                    n += 1
+            except OSError:
+                pass
+    return n
+

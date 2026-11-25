@@ -342,6 +342,13 @@ async def lifespan(app: FastAPI):
     _aio.create_task(_warm_market_calendar())
     # ‏D843: رقيبُ حلقة الأحداث — يسمّي ما يحبس الخادمَ فتنتظره الصفحات (لا يغيّر عملَ شيء)
     try:
+        from app.services import cache as _c
+        _n = _c.sweep_orphans()
+        if _n:
+            logger.info(f"🧹 حُذفت {_n} نسخةً مؤقّتةً يتيمة")
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"orphan sweep: {e}")
+    try:
         from app.services import loop_watch
         loop_watch.start()
     except Exception as e:                                        # noqa: BLE001

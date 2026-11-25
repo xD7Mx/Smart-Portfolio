@@ -112,7 +112,7 @@ def _load() -> dict:
 # والمقايضةُ مقصودةٌ ومحدودة: انهيارٌ مفاجئ يفقد خمسَ ثوانٍ من مخزنٍ
 # **احتياطيّ** يُعاد بناؤه من المزوّد. ولا يُفقد شيءٌ عند الإغلاق
 # المنتظم — `atexit` يُفرِغ ما تبقّى.
-_FLUSH_INTERVAL = 5.0
+_FLUSH_INTERVAL = float(os.environ.get("SP_LASTGOOD_FLUSH") or 60.0)   # ‏D843: الملفُّ 29MB يُعاد تسلسلُه كاملاً في كلّ إفراغ (في خيطٍ يأخذ قفلَ المفسّر) — دقيقةٌ تكفي لمخزنٍ احتياطيّ
 _dirty_keys: set[str] = set()
 _wake = Event()
 _flusher_started = False
