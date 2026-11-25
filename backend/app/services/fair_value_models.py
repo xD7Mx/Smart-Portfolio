@@ -963,15 +963,26 @@ def relative_value(sym: str, rel: dict, price: float, table: dict[str, dict] | N
         return None
     group = {**peers, sym: sig}
 
+    # ‏D843: الترتيبُ يُحسب مرّةً لكلّ مفتاح (الفرزُ نفسُه مستقرٌّ بترتيب المجموعة — فالموقعُ هو هو) — كان يُعاد الفرزُ والبحثُ لكلّ شركةٍ
+    # في كلّ مفتاح (‏k·n³ لـ ~270 شركة) فحبس رقيبُ الحلقة الخادمَ هنا حتى 29 ثانية في مسحة الحوكمة
+    ranks = {}
+    for k in seg["keys"]:
+        have = [(x, (group[x] or {}).get(k)) for x in group if isinstance((group[x] or {}).get(k), (int, float))]
+        if len(have) < 4:
+            continue
+        srt = sorted(have, key=lambda t: t[1])
+        pos_of: dict = {}
+        for j, (x, _) in enumerate(srt):
+            pos_of.setdefault(x, j)
+        ranks[k] = (pos_of, len(srt))
+
     def zof(s_):
         vals = []
         for k in seg["keys"]:
-            have = [(x, (group[x] or {}).get(k)) for x in group if isinstance((group[x] or {}).get(k), (int, float))]
-            if len(have) < 4 or not isinstance((group[s_] or {}).get(k), (int, float)):
+            if k not in ranks or not isinstance((group[s_] or {}).get(k), (int, float)):
                 continue
-            srt = sorted(have, key=lambda t: t[1])
-            pos = [j for j, (x, _) in enumerate(srt) if x == s_][0]
-            vals.append(pos / (len(srt) - 1) - 0.5)
+            pos_of, n = ranks[k]
+            vals.append(pos_of[s_] / (n - 1) - 0.5)
         return statistics.fmean(vals) if len(vals) >= max(1, (len(seg["keys"]) + 1) // 2) else None
 
     z = zof(sym)

@@ -12,6 +12,7 @@
 """
 import asyncio
 import json
+import math
 import os
 import pathlib
 import sys
@@ -135,6 +136,46 @@ check(C._WRITE_EVERY >= 60 and LG._FLUSH_INTERVAL >= 60 and "json.dumps(v, ensur
       and swept == 2 and os.path.exists(new_t) and not os.path.exists(old_t) and "_c.sweep_orphans()" in main,
       "٦ ملفّا الذاكرة (86MB و29MB) يُكتبان كلَّ دقيقةٍ لا كلَّ خمس ثوانٍ وبتسلسلٍ واحد — كانت كتابتُهما تجوّع حلقةَ الخادم — "
       "والنسخُ المؤقّتةُ اليتيمةُ تُكنس عند الإقلاع (ولا تُمسّ الحديثة)", f"{C._WRITE_EVERY} · {LG._FLUSH_INTERVAL} · كُنس {swept}")
+
+# ٧ مقارنةُ الأقران في التقييم: الترتيبُ مرّةً لكلّ مؤشّر — والنتيجةُ هي هي (يُقارن بالحساب المرجعيّ القديم نفسِه)
+import random as _r   # noqa: E402
+import statistics as _st   # noqa: E402
+from app.services import fair_value_models as FVM   # noqa: E402
+
+
+def ref_z(group, keys, s_):
+    vals = []
+    for k in keys:
+        have = [(x, (group[x] or {}).get(k)) for x in group if isinstance((group[x] or {}).get(k), (int, float))]
+        if len(have) < 4 or not isinstance((group[s_] or {}).get(k), (int, float)):
+            continue
+        srt = sorted(have, key=lambda t: t[1])
+        vals.append([j for j, (x, _) in enumerate(srt) if x == s_][0] / (len(srt) - 1) - 0.5)
+    return _st.fmean(vals) if len(vals) >= max(1, (len(keys) + 1) // 2) else None
+
+
+bad, n, t_new = 0, 0, 0.0
+for segname, seg in FVM.REL_SEGMENTS.items():
+    keys = seg["keys"]
+    for trial in range(3):
+        _r.seed(trial)
+        table = {f"S{i}": {k: (round(_r.random(), 1) if _r.random() > 0.15 else None) for k in set(keys) | set(seg.get("fv_keys") or [])} for i in range(270)}
+        sym = f"S{trial}"
+        t0 = time.monotonic()
+        res = FVM.relative_value(sym, {"seg": segname, "sig": table[sym]}, 10.0, table, "target")
+        t_new += time.monotonic() - t0
+        n += 1
+        group = {**{k: v for k, v in table.items() if k != sym}, sym: table[sym]}
+        z = ref_z(group, keys, sym)
+        if z is None:
+            bad += res is not None
+            continue
+        zs = [v for v in (ref_z(group, keys, x) for x in group) if v is not None]
+        zc = z - _st.median(zs)
+        bad += not res or abs(res["rel_z"] - round(zc, 4)) > 1e-9 or res["value"] != round(10.0 * math.exp(seg["beta"] * zc), 2)
+check(bad == 0 and n >= 6 and t_new / n < 0.05,
+      "٧ مقارنةُ الأقران في التقييم تفرز كلَّ مؤشّرٍ مرّةً لا لكلّ شركة (كانت تحبس الخادمَ حتى 29ث في مسحة الحوكمة) — والقيمةُ والموقعُ هما هما بالحساب المرجعيّ",
+      f"{n} حالة · فروق {bad} · {t_new / max(n, 1) * 1000:.1f}ms للحالة")
 
 print("\nالنتيجة:", "نظيف ✔" if not fail else "عطب ✖")
 sys.exit(fail)
