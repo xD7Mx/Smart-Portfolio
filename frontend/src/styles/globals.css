@@ -3860,13 +3860,18 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
 .sq-halo { position: absolute; inset: 8% 14%; border-radius: 50%; border: 1.5px solid var(--sq-glow); opacity: 0; pointer-events: none; }
 .sq-hub.live .sq-halo { animation: sqPulse 2.4s ease-out infinite; }
 .sq-node { transform-box: fill-box; transform-origin: center; animation: sqNode .5s cubic-bezier(.2,.8,.2,1) both; }
-/* ‏D831 (المالك: «النقاطُ كاملةً بالبنفسجيّ لتحاكي لونَ تصميم التطبيق»): كلُّها بنفسجيّة — والحالُ بالشكل: مملوءةٌ تعمل · مفرغةٌ تتحفّظ · باهتةٌ ساكنة */
-.sq-node .sq-lt { fill: color-mix(in srgb, var(--brand-ink) 32%, transparent); stroke: transparent; stroke-width: 1.6; transition: fill .4s ease, stroke .4s ease; }
-.sq-node.ok .sq-lt { fill: var(--brand-ink); }
-.sq-node.warn .sq-lt { fill: var(--card); stroke: var(--brand-ink); }
-.sq-node .sq-lg { fill: transparent; }
-.sq-hub.live .sq-node.ok .sq-lg { fill: color-mix(in srgb, var(--brand-ink) 22%, transparent); animation: sqGlow 3.2s ease-in-out infinite; }
-.sq-hub.live .sq-node.warn .sq-lg { fill: color-mix(in srgb, var(--brand-ink) 12%, transparent); }
+/* ‏D836 (المالك: «بدلَ المربّع والمعيّن أيقوناتٌ جميلةٌ متّصلةٌ كأنّها CPU من خلف علامة صقر» — و«لماذا بعضُ البنفسجيّ باهت؟»):
+   الأيقوناتُ كلُّها بنفسجيّةٌ كاملة في شارةٍ بلون البطاقة، والحالُ في السلك: متّصلٌ يسري فيه نبضٌ · متقطّعٌ · منقّط */
+.sq-badge { fill: var(--card); stroke: var(--brand-ink); stroke-width: 1.4; transition: filter .4s ease; }
+.sq-hub.live .sq-node.ok .sq-badge { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--brand-ink) 60%, transparent)); }
+.sq-trace { fill: none; stroke: color-mix(in srgb, var(--brand-ink) 62%, transparent); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.sq-trace.warn { stroke-dasharray: 6 3.5; }
+.sq-trace.off { stroke-dasharray: 1.2 3.4; }
+.sq-via { fill: var(--brand-ink); }
+.sq-via.warn, .sq-via.off { fill: var(--card); stroke: var(--brand-ink); stroke-width: 1; }
+.sq-flow { fill: none; stroke: var(--brand-ink); stroke-width: 2.2; stroke-linecap: round; stroke-dasharray: 5 95; stroke-dashoffset: 100; opacity: 0; transition: opacity .5s ease; }
+.sq-hub.live .sq-flow { opacity: 1; animation: sqFlow 2.8s linear infinite; }
+@keyframes sqFlow { to { stroke-dashoffset: 0; } }
 .sq-nav .seg-btn { min-height: 34px; display: inline-flex; align-items: center; gap: 5px; }
 .sq-nav { flex-wrap: wrap; }
 .sq-pane { animation: fadeUp .26s ease-out both; }
@@ -3939,8 +3944,9 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
 }
 @media (prefers-reduced-motion: reduce) {
   .rl-pane, .sq-pane, .sq-stat, .sq-core, .sq-node, .sq-sig li, .sp-tr, .sp-alert, .sp-closef, .sp-addf { animation: none; }
-  .sq-hub.live .sq-orbit, .sq-hub.live .sq-sweep, .sq-hub.live .sq-halo, .sq-hub.live .sq-node .sq-lg { animation: none; }
-  .sq-sweep, .sq-node .sq-lt { transition: none; }
+  .sq-hub.live .sq-orbit, .sq-hub.live .sq-sweep, .sq-hub.live .sq-halo { animation: none; }
+  .sq-hub.live .sq-flow { animation: none; opacity: 0; }   /* ‏D836: النبضُ يسكن — والحالُ باقٍ في شكل السلك */
+  .sq-sweep, .sq-badge, .sq-flow { transition: none; }
   .sq-spark .line { animation: none; stroke-dashoffset: 0; }
   .sp-bar i, .sq-ring .val, .sp-addf-wrap, .sp-in, .sp-pos, .sq-node, .sq-dot, .sq-tiers span { transition: none; }
 }
@@ -4565,9 +4571,9 @@ html:has(.troom-split.on) { cursor: grabbing; user-select: none; }
 .sq-lead { font-size: 12px; color: var(--ink-muted); line-height: 1.5; }
 .sq-keys { display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 .sq-key { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--ink); }
-.sq-key i { width: 8px; height: 8px; transform: rotate(45deg); border-radius: 1.5px; background: color-mix(in srgb, var(--brand-ink) 32%, transparent); }
-.sq-key.ok i { background: var(--brand-ink); }
-.sq-key.warn i { background: transparent; box-shadow: inset 0 0 0 1.6px var(--brand-ink); }
+.sq-key i { width: 18px; height: 0; border-top: 2px solid var(--brand-ink); }   /* ‏D836: عيّنةُ السلك — متّصلٌ · متقطّعٌ · منقّط */
+.sq-key.warn i { border-top-style: dashed; }
+.sq-key.off i { border-top-style: dotted; }
 @media (prefers-reduced-motion: reduce) { .sq-lbl { animation: none; transition: none; } }
 
 /* ══ ‏D814: انتظارُ صفحةٍ تُنزَّل أوّلَ مرّة — شريطٌ رفيعٌ بلون الهويّة يتحرّك أعلى المحتوى، لا شاشةٌ فارغةٌ ولا قفزة ══ */

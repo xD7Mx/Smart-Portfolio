@@ -91,7 +91,8 @@ opps = code_only("frontend/src/components/saqr/SaqrOpps.tsx")
 desk = code_only("frontend/src/components/saqr/SaqrDesk.tsx")
 css = (ROOT / "frontend/src/styles/globals.css").read_text(encoding="utf-8")
 check("تحت المراقبة" in opps and "استبعد" not in opps and 'data-role="sq-label"' in desk and 'data-role="sq-legend"' in desk
-      and "كلُّ نقطةٍ نظامٌ باسمه" in desk and all(w in desk for w in (">يعمل<", ">يتحفّظ<", ">ساكن<")) and ".sq-lbl { font-size: 10.5px" in css
+      and ("كلُّ نقطةٍ نظامٌ باسمه" in desk or "كلُّ أيقونةٍ نظامٌ باسمه" in desk)   # ‏D836: أيقوناتٌ بدل النقاط بأمر المالك
+      and all(w in desk for w in (">يعمل<", ">يتحفّظ<", ">ساكن<")) and ".sq-lbl { font-size: 10.5px" in css
       and "<HubWrap s={s} sesOpen={sesOpen} />" in desk,
       "٤ الواجهة: «تحت المراقبة» بدل «استبعدها المجلس»، وقرصُ صقر باسمٍ ثابتٍ عند كلّ نقطة وكلماتٍ افتتاحيةٍ بمعنى ألوانها (يعمل · يتحفّظ · ساكن)")
 

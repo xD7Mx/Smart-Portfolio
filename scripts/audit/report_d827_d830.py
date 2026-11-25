@@ -9,7 +9,8 @@
 
   ١ الطباعةُ الحقيقية (المتصفّحُ بلا واجهةٍ كالخادم): بعرض الحاسوب، والملاءمةُ تعمل — صفحةُ الإجراءات بأسماءٍ طويلةٍ تُصغَّر حتى يسعها، وآخرُ
     صفّ فوق التذييل، والمحتوى بعرض الصفحة كلِّه (لا فراغَ جانبيّ)، وبلا فراغٍ تحته يزيد عن سطرين.
-  ٢ الترويسة: «المحفظة الذكية» وتحتها «قسم الأبحاث» وحدَه في كلّ صفحة؛ واسمُ المحفظة المختارة تحت عنوان صفحتها وحدها — ولا «كلّ المحافظ» أبداً.
+  ٢ الترويسة (‏D835 نقضَ ‏D829 بأمر المالك): «المحفظة الذكية» وتحتها «قسم تقارير الأبحاث» في كلّ صفحة، وصفحةُ المحفظة المختارة وحدها «قسم الأبحاث ·
+    اسمُها» — ولا «كلّ المحافظ» أبداً.
   ٣ رابطُ العرض: موقَّعٌ قصيرُ العمر بالتقرير المحسوم، والقارئُ يعرض الملفَّ (‏inline) بلا جلسة؛ والمعدَّلُ والمنتهي مرفوضان.
 
     python3 scripts/audit/report_d827_d830.py
@@ -78,13 +79,19 @@ else:
 # ── ٢ الترويسة ──
 one = RP.render({"date": "2026-11-25", "market": {}, "portfolio_id": 2, "portfolio_name": "المحفظة الاستثمارية"}, "all")
 allp = RP.render({"date": "2026-11-25", "market": {}, "portfolio_id": "all", "portfolio_name": "كلّ المحافظ"}, "all")
-smalls = [s.split("</small>")[0] for s in one.split("<small>")[1:]]
-ps = one.count('data-k="pf-name"')
+def smalls_of(h):
+    return [x.split(">", 1)[1].split("</small>")[0] for x in h.split('<small data-k="desk"')[1:]]
+
+
+so, sa = smalls_of(one), smalls_of(allp)
 last = one.rsplit('<section class="page">', 1)[-1]
-check(smalls and all(s == "قسم الأبحاث" for s in smalls) and ps == 1 and 'data-k="pf-name">المحفظة الاستثمارية<' in last
-      and "كلّ المحافظ" not in allp and 'data-k="pf-name"' not in allp and "<small>قسم الأبحاث · " not in one,
-      "٢ الترويسة: «المحفظة الذكية» وتحتها «قسم الأبحاث» وحدَه في كلّ صفحة؛ واسمُ المحفظة المختارة تحت عنوان صفحتها وحدها — ولا «كلّ المحافظ» أبداً",
-      f"{set(smalls)} · اسمٌ {ps}")
+foot = [x.split("</span>")[0] for x in one.split('<footer class="pf"><span>')[1:]]
+check(len(so) >= 2 and so[-1] == "قسم الأبحاث · المحفظة الاستثمارية" and 'data-k="desk">قسم الأبحاث · المحفظة الاستثمارية<' in last
+      and all(x == "قسم تقارير الأبحاث" for x in so[:-1]) and sa and all(x == "قسم تقارير الأبحاث" for x in sa) and "كلّ المحافظ" not in allp
+      and 'data-k="pf-name"' not in one and foot and all("قسم تقارير الأبحاث" in f for f in foot),
+      "٢ الترويسة (‏D835 — نقضَ ‏D829 بأمر المالك): «المحفظة الذكية» وتحتها «قسم تقارير الأبحاث» في كلّ صفحة، وصفحةُ المحفظة المختارة وحدها "
+      "«قسم الأبحاث · المحفظة الاستثمارية»، ولا «كلّ المحافظ» أبداً — والتذييلُ «قسم تقارير الأبحاث»",
+      f"{set(so)} · كلّ المحافظ {set(sa)}")
 
 # ── ٣ رابطُ العرض ──
 from app.api.v1.endpoints import market as MK  # noqa: E402

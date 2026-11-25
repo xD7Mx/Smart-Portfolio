@@ -4,8 +4,10 @@
 // بالبنفسجيّ لتحاكي لونَ تصميم التطبيق». كانت الأسماءُ أفقيّةً داخل دائرة صقر (نصفُ قطرها 86 والدائرةُ 100)، والنقاطُ أخضرَ وكهرمانيّاً ورماديّاً.
 //  ١ كلُّ اسمٍ على قوسٍ موازٍ للدائرة (نصٌّ على مسار) عند نقطته نفسِها، بين دائرة صقر والنقطة — لا يدخل دائرةَ صقر ولا يمسّ النقطة،
 //    والحروفُ قائمة: النصفُ الأعلى مع العقارب والأسفلُ عكسَها؛ وخطُّه ≥ 9.5px.
-//  ٢ لا شيءَ داخل دائرة صقر إلّا صقر: لا اسمَ ولا نقطةَ، والمسحُ الدوّارُ حلقةٌ خارجها.
-//  ٣ النقاطُ كلُّها بنفسجيّةٌ بلون التطبيق — والحالُ بالشكل: مملوءةٌ تعمل · مفرغةٌ تتحفّظ · باهتةٌ ساكنة — ومفتاحُها تحت القرص بالأشكال نفسِها.
+//  ٢ لا اسمَ ولا أيقونةَ داخل دائرة صقر، والمسحُ الدوّارُ حلقةٌ خارجها — والأسلاكُ وحدها تخرج من تحت علامته (‏D836 بأمر المالك).
+//  ٣ ‏D836 (المالك: «بدلَ المربّع والمعيّن أيقوناتٌ جميلةٌ متّصلةٌ كأنّها CPU من خلف علامة صقر»؛ و«لماذا بعضُ البنفسجيّ باهت؟»): لكلّ نظامٍ أيقونتُه
+//    بنفسجيّةً كاملة — متطابقةً في كلّ حال — ويصلها سلكٌ من تحت صقر يمرّ بين الأسماء لا عليها؛ والحالُ في السلك: متّصلٌ يسري فيه نبضٌ (يعمل) ·
+//    متقطّعٌ (يتحفّظ) · منقّطٌ (ساكن) — والمفتاحُ تحت القرص بعيّناتها.
 //  ٤ في السوقين، والمظهرين، والحاسوب والجوال — بلا خطأ؛ وتقليلُ الحركة يُسكن ظهورَ الأسماء.
 //    node scripts/audit/saqr_dial_d831.mjs
 // ─────────────────────────────────────────────────────────────────────────
@@ -79,9 +81,15 @@ for (const [label, vp, theme] of [["الحاسوب · فاتح", { width: 1366, 
       const scale = hub.getBoundingClientRect().width / 300, C = 150;
       const RI = Number(hub.querySelector('[data-role="sq-ring-i"]')?.getAttribute("r"));
       const toUser = (x, y) => { const m = svg.getScreenCTM().inverse(); const p = new DOMPoint(x, y).matrixTransform(m); return [p.x, p.y]; };
-      const nodes = [...hub.querySelectorAll('[data-role="sq-node"]')].map(n => { const b = n.getBoundingClientRect(); const [x, y] = toUser(b.x + b.width / 2, b.y + b.height / 2);
+      const nodes = [...hub.querySelectorAll('[data-role="sq-node"]')].map(n => { const b = (n.querySelector('[data-role="sq-badge"]') || n).getBoundingClientRect(); const [x, y] = toUser(b.x + b.width / 2, b.y + b.height / 2);
         return { k: n.dataset.k, st: n.dataset.state, x, y, r: Math.hypot(x - C, y - C), a: Math.atan2(y - C, x - C), rad: (b.width / scale) / 2,
-                 fill: getComputedStyle(n.querySelector(".sq-lt")).fill, stroke: getComputedStyle(n.querySelector(".sq-lt")).stroke }; });
+                 badge: getComputedStyle(n.querySelector(".sq-badge")).stroke, ico: n.querySelector("svg.sq-ico") ? getComputedStyle(n.querySelector("svg.sq-ico")).color : "",
+                 icoOp: n.querySelector("svg.sq-ico") ? Number(getComputedStyle(n.querySelector("svg.sq-ico")).opacity) * Number(getComputedStyle(n).opacity) : 0 }; });
+      /* الأسلاك: نقاطٌ على كلّ سلكٍ بزاويتها ونصف قطرها — ونمطُ خطّه، ونبضُه */
+      const traces = [...hub.querySelectorAll('[data-role="sq-trace"]')].map(t => { const L = t.getTotalLength(), pts = [];
+        for (let k = 0; k <= 120; k++) { const p = t.getPointAtLength(L * k / 120); pts.push([Math.hypot(p.x - C, p.y - C), Math.atan2(p.y - C, p.x - C)]); }
+        return { for: t.parentElement.dataset.for, st: t.dataset.state, dash: getComputedStyle(t).strokeDasharray, stroke: getComputedStyle(t).stroke, pts,
+                 flow: !!t.parentElement.querySelector(".sq-flow") }; });
       /* خليةُ كلّ حرفٍ بزاويتها الحقيقية: من بداية الحرف ونهايته على خطّ الأساس، صعوداً وهبوطاً على اتّجاه رأسه (لا الصندوقُ الأفقيُّ المنتفخُ للحرف المائل) —
          والصعودُ والهبوطُ من حرفٍ أفقيٍّ بالخطّ نفسِه */
       const ref = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -98,14 +106,16 @@ for (const [label, vp, theme] of [["الحاسوب · فاتح", { width: 1366, 
         const rs = pts.map(([x, y]) => Math.hypot(x - C, y - C));
         const mid = n ? (() => { const e = t.getExtentOfChar(Math.floor(n / 2)); return [e.x + e.width / 2, e.y + e.height / 2]; })() : [C, C];
         let rot = 0; try { rot = t.getRotationOfChar(Math.floor(n / 2)); } catch { /* */ }
-        return { for: t.dataset.for, half: t.dataset.half, txt: t.textContent.trim(), path: !!tp, rmin: Math.min(...rs), rmax: Math.max(...rs), a: Math.atan2(mid[1] - C, mid[0] - C), rot,
+          const as = pts.map(([x, y]) => Math.atan2(y - C, x - C));
+        return { for: t.dataset.for, half: t.dataset.half, txt: t.textContent.trim(), path: !!tp, rmin: Math.min(...rs), rmax: Math.max(...rs), a: Math.atan2(mid[1] - C, mid[0] - C), rot, as,
                  fs: parseFloat(getComputedStyle(t).fontSize) * scale, anim: getComputedStyle(t).animationName };
       });
       const sweep = hub.querySelector(".sq-sweep path")?.getAttribute("d") || "";
       const brand = (() => { const d = document.createElement("i"); d.style.color = "var(--brand-ink)"; hub.appendChild(d); const c = getComputedStyle(d).color; d.remove(); return c; })();
       const keys = [...document.querySelectorAll('[data-role="sq-legend"] .sq-key')].map(k => { const i = k.querySelector("i"); const cs = getComputedStyle(i);
-        return { k: k.className.replace("sq-key", "").trim(), bg: cs.backgroundColor, sh: cs.boxShadow }; });
-      return { scale, RI, nodes, labels, sweep, brand, keys, legend: document.querySelector('[data-role="sq-legend"]')?.textContent || "" };
+        return { k: k.className.replace("sq-key", "").trim(), bs: cs.borderTopStyle, bc: cs.borderTopColor }; });
+      const flowAnim = [...hub.querySelectorAll(".sq-flow")].map(f => getComputedStyle(f).animationName);
+      return { scale, RI, nodes, labels, sweep, brand, keys, traces, flowAnim, live: hub.dataset.live, legend: document.querySelector('[data-role="sq-legend"]')?.textContent || "" };
     });
     if (process.env.SHOTS) await page.locator('[data-role="sq-hubw"]').screenshot({ path: join(process.env.SHOTS, `d831-${mk}-${vp.width}-${theme}.png`) }).catch(() => {});
     if (!g) { say(false, `${label} · ${mk}: القرصُ غيرُ ظاهر`); continue; }
@@ -128,18 +138,31 @@ for (const [label, vp, theme] of [["الحاسوب · فاتح", { width: 1366, 
     const inside = g.nodes.filter(n => n.r - n.rad < g.RI).length + lab.filter(l => l.rmin < g.RI).length;
     const sweepRing = new RegExp(`^M[\\d.]+,${(150 - g.RI).toFixed(2)} L`).test(g.sweep) && /A90,90 0 0,0/.test(g.sweep);
     say(g.RI === 90 && inside === 0 && sweepRing,
-      `${label} · ${mk === "us" ? "الأمريكيّ" : "السعوديّ"}: ٢ لا شيءَ داخل دائرة صقر إلّا صقر — لا اسمَ ولا نقطة، والمسحُ الدوّارُ حلقةٌ خارجها`, g.sweep.slice(0, 60));
+      `${label} · ${mk === "us" ? "الأمريكيّ" : "السعوديّ"}: ٢ لا اسمَ ولا أيقونةَ داخل دائرة صقر، والمسحُ الدوّارُ حلقةٌ خارجها — والأسلاكُ وحدها من تحت علامته`, g.sweep.slice(0, 60));
     const rgb = s => (s.match(/[\d.]+/g) || []).slice(0, 3).map(Number).join(",");
     const B = rgb(g.brand);
-    const dots = g.nodes.map(n => ({ k: n.k, st: n.st, fill: rgb(n.fill), stroke: rgb(n.stroke), fa: n.fill }));
-    const okD = dots.filter(d => d.st === "ok"), warnD = dots.filter(d => d.st === "warn"), offD = dots.filter(d => d.st === "off");
-    const purple = okD.every(d => d.fill === B) && warnD.every(d => d.stroke === B && d.fill !== B) && offD.every(d => /color-mix|rgba|oklab|srgb/.test(d.fa) && d.fill !== B)
-      && okD.length > 0 && (warnD.length + offD.length) > 0;
+    const icons = g.nodes.every(n => rgb(n.badge) === B && rgb(n.ico) === B && n.icoOp > 0.99) && g.nodes.length === lab.length;
+    /* السلكُ يبدأ تحت صقر وينتهي عند حافة أيقونته، ولا يمسّ اسماً في حزام الأسماء */
+    const angIn = (x, lo, hi) => { const d = (v) => ((v - lo) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI); return d(x) <= d(hi); };
+    const lblSpan = lab.map(l => { const sorted = l.as.map(x => x); let lo = sorted[0], best = 0;
+      /* المدى الزاويّ للاسم: أصغرُ قوسٍ يحوي حروفَه */
+      for (const s0 of sorted) { const w = Math.max(...sorted.map(x => ((x - s0) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI))); if (!best || w < best) { best = w; lo = s0; } }
+      return { lo, hi: lo + best, rmin: l.rmin, rmax: l.rmax, txt: l.txt }; });
+    const wires = g.traces.map(t => { const n = byK[t.for]; const first = t.pts[0], last = t.pts[t.pts.length - 1];
+      const hits = t.pts.filter(([r, a]) => lblSpan.some(sp => r >= sp.rmin - 1 && r <= sp.rmax + 1 && angIn(a, sp.lo - 0.01, sp.hi + 0.01))).length;
+      const endD = n ? Math.hypot(last[0] * Math.cos(last[1]) - (n.x - 150), last[0] * Math.sin(last[1]) - (n.y - 150)) : 99;
+      return { k: t.for, st: t.st, start: first[0], endD, hits, dash: t.dash, flow: t.flow, stroke: rgb(t.stroke) }; });
+    const wired = wires.length === g.nodes.length && wires.every(w => w.start < g.RI - 30 && w.endD <= byK[w.k].rad + 2.5 && w.hits === 0);
+    const styles = wires.every(w => w.st === "ok" ? (w.dash === "none" && w.flow) : w.st === "warn" ? (/^\d/.test(w.dash) && !w.flow && parseFloat(w.dash) > 3)
+      : (/^\d/.test(w.dash) && !w.flow && parseFloat(w.dash) < 2)) && wires.some(w => w.st !== "ok");
+    const flowing = g.live !== "1" || g.flowAnim.every(x => x === "sqFlow");
     const kk = Object.fromEntries(g.keys.map(k => [k.k, k]));
-    const legend = /وشكلُها حالُه/.test(g.legend) && rgb(kk.ok?.bg || "") === B && /inset/.test(kk.warn?.sh || "") && rgb(kk.warn?.sh || "").length > 0;
-    say(purple && legend,
-      `${label} · ${mk === "us" ? "الأمريكيّ" : "السعوديّ"}: ٣ النقاطُ كلُّها بنفسجيّةٌ بلون التطبيق — والحالُ بالشكل (مملوءةٌ تعمل · مفرغةٌ تتحفّظ · باهتةٌ ساكنة)، ومفتاحُها تحت القرص بالأشكال نفسِها`,
-      JSON.stringify({ B, dots: dots.map(d => `${d.k}:${d.st}`).join(" "), keys: g.keys.map(k => k.k + ":" + rgb(k.bg)).join(" ") }));
+    const legend = /وسلكُها إليه حالُه/.test(g.legend) && /أيقونةٍ/.test(g.legend) && kk.ok?.bs === "solid" && kk.warn?.bs === "dashed" && kk.off?.bs === "dotted"
+      && rgb(kk.ok?.bc || "") === B;
+    say(icons && wired && styles && flowing && legend,
+      `${label} · ${mk === "us" ? "الأمريكيّ" : "السعوديّ"}: ٣ لكلّ نظامٍ أيقونتُه بنفسجيّةً كاملة متطابقةً في كلّ حال، ويصلها سلكٌ من تحت صقر بين الأسماء لا عليها — `
+      + "والحالُ في السلك (متّصلٌ يسري فيه نبضٌ · متقطّعٌ · منقّط)، والمفتاحُ تحت القرص بعيّناتها",
+      JSON.stringify({ B, icons, wires: wires.map(w => `${w.k}:${w.st}:${w.start.toFixed(0)}/${w.endD.toFixed(1)}/${w.hits}/${w.dash}/${w.flow ? 1 : 0}`).join(" "), legend }));
   }
   await page.emulateMedia({ reducedMotion: "reduce" }); await sleep(200);
   const rm = await page.evaluate(() => [...document.querySelectorAll('[data-role="sq-label"]')].every(t => getComputedStyle(t).animationName === "none"));

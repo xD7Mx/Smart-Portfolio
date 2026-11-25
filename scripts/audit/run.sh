@@ -549,7 +549,7 @@ python3 scripts/audit/report_pdf_d825.py || _note "$LINENO"   # ‏D825: ملف�
 _node scripts/audit/chart_cache_d826.mjs || _note "$LINENO"   # ‏D826: الإطاراتُ تبقى في ذاكرة المتصفّح نصفَ ساعة وتُجلب عند الاقتراب منها
 python3 scripts/audit/report_d827_d830.py || _note "$LINENO"   # ‏D827 · D829 · D830: الملفُّ المطبوعُ بلا قصّ، والترويسةُ «قسم الأبحاث» وحدَه، والملفُّ يُعرض في قارئ المتصفّح بلا تحذير
 _node scripts/audit/reader_d828.mjs || _note "$LINENO"   # ‏D828: قارئُ التقرير على الجوال بملء الشاشة — إصبعان ونقرتان وأزرارُ تكبير
-_node scripts/audit/saqr_dial_d831.mjs || _note "$LINENO"   # ‏D831: قرصُ صقر — الأسماءُ على أقواسٍ بين دائرته ونقاطها، ودائرتُه له وحده، والنقاطُ بنفسجيّةٌ والحالُ بالشكل
+_node scripts/audit/saqr_dial_d831.mjs || _note "$LINENO"   # ‏D831 · D836: قرصُ صقر — الأسماءُ على أقواسٍ بين دائرته وأيقوناتها، والأيقوناتُ بنفسجيّةٌ تصلها أسلاكٌ من تحته والحالُ في السلك
 python3 scripts/audit/saqr_auto_d832.py || _note "$LINENO"   # ‏D832: بابُ صقر الواحد للدخول الآليّ في السوقين — الفرص · «يوافق» كاملةً · قراءتُه الأخيرة · حدُّ النجاح
 python3 scripts/audit/saqr_library_d833.py || _note "$LINENO"   # ‏D833: صقرٌ يدرس مكتبةَ المالك بعين المتداول ويزن بها أحكامَه — داخلياً لا يخرج
 python3 scripts/audit/research_desk_d806.py || _note "$LINENO"   # ‏D806: لا تقريرَ يومياً بلا أخبار — النماذجُ الاحتياطية، وإعادةُ ما فشل، ومصدرٌ مستقلٌّ موثوق، ولا إرسالَ قبل الكتابة

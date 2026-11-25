@@ -282,7 +282,7 @@ for (const [label, vp, theme] of [["سطح المكتب · فاتح", { width: 1
   const rm = await page.evaluate(() => ({ sweep: getComputedStyle(document.querySelector(".sq-sweep")).animationName, orbit: getComputedStyle(document.querySelector(".sq-orbit")).animationName }));
   await page.emulateMedia({ reducedMotion: "no-preference" });
   say(hub.n === 8 && hub.text === "" && hub.titles === 0 && hub.lbl.length === 8 && hub.lbl.every(x => x.length > 1) && hub.fs >= 9.5
-      && /كلُّ نقطةٍ نظامٌ/.test(hub.lg) && /يعمل/.test(hub.lg) && /يتحفّظ/.test(hub.lg) && /ساكن/.test(hub.lg)
+      && /كلُّ (نقطةٍ|أيقونةٍ) نظامٌ/.test(hub.lg) && /يعمل/.test(hub.lg) && /يتحفّظ/.test(hub.lg) && /ساكن/.test(hub.lg)
       && hub.ticks === 72 && (hub.live !== "1" || hub.sweep !== "none") && rm.sweep === "none" && rm.orbit === "none" && errs.length === 0,
     `${label}: ٥ حولَ صقر قرصُ أداة: 72 تدريجاً وأنوارٌ ثمانيةٌ لكلٍّ اسمُه ثابتاً قبالتها (‏D808 — لا تلميح) وتحت القرص معنى ألوانها، ومسحٌ يدور حين يعمل ويسكن مع تقليل الحركة — ولا خطأ`,
     JSON.stringify({ ...hub, rm, err: errs[0] || "" }).slice(0, 240));

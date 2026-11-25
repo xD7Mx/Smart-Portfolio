@@ -1256,14 +1256,18 @@ def _saqr_why(m: dict) -> str:
             + "".join(f"<li>{_e(t)}</li>" for t in (sq.get("themes") or [])[:2]) + "</ul></div>")
 
 
-def _page(n: int, total: int, title: str, day: str, body: str, sub: str = "") -> str:
+DESK = "قسم تقارير الأبحاث"
+
+
+def _page(n: int, total: int, title: str, day: str, body: str, pf: str = "") -> str:
     """الصفحةُ بهويّة تقارير التطبيق: ترويسةٌ بنفسجيةٌ بالاسم والتاريخ والعنوان، وشريطٌ ذهبيّ، وتذييلٌ برقم الصفحة.
-    ‏D829 (المالك 2026-11-25): «لا تكتب بجانب قسم الأبحاث المحفظةَ الاستثمارية أو المضاربية أو كلَّ المحافظ — اكتفِ بقسم الأبحاث»: فالهويّةُ
-    «المحفظة الذكية» وتحتها «قسم الأبحاث» وحدَه، واسمُ المحفظة المختارة تحت عنوان صفحتها (‏sub) — ولا شيءَ لكلّ المحافظ."""
-    return (f'<section class="page"><header class="ph"><div class="brand">المحفظة الذكية<small>قسم الأبحاث</small></div>'
-            f'<div class="pt"><div class="d">{_e(day_label(day))}</div><h1>{_e(title)}</h1>'
-            + (f'<div class="ps" data-k="pf-name">{_e(sub)}</div>' if sub else "") + '</div></header><div class="gold"></div>'
-            f'<div class="pb">{body}</div><footer class="pf"><span>المحفظة الذكية · قسم الأبحاث · {_e(day_label(day))}</span><b class="pn">{n}</b></footer></section>')
+    ‏D835 (المالك 2026-11-25، ونقضَ ‏D829 بأمره): «خلّه قسم تقارير الأبحاث… وفي صفحة المحفظة — إن ضُمّنت المحفظةُ الاستثمارية — يُكتب
+    قسم الأبحاث · المحفظة الاستثمارية في صفحتها نفسِها، وفي التقرير اليوميّ نكتفي بقسم تقارير الأبحاث»: فالهويّةُ «المحفظة الذكية» وتحتها
+    «قسم تقارير الأبحاث» في كلّ صفحة، إلّا صفحةَ محفظةٍ بعينها فتحتها «قسم الأبحاث · اسمُها» — ولا «كلّ المحافظ» أبداً."""
+    desk = f"قسم الأبحاث · {_e(pf)}" if pf else DESK
+    return (f'<section class="page"><header class="ph"><div class="brand">المحفظة الذكية<small data-k="desk">{desk}</small></div>'
+            f'<div class="pt"><div class="d">{_e(day_label(day))}</div><h1>{_e(title)}</h1></div></header><div class="gold"></div>'
+            f'<div class="pb">{body}</div><footer class="pf"><span>المحفظة الذكية · {DESK} · {_e(day_label(day))}</span><b class="pn">{n}</b></footer></section>')
 
 
 def _fonts() -> str:
@@ -1308,7 +1312,6 @@ body{{background:#ebe5d4;color:{INK};font-family:'Thmanyah Serif Display','Segoe
 .brand{{color:#fff;font-size:20px;font-weight:500;line-height:1.25}}
 .brand small{{display:block;color:{GOLD_L};font-size:11px;font-weight:300}}
 .pt{{text-align:left;color:{GOLD_L}}} .pt .d{{font-size:11px;font-weight:300}} .pt h1{{margin:0;color:#fff;font-size:18px;font-weight:500;line-height:1.3}}
-.pt .ps{{font-size:11px;font-weight:300;color:{GOLD_L};margin-top:1px}}
 .gold{{height:4px;background:linear-gradient(90deg,{GOLD},{GOLD_L},{GOLD})}}
 .pb{{padding:16px 30px 58px}}
 .cols{{display:grid;grid-template-columns:1fr 1fr;gap:18px}}

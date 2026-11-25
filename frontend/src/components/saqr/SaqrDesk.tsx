@@ -78,7 +78,11 @@ function Hub({ s, sesOpen }: { s: SaqrState; sesOpen: boolean }) {
   /* ‏D831 (المالك 2026-11-25): «الكلماتُ خارجَ الدائرة التي فيها صقر — في دائرة النقاط نفسِها، موازيةً لخطّ الدائرة لا خطّاً أفقيّاً، تحت النقاط المعنيّة؛
      ولا يبقى شيءٌ داخل دائرة صقر… والنقاطُ كاملةً بالبنفسجيّ لتحاكي لونَ التطبيق». فدائرةُ صقر (RI) له وحده — حتى المسحُ حلقةٌ خارجها —
      وكلُّ اسمٍ على قوسٍ بين دائرة صقر ونقطته: النصفُ الأعلى مع عقارب الساعة والأسفلُ عكسَها فتبقى الحروفُ قائمة. */
-  const C = 150, RO = 120, RI = 90, RT = 96.5, RB = 106;
+  /* ‏D836 (المالك 2026-11-25): «بدلَ المربّع والمعيّن أيقوناتٌ جميلة، متّصلةٌ بطريقةٍ إبداعية كأنّها CPU من خلف علامة صقر بهذه المسمّيات» —
+     وسأل: «لماذا بعضُ البنفسجيّ باهتٌ وبعضُه واضح؟» (كان الباهتُ «ساكناً»). فالأيقوناتُ كلُّها بنفسجيّةٌ كاملة، وكلٌّ يصلها سلكٌ كأسلاك اللوحة
+     يخرج من تحت صقر: بين الاسمين لا عليهما، ثمّ ينعطف بزاويةٍ على المدار إلى أيقونته — والحالُ في السلك: متّصلٌ يسري فيه نبضٌ (يعمل) ·
+     متقطّعٌ (يتحفّظ) · منقّطٌ (ساكن). */
+  const C = 150, RO = 121, RI = 90, RT = 96.5, RB = 106, RS = 38, BADGE = 9.5;
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const live = s.on && sesOpen;
   const ticks = Array.from({ length: 72 }, (_, i) => {
@@ -93,6 +97,14 @@ function Hub({ s, sesOpen }: { s: SaqrState; sesOpen: boolean }) {
     : `M${P(RT, a - span)} A${RT},${RT} 0 0,1 ${P(RT, a + span)}`;        // الأعلى والجانبان: مع العقارب
   const ang = (i: number) => (i / ns.length) * Math.PI * 2 - Math.PI / 2;
   const s0 = -Math.PI / 2;
+  /* مسارُ السلك: من تحت صقر (‏RS) شعاعاً في الفُرجة بين اسم النظام واسم جاره، ثمّ شطفةٌ بزاوية، ثمّ على المدار إلى حافة أيقونته */
+  const half = (i: number) => ((SHORT[ns[i].k] || ns[i].t).length * 5.3 / 2) / (Math.sin(ang(i)) > 1e-6 ? RB : RT);
+  const gap = (Math.PI * 2) / Math.max(ns.length, 1);
+  const trace = (i: number) => {
+    const a = ang(i), j = (i + 1) % ns.length, b = a + (half(i) + gap - half(j)) / 2, ch = 7;
+    return `M${P(RS, b)} L${P(RO - ch, b)} L${P(RO, b - ch / RO)} A${RO},${RO} 0 0,0 ${P(RO, a + (BADGE + 1) / RO)}`;
+  };
+  const via = (i: number) => { const a = ang(i), j = (i + 1) % ns.length; return a + (half(i) + gap - half(j)) / 2; };
   return (
     <div className={"sq-hub" + (live ? " live" : "")} data-role="sq-hub" data-live={live ? "1" : "0"} role="img" aria-label={`صقر — ${s.on ? (sesOpen ? "يعمل" : "ينتظر الجلسة") : "موقوف"}`}>
       <svg className="sq-wires sq-sigil" viewBox="0 0 300 300" aria-hidden>
@@ -108,6 +120,16 @@ function Hub({ s, sesOpen }: { s: SaqrState; sesOpen: boolean }) {
         <g className="sq-sweep"><path fill={`url(#sqSweepG${uid})`} d={`M${P(RI, s0)} L${P(RO, s0)} A${RO},${RO} 0 0,1 ${P(RO, s0 + sw)} L${P(RI, s0 + sw)} A${RI},${RI} 0 0,0 ${P(RI, s0)} Z`} /></g>
         <circle cx={C} cy={C} r={RO} className="sq-orbit" />
         <circle cx={C} cy={C} r={RI} className="sq-ring-i" data-role="sq-ring-i" />
+        {/* ‏D836: أسلاكُ صقر — تخرج من تحت علامته إلى أنظمته */}
+        <g className="sq-traces" data-role="sq-traces">
+          {ns.map((n, i) => (
+            <g key={n.k} data-for={n.k}>
+              <path d={trace(i)} className={"sq-trace " + n.st} data-role="sq-trace" data-state={n.st} />
+              {n.st === "ok" && <path d={trace(i)} pathLength={100} className="sq-flow" style={{ animationDelay: `${-(i * 0.37).toFixed(2)}s` }} />}
+              <circle cx={C + RS * Math.cos(via(i))} cy={C + RS * Math.sin(via(i))} r={2} className={"sq-via " + n.st} />
+            </g>
+          ))}
+        </g>
         {/* ‏D808: اسمُ كلّ نظامٍ ثابتٌ عند نقطته — و‏D831: على قوسٍ موازٍ للدائرة بين دائرة صقر والنقطة */}
         <g className="sq-labels" data-role="sq-labels">
           {ns.map((n, i) => (
@@ -122,8 +144,9 @@ function Hub({ s, sesOpen }: { s: SaqrState; sesOpen: boolean }) {
           return (
             <g key={n.k} transform={`translate(${C + RO * Math.cos(a)},${C + RO * Math.sin(a)})`}>
               <g className={"sq-node " + n.st} data-role="sq-node" data-state={n.st} data-k={n.k} style={{ animationDelay: `${120 + i * 60}ms` }}>
-                <circle r={8.5} className="sq-lg" />
-                <rect x={-3.6} y={-3.6} width={7.2} height={7.2} transform="rotate(45)" className="sq-lt" />
+                <circle r={BADGE} className="sq-badge" data-role="sq-badge" />
+                {/* لونُها صريحٌ في سمتها: قاعدةُ المظهر الفاتح «html.light svg { color: inherit }» تعلو أيَّ صنفٍ إلّا ما حمل لونَه (‏D836) */}
+                <n.icon size={12} x={-6} y={-6} strokeWidth={2.1} className="sq-ico" style={{ color: "var(--brand-ink)" }} aria-hidden focusable="false" />
               </g>
             </g>
           );
@@ -148,7 +171,7 @@ function HubWrap({ s, sesOpen }: { s: SaqrState; sesOpen: boolean }) {
     <figure className="sq-hubw" data-role="sq-hubw">
       <Hub s={s} sesOpen={sesOpen} />
       <figcaption className="sq-legend" data-role="sq-legend">
-        <span className="sq-lead">حولَ صقر أنظمتُه — كلُّ نقطةٍ نظامٌ باسمه، وشكلُها حالُه:</span>
+        <span className="sq-lead">حولَ صقر أنظمتُه — كلُّ أيقونةٍ نظامٌ باسمه، وسلكُها إليه حالُه:</span>
         <span className="sq-keys">
           <span className="sq-key ok"><i aria-hidden />يعمل</span>
           <span className="sq-key warn"><i aria-hidden />يتحفّظ</span>
