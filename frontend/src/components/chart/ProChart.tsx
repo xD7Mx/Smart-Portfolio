@@ -380,7 +380,8 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
   /* ── طبقةُ الرسم: المستوياتُ والخطوطُ والفرشاة — خفيفةٌ تُستدعى مباشرةً من الإيماءات بلا إعادة رسم الصفحة ── */
   const paint = () => {
     const st = S.current, b = st.bars;
-    const up = st.cc.up || tok("--pc-up", "#ffffff"), down = st.cc.down || tok("--pc-down", "#f23645");
+    const bg0 = tok("--pc-bg", "#000000"), fit0 = (c: string, alt: string) => (st.theme === "light" && dark(c, bg0) ? alt : c);   // ‏D842
+    const up = fit0(st.cc.up || tok("--pc-up", "#ffffff"), tok("--pc-green", "#089981")), down = fit0(st.cc.down || tok("--pc-down", "#f23645"), tok("--pc-down", "#f23645"));
     const drawC = st.cfg.colors?.draw || tok("--brand-ink", "#5b52d3");
     const levels: Level[] = [], segments: Segment[] = [], paths: Path[] = [], notes: Note[] = [], bands: Band[] = [];
     const last = b[b.length - 1];
@@ -604,8 +605,11 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
     });
 
     /* ١ السلسلةُ الرئيسة — تُبنى حين يتغيّر نوعُ الرسم أو المظهر وحدهما */
-    const cu = cc.up || tok("--pc-up", "#ffffff"), cd = cc.down || tok("--pc-down", "#f23645");   // ‏D756 · D772: «خيارُ تغيير لون الشموع»
-    const bgc = tok("--pc-bg", "#000000"), edge = tok("--pc-black-edge", "#b2b5be"), eu = dark(cu, bgc) ? edge : cu, ed = dark(cd, bgc) ? edge : cd;
+    const bgc = tok("--pc-bg", "#000000");
+    /* ‏D756 · D772: «خيارُ تغيير لون الشموع» — و‏D842: في الفاتح الشمعةُ البيضاءُ (قالبُ اللوحة السوداء) خضراءُ كالأصل، لا بيضاءَ على أبيض */
+    const fit = (c: string, alt: string) => (theme === "light" && dark(c, bgc) ? alt : c);
+    const cu = fit(cc.up || tok("--pc-up", "#ffffff"), tok("--pc-green", "#089981")), cd = fit(cc.down || tok("--pc-down", "#f23645"), tok("--pc-down", "#f23645"));
+    const edge = tok("--pc-black-edge", "#b2b5be"), eu = dark(cu, bgc) ? edge : cu, ed = dark(cd, bgc) ? edge : cd;
     const mainSig = `${ctype}|${theme}|${cu}|${cd}`;
     if (sigRef.current.main !== mainSig || !mainRef.current) {
       if (mainRef.current) { try { mainRef.current.detachPrimitive(overlay.current); } catch { /* لم تُلحق */ } chart.removeSeries(mainRef.current); }

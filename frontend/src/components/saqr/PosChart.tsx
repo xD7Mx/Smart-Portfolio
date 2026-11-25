@@ -26,12 +26,21 @@ export default function PosChart({ p, market }: { p: SPos; market: "us" | "sa" }
   const stock = p.kind === "stock";
   const [view, setView] = useState<"c" | "s">("c");
   const sym = stock || view === "s" ? (market === "sa" ? `${p.symbol}.SR` : p.symbol) : p.contract;
-  const tf = "1h";
-  const q = useQuery({
-    queryKey: ["bars", sym, tf],
-    queryFn: () => marketApi.bars(sym, tf).then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
+  /* ‏D842 — قيس على الخادم: المصدرُ لا يعطي العقدَ شموعاً دون اليوم (‏NIO271217P00003000: صفرٌ بـ15د و1س و4س، و146 شمعةً يومية) — فكان الرسمُ
+     «لا شموعَ له». فالساعةُ أوّلاً (للسهم وللعقد السائل)، وإن خلت فاليوميّ */
+  const hq = useQuery({
+    queryKey: ["bars", sym, "1h"],
+    queryFn: () => marketApi.bars(sym, "1h").then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
     staleTime: 60_000, gcTime: BARS_GC, refetchInterval: 120_000, retry: 1,
   });
+  const daily = hq.isSuccess && !(hq.data || []).length;
+  const dq = useQuery({
+    queryKey: ["bars", sym, "1d"], enabled: daily,
+    queryFn: () => marketApi.bars(sym, "1d").then(r => (Array.isArray(r.data?.data) ? r.data.data : [])),
+    staleTime: 300_000, gcTime: BARS_GC, retry: 1,
+  });
+  const q = daily ? dq : hq;
+  const tf = daily ? "1d" : "1h";
   const bars = useMemo(() => sanitizeBars(q.data || []), [q.data]);
   const box = useRef<HTMLDivElement | null>(null);
   const chart = useRef<IChartApi | null>(null);
@@ -100,21 +109,21 @@ export default function PosChart({ p, market }: { p: SPos; market: "us" | "sa" }
     (s as any).__pls = lines.map(l => s.createPriceLine({ price: l.v, color: tok(l.c, tok("--ink-muted", "#6b7280")), lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: l.t }));
     /* علامةُ فتح المركز: أوّلُ شمعةٍ عند الفتح أو بعده */
     const opened = Date.parse(p.opened) / 1000;
-    const iOpen = bars.findIndex(b => (typeof b.time === "number" ? b.time : Date.parse(String(b.time) + "T00:00:00Z") / 1000) >= opened - 3600);
+    const iOpen = bars.findIndex(b => (typeof b.time === "number" ? b.time : Date.parse(String(b.time) + "T00:00:00Z") / 1000) >= opened - (tf === "1d" ? 86400 : 3600));
     (s as any).__mk?.detach?.();
     if (iOpen >= 0) (s as any).__mk = createSeriesMarkers(s, [{ time: T[iOpen] as any, position: "belowBar", color: tok("--brand-ink", "#5b52d3"), shape: "arrowUp", text: "فُتح" }]);
     if (bars.length) {
       /* المدى: من قبيل فتح المركز بقليلٍ إلى الآن — لا الأشهرُ كلُّها */
-      const from = Math.max(0, (iOpen >= 0 ? iOpen : bars.length - 1) - 24);
+      const from = Math.max(0, (iOpen >= 0 ? iOpen : bars.length - 1) - (tf === "1d" ? 20 : 24));
       c.timeScale().setVisibleLogicalRange({ from, to: bars.length - 1 });
     }
     const r = requestAnimationFrame(() => setShown(true));
     return () => cancelAnimationFrame(r);
-  }, [bars, lines, sym, p.opened, p.entry_px, p.S0, stock, view, theme]);
+  }, [bars, lines, sym, tf, p.opened, p.entry_px, p.S0, stock, view, theme]);
 
   const swap = (v: "c" | "s") => { if (v === view) return; if (reduced()) { setView(v); return; } setShown(false); window.setTimeout(() => setView(v), 140); };
   return (
-    <div className="sp-chart" data-role="sp-chartbox" data-view={stock ? "s" : view} data-shown={shown ? "1" : "0"}>
+    <div className="sp-chart" data-role="sp-chartbox" data-view={stock ? "s" : view} data-tf={tf} data-shown={shown ? "1" : "0"}>
       {!stock && (
         <span className="sp-chart-seg seg inline-flex" role="group" aria-label="رسمُ العقد أو سهمه" data-role="sp-chart-view">
           <button type="button" className={"seg-btn chip" + (view === "c" ? " on" : "")} aria-pressed={view === "c"} onClick={() => swap("c")} data-v="c">العقد</button>
@@ -122,8 +131,8 @@ export default function PosChart({ p, market }: { p: SPos; market: "us" | "sa" }
         </span>
       )}
       <div ref={box} className="sp-chart-c" aria-label={`رسمُ ${stock || view === "s" ? "السهم" : "العقد"} منذ فتح المركز`} role="img" />
-      {q.isLoading && <span className="sp-chart-note" data-role="sp-chart-wait">يُحمَّل الرسم…</span>}
-      {!q.isLoading && !bars.length && <span className="sp-chart-note" data-role="sp-chart-empty">لا شموعَ له بعد — {q.isError ? "تعذّر الجلب" : "لم يُتداول في هذه الساعات"}</span>}
+      {(hq.isLoading || (daily && dq.isLoading)) && <span className="sp-chart-note" data-role="sp-chart-wait">يُحمَّل الرسم…</span>}
+      {!hq.isLoading && !(daily && dq.isLoading) && !bars.length && <span className="sp-chart-note" data-role="sp-chart-empty">لا شموعَ له بعد — {q.isError ? "تعذّر الجلب" : "لم يُتداول بعد"}</span>}
     </div>
   );
 }

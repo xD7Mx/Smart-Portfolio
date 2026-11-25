@@ -77,7 +77,7 @@ say(tokOk && /background: \{ color: tok\("--pc-bg"/.test(code) && /grid: \{ vert
     "٣ اللوحةُ سوداءُ بلا شبكةٍ في المظهرين، وخطوطُ المؤشّر مشبعةٌ مُصمَتة (الخطُّ ورقمُه لونٌ واحد — كان الخطُّ رمادياً شفّافاً فبدا الرقمُ بلا خطّ)، "
     + "والرقمُ سعرُ المستوى وحدَه بلا نسبةٍ في الرسمَين، وفوق خطّه افتراضاً");
 say(/data-role="pc-candle-colors"/.test(code) && /role="pc-colors"/.test(code) && /data-role="pc-cc-preset"/.test(code) && /CANDLE_PRESETS/.test(code)
-    && /"أخضر · أسود", "--pc-green", "--pc-black"/.test(code) && /"أبيض · أحمر", "--pc-up", "--pc-down"/.test(code) && /dark\(cd, bgc\) \? edge : cd/.test(code) && /dark\(cu, bgc\) \? edge : cu/.test(code)
+    && /"أخضر · أسود", "--pc-green", "--pc-black"/.test(code) && /"أبيض · أحمر", "--pc-up", "--pc-down"/.test(code) && /dark\(cd, bgc\) \? edge : cd/.test(code) && /dark\(cu, bgc\) \? edge : cu/.test(code) && /theme === "light" && dark\(c, bgc\) \? alt : c/.test(code) && /tok\("--pc-green", "#089981"\)\), cd = fit\(/.test(code)
     && !/type="color"/.test(code),
     "٣ب ألوانُ الشموع زرٌّ في الشريط: قوالبُ (أبيض·أحمر · أخضر·أحمر · أخضر·أسود · أبيض·أسود) ولوحتا ألوانٍ مشبعة — وما يذوب في اللوحة (الأسودُ على الأسود والأبيضُ على الأبيض — ‏D841) بحافّةٍ تُظهره");
 

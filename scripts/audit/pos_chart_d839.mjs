@@ -50,6 +50,9 @@ const ST = { market: "us", ccy: "USD", on: true, capital: 1000, goal: 100000, ca
 /* شموعُ الساعة بختم الخادم (ساعةُ الرياض) — العقدُ 90 شمعةً والسهمُ 70: عددان مختلفان يميّزان أيَّ رسمٍ رُسم */
 const hourly = (n, base, drift) => Array.from({ length: n }, (_, i) => { const t = new Date(now - (n - i) * 3600e3 + 3 * 3600e3).toISOString();
   const c = base + drift * i + Math.sin(i / 3) * base * 0.01; return { date: `${t.slice(0, 10)} ${t.slice(11, 16)}`, open: c, high: c * 1.01, low: c * 0.99, close: c, volume: 100 }; });
+/* ‏D842 — كالخادم: العقدُ بلا شموعٍ دون اليوم (صفرٌ بالساعة) وشموعُه يوميّة */
+const dailyB = (n, base, drift) => Array.from({ length: n }, (_, i) => { const t = new Date(now - (n - i) * 86400e3).toISOString();
+  const c = base + drift * i + Math.sin(i / 3) * base * 0.02; return { date: t.slice(0, 10), open: c, high: c * 1.02, low: c * 0.98, close: c, volume: 100 }; });
 
 const browser = await chromium.launch({ executablePath: CHROME });
 for (const [label, vp, theme, reduce] of [["الحاسوب · فاتح", { width: 1366, height: 900 }, "light", false], ["الجوال · داكن", { width: 390, height: 844 }, "dark", false],
@@ -62,7 +65,8 @@ for (const [label, vp, theme, reduce] of [["الحاسوب · فاتح", { width
   await page.route("**/api/v1/**", async r => {
     const u = new URL(r.request().url()), p = u.pathname.replace(/^.*\/api\/v1/, "");
     if (p.startsWith("/market/history/")) { const s = decodeURIComponent(p.split("/").pop()); asked.push(`${s}@${u.searchParams.get("tf")}`);
-      return r.fulfill(body(s.includes("P000") ? hourly(90, 1.0, -0.0006) : s === "NIO" ? hourly(70, 4.5, -0.002) : hourly(60, 9.7, 0.003))); }
+      const tf = u.searchParams.get("tf");
+      return r.fulfill(body(s.includes("P000") ? (tf === "1d" ? dailyB(60, 1.0, -0.002) : []) : s === "NIO" ? hourly(70, 4.5, -0.002) : hourly(60, 9.7, 0.003))); }
     if (p === "/market/sessions") return r.fulfill(body({ us: SES, sa: { ...SES, market: "sa" } }));
     if (p === "/market/saqr") return r.fulfill(body(ST));
     if (p === "/auth/me") return r.fulfill(body({ id: 1, username: "owner", is_owner: true, role: "owner" }));
@@ -81,7 +85,7 @@ for (const [label, vp, theme, reduce] of [["الحاسوب · فاتح", { width
     return { has: !!box, below: !!(box && mt && box.getBoundingClientRect().top >= mt.getBoundingClientRect().bottom - 1), canvases: cv.length, ink,
       view: box?.dataset.view, seg: !!c.querySelector('[data-role="sp-chart-view"]'), h: Math.round(c.getBoundingClientRect().height),
       whyH: wb ? Math.round(wb.getBoundingClientRect().height) : -1, whyExp: c.querySelector('[data-role="sp-why-toggle"]')?.getAttribute("aria-expanded"),
-      path: !!c.querySelector('[data-role="sp-path"]'), chartH: box ? Math.round(box.getBoundingClientRect().height) : 0 };
+      path: !!c.querySelector('[data-role="sp-path"]'), tf: box?.dataset.tf, chartH: box ? Math.round(box.getBoundingClientRect().height) : 0 };
   });
   /* مقياسُ «لا تكبر»: البطاقةُ كما كانت = هي الآن − الرسم − زرُّ الأسباب + الأسبابُ ظاهرةً (ارتفاعُها المفتوح) + مسارُ السهم (‏≈ 30) */
   await card.locator('[data-role="sp-why-toggle"]').click().catch(() => {}); await sleep(reduce ? 120 : 500);
@@ -102,8 +106,8 @@ for (const [label, vp, theme, reduce] of [["الحاسوب · فاتح", { width
   if (process.env.SHOTS) { await card.locator('[data-role="sp-chart-view"] [data-v="c"]').click().catch(() => {}); await sleep(900);
     await card.screenshot({ path: join(process.env.SHOTS, `d839-${vp.width}-${theme}${reduce ? "-rm" : ""}.png`) }).catch(() => {}); }
 
-  say(m1.has && m1.below && m1.canvases > 0 && m1.ink && asked.includes("NIO271217P00003000@1h") && !m1.path && m1.chartH >= 100 && m1.chartH <= 140,
-    `${label}: ١ البطاقة: البياناتُ فوق والرسمُ تحتها مرسوماً (العقدُ بإطار الساعة) بخطوط الدخول والوقف والجني — ومسارُ السهم خطٌّ فيه`,
+  say(m1.has && m1.below && m1.canvases > 0 && m1.ink && asked.includes("NIO271217P00003000@1h") && asked.includes("NIO271217P00003000@1d") && m1.tf === "1d" && !m1.path && m1.chartH >= 100 && m1.chartH <= 140,
+    `${label}: ١ البطاقة: البياناتُ فوق والرسمُ تحتها مرسوماً (العقدُ بإطار الساعة، وإن خلت — كما على الخادم — فباليوميّ ‏D842) بخطوط الدخول والوقف والجني — ومسارُ السهم خطٌّ فيه`,
     JSON.stringify({ ...m1, asked: asked.slice(0, 3) }));
   say(m1.seg && m1.view === "c" && v2 === "s" && stockAsk.includes("NIO@1h") && !stk.seg && stk.view === "s" && stk.canv > 0,
     `${label}: ٢ «العقد | السهم» يبدّل إلى رسم السهم — ومركزُ السهم رسمُه وحدَه بلا زرّ`, JSON.stringify({ v2, stockAsk, stk }));
