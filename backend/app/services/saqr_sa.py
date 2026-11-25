@@ -206,6 +206,27 @@ async def trend(sym: str) -> dict | None:
     return tr
 
 
+async def vol_of(sym: str) -> float | None:
+    """‏D832: التذبذبُ السنويُّ المحقَّق من آخر ستين جلسة — لنسبة النجاح بنموذج العقد نفسِه (‏saqr_team.odds_stock)."""
+    from app.services import cache
+    from app.services.market_data import market_service as M
+    hit = cache.get(f"saqr:sa:vol:{sym}")
+    if hit is not None:
+        return hit or None
+    try:
+        bars = await asyncio.wait_for(M.get_bars(f"{sym}.SR", "1d"), 25) or []
+    except Exception:                                             # noqa: BLE001
+        return None
+    cl = [b.get("close") for b in bars[-61:] if b.get("close")]
+    rets = [math.log(b / a) for a, b in zip(cl, cl[1:]) if a and b]
+    if len(rets) < 30:
+        return None
+    m = sum(rets) / len(rets)
+    v = round(math.sqrt(sum((r - m) ** 2 for r in rets) / (len(rets) - 1)) * math.sqrt(252), 4)
+    cache.set(f"saqr:sa:vol:{sym}", v, 6 * 3600)
+    return v
+
+
 def gates(st: dict, now: datetime, clock: tuple[datetime, datetime] | None, reg: dict | None, g: dict | None) -> list[str]:
     """ما يمنع الدخولَ الجديد في السوق السعوديّ الآن (فارغةٌ = مفتوح)."""
     out = []
@@ -413,10 +434,16 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
     held = {p["symbol"] for p in st["positions"]}
     tasi_chg = reg.get("chg")
     from app.data.saudi_directory import SUSPENDED, SYMBOL_TO_NAME
+    from app.services import saqr_team as TEAM
     sig, pool = [], []
+    # ‏D832 — بابُ صقر الواحد للسوقين: المنبعُ فرصُ اليوم التي وافق عليها صقرٌ كاملاً (كالأمريكيّ) — لا الشركاتُ كلُّها
+    opps = {s_: x for s_, x in CN.opportunities("sa").items() if x.get("side") == "long"}
+    floor = SQ.win_floor()
     _JOB["msg"] = "قراءةُ الشركات ونتائجها"
     for sym, row in snap.items():
         if sym in held or sym in SUSPENDED or not main_company(sym) or SQ.cooling(st, sym, now):
+            continue
+        if sym not in opps:
             continue
         row = {**row, "name_en": SYMBOL_TO_NAME.get(sym) or row.get("name_en")}
         why = screen(row, tasi_chg)
@@ -454,8 +481,9 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
         sym, row, tr, rs3 = cd["symbol"], cd["_row"], cd["tr"], cd["rs3"]
         bd = CN.judge(evs[sym])
         board = CN.compact(bd)
-        if bd["veto"]:
-            sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "refused", "why": "صقر لا يشتريه الآن — " + " · ".join(bd["veto_why"]), "council": board})
+        why_no = CN.gate_why(bd, None, "long", need_link=False)
+        if why_no:
+            sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "refused", "why": why_no, "council": board})
             continue
         score = cd["_pre"] + min(max(rs3, 0), 30) + min(tr["strength"], 20) + bd["score"] / 2
         ask = row["ask"]
@@ -463,10 +491,16 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
         tgt, lbl = (min(hi, ask * 1.25), "قمّة السنة") if hi >= ask * 1.10 else (round(ask * 1.12, 2), "+12٪")
         rd = (evs.get(sym) or {}).get("vp_rd")
         stop, stop_lbl, tgt, lbl = vp_exits(ask, c["stock_stop"], tgt, lbl, rd)
+        p_win = TEAM.odds_stock(ask, stop, tgt, await vol_of(sym))
+        if floor and (p_win is None or p_win < floor):
+            sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "refused", "council": board,
+                        "why": f"صقر يوافق ({bd['score']}/100) لكنّ نسبةَ نجاحه {'غيرُ متوفّرة' if p_win is None else f'{p_win:.0f}٪'} دون حدّك {floor:.0f}٪"
+                               f" (الهدف {tgt:,.2f} قبل الوقف {stop:,.2f})"})
+            continue
         k = {"contract": sym, "symbol": sym, "name": row.get("name_en"), "type": "stock", "ask": ask, "bid": row.get("bid"), "price": row.get("price"),
              "stop": stop, "stop_label": stop_lbl, "target": round(tgt, 2), "target_label": lbl, "score": round(score, 1),
              "vp": ({x: rd[x] for x in ("zone", "poc", "val", "vah", "wall", "next", "support", "window")} if rd else None),
-             "results": cd["stxt"], "results_state": cd["stt"], "tr": tr, "rs3": rs3, "chg": row.get("change_pct"), "board": bd, "chart_read": cd["cr_side"]}
+             "results": cd["stxt"], "results_state": cd["stt"], "tr": tr, "rs3": rs3, "chg": row.get("change_pct"), "board": bd, "chart_read": cd["cr_side"], "p_win": p_win}
         good = next((m["say"] for m in bd["members"] if m["v"] == "ok" and m["role"] != "المسار"), None)
         sig.append({"sym": sym, "name": row.get("name_en"), "verdict": "accepted", "contract": sym, "score": k["score"], "council": board,
                     "why": f"صقر {bd['verdict']} ({bd['score']}/100 · {bd['oks']} شاهدٌ يؤيّد · {bd['warns']} تحفّظ)" + (f" · {good}" if good else "")})
@@ -475,10 +509,11 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
     best, lk = None, None
     for k in sorted(ok, key=lambda x: -x["score"])[:3]:
         lk = await CN.link(k["symbol"], k["name"], "sa", "long", k["board"], chart=k.get("chart_read"), price=k["ask"])
-        if lk and lk["decision"] != "شراء":
+        why_no = CN.gate_why(k["board"], lk, "long")              # ‏D832: وتعذّرُ القراءة الأخيرة يمنع — لا دخولَ آليّاً بشاهدٍ ناقص
+        if why_no:
             for x in sig:
                 if x.get("contract") == k["contract"] and x["verdict"] == "accepted":
-                    x["why"] += f" · الرابط: {lk['decision']} — {lk['link']}"
+                    x["why"] += f" · {why_no}"
             continue
         best = k
         break
@@ -490,10 +525,11 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
                    (f"، واليوم {reg['chg']:+.1f}٪" if isinstance(reg.get("chg"), (int, float)) else "") + ".",
                    f"حكمُ صقر: {best['board']['verdict']} ({best['board']['score']}/100).",
                    *CN.lines(best["board"]),
-                   (f"الرابط ({lk['decision']} · ثقة {lk['confidence']}): {lk['link']}" + (f" التعارض: {lk['conflict']}" if lk.get("conflict") else ""))
-                   if lk else "الرابط: قراءتُه غيرُ متوفّرة الآن — الشراءُ على حكم صقر من شواهده.",
+                   f"قراءةُ صقر الأخيرة ({lk['decision']} · ثقة {lk['confidence']}): {lk['link']}" + (f" التعارض: {lk['conflict']}" if lk.get("conflict") else ""),
+                   (f"نسبةُ النجاح {best['p_win']:.0f}٪: يبلغ هدفَه قبل وقفه خلال {TEAM.STOCK_DAYS} يوماً" + (f" — وحدُّك {floor:.0f}٪" if floor else "")
+                    + " (تقديرٌ من تذبذبه لا وعد).") if best.get("p_win") is not None else "نسبةُ النجاح غيرُ متوفّرة لهذا السهم.",
                    f"الوقف {best['stop']:.2f} ({best.get('stop_label') or ''}) والهدف {best['target']:,.2f} ({best['target_label']})." + (f" {fac_why}." if fac_why else "")]
-            pos = SQ.buy(st, {k: v for k, v in best.items() if k not in ("board", "chart_read")}, qty, why, kind="stock")
+            pos = SQ.buy(st, {k: v for k, v in best.items() if k not in ("board", "chart_read", "p_win")}, qty, why, kind="stock")
             pos["results_state"] = best["results_state"]
             st["day"]["new"] = (st["day"].get("new") or 0) + 1
             for x in sig:
@@ -505,7 +541,7 @@ async def _hunt(st: dict, now: datetime, snap: dict, reg: dict, g: dict | None) 
             sig.append({"sym": best["symbol"], "verdict": "refused", "why": f"ميزانيةُ الصفقة {budget:,.0f} ريال لا تتّسع لسهمٍ واحد بـ{best['ask']:.2f}"})
     order = {"chosen": 0, "accepted": 1, "refused": 2}
     st["signals"] = [{"at": SQ._iso(), **x} for x in sorted(sig, key=lambda x: order[x["verdict"]])][:60]
-    st["scan_meta"] = {"at": SQ._iso(), "universe": len(snap), "movers": 0, "pool": len(pool), "deep": min(len(pool), POOL),
+    st["scan_meta"] = {"at": SQ._iso(), "universe": len(snap), "movers": 0, "pool": len(pool), "deep": min(len(pool), POOL), "opps": len(opps), "floor": floor,
                        "budget": round(budget, 2), "tier": {"frac": frac, "seats": seats}, "factor": fac}
     return pos
 

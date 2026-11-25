@@ -1014,6 +1014,9 @@ def start_scheduler():
                        id="saqr_sa_close_boot", replace_existing=True, misfire_grace_time=900)
     _scheduler.add_job(job_chart_scan_boot, DateTrigger(run_date=_dt.now(_RIYADH_TZ) + timedelta(minutes=9), timezone=_RIYADH_TZ),
                        id="chart_scan_boot", replace_existing=True, misfire_grace_time=1800)
+    # ‏D833: صقرٌ يدرس ما لم يدرسه من كتب المكتبة بعد الإقلاع (بعد المسح) — لا ينتظر الفجر؛ والمدروسُ محفوظٌ فلا يُعاد
+    _scheduler.add_job(job_library_wisdom, DateTrigger(run_date=_dt.now(_RIYADH_TZ) + timedelta(minutes=25), timezone=_RIYADH_TZ),
+                       id="library_wisdom_boot", replace_existing=True, misfire_grace_time=3600)
     # ‏مهلةُ التأخّر الافتراضيةُ ثانيةٌ واحدة: الخادمُ بعد الإقلاع مشغولٌ بتجهيز الأسهم فتُفوَّت القراءةُ بصمت — قيس: نُشر ولم يُكتب النبض
     # ‏D580: مساءً بعد إغلاق السوق — إعلاناتُ النتائج تنزل نهاراً
     _scheduler.add_job(job_results_announcements, CronTrigger(hour=20, minute=20), id="results_announcements_evening",

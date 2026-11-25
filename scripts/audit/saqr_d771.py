@@ -178,6 +178,21 @@ OP.book_save(150, {"open": [{"contract": C, "symbol": "F", "name": "Ford", "type
                              "target": 15.0, "target_label": "قمّة السنة", "card": {"score": 70.0, "delta": 0.62, "iv": 45.0, "reasons": ["المسارُ صاعد"]}},
                             {"contract": "NIO271217P00006000", "symbol": "NIO", "type": "put", "strike": 6.0, "expiry": "2027-12-17", "t": 1, "opened": "2026-11-18",
                              "target": 4.0, "card": {"score": 90.0, "reasons": ["المسارُ هابط"]}}], "closed": []})
+# ‏D832: بابُ صقر الواحد (فرصُ اليوم · «يوافق» كاملةً لحظةَ الشراء · قراءتُه الأخيرة · حدُّ النجاح) يُختبر في saqr_auto_d832 — ويُفتح هنا
+# ليبقى هذا الحارسُ على ما وُضع له (الدفترُ والترتيبُ والاتّجاهُ والوقفُ والجني)
+from app.services import saqr_council as _CN   # noqa: E402
+_CN.opportunities = lambda m: {s: {"symbol": s, "side": ("short" if s in ("NIO",) else "long"), "tr": {}, "close": 10.0} for s in ("F", "NIO")}
+
+
+async def _ctx(market):
+    return {}
+
+
+async def _ok(market, cands, ctx=None):
+    bd = {"verdict": "يوافق", "score": 82, "veto": False, "oks": 6, "warns": 0, "members": [], "veto_why": []}
+    return {c["symbol"]: {"bd": bd, "lk": {"decision": "شراء" if c["side"] == "long" else "بيع", "confidence": "متوسطة", "link": "قراءةٌ تربط الشواهد."},
+                          "why": None} for c in cands}
+_CN.context, _CN.confirm = _ctx, _ok
 st = SQ.fresh(capital=1000)
 SQ.apply_settings(st, {"auto": True, "sides": "calls"})
 pos = asyncio.run(SQ._hunt(st, SQ._now()))

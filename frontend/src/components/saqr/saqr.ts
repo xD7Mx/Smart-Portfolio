@@ -49,6 +49,8 @@ export type SaqrState = {
   equity_curve: [string, number][]; signals: SSignal[]; log: SLog[]; gates: string[];
   scan?: { at: string; universe: number; movers: number; pool: number; deep: number; budget: number; tier: { frac: number; seats: number };
     full?: { fallback?: boolean; cboe?: number | null; market?: number; optionable?: number; passed?: number; excluded?: Record<string, number>; up?: number; down?: number } } | null;
+  /* ‏D832: آخرُ بحثٍ آليٍّ في الأمريكيّ — كم توصيةً راجع، وكم فرصةً بموافقة صقر الكاملة، وحدُّ النجاح الواحد للسوقين */
+  hunt?: { at: string; book: number | null; recs: number; opps: number; floor: number; budget: number } | null;
   session?: { state: string; label: string; detail: string; next: string | null; holiday?: string } | null;
   last_cycle: string | null; last_check: string | null;
   health: { news?: boolean; events?: boolean; quotes?: string | null };

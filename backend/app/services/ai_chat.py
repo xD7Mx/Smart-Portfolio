@@ -695,9 +695,20 @@ async def answer(db, question: str, history: list | None = None,
         convo += f"\n{role}: {m.get('content', '')}"
 
     rules = SYSTEM_RULES
+    lib_titles: list[str] = []
     if saqr:
         from app.services import saqr_brief
         rules += saqr_brief.RULES
+        try:                                                      # ‏D833: علمُ صقر من المكتبة — منهجٌ يحلّل به، لا بياناتٌ ولا مصدرٌ يُذكر
+            from app.services import library_wisdom as LW
+            lib, _ = LW.saqr_block(18)
+            if lib:
+                rules += ("\n— " + lib + "وهذا منهجٌ تحلّل به لا بياناتٌ تُجيب منها: الأرقامُ والوقائعُ من «بيانات التطبيق» وحدها، "
+                          "ولا تذكر كتاباً ولا المكتبةَ ولا مؤلّفاً في جوابك إلا إن سألك المالكُ عن مكتبته.")
+                if not re.search(r"كتاب|كتب|مكتب", question):
+                    lib_titles = LW.saqr_titles() or ["\u0000"]
+        except Exception as e:                                    # noqa: BLE001
+            logger.warning(f"صقر/المكتبة في التوجيه: {type(e).__name__}")
     prompt = (f"{rules}\n\n"
               f"=== بيانات التطبيق (مصدرك الوحيد) ===\n{ctx_json}\n"
               f"=== نهاية البيانات ===\n"
@@ -727,6 +738,9 @@ async def answer(db, question: str, history: list | None = None,
         # الأرقام الهندية ممنوعة في التطبيق كلّه — نُطبّعها هنا أيضاً.
         text = re.sub(r"[٠-٩]", lambda m: str(ord(m.group()) - 0x0660), text)
         text = _strip_markup(text)
+        if lib_titles:                                            # ‏D833: علمُ المكتبة داخليّ — لا يخرج في الجواب
+            from app.services import library_wisdom as LW
+            text = LW.scrub(text, [t for t in lib_titles if t != "\u0000"]) or text
         return {"reply": text, "grounded": True, "source": "ai"}
     except httpx.TimeoutException:
         logger.warning("chat: تجاوز النموذج مهلة العشرين ثانية")

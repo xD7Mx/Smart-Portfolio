@@ -154,6 +154,17 @@ def cfg(st: dict) -> dict:
     return {**DEFAULTS, **US_DEFAULTS, **(st.get("settings") or {})}
 
 
+def win_floor() -> float:
+    """‏D832 (المالك: «مستوى النجاح والاختيار في ليفل موحّد — صقرٌ واحد»): حدُّ النجاح الأدنى واحدٌ للسوقين — أعلى ما ضبطه المالك في أيٍّ منهما."""
+    vals = []
+    for mk in ("us", "sa"):
+        try:
+            vals.append(float(cfg(load(mk)).get("min_win") or 0))
+        except Exception:                                         # noqa: BLE001
+            continue
+    return max(vals or [0.0])
+
+
 def profile(st: dict) -> dict:
     """عتباتُ النمط (‏D768): الهجوميُّ للأمريكيّ افتراضاً، والمتوازنُ بأمر المالك وللسعوديّ دائماً."""
     return PROFILES["attack" if cfg(st).get("mode") == "attack" and st.get("market", "us") == "us" else "balanced"]
@@ -751,7 +762,12 @@ def book_for(budget: float) -> tuple[int | None, list[dict]]:
 
 async def _hunt(st: dict, now: datetime) -> dict | None:
     """التداولُ الآليّ (‏D779 — المالك: «خلِّ التداولَ الآليَّ يشتري من عقود الخيارات»): يشتري من توصيات «عقود الخيارات» القائمة نفسِها التي يراها
-    المالك — الأعلى درجةً أوّلاً — عقداً طويلَ الأجل بعرضه الحيّ ضمن ميزانية العقد، بوقفه وجنيه من أوامر المالك. لا أسهمَ ولا عقودَ قصيرة."""
+    المالك — عقداً طويلَ الأجل بعرضه الحيّ ضمن ميزانية العقد، بوقفه وجنيه من أوامر المالك. لا أسهمَ ولا عقودَ قصيرة.
+    ‏D832 — بابُ صقر الواحد للسوقين (‏saqr_council.gate_why): العقدُ على فرصةٍ من فرص اليوم وافق عليها صقرٌ كاملاً وباتّجاهه، ثمّ حكمٌ جديدٌ
+    لحظةَ الشراء «يوافق» وقراءتُه الأخيرة «شراء/بيع»، ونسبةُ نجاحه (‏saqr_team.odds بوقف المالك) لا تقلّ عن حدّ المالك الواحد للسوقين —
+    وكلُّ مرشّحٍ يُكتب حكمُه وسببُه في «قراراتُ صقر» كالسعوديّ."""
+    from app.services import saqr_council as CN
+    from app.services import saqr_team as TEAM
     eq = equity(st)
     frac, seats = tier(eq)
     seats, budget = seats_budget(st, eq, frac, seats)
@@ -760,27 +776,76 @@ async def _hunt(st: dict, now: datetime) -> dict | None:
         return None
     bk, recs = book_for(budget)
     held = {p["symbol"] for p in st["positions"]} | {o["symbol"] for o in st.get("orders") or []}
+    opps = CN.opportunities("us")
+    floor = win_floor()
+    sig: list[dict] = []
+
+    def no(it: dict, why: str, council: dict | None = None) -> None:
+        sig.append({"sym": it["symbol"], "name": it.get("name"), "verdict": "refused", "contract": it.get("contract"), "why": why,
+                    **({"council": council} if council else {})})
+    cands = []
     for it in recs:
         if it["symbol"] in held or cooling(st, it["symbol"], now) or (it["type"] == "put" and c["sides"] == "calls"):
             continue
+        x = opps.get(it["symbol"])
+        side = "long" if it["type"] == "call" else "short"
+        if not x:
+            no(it, "ليس في فرص اليوم بموافقة صقر الكاملة — لا دخولَ آليّ")
+            continue
+        if x.get("side") != side:
+            no(it, f"فرصةُ اليوم {'صعود' if x.get('side') == 'long' else 'هبوط'} والعقدُ {'شراء' if side == 'long' else 'بيع'} — اتّجاهان مختلفان")
+            continue
+        cands.append((it, x, side))
+    pos = None
+    ctx = None
+    for it, x, side in cands[:3]:
         q = await contract_quote(it["contract"])
         if not q or not q["live"] or not q["ask"]:
+            no(it, "لا عرضَ حيٌّ للعقد الآن")
             continue
         qty = size(budget, q["ask"])
         if qty < 1:
+            no(it, f"ميزانيةُ الصفقة {budget:,.0f}$ لا تتّسع لعقدٍ بـ{q['ask']:.2f}")
             continue
         card = it.get("card") or {}
-        k = {**{x: it.get(x) for x in ("contract", "symbol", "name", "type", "strike", "expiry", "t", "target", "target_label")},
+        kk = {"contract": it["contract"], "type": it["type"], "strike": it["strike"], "iv": card.get("iv"), "ask": q["ask"], "dte": q["dte"]}
+        od = TEAM.odds(kk, q.get("price"), c["opt_stop"] / 100)
+        p30 = od["p30"] if od else None
+        if floor and (p30 is None or p30 < floor):
+            no(it, f"نسبةُ نجاحه {'غيرُ متوفّرة' if p30 is None else f'{p30:.0f}٪'} دون حدّك {floor:.0f}٪")
+            continue
+        if ctx is None:
+            ctx = await CN.context("us")
+        cand = {"symbol": it["symbol"], "name": it.get("name") or x.get("name"), "side": side, "price": q.get("price") or x.get("close"),
+                "tr": x.get("tr"), "cr_side": x, "cr_any": x, "liq": x.get("liq"), "stt": None, "stxt": None, "sector": x.get("sector"),
+                "rs3": None, "earn_days": CN.earn_days(it["symbol"])}
+        r = (await CN.confirm("us", [cand], ctx)).get(it["symbol"]) or {}
+        bd, lk = r.get("bd") or {}, r.get("lk")
+        board = CN.compact(bd) if bd else None
+        if r.get("why") or not bd:
+            no(it, r.get("why") or "حكمُ صقر غيرُ متوفّر الآن", board)
+            continue
+        k = {**{y: it.get(y) for y in ("contract", "symbol", "name", "type", "strike", "expiry", "t", "target", "target_label")},
              "delta": card.get("delta"), "iv": card.get("iv"), "ask": q["ask"], "bid": q["bid"], "price": q["price"], "dte": q["dte"],
              "stop": round(q["ask"] * (1 - c["opt_stop"] / 100), 4), "take_x": c["take_x"]}
-        why = [f"من «عقود الخيارات» (دفترُ {bk}$ · توصيةٌ منذ {it.get('opened')}): درجةُ {card.get('score', 0):.0f} من 100."] \
-            + list(card.get("reasons") or [])[:4]
+        why = [f"من «عقود الخيارات» (دفترُ {bk}$ · توصيةٌ منذ {it.get('opened')}): درجةُ {card.get('score', 0):.0f} من 100.",
+               f"حكمُ صقر لحظةَ الشراء: {bd['verdict']} ({bd['score']}/100) · {bd['oks']} شاهدٌ يؤيّد · {bd['warns']} تحفّظ.",
+               *CN.lines(bd),
+               f"قراءةُ صقر الأخيرة ({lk['decision']} · ثقة {lk['confidence']}): {lk['link']}" + (f" التعارض: {lk['conflict']}" if lk.get("conflict") else ""),
+               (f"نسبةُ النجاح {p30:.0f}٪: يبلغ +{TEAM.TP * 100:.0f}٪ قبل وقفه −{c['opt_stop']:g}٪" + (f" — وحدُّك {floor:.0f}٪" if floor else "")
+                + " (تقديرٌ من تذبذب السوق لا وعد).") if p30 is not None else "نسبةُ النجاح غيرُ متوفّرة لهذا العقد."] \
+            + list(card.get("reasons") or [])[:3]
         pos = buy(st, k, qty, why)
         st["day"]["new"] = (st["day"].get("new") or 0) + 1
+        sig.append({"sym": it["symbol"], "name": it.get("name"), "verdict": "chosen", "contract": it["contract"], "council": board,
+                    "why": f"صقر يوافق ({bd['score']}/100) وقراءتُه «{lk['decision']}»" + (f" · نسبةُ النجاح {p30:.0f}٪" if p30 is not None else "")})
         log(st, "buy", f"شراءٌ آليٌّ من «عقود الخيارات»: {qty} × {_title(pos)} بسعر {pos['entry_px']:.2f} (الكلفة مع العمولة {pos['cost']:,.2f}$) — "
                        f"الوقف {pos['stop']:.2f} والجني ×{pos['take_x']:g}.", pos["symbol"])
-        return pos
-    return None
+        break
+    order = {"chosen": 0, "accepted": 1, "refused": 2}
+    st["signals"] = [{"at": _iso(), **y} for y in sorted(sig, key=lambda y: order[y["verdict"]])][:60]
+    st["hunt_meta"] = {"at": _iso(), "book": bk, "recs": len(recs), "opps": len(opps), "floor": floor, "budget": round(budget, 2)}
+    return pos
 
 
 # ══ أوامرُ المالك (‏D771): شراءٌ بسعره، وأمرا البيع — جنيُ الربح ووقفُ الخسارة — وأوامرٌ معلّقةٌ حتى تُنفَّذ أو تُلغى ══
@@ -1298,7 +1363,7 @@ def view(market: str = "us") -> dict:
         "exposure": {"contracts": sum(p["qty"] for p in st["positions"]), "cost": round(cost_open, 2), "value": round(val_open, 2),
                      "ret": round((val_open / cost_open - 1) * 100, 1) if cost_open else None},
         "equity_curve": pts[-600:], "signals": st.get("signals") or [], "log": (st.get("log") or [])[:120], "gates": st.get("gates") or [],
-        "scan": st.get("scan_meta"), "session": st.get("session"), "last_cycle": st.get("last_cycle"), "last_check": st.get("last_check"),
+        "scan": st.get("scan_meta"), "hunt": st.get("hunt_meta"), "session": st.get("session"), "last_cycle": st.get("last_cycle"), "last_check": st.get("last_check"),
         "health": st.get("health") or {}, "settings": cfg(st), "pulse": st.get("pulse"), "day": day_status(st), "orders": st.get("orders") or [], "broker": st.get("broker") or {"linked": False, "name": "IBKR"},
         "runs": st.get("runs") or [], "running": dict(_JOB if market == "us" else _sa_job()),
         "regime": st.get("regime"), "geo": st.get("geo"),

@@ -106,6 +106,17 @@ def odds(k: dict, S: float | None, stop: float = STOP) -> dict | None:
     return out
 
 
+STOCK_DAYS = 90           # ‏D832: أفقُ السهم السعوديّ — ثلاثةُ أشهر (أفقُ مساره ‎ret3m)
+
+
+def odds_stock(ask: float, stop: float, target: float, vol: float | None, days: int = STOCK_DAYS) -> float | None:
+    """‏D832 — نسبةُ النجاح للسهم بالنموذج نفسِه الذي يُقاس به العقد: احتمالُ أن يبلغ السعرُ هدفَه قبل وقفه وقبل الأفق — من تذبذبه المحقَّق
+    (لا خيارات للسوق السعوديّ يُقرأ منها تذبذبٌ ضمنيّ). تقديرٌ لا وعد؛ وبلا تذبذبٍ أو بحاجزين مقلوبين ⇒ None."""
+    if not ask or not vol or not target or not stop or not (stop < ask < target):
+        return None
+    return round(first_hit(math.log(target / ask), math.log(stop / ask), days / 365, vol) * 100, 1)
+
+
 def _m(role: str, v: str, say: str) -> dict:
     return {"role": role, "v": v, "say": say}
 

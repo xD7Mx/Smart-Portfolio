@@ -189,6 +189,17 @@ async def flow():
         return []
     o_cn = (CN.chart_sa, CN.yf, CN.heads_sa, CN.events, RD._gemini)
     CN.chart_sa, CN.yf, CN.heads_sa, CN.events, RD._gemini = none3, none1, empty, empty, none1
+    # ‏D832: بابُ صقر الواحد (فرصُ اليوم · «يوافق» كاملةً · قراءتُه الأخيرة · حدُّ النجاح) يُختبر في saqr_auto_d832 — ويُفتح هنا (الرفضُ وحده يمنع)
+    # ليبقى هذا الحارسُ على ما وُضع له: الاختيارُ بالنتائج والمسار والقوّة النسبية، والحجمُ والوقف
+    async def link_buy(*a, **k):
+        return {"decision": "شراء", "confidence": "متوسطة", "link": "قراءةٌ تربط الشواهد.", "conflict": "", "watch": ""}
+
+    async def vol(sym):
+        return 0.25
+    o_gate = (CN.opportunities, CN.gate_why, CN.link, SA.vol_of)
+    CN.opportunities = lambda m: {s: {"symbol": s, "side": "long"} for s in ("1120", "2010", "7010", "4190", "2222")}
+    CN.gate_why = lambda bd, lk, side, need_link=True: ("صقر لا يشتريه الآن — " + " · ".join(bd.get("veto_why") or [])) if bd.get("veto") else None
+    CN.link, SA.vol_of = link_buy, vol
     from app.services.saqr_bot import bot
     sent = []
 
@@ -212,6 +223,7 @@ async def flow():
     finally:
         SA.trend, SA.results_of = o_tr, o_res
         CN.chart_sa, CN.yf, CN.heads_sa, CN.events, RD._gemini = o_cn
+        CN.opportunities, CN.gate_why, CN.link, SA.vol_of = o_gate
         bot.send, bot.enabled = o_n
 pos, verdicts, st9, out9, sent9 = asyncio.run(flow())
 check(pos and pos["symbol"] == "1120" and pos["qty"] == SA.shares(min(1000, 1000 * 0.25), 90.02) and pos["stop"] == round(90.02 * SA.STOP, 3)

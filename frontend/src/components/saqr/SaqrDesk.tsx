@@ -4,7 +4,7 @@
    بحالةِ كلٍّ منها، وفي الزوايا الصفقاتُ المفتوحة والربحُ الحاليّ ورابحةُ اليوم وخاسرتُه والمحقَّقُ بعد العمولات؛ وتحتها حالُ الأنظمة والتعرّضُ
    و‏SPY وجلسةُ السوق ونسبةُ النجاح ومنحنى رأس المال — ثمّ الإشاراتُ بقبولها ورفضها وأسبابها، والسجلّ، والقواعد. والوسيطُ «غيرُ مربوط»
    صراحةً: التنفيذُ بأسعار السوق الحقيقية لحظتَها حتى يُربط ‏IBKR. */
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Radar, ShieldCheck, Cpu, ShieldAlert, Target, Newspaper, Sparkles, Play, Pause, RefreshCw,
   LayoutDashboard, Crosshair, ScrollText, SlidersHorizontal, ArrowDownRight, ArrowUpRight, Info, BellRing, Hand, LineChart, FileText, Filter, BarChart3, Check, Flame, Wallet, Layers } from "lucide-react";
@@ -75,40 +75,50 @@ function nodes(s: SaqrState, sesOpen: boolean): { k: string; t: string; d: React
    تدريجٌ ناعم، ومدارٌ يدور ببطء، ومسحٌ كالرادار حين يعمل، وأنوارٌ بلا أسماء — كلُّ نورٍ نظامٌ بحاله (يعمل · يتحفّظ · ساكن) ولا يقول ما هو. */
 function Hub({ s, sesOpen }: { s: SaqrState; sesOpen: boolean }) {
   const ns = nodes(s, sesOpen);
-  const C = 150, RO = 118, RL = 86;
+  /* ‏D831 (المالك 2026-11-25): «الكلماتُ خارجَ الدائرة التي فيها صقر — في دائرة النقاط نفسِها، موازيةً لخطّ الدائرة لا خطّاً أفقيّاً، تحت النقاط المعنيّة؛
+     ولا يبقى شيءٌ داخل دائرة صقر… والنقاطُ كاملةً بالبنفسجيّ لتحاكي لونَ التطبيق». فدائرةُ صقر (RI) له وحده — حتى المسحُ حلقةٌ خارجها —
+     وكلُّ اسمٍ على قوسٍ بين دائرة صقر ونقطته: النصفُ الأعلى مع عقارب الساعة والأسفلُ عكسَها فتبقى الحروفُ قائمة. */
+  const C = 150, RO = 120, RI = 90, RT = 96.5, RB = 106;
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const live = s.on && sesOpen;
   const ticks = Array.from({ length: 72 }, (_, i) => {
     const a = (i * 5 * Math.PI) / 180, mj = i % 6 === 0, r0 = mj ? 131 : 136, r1 = 141;
     return <line key={i} className={"sq-tick" + (mj ? " mj" : "")} x1={C + r0 * Math.sin(a)} y1={C - r0 * Math.cos(a)} x2={C + r1 * Math.sin(a)} y2={C - r1 * Math.cos(a)} />;
   });
   const sw = (36 * Math.PI) / 180;
+  const P = (r: number, t: number) => `${(C + r * Math.cos(t)).toFixed(2)},${(C + r * Math.sin(t)).toFixed(2)}`;
+  const span = (Math.PI / Math.max(ns.length, 1)) * 0.92;
+  const arc = (a: number) => Math.sin(a) > 1e-6
+    ? `M${P(RB, a + span)} A${RB},${RB} 0 0,0 ${P(RB, a - span)}`         // الأسفل: عكسَ العقارب ⇐ الحروفُ قائمةٌ رؤوسُها نحو صقر
+    : `M${P(RT, a - span)} A${RT},${RT} 0 0,1 ${P(RT, a + span)}`;        // الأعلى والجانبان: مع العقارب
+  const ang = (i: number) => (i / ns.length) * Math.PI * 2 - Math.PI / 2;
+  const s0 = -Math.PI / 2;
   return (
     <div className={"sq-hub" + (live ? " live" : "")} data-role="sq-hub" data-live={live ? "1" : "0"} role="img" aria-label={`صقر — ${s.on ? (sesOpen ? "يعمل" : "ينتظر الجلسة") : "موقوف"}`}>
       <svg className="sq-wires sq-sigil" viewBox="0 0 300 300" aria-hidden>
         <defs>
-          <radialGradient id="sqSweepG" cx="150" cy="150" r={RO} gradientUnits="userSpaceOnUse">
-            <stop offset="0.35" style={{ stopColor: "var(--brand-ink)", stopOpacity: 0 }} />
-            <stop offset="1" style={{ stopColor: "var(--brand-ink)", stopOpacity: 0.22 }} />
+          <radialGradient id={`sqSweepG${uid}`} cx="150" cy="150" r={RO} gradientUnits="userSpaceOnUse">
+            <stop offset={RI / RO} style={{ stopColor: "var(--brand-ink)", stopOpacity: 0 }} />
+            <stop offset="1" style={{ stopColor: "var(--brand-ink)", stopOpacity: 0.24 }} />
           </radialGradient>
+          {ns.map((n, i) => <path key={n.k} id={`sqArc${uid}${n.k}`} d={arc(ang(i))} />)}
         </defs>
         <circle cx={C} cy={C} r={145} className="sq-bezel-o" />
         <g className="sq-bezel">{ticks}</g>
-        <g className="sq-sweep"><path d={`M${C},${C} L${C},${C - RO} A${RO},${RO} 0 0,1 ${C + RO * Math.sin(sw)},${C - RO * Math.cos(sw)} Z`} /></g>
+        <g className="sq-sweep"><path fill={`url(#sqSweepG${uid})`} d={`M${P(RI, s0)} L${P(RO, s0)} A${RO},${RO} 0 0,1 ${P(RO, s0 + sw)} L${P(RI, s0 + sw)} A${RI},${RI} 0 0,0 ${P(RI, s0)} Z`} /></g>
         <circle cx={C} cy={C} r={RO} className="sq-orbit" />
-        <circle cx={C} cy={C} r={100} className="sq-ring-i" />
-        {/* ‏D808 (المالك 2026-11-24): «التصميمُ كالساعة جميل — لكنّ النقاطَ لازم تدلّ على شيء: كتابةٌ عندها، ثابتةٌ أفضل» — اسمُ كلّ نظامٍ داخل الحلقة
-            قبالةَ نقطته، بلون حاله (يعمل · يتحفّظ · ساكن)، ونقضَ ‏D787 «أنوارٌ بلا أسماء» بأمره */}
+        <circle cx={C} cy={C} r={RI} className="sq-ring-i" data-role="sq-ring-i" />
+        {/* ‏D808: اسمُ كلّ نظامٍ ثابتٌ عند نقطته — و‏D831: على قوسٍ موازٍ للدائرة بين دائرة صقر والنقطة */}
         <g className="sq-labels" data-role="sq-labels">
-          {ns.map((n, i) => {
-            const a = (i / ns.length) * Math.PI * 2 - Math.PI / 2;
-            return (
-              <text key={n.k} x={C + RL * Math.cos(a)} y={C + RL * Math.sin(a)} className={"sq-lbl " + n.st} textAnchor="middle" dominantBaseline="central"
-                data-role="sq-label" data-for={n.k} style={{ animationDelay: `${220 + i * 60}ms` }}>{SHORT[n.k] || n.t}</text>
-            );
-          })}
+          {ns.map((n, i) => (
+            <text key={n.k} className={"sq-lbl " + n.st} data-role="sq-label" data-for={n.k} data-half={Math.sin(ang(i)) > 1e-6 ? "b" : "t"}
+              style={{ animationDelay: `${220 + i * 60}ms` }}>
+              <textPath href={`#sqArc${uid}${n.k}`} startOffset="50%" textAnchor="middle">{SHORT[n.k] || n.t}</textPath>
+            </text>
+          ))}
         </g>
         {ns.map((n, i) => {
-          const a = (i / ns.length) * Math.PI * 2 - Math.PI / 2;
+          const a = ang(i);
           return (
             <g key={n.k} transform={`translate(${C + RO * Math.cos(a)},${C + RO * Math.sin(a)})`}>
               <g className={"sq-node " + n.st} data-role="sq-node" data-state={n.st} data-k={n.k} style={{ animationDelay: `${120 + i * 60}ms` }}>
@@ -138,7 +148,7 @@ function HubWrap({ s, sesOpen }: { s: SaqrState; sesOpen: boolean }) {
     <figure className="sq-hubw" data-role="sq-hubw">
       <Hub s={s} sesOpen={sesOpen} />
       <figcaption className="sq-legend" data-role="sq-legend">
-        <span className="sq-lead">حولَ صقر أنظمتُه — كلُّ نقطةٍ نظامٌ باسمه، ولونُها حالُه:</span>
+        <span className="sq-lead">حولَ صقر أنظمتُه — كلُّ نقطةٍ نظامٌ باسمه، وشكلُها حالُه:</span>
         <span className="sq-keys">
           <span className="sq-key ok"><i aria-hidden />يعمل</span>
           <span className="sq-key warn"><i aria-hidden />يتحفّظ</span>
@@ -491,13 +501,18 @@ export default function SaqrDesk() {
 
 
         {tab === "opps" && <SaqrOpps market={market} />}
-        {tab === "opps" && sa && (
+        {/* ‏D832: قراراتُ صقر في السوقين — بابٌ واحد: فرصُ اليوم بموافقته الكاملة، وحكمٌ جديدٌ لحظةَ الشراء، وحدُّ النجاح الواحد */}
+        {tab === "opps" && (sa || s.hunt) && (
           <details className="robo-held sq-card card" data-role="sq-signals">
-            <summary><span>قراراتُ صقر في آخر دورة {s.scan?.at && <span className="sq-muted"><Num v={`${dday(s.scan.at)} ${hhmm(s.scan.at)}`} /></span>}
+            <summary><span>قراراتُ صقر في آخر دورة {(sa ? s.scan?.at : s.hunt?.at) && <span className="sq-muted"><Num v={`${dday((sa ? s.scan?.at : s.hunt?.at)!)} ${hhmm((sa ? s.scan?.at : s.hunt?.at)!)}`} /></span>}
               {s.signals.length > 0 && <> (<Num v={`${s.signals.length}`} />)</>}</span></summary>
-            {s.scan && (
+            {sa && s.scan && (
               <p className="sq-muted" data-role="sq-scan">قرأ <Num v={`${s.scan.universe}`} /> شركة · اجتاز السيولةَ والنتائج <Num v={`${s.scan.pool}`} /> · فحص مسارَ <Num v={`${s.scan.deep}`} />
                 {" "}ورسمَه · ميزانيةُ الصفقة <Num v={usd(s.scan.budget)} /></p>
+            )}
+            {!sa && s.hunt && (
+              <p className="sq-muted" data-role="sq-hunt">راجع <Num v={`${s.hunt.recs}`} /> توصيةً من «عقود الخيارات» · فرصُ اليوم بموافقته الكاملة <Num v={`${s.hunt.opps}`} />
+                {s.hunt.floor > 0 && <> · حدُّ النجاح <Num v={`${s.hunt.floor}%`} /></>} · ميزانيةُ العقد <Num v={usd(s.hunt.budget)} /></p>
             )}
             {s.signals.length === 0 ? <p className="sq-muted">لم يصطد صقرٌ بعد — يصطاد في الجلسة الرسمية كلَّ عشرين دقيقة من الفرص وقواعده.</p> : (
               <ul className="sq-sig">

@@ -53,13 +53,23 @@ def main():
     for b in OP.book_budgets():
         bk = OP.book_load(b)
         op = bk.get("open") or []
-        cv = Counter(((e.get("council") or {}).get("verdict") or (e.get("card") or {}).get("council", {}).get("verdict") or "—") for e in op)
+        cv = Counter((((e.get("card") or {}).get("chart") or {}).get("council") or {}).get("verdict") or "بلا حكم" for e in op)
         vp = sum(1 for e in op if (e.get("card") or {}).get("vp"))
         dte = sorted(((e.get("card") or {}).get("dte") or 0) for e in op)
         print(f"   {b}$: مفتوحة {len(op)} · أحكامُ صقر {dict(cv)} · بقراءة حجم {vp} · آجال {dte[:3]}…{dte[-3:]} · مقفلة {len(bk.get('closed') or [])}")
         for e in op[:3]:
             card = e.get("card") or {}
             print(f"      {e.get('contract')} · درجة {card.get('score')} · هدف {e.get('target')} ({e.get('target_label')}) · حجم {(card.get('vp') or {}).get('zone')} · منذ {e.get('opened')}")
+    # ‏D832: بابُ صقر الواحد — ما يراه الدخولُ الآليُّ الآن في السوقين
+    from app.services import saqr_council as CN
+    print(f"══ ٤ بابُ صقر الواحد: حدُّ النجاح {SQ.win_floor():.0f}٪")
+    for mk in ("us", "sa"):
+        op = CN.opportunities(mk)
+        print(f"   {mk}: فرصُ اليوم بموافقته الكاملة {len(op)}: {', '.join(list(op)[:12])}")
+        st = SQ.load(mk)
+        print(f"   {mk}: آخرُ بحث {st.get('hunt_meta') or st.get('scan_meta')}")
+        for x in (st.get("signals") or [])[:8]:
+            print(f"      {x.get('verdict')} {x.get('sym')} · {str(x.get('why'))[:150]}")
     print("══ انتهى")
 
 

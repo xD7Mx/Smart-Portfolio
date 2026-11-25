@@ -386,13 +386,22 @@ async def link(sym: str, name: str | None, market: str, side: str, bd: dict, cha
     if chart:
         ctx["chart"] = {k: chart.get(k) for k in ("setup", "where", "entry", "target", "stop", "rr", "horizon") if chart.get(k) is not None}
         ctx["zones"] = [{"name": z.get("name"), "lo": z.get("lo"), "hi": z.get("hi")} for z in chart.get("zones") or []]
-    key = "council:link:" + hashlib.md5(json.dumps(ctx, ensure_ascii=False, sort_keys=True, default=str).encode()).hexdigest()[:16]
+    # ‏D833 (المالك: «خلِّ صقر يتعلّم من المكتبة… داخليةً لا تخرج عندي»): علمُه من كتب المالك يزن به الشواهد — خارجَ الشواهد وأرقامِها (فلا يُقتبس
+    # منه رقمٌ يمرّ على حارس الأرقام)، وبصمتُه في مفتاح الذاكرة فيتجدّد الحكمُ متى تعلّم جديداً
+    try:
+        from app.services import library_wisdom as LW
+        lib, lib_v = LW.saqr_block()
+    except Exception:                                             # noqa: BLE001
+        LW, lib, lib_v = None, "", ""
+    key = "council:link:" + hashlib.md5((json.dumps(ctx, ensure_ascii=False, sort_keys=True, default=str) + lib_v).encode()).hexdigest()[:16]
     hit = cache.get(key)
     if hit is not None:
         return hit or None
+    head = LINK_PROMPT.format(what="الشراء" if side == "long" else "البيع", buy=buy)
+    if lib:
+        head = head.replace("الشواهد:\n", lib + "الشواهد:\n")
     try:
-        obj = await RD._gemini([{"text": LINK_PROMPT.format(what="الشراء" if side == "long" else "البيع", buy=buy)
-                                 + json.dumps(ctx, ensure_ascii=False, default=str)}], max_tokens=900, temperature=0.2, deadline=75.0)
+        obj = await RD._gemini([{"text": head + json.dumps(ctx, ensure_ascii=False, default=str)}], max_tokens=900, temperature=0.2, deadline=75.0)
     except Exception as e:                                        # noqa: BLE001
         logger.debug("مجلسُ صقر/الرابط {}: {}", sym, type(e).__name__)
         obj = None
@@ -403,11 +412,13 @@ async def link(sym: str, name: str | None, market: str, side: str, bd: dict, cha
            "confidence": obj.get("confidence") if obj.get("confidence") in ("مرتفعة", "متوسطة", "منخفضة") else "منخفضة", "dropped": 0}
     if bd["veto"] and out["decision"] == buy:
         out["decision"] = "تجنّب"
+    titles = LW.saqr_titles() if (LW and lib) else []
     for f in ("link", "conflict", "watch"):
         t = clean_text(obj.get(f), pool) if obj.get(f) else ""
         if obj.get(f) and t is None:
             out["dropped"] += 1
-        out[f] = one_voice(t or "")
+        t = LW.scrub(t or "", titles) if (LW and lib) else (t or "")     # ‏D833: العلمُ داخليّ — لا كتابَ ولا مكتبةَ في كلامه
+        out[f] = one_voice(t)
     if not out["link"]:
         return None
     cache.set(key, out, 6 * 3600)
@@ -797,3 +808,62 @@ def compact(bd: dict) -> dict:
     """ما يُحفظ ويُعرض من حكم المجلس."""
     return {"verdict": bd["verdict"], "score": bd["score"], "veto": bd["veto"], "oks": bd["oks"], "warns": bd["warns"],
             "members": [{"role": m["role"], "v": m["v"], "say": m["say"]} for m in bd["members"]], "veto_why": bd["veto_why"]}
+
+
+# ══ ‏D832 — بابُ صقر الواحد للدخول الآليّ في السوقين ══
+# المالك (2026-11-25): «أريد صقر سواء الأمريكيّ أو السعوديّ مستوى النجاح والاختيار في ليفل موحّد — صقرٌ واحد… لا أريد إلا اللونَ الأخضر».
+# قيس على الخادم قبله: الأمريكيُّ الآليُّ اشترى أعلى توصيات «عقود الخيارات» درجةً (49 من 100) بلا حكم صقر ولا حدِّ النجاح الذي ضبطه المالك (90٪)؛
+# والسعوديُّ يقبل «يوافق بتحفّظ» ويشتري إن تعذّرت القراءةُ الأخيرة. فالبابُ واحدٌ للسوقين لحظةَ الشراء الآليّ:
+#   ١ المنبع: فرصُ اليوم من مسح السوق كلِّه — الشواهدُ الثمانيةُ نفسُها ومنها الحجم — بموافقةٍ كاملةٍ واتّجاهِ الصفقة نفسِه.
+#   ٢ حكمٌ جديدٌ لحظةَ الشراء: «يوافق» كاملةً (لا «بتحفّظ»)، وقراءتُه الأخيرةُ «شراء» (أو «بيع» للهبوط) — وتعذّرُها يمنع: لا دخولَ بشاهدٍ ناقص.
+#   ٣ نسبةُ النجاح لا تقلّ عن حدّ المالك الواحد للسوقين (‏saqr_trader.win_floor).
+AUTO_VERDICT = "يوافق"
+
+
+def gate_why(bd: dict, lk: dict | None, side: str, need_link: bool = True) -> str | None:
+    """سببُ امتناع الدخول الآليّ — أو None إن اجتاز الباب."""
+    buy = "شراء" if side == "long" else "بيع"
+    if bd.get("veto"):
+        return "صقر لا يشتريه الآن — " + " · ".join(bd.get("veto_why") or [])
+    if bd.get("verdict") != AUTO_VERDICT:
+        return f"حكمُ صقر «{bd.get('verdict')}» ({bd.get('score')}/100 · {bd.get('warns')} تحفّظ) — الدخولُ الآليُّ بموافقته الكاملة وحدها"
+    if not need_link:
+        return None
+    if not lk:
+        return "قراءةُ صقر الأخيرة غيرُ متوفّرة الآن — لا دخولَ آليّاً بشاهدٍ ناقص"
+    if lk.get("decision") != buy:
+        return f"قراءةُ صقر الأخيرة: {lk.get('decision')} — {lk.get('link') or ''}".rstrip(" —")
+    return None
+
+
+def opportunities(market: str) -> dict[str, dict]:
+    """فرصُ اليوم التي وافق عليها صقرٌ موافقةً كاملة — منبعُ الدخول الآليّ في السوقين؛ وما قالت قراءتُه الأخيرةُ فيه غيرَ الشراء لا يدخل.
+    ‏{رمز: الفرصة} — ولا مسحَ حديث ⇒ لا شيء (فلا دخولَ آليّ)."""
+    from app.services import chart_scan as CS
+    d = CS.fresh(market) or {}
+    out = {}
+    for x in d.get("items") or []:
+        cn, lk = x.get("council") or {}, x.get("link") or {}
+        buy = "شراء" if x.get("side") == "long" else "بيع"
+        if cn.get("verdict") == AUTO_VERDICT and not cn.get("veto") and (not lk or lk.get("decision") == buy):
+            out[x["symbol"]] = x
+    return out
+
+
+async def confirm(market: str, cands: list[dict], ctx: dict | None = None) -> dict[str, dict]:
+    """حكمُ صقر الجديد لحظةَ الشراء على مرشّحين من الفرص — ‏{رمز: {bd, lk, why}}: why=None ⇐ اجتاز الباب."""
+    if not cands:
+        return {}
+    ctx = ctx if ctx is not None else await context(market)
+    evs = await collect(market, cands, ctx)
+    out = {}
+    for c in cands:
+        s = c["symbol"]
+        bd = judge(evs[s])
+        why = gate_why(bd, None, c.get("side", "long"), need_link=False)
+        lk = None
+        if not why:
+            lk = await link(s, c.get("name"), market, c.get("side", "long"), bd, chart=c.get("cr_side"), price=c.get("price"))
+            why = gate_why(bd, lk, c.get("side", "long"))
+        out[s] = {"bd": bd, "lk": lk, "why": why, "ev": evs[s]}
+    return out

@@ -112,7 +112,9 @@ export default function DailyReport() {
     if (w) {
       try {
         w.document.title = `التقرير اليومي — ${rep?.label || ""}`;
-        w.document.body.style.cssText = "margin:0;display:grid;place-items:center;height:100vh;font:15px system-ui,sans-serif;color:#555;background:#f6f3ea";
+        /* النافذةُ الجديدة خارجَ ورقة أنماط التطبيق — فألوانُها من رموزه بقيمها الحاليّة (والمظهرُ الداكنُ معها) */
+        const tk = getComputedStyle(document.documentElement), v = (n: string) => tk.getPropertyValue(n).trim();
+        w.document.body.style.cssText = `margin:0;display:grid;place-items:center;height:100vh;font:15px system-ui,sans-serif;color:${v("--ink-muted")};background:${v("--bg")}`;
         w.document.body.innerHTML = '<p dir="rtl">يُفتح التقرير…</p>';
       } catch { /* */ }
     }

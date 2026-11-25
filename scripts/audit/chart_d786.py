@@ -228,7 +228,9 @@ check(d_us["items"] and all(x.get("council") and len(x["council"]["members"]) ==
       "٩ المسحُ يعرض كلَّ فرصةٍ على مجلس صقر: المقبولُ بأعضائه الثمانية مرتّباً بحكم المجلس ثمّ درجته، وما رفضه عضوٌ في «استبعدها المجلس» بسببه، "
       "و«الرابط» لأفضل المقبول وحده", f"{len(d_us['items'])} مقبولة · {len(d_us.get('rejected') or [])} مستبعَدة · {len(links)} رابطاً")
 
-# ١٠ صقرٌ السعوديّ يصطاد بالمجلس: رسمٌ بلا فرصةٍ لا يرفض وحده، وخبرٌ جوهريٌّ معاكسٌ وثاني ربعِ خسارةٍ يرفضان، و«الرابط» يقول الكلمةَ الأخيرة
+# ١٠ صقرٌ السعوديّ يصطاد بالمجلس: خبرٌ جوهريٌّ معاكسٌ وثاني ربعِ خسارةٍ يرفضان، و«الرابط» يقول الكلمةَ الأخيرة.
+#    ‏D832 (المالك: «مستوى النجاح والاختيار موحّد في السوقين — لا أريد إلا الأخضر»): المنبعُ فرصُ اليوم بموافقة صقر الكاملة، والشراءُ الآليُّ
+#    بـ«يوافق» كاملةً لحظتَه — فالرسمُ هنا فرصةُ شراءٍ كما في فرص اليوم (والتحفّظُ وبابُه في saqr_auto_d832)
 from app.services import saqr_trader as SQ   # noqa: E402
 REG = {"verdict": "صاعد", "state": "صاعد", "close": 11500, "sma50": 11300, "sma200": 11000, "ret3m": 4.0, "chg": 0.4, "slope50": 1}
 FLAT = {"setup": None, "side": None, "quality": None, "where": "بين الوسط والمقاومة", "liq": {"side": "flat", "strength": 20, "word": "متوازنة", "level": "ضعيفة"}}
@@ -239,7 +241,7 @@ async def hunt(link_decision="شراء", yfs=None):
         return dict(TRU)
 
     async def chart_flat(sym):
-        return FLAT, FLAT, dict(TRU)
+        return CH_BUY, CH_BUY, dict(TRU)
 
     async def yf_by(ysym):
         return (yfs or {}).get(ysym.replace(".SR", ""))
@@ -249,8 +251,11 @@ async def hunt(link_decision="شراء", yfs=None):
         if "شواهدَك الثمانيةَ" in t:   # ‏D807: صقرٌ واحدٌ يقرأ شواهده
             return {"decision": link_decision, "confidence": "متوسطة", "link": "قراءةٌ تربط الأعضاء.", "conflict": "", "watch": ""}
         return {"2010": {"impact": "سلبي", "strength": 3, "event": "إقالةُ الرئيس التنفيذيّ"}}
-    o = (SA.trend, SA.results_of, CN.chart_sa, CN.yf, CN.heads_sa, CN.events, RD._gemini)
+    async def vol(sym):
+        return 0.25
+    o = (SA.trend, SA.results_of, CN.chart_sa, CN.yf, CN.heads_sa, CN.events, RD._gemini, CN.opportunities, SA.vol_of)
     SA.trend, CN.chart_sa, CN.yf, CN.heads_sa, CN.events, RD._gemini = fake_trend, chart_flat, yf_by, fake_heads, no_events, gem
+    CN.opportunities, SA.vol_of = (lambda m: {s: {"symbol": s, "side": "long", **CH_BUY} for s in ("1120", "2010", "7010")}), vol
     SA.results_of = lambda s, t: ("strong", "صافي الربح +28٪ عن الربع المماثل.", 28.0)
     try:
         snap = {s: {"price": 90.0, "bid": 89.98, "ask": 90.02, "turnover": 3e7, "change_pct": 1.2, "name_en": s} for s in ("1120", "2010", "7010")}
@@ -258,7 +263,7 @@ async def hunt(link_decision="شراء", yfs=None):
         pos = await SA._hunt(st, dt.datetime.now(dt.timezone.utc), snap, REG, {"level": "منخفض", "why": "هدوء"})
         return pos, {x["sym"]: x for x in st["signals"]}
     finally:
-        SA.trend, SA.results_of, CN.chart_sa, CN.yf, CN.heads_sa, CN.events, RD._gemini = o
+        SA.trend, SA.results_of, CN.chart_sa, CN.yf, CN.heads_sa, CN.events, RD._gemini, CN.opportunities, SA.vol_of = o
 from app.services import cache   # noqa: E402
 for k in list(cache._store):
     if k.startswith("council:"):
@@ -268,12 +273,12 @@ for k in list(cache._store):
     if k.startswith("council:link"):
         cache._store.pop(k, None)
 pos_w, sg_w = asyncio.run(hunt(link_decision="انتظار", yfs={"7010": YL}))
-check(pos and pos["symbol"] == "1120" and any(w.startswith("المسار (يوافق)") for w in pos["why"]) and any("الرسم (يتحفّظ)" in w for w in pos["why"])
-      and any(w.startswith("الرابط (شراء") for w in pos["why"])
+check(pos and pos["symbol"] == "1120" and any(w.startswith("المسار (يوافق)") for w in pos["why"]) and any("الرسم (يوافق)" in w for w in pos["why"])
+      and any(w.startswith("قراءةُ صقر الأخيرة (شراء") for w in pos["why"])
       and sg["2010"]["verdict"] == "refused" and "إقالةُ الرئيس" in sg["2010"]["why"] and sg["7010"]["verdict"] == "refused" and "الثاني على التوالي" in sg["7010"]["why"]
-      and pos_w is None and "الرابط: انتظار" in sg_w["1120"]["why"] and len(sg["1120"]["council"]["members"]) == 8,
-      "١٠ صقرٌ السعوديّ يصطاد بالمجلس: رسمٌ بلا فرصةٍ تحفّظٌ لا رفض فيشتري (وفي أسبابه سطرُ كلّ عضوٍ و«الرابط»)، ويرفض خبرَ إقالة الرئيس وثاني ربعِ خسارةٍ "
-      "بسببهما — و«الرابط» إن قال انتظر لا يشتري ويذكر لماذا", json.dumps({k: (v["verdict"], v["why"][:50]) for k, v in sg.items()}, ensure_ascii=False))
+      and pos_w is None and "قراءةُ صقر الأخيرة: انتظار" in sg_w["1120"]["why"] and len(sg["1120"]["council"]["members"]) == 8,
+      "١٠ صقرٌ السعوديّ يصطاد بالمجلس من فرص اليوم: فرصةٌ بموافقته الكاملة يشتريها (وفي أسبابه سطرُ كلّ شاهدٍ وقراءتُه الأخيرة)، ويرفض خبرَ إقالة الرئيس "
+      "وثاني ربعِ خسارةٍ بسببهما — وقراءتُه الأخيرة إن قالت انتظر لا يشتري ويذكر لماذا", json.dumps({k: (v["verdict"], v["why"][:50]) for k, v in sg.items()}, ensure_ascii=False))
 SA.results_of = o_res
 
 # ١١ دفترُ «عقود الخيارات»: فرصُ الرسم بعد المجلس، وما رفضه المجلسُ لا يدخل الدفترَ من قائمته الثابتة، وحكمُ المجلس في بطاقته

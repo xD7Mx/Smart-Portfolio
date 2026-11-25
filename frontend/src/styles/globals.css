@@ -3849,7 +3849,7 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
 .sq-orbit { fill: none; stroke: var(--hairline); stroke-width: 1; stroke-dasharray: 2 6; transform-origin: 150px 150px; }
 .sq-hub.live .sq-orbit { stroke: color-mix(in srgb, var(--brand-ink) 45%, var(--hairline)); animation: sqSpin 90s linear infinite; }
 .sq-sweep { transform-origin: 150px 150px; opacity: 0; transition: opacity .6s ease; }
-.sq-sweep path { fill: url(#sqSweepG); }
+/* ‏D831: لونُ المسح من سمته (معرّفُه فريدٌ لكلّ قرص) — وهو حلقةٌ خارج دائرة صقر لا تمرّ عليه */
 .sq-hub.live .sq-sweep { opacity: 1; animation: sqSpin 8s linear infinite; }
 .sq-core { position: absolute; inset: 0; margin: auto; width: 38%; height: 36%; display: flex; align-items: center; justify-content: center;
   pointer-events: none; animation: sqCore .5s cubic-bezier(.2,.8,.2,1) both; }
@@ -3860,12 +3860,13 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
 .sq-halo { position: absolute; inset: 8% 14%; border-radius: 50%; border: 1.5px solid var(--sq-glow); opacity: 0; pointer-events: none; }
 .sq-hub.live .sq-halo { animation: sqPulse 2.4s ease-out infinite; }
 .sq-node { transform-box: fill-box; transform-origin: center; animation: sqNode .5s cubic-bezier(.2,.8,.2,1) both; }
-.sq-node .sq-lt { fill: color-mix(in srgb, var(--ink-muted) 45%, transparent); transition: fill .4s ease; }
-.sq-node.ok .sq-lt { fill: var(--pos-ink); }
-.sq-node.warn .sq-lt { fill: var(--warn-ink); }
+/* ‏D831 (المالك: «النقاطُ كاملةً بالبنفسجيّ لتحاكي لونَ تصميم التطبيق»): كلُّها بنفسجيّة — والحالُ بالشكل: مملوءةٌ تعمل · مفرغةٌ تتحفّظ · باهتةٌ ساكنة */
+.sq-node .sq-lt { fill: color-mix(in srgb, var(--brand-ink) 32%, transparent); stroke: transparent; stroke-width: 1.6; transition: fill .4s ease, stroke .4s ease; }
+.sq-node.ok .sq-lt { fill: var(--brand-ink); }
+.sq-node.warn .sq-lt { fill: var(--card); stroke: var(--brand-ink); }
 .sq-node .sq-lg { fill: transparent; }
-.sq-hub.live .sq-node.ok .sq-lg { fill: color-mix(in srgb, var(--pos-ink) 20%, transparent); animation: sqGlow 3.2s ease-in-out infinite; }
-.sq-hub.live .sq-node.warn .sq-lg { fill: color-mix(in srgb, var(--warn-ink) 18%, transparent); }
+.sq-hub.live .sq-node.ok .sq-lg { fill: color-mix(in srgb, var(--brand-ink) 22%, transparent); animation: sqGlow 3.2s ease-in-out infinite; }
+.sq-hub.live .sq-node.warn .sq-lg { fill: color-mix(in srgb, var(--brand-ink) 12%, transparent); }
 .sq-nav .seg-btn { min-height: 34px; display: inline-flex; align-items: center; gap: 5px; }
 .sq-nav { flex-wrap: wrap; }
 .sq-pane { animation: fadeUp .26s ease-out both; }
@@ -4557,16 +4558,16 @@ html:has(.troom-split.on) { cursor: grabbing; user-select: none; }
    (المالك 2026-11-24: «النقاطُ لازم تدلّ على شيء — كتابةٌ عندها ثابتة… وكلماتٌ افتتاحيةٌ تبيّن معنى هذه النقاط») */
 .sq-hubw { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; max-width: 380px; justify-self: center; min-width: 0; }
 .sq-hubw > .sq-hub { max-width: none; }
-.sq-lbl { font-size: 10.5px; font-weight: 800; fill: var(--ink-muted); animation: fadeUp .4s ease-out both; transition: fill .4s ease; }
-.sq-lbl.ok { fill: var(--ink); }
-.sq-lbl.warn { fill: var(--warn-ink); }
+.sq-lbl { font-size: 10.5px; font-weight: 800; fill: var(--ink-muted); animation: sqLblIn .5s ease-out both; transition: fill .4s ease; }
+.sq-lbl.ok, .sq-lbl.warn { fill: var(--ink); }   /* ‏D831: الحالُ في شكل النقطة البنفسجيّة — والاسمُ بلون النصّ */
+@keyframes sqLblIn { from { opacity: 0; } to { opacity: 1; } }
 .sq-legend { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
 .sq-lead { font-size: 12px; color: var(--ink-muted); line-height: 1.5; }
 .sq-keys { display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 .sq-key { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--ink); }
-.sq-key i { width: 8px; height: 8px; transform: rotate(45deg); border-radius: 1.5px; background: color-mix(in srgb, var(--ink-muted) 45%, transparent); }
-.sq-key.ok i { background: var(--pos-ink); }
-.sq-key.warn i { background: var(--warn-ink); }
+.sq-key i { width: 8px; height: 8px; transform: rotate(45deg); border-radius: 1.5px; background: color-mix(in srgb, var(--brand-ink) 32%, transparent); }
+.sq-key.ok i { background: var(--brand-ink); }
+.sq-key.warn i { background: transparent; box-shadow: inset 0 0 0 1.6px var(--brand-ink); }
 @media (prefers-reduced-motion: reduce) { .sq-lbl { animation: none; transition: none; } }
 
 /* ══ ‏D814: انتظارُ صفحةٍ تُنزَّل أوّلَ مرّة — شريطٌ رفيعٌ بلون الهويّة يتحرّك أعلى المحتوى، لا شاشةٌ فارغةٌ ولا قفزة ══ */
