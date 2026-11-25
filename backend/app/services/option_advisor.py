@@ -215,8 +215,27 @@ def pick_expiries(exps: list[dict]) -> list[dict]:
     return out
 
 
+def why_none(cards: list[dict], nm: str) -> str:
+    """‏D838: لماذا لا عقدَ مقبولاً — بالأعداد، لا «ضمن هذه الشروط» المبهمة (قيس على ATR: ستّةَ عشرَ عقداً بلا عرضٍ وطلبٍ ولا اهتمام)."""
+    if not cards:
+        return f"لا عقدَ على {nm} يمكن تسعيرُه في هذه الآجال — لا عرضَ ولا طلبَ ولا صفقةً حديثة؛ عقودُه لا تُتداول، والفرصةُ — إن وُجدت — على السهم نفسِه."
+    kinds = {"quote": 0, "liq": 0, "spread": 0, "other": 0}
+    for c in cards:
+        if c["verdict"] != "no":
+            continue
+        t = " ".join(c.get("cons") or [])
+        k = "quote" if "لا سعرَ صالحاً" in t else "liq" if "لا سيولة" in t else "spread" if "الفارقُ بين العرض والطلب" in t else "other"
+        kinds[k] += 1
+    parts = [f"{n} بلا عرضٍ وطلبٍ حيّين" if k == "quote" else f"{n} بلا سيولة (لا اهتمامَ مفتوحاً ولا تداول)" if k == "liq"
+             else f"{n} فارقُها بين العرض والطلب فوق 15٪" if k == "spread" else f"{n} لأسبابٍ أخرى (تآكلٌ سريعٌ أو احتمالٌ ضئيل)"
+             for k, n in kinds.items() if n]
+    dead = kinds["quote"] + kinds["liq"] + kinds["spread"]
+    tail = " — عقودُه لا تصلح للتداول الآن، والفرصةُ على السهم نفسِه." if dead >= 0.8 * len(cards) else "."
+    return f"فُحص {len(cards)} عقداً على {nm}: " + " · ".join(parts) + tail
+
+
 async def analyze(symbol: str, budget: float | None = None, expiry: int | None = None, contract: str | None = None,
-                  side: str | None = None, with_summary: bool = True) -> dict:
+                  side: str | None = None, with_summary: bool = True, min_dte: int | None = None) -> dict:
     """التحليلُ الذكيّ: الاتجاهُ والسياق، والأنسبُ في كلّ أجلٍ ضمن الميزانية، وما يُمتنع عنه ولماذا — أو حكمُ عقدٍ بعينه."""
     from app.services.options_chain import chain, parse_option
     sym = str(symbol or "").upper()
@@ -253,7 +272,9 @@ async def analyze(symbol: str, budget: float | None = None, expiry: int | None =
 
     # ── الأنسبُ في السلسلة ──
     sides = [side] if side in ("call", "put") else ([lean] if lean else ["call", "put"])
-    targets = [x for x in exps if x["t"] == expiry] if expiry else pick_expiries(exps)
+    # ‏D838: من فرصة صقر تُفحص آجالُ مدّتها وحدها (أقربُ ثلاثةٍ تتّسع لها) — كدليل الفرصة في السلسلة، لا آجالٌ أقصرُ منها
+    targets = [x for x in exps if x["t"] == expiry] if expiry else \
+        ([x for x in exps if x["dte"] >= min_dte][:3] or exps[-1:]) if min_dte else pick_expiries(exps)
     chains = await asyncio.gather(*(chain(sym, e["t"]) for e in targets))
     cards = []
     for e, ch in zip(targets, chains):
@@ -287,7 +308,7 @@ async def analyze(symbol: str, budget: float | None = None, expiry: int | None =
         nm = sym.lstrip("^")
         fit = {"ok": False, "min_cost": low,
                "text": (f"ميزانيةُ {budget:,.0f} دولار لا تكفي لعقدٍ معقولٍ على {nm}: أرخصُ عقدٍ مقبولٍ كلفتُه {low:,.0f} دولار."
-                        if low else f"لا عقدَ مقبولاً على {nm} الآن ضمن هذه الشروط.")}
+                        if low else why_none(cards, nm))}
         alt = ALT.get(sym)
         if alt:
             alt_res = await analyze(alt, budget=budget, side=side, with_summary=False)
@@ -303,6 +324,8 @@ async def analyze(symbol: str, budget: float | None = None, expiry: int | None =
                 fit["lab"] = [{"symbol": p["symbol"], "contract": p["contract"], "cost": p["cost"], "pop": p["pop"]} for p in lab[:3]]
     elif budget:
         fit = {"ok": True, "text": f"ميزانيةُ {budget:,.0f} دولار تكفي على {sym.lstrip('^')}."}
+    elif not usable:                                              # ‏D838: وبلا ميزانيةٍ أيضاً يُقال لماذا لا شيء
+        fit = {"ok": False, "min_cost": None, "text": why_none(cards, sym.lstrip("^"))}
     # المسارُ عرضيٌّ بلا خبرٍ يحسمه: النصيحةُ الامتناعُ عن الشراء المكشوف — وما بقي يُعرض «إن أصررت» لا «الأنسب»
     abstain = None if lean or not tr else ("المسارُ عرضيٌّ بلا اتجاهٍ ولا خبرٍ يحسمه — لا أنصح بشراء عقدٍ مكشوفٍ الآن؛ "
                                             "التآكلُ يأكل قيمتَه إن لم يتحرّك السهم. وإن أصررت فهذه أقلُّها سوءاً.")

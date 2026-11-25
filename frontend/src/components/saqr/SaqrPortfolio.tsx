@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { LineChart, Plus, X, RotateCcw, Target, Clock, MousePointerClick } from "lucide-react";
+import { LineChart, Plus, X, RotateCcw, Clock, MousePointerClick, ChevronDown } from "lucide-react";
 import { marketApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import CompanyLogo from "../common/CompanyLogo";
@@ -14,6 +14,7 @@ import { useSaqr, useSaqrMarket, money, smoney, spct, px, dday, stamp, held, ton
 import MarketSwitch from "./MarketSwitch";
 import ContractPicker from "./ContractPicker";
 import { ExitFields, exitInit, exitPayload, type Exit, type Att } from "./OrderForm";
+import PosChart from "./PosChart";
 
 const Num = ({ v, className }: { v: string; className?: string }) => <bdi dir="ltr" className={"tabular-nums " + (className || "")}>{v}</bdi>;
 const Dur = ({ v, className }: { v: string; className?: string }) => <bdi dir="rtl" className={"tabular-nums " + (className || "")}>{v}</bdi>;
@@ -67,7 +68,8 @@ function Position({ p, owner, onChart, i, market, ccy }: { p: SPos; owner: boole
   const stock = p.kind === "stock";
   const call = p.type === "call";
   const dte = p.expiry ? daysTo(p.expiry) : 0;
-  const range = p.target && p.S0 ? Math.max(0, Math.min(100, ((p.S ?? p.S0) - p.S0) / (p.target - p.S0) * 100)) : null;
+  /* ‏D839: أسبابُ الاختيار خلف سهمٍ ينسدل — فالبطاقةُ لا تكبر بالرسم */
+  const [whyOpen, setWhyOpen] = useState(false);
   return (
     <article className="sp-pos card-rise" style={{ animationDelay: `${i * 40}ms` }} data-role="sp-pos" data-src={p.src}>
       <header className="sp-pos-h">
@@ -92,20 +94,21 @@ function Position({ p, owner, onChart, i, market, ccy }: { p: SPos; owner: boole
         <span><small>الربح/الخسارة</small><b className={tone(p.pl)}><Num v={susd(p.pl)} /> <Num v={spct(p.pl_pct)} className="sp-sub" /></b></span>
         <span><small>الوقف</small><b className="neg"><Num v={px(p.stop)} /></b></span>
       </div>
-      {range != null && (
-        <div className="sp-path" aria-label="مسارُ السهم نحو الهدف" data-role="sp-path">
-          <span className="sp-path-l"><Target size={12} /> السهم <Num v={px(p.S)} /> ⇐ الهدف <Num v={px(p.target)} /></span>
-          <span className="sp-bar"><i style={{ width: `${range}%` }} /></span>
-        </div>
-      )}
+      {/* ‏D839 (المالك): «بياناتُ المركز فوق، وفي الأسفل الرسمُ البيانيّ للعقد نفسِه أو للسهم — حتى أراقبه» — ومسارُ السهم إلى هدفه خطٌّ فيه */}
+      <PosChart p={p} market={market} />
       {p.close_px ? (
         <p className="sp-ord" data-role="sp-closelim">أمرُ إغلاقٍ محدَّد: يُباع متى بلغ الطلبُ <b><Num v={px(p.close_px)} /></b>
           {owner && <button type="button" className="btn-ghost sp-btn sp-mini" onClick={() => closeLim.mutate(null)} disabled={closeLim.isPending}
             data-role="sp-closelim-cancel"><X size={13} /> إلغاء</button>}</p>
       ) : null}
       {p.alert && <p className="sp-alert" data-role="sp-alert">إشارةُ خروج: {ALERT[p.alert] || "انكسرت الأطروحة"}</p>}
-      {p.why?.length > 0 && <ul className="sp-why">{p.why.slice(0, 3).map((w, j) => <li key={j}>{w}</li>)}</ul>}
       <div className="sp-acts">
+        {p.why?.length > 0 && (
+          <button type="button" className={"btn-ghost sp-btn sp-why-t" + (whyOpen ? " on" : "")} onClick={() => setWhyOpen(v => !v)} aria-expanded={whyOpen}
+            aria-controls={`why-${p.id}`} aria-label={p.src === "manual" && !p.managed ? "لماذا هذا المركز" : "لماذا اختاره صقر"} data-role="sp-why-toggle">
+            لماذا<ChevronDown size={14} className="sp-why-ic" aria-hidden />
+          </button>
+        )}
         <button type="button" className="btn-ghost sp-btn" onClick={() => onChart(p.contract)} data-role="sp-chart"><LineChart size={14} /> فتح في الرسم</button>
         {owner && !closing && <button type="button" className="btn-ghost sp-btn" onClick={() => setOrdEdit(v => !v)} aria-expanded={ordEdit} data-role="sp-ord-edit">الأوامر</button>}
         {owner && !closing && <button type="button" className="btn-ghost sp-btn" onClick={() => setClosing(true)} data-role="sp-close"><X size={14} /> إغلاق</button>}
@@ -137,6 +140,11 @@ function Position({ p, owner, onChart, i, market, ccy }: { p: SPos; owner: boole
           </div>
         )}
       </div>
+      {p.why?.length > 0 && (
+        <div className="sp-whyd" data-open={whyOpen ? "1" : "0"} data-role="sp-why">
+          <div className="sp-why-b" id={`why-${p.id}`} aria-hidden={!whyOpen}><div><ul className="sp-why">{p.why.slice(0, 6).map((w, j) => <li key={j}>{w}</li>)}</ul></div></div>
+        </div>
+      )}
       {owner && (
         <div className={"sp-addf-wrap" + (ordEdit ? " open" : "")} aria-hidden={!ordEdit}>
           <div>{ordEdit && (

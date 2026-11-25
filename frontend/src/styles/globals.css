@@ -3794,6 +3794,26 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
 .sp-alert { font-size: 11.5px; font-weight: 700; color: var(--warn-ink); background: color-mix(in srgb, var(--warn-ink) 11%, transparent); padding: 5px 8px; border-radius: 8px;
   animation: fadeUp .25s ease-out both; }
 .sp-why { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--ink); line-height: 1.7; padding-inline-start: 14px; list-style: disc; }
+/* ‏D839 (المالك): «الرسمُ البيانيّ للعقد أو السهم في بطاقة المركز المفتوح، والأسبابُ في سهمٍ ينسدل — لا تكبر البطاقة» */
+.sp-chart { position: relative; height: 120px; border-radius: 10px; background: var(--field); overflow: hidden; isolation: isolate; }
+/* طبقةُ الرسم مستقلّة (‏z-index): مكتبةُ الرسم ترفع لوحاتها بـz-index فكانت تعلو زرَّ «العقد | السهم» فلا يُلمس (قيس في حارس D839) */
+.sp-chart-c { position: absolute; inset: 4px 2px 0 2px; z-index: 0; opacity: 0; transition: opacity .35s ease; }
+.sp-chart[data-shown="1"] .sp-chart-c { opacity: 1; }
+.sp-chart-seg { position: absolute; top: 5px; left: 6px; z-index: 2; gap: 2px; background: color-mix(in srgb, var(--card) 82%, transparent); border-radius: 10px; padding: 2px; }   /* يسارَ الرسم: محورُ السعر يمينه */
+.sp-chart-seg .seg-btn { min-height: 32px; padding: 2px 10px; font-size: 11px; }
+.sp-chart-note { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11.5px; color: var(--ink-muted); pointer-events: none; }
+.sp-why-t { gap: 4px; }
+.sp-why-t.on { color: var(--brand-ink); }
+.sp-why-ic { transition: transform .3s cubic-bezier(.2,.8,.2,1); }
+.sp-why-t.on .sp-why-ic { transform: rotate(180deg); }
+.sp-whyd { margin-top: -8px; transition: margin-top .32s cubic-bezier(.2,.8,.2,1); }   /* مطويّةً لا تترك فجوةً في البطاقة */
+.sp-whyd[data-open="1"] { margin-top: 0; }
+.sp-why-b { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .32s cubic-bezier(.2,.8,.2,1), opacity .25s ease; }
+.sp-why-b > div { overflow: hidden; min-height: 0; }
+.sp-whyd[data-open="1"] .sp-why-b { grid-template-rows: 1fr; opacity: 1; }
+.sp-whyd .sp-why { padding-block: 6px 2px; }
+@media (max-width: 760px) { .sp-chart { height: 116px; } }
+@media (prefers-reduced-motion: reduce) { .sp-chart-c, .sp-why-ic, .sp-why-b, .sp-whyd { transition: none; } }
 .sp-why li::marker { color: var(--brand-ink); }
 .sp-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .sp-btn { min-height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; transition: opacity .2s ease, background-color .2s ease; }
@@ -3851,10 +3871,11 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
 .sq-sweep { transform-origin: 150px 150px; opacity: 0; transition: opacity .6s ease; }
 /* ‏D831: لونُ المسح من سمته (معرّفُه فريدٌ لكلّ قرص) — وهو حلقةٌ خارج دائرة صقر لا تمرّ عليه */
 .sq-hub.live .sq-sweep { opacity: 1; animation: sqSpin 8s linear infinite; }
-.sq-core { position: absolute; inset: 0; margin: auto; width: 38%; height: 36%; display: flex; align-items: center; justify-content: center;
-  pointer-events: none; animation: sqCore .5s cubic-bezier(.2,.8,.2,1) both; }
+/* ‏D837: صقرُ أكبرُ من دائرته (‏62٪ من القرص بدل 38٪) وقلبُه في مركزها — والأنظمةُ حلقةٌ عند الحافة تمرّ أجنحتُه بين أسمائها */
+.sq-core { position: absolute; inset: -2.4% 0 0 0; margin: auto; width: 62%; height: 58.7%; display: flex; align-items: center; justify-content: center;
+  pointer-events: none; animation: sqCore .5s cubic-bezier(.2,.8,.2,1) both; z-index: 1; }
 .sq-core .sqe { width: 100% !important; height: auto !important; aspect-ratio: 1014 / 961; }
-.sq-cstate { position: absolute; left: 50%; top: 68%; transform: translateX(-50%); font-size: 10.5px; font-weight: 800; padding: 1px 9px; border-radius: 999px;
+.sq-cstate { display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 800; padding: 1px 9px; border-radius: 999px;
   color: var(--ink-muted); background: var(--card); border: 1px solid var(--hairline); white-space: nowrap; transition: color .3s ease, border-color .3s ease; }
 .sq-cstate.on { color: var(--pos-ink); border-color: color-mix(in srgb, var(--pos-ink) 45%, var(--hairline)); }
 .sq-halo { position: absolute; inset: 8% 14%; border-radius: 50%; border: 1.5px solid var(--sq-glow); opacity: 0; pointer-events: none; }
@@ -3956,11 +3977,15 @@ button.ocx-side:hover { background: color-mix(in srgb, var(--brand) 9%, transpar
   --sq-plate: #232a32;
   --sq-seam: #0d1116;
   --sq-glow: #3cc8ff;
+  --sq-core: #ffd166;    /* ‏D837: ضوءُ قلب صقر وأضواؤه — من لون الصورة نفسِها */
+  --sq-ember: #ff8a1e;
 }
 html.light {
   --sq-plate: #1f252c;
   --sq-seam: #0b0f13;
   --sq-glow: #0ba5e9;
+  --sq-core: #ffc24a;
+  --sq-ember: #f07812;
 }
 .sqe { position: relative; display: inline-block; flex-shrink: 0; }
 .sqe img { display: block; width: 100%; height: 100%; object-fit: contain; user-select: none;
@@ -3969,6 +3994,58 @@ html.light {
 @keyframes sqeGlow { 0%, 100% { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--sq-glow) 35%, transparent)); }
   50% { filter: drop-shadow(0 0 12px color-mix(in srgb, var(--sq-glow) 70%, transparent)) brightness(1.08); } }
 @media (prefers-reduced-motion: reduce) { .sqe.live, .sqe.live img { animation: none; } }
+/* ══ ‏D837 (المالك: «الفونيكس أكبر… الإضاءةُ الصفراءُ تتوهّج وتتفاعل، والأجنحةُ من الأسفل إلى الأعلى — تفاعلية») ══
+   طبقاتُ الصورة نفسِها: جسدٌ وجناحان حول الكتفين — يرتفعان عند الظهور ويرفرفان هادئين حين يعمل، والقلبُ والأضواءُ تنبض، ويميل مع المؤشّر،
+   ولمسُه يرفرفه */
+.sqe.rich { pointer-events: auto; cursor: pointer; perspective: 760px; -webkit-tap-highlight-color: transparent; outline: none; }
+.sqe.rich:focus-visible .sqe-tilt { outline: 2px solid var(--brand-ink); outline-offset: 6px; border-radius: 14px; }
+.sqe-tilt { position: absolute; inset: 0; transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .4s cubic-bezier(.2,.8,.2,1); }
+.sqe.rich .sqe-img { position: absolute; inset: 0; }
+.sqe-wing, .sqe-flap { position: absolute; inset: 0; }
+.sqe-wing.l { transform-origin: 43.2% 44.1%; }
+.sqe-wing.r { transform-origin: 56.8% 44.1%; }
+.sqe-flap { transform-origin: inherit; }
+.sqe.rich .sqe-wing.l { animation: sqeRiseL 1.25s cubic-bezier(.16,.84,.24,1) both; }
+.sqe.rich .sqe-wing.r { animation: sqeRiseR 1.25s cubic-bezier(.16,.84,.24,1) both; }
+.sqe.rich.live .sqe-wing.l { animation: sqeRiseL 1.25s cubic-bezier(.16,.84,.24,1) both, sqeBeatL 5.6s ease-in-out 1.25s infinite; }
+.sqe.rich.live .sqe-wing.r { animation: sqeRiseR 1.25s cubic-bezier(.16,.84,.24,1) both, sqeBeatR 5.6s ease-in-out 1.25s infinite; }
+.sqe.rich[data-beat="a"] .sqe-wing.l .sqe-flap { animation: sqeFlapLa .95s cubic-bezier(.3,.7,.3,1) both; }
+.sqe.rich[data-beat="b"] .sqe-wing.l .sqe-flap { animation: sqeFlapLb .95s cubic-bezier(.3,.7,.3,1) both; }
+.sqe.rich[data-beat="a"] .sqe-wing.r .sqe-flap { animation: sqeFlapRa .95s cubic-bezier(.3,.7,.3,1) both; }
+.sqe.rich[data-beat="b"] .sqe-wing.r .sqe-flap { animation: sqeFlapRb .95s cubic-bezier(.3,.7,.3,1) both; }
+@keyframes sqeRiseL { from { transform: rotate(-26deg); opacity: 0; } 30% { opacity: 1; } to { transform: none; opacity: 1; } }
+@keyframes sqeRiseR { from { transform: rotate(26deg); opacity: 0; } 30% { opacity: 1; } to { transform: none; opacity: 1; } }
+@keyframes sqeBeatL { 0%, 100% { transform: none; } 40% { transform: rotate(-2deg); } 72% { transform: rotate(2.4deg); } }
+@keyframes sqeBeatR { 0%, 100% { transform: none; } 40% { transform: rotate(2deg); } 72% { transform: rotate(-2.4deg); } }
+@keyframes sqeFlapLa { 0%, 100% { transform: none; } 34% { transform: rotate(-11deg); } 68% { transform: rotate(6deg); } }
+@keyframes sqeFlapLb { 0%, 100% { transform: none; } 34% { transform: rotate(-11deg); } 68% { transform: rotate(6deg); } }
+@keyframes sqeFlapRa { 0%, 100% { transform: none; } 34% { transform: rotate(11deg); } 68% { transform: rotate(-6deg); } }
+@keyframes sqeFlapRb { 0%, 100% { transform: none; } 34% { transform: rotate(11deg); } 68% { transform: rotate(-6deg); } }
+.sqe-heart, .sqe-lt, .sqe-aura { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none; }
+.sqe-aura { left: 50%; top: 52%; width: 72%; height: 76%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--sq-ember) 24%, transparent), transparent 78%); opacity: 0; transition: opacity .8s ease; }
+.sqe.rich.live .sqe-aura { opacity: 1; animation: sqeAura 2.8s ease-in-out infinite; }
+.sqe-heart { background: radial-gradient(circle, color-mix(in srgb, var(--sq-core) 96%, transparent) 0 16%, color-mix(in srgb, var(--sq-ember) 58%, transparent) 40%, transparent 70%);
+  opacity: .55; }
+.sqe.rich.live .sqe-heart { animation: sqeHeart 2.8s ease-in-out infinite; }
+.sqe.rich[data-beat="a"] .sqe-heart { animation: sqeFlareA .95s ease-out both; }
+.sqe.rich[data-beat="b"] .sqe-heart { animation: sqeFlareB .95s ease-out both; }
+.sqe-lt { background: radial-gradient(circle, color-mix(in srgb, var(--sq-core) 88%, transparent) 0 18%, color-mix(in srgb, var(--sq-ember) 42%, transparent) 48%, transparent 72%);
+  opacity: .35; }
+.sqe.rich.live .sqe-lt { animation: sqeTwinkle 3.4s ease-in-out infinite; }
+.sqe.rich.live .sqe-wing.r .sqe-lt { animation-delay: -1.1s; }
+.sqe.rich.live .sqe-lt.t { animation-delay: -.5s; }
+html.light .sqe-aura { background: radial-gradient(closest-side, color-mix(in srgb, var(--sq-ember) 14%, transparent), transparent 78%); }
+@keyframes sqeAura { 0%, 100% { transform: translate(-50%, -50%) scale(.94); opacity: .55; } 45% { transform: translate(-50%, -50%) scale(1.06); opacity: 1; } }
+@keyframes sqeHeart { 0%, 100% { transform: translate(-50%, -50%) scale(.85); opacity: .62; } 45% { transform: translate(-50%, -50%) scale(1.4); opacity: 1; } }
+@keyframes sqeFlareA { 0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: .7; } 40% { transform: translate(-50%, -50%) scale(2.1); opacity: 1; } }
+@keyframes sqeFlareB { 0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: .7; } 40% { transform: translate(-50%, -50%) scale(2.1); opacity: 1; } }
+@keyframes sqeTwinkle { 0%, 100% { opacity: .3; } 50% { opacity: .95; } }
+@media (prefers-reduced-motion: reduce) {
+  .sqe.rich .sqe-wing.l, .sqe.rich .sqe-wing.r, .sqe.rich.live .sqe-wing.l, .sqe.rich.live .sqe-wing.r, .sqe.rich[data-beat] .sqe-flap,
+  .sqe.rich.live .sqe-heart, .sqe.rich[data-beat] .sqe-heart, .sqe.rich.live .sqe-lt, .sqe.rich.live .sqe-aura { animation: none; }
+  .sqe-tilt { transition: none; transform: none; }
+}
 .sp-side[data-side="stock"] { color: var(--info-ink); background: color-mix(in srgb, var(--info-ink) 12%, transparent); }
 .sq-mkt .seg-btn { min-height: 34px; }
 

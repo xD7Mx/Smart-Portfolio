@@ -284,7 +284,7 @@ export const marketApi = {
   /* ‏D761 السعرُ الحيُّ وحالةُ السوق (مفتوح · قبل الافتتاح · بعد الإغلاق · مغلق · عطلة) */
   live: (symbol: string) => api.get<APIResponse>(`/market/live/${encodeURIComponent(symbol)}`),
   sessions: () => api.get<APIResponse>("/market/sessions"),
-  optionAdvice: (p: { symbol: string; budget?: number; expiry?: number; contract?: string; side?: string }) =>
+  optionAdvice: (p: { symbol: string; budget?: number; expiry?: number; contract?: string; side?: string; min_dte?: number }) =>
     api.get<APIResponse>("/market/options-advice", { params: p, timeout: 120000 }),
   /* ‏D782: الأحداثُ للسوقين — والسعوديُّ بقراءته هو وأحداثِ الشركة المفتوحة */
   econEvents: (market: "us" | "sa" = "us", symbol?: string, name?: string) =>

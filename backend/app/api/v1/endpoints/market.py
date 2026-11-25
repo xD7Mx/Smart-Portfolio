@@ -2742,14 +2742,17 @@ async def option_chain(symbol: str, date: int | None = None):
 
 @router.get("/options-advice")
 async def options_advice(symbol: str = "", budget: float | None = None, expiry: int | None = None, contract: str | None = None,
-                         side: str | None = None):
+                         side: str | None = None, min_dte: int | None = None):
     """التحليلُ الذكيّ (‏D761): الأنسبُ في السلسلة لميزانيتك مع أسبابه وما يُمتنع عنه — أو حكمُ عقدٍ بعينه (مناسب · بحذر · أمتنع)."""
     from app.services.option_advisor import analyze
     if budget is not None and not (10 <= budget <= 100000):
         raise HTTPException(status_code=422, detail="الميزانيةُ بين 10 و100,000 دولار.")
     if not (symbol or contract) or not re.match(r"^[\^A-Za-z0-9.\-]{1,24}$", contract or symbol):
         raise HTTPException(status_code=422, detail="رمزٌ غيرُ مقبول.")
-    return success_response(await analyze(symbol, budget=budget, expiry=expiry, contract=contract, side=side))
+    if min_dte is not None and not (1 <= min_dte <= 730):
+        raise HTTPException(status_code=422, detail="أقصرُ أجلٍ بين يومٍ و730 يوماً.")
+    # ‏D838: من فرصة صقر — جهتُها (‏side) وأقصرُ أجلٍ يتّسع لمدّتها (‏min_dte) — فلا يناقض التحليلُ الذكيُّ دليلَ الفرصة
+    return success_response(await analyze(symbol, budget=budget, expiry=expiry, contract=contract, side=side, min_dte=min_dte))
 
 
 @router.get("/econ-events")

@@ -57,8 +57,18 @@ export function vpAt(vp: VP | null | undefined, k: number, gap: number): { w: nu
 }
 const VP_TAG: Record<string, string> = { poc: "تحكّم", vah: "أعلى القيمة", val: "أدنى القيمة", hvn: "حجمٌ كثيف", lvn: "فراغ" };
 
+/* ‏D838 (المالك: «الفرصةُ رشّحت عقداً، والتحليلُ الذكيّ قال لا فرص — ربكة»): قيس على ATR — «الأنسب» عقدٌ بلا عرضٍ ولا طلبٍ واهتمامُه المفتوح صفر،
+   سُعّر بآخر صفقة. فالعقدُ يُرشَّح بسعر طلبه (حيّاً أو من آخر جلسة) وحده، وبشروط التحليل الذكيّ نفسِها للتداول: عرضٌ وطلبٌ، وفارقٌ ≤ 15٪،
+   واهتمامٌ مفتوحٌ ≥ 50 أو كمّيةٌ ≥ 10 (‏option_advisor.judge) — فلا يرشّح الدليلُ ما يرفضه التحليل. */
+export function tradable(r: Row | undefined): boolean {
+  if (!r) return false;
+  const bid = r.bid || r.sbid || 0, ask = r.ask || r.sask || 0;
+  if (!(bid > 0 && ask > 0)) return false;
+  return (ask - bid) / ((ask + bid) / 2) <= 0.15 && ((r.oi || 0) >= 50 || (r.volume || 0) >= 10);
+}
+
 export function bandOf(g: Guide, S: number, k: number, r: Row | undefined): { band: Band; be: number | null; ret: number | null; delta: number | null } {
-  const px = r ? (r.ask || r.sask || r.g?.px || r.last || null) : null;
+  const px = r ? (r.ask || r.sask || null) : null;
   if (!r || !px || px <= 0 || !(S > 0)) return { band: null, be: null, ret: null, delta: null };
   const long = g.side === "long", T = g.target;
   const be = long ? k + px : k - px;
@@ -140,17 +150,23 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose, guide 
   }, [guide, S, strikes]);
   const span = (b: Band) => { const ks = strikes.filter(r => bands.get(r.k)?.band === b).map(r => r.k); return ks.length ? [Math.min(...ks), Math.max(...ks)] : null; };
   const coreSpan = guide ? span("core") : null, auxSpan = guide ? span("aux") : null;
-  const best = guide ? strikes.filter(r => bands.get(r.k)?.band === "core").map(r => ({ r: guide.side === "long" ? r.call! : r.put!, b: bands.get(r.k)! }))
+  const coreRows = guide ? strikes.filter(r => bands.get(r.k)?.band === "core").map(r => ({ r: guide.side === "long" ? r.call! : r.put!, b: bands.get(r.k)! })) : [];
+  const best = coreRows.filter(x => tradable(x.r))
     /* الأقربُ إلى دلتا 0.60 أوّلاً — توازنُ احتمال النجاح وكلفته (الأعمقُ في النقود أغلى، والأبعدُ أضعفُ احتمالاً)، ثمّ الأعلى عائداً عند الهدف */
     .sort((a, b) => (a.b.delta == null ? 9 : Math.abs(a.b.delta - 0.6)) - (b.b.delta == null ? 9 : Math.abs(b.b.delta - 0.6)) || (b.b.ret ?? 0) - (a.b.ret ?? 0))
-    .slice(0, 3) : [];
+    .slice(0, 3);
+  /* لا ترشيح: عقودُ النطاق موجودةٌ ولا تُتداول، أو جهةُ الفرصة كلُّها في هذا الأجل بلا تداولٍ فعليّ (قيس على ATR: لا طلبَ ولا عرضَ أصلاً) */
+  const sideRows = guide ? strikes.map(r => (guide.side === "long" ? r.call : r.put)).filter((r): r is Row => !!r) : [];
+  const coreDead = !!guide && best.length === 0 && (coreRows.length > 0 || (sideRows.length > 0 && sideRows.every(r => !tradable(r))));
   const [copied, setCopied] = useState<string | null>(null);
   const copy = (t: string) => copyText(t).then(ok => { if (ok) { setCopied(t); window.setTimeout(() => setCopied(x => (x === t ? null : x)), 1600); } });
   const needDte = guide ? NEED_DTE[guide.horizon_n] ?? 45 : 0;
 
+  /* ‏D838: من فرصة صقر يحلّل الزرُّ الفرصةَ نفسَها — جهتَها وأقصرَ أجلٍ يتّسع لمدّتها — لا اتّجاهاً وآجالاً يختارها وحده */
+  const gSide = guide ? (guide.side === "long" ? "call" : "put") : undefined;
   const advice = useQuery({
-    queryKey: ["opt-advice", underlying, ask?.b ?? null, ask?.n ?? 0],
-    queryFn: () => marketApi.optionAdvice({ symbol: underlying, budget: ask?.b ?? undefined }).then(r => r.data.data),
+    queryKey: ["opt-advice", underlying, ask?.b ?? null, ask?.n ?? 0, gSide ?? "", needDte],
+    queryFn: () => marketApi.optionAdvice({ symbol: underlying, budget: ask?.b ?? undefined, side: gSide, min_dte: guide ? needDte : undefined }).then(r => r.data.data),
     enabled: !!ask, staleTime: 5 * 60_000, retry: 0,
   });
   const runSmart = () => {
@@ -209,7 +225,7 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose, guide 
             {advice.isFetching ? <RefreshCw size={14} className="rl-spin" /> : <Sparkles size={14} className="ai-star" />} تحليل ذكي
           </button>
           <label className="ocx-budget">
-            <span>الميزانية $</span>
+            <span>الميزانية</span>
             <input type="text" inputMode="numeric" dir="ltr" value={budget} placeholder="اختياري" aria-label="ميزانية العقد بالدولار" data-role="oc-budget"
               onChange={e => setBudget(e.target.value.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660)).replace(/[^\d]/g, "").slice(0, 6))}
               onKeyDown={e => { if (e.key === "Enter") runSmart(); }} />
@@ -232,6 +248,10 @@ export default function OptionChain({ underlying, onPick, onAdd, onClose, guide 
             {curExp && (curExp.dte < needDte
               ? <p className="ocg-warn" data-role="oc-guide-dte">هذا الأجلُ ({dteLabel(curExp.dte)}) أقصرُ من مدّة الفرصة «{guide.horizon}» — الأنسبُ أجلٌ بعد {needDte} يوماً فأكثر.</p>
               : <p className="ocg-mut" data-role="oc-guide-dte">الأجلُ يتّسع لمدّة الفرصة «{guide.horizon}».</p>)}
+            {coreDead && (
+              <p className="ocg-warn" data-role="oc-guide-dead">عقودُ نطاق الفرصة في هذا الأجل لا تُتداول فعلاً (لا عرضَ وطلبٍ حيّين، أو فارقٌ فوق 15٪، أو لا اهتمامَ مفتوح)
+                — فلا يُرشَّح منها شيء؛ والفرصةُ على السهم نفسِه.</p>
+            )}
             {best.length > 0 && (
               <div className="ocg-best" data-role="oc-guide-best">
                 {best.map(({ r, b }) => { const o = parseOption(r.contract); const code = o ? tvCode(o) : r.contract; return (

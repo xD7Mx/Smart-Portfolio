@@ -8,6 +8,8 @@
 //  ٣ ‏D836 (المالك: «بدلَ المربّع والمعيّن أيقوناتٌ جميلةٌ متّصلةٌ كأنّها CPU من خلف علامة صقر»؛ و«لماذا بعضُ البنفسجيّ باهت؟»): لكلّ نظامٍ أيقونتُه
 //    بنفسجيّةً كاملة — متطابقةً في كلّ حال — ويصلها سلكٌ من تحت صقر يمرّ بين الأسماء لا عليها؛ والحالُ في السلك: متّصلٌ يسري فيه نبضٌ (يعمل) ·
 //    متقطّعٌ (يتحفّظ) · منقّطٌ (ساكن) — والمفتاحُ تحت القرص بعيّناتها.
+//  ٥ ‏D837 (المالك 2026-11-25: «الفونيكس أكبر… صغّر الدائرةَ والمؤشّرات… الإضاءةُ الصفراءُ تتوهّج… الأجنحةُ من الأسفل إلى الأعلى… تفاعليّة»):
+//    الشعارُ ≥ 60٪ من القرص وقلبُه في مركزه، يرتفع جناحاه ويتوهّج قلبُه، ولا يغطّي اسماً ولا أيقونة (بألفا صورته)، ولمسُه يرفرفه.
 //  ٤ في السوقين، والمظهرين، والحاسوب والجوال — بلا خطأ؛ وتقليلُ الحركة يُسكن ظهورَ الأسماء.
 //    node scripts/audit/saqr_dial_d831.mjs
 // ─────────────────────────────────────────────────────────────────────────
@@ -107,7 +109,7 @@ for (const [label, vp, theme] of [["الحاسوب · فاتح", { width: 1366, 
         const mid = n ? (() => { const e = t.getExtentOfChar(Math.floor(n / 2)); return [e.x + e.width / 2, e.y + e.height / 2]; })() : [C, C];
         let rot = 0; try { rot = t.getRotationOfChar(Math.floor(n / 2)); } catch { /* */ }
           const as = pts.map(([x, y]) => Math.atan2(y - C, x - C));
-        return { for: t.dataset.for, half: t.dataset.half, txt: t.textContent.trim(), path: !!tp, rmin: Math.min(...rs), rmax: Math.max(...rs), a: Math.atan2(mid[1] - C, mid[0] - C), rot, as,
+        return { for: t.dataset.for, half: t.dataset.half, txt: t.textContent.trim(), path: !!tp, pts, rmin: Math.min(...rs), rmax: Math.max(...rs), a: Math.atan2(mid[1] - C, mid[0] - C), rot, as,
                  fs: parseFloat(getComputedStyle(t).fontSize) * scale, anim: getComputedStyle(t).animationName };
       });
       const sweep = hub.querySelector(".sq-sweep path")?.getAttribute("d") || "";
@@ -115,7 +117,16 @@ for (const [label, vp, theme] of [["الحاسوب · فاتح", { width: 1366, 
       const keys = [...document.querySelectorAll('[data-role="sq-legend"] .sq-key')].map(k => { const i = k.querySelector("i"); const cs = getComputedStyle(i);
         return { k: k.className.replace("sq-key", "").trim(), bs: cs.borderTopStyle, bc: cs.borderTopColor }; });
       const flowAnim = [...hub.querySelectorAll(".sq-flow")].map(f => getComputedStyle(f).animationName);
-      return { scale, RI, nodes, labels, sweep, brand, keys, traces, flowAnim, live: hub.dataset.live, legend: document.querySelector('[data-role="sq-legend"]')?.textContent || "" };
+      /* ‏D837: الشعارُ الكبير — مقاسُه ومركزُ قلبه وصوره وحركتُه */
+      const em = hub.querySelector('.sqe.rich'), hb = hub.getBoundingClientRect();
+      const emb = em ? (() => { const r = em.getBoundingClientRect(), h = em.querySelector(".sqe-heart").getBoundingClientRect();
+        const imgs = [...em.querySelectorAll("img")];
+        return { w: r.width / hb.width, hx: (h.x + h.width / 2 - hb.x) / hb.width, hy: (h.y + h.height / 2 - hb.y) / hb.height,
+                 box: [...toUser(r.x, r.y), ...toUser(r.right, r.bottom)], src: imgs[0]?.currentSrc || imgs[0]?.src || "", first: imgs[0]?.alt || "",
+                 loaded: imgs.length === 3 && imgs.every(i => i.complete && i.naturalWidth > 0),
+                 wing: getComputedStyle(em.querySelector(".sqe-wing")).animationName, heart: getComputedStyle(em.querySelector(".sqe-heart")).animationName,
+                 role: em.getAttribute("role"), tab: em.tabIndex }; })() : null;
+      return { scale, RI, nodes, labels, emb, sweep, brand, keys, traces, flowAnim, live: hub.dataset.live, legend: document.querySelector('[data-role="sq-legend"]')?.textContent || "" };
     });
     if (process.env.SHOTS) await page.locator('[data-role="sq-hubw"]').screenshot({ path: join(process.env.SHOTS, `d831-${mk}-${vp.width}-${theme}.png`) }).catch(() => {});
     if (!g) { say(false, `${label} · ${mk}: القرصُ غيرُ ظاهر`); continue; }
@@ -136,8 +147,8 @@ for (const [label, vp, theme] of [["الحاسوب · فاتح", { width: 1366, 
       + "والحروفُ قائمة — الأعلى مع العقارب والأسفلُ عكسَها — وخطُّه ≥ 9.5px",
       JSON.stringify({ n: lab.length, fs: +fsMin.toFixed(1), worst: lab.map(l => `${l.txt}:${l.dA.toFixed(1)}°/${l.gapIn.toFixed(1)}/${l.gapDot.toFixed(1)}/${Math.round(l.rot)}`).join(" ") }));
     const inside = g.nodes.filter(n => n.r - n.rad < g.RI).length + lab.filter(l => l.rmin < g.RI).length;
-    const sweepRing = new RegExp(`^M[\\d.]+,${(150 - g.RI).toFixed(2)} L`).test(g.sweep) && /A90,90 0 0,0/.test(g.sweep);
-    say(g.RI === 90 && inside === 0 && sweepRing,
+    const sweepRing = new RegExp(`^M[\\d.]+,${(150 - g.RI).toFixed(2)} L`).test(g.sweep) && g.sweep.includes(`A${g.RI},${g.RI} 0 0,0`);
+    say(g.RI >= 110 && inside === 0 && sweepRing,
       `${label} · ${mk === "us" ? "الأمريكيّ" : "السعوديّ"}: ٢ لا اسمَ ولا أيقونةَ داخل دائرة صقر، والمسحُ الدوّارُ حلقةٌ خارجها — والأسلاكُ وحدها من تحت علامته`, g.sweep.slice(0, 60));
     const rgb = s => (s.match(/[\d.]+/g) || []).slice(0, 3).map(Number).join(",");
     const B = rgb(g.brand);
@@ -163,9 +174,35 @@ for (const [label, vp, theme] of [["الحاسوب · فاتح", { width: 1366, 
       `${label} · ${mk === "us" ? "الأمريكيّ" : "السعوديّ"}: ٣ لكلّ نظامٍ أيقونتُه بنفسجيّةً كاملة متطابقةً في كلّ حال، ويصلها سلكٌ من تحت صقر بين الأسماء لا عليها — `
       + "والحالُ في السلك (متّصلٌ يسري فيه نبضٌ · متقطّعٌ · منقّط)، والمفتاحُ تحت القرص بعيّناتها",
       JSON.stringify({ B, icons, wires: wires.map(w => `${w.k}:${w.st}:${w.start.toFixed(0)}/${w.endD.toFixed(1)}/${w.hits}/${w.dash}/${w.flow ? 1 : 0}`).join(" "), legend }));
+    /* ٥ ‏D837 (المالك: «الفونيكس أكبر… تصغّر الدائرة والمؤشّرات… الإضاءةُ الصفراءُ تتوهّج… الأجنحةُ من الأسفل إلى الأعلى… تفاعليّة»):
+       الشعارُ ≥ 60٪ من القرص وقلبُه في مركزه، وصورُه الثلاث محمّلة، وحركةُ الجناحين والقلب، ولا بكسلَ معتمٍ منه على اسمٍ أو أيقونة */
+    const e = g.emb;
+    let overlap = -1;
+    if (e) overlap = await page.evaluate(async ({ e, labels, nodes }) => {
+      const im = new Image(); im.src = e.src; await im.decode().catch(() => {});
+      const cv = document.createElement("canvas"); cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+      const cx = cv.getContext("2d"); cx.drawImage(im, 0, 0); const d = cx.getImageData(0, 0, cv.width, cv.height).data;
+      const [x0, y0, x1, y1] = e.box, A = (x, y) => { const u = Math.round((x - x0) / (x1 - x0) * cv.width), v = Math.round((y - y0) / (y1 - y0) * cv.height);
+        return u < 0 || v < 0 || u >= cv.width || v >= cv.height ? 0 : d[(v * cv.width + u) * 4 + 3]; };
+      let hit = 0;
+      for (const l of labels) for (const [x, y] of l.pts) if (A(x, y) > 60) hit++;
+      for (const n of nodes) for (let k = 0; k < 16; k++) { const t = k / 16 * 2 * Math.PI; if (A(n.x + Math.cos(t) * n.rad, n.y + Math.sin(t) * n.rad) > 60) hit++; }
+      return hit; }, { e, labels: g.labels, nodes: g.nodes });
+    say(!!e && e.w >= 0.6 && Math.abs(e.hx - 0.5) <= 0.02 && Math.abs(e.hy - 0.5) <= 0.03 && e.loaded && e.first === "صقر" && overlap === 0
+        && /sqeRise|sqeBeat/.test(e.wing) && (g.live !== "1" || /sqeHeart/.test(e.heart)) && e.role === "button" && e.tab === 0,
+      `${label} · ${mk === "us" ? "الأمريكيّ" : "السعوديّ"}: ٥ الفونيكسُ أكبرُ من دائرته (≥ 60٪ من القرص) وقلبُه في المركز، يتوهّج قلبُه وترتفع أجنحتُه، `
+      + "وهو تفاعليّ — ولا يغطّي اسماً ولا أيقونة",
+      JSON.stringify(e && { w: +e.w.toFixed(3), hx: +e.hx.toFixed(3), hy: +e.hy.toFixed(3), loaded: e.loaded, overlap, wing: e.wing, heart: e.heart }));
   }
   await page.emulateMedia({ reducedMotion: "reduce" }); await sleep(200);
-  const rm = await page.evaluate(() => [...document.querySelectorAll('[data-role="sq-label"]')].every(t => getComputedStyle(t).animationName === "none"));
+  const rm = await page.evaluate(() => [...document.querySelectorAll('[data-role="sq-label"]')].every(t => getComputedStyle(t).animationName === "none")
+    && [...document.querySelectorAll('.sqe.rich, .sqe.rich *')].every(t => ["none", ""].includes(getComputedStyle(t).animationName)));
+  /* اللمسُ يرفرفه — ومع تقليل الحركة يسكن */
+  await page.emulateMedia({ reducedMotion: "no-preference" }); await sleep(100);
+  await page.locator('.sqe.rich').click({ force: true }).catch(() => {});
+  const beat = await page.evaluate(() => document.querySelector('.sqe.rich')?.dataset.beat || "");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  say(!!beat, `${label}: ٥ب لمسُ الشعار يرفرف جناحيه`, beat);
   say(rm && errs.length === 0, `${label}: ٤ تقليلُ الحركة يُسكن ظهورَ الأسماء — ولا خطأ في الصفحة`, errs[0] || "");
   await ctx.close();
 }
