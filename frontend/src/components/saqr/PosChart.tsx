@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createChart, AreaSeries, createSeriesMarkers, LineStyle, CrosshairMode, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import { marketApi } from "../../services/api";
+import { useAppStore } from "../../store/appStore";
 import { sanitizeBars, displayTimes, exchangeTz, tickLabel, crossLabel } from "../../lib/chartData";
 import type { SPos } from "./saqr";
 
@@ -36,6 +37,7 @@ export default function PosChart({ p, market }: { p: SPos; market: "us" | "sa" }
   const chart = useRef<IChartApi | null>(null);
   const series = useRef<ISeriesApi<"Area"> | null>(null);
   const [shown, setShown] = useState(false);
+  const theme = useAppStore(s => s.theme);   // ‏D841: ألوانُ الرسم تتبع المظهرَ إن تبدّل والبطاقةُ مفتوحة
 
   /* السطورُ المرجعية: للعقد — الدخولُ والوقفُ والجني؛ وللسهم — مستواه عند الدخول وهدفُه */
   const lines = useMemo(() => {
@@ -77,6 +79,14 @@ export default function PosChart({ p, market }: { p: SPos; market: "us" | "sa" }
   }, []);
 
   useEffect(() => {
+    const c = chart.current, s = series.current;
+    if (!c || !s) return;
+    const brand = tok("--brand-ink", "#5b52d3");
+    c.applyOptions({ layout: { textColor: tok("--ink-muted", "#6b7280") }, grid: { horzLines: { color: tokA("--hairline", "#dcdcdc", 0.55) } } });
+    s.applyOptions({ lineColor: brand, topColor: tokA("--brand-ink", "#5b52d3", 0.26), bottomColor: tokA("--brand-ink", "#5b52d3", 0.02) });
+  }, [theme]);
+
+  useEffect(() => {
     const s = series.current, c = chart.current;
     if (!s || !c) return;
     const tz = exchangeTz(sym);
@@ -100,7 +110,7 @@ export default function PosChart({ p, market }: { p: SPos; market: "us" | "sa" }
     }
     const r = requestAnimationFrame(() => setShown(true));
     return () => cancelAnimationFrame(r);
-  }, [bars, lines, sym, p.opened, p.entry_px, p.S0, stock, view]);
+  }, [bars, lines, sym, p.opened, p.entry_px, p.S0, stock, view, theme]);
 
   const swap = (v: "c" | "s") => { if (v === view) return; if (reduced()) { setView(v); return; } setShown(false); window.setTimeout(() => setView(v), 140); };
   return (

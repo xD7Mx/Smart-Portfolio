@@ -4219,7 +4219,7 @@ html.light .sqe-aura { background: radial-gradient(closest-side, color-mix(in sr
 
 /* ══ ‏D772: الرسمُ البيانيّ كتريدنق فيو — لوحةٌ سوداء وألوانٌ مشبعةٌ نظيفة، وألوانُ الشموع بيد المالك ══
    (المالك 2026-11-20 بصورةٍ من تريدنق فيو: «الألوانُ باهتة… نبغى ألواناً مشبعةً نظيفة، وخلفيةُ الشارت سوداء حتى يعطي عكساً للألوان أجمل»)
-   رموزُ الرسم واحدةٌ في المظهرين عمداً: اللوحةُ سوداءُ في الفاتح والداكن، والنصُّ عليها ‏#b2b5be (تباين 10:1). */
+   اللوحةُ سوداءُ والنصُّ عليها ‏#b2b5be (تباين 10:1) — وفي المظهر الفاتح بيضاءُ بأمر المالك (‏D841، تحت). */
 :root {
   --pc-bg: #000000; --pc-text: #b2b5be; --pc-cross: #9598a1; --pc-label: #363a45; --pc-sep: #2a2e39;
   --pc-up: #ffffff; --pc-down: #f23645; --pc-green: #089981; --pc-black: #000000; --pc-black-edge: #b2b5be;
@@ -4228,6 +4228,13 @@ html.light .sqe-aura { background: radial-gradient(closest-side, color-mix(in sr
   --pc-vwap: #2962ff; --pc-band: #00e676; --pc-trend-up: #00e676; --pc-trend-down: #f23645; --pc-channel: #7e57c2; --pc-draw: #2962ff;
   --pc-sw-1: #ffffff; --pc-sw-2: #f23645; --pc-sw-3: #089981; --pc-sw-4: #00e676; --pc-sw-5: #2962ff; --pc-sw-6: #ffd600;
   --pc-sw-7: #ff9800; --pc-sw-8: #e040fb; --pc-sw-9: #000000;
+}
+/* ‏D841 (المالك 2026-11-25): «الرسمُ البيانيّ لا يدعم المظهرَ الفاتح» — فاللوحةُ في الفاتح بيضاءُ كتريدنق فيو الفاتح، والنصُّ عليها ‏#131722
+   (تباين 17:1)، والشمعةُ البيضاءُ تُحدّ بحافّةٍ داكنة، والأبيضُ والأخضرُ الفاتحُ والذهبيّ في الخطوط تُغمَّق حتى تُرى على الأبيض. والداكنُ كما أمر D772. */
+html.light {
+  --pc-bg: #ffffff; --pc-text: #131722; --pc-cross: #9598a1; --pc-label: #131722; --pc-sep: #e0e3eb;
+  --pc-black-edge: #131722; --pc-fib: #131722; --pc-fib-gold: #b8860b;
+  --pc-ema50: #00a152; --pc-band: #00a152; --pc-trend-up: #00a152;
 }
 .pc-cc { display: flex; flex-direction: column; gap: 8px; padding: 6px 4px; min-width: 240px; }
 .pc-cc-pre { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }

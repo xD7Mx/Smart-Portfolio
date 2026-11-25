@@ -77,9 +77,9 @@ say(tokOk && /background: \{ color: tok\("--pc-bg"/.test(code) && /grid: \{ vert
     "٣ اللوحةُ سوداءُ بلا شبكةٍ في المظهرين، وخطوطُ المؤشّر مشبعةٌ مُصمَتة (الخطُّ ورقمُه لونٌ واحد — كان الخطُّ رمادياً شفّافاً فبدا الرقمُ بلا خطّ)، "
     + "والرقمُ سعرُ المستوى وحدَه بلا نسبةٍ في الرسمَين، وفوق خطّه افتراضاً");
 say(/data-role="pc-candle-colors"/.test(code) && /role="pc-colors"/.test(code) && /data-role="pc-cc-preset"/.test(code) && /CANDLE_PRESETS/.test(code)
-    && /"أخضر · أسود", "--pc-green", "--pc-black"/.test(code) && /"أبيض · أحمر", "--pc-up", "--pc-down"/.test(code) && /dark\(cd\) \? edge : cd/.test(code)
+    && /"أخضر · أسود", "--pc-green", "--pc-black"/.test(code) && /"أبيض · أحمر", "--pc-up", "--pc-down"/.test(code) && /dark\(cd, bgc\) \? edge : cd/.test(code) && /dark\(cu, bgc\) \? edge : cu/.test(code)
     && !/type="color"/.test(code),
-    "٣ب ألوانُ الشموع زرٌّ في الشريط: قوالبُ (أبيض·أحمر · أخضر·أحمر · أخضر·أسود · أبيض·أسود) ولوحتا ألوانٍ مشبعة — والأسودُ بحافّةٍ تُظهره على اللوحة السوداء");
+    "٣ب ألوانُ الشموع زرٌّ في الشريط: قوالبُ (أبيض·أحمر · أخضر·أحمر · أخضر·أسود · أبيض·أسود) ولوحتا ألوانٍ مشبعة — وما يذوب في اللوحة (الأسودُ على الأسود والأبيضُ على الأبيض — ‏D841) بحافّةٍ تُظهره");
 
 // ── ٤–٥ المتصفّح ──
 const PORT = 5272;
@@ -139,7 +139,9 @@ for (const [label, vp, theme] of [["الحاسوب · داكن", { width: 1366, 
     return [...seen.entries()].sort((a, b) => b[1] - a[1])[0][0].split(",").map(Number);
   });
   if (SHOTS) await page.locator('[data-role="pc-stage"]').first().screenshot({ path: `${SHOTS}/chart-${vp.width}-${theme}.png` }).catch(() => {});
-  say(px && px[0] < 8 && px[1] < 8 && px[2] < 8, `${label}: ٤ لوحةُ الرسم سوداءُ في المظهر ${theme === "dark" ? "الداكن" : "الفاتح"} كما في الصورة`, JSON.stringify(px));
+  /* ‏D841 (المالك 2026-11-25: «الرسمُ البيانيّ لا يدعم المظهرَ الفاتح»): سوداءُ في الداكن كما أمر D772، وبيضاءُ في الفاتح */
+  const blk = px && px[0] < 8 && px[1] < 8 && px[2] < 8, wht = px && px[0] > 247 && px[1] > 247 && px[2] > 247;
+  say(theme === "dark" ? blk : wht, `${label}: ٤ لوحةُ الرسم ${theme === "dark" ? "سوداءُ في المظهر الداكن" : "بيضاءُ في المظهر الفاتح (‏D841)"}`, JSON.stringify(px));
   await page.locator('[data-role="pc-colors"]').first().click().catch(() => {});
   await page.waitForTimeout(400);
   const nPre = await page.locator('[data-role="pc-cc-preset"]').count(), nSw = await page.locator('[data-role="pc-candle-colors"] .pc-sw').count();

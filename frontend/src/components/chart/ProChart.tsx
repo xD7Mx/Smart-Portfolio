@@ -104,8 +104,10 @@ const PC: Record<string, string> = {
 const CANDLE_PRESETS: [string, string, string][] = [["أبيض · أحمر", "--pc-up", "--pc-down"], ["أخضر · أحمر", "--pc-green", "--pc-down"],
   ["أخضر · أسود", "--pc-green", "--pc-black"], ["أبيض · أسود", "--pc-up", "--pc-black"]];
 const SWATCHES = ["--pc-sw-1", "--pc-sw-2", "--pc-sw-3", "--pc-sw-4", "--pc-sw-5", "--pc-sw-6", "--pc-sw-7", "--pc-sw-8", "--pc-sw-9"];
-const dark = (c: string) => { const m = /^#([0-9a-f]{6})$/i.exec(c); if (!m) return false; const n = parseInt(m[1], 16);
-  return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) < 40; };
+const lum = (c: string) => { const m = /^#([0-9a-f]{6})$/i.exec(c); if (!m) return null; const n = parseInt(m[1], 16);
+  return 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255); };
+/* ‏D841: لونُ شمعةٍ يذوب في اللوحة (الأسودُ على الأسود، والأبيضُ على الأبيض في المظهر الفاتح) يُحدّ بحافّةٍ تُظهره */
+const dark = (c: string, bg = "#000000") => { const a = lum(c), b = lum(bg); return a != null && b != null && Math.abs(a - b) < 40; };
 /** رمزٌ يُعرف اسمُه وقتَ التشغيل (ألوانُ D7M من جدولها) — واحتياطُه حبرُ النصّ الثانويّ. */
 const tokv = (name: string) => tok(name, "") || tok("--ink-muted", "#6b7280");
 const tokA = (name: string, fb: string, a: number) => {
@@ -603,7 +605,7 @@ export default function ProChart({ symbol, theme = "dark", preset, slot = 0, min
 
     /* ١ السلسلةُ الرئيسة — تُبنى حين يتغيّر نوعُ الرسم أو المظهر وحدهما */
     const cu = cc.up || tok("--pc-up", "#ffffff"), cd = cc.down || tok("--pc-down", "#f23645");   // ‏D756 · D772: «خيارُ تغيير لون الشموع»
-    const edge = tok("--pc-black-edge", "#b2b5be"), eu = dark(cu) ? edge : cu, ed = dark(cd) ? edge : cd;
+    const bgc = tok("--pc-bg", "#000000"), edge = tok("--pc-black-edge", "#b2b5be"), eu = dark(cu, bgc) ? edge : cu, ed = dark(cd, bgc) ? edge : cd;
     const mainSig = `${ctype}|${theme}|${cu}|${cd}`;
     if (sigRef.current.main !== mainSig || !mainRef.current) {
       if (mainRef.current) { try { mainRef.current.detachPrimitive(overlay.current); } catch { /* لم تُلحق */ } chart.removeSeries(mainRef.current); }
