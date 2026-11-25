@@ -554,6 +554,7 @@ python3 scripts/audit/opp_advice_d838.py || _note "$LINENO"   # ‏D838: الت�
 _node scripts/audit/opp_advice_d838.mjs || _note "$LINENO"   # ‏D838: دليلُ السلسلة لا يرشّح عقداً لا يُتداول، و«الميزانية» بلا دولار
 _node scripts/audit/pos_chart_d839.mjs || _note "$LINENO"   # ‏D839: رسمُ العقد أو سهمه داخل بطاقة المركز، والأسبابُ تحت «لماذا» — والبطاقةُ لا تكبر
 python3 scripts/audit/saqr_decision_d840.py || _note "$LINENO"   # ‏D840: قرارٌ واحد — «مناسب» في العقود والتحليل الذكيّ ما يشتريه صقر وحده
+python3 scripts/audit/perf_d843.py || _note "$LINENO"   # ‏D843: رقيبُ الحلقة يسمّي ما يحبس الخادم، ولسانُ الأخبار خفيف، ولا حفظَ لما لم يتغيّر
 python3 scripts/audit/saqr_auto_d832.py || _note "$LINENO"   # ‏D832: بابُ صقر الواحد للدخول الآليّ في السوقين — الفرص · «يوافق» كاملةً · قراءتُه الأخيرة · حدُّ النجاح
 python3 scripts/audit/saqr_library_d833.py || _note "$LINENO"   # ‏D833: صقرٌ يدرس مكتبةَ المالك بعين المتداول ويزن بها أحكامَه — داخلياً لا يخرج
 python3 scripts/audit/research_desk_d806.py || _note "$LINENO"   # ‏D806: لا تقريرَ يومياً بلا أخبار — النماذجُ الاحتياطية، وإعادةُ ما فشل، ومصدرٌ مستقلٌّ موثوق، ولا إرسالَ قبل الكتابة

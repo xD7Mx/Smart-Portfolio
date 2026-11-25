@@ -249,6 +249,8 @@ export const marketApi = {
   overview: () => api.get<APIResponse>("/market/overview"),
   movers:   () => api.get<APIResponse>("/market/movers"),
   news:     (lang: string = "ar") => api.get<APIResponse>(`/market/news?lang=${lang}`),
+  /* ‏D843: لسانُ الأخبار — أحدثُ العناوين بلا ملخّصاتها، لا الأرشيفُ كلُّه في كلّ صفحة */
+  newsTicker: () => api.get<APIResponse>("/market/news", { params: { lang: "ar", limit: 80, lite: true } }),
   portfolioNews: () => api.get<APIResponse>("/market/news", { params: { portfolio_only: true } }),
   resolveNewsUrl: (u: string) => api.get<APIResponse>("/market/news/resolve", { params: { u } }),
   eventDetail: (id: string) => api.get<APIResponse>(`/market/event-detail/${id}`),

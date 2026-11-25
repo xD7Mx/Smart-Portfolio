@@ -66,8 +66,14 @@ async def refresh_holdings_prices(db: AsyncSession, holdings) -> dict:
             if p and p.get("price"):
                 qty = float(h.quantity or 0)
                 inv = float(h.invested_amount or 0)
+                mv = qty * float(p["price"]) * fxs.get(h.company_id, ("SAR", 1.0, False))[1]
+                # ‏D843: لا كتابةَ إن لم يتغيّر شيء — كانت كلُّ طلبات صفحة المحفظة (ستّةٌ معاً) تكتب الصفوفَ نفسَها فيتزاحم الحفظ؛ والقيمُ هي هي
+                if h.last_price is not None and abs(float(h.last_price) - float(p["price"])) < 1e-9 and h.market_value is not None \
+                        and abs(float(h.market_value) - mv) < 1e-6 and h.unrealized_profit is not None \
+                        and abs(float(h.unrealized_profit) - (mv - inv)) < 1e-6:
+                    continue
                 h.last_price = p["price"]
-                h.market_value = qty * float(p["price"]) * fxs.get(h.company_id, ("SAR", 1.0, False))[1]
+                h.market_value = mv
                 h.unrealized_profit = float(h.market_value) - inv
                 h.unrealized_profit_pct = ((float(h.market_value) - inv) / inv * 100) if inv else 0
                 changed = True

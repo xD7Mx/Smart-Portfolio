@@ -89,11 +89,14 @@ export default function MarketTicker() {
     refetchInterval: liveMs,
     enabled: isOwner,
   });
+  /* ‏D843: اللسانُ يجلب الأخبارَ حين يعرضها وحده، وأحدثَها بلا ملخّصاتها — كان الأرشيفُ كلُّه (‏638KB) في رأس كلّ صفحة */
+  const [mode0] = useState(() => { try { return localStorage.getItem("ticker:mode"); } catch { return null; } });
+  const [wantNews, setWantNews] = useState(mode0 === "news");
   const { data: news = [] } = useQuery({
-    queryKey: ["market-news", "ar"],
-    queryFn: () => marketApi.news("ar").then(r => (Array.isArray(r.data.data) ? r.data.data : [])),
+    queryKey: ["market-news-ticker"],
+    queryFn: () => marketApi.newsTicker().then(r => (Array.isArray(r.data.data) ? r.data.data : [])),
     refetchInterval: 5 * 60 * 1000,
-    enabled: isOwner,
+    enabled: isOwner && wantNews,
   });
   const { data: movers } = useQuery({
     queryKey: ["market-movers"],
@@ -108,6 +111,7 @@ export default function MarketTicker() {
     (localStorage.getItem("ticker:mode") as any) === "news" ? "news" : "market");
   const swap = () => setMode(m => {
     const next = m === "market" ? "news" : "market";
+    if (next === "news") setWantNews(true);
     localStorage.setItem("ticker:mode", next);
     return next;
   });

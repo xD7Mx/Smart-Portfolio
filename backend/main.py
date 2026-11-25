@@ -340,8 +340,19 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Background market-calendar warmup failed: {e}")
 
     _aio.create_task(_warm_market_calendar())
+    # ‏D843: رقيبُ حلقة الأحداث — يسمّي ما يحبس الخادمَ فتنتظره الصفحات (لا يغيّر عملَ شيء)
+    try:
+        from app.services import loop_watch
+        loop_watch.start()
+    except Exception as e:                                        # noqa: BLE001
+        logger.warning(f"loop watch: {e}")
     logger.info("✅ Smart Portfolio is ready.")
     yield
+    try:
+        from app.services import loop_watch
+        loop_watch.stop()
+    except Exception:                                             # noqa: BLE001
+        pass
     stop_scheduler()
     logger.info("👋 Smart Portfolio shutting down.")
 

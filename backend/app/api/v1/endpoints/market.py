@@ -700,7 +700,7 @@ async def _fallback_price_ticker(db: AsyncSession) -> list:
 
 
 @router.get("/news")
-async def get_news(portfolio_only: bool = False, lang: str = "ar", db: AsyncSession = Depends(get_db)):
+async def get_news(portfolio_only: bool = False, lang: str = "ar", limit: int | None = None, lite: bool = False, db: AsyncSession = Depends(get_db)):
     """`portfolio_only=true` powers "أخبار المحفظة" — real headlines scoped to
     the companies actually held (by symbol), not the full market feed.
     `lang=en`: أخبار إنجليزية حقيقية عن السوق (لوضع English) — تُجلب مباشرة
@@ -726,10 +726,14 @@ async def get_news(portfolio_only: bool = False, lang: str = "ar", db: AsyncSess
     if symbols:
         query = query.where(MarketNews.company_symbol.in_(symbols))
     query = query.order_by(MarketNews.published_at.desc().nullslast(), (MarketNews.importance == "HIGH").desc())
+    # ‏D843 (المالك: «بطءٌ عند تحميل المحتوى والصفحات»): قيس — لسانُ الأخبار في رأس كلّ صفحةٍ يجلب الأرشيفَ كلَّه (‏638KB) ليعرض اثني عشر
+    # عنواناً؛ فله أن يطلب أحدثَ ‏limit عنوانٍ بلا ملخّصاتها (‏lite) — وصفحةُ السوق تبقى بالأرشيف كاملاً
+    if limit:
+        query = query.limit(max(1, min(int(limit), 500)))
     result = await db.execute(query)
     news = result.scalars().all()
     if news:
-        return success_response(data=[{"id": n.id, "headline": n.headline, "summary": n.summary, "company": n.company_symbol, "source": n.provider, "url": n.url, "category": n.category, "trusted": n.importance == "HIGH", "published": n.published_at.isoformat() if n.published_at else None} for n in news])
+        return success_response(data=[{"id": n.id, "headline": n.headline, "summary": None if lite else n.summary, "company": n.company_symbol, "source": n.provider, "url": n.url, "category": n.category, "trusted": n.importance == "HIGH", "published": n.published_at.isoformat() if n.published_at else None} for n in news])
     if portfolio_only:
         return success_response(data=[])
     from app.services.ai_content import market_news
